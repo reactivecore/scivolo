@@ -1,0 +1,65 @@
+== moderate.scala (Scala 3.9.0, JVM) ==
+source: 2382 bytes
+.tasty: 8 files, 21245 bytes
+.class: 15 files, 42742 bytes
+
+== moderate.scala (Scala 3.9.0, Scala Native 0.5.12) ==
+.tasty: 8 files, 21245 bytes
+.class: 15 files, 42742 bytes
+.nir:   35 files, 54964 bytes
+
+== per-file (JVM classes dir) ==
+     2061  Circle.tasty
+     2016  Dept.tasty
+     2886  Employee.tasty
+      570  moderate.tasty
+     8376  moderate$package.tasty
+     2311  Rect.tasty
+      461  Shape.tasty
+     2564  Tri.tasty
+
+== stdlib / runtime jars (JVM) ==
+scala3-library_3-3.9.0.jar: 344 bytes on disk
+scala-library-3.9.0.jar: 9823422 bytes on disk
+    .class    3662 files   15691463 bytes uncompressed
+    .tasty     941 files    7560143 bytes uncompressed
+  samples from scala-library-3.9.0.jar:
+       11648  scala/Option.class
+       28197  scala/Option.tasty
+        9544  scala/Predef.class
+       39635  scala/Predef.tasty
+       37890  scala/collection/IterableOps.class
+       52972  scala/collection/IterableOps.tasty
+       39111  scala/collection/immutable/List.class
+       24497  scala/collection/immutable/List.tasty
+       41726  scala/collection/immutable/Vector.class
+       21519  scala/collection/immutable/Vector.tasty
+
+== Scala Native runtime jars (NIR) ==
+scala3lib_native0.5_3-3.9.0%2B0.5.12.jar: 305 bytes on disk
+javalib_native0.5_3-0.5.12.jar: 6329062 bytes on disk
+    .nir      3503 files   10184161 bytes uncompressed
+auxlib_native0.5_3-0.5.12.jar: 87127 bytes on disk
+    .nir        86 files     132345 bytes uncompressed
+scala3-library_3-3.9.0.jar: 344 bytes on disk
+scalalib_native0.5_3-3.9.0%2B0.5.12.jar: 7616875 bytes on disk
+    .nir      4982 files   13727154 bytes uncompressed
+posixlib_native0.5_3-0.5.12.jar: 937988 bytes on disk
+    .class     270 files    1100370 bytes uncompressed
+    .nir       270 files     729602 bytes uncompressed
+    .tasty      94 files     392489 bytes uncompressed
+windowslib_native0.5_3-0.5.12.jar: 511855 bytes on disk
+    .class     129 files     508065 bytes uncompressed
+    .nir       130 files     536989 bytes uncompressed
+    .tasty      49 files     211165 bytes uncompressed
+clib_native0.5_3-0.5.12.jar: 487370 bytes on disk
+    .class     108 files     693485 bytes uncompressed
+    .nir       115 files     496395 bytes uncompressed
+    .tasty      24 files     251949 bytes uncompressed
+nativelib_native0.5_3-0.5.12.jar: 3634095 bytes on disk
+    .class     619 files    2928524 bytes uncompressed
+    .nir       721 files    2679316 bytes uncompressed
+    .tasty     184 files    1900461 bytes uncompressed
+scala-library-3.9.0.jar: 9823422 bytes on disk
+    .class    3662 files   15691463 bytes uncompressed
+    .tasty     941 files    7560143 bytes uncompressed

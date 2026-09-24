@@ -1,0 +1,13 @@
+target/
+*.class
+*.tasty
+.bsp/
+.scala-build/
+.metals/
+.scalino-build/
+spikes/*/work/
+spikes/*/corpus/
+*.dSYM/
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
+!spikes/**/artifacts/*.tasty

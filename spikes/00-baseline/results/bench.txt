@@ -1,0 +1,45 @@
+scala-cli version --offline (launcher only)      n=10  mean=     14.2 ms  sd=    0.4  min=     13.7  med=     14.3  max=     14.9
+[hello] (b) scala-cli run, cached, warm Bloop    n=10  mean=    291.7 ms  sd=    7.9  min=    281.0  med=    293.6  max=    306.9
+[hello] (a) scala-cli run, changed src, warm Bloop n=5   mean=    362.1 ms  sd=   15.8  min=    342.7  med=    363.1  max=    384.1
+[hello]     scala-cli compile, changed src, warm Bloop n=5   mean=    270.3 ms  sd=   11.7  min=    258.0  med=    270.2  max=    288.1
+[hello] (c) scala-cli run --server=false         n=5   mean=   1032.8 ms  sd=    8.6  min=   1020.6  med=   1035.0  max=   1042.5
+[moderate] (b) scala-cli run, cached, warm Bloop n=10  mean=    328.6 ms  sd=   11.0  min=    317.6  med=    325.2  max=    352.2
+[moderate] (a) scala-cli run, changed src, warm Bloop n=5   mean=    521.2 ms  sd=   20.8  min=    489.5  med=    519.1  max=    540.1
+[moderate]     scala-cli compile, changed src, warm Bloop n=5   mean=    359.4 ms  sd=   11.2  min=    346.8  med=    356.0  max=    372.3
+[moderate] (c) scala-cli run --server=false      n=5   mean=   1741.1 ms  sd=   39.2  min=   1694.4  med=   1748.8  max=   1781.5
+[cpu] (b) scala-cli run, cached, warm Bloop      n=10  mean=    348.5 ms  sd=    7.1  min=    337.5  med=    348.5  max=    361.9
+[cpu] (a) scala-cli run, changed src, warm Bloop n=5   mean=    413.4 ms  sd=    8.2  min=    405.0  med=    412.8  max=    426.1
+[cpu]     scala-cli compile, changed src, warm Bloop n=5   mean=    290.7 ms  sd=   11.2  min=    279.0  med=    290.5  max=    305.8
+[cpu] (c) scala-cli run --server=false           n=5   mean=   1359.9 ms  sd=   20.9  min=   1330.6  med=   1368.4  max=   1380.0
+[hello] (a0) scala-cli run, Bloop stopped        n=3   mean=   1828.6 ms  sd=    7.0  min=   1822.3  med=   1827.4  max=   1836.0
+[hello] (d) java -cp <app.jar+stdlib> hello      n=10  mean=     68.6 ms  sd=    1.4  min=     66.9  med=     68.7  max=     70.4
+[hello] (d') java + AppCDS (-XX:+AutoCreateSharedArchive) n=10  mean=     30.7 ms  sd=    1.2  min=     28.1  med=     30.5  max=     32.5
+[moderate] (d) java -cp <app.jar+stdlib> moderate n=10  mean=    109.1 ms  sd=    1.1  min=    107.6  med=    109.1  max=    111.2
+[moderate] (d') java + AppCDS (-XX:+AutoCreateSharedArchive) n=10  mean=     58.7 ms  sd=    5.7  min=     53.5  med=     56.8  max=     69.8
+[cpu] (d) java -cp <app.jar+stdlib> cpu          n=10  mean=    125.3 ms  sd=    1.1  min=    123.4  med=    125.2  max=    127.6
+[cpu] (d') java + AppCDS (-XX:+AutoCreateSharedArchive) n=10  mean=     77.7 ms  sd=    5.7  min=     69.0  med=     80.2  max=     82.5
+[hello] (e) native package (debug), changed src  n=5   mean=   3738.6 ms  sd=  400.7  min=   3381.0  med=   3622.4  max=   4429.3
+[hello] (e) native binary run (debug)            n=10  mean=      4.2 ms  sd=    0.3  min=      3.9  med=      4.2  max=      4.7
+[hello] (e) native package (release-fast), changed src n=5   mean=   4218.2 ms  sd=  161.1  min=   4045.7  med=   4140.5  max=   4409.6
+[hello] (e) native binary run (release-fast)     n=10  mean=      4.8 ms  sd=    0.2  min=      4.6  med=      4.7  max=      5.2
+[hello] (e) scala-cli run --native (debug), cached n=5   mean=    296.2 ms  sd=    4.0  min=    291.7  med=    295.7  max=    301.1
+[moderate] (e) native package (debug), changed src n=5   mean=   4607.5 ms  sd=  176.7  min=   4352.8  med=   4609.0  max=   4846.1
+[moderate] (e) native binary run (debug)         n=10  mean=      4.3 ms  sd=    0.2  min=      4.2  med=      4.3  max=      4.6
+[moderate] (e) native package (release-fast), changed src n=5   mean=   5594.1 ms  sd=   97.3  min=   5509.9  med=   5568.4  max=   5738.8
+[moderate] (e) native binary run (release-fast)  n=10  mean=      5.1 ms  sd=    0.7  min=      4.3  med=      4.9  max=      6.4
+[moderate] (e) scala-cli run --native (debug), cached n=5   mean=    303.1 ms  sd=    8.8  min=    293.4  med=    300.4  max=    316.8
+[cpu] (e) native package (debug), changed src    n=5   mean=   3377.3 ms  sd=  158.2  min=   3239.0  med=   3327.4  max=   3634.5
+[cpu] (e) native binary run (debug)              n=10  mean=     56.7 ms  sd=    0.9  min=     55.4  med=     56.7  max=     58.5
+[cpu] (e) native package (release-fast), changed src n=5   mean=   4377.9 ms  sd=   83.6  min=   4266.0  med=   4360.1  max=   4468.7
+[cpu] (e) native binary run (release-fast)       n=10  mean=     22.1 ms  sd=    1.0  min=     21.2  med=     21.7  max=     24.2
+[cpu] (e) scala-cli run --native (debug), cached n=5   mean=    347.3 ms  sd=    9.9  min=    337.8  med=    343.5  max=    360.3
+[hello] (f) python3 -c print                     n=10  mean=     18.3 ms  sd=    0.4  min=     17.8  med=     18.4  max=     18.8
+[moderate] (f) python3 moderate.py               n=10  mean=     25.6 ms  sd=    0.4  min=     24.9  med=     25.7  max=     26.3
+[cpu] (f) python3 cpu.py                         n=5   mean=    112.8 ms  sd=    0.7  min=    112.0  med=    112.8  max=    114.0
+[hello] (f) rust binary (rustc -O)               n=10  mean=      4.1 ms  sd=    0.2  min=      3.8  med=      4.0  max=      4.5
+[cpu] (f) rust binary (rustc -O)                 n=10  mean=      7.0 ms  sd=    0.3  min=      6.7  med=      7.0  max=      7.4
+[hello] (f) /usr/bin/true (process spawn floor)  n=10  mean=      3.6 ms  sd=    0.2  min=      3.4  med=      3.6  max=      4.1
+[hello]     scala-cli compile, cached, warm Bloop n=10  mean=    232.5 ms  sd=   18.0  min=    208.3  med=    226.4  max=    268.0
+[moderate]     scala-cli compile, cached, warm Bloop n=10  mean=    235.1 ms  sd=   19.0  min=    211.3  med=    236.3  max=    271.8
+[cpu]     scala-cli compile, cached, warm Bloop  n=10  mean=    227.9 ms  sd=   12.0  min=    206.6  med=    231.4  max=    239.5
+[hello] (f) plain Java hello (java -cp)          n=10  mean=     25.2 ms  sd=    2.7  min=     21.9  med=     24.4  max=     31.2
