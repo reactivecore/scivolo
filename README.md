@@ -65,6 +65,27 @@ label each claim as verified [V] or inferred [I], and list their sources.
   - tasty-query: a model of TASTy symbols and types.
   - Rust JVMs, e.g. ristretto: none is documented to run Scala.
 
+## Where we stopped (2026-09-24)
+
+- Research and spikes 00–04 are complete. Spike 05 has a loader only.
+- Waiting on decisions: the three open decisions in `ROADMAP.md` (ADR 0001,
+  the phase 1 compiler, how tightly to couple to Scala Native).
+- Resume with "Next concrete steps" in `ROADMAP.md`:
+  1. workspace + `crates/nir`
+  2. mangling round-trip spike
+  3. C runtime link spike
+  4. library index
+  5. M1 hello
+- Known loose ends:
+  - `spikes/04-nir-reader/src/show/op.rs` is 358 lines, over the 200-line
+    rule.
+  - The warm-dotc compile-server measurement in `spikes/03` was never taken.
+  - The `rss` target in `spikes/03`'s `run.sh` was not run, and one of its
+    rows was never re-run.
+- Toolchain used: rustc 1.95, scala-cli 1.14 (pin `scala 3.9.0` and
+  `--native-version 0.5.12`), JDK 21, and scalino v0.0.13 (macOS arm64
+  release, unpacked in `spikes/03-native-frontend/work/`).
+
 ## Layout
 
 ```
