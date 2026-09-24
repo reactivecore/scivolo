@@ -1,0 +1,29 @@
+name,runs,mean_ms,sd_ms,min_ms,median_ms,max_ms
+scalino-dotc -version (process floor),10,9.8,0.7,9.2,9.5,11.6
+scalino version,10,5.1,0.1,4.9,5.0,5.3
+[hello] native dotc -Ystop-after:parser,10,39.1,0.7,38.4,38.7,40.2
+[hello] native dotc -Ystop-after:typer,10,54.9,1.6,52.6,54.4,57.6
+[hello] native dotc TASTy only,10,59.5,1.8,57.4,59.6,63.2
+[hello] native dotc full NIR,10,228.2,5.2,216.5,229.1,235.1
+[hello] JVM dotc TASTy only (cold java),5,682.6,19.0,652.2,684.8,704.0
+[hello] scalino run, changed src,5,2146.4,30.5,2108.2,2164.1,2172.8
+[hello] scalino run, cached,10,31.7,1.7,30.0,31.3,35.8
+[moderate] native dotc -Ystop-after:parser,10,39.3,0.8,38.1,39.1,40.5
+[moderate] native dotc -Ystop-after:typer,10,171.9,2.5,167.8,172.0,176.6
+[moderate] native dotc TASTy only,10,198.1,5.2,193.8,196.5,211.5
+[moderate] native dotc full NIR,10,525.8,5.0,521.3,523.9,537.5
+[moderate] JVM dotc TASTy only (cold java),5,1115.4,5.4,1108.5,1116.0,1122.9
+[moderate] scalino run, changed src,5,3228.8,100.3,3146.0,3198.2,3390.7
+[moderate] scalino run, cached,10,37.1,1.0,36.1,36.7,38.6
+[cpu] native dotc -Ystop-after:parser,10,40.5,1.4,39.1,40.3,43.6
+[cpu] native dotc -Ystop-after:typer,10,134.8,2.3,132.0,134.5,139.3
+[cpu] native dotc TASTy only,10,149.9,4.9,145.8,148.8,163.3
+[cpu] native dotc full NIR,10,371.9,2.4,368.6,371.1,376.1
+[cpu] JVM dotc TASTy only (cold java),5,882.6,30.4,858.1,871.9,933.7
+[cpu] scalino run, changed src,5,2628.6,232.9,2397.9,2572.1,3015.2
+[cpu] scalino run, cached,10,102.1,14.6,93.7,97.6,142.7
+[compiletime] native dotc TASTy only,10,178.2,7.6,170.7,174.4,190.2
+[compiletime] native dotc full NIR,10,744.6,289.6,410.0,669.5,1189.2
+[compiletime] JVM dotc TASTy only (cold java),5,1058.5,7.5,1049.6,1056.8,1069.7
+[quoted] native dotc TASTy only, Macro+Use,10,235.0,7.9,226.4,232.2,249.9
+[quoted] native dotc full NIR, Macro+Use,10,484.0,3.9,476.2,484.1,491.3

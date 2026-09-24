@@ -1,0 +1,15 @@
+== scala.compiletime + Mirror derivation (single file)
+scalino: compiling 1 source(s) to .scalino-build/_scratch/classes
+sizes: 1 4 8 const=12 3
+labels: List(name, age)
+show: (name="Ada", age=36)
+codeOf: 1 + 2 * 3
+== quoted macro, separate file, same compile run
+scalino: compiling 2 source(s) to .scalino-build/_scratch/classes
+power: 7.59375
+debug: x * [32m2[0m + [32m1[0m = 4.0
+== quoted macro, separately compiled (TASTy on the classpath)
+power: 7.59375
+debug: x * [32m2[0m + [32m1[0m = 4.0
+== quote type patterns ('[Int], '[List[t]])
+1 error found

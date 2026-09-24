@@ -1,0 +1,28 @@
+scalino-dotc -version (process floor)            n=10  mean=      9.8 ms  sd=    0.7  min=      9.2  med=      9.5  max=     11.6
+scalino version                                  n=10  mean=      5.1 ms  sd=    0.1  min=      4.9  med=      5.0  max=      5.3
+[hello] native dotc -Ystop-after:parser          n=10  mean=     39.1 ms  sd=    0.7  min=     38.4  med=     38.7  max=     40.2
+[hello] native dotc -Ystop-after:typer           n=10  mean=     54.9 ms  sd=    1.6  min=     52.6  med=     54.4  max=     57.6
+[hello] native dotc TASTy only                   n=10  mean=     59.5 ms  sd=    1.8  min=     57.4  med=     59.6  max=     63.2
+[hello] native dotc full NIR                     n=10  mean=    228.2 ms  sd=    5.2  min=    216.5  med=    229.1  max=    235.1
+[hello] JVM dotc TASTy only (cold java)          n=5   mean=    682.6 ms  sd=   19.0  min=    652.2  med=    684.8  max=    704.0
+[hello] scalino run, changed src                 n=5   mean=   2146.4 ms  sd=   30.5  min=   2108.2  med=   2164.1  max=   2172.8
+[hello] scalino run, cached                      n=10  mean=     31.7 ms  sd=    1.7  min=     30.0  med=     31.3  max=     35.8
+[moderate] native dotc -Ystop-after:parser       n=10  mean=     39.3 ms  sd=    0.8  min=     38.1  med=     39.1  max=     40.5
+[moderate] native dotc -Ystop-after:typer        n=10  mean=    171.9 ms  sd=    2.5  min=    167.8  med=    172.0  max=    176.6
+[moderate] native dotc TASTy only                n=10  mean=    198.1 ms  sd=    5.2  min=    193.8  med=    196.5  max=    211.5
+[moderate] native dotc full NIR                  n=10  mean=    525.8 ms  sd=    5.0  min=    521.3  med=    523.9  max=    537.5
+[moderate] JVM dotc TASTy only (cold java)       n=5   mean=   1115.4 ms  sd=    5.4  min=   1108.5  med=   1116.0  max=   1122.9
+[moderate] scalino run, changed src              n=5   mean=   3228.8 ms  sd=  100.3  min=   3146.0  med=   3198.2  max=   3390.7
+[moderate] scalino run, cached                   n=10  mean=     37.1 ms  sd=    1.0  min=     36.1  med=     36.7  max=     38.6
+[cpu] native dotc -Ystop-after:parser            n=10  mean=     40.5 ms  sd=    1.4  min=     39.1  med=     40.3  max=     43.6
+[cpu] native dotc -Ystop-after:typer             n=10  mean=    134.8 ms  sd=    2.3  min=    132.0  med=    134.5  max=    139.3
+[cpu] native dotc TASTy only                     n=10  mean=    149.9 ms  sd=    4.9  min=    145.8  med=    148.8  max=    163.3
+[cpu] native dotc full NIR                       n=10  mean=    371.9 ms  sd=    2.4  min=    368.6  med=    371.1  max=    376.1
+[cpu] JVM dotc TASTy only (cold java)            n=5   mean=    882.6 ms  sd=   30.4  min=    858.1  med=    871.9  max=    933.7
+[cpu] scalino run, changed src                   n=5   mean=   2628.6 ms  sd=  232.9  min=   2397.9  med=   2572.1  max=   3015.2
+[cpu] scalino run, cached                        n=10  mean=    102.1 ms  sd=   14.6  min=     93.7  med=     97.6  max=    142.7
+[compiletime] native dotc TASTy only             n=10  mean=    178.2 ms  sd=    7.6  min=    170.7  med=    174.4  max=    190.2
+[compiletime] native dotc full NIR               n=10  mean=    744.6 ms  sd=  289.6  min=    410.0  med=    669.5  max=   1189.2
+[compiletime] JVM dotc TASTy only (cold java)    n=5   mean=   1058.5 ms  sd=    7.5  min=   1049.6  med=   1056.8  max=   1069.7
+[quoted] native dotc TASTy only, Macro+Use       n=10  mean=    235.0 ms  sd=    7.9  min=    226.4  med=    232.2  max=    249.9
+[quoted] native dotc full NIR, Macro+Use         n=10  mean=    484.0 ms  sd=    3.9  min=    476.2  med=    484.1  max=    491.3

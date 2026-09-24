@@ -1,0 +1,16 @@
+[package]
+name = "nir-reader"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[[bin]]
+name = "nir-dump"
+path = "src/main.rs"
+
+[dependencies]
+rustc-hash = "2"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[profile.release]
+debug = "line-tables-only"

@@ -1,0 +1,11 @@
+[package]
+name = "tasty-eval"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+tasty-reader = { path = "../01-tasty-reader" }
+
+[profile.release]
+debug = "line-tables-only"
