@@ -70,6 +70,10 @@ impl Vm {
         if let Some(&f) = self.funcs.by_name.get(&g) {
             return self.callable(f);
         }
+        self.link_owner(g)?;
+        if let Some(&addr) = self.funcs.globals.get(&g) {
+            return Ok(addr as u64);
+        }
         if self.native(g).is_none() {
             let defn = self.world.defn(g)?;
             let is_extern = defn.attrs.iter().any(nir::Attr::is_extern);

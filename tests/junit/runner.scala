@@ -50,6 +50,9 @@ def runTest(b: Bootstrapper, name: String, expected: Class[?]): Try[Unit] =
       val b = Intrinsics.castRawPtrToObject(toRawPtr(scalai.scalai_bootstrapper(i))).asInstanceOf[Bootstrapper]
       if !b.testClassMetadata().ignored then
         attempt(b.beforeClass()) match
+          case Failure(t) if isAssumption(t) =>
+            skipped += b.tests().length
+            println(s"SKIP $cls: $t")
           case Failure(t) =>
             failed += 1
             println(s"FAIL $cls beforeClass: $t")

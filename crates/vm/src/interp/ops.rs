@@ -80,7 +80,10 @@ impl Vm {
                 self.store_ty(copy + offset, ty, v);
                 Ok(copy as u64)
             }
-            Op::Dynmethod { .. } => Err(VmError::Unsupported("op dynmethod".into()).into()),
+            Op::Dynmethod { obj, sig } => {
+                let obj = self.val(*obj, slots)? as usize;
+                self.dyn_method(obj, *sig)
+            }
             _ => Err(VmError::Unsupported("op the lowering handles".into()).into()),
         }
     }

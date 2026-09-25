@@ -1,5 +1,6 @@
 //! Linked classes, traits and modules: hierarchy and instance layout.
 
+use crate::interp::Unwound;
 use crate::layout::{self, ARRAY_HEADER, OBJECT_HEADER};
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, Type, TypeId};
@@ -99,7 +100,34 @@ impl Vm {
         });
         self.classes.by_name.insert(name, id);
         self.init_rtti(id)?;
+        self.run_static_initializer(name)?;
         Ok(id)
+    }
+
+    /// Runs the `<clinit>` of class `name`, if it has one.
+    fn run_static_initializer(&mut self, name: GlobalId) -> Result<(), VmError> {
+        let clinit = self.world.member(name, "IE");
+        if self.world.defn(clinit).is_err() {
+            return Ok(());
+        }
+        match self.call_global(clinit, &[]) {
+            Ok(_) => Ok(()),
+            Err(u) => match u.into_inner() {
+                Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
+                Unwound::Fatal(e) => Err(e),
+            },
+        }
+    }
+
+    /// Links the class that owns member `g`, running its static initializer on first use.
+    pub fn link_owner(&mut self, g: GlobalId) -> Result<(), VmError> {
+        let owner = self.world.owner(g);
+        match owner != g
+            && matches!(self.world.defn(owner)?.kind, DefnKind::Class { .. } | DefnKind::Module { .. })
+        {
+            true => self.link(owner).map(|_| ()),
+            false => Ok(()),
+        }
     }
 
     pub fn link_top(&mut self, name: &str) -> Result<ClassId, VmError> {

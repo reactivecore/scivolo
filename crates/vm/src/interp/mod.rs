@@ -9,6 +9,7 @@ mod lower;
 mod memory;
 mod ops;
 mod profile;
+mod reflective;
 mod shortcut;
 mod unwind;
 mod value;
@@ -30,6 +31,7 @@ pub use unwind::{Flow, Unwind, Unwound};
 pub enum Func {
     Nir { name: GlobalId, defn: Rc<Defn>, code: Option<Rc<Code>> },
     Native { name: GlobalId, native: Rc<Native> },
+    Proxy { name: GlobalId, proxy: Rc<reflective::Proxy> },
 }
 
 #[derive(Default)]
@@ -40,6 +42,7 @@ pub struct Funcs {
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
     frames: Vec<Vec<u64>>,
+    proxies: FxHashMap<(crate::class::ClassId, nir::StrId), FuncId>,
     stack_floor: usize,
     overflowing: bool,
     pub trace: bool,
@@ -80,6 +83,10 @@ pub fn is_func_ref(v: u64) -> bool {
 impl Vm {
     /// The function defined by the method or extern `name`.
     pub fn func(&mut self, name: GlobalId) -> Result<FuncId, VmError> {
+        if let Some(&id) = self.funcs.by_name.get(&name) {
+            return Ok(id);
+        }
+        self.link_owner(name)?;
         if let Some(&id) = self.funcs.by_name.get(&name) {
             return Ok(id);
         }
@@ -130,6 +137,7 @@ impl Vm {
     pub fn call(&mut self, f: FuncId, args: &[u64]) -> Flow {
         let code = match &self.funcs.all[f as usize] {
             Func::Native { native, .. } => return native.clone().call(self, args),
+            Func::Proxy { proxy, .. } => return self.call_proxy(&proxy.clone(), args),
             Func::Nir { code: Some(code), .. } => code.clone(),
             Func::Nir { defn, code: None, .. } => {
                 let code = Rc::new(lower::lower(defn.clone(), &self.world.pool));
@@ -172,7 +180,9 @@ impl Vm {
 
     pub fn func_name(&self, f: FuncId) -> String {
         match &self.funcs.all[f as usize] {
-            Func::Nir { name, .. } | Func::Native { name, .. } => self.world.name(*name),
+            Func::Nir { name, .. } | Func::Native { name, .. } | Func::Proxy { name, .. } => {
+                self.world.name(*name)
+            }
         }
     }
 }

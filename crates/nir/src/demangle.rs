@@ -8,6 +8,23 @@ pub fn sig(s: &str) -> String {
     }
 }
 
+/// The reflective proxy signature `P<name><params>E` of method signature
+/// `D<name><params><result>E<scope>`, as Scala Native's `Sig.toProxy` builds it.
+pub fn to_proxy(s: &str) -> Option<String> {
+    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
+    if d.next()? != 'D' {
+        return None;
+    }
+    d.ident()?;
+    let mut result_start = None;
+    while d.peek()? != 'E' {
+        result_start = Some(d.pos);
+        d.ty()?;
+    }
+    let name_and_params: String = d.chars[1..result_start?].iter().collect();
+    Some(format!("P{name_and_params}E"))
+}
+
 pub fn extern_name(s: &str) -> Option<String> {
     let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
     (d.next()? == 'C').then(|| d.ident())?
