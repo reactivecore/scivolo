@@ -35,7 +35,9 @@ Rationale goes in `docs/adr/`, one decision per file.
   `macro_rules!` re-exports carry `pub(crate)`/`pub(super)`.
 - No `Rc<RefCell<_>>` in runtime state, no global state, no async, no macros
   that obscure control flow, minimal generics. Arena / index handles over
-  pointers; `unsafe` confined to the heap/GC and FFI layers.
+  pointers. In the VM, `unsafe` lives only in `heap.rs` (every raw memory
+  access by address goes through `heap::read`/`heap::write`) and in
+  `natives/ffi.rs` and `natives/callback.rs` (calls across the C boundary).
 - Documentation is short: one home per fact.
 
 ## Tooling

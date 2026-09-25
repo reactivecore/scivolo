@@ -50,7 +50,15 @@ pub struct Funcs {
     globals: FxHashMap<GlobalId, usize>,
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
+    stack_floor: usize,
+    overflowing: bool,
     pub trace: bool,
+}
+
+impl Funcs {
+    pub fn has_stack_budget(&self) -> bool {
+        self.stack_floor != 0
+    }
 }
 
 pub fn func_ref(id: FuncId) -> u64 {
@@ -109,6 +117,13 @@ impl Vm {
             }
         };
         let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("only defines are compiled") };
+        let marker = 0u8;
+        if (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing {
+            self.funcs.overflowing = true;
+            let result = self.throw_new("java.lang.StackOverflowError");
+            self.funcs.overflowing = false;
+            return result;
+        }
         self.funcs.stack.push(f);
         let result = self.exec(&body.insts, &code, args);
         self.funcs.stack.pop();
@@ -135,6 +150,22 @@ impl Vm {
         all.extend_from_slice(args);
         self.call_global(g, &all)?;
         Err(VmError::Unsupported(format!("{sig} returned")).into())
+    }
+
+    /// Throws a new instance of `class`, built by its no-argument constructor.
+    pub fn throw_new(&mut self, class: &str) -> Flow {
+        let cls = self.link_top(class)?;
+        let obj = self.alloc_object(cls);
+        let init = self.world.member(self.class(cls).name, "RE");
+        self.call_global(init, &[obj as u64])?;
+        Err(Unwind::Throw(obj))
+    }
+
+    /// Lets interpreted calls use the native stack down to `budget` bytes below the caller's
+    /// frame; deeper calls throw `StackOverflowError`.
+    pub fn set_stack_budget(&mut self, budget: usize) {
+        let marker = 0u8;
+        self.funcs.stack_floor = (&raw const marker as usize).saturating_sub(budget);
     }
 
     pub fn null_pointer<T>(&mut self) -> Flow<T> {

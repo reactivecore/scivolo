@@ -8,9 +8,29 @@ use std::ffi::CString;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Class {
-    Int,
+    Int { bits: u32, signed: bool },
     Float,
     Double,
+}
+
+impl Class {
+    /// `v`, a zero-extended value of this class, as the C ABI passes it in a register:
+    /// narrow signed integers sign-extended.
+    fn widen(self, v: u64) -> u64 {
+        match self {
+            Class::Int { bits: 8, signed: true } => v as i8 as i64 as u64,
+            Class::Int { bits: 16, signed: true } => v as i16 as i64 as u64,
+            _ => v,
+        }
+    }
+
+    /// A register value returned by C, zero-extended from this class's width.
+    fn narrow(self, v: u64) -> u64 {
+        match self {
+            Class::Int { bits, .. } if bits < 64 => v & ((1 << bits) - 1),
+            _ => v,
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -25,7 +45,12 @@ fn class(ty: &Type) -> Option<Class> {
         Type::Float => Some(Class::Float),
         Type::Double => Some(Class::Double),
         Type::Vararg | Type::StructValue(_) | Type::ArrayValue(..) => None,
-        _ => Some(Class::Int),
+        Type::Bool => Some(Class::Int { bits: 8, signed: false }),
+        Type::Byte => Some(Class::Int { bits: 8, signed: true }),
+        Type::Char => Some(Class::Int { bits: 16, signed: false }),
+        Type::Short => Some(Class::Int { bits: 16, signed: true }),
+        Type::Int => Some(Class::Int { bits: 32, signed: true }),
+        _ => Some(Class::Int { bits: 64, signed: false }),
     }
 }
 
@@ -48,7 +73,7 @@ pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     let pool = &vm.world.pool;
     let args: Vec<Class> = args.iter().map(|t| class(pool.ty(*t))).collect::<Option<_>>()?;
     let ret = class(pool.ty(ret))?;
-    let ints = args.iter().filter(|c| **c == Class::Int).count();
+    let ints = args.iter().filter(|c| matches!(c, Class::Int { .. })).count();
     if ints > 8 || args.len() - ints > 8 {
         return None;
     }
@@ -71,10 +96,10 @@ type FloatFn =
 pub fn call(f: &Foreign, values: &[u64]) -> Flow {
     let (mut ints, mut floats) = ([0u64; 8], [0f64; 8]);
     let (mut ni, mut nf) = (0, 0);
-    for (c, &v) in f.args.iter().zip(values) {
+    for (&c, &v) in f.args.iter().zip(values) {
         match c {
-            Class::Int => {
-                ints[ni] = v;
+            Class::Int { .. } => {
+                ints[ni] = c.widen(v);
                 ni += 1;
             }
             Class::Float | Class::Double => {
@@ -86,11 +111,11 @@ pub fn call(f: &Foreign, values: &[u64]) -> Flow {
     let [a, b, c, d, e, g, h, i] = ints;
     let [p, q, r, s, t, u, w, x] = floats;
     match f.ret {
-        Class::Int => {
+        Class::Int { .. } => {
             // SAFETY: `addr` is a C function whose register arguments are all covered by the
             // sixteen passed here; extra registers are ignored by the callee.
             let fun: IntFn = unsafe { std::mem::transmute(f.addr) };
-            Ok(fun(a, b, c, d, e, g, h, i, p, q, r, s, t, u, w, x))
+            Ok(f.ret.narrow(fun(a, b, c, d, e, g, h, i, p, q, r, s, t, u, w, x)))
         }
         Class::Float | Class::Double => {
             // SAFETY: as above, for a function returning in the floating-point register.

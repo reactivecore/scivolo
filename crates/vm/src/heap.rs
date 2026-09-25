@@ -1,4 +1,8 @@
-//! Raw, zeroed, never-freed memory for objects, arrays and runtime metadata.
+//! Raw memory: the zeroed, never-freed heap for objects, arrays and runtime metadata, and the
+//! only place the VM reads or writes memory by address.
+//!
+//! Addresses come from interpreted NIR, which the VM trusts the way a CPU trusts the machine
+//! code it runs: NIR may compute any address, and a wrong one is a bug in that program.
 
 use std::alloc::{Layout, alloc_zeroed};
 
@@ -38,20 +42,15 @@ fn chunk(size: usize) -> usize {
     ptr as usize
 }
 
-/// Reads a `T` at `addr`.
-///
-/// # Safety
-/// `addr..addr + size_of::<T>()` must be readable memory.
-pub unsafe fn load<T: Copy>(addr: usize) -> T {
-    // SAFETY: guaranteed by the caller; the read tolerates misalignment.
+/// Reads a `T` at `addr`, which the running program vouches for.
+pub fn read<T: Copy>(addr: usize) -> T {
+    // SAFETY: the trusted program owns `addr..addr + size_of::<T>()`, see the module
+    // documentation; the read tolerates misalignment.
     unsafe { (addr as *const T).read_unaligned() }
 }
 
-/// Writes a `T` at `addr`.
-///
-/// # Safety
-/// `addr..addr + size_of::<T>()` must be writable memory.
-pub unsafe fn store<T: Copy>(addr: usize, value: T) {
-    // SAFETY: guaranteed by the caller; the write tolerates misalignment.
+/// Writes a `T` at `addr`, which the running program vouches for.
+pub fn write<T: Copy>(addr: usize, value: T) {
+    // SAFETY: as for `read`.
     unsafe { (addr as *mut T).write_unaligned(value) }
 }

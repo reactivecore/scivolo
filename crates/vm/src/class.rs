@@ -2,7 +2,7 @@
 
 use crate::layout::{self, ARRAY_HEADER, OBJECT_HEADER};
 use crate::{Vm, VmError};
-use nir::{DefnKind, Global, GlobalId, Type, TypeId};
+use nir::{DefnKind, GlobalId, Type, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 pub type ClassId = u32;
@@ -82,7 +82,7 @@ impl Vm {
         for &a in parent.iter().chain(&traits) {
             ancestors.extend(self.class(a).ancestors.iter().copied());
         }
-        let array_elem = array_elem(self.world.pool.str(top_str(&self.world.pool, name)));
+        let array_elem = array_elem(self.world.pool.top_name(name));
         let InstanceLayout { fields, order: field_order, size } =
             self.field_layout(name, parent, array_elem.is_some())?;
         self.classes.all.push(Class {
@@ -167,14 +167,6 @@ impl Vm {
             Some(f) => Ok(f.offset as usize),
             None => Err(VmError::Unsupported(format!("no field {}", self.world.name(name)))),
         }
-    }
-}
-
-fn top_str(pool: &nir::Pool, g: GlobalId) -> nir::StrId {
-    match pool.global(g) {
-        Global::Top(s) => *s,
-        Global::Member(owner, _) => top_str(pool, *owner),
-        Global::None => nir::StrId(0),
     }
 }
 

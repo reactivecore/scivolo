@@ -90,13 +90,11 @@ impl Vm {
             Op::Var(_) => Ok(self.heap.alloc(8) as u64),
             Op::Varload(slot) => {
                 let addr = self.val(*slot, slots)?;
-                // SAFETY: `addr` is a cell allocated by `Op::Var`.
-                Ok(unsafe { crate::heap::load(addr as usize) })
+                Ok(crate::heap::read(addr as usize))
             }
             Op::Varstore { slot, value } => {
                 let (addr, v) = (self.val(*slot, slots)?, self.val(*value, slots)?);
-                // SAFETY: `addr` is a cell allocated by `Op::Var`.
-                unsafe { crate::heap::store(addr as usize, v) };
+                crate::heap::write(addr as usize, v);
                 self.unit_value()
             }
             Op::Arrayalloc { ty, init, .. } => self.array_alloc(*ty, *init, slots),
@@ -148,8 +146,7 @@ impl Vm {
             _ => {
                 let len = self.index(init, slots)?;
                 if len < 0 {
-                    let exc = self.world.top("java.lang.NegativeArraySizeException");
-                    return Err(VmError::Unsupported(format!("negative array size ({exc:?})")).into());
+                    return self.throw_new("java.lang.NegativeArraySizeException");
                 }
                 Ok(self.alloc_array(cls, len as usize) as u64)
             }

@@ -24,11 +24,12 @@ fn main() {
     let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
     let lib = out_dir.join(if cfg!(target_os = "macos") { "libsnrt.dylib" } else { "libsnrt.so" });
     let mut cmd = Command::new(cc);
-    cmd.args(["-std=gnu11", "-O2", "-fPIC", "-shared", "-w", "-lz"])
+    cmd.args(["-std=gnu11", "-O2", "-fPIC", "-shared", "-w"])
         .args(["-DSCALANATIVE_COMPILE_ALWAYS", "-D__SCALANATIVE_JAVALIB_Z"])
         .arg("-I")
         .arg(native.join("nativelib/scala-native"))
         .args(&files)
+        .arg("-lz")
         .arg("-o")
         .arg(&lib);
     if cfg!(target_os = "macos") {

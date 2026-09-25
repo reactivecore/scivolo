@@ -3,6 +3,7 @@
 
 mod callback;
 mod ffi;
+mod gc;
 mod llvm;
 mod runtime;
 

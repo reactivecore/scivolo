@@ -135,8 +135,7 @@ impl Vm {
         match self.world.pool.val(v).clone() {
             Val::ByteString(bytes) => {
                 for (i, b) in bytes.iter().enumerate() {
-                    // SAFETY: `addr` holds `bytes.len() + 1` zeroed bytes.
-                    unsafe { heap::store(addr + i, *b) };
+                    heap::write(addr + i, *b);
                 }
             }
             Val::ArrayValue(ty, vs) => {

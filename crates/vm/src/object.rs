@@ -11,8 +11,7 @@ impl Vm {
         let c = self.class(cls);
         let (size, rtti) = (c.size as usize, c.rtti);
         let obj = self.heap.alloc(size);
-        // SAFETY: `obj` is a fresh allocation of at least one header word.
-        unsafe { heap::store(obj, rtti) };
+        heap::write(obj, rtti);
         obj
     }
 
@@ -20,12 +19,9 @@ impl Vm {
         let c = self.class(cls);
         let (elem, rtti) = (c.array_elem.unwrap_or(8) as usize, c.rtti);
         let arr = self.heap.alloc(ARRAY_HEADER as usize + elem * len);
-        // SAFETY: `arr` is a fresh allocation holding at least the array header.
-        unsafe {
-            heap::store(arr, rtti);
-            heap::store(arr + ARRAY_LENGTH, len as i32);
-            heap::store(arr + ARRAY_STRIDE, elem as i32);
-        }
+        heap::write(arr, rtti);
+        heap::write(arr + ARRAY_LENGTH, len as i32);
+        heap::write(arr + ARRAY_STRIDE, elem as i32);
         arr
     }
 
@@ -38,26 +34,14 @@ impl Vm {
         let chars_cls = self.link_top("scala.scalanative.runtime.CharArray")?;
         let chars = self.alloc_array(chars_cls, units.len());
         for (i, &u) in units.iter().enumerate() {
-            // SAFETY: `chars` holds `units.len()` two-byte elements.
-            unsafe { heap::store(chars + ARRAY_HEADER as usize + 2 * i, u) };
+            heap::write(chars + ARRAY_HEADER as usize + 2 * i, u);
         }
         let string_cls = self.link_top("java.lang.String")?;
         let obj = self.alloc_object(string_cls);
         let hash = units.iter().fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(u as i32));
-        let fields = [("F5valueO", chars as u64), ("F6offsetO", 0), ("F5countO", units.len() as u64)];
-        for (name, value) in fields {
-            let at = obj + self.string_field(name)?;
-            // SAFETY: `at` lies inside the fresh String object.
-            unsafe {
-                match name {
-                    "F5valueO" => heap::store(at, value),
-                    _ => heap::store(at, value as u32),
-                }
-            }
-        }
-        let at = obj + self.string_field("F14cachedHashCodeO")?;
-        // SAFETY: as above.
-        unsafe { heap::store(at, hash) };
+        heap::write(obj + self.string_field("F5valueO")?, chars);
+        heap::write(obj + self.string_field("F5countO")?, units.len() as i32);
+        heap::write(obj + self.string_field("F14cachedHashCodeO")?, hash);
         Ok(obj)
     }
 
@@ -82,8 +66,7 @@ impl Vm {
         let arr = self.alloc_array(cls, items.len());
         for (i, s) in items.iter().enumerate() {
             let obj = self.new_string(s)?;
-            // SAFETY: `arr` holds `items.len()` reference elements.
-            unsafe { heap::store(arr + ARRAY_HEADER as usize + 8 * i, obj) };
+            heap::write(arr + ARRAY_HEADER as usize + 8 * i, obj);
         }
         Ok(arr)
     }
@@ -105,15 +88,11 @@ impl Vm {
         if obj == 0 {
             return Ok("null".into());
         }
-        let (value, offset, count) =
-            (self.string_field("F5valueO")?, self.string_field("F6offsetO")?, self.string_field("F5countO")?);
-        // SAFETY: `obj` is a live String whose value array holds `offset + count` chars.
-        let units: Vec<u16> = unsafe {
-            let chars: usize = heap::load(obj + value);
-            let (offset, count): (i32, i32) = (heap::load(obj + offset), heap::load(obj + count));
-            let base = chars + ARRAY_HEADER as usize + 2 * offset as usize;
-            (0..count as usize).map(|i| heap::load(base + 2 * i)).collect()
-        };
+        let chars: usize = heap::read(obj + self.string_field("F5valueO")?);
+        let offset: i32 = heap::read(obj + self.string_field("F6offsetO")?);
+        let count: i32 = heap::read(obj + self.string_field("F5countO")?);
+        let base = chars + ARRAY_HEADER as usize + 2 * offset as usize;
+        let units: Vec<u16> = (0..count as usize).map(|i| heap::read(base + 2 * i)).collect();
         Ok(String::from_utf16_lossy(&units))
     }
 }

@@ -3,8 +3,16 @@
 use crate::interp::Flow;
 use crate::{Vm, VmError};
 use nir::{Bin, Comp, Cond, StrId, Val};
+use rustc_hash::FxHashMap;
 
 const PREFIX: &str = "scala.scalanative.meta.linktimeinfo.";
+
+/// Evaluated properties and conditions.
+#[derive(Default)]
+pub struct Linktime {
+    props: FxHashMap<String, u64>,
+    conds: FxHashMap<usize, bool>,
+}
 
 enum Prop {
     Bool(bool),
@@ -49,22 +57,38 @@ pub fn accessor_property(owner: &str, method: &str) -> Option<String> {
 impl Vm {
     /// The value of property `name` in the VM's representation.
     pub fn property_value(&mut self, name: &str) -> Flow {
-        match property(name) {
-            Some(Prop::Bool(b)) => Ok(b as u64),
-            Some(Prop::Int(i)) => Ok(i as u32 as u64),
-            Some(Prop::Str(s)) => Ok(self.new_string(s)? as u64),
-            None => Err(VmError::Unsupported(format!("link-time property {name}")).into()),
+        if let Some(&v) = self.linktime.props.get(name) {
+            return Ok(v);
         }
+        let v = match property(name) {
+            Some(Prop::Bool(b)) => b as u64,
+            Some(Prop::Int(i)) => i as u32 as u64,
+            Some(Prop::Str(s)) => self.new_string(s)? as u64,
+            None => return Err(VmError::Unsupported(format!("link-time property {name}")).into()),
+        };
+        self.linktime.props.insert(name.to_owned(), v);
+        Ok(v)
     }
 
+    /// Evaluates `cond` once; definitions live as long as the VM, so the address is a key.
     pub fn linktime_cond(&mut self, cond: &Cond) -> Flow<bool> {
+        let key = cond as *const Cond as usize;
+        if let Some(&b) = self.linktime.conds.get(&key) {
+            return Ok(b);
+        }
+        let b = self.eval_cond(cond)?;
+        self.linktime.conds.insert(key, b);
+        Ok(b)
+    }
+
+    fn eval_cond(&mut self, cond: &Cond) -> Flow<bool> {
         match cond {
             Cond::Complex { bin, left, right, .. } => {
-                let l = self.linktime_cond(left)?;
+                let l = self.eval_cond(left)?;
                 match (bin, l) {
                     (Bin::And, false) => Ok(false),
                     (Bin::Or, true) => Ok(true),
-                    _ => self.linktime_cond(right),
+                    _ => self.eval_cond(right),
                 }
             }
             Cond::Simple { property, comp, value, .. } => {
@@ -98,8 +122,8 @@ impl Vm {
         let Some((top, sig)) = parse_member(&text) else {
             return Err(VmError::Unsupported(format!("link-time property {text}")).into());
         };
-        let owner = self.world.top(&top);
-        let g = self.world.member(owner, &sig);
+        let owner = self.world.top(top);
+        let g = self.world.member(owner, sig);
         let module = self.module(owner)?;
         self.call_global(g, &[module as u64])
     }
@@ -107,18 +131,26 @@ impl Vm {
 
 /// The name of the method a mangled signature `D<len><name>...` describes.
 pub fn method_name(sig: &str) -> Option<&str> {
-    let rest = sig.strip_prefix('D')?;
-    let digits = rest.chars().take_while(char::is_ascii_digit).count();
-    let len: usize = rest[..digits].parse().ok()?;
-    rest.get(digits..digits + len)
+    ident(sig.strip_prefix('D')?).map(|(name, _)| name)
 }
 
 /// Splits a mangled member name `M<len><top><sig>` into its owner and signature.
-fn parse_member(mangled: &str) -> Option<(String, String)> {
-    let rest = mangled.strip_prefix('M')?;
-    let digits = rest.chars().take_while(char::is_ascii_digit).count();
-    let len: usize = rest[..digits].parse().ok()?;
-    let rest = &rest[digits..];
-    let top: String = rest.chars().take(len).collect();
-    Some((top.clone(), rest[top.len()..].to_string()))
+fn parse_member(mangled: &str) -> Option<(&str, &str)> {
+    ident(mangled.strip_prefix('M')?)
+}
+
+/// Splits `<len>[-]<chars>...` after its identifier, whose length counts UTF-16 units.
+fn ident(s: &str) -> Option<(&str, &str)> {
+    let digits = s.chars().take_while(char::is_ascii_digit).count();
+    let len: usize = s[..digits].parse().ok()?;
+    let body = &s[digits..];
+    let body = body.strip_prefix('-').unwrap_or(body);
+    let mut units = 0;
+    let end = body.char_indices().find_map(|(i, c)| {
+        let at = (units == len).then_some(i);
+        units += c.len_utf16();
+        at
+    });
+    let end = end.or_else(|| (units == len).then_some(body.len()))?;
+    Some(body.split_at(end))
 }

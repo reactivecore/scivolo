@@ -7,26 +7,20 @@ use nir::{Type, TypeId, ValId};
 impl Vm {
     /// Loads a value of type `ty`, zero-extended to 64 bits.
     pub fn load_ty(&self, addr: usize, ty: TypeId) -> u64 {
-        // SAFETY: interpreted code only loads from memory it allocated or received from C.
-        unsafe {
-            match layout::size_of(&self.world.pool, ty) {
-                1 => heap::load::<u8>(addr) as u64,
-                2 => heap::load::<u16>(addr) as u64,
-                4 => heap::load::<u32>(addr) as u64,
-                _ => heap::load::<u64>(addr),
-            }
+        match layout::size_of(&self.world.pool, ty) {
+            1 => heap::read::<u8>(addr) as u64,
+            2 => heap::read::<u16>(addr) as u64,
+            4 => heap::read::<u32>(addr) as u64,
+            _ => heap::read::<u64>(addr),
         }
     }
 
     pub fn store_ty(&self, addr: usize, ty: TypeId, v: u64) {
-        // SAFETY: interpreted code only stores to memory it allocated or received from C.
-        unsafe {
-            match layout::size_of(&self.world.pool, ty) {
-                1 => heap::store(addr, v as u8),
-                2 => heap::store(addr, v as u16),
-                4 => heap::store(addr, v as u32),
-                _ => heap::store(addr, v),
-            }
+        match layout::size_of(&self.world.pool, ty) {
+            1 => heap::write(addr, v as u8),
+            2 => heap::write(addr, v as u16),
+            4 => heap::write(addr, v as u32),
+            _ => heap::write(addr, v),
         }
     }
 
@@ -72,8 +66,7 @@ impl Vm {
             return self.null_pointer();
         }
         let arr = arr as usize;
-        // SAFETY: `arr` is a live array, whose header holds its length.
-        let len: i32 = unsafe { heap::load(arr + ARRAY_LENGTH) };
+        let len: i32 = heap::read(arr + ARRAY_LENGTH);
         let i = idx as u32 as i32;
         if i < 0 || i >= len {
             self.throw_runtime("D16throwOutOfBoundsiinEO", &[i as u32 as u64, len as u32 as u64])?;
@@ -85,7 +78,6 @@ impl Vm {
         if arr == 0 {
             return self.null_pointer();
         }
-        // SAFETY: `arr` is a live array, whose header holds its length.
-        Ok(unsafe { heap::load::<u32>(arr as usize + ARRAY_LENGTH) } as u64)
+        Ok(heap::read::<u32>(arr as usize + ARRAY_LENGTH) as u64)
     }
 }

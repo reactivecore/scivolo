@@ -10,7 +10,7 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
         "scalanative_currentNativeThread" => |vm, _| Ok(vm.thread.native),
         "scalanative_assignCurrentThread" => assign_thread,
         "scalanative_setupCurrentThreadInfo" | "scalanative_Throwable_sizeOfExceptionWrapper" => |_, _| Ok(0),
-        _ => return super::llvm::intrinsic(name),
+        _ => return super::llvm::intrinsic(name).or_else(|| super::gc::extern_fn(name)),
     };
     Some(f)
 }
@@ -24,9 +24,16 @@ fn assign_thread(vm: &mut Vm, args: &[u64]) -> Flow {
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
         ("scala.scalanative.runtime.StackTrace$", "D20currentRawStackTraceLAj_EO") => empty_stack_trace,
+        ("java.lang.Class", "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class") => class_is,
         _ => return None,
     };
     Some(f)
+}
+
+/// `java.lang.Class.is(left, right)`: whether `left` is `right` or a subtype of it.
+fn class_is(vm: &mut Vm, args: &[u64]) -> Flow {
+    let (left, right) = (vm.class_of_rtti(args[1] as usize), vm.class_of_rtti(args[2] as usize));
+    Ok(vm.is_subclass(left, right) as u64)
 }
 
 fn empty_stack_trace(vm: &mut Vm, _: &[u64]) -> Flow {
