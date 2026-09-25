@@ -21,12 +21,12 @@ sample <pid> 1 -file tmp/x.sample   # native profile (macOS)
 | hello | 47 ms | 5 ms | mostly startup: loading and linking library classes |
 | fib 30 | 142 ms | 7 ms | 2.7M calls, ≈15 ns per call + ≈2.5 ns per instruction |
 | loops 100 | 9.3 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
-| cpu | 0.80 s | 22 ms | dominated by the sort's comparator chain, ~27M calls |
+| cpu | 0.76 s | 22 ms | dominated by the sort's comparator chain, ~27M calls |
 
 Steps so far and their effect on `cpu`: interpreting NIR directly 3.5 s → lowered code
 with per-site caches 1.08 s → casts/boxing/vars/elem lowered 0.97 s → fused `method`+`call`
 and direct frame filling 0.89 s → two-word `Flow` 0.87 s → frame-less getters, constants
-and forwarders 0.80 s.
+and forwarders 0.80 s → virtual forwarders too 0.76 s.
 
 ## Ideas
 
