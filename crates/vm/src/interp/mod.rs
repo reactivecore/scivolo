@@ -109,6 +109,11 @@ pub fn func_ref(id: FuncId) -> u64 {
     FUNC_TAG | id as u64
 }
 
+/// Whether `v` is a function reference only the VM can call.
+pub fn is_func_ref(v: u64) -> bool {
+    v & (0xFFFF << 48) == FUNC_TAG
+}
+
 impl Vm {
     /// The function defined by the method or extern `name`.
     pub fn func(&mut self, name: GlobalId) -> Result<FuncId, VmError> {
@@ -138,7 +143,7 @@ impl Vm {
 
     /// Calls the function behind a function reference or an extern address.
     pub fn call_value(&mut self, target: u64, args: &[u64]) -> Flow {
-        if target & FUNC_TAG != FUNC_TAG {
+        if !is_func_ref(target) {
             return match self.callbacks.target(target as usize) {
                 Some(f) => self.call(f, args),
                 None => Err(VmError::Unsupported(format!("call through raw pointer {target:#x}")).into()),

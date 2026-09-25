@@ -50,7 +50,8 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
             Instr::Unreachable,
         ] if r == dst && param(*o) == Some(0) => Some(Shortcut::Field { ty: *ty, name: *name, site: *site }),
         [rest @ .., Instr::Ret(Arg::Slot(r)), Instr::Unreachable] => {
-            let (module, call) = match rest {
+            let rest: Vec<&Instr> = rest.iter().filter(|i| !matches!(i, Instr::Nop)).collect();
+            let (module, call) = match rest[..] {
                 [call] => (None, call),
                 [Instr::Module { dst, name, site, unwind: None }, call] => (Some((*dst, *name, *site)), call),
                 _ => return None,
@@ -113,7 +114,7 @@ impl Vm {
                 let mut values = [0u64; MAX_ARGS];
                 for (v, s) in values.iter_mut().zip(sources.iter()) {
                     *v = match *s {
-                        Source::Param(i) => args[i],
+                        Source::Param(i) => args.get(i).copied().unwrap_or(0),
                         Source::Imm(v) => v,
                         Source::Module => module,
                     };
@@ -127,25 +128,10 @@ impl Vm {
 
     fn forward_target(&mut self, code: &Code, callee: &Callee, values: &[u64]) -> Flow<FuncId> {
         match *callee {
-            Callee::Global { name, site } => {
-                let cell = &code.sites[site as usize];
-                if cell.get() == 0 {
-                    cell.set(self.func(name)? as u64 + 1);
-                }
-                Ok(cell.get() as FuncId - 1)
-            }
+            Callee::Global { name, site } => self.cached_func(&code.sites[site as usize], name),
             Callee::Virtual { sig, site } => {
-                let obj = match values.first() {
-                    Some(&obj) if obj != 0 => obj as usize,
-                    _ => return self.null_pointer(),
-                };
-                let cls = self.class_of(obj) as u64 + 1;
-                let (seen, target) = (&code.sites[site as usize], &code.sites[site as usize + 1]);
-                if seen.get() != cls {
-                    target.set(self.virtual_method(obj, sig)? as u64);
-                    seen.set(cls);
-                }
-                Ok(target.get() as FuncId)
+                let receiver = values.first().copied().unwrap_or(0);
+                self.cached_virtual(&code.sites[site as usize..site as usize + 2], receiver, sig)
             }
         }
     }

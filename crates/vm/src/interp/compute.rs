@@ -1,9 +1,9 @@
 //! Executes the value-producing lowered instructions, using and filling per-site caches.
 
+use super::Flow;
 use super::code::{Code, Handler, Instr, Num};
 use super::exec::body;
 use super::ops::arith;
-use super::{Flow, FuncId};
 use crate::Vm;
 use crate::VmError;
 use nir::Inst;
@@ -47,16 +47,14 @@ impl Vm {
                 (dst, arith::conv(conv, from, to, self.arg(code, slots, v)?))
             }
             Instr::Copy { dst, v } => (dst, self.arg(code, slots, v)?),
+            Instr::Nop => return Ok(()),
             Instr::Call { dst, target, ref args, .. } => {
                 let target = self.arg(code, slots, target)?;
                 (dst, self.call_args(code, slots, target, args)?)
             }
             Instr::CallGlobal { dst, name, site, ref args, .. } => {
-                let cell = &code.sites[site as usize];
-                if cell.get() == 0 {
-                    cell.set(self.func(name)? as u64 + 1);
-                }
-                (dst, self.call_direct(code, slots, cell.get() as FuncId - 1, args)?)
+                let f = self.cached_func(&code.sites[site as usize], name)?;
+                (dst, self.call_direct(code, slots, f, args)?)
             }
             Instr::Invoke { dst, sig, site, ref args, .. } => {
                 (dst, self.invoke(code, slots, sig, site, args)?)

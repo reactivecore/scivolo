@@ -4,6 +4,8 @@
 use super::code::{Arg, Code};
 use super::{Flow, Func, FuncId};
 use crate::Vm;
+use nir::GlobalId;
+use std::cell::Cell;
 
 /// Arguments of one call, kept on the stack when there are few.
 const INLINE_ARGS: usize = 12;
@@ -34,19 +36,33 @@ impl Vm {
         result
     }
 
-    /// A virtual call of `sig` on `args[0]`, with the dispatch cached in `sites`.
+    /// A virtual call of `sig` on `args[0]`, with the dispatch cached at `site`.
     pub fn invoke(&mut self, caller: &Code, slots: &[u64], sig: nir::StrId, site: u32, args: &[Arg]) -> Flow {
-        let obj = match self.arg(caller, slots, args[0])? as usize {
-            0 => return self.null_pointer(),
-            obj => obj,
-        };
-        let cls = self.class_of(obj) as u64 + 1;
-        let (seen, target) = (&caller.sites[site as usize], &caller.sites[site as usize + 1]);
-        if seen.get() != cls {
-            target.set(self.virtual_method(obj, sig)? as u64);
-            seen.set(cls);
+        let receiver = self.arg(caller, slots, args[0])?;
+        let f = self.cached_virtual(&caller.sites[site as usize..site as usize + 2], receiver, sig)?;
+        self.call_direct(caller, slots, f, args)
+    }
+
+    /// The function `name`, cached in `cell` as its id plus one.
+    pub fn cached_func(&mut self, cell: &Cell<u64>, name: GlobalId) -> Flow<FuncId> {
+        if cell.get() == 0 {
+            cell.set(self.func(name)? as u64 + 1);
         }
-        self.call_direct(caller, slots, target.get() as FuncId, args)
+        Ok(cell.get() as FuncId - 1)
+    }
+
+    /// The implementation of `sig` for `receiver`'s class; `cells` hold the class id plus one
+    /// and the function the last receiver class resolved to.
+    pub fn cached_virtual(&mut self, cells: &[Cell<u64>], receiver: u64, sig: nir::StrId) -> Flow<FuncId> {
+        if receiver == 0 {
+            return self.null_pointer();
+        }
+        let cls = self.class_of(receiver as usize) as u64 + 1;
+        if cells[0].get() != cls {
+            cells[1].set(self.virtual_method(receiver as usize, sig)? as u64);
+            cells[0].set(cls);
+        }
+        Ok(cells[1].get() as FuncId)
     }
 
     /// Calls the function behind `target` with `args` evaluated in the caller's frame.

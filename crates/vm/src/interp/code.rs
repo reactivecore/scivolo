@@ -212,6 +212,8 @@ pub enum Instr {
         unwind: Handler,
     },
     Unreachable,
+    /// Nothing, left where a `method` was fused into the `Invoke` after it.
+    Nop,
 }
 
 pub struct Code {

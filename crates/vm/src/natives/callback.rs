@@ -91,19 +91,19 @@ impl Default for Callbacks {
     }
 }
 
-/// Marks a VM as the target of its trampolines until dropped.
-pub struct Running;
+/// Marks a VM as the target of its trampolines until dropped, then restores the VM that ran
+/// before.
+pub struct Running(Option<(u64, *mut Vm)>);
 
 impl Drop for Running {
     fn drop(&mut self) {
-        RUNNING.set(None);
+        RUNNING.set(self.0);
     }
 }
 
 impl Callbacks {
     pub fn enter(&self, vm: *mut Vm) -> Running {
-        RUNNING.set(Some((self.owner, vm)));
-        Running
+        Running(RUNNING.replace(Some((self.owner, vm))))
     }
 
     /// The C address that calls `f`, assigning a trampoline on first use; `None` for

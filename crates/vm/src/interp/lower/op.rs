@@ -35,9 +35,7 @@ impl Lowerer<'_> {
                 }
                 _ => Instr::Call { dst, target: self.arg(*ptr), args: self.args(args), unwind },
             },
-            Op::Method { .. } if self.fusable.contains_key(&(dst as u64)) => {
-                Instr::Copy { dst, v: Arg::Imm(0) }
-            }
+            Op::Method { .. } if self.fusable.contains_key(&(dst as u64)) => Instr::Nop,
             Op::Method { obj, sig } => {
                 let site = self.site();
                 self.site();
@@ -70,9 +68,9 @@ impl Lowerer<'_> {
             Op::Store { ty, ptr, value, .. } => {
                 Instr::Store { ty: *ty, ptr: self.arg(*ptr), v: self.arg(*value) }
             }
-            Op::Var(_) => Instr::Copy { dst, v: Arg::Imm(0) },
-            Op::Varload(cell) => Instr::Copy { dst, v: self.arg(*cell) },
-            Op::Varstore { slot: cell, value } => match self.arg(*cell) {
+            Op::Var(_) if self.slot_vars.contains(&(dst as u64)) => Instr::Copy { dst, v: Arg::Imm(0) },
+            Op::Varload(cell) if self.is_slot_var(*cell) => Instr::Copy { dst, v: self.arg(*cell) },
+            Op::Varstore { slot: cell, value } if self.is_slot_var(*cell) => match self.arg(*cell) {
                 Arg::Slot(cell) => Instr::Copy { dst: cell, v: self.arg(*value) },
                 _ => Instr::Op { dst, inst: at, unwind },
             },
@@ -96,6 +94,10 @@ impl Lowerer<'_> {
             }
             _ => Instr::Op { dst, inst: at, unwind },
         }
+    }
+
+    fn is_slot_var(&self, cell: ValId) -> bool {
+        matches!(self.pool.val(cell), Val::Local(l, _) if self.slot_vars.contains(&l.0))
     }
 
     /// `elem[ty] ptr, i, c1, c2...` with constant `c`s, as `ptr + i * size + offset`.

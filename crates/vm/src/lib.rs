@@ -24,7 +24,7 @@ use nir::{GlobalId, StrId};
 use rustc_hash::FxHashMap;
 
 /// Native stack kept free below the innermost interpreted call, for Rust and C code and for
-/// constructing the `StackOverflowError`.
+/// constructing the `StackOverflowError`; at most a quarter of the stack left.
 const STACK_RESERVE: usize = 4 << 20;
 
 /// Native stack interpreted calls may use where the thread's stack bounds are unknown.
@@ -67,17 +67,20 @@ impl Vm {
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.funcs.profile.on = std::env::var_os("SCALAI_PROFILE").is_some();
-        vm.bootstrap()?;
-        Ok(vm)
+        let ptr: *mut Vm = &mut vm;
+        let running = vm.callbacks.enter(ptr);
+        let booted = vm.bootstrap();
+        drop(running);
+        booted.map(|()| vm)
     }
 
     /// Runs `main(args)` of the top-level object or class `entry`. Interpreted calls throw
     /// `StackOverflowError` within `STACK_RESERVE` of the end of the thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
-        let marker = 0u8;
+        let here = &raw const self as usize;
         let floor = match stack::low_end() {
-            Some(low) => low + STACK_RESERVE,
-            None => (&raw const marker as usize).saturating_sub(FALLBACK_STACK_BUDGET),
+            Some(low) => low + STACK_RESERVE.min(here.saturating_sub(low) / 4),
+            None => here.saturating_sub(FALLBACK_STACK_BUDGET),
         };
         self.funcs.set_stack_floor(floor);
         let vm: *mut Vm = self;

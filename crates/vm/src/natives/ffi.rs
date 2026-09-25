@@ -99,6 +99,10 @@ pub fn call(f: &Foreign, values: &[u64]) -> Flow {
     for (&c, &v) in f.args.iter().zip(values) {
         match c {
             Class::Int { .. } => {
+                if crate::interp::is_func_ref(v) {
+                    let what = "a function C cannot call (floating-point signature or no free slot)";
+                    return Err(crate::VmError::Unsupported(format!("passing {what} to C")).into());
+                }
                 ints[ni] = c.widen(v);
                 ni += 1;
             }

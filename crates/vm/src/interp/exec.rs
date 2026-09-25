@@ -83,10 +83,10 @@ impl Vm {
                         continue;
                     }
                     Err(u) => {
-                        let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
-                        if self.funcs.trace {
+                        if self.funcs.trace && u.thrown().is_some() {
                             self.trace_throw(code, pc);
                         }
+                        let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
                         slots[h.0 as usize] = exc as u64;
                         &h.1
                     }
