@@ -82,7 +82,9 @@ impl Lowerer<'_> {
                 Arg::Slot(cell) => Instr::Copy { dst: cell, v: self.arg(*value) },
                 _ => Instr::Op { dst, inst: at, unwind },
             },
-            Op::SizeOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty) as u64) },
+            Op::SizeOf(ty) if !matches!(self.pool.ty(*ty), Type::Ref { .. }) => {
+                Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty) as u64) }
+            }
             Op::AlignmentOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::align_of(self.pool, *ty) as u64) },
             Op::Elem { ty, ptr, indexes } => {
                 self.elem(dst, *ty, *ptr, indexes).unwrap_or(Instr::Op { dst, inst: at, unwind })

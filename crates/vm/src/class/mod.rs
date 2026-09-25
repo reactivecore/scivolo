@@ -1,7 +1,8 @@
 //! Linked classes, traits and modules: hierarchy and instance layout.
 
+mod fields;
+
 use crate::interp::Unwound;
-use crate::layout::{self, ARRAY_HEADER, OBJECT_HEADER};
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, Type, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -149,38 +150,6 @@ impl Vm {
             _ => "ObjectArray",
         };
         self.link_top(&format!("scala.scalanative.runtime.{name}"))
-    }
-
-    fn field_layout(
-        &mut self,
-        name: GlobalId,
-        parent: Option<ClassId>,
-        is_array: bool,
-    ) -> Result<InstanceLayout, VmError> {
-        let (mut fields, mut order, mut tys) = (FxHashMap::default(), Vec::new(), Vec::new());
-        if let Some(p) = parent {
-            for &f in &self.class(p).field_order {
-                let field = &self.class(p).fields[&f];
-                fields.insert(f, Field { offset: field.offset, ty: field.ty });
-                order.push(f);
-                tys.push(field.ty);
-            }
-        }
-        for m in self.world.members(name)?.to_vec() {
-            if let DefnKind::Var { ty, .. } = self.world.defn(m)?.kind {
-                order.push(m);
-                tys.push(ty);
-            }
-        }
-        let header = if is_array { ARRAY_HEADER } else { OBJECT_HEADER };
-        let ptr = self.world.pool.types.intern(Type::Ptr);
-        let header_ty = TypeId(self.world.pool.types.intern(Type::ArrayValue(TypeId(ptr), header / 8)));
-        let all: Vec<TypeId> = std::iter::once(header_ty).chain(tys.iter().copied()).collect();
-        let (size, offsets) = layout::struct_layout(&self.world.pool, &all);
-        for (i, &f) in order.iter().enumerate() {
-            fields.insert(f, Field { offset: offsets[i + 1], ty: tys[i] });
-        }
-        Ok(InstanceLayout { fields, order, size })
     }
 
     /// Whether an instance of `sub` is an instance of `sup`.

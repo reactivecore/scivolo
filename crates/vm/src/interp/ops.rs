@@ -49,7 +49,13 @@ impl Vm {
                 }
                 Ok(v)
             }
-            Op::SizeOf(ty) => Ok(layout::size_of(&self.world.pool, *ty) as u64),
+            Op::SizeOf(ty) => match self.world.pool.ty(*ty).clone() {
+                Type::Ref { name, .. } if name != self.world.top("scala.runtime.BoxedUnit") => {
+                    let cls = self.link(name)?;
+                    Ok(self.class(cls).size as u64)
+                }
+                _ => Ok(layout::size_of(&self.world.pool, *ty) as u64),
+            },
             Op::AlignmentOf(ty) => Ok(layout::align_of(&self.world.pool, *ty) as u64),
             Op::Var(_) => Ok(self.heap.alloc(8) as u64),
             Op::Varload(slot) => {

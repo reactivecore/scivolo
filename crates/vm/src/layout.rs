@@ -32,6 +32,57 @@ pub fn align_of(pool: &Pool, ty: TypeId) -> u32 {
     }
 }
 
+/// Padding width of `@align` fields whose width is resolved at link time (`contendedPaddingWidth`).
+const CONTENDED_PADDING: u32 = 64;
+
+/// An instance field and its `@align(size, group)`, if any.
+pub struct Field {
+    pub ty: TypeId,
+    pub align: Option<(i32, Option<nir::StrId>)>,
+}
+
+/// The size of an object with header `header` and `fields`, some aligned, and each field's
+/// offset in `fields` order; as Scala Native's `MemoryLayout.ofAlignedFields`, fields are placed
+/// ordered by alignment group, and each aligned group starts and ends on its alignment.
+pub fn aligned_fields(pool: &Pool, header: TypeId, fields: &[Field]) -> (u32, Vec<u32>) {
+    let width = |size: i32| if size < 0 { CONTENDED_PADDING } else { size as u32 };
+    let mut order: Vec<usize> = (0..fields.len()).collect();
+    order.sort_by_key(|&i| fields[i].align.and_then(|(_, g)| g).map(|g| pool.str(g)));
+    let (mut offset, mut max_align) = (size_of(pool, header), align_of(pool, header));
+    let mut offsets = vec![0; fields.len()];
+    let mut place = |i: usize, align: u32, offset: &mut u32| {
+        max_align = max_align.max(align);
+        *offset = offset.next_multiple_of(align);
+        offsets[i] = *offset;
+        *offset += size_of(pool, fields[i].ty);
+    };
+    let mut at = 0;
+    while at < order.len() {
+        let head = &fields[order[at]];
+        let group = head.align.and_then(|(_, g)| g);
+        let len = match group {
+            Some(_) => {
+                order[at..].iter().take_while(|&&i| fields[i].align.and_then(|(_, g)| g) == group).count()
+            }
+            None => 1,
+        };
+        let members = &order[at..at + len];
+        let align = members.iter().filter_map(|&i| fields[i].align.map(|(s, _)| width(s))).max();
+        if let Some(a) = align {
+            offset = offset.next_multiple_of(a);
+        }
+        for (k, &i) in members.iter().enumerate() {
+            let natural = align_of(pool, fields[i].ty);
+            place(i, if k == 0 { align.unwrap_or(natural) } else { natural }, &mut offset);
+        }
+        if let Some(a) = align {
+            offset = offset.next_multiple_of(a);
+        }
+        at += len;
+    }
+    (offset.next_multiple_of(max_align), offsets)
+}
+
 /// The total size of a struct of `tys` and the offset of each member.
 pub fn struct_layout(pool: &Pool, tys: &[TypeId]) -> (u32, Vec<u32>) {
     let (mut offset, mut max_align) = (0u32, 1u32);
