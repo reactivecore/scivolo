@@ -34,11 +34,16 @@ def runTest(b: Bootstrapper, name: String, expected: Class[?]): Try[Unit] =
     checked.flatMap(_ => attempt(b.after(instance)))
   }
 
+// Runs the test classes whose names contain one of the plain arguments (all if there are
+// none), except those containing an argument given as `-part`.
 @main def runner(filter: String*): Unit =
+  val (excluded, included) = filter.partition(_.startsWith("-"))
+  def selected(cls: String) =
+    (included.isEmpty || included.exists(cls.contains)) && !excluded.exists(e => cls.contains(e.drop(1)))
   var (passed, failed, skipped) = (0, 0, 0)
   for i <- 0 until scalai.scalai_bootstrapper_count() do
     val cls = fromCString(scalai.scalai_bootstrapper_name(i))
-    if filter.isEmpty || filter.exists(cls.contains) then
+    if selected(cls) then
       val b = Intrinsics.castRawPtrToObject(toRawPtr(scalai.scalai_bootstrapper(i))).asInstanceOf[Bootstrapper]
       if !b.testClassMetadata().ignored then
         attempt(b.beforeClass()) match

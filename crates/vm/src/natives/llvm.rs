@@ -1,6 +1,8 @@
 //! LLVM intrinsics that library NIR calls as externs.
 
 use super::NativeFn;
+use crate::Vm;
+use crate::heap;
 
 fn f64_of(v: u64) -> f64 {
     f64::from_bits(v)
@@ -90,7 +92,45 @@ pub fn intrinsic(name: &str) -> Option<NativeFn> {
         "copysign.f32" => binary!(|a, b| f32_bits(f32_of(a).copysign(f32_of(b)))),
         "fma.f32" => |_, a| Ok(f32_bits(f32_of(a[0]).mul_add(f32_of(a[1]), f32_of(a[2])))),
         "donothing" | "stacksave" | "stackrestore" => |_, _| Ok(0),
+        "sadd.with.overflow.i32" => |vm, a| Ok(pair32(vm, (a[0] as i32).overflowing_add(a[1] as i32))),
+        "ssub.with.overflow.i32" => |vm, a| Ok(pair32(vm, (a[0] as i32).overflowing_sub(a[1] as i32))),
+        "smul.with.overflow.i32" => |vm, a| Ok(pair32(vm, (a[0] as i32).overflowing_mul(a[1] as i32))),
+        "uadd.with.overflow.i32" => |vm, a| Ok(pair32(vm, overflow_u32(a, u32::overflowing_add))),
+        "usub.with.overflow.i32" => |vm, a| Ok(pair32(vm, overflow_u32(a, u32::overflowing_sub))),
+        "umul.with.overflow.i32" => |vm, a| Ok(pair32(vm, overflow_u32(a, u32::overflowing_mul))),
+        "sadd.with.overflow.i64" => |vm, a| Ok(pair64(vm, (a[0] as i64).overflowing_add(a[1] as i64))),
+        "ssub.with.overflow.i64" => |vm, a| Ok(pair64(vm, (a[0] as i64).overflowing_sub(a[1] as i64))),
+        "smul.with.overflow.i64" => |vm, a| Ok(pair64(vm, (a[0] as i64).overflowing_mul(a[1] as i64))),
+        "uadd.with.overflow.i64" => |vm, a| Ok(pair64(vm, overflow_u64(a, u64::overflowing_add))),
+        "usub.with.overflow.i64" => |vm, a| Ok(pair64(vm, overflow_u64(a, u64::overflowing_sub))),
+        "umul.with.overflow.i64" => |vm, a| Ok(pair64(vm, overflow_u64(a, u64::overflowing_mul))),
         _ => return None,
     };
     Some(f)
+}
+
+fn overflow_u32(a: &[u64], op: fn(u32, u32) -> (u32, bool)) -> (i32, bool) {
+    let (r, o) = op(a[0] as u32, a[1] as u32);
+    (r as i32, o)
+}
+
+fn overflow_u64(a: &[u64], op: fn(u64, u64) -> (u64, bool)) -> (i64, bool) {
+    let (r, o) = op(a[0], a[1]);
+    (r as i64, o)
+}
+
+/// The struct `{i32, i1}` holding `(value, overflowed)`.
+fn pair32(vm: &mut Vm, (value, overflowed): (i32, bool)) -> u64 {
+    let s = vm.heap.alloc(8);
+    heap::write(s, value);
+    heap::write(s + 4, overflowed as u8);
+    s as u64
+}
+
+/// The struct `{i64, i1}` holding `(value, overflowed)`.
+fn pair64(vm: &mut Vm, (value, overflowed): (i64, bool)) -> u64 {
+    let s = vm.heap.alloc(16);
+    heap::write(s, value);
+    heap::write(s + 8, overflowed as u8);
+    s as u64
 }

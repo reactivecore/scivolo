@@ -54,6 +54,13 @@ pub fn read<T: Copy>(addr: usize) -> T {
     unsafe { (addr as *const T).read_unaligned() }
 }
 
+/// Copies `len` bytes from `from` to `to`, which the running program vouches for.
+pub fn copy(from: usize, to: usize, len: usize) {
+    assert!(from >= NULL_PAGE && to >= NULL_PAGE, "copy between {from:#x} and {to:#x}");
+    // SAFETY: as for `read`; `copy` tolerates overlapping ranges.
+    unsafe { std::ptr::copy(from as *const u8, to as *mut u8, len) }
+}
+
 /// Writes a `T` at `addr`, which the running program vouches for.
 pub fn write<T: Copy>(addr: usize, value: T) {
     assert!(addr >= NULL_PAGE, "write of address {addr:#x}");

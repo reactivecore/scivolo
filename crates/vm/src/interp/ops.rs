@@ -3,7 +3,7 @@
 use super::Flow;
 use crate::layout;
 use crate::{Vm, VmError};
-use nir::{Op, Val};
+use nir::{Op, Type, TypeId, Val};
 
 pub mod arith;
 mod boxing;
@@ -62,11 +62,48 @@ impl Vm {
                 Ok(0)
             }
             Op::Arrayalloc { ty, init, .. } => self.array_alloc(*ty, *init, slots),
-            Op::Extract { .. } => Err(VmError::Unsupported("op extract".into()).into()),
-            Op::Insert { .. } => Err(VmError::Unsupported("op insert".into()).into()),
+            Op::Extract { aggr, indexes } => {
+                let (offset, ty) = self.aggregate_member(*aggr, indexes)?;
+                let base = self.val(*aggr, slots)? as usize;
+                Ok(self.load_ty(base + offset, ty))
+            }
+            Op::Insert { aggr, value, indexes } => {
+                let (offset, ty) = self.aggregate_member(*aggr, indexes)?;
+                let aggr_ty = self.val_ty(*aggr);
+                let aggr_ty = TypeId(self.world.pool.types.intern(aggr_ty));
+                let size = layout::size_of(&self.world.pool, aggr_ty) as usize;
+                let (base, v) = (self.val(*aggr, slots)? as usize, self.val(*value, slots)?);
+                let copy = self.heap.alloc(size);
+                if base != 0 {
+                    crate::heap::copy(base, copy, size);
+                }
+                self.store_ty(copy + offset, ty, v);
+                Ok(copy as u64)
+            }
             Op::Dynmethod { .. } => Err(VmError::Unsupported("op dynmethod".into()).into()),
             _ => Err(VmError::Unsupported("op the lowering handles".into()).into()),
         }
+    }
+
+    /// The byte offset and type of the member `indexes` selects in aggregate value `aggr`.
+    fn aggregate_member(&mut self, aggr: nir::ValId, indexes: &[i32]) -> Flow<(usize, TypeId)> {
+        let aggr_ty = self.val_ty(aggr);
+        let mut ty = TypeId(self.world.pool.types.intern(aggr_ty));
+        let mut offset = 0;
+        for &i in indexes {
+            match self.world.pool.ty(ty).clone() {
+                Type::StructValue(tys) => {
+                    offset += layout::struct_layout(&self.world.pool, &tys).1[i as usize] as usize;
+                    ty = tys[i as usize];
+                }
+                Type::ArrayValue(elem, _) => {
+                    offset += i as usize * layout::size_of(&self.world.pool, elem) as usize;
+                    ty = elem;
+                }
+                other => return Err(VmError::Unsupported(format!("extract from {other:?}")).into()),
+            }
+        }
+        Ok((offset, ty))
     }
 
     fn array_alloc(&mut self, elem: nir::TypeId, init: nir::ValId, slots: &[u64]) -> Flow {

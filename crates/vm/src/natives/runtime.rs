@@ -35,7 +35,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
         ("scala.scalanative.runtime.StackTrace$", "D20currentRawStackTraceLAj_EO") => empty_stack_trace,
         ("java.lang.Class", "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class") => class_is,
-        _ => return None,
+        _ => return super::services::method(owner, sig),
     };
     Some(f)
 }

@@ -7,6 +7,7 @@ mod gc;
 mod junit;
 mod llvm;
 mod runtime;
+mod services;
 
 pub use callback::Callbacks;
 pub use ffi::load_runtime;
