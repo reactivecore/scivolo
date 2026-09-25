@@ -1,6 +1,6 @@
 # 04 — Garbage collector options for the NIR VM
 
-Date: 2026-09-25 · Status: research for [ADR 0004](../adr/0004-minimal-mark-sweep-gc.md)
+Date: 2026-09-25 · Status: research for [ADR 0004](../adr/0004-immix-garbage-collector.md)
 
 Claims are marked **[V]** (verified: read in the checkout, a fetched page or a crate's docs) or
 **[I]** (inferred). Sources are listed at the end; `ref/…` paths refer to the Scala Native

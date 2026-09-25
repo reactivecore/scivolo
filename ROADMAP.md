@@ -47,9 +47,10 @@ with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and
 Not yet done: threads, library index, GC (the heap never frees), stack traces, M4/M5 suites.
 
 Next steps in phase 1:
-1. Minimal garbage collector ([ADR 0004](docs/adr/0004-minimal-mark-sweep-gc.md)):
-   non-moving mark-sweep, precise heap tracing, conservative interpreter-frame roots; plus a
-   stress-test program that allocates far more than it keeps.
+1. Garbage collector ([ADR 0004](docs/adr/0004-immix-garbage-collector.md)): Scala Native's
+   Immix built into the C runtime; the VM fills `refFieldOffsets`, numbers class ids by
+   hierarchy, defines the linker symbols Immix expects and registers a contiguous frame slot
+   stack as roots. Plus a stress-test program that allocates far more than it keeps.
 2. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
    as scheduler waits; report multithreading enabled. Each thread's frames become GC roots.
 3. OS threads (later): a concurrency-safe heap, caches and callback table.
