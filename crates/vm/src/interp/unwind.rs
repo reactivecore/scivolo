@@ -80,7 +80,9 @@ impl Vm {
     }
 
     /// A missing definition or native as the `NoClassDefFoundError` or `UnsatisfiedLinkError` a
-    /// JVM would throw; any other unwinding unchanged.
+    /// JVM would throw, another unsupported feature as an `InternalError` (which `NonFatal`
+    /// handlers do not catch), a failed static initializer as `ExceptionInInitializerError`;
+    /// any other unwinding unchanged.
     pub fn as_linkage_error(&mut self, u: Unwind) -> Unwind {
         if let Unwound::Fatal(VmError::Initializer(cause)) = *u.0 {
             return match self.throw_initializer_error(cause) {
@@ -90,14 +92,16 @@ impl Vm {
         }
         let (class, message) = match &*u.0 {
             Unwound::Fatal(VmError::Load(LoadError::Missing(name))) => {
-                ("java.lang.NoClassDefFoundError", name)
+                ("java.lang.NoClassDefFoundError", name.clone())
             }
             Unwound::Fatal(VmError::Unsupported(what)) if what.starts_with("native ") => {
-                ("java.lang.UnsatisfiedLinkError", what)
+                ("java.lang.UnsatisfiedLinkError", what.clone())
+            }
+            Unwound::Fatal(VmError::Unsupported(what)) => {
+                ("java.lang.InternalError", format!("scalai: unsupported: {what}"))
             }
             _ => return u,
         };
-        let message = message.clone();
         match self.throw_new_with(class, &message) {
             Err(thrown) if thrown.thrown().is_some() => thrown,
             _ => u,

@@ -16,6 +16,9 @@ impl Vm {
         if self.world.defn(init).is_ok() {
             self.call_global(init, &[obj as u64])?;
         }
+        if self.world.pool.top_name(name) == "scala.scalanative.reflect.Reflect$" {
+            self.register_reflective_classes()?;
+        }
         Ok(obj)
     }
 

@@ -2,43 +2,16 @@
 
 use crate::interp::code::Num;
 
-/// Up to 8 integer and 8 floating-point registers, then 16 words the callee finds on the stack.
-type VarFn = extern "C" fn(
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    f64,
-    f64,
-    f64,
-    f64,
-    f64,
-    f64,
-    f64,
-    f64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-    u64,
-) -> u64;
+const STACK_WORDS: usize = 32;
 
-const STACK_WORDS: usize = 16;
+/// Up to 8 integer and 8 floating-point registers, then 32 words the callee finds on the stack.
+#[rustfmt::skip]
+type VarFn = extern "C" fn(
+    u64, u64, u64, u64, u64, u64, u64, u64,
+    f64, f64, f64, f64, f64, f64, f64, f64,
+    u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64,
+    u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64,
+) -> u64;
 
 /// The bits a variadic argument of kind `num` is passed as: C promotes `float` to `double`
 /// and small integers to `int`.
@@ -76,16 +49,19 @@ pub fn call(addr: usize, named: usize, args: &[(u64, Num)], ret: Num) -> Option<
     if matches!(ret, Num::F32 | Num::F64) {
         return None;
     }
-    let [a, b, c, d, e, f, g, h] = ints;
-    let [p, q, r, s, t, u, w, x] = floats;
-    let [s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11, s12, s13, s14, s15] = stack;
+    let [a0, a1, a2, a3, a4, a5, a6, a7] = ints;
+    let [f0, f1, f2, f3, f4, f5, f6, f7] = floats;
+    let s = stack;
     // SAFETY: `addr` is a variadic C function; its fixed arguments are in the registers the
     // C ABI assigns them, and its variadic arguments in the stack words that follow the sixteen
     // register parameters (Apple arm64) or in the next registers (elsewhere).
     let fun: VarFn = unsafe { std::mem::transmute(addr) };
+    #[rustfmt::skip]
     let out = fun(
-        a, b, c, d, e, f, g, h, p, q, r, s, t, u, w, x, s0, s1, s2, s3, s4, s5, s6, s7, s8, s9, s10, s11,
-        s12, s13, s14, s15,
+        a0, a1, a2, a3, a4, a5, a6, a7, f0, f1, f2, f3, f4, f5, f6, f7,
+        s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15],
+        s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23], s[24], s[25], s[26], s[27], s[28], s[29], s[30],
+        s[31],
     );
     Some(match ret {
         Num::Bool | Num::I8 => out & 0xFF,

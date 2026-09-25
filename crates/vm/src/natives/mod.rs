@@ -72,8 +72,10 @@ impl Vm {
             }
         };
         ffi::variadic::call(addr, named, args, ret).ok_or_else(|| {
-            VmError::Unsupported(format!("variadic call of {} with these arguments", self.world.name(g)))
-                .into()
+            let kinds: Vec<String> = args.iter().map(|(_, n)| format!("{n:?}")).collect();
+            let what =
+                format!("variadic call of {} with ({}) -> {ret:?}", self.world.name(g), kinds.join(", "));
+            VmError::Unsupported(what).into()
         })
     }
 

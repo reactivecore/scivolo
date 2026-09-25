@@ -74,6 +74,20 @@ impl Vm {
         Ok(None)
     }
 
+    /// Runs the static initializers that register classes with `scala.scalanative.reflect.Reflect`,
+    /// which Scala Native runs at startup: those of every class with a generated
+    /// `…$scalanative$ReflectivelyInstantiate$` companion.
+    pub fn register_reflective_classes(&mut self) -> Flow<()> {
+        const SUFFIX: &str = "$scalanative$ReflectivelyInstantiate$";
+        for companion in self.world.tops_ending(SUFFIX) {
+            let owner = self.world.top(companion.strip_suffix(SUFFIX).unwrap_or(&companion));
+            if self.world.defn(owner).is_ok() {
+                self.link(owner)?;
+            }
+        }
+        Ok(())
+    }
+
     /// Calls `proxy` with boxed `args`: unboxes them, calls the target and boxes its result.
     pub fn call_proxy(&mut self, proxy: &Proxy, args: &[u64]) -> Flow {
         let mut values = Vec::with_capacity(args.len());

@@ -6,12 +6,17 @@ use crate::heap;
 use crate::interp::Flow;
 use crate::layout::{ARRAY_LENGTH, ARRAY_STRIDE};
 
+/// Heap sizes reported to programs; the heap is only limited by memory.
+const INIT_HEAP: u64 = 1 << 20;
+const MAX_HEAP: u64 = 16 << 30;
+
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     let f: NativeFn = match name.strip_prefix("scalanative_GC_")? {
         "alloc" | "alloc_small" | "alloc_large" => alloc,
         "alloc_array" => alloc_array,
         "get_used_heapsize" => |vm, _| Ok(vm.heap.allocated as u64),
-        "get_init_heapsize" | "get_max_heapsize" => |_, _| Ok(u64::MAX >> 1),
+        "get_init_heapsize" => |_, _| Ok(INIT_HEAP),
+        "get_max_heapsize" => |_, _| Ok(MAX_HEAP),
         "collect"
         | "init"
         | "add_roots"
