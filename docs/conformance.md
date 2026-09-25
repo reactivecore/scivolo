@@ -17,23 +17,25 @@ through the externs in `crates/vm/src/natives/junit.rs`, because Scala Native's 
 lookup needs metadata that its linker generates. Tests run from the root of `ref/scala-native`,
 where their resource files are.
 
-## Results (2026-09-25)
+## Results (2026-09-25, with the Immix collector)
 
 | Group | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
 | scala.scalanative | 735 | 0 | 3 |
-| java.lang | 342 | 39 | 16 |
+| java.lang | 345 | 36 | 16 |
 | java.io | 200 | 0 | 4 |
 | java.math | 779 | 1 | 0 |
-| java.net | 72 | 1 | 1 (run stops: blocking socket test) |
-| java.nio | 2610 | 24 | 1 |
+| java.net (earlier run, not in `sn-report.sh`) | 72 | 1 | 1 (run stops: blocking socket test) |
+| java.nio | 2621 | 13 | 1 |
 | java.util | 2560 | 6 | 8 |
 | java.util.concurrent | 143 | 0 | 80 |
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 60 | 1 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **8286** | **72** | **115** |
+| **total** | **8300** | **58** | **115** |
+
+`ProcessTest` waits up to 60 s per case; run the java.lang group with `SCALAI_TIMEOUT=300`.
 
 A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
@@ -47,7 +49,6 @@ instead of the run.
 - **Class metadata.** `Class.forName` and other reflection needing linker metadata.
 - **Environment.** A few `System`/`ProcessTest` cases (environment variables, `user.dir`,
   git subprocess with timeouts) depend on threads or on how the test harness starts the process.
-- **GC.** No collector: `Cleaner` and weak-reference tests fail, and long runs only grow.
 - **javalib miscompiles.** Some javalib lambdas take a `Nothing` parameter and compile to
   `throw o` (e.g. `HashSet.containsAll`); the VM throws `ClassCastException` there, as a JVM
   would, and the affected tests fail.

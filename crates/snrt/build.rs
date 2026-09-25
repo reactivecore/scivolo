@@ -25,9 +25,11 @@ fn main() {
     let lib = out_dir.join(if cfg!(target_os = "macos") { "libsnrt.dylib" } else { "libsnrt.so" });
     let mut cmd = Command::new(cc);
     cmd.args(["-std=gnu11", "-O2", "-fPIC", "-shared", "-w"])
-        .args(["-DSCALANATIVE_COMPILE_ALWAYS", "-D__SCALANATIVE_JAVALIB_Z"])
+        .args(["-DSCALANATIVE_COMPILE_ALWAYS", "-D__SCALANATIVE_JAVALIB_Z", "-DSCALANATIVE_GC_IMMIX"])
         .arg("-I")
         .arg(native.join("nativelib/scala-native"))
+        .arg("-I")
+        .arg(native.join("nativelib/scala-native/gc"))
         .args(&files)
         .arg("-lz")
         .arg("-o")

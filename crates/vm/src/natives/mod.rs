@@ -10,7 +10,7 @@ mod runtime;
 mod services;
 
 pub use callback::Callbacks;
-pub use ffi::{exit_immediately, load_runtime};
+pub use ffi::{exit_immediately, load_runtime, symbol};
 
 use crate::interp::Flow;
 use crate::interp::code::Num;

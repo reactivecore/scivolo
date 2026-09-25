@@ -25,15 +25,14 @@ fn property(name: &str) -> Option<Prop> {
     Some(match key {
         "debugMode"
         | "is32BitPlatform"
-        | "isWeakReferenceSupported"
         | "isMultithreadingEnabled"
         | "isMsys"
         | "debugMetadata.enabled"
         | "debugMetadata.generateFunctionSourcePositions" => Prop::Bool(false),
-        "releaseMode" => Prop::Bool(true),
+        "releaseMode" | "isWeakReferenceSupported" => Prop::Bool(true),
         "contendedPaddingWidth" => Prop::Int(64),
         "runtimeVersion" => Prop::Str("0.5.12"),
-        "garbageCollector" => Prop::Str("none"),
+        "garbageCollector" => Prop::Str("immix"),
         "enabledSanitizer" | "target.env" => Prop::Str(""),
         "target.arch" => Prop::Str(if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" }),
         "target.vendor" => Prop::Str(if cfg!(target_os = "macos") { "apple" } else { "unknown" }),
@@ -63,7 +62,7 @@ impl Vm {
         let v = match property(name) {
             Some(Prop::Bool(b)) => b as u64,
             Some(Prop::Int(i)) => i as u32 as u64,
-            Some(Prop::Str(s)) => self.new_string(s)? as u64,
+            Some(Prop::Str(s)) => self.new_string_in(s, crate::object::Space::Permanent)? as u64,
             None => return Err(VmError::Unsupported(format!("link-time property {name}")).into()),
         };
         self.linktime.props.insert(name.to_owned(), v);

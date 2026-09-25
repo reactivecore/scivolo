@@ -3,6 +3,7 @@
 mod class;
 mod classpath;
 mod error;
+mod gcinfo;
 mod heap;
 mod interp;
 mod layout;
@@ -34,12 +35,16 @@ const FALLBACK_STACK_BUDGET: usize = 6 << 20;
 pub struct Vm {
     pub world: World,
     heap: Heap,
+    frames: stack::Frames,
     classes: Classes,
     rtti: rtti::Rtti,
+    gc_classes: gcinfo::GcClasses,
     funcs: Funcs,
     modules: FxHashMap<GlobalId, usize>,
     strings: FxHashMap<StrId, usize>,
-    thread: CurrentThread,
+    /// A permanent cell holding the `java.lang.Thread` and native thread objects of the only
+    /// thread.
+    thread: usize,
     callbacks: natives::Callbacks,
     linktime: linktime::Linktime,
     junit: Option<Vec<String>>,
@@ -47,25 +52,25 @@ pub struct Vm {
     scratch: Vec<usize>,
 }
 
-/// The `java.lang.Thread` and native thread objects of the only thread.
-#[derive(Default)]
-struct CurrentThread {
-    java: u64,
-    native: u64,
-}
-
 impl Vm {
     pub fn new(classpath: Classpath) -> Result<Self, VmError> {
         natives::load_runtime().map_err(VmError::Unsupported)?;
+        let frames = stack::Frames::new().map_err(VmError::Unsupported)?;
+        let bounds =
+            stack::bounds().ok_or_else(|| VmError::Unsupported("unknown thread stack bounds".into()))?;
+        let mut heap = Heap::new(natives::symbol, bounds, frames.bounds()).map_err(VmError::Unsupported)?;
+        let thread = heap.permanent(16);
         let mut vm = Self {
             world: World::new(classpath),
-            heap: Heap::default(),
+            heap,
+            frames,
             classes: Classes::default(),
             rtti: rtti::Rtti::default(),
+            gc_classes: gcinfo::GcClasses::default(),
             funcs: Funcs::default(),
             modules: FxHashMap::default(),
             strings: FxHashMap::default(),
-            thread: CurrentThread::default(),
+            thread,
             callbacks: natives::Callbacks::default(),
             linktime: linktime::Linktime::default(),
             junit: None,
@@ -85,8 +90,8 @@ impl Vm {
     /// `StackOverflowError` within `STACK_RESERVE` of the end of the thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
         let here = &raw const self as usize;
-        let floor = match stack::low_end() {
-            Some(low) => low + STACK_RESERVE.min(here.saturating_sub(low) / 4),
+        let floor = match stack::bounds() {
+            Some((low, _)) => low + STACK_RESERVE.min(here.saturating_sub(low) / 4),
             None => here.saturating_sub(FALLBACK_STACK_BUDGET),
         };
         self.funcs.set_stack_floor(floor);

@@ -43,14 +43,12 @@ Evidence for every number below is in `docs/research/` and `spikes/*/README.md`
 
 Progress (2026-09-25): workspace and `crates/nir` done; `crates/vm` interprets lowered NIR
 with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and M3 pass**:
-8,286 of Scala Native's unit tests pass, 72 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
-Not yet done: threads, library index, GC (the heap never frees), stack traces, M4/M5 suites.
+8,300 of Scala Native's unit tests pass, 58 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
+Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garbage-collector.md), done).
+Not yet done: threads, library index, stack traces, M4/M5 suites.
 
 Next steps in phase 1:
-1. Garbage collector ([ADR 0004](docs/adr/0004-immix-garbage-collector.md)): Scala Native's
-   Immix built into the C runtime; the VM fills `refFieldOffsets`, numbers class ids by
-   hierarchy, defines the linker symbols Immix expects and registers a contiguous frame slot
-   stack as roots. Plus a stress-test program that allocates far more than it keeps.
+1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).
 2. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
    as scheduler waits; report multithreading enabled. Each thread's frames become GC roots.
 3. OS threads (later): a concurrency-safe heap, caches and callback table.
@@ -78,8 +76,8 @@ frontend is still dotc + nscplugin, behind a cache.
    - module initialization
    - vtable and itable dispatch, built from class and trait definitions
 4. **Runtime.** Scala Native's object layout: an RTTI header, UTF-16 strings,
-   and its array layout. Boehm GC comes through Scala Native's own C runtime,
-   compiled with the `cc` crate. The ~534 extern symbols javalib calls go
+   and its array layout. The Immix collector comes with Scala Native's own C
+   runtime (ADR 0004). The ~534 extern symbols javalib calls go
    through `libffi` and `dlsym`. Pointer intrinsics (`Ptr`, `stackalloc`,
    `Intrinsics.*`) run on a byte-addressable native heap. Single-threaded
    first.
@@ -116,8 +114,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
   sysimage and GraalVM's image heap do.
 - **Interpreter speedups.** Inline caches on `method` dispatch, specialization
   of operations by type, and super-instructions.
-- **Precise GC.** Non-moving and Immix-like, with typed SSA locals as roots;
-  MMTk is the alternative. This replaces Boehm.
+- **Precise roots.** Immix scans frames and the native stack conservatively
+  (ADR 0004); typed slot maps would make frame scanning precise. MMTk stays the
+  alternative collector.
 - **Optional JIT.** A Cranelift baseline tier for hot methods. The Winch
   numbers suggest it compiles 15–20× faster at a cost of 1.1–1.5× in code
   quality.

@@ -26,7 +26,7 @@ impl Vm {
             }
             Op::Stackalloc { ty, n } => {
                 let n = self.index(*n, slots)?.max(1) as usize;
-                Ok(self.heap.alloc(n * layout::size_of(&self.world.pool, *ty) as usize) as u64)
+                self.frame_alloc(n * layout::size_of(&self.world.pool, *ty) as usize)
             }
             Op::Fence(_) => Ok(0),
             Op::Classalloc { name, .. } => {
@@ -57,7 +57,7 @@ impl Vm {
                 _ => Ok(layout::size_of(&self.world.pool, *ty) as u64),
             },
             Op::AlignmentOf(ty) => Ok(layout::align_of(&self.world.pool, *ty) as u64),
-            Op::Var(_) => Ok(self.heap.alloc(8) as u64),
+            Op::Var(_) => self.frame_alloc(8),
             Op::Varload(slot) => {
                 let addr = self.val(*slot, slots)?;
                 Ok(crate::heap::read(addr as usize))
@@ -83,7 +83,7 @@ impl Vm {
                 let aggr_ty = TypeId(self.world.pool.types.intern(aggr_ty));
                 let size = layout::size_of(&self.world.pool, aggr_ty) as usize;
                 let (base, v) = (self.val(*aggr, slots)? as usize, self.val(*value, slots)?);
-                let copy = self.heap.alloc(size);
+                let copy = self.blob(size)?;
                 if base != 0 {
                     crate::heap::copy(base, copy, size);
                 }
@@ -107,10 +107,6 @@ impl Vm {
     }
 
     /// Whether values of `ty` are aggregates, represented by the address of their bytes.
-    fn is_aggregate(&self, ty: TypeId) -> bool {
-        matches!(self.world.pool.ty(ty), Type::StructValue(_) | Type::ArrayValue(..))
-    }
-
     /// The byte offset and type of the member `indexes` selects in aggregate value `aggr`.
     fn aggregate_member(&mut self, aggr: nir::ValId, indexes: &[i32]) -> Flow<(usize, TypeId)> {
         let aggr_ty = self.val_ty(aggr);

@@ -80,7 +80,7 @@ impl Vm {
             let addr = match defn.kind {
                 DefnKind::Var { .. } | DefnKind::Const { .. } if is_extern => self.extern_variable(g)?,
                 DefnKind::Var { ty, rhs } | DefnKind::Const { ty, rhs } => {
-                    let addr = self.heap.alloc(layout::size_of(&self.world.pool, ty) as usize);
+                    let addr = self.heap.permanent(layout::size_of(&self.world.pool, ty) as usize);
                     let value = self.val(rhs, &[])?;
                     self.store_ty(addr, ty, value);
                     addr
@@ -139,7 +139,7 @@ impl Vm {
             Val::ArrayValue(ty, vs) => layout::size_of(&self.world.pool, *ty) as usize * vs.len(),
             _ => WORD as usize,
         };
-        let addr = self.heap.alloc(size);
+        let addr = self.heap.permanent(size);
         self.write_const(addr, inner)?;
         self.funcs.consts.insert(v, addr);
         Ok(addr)

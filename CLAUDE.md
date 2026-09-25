@@ -37,8 +37,9 @@ Rationale goes in `docs/adr/`, one decision per file.
   that obscure control flow, minimal generics. Arena / index handles over
   pointers. In the VM, `unsafe` lives only in `heap.rs` (every raw memory
   access by address goes through `heap::read`/`heap::write`), `stack.rs`, and
-  `natives/ffi.rs` and `natives/callback.rs` (the C boundary); the callback
-  slot table is the one piece of state outside `Vm` (ADR 0002).
+  `natives/ffi/` and `natives/callback.rs` (the C boundary); the callback
+  slot table (ADR 0002) and the collector (ADR 0004) are the only state
+  outside `Vm`.
 - Documentation is short: one home per fact.
 - Code or ideas taken from elsewhere get an entry in `acknowledges.md`.
 

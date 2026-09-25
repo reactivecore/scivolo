@@ -10,7 +10,7 @@ impl Vm {
             return Ok(obj);
         }
         let cls = self.link(name)?;
-        let obj = self.alloc_object(cls);
+        let obj = self.alloc_object_in(cls, crate::object::Space::Permanent);
         self.modules.insert(name, obj);
         let init = self.world.member(name, "RE");
         if self.world.defn(init).is_ok() {

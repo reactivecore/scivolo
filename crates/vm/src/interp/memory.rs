@@ -6,8 +6,10 @@ use nir::{Type, TypeId, ValId};
 
 impl Vm {
     /// Loads a value of type `ty`, zero-extended to 64 bits.
+    /// Aggregate values are the addresses of their bytes.
     pub fn load_ty(&self, addr: usize, ty: TypeId) -> u64 {
         match layout::size_of(&self.world.pool, ty) {
+            _ if self.is_aggregate(ty) => addr as u64,
             1 => heap::read::<u8>(addr) as u64,
             2 => heap::read::<u16>(addr) as u64,
             4 => heap::read::<u32>(addr) as u64,
@@ -17,11 +19,20 @@ impl Vm {
 
     pub fn store_ty(&self, addr: usize, ty: TypeId, v: u64) {
         match layout::size_of(&self.world.pool, ty) {
+            size if self.is_aggregate(ty) => {
+                if v != 0 {
+                    heap::copy(v as usize, addr, size as usize);
+                }
+            }
             1 => heap::write(addr, v as u8),
             2 => heap::write(addr, v as u16),
             4 => heap::write(addr, v as u32),
             _ => heap::write(addr, v),
         }
+    }
+
+    pub fn is_aggregate(&self, ty: TypeId) -> bool {
+        matches!(self.world.pool.ty(ty), Type::StructValue(_) | Type::ArrayValue(..))
     }
 
     /// The signed integer value of index operand `v`.

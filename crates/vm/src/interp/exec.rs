@@ -8,15 +8,36 @@ const INLINE_ARGS: usize = 12;
 
 impl Vm {
     pub fn exec(&mut self, code: &Code, args: &[u64]) -> Flow {
-        let mut slots = self.funcs.frames.pop().unwrap_or_default();
-        slots.clear();
-        slots.resize(code.slots, 0);
+        if self.heap.take_weak_refs_collected() {
+            self.run_weak_handler()?;
+        }
+        let base = self.frames.top();
+        let slots = self.push_frame(code.slots)?;
         for (&p, &a) in code.params.iter().zip(args) {
             slots[p as usize] = a;
         }
-        let result = self.run(code, &mut slots);
-        self.funcs.recycle(slots);
+        let result = self.run(code, slots);
+        self.frames.truncate(base);
         result
+    }
+
+    /// `len` zeroed slots on the frame stack, which the caller truncates when its call ends.
+    pub fn push_frame<'a>(&mut self, len: usize) -> Flow<&'a mut [u64]> {
+        match self.frames.push(8 * len) {
+            Some(at) => Ok(self.frames.slots(at, len)),
+            None => match self.stack_overflow() {
+                Err(u) => Err(u),
+                Ok(_) => unreachable!("stack_overflow throws"),
+            },
+        }
+    }
+
+    /// `bytes` zeroed bytes freed when the current call returns.
+    pub fn frame_alloc(&mut self, bytes: usize) -> Flow {
+        match self.frames.push(bytes) {
+            Some(at) => Ok(at as u64),
+            None => self.stack_overflow(),
+        }
     }
 
     fn trace_throw(&self, code: &Code, pc: usize) {

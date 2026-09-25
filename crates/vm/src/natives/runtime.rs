@@ -1,13 +1,13 @@
 //! Rust implementations of C runtime externs and of runtime methods the VM replaces.
 
 use super::NativeFn;
-use crate::Vm;
 use crate::interp::Flow;
+use crate::{Vm, heap};
 
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     let f: NativeFn = match name {
-        "scalanative_currentThread" => |vm, _| Ok(vm.thread.java),
-        "scalanative_currentNativeThread" => |vm, _| Ok(vm.thread.native),
+        "scalanative_currentThread" => |vm, _| Ok(heap::read(vm.thread)),
+        "scalanative_currentNativeThread" => |vm, _| Ok(heap::read(vm.thread + 8)),
         "scalanative_assignCurrentThread" => assign_thread,
         "scalanative_setupCurrentThreadInfo"
         | "scalanative_Throwable_sizeOfExceptionWrapper"
@@ -26,8 +26,8 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
 }
 
 fn assign_thread(vm: &mut Vm, args: &[u64]) -> Flow {
-    vm.thread.java = args[0];
-    vm.thread.native = args[1];
+    heap::write(vm.thread, args[0]);
+    heap::write(vm.thread + 8, args[1]);
     Ok(0)
 }
 

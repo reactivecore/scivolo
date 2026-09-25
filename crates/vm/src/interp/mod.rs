@@ -41,7 +41,6 @@ pub struct Funcs {
     globals: FxHashMap<GlobalId, usize>,
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
-    frames: Vec<Vec<u64>>,
     proxies: FxHashMap<(crate::class::ClassId, nir::StrId), FuncId>,
     stack_floor: usize,
     overflowing: bool,
@@ -59,17 +58,7 @@ impl Funcs {
     pub fn instrumented(&self) -> bool {
         self.trace || self.profile.on
     }
-
-    /// Keeps `frame` for reuse unless enough frames are pooled already.
-    pub fn recycle(&mut self, frame: Vec<u64>) {
-        if self.frames.len() < MAX_POOLED_FRAMES {
-            self.frames.push(frame);
-        }
-    }
 }
-
-/// Frames kept for reuse; deeper recursion allocates its extra frames afresh.
-const MAX_POOLED_FRAMES: usize = 256;
 
 pub fn func_ref(id: FuncId) -> u64 {
     FUNC_TAG | id as u64

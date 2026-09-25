@@ -1,45 +1,149 @@
-//! Raw memory: the zeroed, never-freed heap for objects, arrays and runtime metadata, and the
-//! only place the VM reads or writes memory by address.
+//! Raw memory: objects and arrays in Scala Native's Immix collector, a never-freed permanent
+//! heap for runtime metadata, modules and literals, and the only place the VM reads or writes
+//! memory by address.
 //!
 //! Addresses come from interpreted NIR, which the VM trusts the way a CPU trusts the machine
 //! code it runs: NIR may compute any address, and a wrong one is a bug in that program.
+//!
+//! The collector finds live objects from the native stack, the frame stack and the permanent
+//! heap, all scanned conservatively; see ADR 0004.
 
 use std::alloc::{Layout, alloc_zeroed};
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const CHUNK: usize = 1 << 20;
 const ALIGN: usize = 16;
 
-#[derive(Default)]
 pub struct Heap {
     cur: usize,
     end: usize,
     pub allocated: usize,
+    gc: Collector,
+}
+
+/// The collector's entry points in the C runtime.
+struct Collector {
+    alloc: extern "C" fn(usize, usize) -> usize,
+    alloc_array: extern "C" fn(usize, usize, usize) -> usize,
+    add_roots: extern "C" fn(usize, usize),
+    set_ids: extern "C" fn(*const GcIds),
+    watch_weak_refs: extern "C" fn(),
+    /// The `int` the collector sets when it has cleared weak references.
+    weak_refs_collected: usize,
+}
+
+/// Class ids the collector needs to tell arrays, blobs, boxed pointers and weak references
+/// apart, and where a weak reference keeps its referent; `scalai_GC_set_ids` reads it.
+#[repr(C)]
+pub struct GcIds {
+    pub object_array: i32,
+    pub blob_array: i32,
+    pub arrays_min: i32,
+    pub arrays_max: i32,
+    pub boxed_ptr: i32,
+    pub weak_refs_min: i32,
+    pub weak_refs_max: i32,
+    pub weak_referent_offset: i32,
 }
 
 impl Heap {
-    /// `size` zeroed bytes aligned to 16.
-    pub fn alloc(&mut self, size: usize) -> usize {
+    /// Starts the collector on the calling thread, whose stack spans `stack`, with `frames` as
+    /// the bounds of the frame stack. `symbol` finds C runtime functions.
+    pub fn new(
+        symbol: impl Fn(&str) -> Option<usize>,
+        stack: (usize, usize),
+        frames: *const usize,
+    ) -> Result<Self, String> {
+        static STARTED: AtomicBool = AtomicBool::new(false);
+        if STARTED.swap(true, Ordering::SeqCst) {
+            return Err("the collector serves one VM per process".into());
+        }
+        let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
+        let (init, set_frames) = (find("scalai_GC_init")?, find("scalai_GC_set_frame_stack")?);
+        // SAFETY: each address is the named C runtime function, whose C signature the type
+        // spells out.
+        let gc = unsafe {
+            Collector {
+                alloc: std::mem::transmute::<usize, extern "C" fn(usize, usize) -> usize>(find(
+                    "scalanative_GC_alloc",
+                )?),
+                alloc_array: std::mem::transmute::<usize, extern "C" fn(usize, usize, usize) -> usize>(find(
+                    "scalanative_GC_alloc_array",
+                )?),
+                add_roots: std::mem::transmute::<usize, extern "C" fn(usize, usize)>(find(
+                    "scalanative_GC_add_roots",
+                )?),
+                set_ids: std::mem::transmute::<usize, extern "C" fn(*const GcIds)>(find(
+                    "scalai_GC_set_ids",
+                )?),
+                watch_weak_refs: std::mem::transmute::<usize, extern "C" fn()>(find(
+                    "scalai_GC_watch_weak_refs",
+                )?),
+                weak_refs_collected: find("scalai_weak_refs_collected")?,
+            }
+        };
+        // SAFETY: as above; `frames` points to the frame stack's bounds, which live as long as
+        // the VM, and the stack bounds are the calling thread's.
+        unsafe {
+            std::mem::transmute::<usize, extern "C" fn(usize, usize)>(init)(stack.0, stack.1);
+            std::mem::transmute::<usize, extern "C" fn(*const usize)>(set_frames)(frames);
+        }
+        Ok(Self { cur: 0, end: 0, allocated: 0, gc })
+    }
+
+    pub fn set_ids(&self, ids: &GcIds) {
+        (self.gc.set_ids)(ids);
+    }
+
+    /// Makes collections that clear weak references raise a flag instead of calling back.
+    pub fn watch_weak_refs(&self) {
+        (self.gc.watch_weak_refs)()
+    }
+
+    /// Whether a collection cleared weak references since the last call.
+    pub fn take_weak_refs_collected(&mut self) -> bool {
+        let flag = self.gc.weak_refs_collected;
+        let raised = read::<i32>(flag) != 0;
+        if raised {
+            write(flag, 0i32);
+        }
+        raised
+    }
+
+    /// A zeroed object of `size` bytes whose header points to `rtti`; may collect first.
+    pub fn object(&mut self, rtti: usize, size: usize) -> usize {
+        (self.gc.alloc)(rtti, size)
+    }
+
+    /// A zeroed array of `len` elements of `stride` bytes; may collect first.
+    pub fn array(&mut self, rtti: usize, len: usize, stride: usize) -> usize {
+        (self.gc.alloc_array)(rtti, len, stride)
+    }
+
+    /// `size` zeroed bytes aligned to 16 that are never freed; the collector scans them.
+    pub fn permanent(&mut self, size: usize) -> usize {
         let size = size.max(1).next_multiple_of(ALIGN);
         self.allocated += size;
         if size > CHUNK / 4 {
-            return chunk(size);
+            return self.chunk(size);
         }
         if self.cur + size > self.end {
-            self.cur = chunk(CHUNK);
+            self.cur = self.chunk(CHUNK);
             self.end = self.cur + CHUNK;
         }
         let addr = self.cur;
         self.cur += size;
         addr
     }
-}
 
-fn chunk(size: usize) -> usize {
-    let layout = Layout::from_size_align(size, ALIGN).expect("allocation size overflows");
-    // SAFETY: `layout` has a non-zero size.
-    let ptr = unsafe { alloc_zeroed(layout) };
-    assert!(!ptr.is_null(), "out of memory allocating {size} bytes");
-    ptr as usize
+    fn chunk(&mut self, size: usize) -> usize {
+        let layout = Layout::from_size_align(size, ALIGN).expect("allocation size overflows");
+        // SAFETY: `layout` has a non-zero size.
+        let ptr = unsafe { alloc_zeroed(layout) } as usize;
+        assert!(ptr != 0, "out of memory allocating {size} bytes");
+        (self.gc.add_roots)(ptr, ptr + size);
+        ptr
+    }
 }
 
 /// Addresses below this lie in the page every platform leaves unmapped; accessing them is a

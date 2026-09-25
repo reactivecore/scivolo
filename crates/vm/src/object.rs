@@ -6,38 +6,75 @@ use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
 use crate::{Vm, VmError};
 use nir::StrId;
 
+/// Where an allocation lives: in the collected heap, or forever, for what only the VM refers to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Space {
+    Gc,
+    Permanent,
+}
+
 impl Vm {
     pub fn alloc_object(&mut self, cls: ClassId) -> usize {
+        self.alloc_object_in(cls, Space::Gc)
+    }
+
+    pub fn alloc_object_in(&mut self, cls: ClassId, space: Space) -> usize {
         let c = self.class(cls);
         let (size, rtti) = (c.size as usize, c.rtti);
-        let obj = self.heap.alloc(size);
-        heap::write(obj, rtti);
-        obj
+        debug_assert!(rtti != 0, "instance of a class without metadata");
+        match space {
+            Space::Gc => self.heap.object(rtti, size),
+            Space::Permanent => {
+                let obj = self.heap.permanent(size);
+                heap::write(obj, rtti);
+                obj
+            }
+        }
     }
 
     pub fn alloc_array(&mut self, cls: ClassId, len: usize) -> usize {
+        self.alloc_array_in(cls, len, Space::Gc)
+    }
+
+    pub fn alloc_array_in(&mut self, cls: ClassId, len: usize, space: Space) -> usize {
         let c = self.class(cls);
         let (elem, rtti) = (c.array_elem.unwrap_or(8) as usize, c.rtti);
-        let arr = self.heap.alloc(ARRAY_HEADER as usize + elem * len);
+        if space == Space::Gc {
+            return self.heap.array(rtti, len, elem);
+        }
+        let arr = self.heap.permanent(ARRAY_HEADER as usize + elem * len);
         heap::write(arr, rtti);
         heap::write(arr + ARRAY_LENGTH, len as i32);
         heap::write(arr + ARRAY_STRIDE, elem as i32);
         arr
     }
 
-    pub fn new_string(&mut self, s: &str) -> Result<usize, VmError> {
-        let units: Vec<u16> = s.encode_utf16().collect();
-        self.new_string_utf16(&units)
+    /// `size` zeroed bytes in the collected heap, scanned conservatively; they live while a
+    /// frame or the native stack points into them.
+    pub fn blob(&mut self, size: usize) -> Result<usize, VmError> {
+        let cls = self.link_top("scala.scalanative.runtime.BlobArray")?;
+        let arr = self.alloc_array(cls, size);
+        heap::write(arr + ARRAY_STRIDE, -(size as i32));
+        Ok(arr + ARRAY_HEADER as usize)
     }
 
-    pub fn new_string_utf16(&mut self, units: &[u16]) -> Result<usize, VmError> {
+    pub fn new_string(&mut self, s: &str) -> Result<usize, VmError> {
+        self.new_string_in(s, Space::Gc)
+    }
+
+    pub fn new_string_in(&mut self, s: &str, space: Space) -> Result<usize, VmError> {
+        let units: Vec<u16> = s.encode_utf16().collect();
+        self.new_string_utf16(&units, space)
+    }
+
+    pub fn new_string_utf16(&mut self, units: &[u16], space: Space) -> Result<usize, VmError> {
         let chars_cls = self.link_top("scala.scalanative.runtime.CharArray")?;
-        let chars = self.alloc_array(chars_cls, units.len());
+        let string_cls = self.link_top("java.lang.String")?;
+        let chars = self.alloc_array_in(chars_cls, units.len(), space);
         for (i, &u) in units.iter().enumerate() {
             heap::write(chars + ARRAY_HEADER as usize + 2 * i, u);
         }
-        let string_cls = self.link_top("java.lang.String")?;
-        let obj = self.alloc_object(string_cls);
+        let obj = self.alloc_object_in(string_cls, space);
         let hash = units.iter().fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(u as i32));
         heap::write(obj + self.string_field("F5valueO")?, chars);
         heap::write(obj + self.string_field("F5countO")?, units.len() as i32);
@@ -59,7 +96,7 @@ impl Vm {
             Some(units) => units.to_vec(),
             None => self.world.pool.str(s).encode_utf16().collect(),
         };
-        let obj = self.new_string_utf16(&units)?;
+        let obj = self.new_string_utf16(&units, Space::Permanent)?;
         self.strings.insert(s, obj);
         Ok(obj)
     }

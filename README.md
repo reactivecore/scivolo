@@ -74,8 +74,11 @@ and its C runtime built from `native/`.
 - **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
   what their Scala Native builds print.
 - **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 8,286 of Scala Native's unit tests pass, 72 fail, 115 skip (threads). Per package and
+- **M3:** 8,300 of Scala Native's unit tests pass, 58 fail, 115 skip (threads). Per package and
   the known gaps: [docs/conformance.md](docs/conformance.md).
+- **GC:** Scala Native's Immix collector reclaims memory ([ADR 0004](docs/adr/0004-immix-garbage-collector.md));
+  `tests/programs/gcstress` allocates far more than it keeps. `GC_MAXIMUM_HEAP_SIZE` and the
+  other Immix settings apply.
 
 | Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
@@ -101,11 +104,12 @@ exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS th
 targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
-0. A garbage collector: Scala Native's Immix (ADR 0004, accepted); today the heap never frees.
 1. Green threads (80 skipped tests, blocking I/O, process timeouts).
 2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
 3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
-4. Stack traces from the interpreter's frames; a garbage collector.
+4. Stack traces from the interpreter's frames.
+
+Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 
 ## Layout
 

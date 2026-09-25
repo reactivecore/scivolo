@@ -1,6 +1,7 @@
 //! Runtime type information: every class's `java.lang.Class` object, laid out as Scala Native expects.
 
 use crate::class::{self, ClassId, Kind};
+use crate::gcinfo::FIRST_ARRAY;
 use crate::heap;
 use crate::{Vm, VmError};
 
@@ -19,6 +20,10 @@ const PRIMITIVES: [(&str, &str); 11] = [
     ("RawPtr", "pointer"),
 ];
 
+/// The `java.lang.Class` fields the collector reads, at their offsets in its C `Rtti` struct.
+const GC_RTTI_FIELDS: [(&str, usize); 5] =
+    [("F2idO", 8), ("F4nameO", 24), ("F4sizeO", 32), ("F15refFieldOffsetsO", 40), ("F10superClassO", 64)];
+
 #[derive(Default)]
 pub struct Rtti {
     meta: Option<ClassId>,
@@ -33,9 +38,17 @@ pub struct Rtti {
 impl Vm {
     pub fn bootstrap(&mut self) -> Result<(), VmError> {
         self.rtti.next_class = 23;
+        self.update_gc_ids();
         let meta = self.link_top("java.lang.Class")?;
         self.rtti.meta = Some(meta);
         self.rtti.meta_size = self.class(meta).size as usize;
+        for (sig, offset) in GC_RTTI_FIELDS {
+            if self.meta_field(sig)? != offset {
+                return Err(VmError::Unsupported(format!(
+                    "java.lang.Class::{sig} is not where Immix reads it"
+                )));
+            }
+        }
         for id in std::mem::take(&mut self.rtti.pending) {
             self.init_rtti(id)?;
         }
@@ -56,15 +69,21 @@ impl Vm {
             return Ok(());
         };
         let meta_size = self.class(meta).size as usize;
-        let addr = self.heap.alloc(meta_size + 8);
+        let addr = self.heap.permanent(meta_size + 8);
         self.classes.all[id as usize].rtti = addr;
         heap::write(addr, self.class(meta).rtti);
         heap::write(addr + meta_size, id);
-        let class_id = self.class_id_value(id);
+        let class_id = match self.weak_class_id(id)? {
+            Some(weak) => weak,
+            None => self.class_id_value(id),
+        };
         let size = self.class(id).size as i32;
         heap::write(addr + self.meta_field("F2idO")?, class_id);
         heap::write(addr + self.meta_field("F4sizeO")?, size);
         heap::write(addr + self.meta_field("F12idRangeUntilO")?, class_id);
+        let offsets = self.ref_field_offsets(id);
+        heap::write(addr + self.meta_field("F15refFieldOffsetsO")?, offsets);
+        self.note_gc_class(id, class_id);
         self.link_rtti(id)?;
         match self.rtti.strings_ready {
             true => self.name_rtti(id),
@@ -87,7 +106,7 @@ impl Vm {
             .collect();
         traits.sort_unstable();
         let rtti = c.rtti;
-        let interfaces = self.heap.alloc(8 * traits.len());
+        let interfaces = self.heap.permanent(8 * traits.len());
         for (i, t) in traits.iter().enumerate() {
             heap::write(interfaces + 8 * i, *t);
         }
@@ -111,7 +130,7 @@ impl Vm {
             None if short == "BoxedUnit$" => "scala.runtime.BoxedUnit".into(),
             None => name.to_owned(),
         };
-        let s = self.new_string(&name)?;
+        let s = self.new_string_in(&name, crate::object::Space::Permanent)?;
         let at = self.class(id).rtti + self.meta_field("F4nameO")?;
         heap::write(at, s);
         Ok(())
@@ -124,7 +143,7 @@ impl Vm {
             return i as i32;
         }
         if let Some(i) = class::array_names().position(|a| a == short) {
-            return 13 + i as i32;
+            return FIRST_ARRAY + i as i32;
         }
         match (name.as_str(), self.class(id).kind) {
             ("java.lang.Object", _) => 11,
