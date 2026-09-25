@@ -1,0 +1,11 @@
+[package]
+name = "scalai"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+vm = { path = "../vm" }
+
+[lints]
+workspace = true

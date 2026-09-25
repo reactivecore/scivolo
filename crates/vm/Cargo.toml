@@ -1,0 +1,15 @@
+[package]
+name = "vm"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+nir.workspace = true
+snrt = { path = "../snrt" }
+rustc-hash.workspace = true
+zip.workspace = true
+libc = "0.2"
+
+[lints]
+workspace = true
