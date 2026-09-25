@@ -26,10 +26,41 @@ impl Classpath {
         Ok(Self { roots })
     }
 
+    /// The top-level names defined on the classpath that end in `suffix`, sorted.
+    pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
+        let file_suffix = format!("{suffix}.nir");
+        let mut files = Vec::new();
+        for root in &mut self.roots {
+            match root {
+                Root::Dir(dir) => walk(dir, dir, &mut files),
+                Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
+            }
+        }
+        let mut tops: Vec<String> = files
+            .iter()
+            .filter_map(|f| f.strip_suffix(".nir").filter(|_| f.ends_with(&file_suffix)))
+            .map(|f| f.replace('/', "."))
+            .collect();
+        tops.sort();
+        tops
+    }
+
     /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`.
     pub fn find(&mut self, top: &str) -> Option<Vec<u8>> {
         let rel = format!("{}.nir", top.replace('.', "/"));
         self.roots.iter_mut().find_map(|root| read(root, &rel))
+    }
+}
+
+/// The paths of the files under `dir`, relative to `base` and `/`-separated.
+fn walk(base: &Path, dir: &Path, out: &mut Vec<String>) {
+    let Ok(entries) = std::fs::read_dir(dir) else { return };
+    for path in entries.flatten().map(|e| e.path()) {
+        if path.is_dir() {
+            walk(base, &path, out);
+        } else if let Ok(rel) = path.strip_prefix(base) {
+            out.push(rel.to_string_lossy().replace('\\', "/"));
+        }
     }
 }
 

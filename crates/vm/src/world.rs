@@ -51,6 +51,11 @@ impl World {
         GlobalId(self.pool.globals.intern(Global::Member(owner, s)))
     }
 
+    /// The top-level names on the classpath that end in `suffix`.
+    pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
+        self.classpath.tops_ending(suffix)
+    }
+
     pub fn owner(&self, g: GlobalId) -> GlobalId {
         match self.pool.global(g) {
             Global::Member(owner, _) => *owner,

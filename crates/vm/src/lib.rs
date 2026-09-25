@@ -41,6 +41,7 @@ pub struct Vm {
     thread: CurrentThread,
     callbacks: natives::Callbacks,
     linktime: linktime::Linktime,
+    junit: Option<Vec<String>>,
 }
 
 /// The `java.lang.Thread` and native thread objects of the only thread.
@@ -64,6 +65,7 @@ impl Vm {
             thread: CurrentThread::default(),
             callbacks: natives::Callbacks::default(),
             linktime: linktime::Linktime::default(),
+            junit: None,
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.funcs.profile.on = std::env::var_os("SCALAI_PROFILE").is_some();

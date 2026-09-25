@@ -4,6 +4,7 @@
 mod callback;
 mod ffi;
 mod gc;
+mod junit;
 mod llvm;
 mod runtime;
 

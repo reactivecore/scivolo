@@ -9,8 +9,18 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
         "scalanative_currentThread" => |vm, _| Ok(vm.thread.java),
         "scalanative_currentNativeThread" => |vm, _| Ok(vm.thread.native),
         "scalanative_assignCurrentThread" => assign_thread,
-        "scalanative_setupCurrentThreadInfo" | "scalanative_Throwable_sizeOfExceptionWrapper" => |_, _| Ok(0),
-        _ => return super::llvm::intrinsic(name).or_else(|| super::gc::extern_fn(name)),
+        "scalanative_setupCurrentThreadInfo"
+        | "scalanative_Throwable_sizeOfExceptionWrapper"
+        | "scalanative_resource_get_embedded_size"
+        | "scalanative_resource_get_content_length"
+        | "scalanative_resource_get_content_ptr"
+        | "scalanative_resource_get_path_length"
+        | "scalanative_resource_get_path_ptr" => |_, _| Ok(0),
+        _ => {
+            return super::llvm::intrinsic(name)
+                .or_else(|| super::gc::extern_fn(name))
+                .or_else(|| super::junit::extern_fn(name));
+        }
     };
     Some(f)
 }
