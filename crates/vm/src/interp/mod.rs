@@ -10,6 +10,7 @@ mod memory;
 mod ops;
 mod profile;
 mod shortcut;
+mod unwind;
 mod value;
 
 use crate::natives::Native;
@@ -24,45 +25,7 @@ pub type FuncId = u32;
 /// Function references are tagged so they never collide with a real address.
 const FUNC_TAG: u64 = 0xF1C0 << 48;
 
-/// Why a call did not return normally; boxed so `Flow` stays two words.
-pub struct Unwind(Box<Unwound>);
-
-pub enum Unwound {
-    Throw(usize),
-    Fatal(VmError),
-}
-
-impl Unwind {
-    pub fn throw(exc: usize) -> Self {
-        Unwind(Box::new(Unwound::Throw(exc)))
-    }
-
-    /// The exception object, unless this is a fatal error.
-    pub fn thrown(&self) -> Option<usize> {
-        match *self.0 {
-            Unwound::Throw(exc) => Some(exc),
-            Unwound::Fatal(_) => None,
-        }
-    }
-
-    pub fn into_inner(self) -> Unwound {
-        *self.0
-    }
-}
-
-impl From<VmError> for Unwind {
-    fn from(e: VmError) -> Self {
-        Unwind(Box::new(Unwound::Fatal(e)))
-    }
-}
-
-impl From<crate::world::LoadError> for Unwind {
-    fn from(e: crate::world::LoadError) -> Self {
-        VmError::from(e).into()
-    }
-}
-
-pub type Flow<T = u64> = Result<T, Unwind>;
+pub use unwind::{Flow, Unwind, Unwound};
 
 pub enum Func {
     Nir { name: GlobalId, defn: Rc<Defn>, code: Option<Rc<Code>> },
@@ -189,13 +152,6 @@ impl Vm {
         (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing
     }
 
-    pub fn stack_overflow(&mut self) -> Flow {
-        self.funcs.overflowing = true;
-        let result = self.throw_new("java.lang.StackOverflowError");
-        self.funcs.overflowing = false;
-        result
-    }
-
     /// The names of the innermost `depth` interpreted methods on the call stack, which is only
     /// recorded while tracing.
     pub fn backtrace(&self, depth: usize) -> Vec<String> {
@@ -206,40 +162,5 @@ impl Vm {
         match &self.funcs.all[f as usize] {
             Func::Nir { name, .. } | Func::Native { name, .. } => self.world.name(*name),
         }
-    }
-
-    /// The runtime helper `scala.scalanative.runtime.package$::<sig>` raising its exception.
-    pub fn throw_runtime(&mut self, sig: &str, args: &[u64]) -> Flow {
-        let owner = self.world.top("scala.scalanative.runtime.package$");
-        let module = self.module(owner)?;
-        let g = self.world.member(owner, sig);
-        let mut all = vec![module as u64];
-        all.extend_from_slice(args);
-        self.call_global(g, &all)?;
-        Err(VmError::Unsupported(format!("{sig} returned")).into())
-    }
-
-    /// Throws a new instance of `class`, built by its no-argument constructor.
-    pub fn throw_new(&mut self, class: &str) -> Flow {
-        let cls = self.link_top(class)?;
-        let obj = self.alloc_object(cls);
-        let init = self.world.member(self.class(cls).name, "RE");
-        self.call_global(init, &[obj as u64])?;
-        Err(Unwind::throw(obj))
-    }
-
-    pub fn null_pointer<T>(&mut self) -> Flow<T> {
-        if self.funcs.trace {
-            eprintln!("null pointer in:\n  {}", self.backtrace(12).join("\n  "));
-        }
-        self.throw_runtime("D16throwNullPointernEO", &[]).map(|_| unreachable!("throws"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn flow_fits_two_registers() {
-        assert_eq!(size_of::<super::Flow>(), 16);
     }
 }
