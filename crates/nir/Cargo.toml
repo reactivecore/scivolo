@@ -1,0 +1,11 @@
+[package]
+name = "nir"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rustc-hash.workspace = true
+
+[lints]
+workspace = true
