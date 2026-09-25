@@ -53,7 +53,8 @@ fn promote(num: Num, v: u64) -> u64 {
 }
 
 /// Calls the C function at `addr` whose first `named` parameters are fixed, with `args`;
-/// `None` if the arguments do not fit the registers and stack words this path passes.
+/// `None` if the arguments do not fit the registers and stack words this path passes, or, off
+/// Apple arm64, if a variadic argument is floating-point (x86-64 would need `%al` set).
 pub fn call(addr: usize, named: usize, args: &[(u64, Num)], ret: Num) -> Option<u64> {
     let (mut ints, mut floats, mut stack) = ([0u64; 8], [0f64; 8], [0u64; STACK_WORDS]);
     let (mut ni, mut nf, mut ns) = (0, 0, 0);
@@ -62,6 +63,8 @@ pub fn call(addr: usize, named: usize, args: &[(u64, Num)], ret: Num) -> Option<
         if i >= named && cfg!(all(target_arch = "aarch64", target_vendor = "apple")) {
             *stack.get_mut(ns)? = promote(num, v);
             ns += 1;
+        } else if float && i >= named {
+            return None;
         } else if float {
             *floats.get_mut(nf)? = f64::from_bits(promote(num, v));
             nf += 1;

@@ -41,14 +41,14 @@ pub struct Field {
     pub align: Option<(i32, Option<nir::StrId>)>,
 }
 
-/// The size of an object with header `header` and `fields`, some aligned, and each field's
+/// The size of an object whose `fields`, some aligned, follow at `start`, and each field's
 /// offset in `fields` order; as Scala Native's `MemoryLayout.ofAlignedFields`, fields are placed
 /// ordered by alignment group, and each aligned group starts and ends on its alignment.
-pub fn aligned_fields(pool: &Pool, header: TypeId, fields: &[Field]) -> (u32, Vec<u32>) {
+pub fn aligned_fields(pool: &Pool, start: u32, fields: &[Field]) -> (u32, Vec<u32>) {
     let width = |size: i32| if size < 0 { CONTENDED_PADDING } else { size as u32 };
     let mut order: Vec<usize> = (0..fields.len()).collect();
     order.sort_by_key(|&i| fields[i].align.and_then(|(_, g)| g).map(|g| pool.str(g)));
-    let (mut offset, mut max_align) = (size_of(pool, header), align_of(pool, header));
+    let (mut offset, mut max_align) = (start, WORD);
     let mut offsets = vec![0; fields.len()];
     let mut place = |i: usize, align: u32, offset: &mut u32| {
         max_align = max_align.max(align);

@@ -119,9 +119,21 @@ fn overflow_u64(a: &[u64], op: fn(u64, u64) -> (u64, bool)) -> (i64, bool) {
     (r as i64, o)
 }
 
+/// Result structs live in a ring of reused cells: code extracts their fields right after the call.
+const SCRATCH_CELLS: usize = 64;
+
+fn scratch(vm: &mut Vm) -> usize {
+    if vm.scratch.is_empty() {
+        let base = vm.heap.alloc(16 * SCRATCH_CELLS);
+        vm.scratch = (0..SCRATCH_CELLS).map(|i| base + 16 * i).collect();
+    }
+    vm.scratch.rotate_left(1);
+    vm.scratch[0]
+}
+
 /// The struct `{i32, i1}` holding `(value, overflowed)`.
 fn pair32(vm: &mut Vm, (value, overflowed): (i32, bool)) -> u64 {
-    let s = vm.heap.alloc(8);
+    let s = scratch(vm);
     heap::write(s, value);
     heap::write(s + 4, overflowed as u8);
     s as u64
@@ -129,7 +141,7 @@ fn pair32(vm: &mut Vm, (value, overflowed): (i32, bool)) -> u64 {
 
 /// The struct `{i64, i1}` holding `(value, overflowed)`.
 fn pair64(vm: &mut Vm, (value, overflowed): (i64, bool)) -> u64 {
-    let s = vm.heap.alloc(16);
+    let s = scratch(vm);
     heap::write(s, value);
     heap::write(s + 8, overflowed as u8);
     s as u64

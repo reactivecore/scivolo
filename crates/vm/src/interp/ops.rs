@@ -71,7 +71,11 @@ impl Vm {
             Op::Extract { aggr, indexes } => {
                 let (offset, ty) = self.aggregate_member(*aggr, indexes)?;
                 let base = self.val(*aggr, slots)? as usize;
-                Ok(self.load_ty(base + offset, ty))
+                Ok(match (base, self.is_aggregate(ty)) {
+                    (0, _) => 0,
+                    (_, true) => (base + offset) as u64,
+                    (_, false) => self.load_ty(base + offset, ty),
+                })
             }
             Op::Insert { aggr, value, indexes } => {
                 let (offset, ty) = self.aggregate_member(*aggr, indexes)?;
@@ -83,7 +87,15 @@ impl Vm {
                 if base != 0 {
                     crate::heap::copy(base, copy, size);
                 }
-                self.store_ty(copy + offset, ty, v);
+                match self.is_aggregate(ty) {
+                    true if v != 0 => crate::heap::copy(
+                        v as usize,
+                        copy + offset,
+                        layout::size_of(&self.world.pool, ty) as usize,
+                    ),
+                    true => {}
+                    false => self.store_ty(copy + offset, ty, v),
+                }
                 Ok(copy as u64)
             }
             Op::Dynmethod { obj, sig } => {
@@ -92,6 +104,11 @@ impl Vm {
             }
             _ => Err(VmError::Unsupported("op the lowering handles".into()).into()),
         }
+    }
+
+    /// Whether values of `ty` are aggregates, represented by the address of their bytes.
+    fn is_aggregate(&self, ty: TypeId) -> bool {
+        matches!(self.world.pool.ty(ty), Type::StructValue(_) | Type::ArrayValue(..))
     }
 
     /// The byte offset and type of the member `indexes` selects in aggregate value `aggr`.

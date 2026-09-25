@@ -34,47 +34,39 @@ impl Vm {
         Ok(f)
     }
 
-    /// The first concrete definition of `sig` along the class chain, then along the traits.
+    /// The first concrete definition of `sig` in `cls`'s lookup order.
     fn resolve(&mut self, cls: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {
-        let mut chain = Vec::new();
-        let mut c = Some(cls);
-        while let Some(id) = c {
-            chain.push(id);
-            c = self.class(id).parent;
-        }
-        for &id in &chain {
+        for id in self.lookup_order(cls) {
             if let Some(g) = self.defined(id, sig)? {
-                return Ok(Some(g));
-            }
-        }
-        for &id in &chain {
-            let mut seen = Vec::new();
-            if let Some(g) = self.resolve_in_traits(id, sig, &mut seen)? {
                 return Ok(Some(g));
             }
         }
         Ok(None)
     }
 
-    fn resolve_in_traits(
-        &mut self,
-        id: ClassId,
-        sig: StrId,
-        seen: &mut Vec<ClassId>,
-    ) -> Flow<Option<GlobalId>> {
-        for t in self.class(id).traits.clone().into_iter().rev() {
-            if seen.contains(&t) {
-                continue;
-            }
-            seen.push(t);
-            if let Some(g) = self.defined(t, sig)? {
-                return Ok(Some(g));
-            }
-            if let Some(g) = self.resolve_in_traits(t, sig, seen)? {
-                return Ok(Some(g));
+    /// Where methods of `cls` are looked up: its class chain, then the traits of each class in
+    /// the chain, later-mixed traits first.
+    pub fn lookup_order(&self, cls: ClassId) -> Vec<ClassId> {
+        let mut order = Vec::new();
+        let mut c = Some(cls);
+        while let Some(id) = c {
+            order.push(id);
+            c = self.class(id).parent;
+        }
+        let chain = order.clone();
+        for id in chain {
+            self.push_traits(id, &mut order);
+        }
+        order
+    }
+
+    fn push_traits(&self, id: ClassId, order: &mut Vec<ClassId>) {
+        for &t in self.class(id).traits.iter().rev() {
+            if !order.contains(&t) {
+                order.push(t);
+                self.push_traits(t, order);
             }
         }
-        Ok(None)
     }
 
     fn defined(&mut self, id: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {

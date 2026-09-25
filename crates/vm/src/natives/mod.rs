@@ -10,7 +10,7 @@ mod runtime;
 mod services;
 
 pub use callback::Callbacks;
-pub use ffi::load_runtime;
+pub use ffi::{exit_immediately, load_runtime};
 
 use crate::interp::Flow;
 use crate::interp::code::Num;
@@ -47,21 +47,34 @@ impl Vm {
 
     /// Calls variadic C function `g` with `args` and their numeric kinds.
     pub fn call_variadic(&mut self, g: GlobalId, args: &[(u64, Num)], ret: Num) -> Flow {
-        let unsupported = |vm: &Vm| VmError::Unsupported(format!("native {}", vm.world.name(g)));
-        let defn = self.world.defn(g)?;
-        let named = match (&defn.kind, self.world.pool.member_sig(g).and_then(demangle::extern_name)) {
-            (DefnKind::Declare { ty }, Some(name)) => match self.world.pool.ty(*ty) {
-                Type::Function(params, _) => {
-                    let named =
-                        params.iter().take_while(|t| !matches!(self.world.pool.ty(**t), Type::Vararg));
-                    ffi::symbol(&name).map(|addr| (addr, named.count()))
-                }
-                _ => None,
-            },
-            _ => None,
+        let (addr, named) = match self.variadics.get(&g) {
+            Some(&cached) => cached,
+            None => {
+                let defn = self.world.defn(g)?;
+                let found = match (&defn.kind, self.world.pool.member_sig(g).and_then(demangle::extern_name))
+                {
+                    (DefnKind::Declare { ty }, Some(name)) => match self.world.pool.ty(*ty) {
+                        Type::Function(params, _) => {
+                            let fixed = params
+                                .iter()
+                                .take_while(|t| !matches!(self.world.pool.ty(**t), Type::Vararg));
+                            ffi::symbol(&name).map(|addr| (addr, fixed.count()))
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                };
+                let Some(found) = found else {
+                    return Err(VmError::Unsupported(format!("native {}", self.world.name(g))).into());
+                };
+                self.variadics.insert(g, found);
+                found
+            }
         };
-        let Some((addr, named)) = named else { return Err(unsupported(self).into()) };
-        ffi::variadic::call(addr, named, args, ret).ok_or_else(|| unsupported(self).into())
+        ffi::variadic::call(addr, named, args, ret).ok_or_else(|| {
+            VmError::Unsupported(format!("variadic call of {} with these arguments", self.world.name(g)))
+                .into()
+        })
     }
 
     /// The address of the C variable declared by `g`.

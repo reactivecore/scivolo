@@ -43,8 +43,8 @@ pub struct Pool {
     pub types: Interner<Type>,
     pub vals: Interner<Val>,
     pub positions: Interner<Pos>,
-    /// The exact UTF-16 units of strings that are not valid Unicode (lone surrogates), which
-    /// `strings` holds only lossily.
+    /// The exact UTF-16 units of strings that are not valid Unicode (lone surrogates); `strings`
+    /// holds those as their lossy text followed by a NUL and the units, one entry each.
     pub utf16: FxHashMap<StrId, Box<[u16]>>,
 }
 

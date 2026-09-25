@@ -57,16 +57,16 @@ impl Vm {
         Ok(func_ref(id))
     }
 
-    /// The method of `cls` or its ancestors whose proxy signature is `wanted`.
+    /// The public method of `cls`, in its lookup order, whose proxy signature is `wanted`.
     fn find_proxied(&mut self, cls: ClassId, wanted: &str) -> Flow<Option<GlobalId>> {
-        let mut ancestors: Vec<ClassId> = self.class(cls).ancestors.iter().copied().collect();
-        ancestors.sort_by_key(|&a| std::cmp::Reverse(self.class(a).ancestors.len()));
-        for a in ancestors {
+        for a in self.lookup_order(cls) {
             let owner = self.class(a).name;
             for m in self.world.members(owner)?.to_vec() {
-                let proxy = demangle::to_proxy(self.world.pool.member_sig(m).unwrap_or_default());
+                let sig = self.world.pool.member_sig(m).unwrap_or_default();
+                let public = sig.ends_with('O');
+                let proxy = demangle::to_proxy(sig);
                 let is_define = matches!(self.world.defn(m)?.kind, DefnKind::Define { .. });
-                if is_define && proxy.as_deref() == Some(wanted) {
+                if public && is_define && proxy.as_deref() == Some(wanted) {
                     return Ok(Some(m));
                 }
             }

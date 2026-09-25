@@ -82,6 +82,12 @@ impl Vm {
     /// A missing definition or native as the `NoClassDefFoundError` or `UnsatisfiedLinkError` a
     /// JVM would throw; any other unwinding unchanged.
     pub fn as_linkage_error(&mut self, u: Unwind) -> Unwind {
+        if let Unwound::Fatal(VmError::Initializer(cause)) = *u.0 {
+            return match self.throw_initializer_error(cause) {
+                Err(thrown) if thrown.thrown().is_some() => thrown,
+                _ => u,
+            };
+        }
         let (class, message) = match &*u.0 {
             Unwound::Fatal(VmError::Load(LoadError::Missing(name))) => {
                 ("java.lang.NoClassDefFoundError", name)
@@ -96,6 +102,15 @@ impl Vm {
             Err(thrown) if thrown.thrown().is_some() => thrown,
             _ => u,
         }
+    }
+
+    /// Throws an `ExceptionInInitializerError` caused by `cause`.
+    fn throw_initializer_error(&mut self, cause: usize) -> Flow {
+        let cls = self.link_top("java.lang.ExceptionInInitializerError")?;
+        let obj = self.alloc_object(cls);
+        let init = self.world.member(self.class(cls).name, "RL19java.lang.ThrowableE");
+        self.call_global(init, &[obj as u64, cause as u64])?;
+        Err(Unwind::throw(obj))
     }
 
     /// Throws a new instance of `class`, built by its constructor taking a message.

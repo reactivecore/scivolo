@@ -31,7 +31,7 @@ fn main() -> ExitCode {
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_secs(secs));
             eprintln!("scalai: timed out after {secs} s");
-            std::process::exit(124);
+            vm::exit_immediately(124);
         });
     }
     let thread = std::thread::Builder::new().stack_size(STACK).spawn(move || run(cp, &main_class, &rest));

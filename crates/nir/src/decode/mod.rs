@@ -106,7 +106,8 @@ impl<'a> Reader<'a> {
             match String::from_utf16(&units) {
                 Ok(s) => Ok(r.pool.strings.intern(s.into_boxed_str())),
                 Err(_) => {
-                    let id = r.pool.strings.intern(String::from_utf16_lossy(&units).into_boxed_str());
+                    let key = format!("{}\u{0}utf16{units:x?}", String::from_utf16_lossy(&units));
+                    let id = r.pool.strings.intern(key.into_boxed_str());
                     r.pool.utf16.insert(StrId(id), units.into_boxed_slice());
                     Ok(id)
                 }

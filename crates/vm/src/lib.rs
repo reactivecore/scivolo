@@ -15,6 +15,7 @@ mod world;
 
 pub use classpath::Classpath;
 pub use error::VmError;
+pub use natives::exit_immediately;
 pub use world::World;
 
 use class::Classes;
@@ -42,6 +43,8 @@ pub struct Vm {
     callbacks: natives::Callbacks,
     linktime: linktime::Linktime,
     junit: Option<Vec<String>>,
+    variadics: FxHashMap<GlobalId, (usize, usize)>,
+    scratch: Vec<usize>,
 }
 
 /// The `java.lang.Thread` and native thread objects of the only thread.
@@ -66,6 +69,8 @@ impl Vm {
             callbacks: natives::Callbacks::default(),
             linktime: linktime::Linktime::default(),
             junit: None,
+            variadics: FxHashMap::default(),
+            scratch: Vec::new(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.funcs.profile.on = std::env::var_os("SCALAI_PROFILE").is_some();

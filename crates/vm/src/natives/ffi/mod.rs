@@ -56,6 +56,12 @@ fn class(ty: &Type) -> Option<Class> {
     }
 }
 
+/// Ends the process at once with `code`, without running exit handlers.
+pub fn exit_immediately(code: i32) -> ! {
+    // SAFETY: `_exit` has no preconditions; it never returns.
+    unsafe { libc::_exit(code) }
+}
+
 /// Makes the symbols of Scala Native's C runtime, and of the libraries listed in
 /// `SCALAI_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
 pub fn load_runtime() -> Result<(), String> {

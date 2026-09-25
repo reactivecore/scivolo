@@ -114,7 +114,7 @@ impl Vm {
         match self.call_global(clinit, &[]) {
             Ok(_) => Ok(()),
             Err(u) => match u.into_inner() {
-                Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
+                Unwound::Throw(exc) => Err(VmError::Initializer(exc)),
                 Unwound::Fatal(e) => Err(e),
             },
         }
