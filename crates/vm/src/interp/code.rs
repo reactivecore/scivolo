@@ -163,7 +163,7 @@ pub enum Instr {
     },
     Switch {
         v: Arg,
-        cases: Box<[(u64, Target)]>,
+        cases: Box<[(Arg, Target)]>,
         default: Target,
     },
     /// `linktime if`, with the condition in the NIR instruction at `inst`.
@@ -185,6 +185,8 @@ pub struct Code {
     pub params: Box<[u32]>,
     pub slots: usize,
     pub instrs: Box<[Instr]>,
+    /// The index of the NIR instruction each of `instrs` was lowered from.
+    pub origin: Box<[u32]>,
     pub lazy: Box<[(ValId, Cell<u64>)]>,
     pub sites: Box<[Cell<u64>]>,
 }

@@ -64,7 +64,6 @@ impl Vm {
         heap::write(addr + self.meta_field("F2idO")?, class_id);
         heap::write(addr + self.meta_field("F4sizeO")?, size);
         heap::write(addr + self.meta_field("F12idRangeUntilO")?, class_id);
-        // `java.lang.Class` is set up before its ancestors, so `bootstrap` links it again.
         self.link_rtti(id)?;
         match self.rtti.strings_ready {
             true => self.name_rtti(id),

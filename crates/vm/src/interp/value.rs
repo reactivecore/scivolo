@@ -113,10 +113,14 @@ impl Vm {
             },
             _ => (Vec::new(), Num::I64),
         };
-        let vm: *mut Vm = self;
-        match self.callbacks.address(vm, f, &params, ret) {
+        match self.callbacks.address(f, &params, ret) {
             Some(addr) => Ok(addr as u64),
-            None => Err(VmError::Unsupported(format!("C callback {}", self.world.name(name))).into()),
+            None => {
+                if self.funcs.trace {
+                    eprintln!("no C trampoline for {}; only the VM can call it", self.world.name(name));
+                }
+                Ok(func_ref(f))
+            }
         }
     }
 

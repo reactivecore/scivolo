@@ -6,6 +6,9 @@ use nir::Inst;
 /// Arguments of one call, kept on the stack when there are few.
 const INLINE_ARGS: usize = 12;
 
+/// Frames kept for reuse; deeper recursion allocates its extra frames afresh.
+const MAX_POOLED_FRAMES: usize = 256;
+
 impl Vm {
     pub fn exec(&mut self, code: &Code, args: &[u64]) -> Flow {
         let mut slots = self.funcs.frames.pop().unwrap_or_default();
@@ -15,8 +18,16 @@ impl Vm {
             slots[p as usize] = a;
         }
         let result = self.run(code, &mut slots);
-        self.funcs.frames.push(slots);
+        if self.funcs.frames.len() < MAX_POOLED_FRAMES {
+            self.funcs.frames.push(slots);
+        }
         result
+    }
+
+    fn trace_throw(&self, code: &Code, pc: usize) {
+        if let Some(Inst::Let { op, .. }) = body(code).0.get(code.origin[pc] as usize) {
+            eprintln!("  thrown by {}", nir::show::op(&self.world.pool, op));
+        }
     }
 
     fn run(&mut self, code: &Code, slots: &mut [u64]) -> Flow {
@@ -31,7 +42,14 @@ impl Vm {
                 },
                 Instr::Switch { v, cases, default } => {
                     let v = self.arg(code, slots, *v)?;
-                    cases.iter().find(|(k, _)| *k == v).map_or(default, |(_, t)| t)
+                    let mut next = default;
+                    for (k, t) in cases.iter() {
+                        if self.arg(code, slots, *k)? == v {
+                            next = t;
+                            break;
+                        }
+                    }
+                    next
                 }
                 Instr::LinktimeIf { inst, then, other } => {
                     let DefnBody(insts) = body(code);
@@ -68,7 +86,7 @@ impl Vm {
                     }
                     Err(Unwind::Throw(exc)) => {
                         if self.funcs.trace {
-                            eprintln!("  thrown by {instr:?}");
+                            self.trace_throw(code, pc);
                         }
                         match instr.unwind() {
                             Some(h) => {

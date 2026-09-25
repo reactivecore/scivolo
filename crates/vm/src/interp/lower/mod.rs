@@ -15,6 +15,7 @@ struct Lowerer<'p> {
     lazy_ids: FxHashMap<ValId, u32>,
     sites: u32,
     max_slot: u32,
+    nowhere: u32,
 }
 
 pub fn num(ty: &Type) -> Num {
@@ -55,6 +56,7 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         lazy_ids: FxHashMap::default(),
         sites: 0,
         max_slot: 0,
+        nowhere: 0,
     };
     let mut pc = 0;
     for inst in &body.insts {
@@ -66,21 +68,21 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
             _ => pc += 1,
         }
     }
+    l.nowhere = pc;
     let params = match body.insts.first() {
         Some(Inst::Label(_, params)) => params.iter().map(|p| p.id.0 as u32).collect(),
         _ => Box::default(),
     };
-    let instrs = body
-        .insts
-        .iter()
-        .enumerate()
-        .filter(|(_, inst)| !matches!(inst, Inst::Label(..)))
-        .map(|(i, inst)| l.inst(i as u32, inst))
-        .collect();
+    let lowered = body.insts.iter().enumerate().filter(|(_, inst)| !matches!(inst, Inst::Label(..)));
+    let (mut instrs, mut origin): (Vec<Instr>, Vec<u32>) =
+        lowered.map(|(i, inst)| (l.inst(i as u32, inst), i as u32)).unzip();
+    instrs.push(Instr::Unreachable);
+    origin.push(u32::MAX);
     Code {
         slots: l.max_slot as usize + 1,
         params,
-        instrs,
+        instrs: instrs.into_boxed_slice(),
+        origin: origin.into_boxed_slice(),
         sites: (0..l.sites).map(|_| Cell::new(0)).collect(),
         lazy: l.lazy.into_boxed_slice(),
         defn: defn.clone(),
@@ -137,9 +139,11 @@ impl Lowerer<'_> {
         num(self.pool.ty(ty))
     }
 
+    /// Where `next` continues; a missing label continues at the trailing `Unreachable`.
     fn target(&mut self, next: &Next) -> Target {
-        let Next::Label(label, args) = next else { return Target { pc: u32::MAX, moves: Box::default() } };
-        let (pc, params) = self.blocks.get(&label.0).cloned().unwrap_or((u32::MAX, Vec::new()));
+        let nowhere = Target { pc: self.nowhere, moves: Box::default() };
+        let Next::Label(label, args) = next else { return nowhere };
+        let Some((pc, params)) = self.blocks.get(&label.0).cloned() else { return nowhere };
         let moves = params.into_iter().zip(args).map(|(p, &a)| (p, self.arg(a))).collect();
         Target { pc, moves }
     }
@@ -169,7 +173,7 @@ impl Lowerer<'_> {
                 let cases = cases
                     .iter()
                     .filter_map(|c| match c {
-                        Next::Case(value, to) => Some((immediate(self.pool.val(*value))?, self.target(to))),
+                        Next::Case(value, to) => Some((self.arg(*value), self.target(to))),
                         _ => None,
                     })
                     .collect();
