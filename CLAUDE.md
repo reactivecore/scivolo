@@ -40,6 +40,7 @@ Rationale goes in `docs/adr/`, one decision per file.
   `natives/ffi.rs` and `natives/callback.rs` (the C boundary); the callback
   slot table is the one piece of state outside `Vm` (ADR 0002).
 - Documentation is short: one home per fact.
+- Code or ideas taken from elsewhere get an entry in `acknowledges.md`.
 
 ## Tooling
 
