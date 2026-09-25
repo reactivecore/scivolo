@@ -98,6 +98,8 @@ The JUnit driver in Rust calls the generated `Bootstrapper`s directly.
 
 ## Phase 2 — startup and speed (~3–4 person-months, overlaps phase 1)
 
+Measurements and the ranked list of speed ideas: [docs/performance.md](docs/performance.md).
+
 - **Heap snapshot.** Pre-initialize the stdlib modules (Predef, collections)
   and serialize them into the library image, the way Dart AppJIT, Julia's
   sysimage and GraalVM's image heap do.
