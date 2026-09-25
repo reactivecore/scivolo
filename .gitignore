@@ -4,6 +4,10 @@ target/
 .bsp/
 .scala-build/
 .metals/
+.vscode/
+.idea/
+*.code-workspace
+.DS_Store
 .scalino-build/
 spikes/*/work/
 spikes/*/corpus/
