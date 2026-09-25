@@ -42,8 +42,9 @@ Evidence for every number below is in `docs/research/` and `spikes/*/README.md`
 ## Phase 1 — NIR VM: "run what Scala Native runs" (~4–6 person-months)
 
 Progress (2026-09-25): workspace and `crates/nir` done; `crates/vm` interprets lowered NIR
-with Scala Native's C runtime built from `native/` (`crates/snrt`); **M1 passes**. Not yet
-done: library index, precise GC (the heap never frees), multithreading, M2+.
+with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and M3 pass**:
+8,286 of Scala Native's unit tests pass, 72 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
+Not yet done: threads, library index, GC (the heap never frees), stack traces, M4/M5 suites.
 
 Execute NIR from any source with Scala Native's precompiled libraries. The
 frontend is still dotc + nscplugin, behind a cache.

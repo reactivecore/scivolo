@@ -22,8 +22,8 @@ where their resource files are.
 | Group | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
-| scala.scalanative | 716 | 19 | 3 |
-| java.lang | 339 | 42 | 16 |
+| scala.scalanative | 735 | 0 | 3 |
+| java.lang | 342 | 39 | 16 |
 | java.io | 200 | 0 | 4 |
 | java.math | 779 | 1 | 0 |
 | java.net | 72 | 1 | 1 (run stops: blocking socket test) |
@@ -33,15 +33,20 @@ where their resource files are.
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 60 | 1 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **8264** | **94** | **115** |
+| **total** | **8286** | **72** | **115** |
+
+A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
+`NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
+instead of the run.
 
 ## Known gaps behind the failures
 
 - **Threads.** The VM runs one thread and reports multithreading disabled; 80 concurrent tests
   skip, blocking socket tests hang, and process tests that wait with timeouts fail.
 - **Stack traces.** `StackTrace` returns no frames; tests that inspect traces fail.
-- **Class metadata.** `Class.forName` and other reflection needing linker metadata; `sizeOf`
-  of a class type returns the pointer size.
+- **Class metadata.** `Class.forName` and other reflection needing linker metadata.
+- **Environment.** A few `System`/`ProcessTest` cases (environment variables, `user.dir`,
+  git subprocess with timeouts) depend on threads or on how the test harness starts the process.
 - **GC.** No collector: `Cleaner` and weak-reference tests fail, and long runs only grow.
 - **javalib miscompiles.** Some javalib lambdas take a `Nothing` parameter and compile to
   `throw o` (e.g. `HashSet.containsAll`); the VM throws `ClassCastException` there, as a JVM

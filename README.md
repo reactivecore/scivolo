@@ -65,36 +65,45 @@ label each claim as verified [V] or inferred [I], and list their sources.
   - tasty-query: a model of TASTy symbols and types.
   - Rust JVMs, e.g. ristretto: none is documented to run Scala.
 
-## Status (2026-09-25): milestone M1 reached
+## Status (2026-09-25): milestones M1, M2 and M3 reached
 
-The NIR VM (`crates/vm`, CLI `crates/scalai`) runs the M1 programs with Scala Native's
-precompiled libraries and prints exactly what their Scala Native builds print. The
-programs are hello, moderate (case classes, collections, pattern matching, string
-formatting) and cpu (fib(30), sorting 100k elements), plus a runtime test covering
-type tests, interfaces, `NegativeArraySizeException` and `StackOverflowError`.
+The NIR VM (`crates/vm`, CLI `crates/scalai`) runs Scala 3.9 programs compiled to NIR with
+Scala Native's precompiled libraries (scalalib, javalib, nativelib, posixlib, clib, auxlib)
+and its C runtime built from `native/`.
+
+- **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
+  what their Scala Native builds print.
+- **M2:** all of Scala Native's language unit tests pass.
+- **M3:** 8,286 of Scala Native's unit tests pass, 72 fail, 115 skip (threads). Per package and
+  the known gaps: [docs/conformance.md](docs/conformance.md).
 
 | Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
 | hello | 47 ms | 292 ms | 5 ms |
 | moderate | 70 ms | 329 ms | 5 ms |
-| cpu | 1.12 s | 349 ms | 22 ms |
+| cpu (fib 30 + sort 100k) | 0.76 s | 349 ms | 22 ms |
+
+Speed work and ideas: [docs/performance.md](docs/performance.md).
 
 ```sh
 just libs                       # copy the Scala Native jars into ref/libs once
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 cargo run --release -p scalai -- --cp tests/programs/moderate moderate
 scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
+scripts/sn-tests.sh all && scripts/sn-report.sh   # Scala Native's unit tests in the VM
 ```
 
-`SCALAI_TRACE=1` prints the interpreted call stack and the instruction on a thrown
-exception. Test programs still need scala-cli to produce NIR; the frontend is
-phase 3.
+`SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
+stops a run. Programs still need scala-cli to produce NIR; the own frontend is phase 3.
 
 Decisions taken so work could continue alone: ADR 0001 treated as accepted; phase 1
 compiles NIR with JVM scala-cli; ADR 0002 records the memory trust model.
 
-Next: interpreter speed (cpu is 10× CPython), a library index for startup, then M2
-(Scala Native's shared unit tests, which need a JUnit driver).
+Next, by expected value:
+1. Threads (80 skipped tests, blocking I/O, process timeouts).
+2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
+3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
+4. Stack traces from the interpreter's frames; a garbage collector.
 
 ## Layout
 
