@@ -1,18 +1,20 @@
 //! Executes NIR method bodies.
 
+pub mod code;
+mod compute;
 mod dispatch;
 mod exec;
+mod lower;
 mod memory;
 mod ops;
 mod value;
 
 use crate::natives::Native;
 use crate::{Vm, VmError};
-use nir::{Defn, DefnKind, GlobalId, Inst};
+use code::Code;
+use nir::{Defn, DefnKind, GlobalId, TypeId};
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
-
-pub use exec::Code;
 
 pub type FuncId = u32;
 
@@ -50,6 +52,8 @@ pub struct Funcs {
     globals: FxHashMap<GlobalId, usize>,
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
+    frames: Vec<Vec<u64>>,
+    boxers: FxHashMap<(TypeId, bool), (u64, FuncId)>,
     stack_floor: usize,
     overflowing: bool,
     pub trace: bool,
@@ -104,19 +108,17 @@ impl Vm {
     }
 
     pub fn call(&mut self, f: FuncId, args: &[u64]) -> Flow {
-        let (defn, code) = match &self.funcs.all[f as usize] {
+        let code = match &self.funcs.all[f as usize] {
             Func::Native { native, .. } => return native.clone().call(self, args),
-            Func::Nir { defn, code: Some(code), .. } => (defn.clone(), code.clone()),
+            Func::Nir { code: Some(code), .. } => code.clone(),
             Func::Nir { defn, code: None, .. } => {
-                let defn = defn.clone();
-                let code = Rc::new(Code::new(&defn));
+                let code = Rc::new(lower::lower(defn.clone(), &self.world.pool));
                 if let Func::Nir { code: slot, .. } = &mut self.funcs.all[f as usize] {
                     *slot = Some(code.clone());
                 }
-                (defn, code)
+                code
             }
         };
-        let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("only defines are compiled") };
         let marker = 0u8;
         if (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing {
             self.funcs.overflowing = true;
@@ -125,7 +127,7 @@ impl Vm {
             return result;
         }
         self.funcs.stack.push(f);
-        let result = self.exec(&body.insts, &code, args);
+        let result = self.exec(&code, args);
         self.funcs.stack.pop();
         result
     }
@@ -173,12 +175,5 @@ impl Vm {
             eprintln!("null pointer in:\n  {}", self.backtrace(12).join("\n  "));
         }
         self.throw_runtime("D16throwNullPointernEO", &[]).map(|_| unreachable!("throws"))
-    }
-}
-
-fn entry_params(insts: &[Inst]) -> &[nir::Param] {
-    match insts.first() {
-        Some(Inst::Label(_, params)) => params,
-        _ => &[],
     }
 }

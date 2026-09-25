@@ -1,32 +1,16 @@
+//! Operations the lowering leaves in NIR form, executed from the NIR instruction.
+
 use super::Flow;
 use crate::layout;
 use crate::{Vm, VmError};
-use nir::{Op, Type, Val};
+use nir::{Op, Val};
 
-mod arith;
+pub mod arith;
+mod boxing;
 
 impl Vm {
     pub fn op(&mut self, op: &Op, slots: &[u64]) -> Flow {
         match op {
-            Op::Call { ptr, args, .. } => {
-                let target = self.val(*ptr, slots)?;
-                let args = args.iter().map(|&a| self.val(a, slots)).collect::<Flow<Vec<_>>>()?;
-                self.call_value(target, &args)
-            }
-            Op::Bin { bin, ty, l, r } => {
-                let (l, r) = (self.val(*l, slots)?, self.val(*r, slots)?);
-                let ty = self.world.pool.ty(*ty).clone();
-                self.bin(*bin, &ty, l, r)
-            }
-            Op::Comp { comp, ty, l, r } => {
-                let (l, r) = (self.val(*l, slots)?, self.val(*r, slots)?);
-                Ok(arith::comp(*comp, self.world.pool.ty(*ty), l, r) as u64)
-            }
-            Op::Conv { conv, ty, value } => {
-                let from = self.val_ty(*value);
-                let v = self.val(*value, slots)?;
-                Ok(arith::conv(*conv, &from, self.world.pool.ty(*ty), v))
-            }
             Op::Load { ty, ptr, .. } => {
                 let addr = self.val(*ptr, slots)?;
                 Ok(self.load_ty(addr as usize, *ty))
@@ -34,7 +18,7 @@ impl Vm {
             Op::Store { ty, ptr, value, .. } => {
                 let (addr, v) = (self.val(*ptr, slots)?, self.val(*value, slots)?);
                 self.store_ty(addr as usize, *ty, v);
-                self.unit_value()
+                Ok(0)
             }
             Op::Elem { ty, ptr, indexes } => {
                 let base = self.val(*ptr, slots)?;
@@ -44,34 +28,17 @@ impl Vm {
                 let n = self.index(*n, slots)?.max(1) as usize;
                 Ok(self.heap.alloc(n * layout::size_of(&self.world.pool, *ty) as usize) as u64)
             }
-            Op::Fence(_) => self.unit_value(),
+            Op::Fence(_) => Ok(0),
             Op::Classalloc { name, .. } => {
                 let cls = self.link(*name)?;
                 Ok(self.alloc_object(cls) as u64)
             }
-            Op::Fieldload { ty, obj, name } => {
-                let addr = self.field_addr(*obj, *name, slots)?;
-                Ok(self.load_ty(addr, *ty))
-            }
-            Op::Fieldstore { ty, obj, name, value } => {
-                let addr = self.field_addr(*obj, *name, slots)?;
-                let v = self.val(*value, slots)?;
-                self.store_ty(addr, *ty, v);
-                self.unit_value()
-            }
-            Op::Field { obj, name } => Ok(self.field_addr(*obj, *name, slots)? as u64),
-            Op::Method { obj, sig } => {
+            Op::Field { obj, name } => {
                 let obj = self.val(*obj, slots)? as usize;
                 if obj == 0 {
                     return self.null_pointer();
                 }
-                let f = self.virtual_method(obj, *sig)?;
-                self.callable(f)
-            }
-            Op::Module(name) => Ok(self.module(*name)? as u64),
-            Op::Is { ty, obj } => {
-                let obj = self.val(*obj, slots)? as usize;
-                Ok(self.is_instance(obj, *ty)? as u64)
+                Ok((obj + self.field_offset(*name)?) as u64)
             }
             Op::As { ty, obj } => {
                 let v = self.val(*obj, slots)?;
@@ -82,7 +49,6 @@ impl Vm {
                 }
                 Ok(v)
             }
-            Op::Copy(v) => self.val(*v, slots),
             Op::SizeOf(ty) => Ok(layout::size_of(&self.world.pool, *ty) as u64),
             Op::AlignmentOf(ty) => Ok(layout::align_of(&self.world.pool, *ty) as u64),
             Op::Box { ty, obj } => self.boxing(*ty, *obj, slots, true),
@@ -95,40 +61,14 @@ impl Vm {
             Op::Varstore { slot, value } => {
                 let (addr, v) = (self.val(*slot, slots)?, self.val(*value, slots)?);
                 crate::heap::write(addr as usize, v);
-                self.unit_value()
+                Ok(0)
             }
             Op::Arrayalloc { ty, init, .. } => self.array_alloc(*ty, *init, slots),
-            Op::Arrayload { ty, arr, idx } => {
-                let (arr, idx) = (self.val(*arr, slots)?, self.val(*idx, slots)?);
-                let addr = self.array_elem(arr, idx, *ty)?;
-                Ok(self.load_ty(addr, *ty))
-            }
-            Op::Arraystore { ty, arr, idx, value } => {
-                let (arr, idx, v) =
-                    (self.val(*arr, slots)?, self.val(*idx, slots)?, self.val(*value, slots)?);
-                let addr = self.array_elem(arr, idx, *ty)?;
-                self.store_ty(addr, *ty, v);
-                self.unit_value()
-            }
-            Op::Arraylength(arr) => {
-                let arr = self.val(*arr, slots)?;
-                self.array_length(arr)
-            }
-            other => Err(VmError::Unsupported(format!("op {}", op_name(other))).into()),
+            Op::Extract { .. } => Err(VmError::Unsupported("op extract".into()).into()),
+            Op::Insert { .. } => Err(VmError::Unsupported("op insert".into()).into()),
+            Op::Dynmethod { .. } => Err(VmError::Unsupported("op dynmethod".into()).into()),
+            _ => Err(VmError::Unsupported("op the lowering handles".into()).into()),
         }
-    }
-
-    /// The result of an operation that yields no value; nothing reads it.
-    fn unit_value(&mut self) -> Flow {
-        Ok(0)
-    }
-
-    fn field_addr(&mut self, obj: nir::ValId, name: nir::GlobalId, slots: &[u64]) -> Flow<usize> {
-        let obj = self.val(obj, slots)? as usize;
-        if obj == 0 {
-            return self.null_pointer();
-        }
-        Ok(obj + self.field_offset(name)?)
     }
 
     fn array_alloc(&mut self, elem: nir::TypeId, init: nir::ValId, slots: &[u64]) -> Flow {
@@ -151,28 +91,5 @@ impl Vm {
                 Ok(self.alloc_array(cls, len as usize) as u64)
             }
         }
-    }
-
-    fn boxing(&mut self, ty: nir::TypeId, obj: nir::ValId, slots: &[u64], boxing: bool) -> Flow {
-        let Type::Ref { name, .. } = *self.world.pool.ty(ty) else {
-            return Err(VmError::Unsupported("box into a non-class type".into()).into());
-        };
-        let class = self.world.pool.top_name(name).to_owned();
-        let v = self.val(obj, slots)?;
-        let helper =
-            arith::box_helper(&class, boxing).ok_or_else(|| VmError::Unsupported(format!("box {class}")))?;
-        let owner = self.world.top(helper.0);
-        let module = self.module(owner)?;
-        let g = self.world.member(owner, &helper.1);
-        self.call_global(g, &[module as u64, v])
-    }
-}
-
-fn op_name(op: &Op) -> &'static str {
-    match op {
-        Op::Extract { .. } => "extract",
-        Op::Insert { .. } => "insert",
-        Op::Dynmethod { .. } => "dynmethod",
-        _ => "?",
     }
 }
