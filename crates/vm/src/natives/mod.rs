@@ -37,6 +37,14 @@ impl Native {
 }
 
 impl Vm {
+    /// Calls the C function at `addr`, whose NIR function type is `ty`.
+    pub fn call_c(&mut self, addr: usize, ty: nir::TypeId, args: &[u64]) -> Flow {
+        match ffi::foreign(&self.world.pool, ty, addr) {
+            Some(f) => ffi::call(&f, args),
+            None => Err(VmError::Unsupported(format!("call of C function pointer {addr:#x}")).into()),
+        }
+    }
+
     /// Calls variadic C function `g` with `args` and their numeric kinds.
     pub fn call_variadic(&mut self, g: GlobalId, args: &[(u64, Num)], ret: Num) -> Flow {
         let unsupported = |vm: &Vm| VmError::Unsupported(format!("native {}", vm.world.name(g)));

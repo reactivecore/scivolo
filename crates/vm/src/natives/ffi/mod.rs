@@ -77,15 +77,17 @@ fn open(lib: &str) -> Result<(), String> {
 pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     let defn = vm.world.defn(g).ok()?;
     let DefnKind::Declare { ty } = defn.kind else { return None };
-    let Type::Function(args, ret) = vm.world.pool.ty(ty).clone() else { return None };
-    let pool = &vm.world.pool;
+    foreign(&vm.world.pool, ty, symbol(name)?)
+}
+
+/// A call of the C function at `addr` with function type `ty`, if its signature fits the
+/// registers this module passes.
+pub fn foreign(pool: &nir::Pool, ty: nir::TypeId, addr: usize) -> Option<Foreign> {
+    let Type::Function(args, ret) = pool.ty(ty) else { return None };
     let args: Vec<Class> = args.iter().map(|t| class(pool.ty(*t))).collect::<Option<_>>()?;
-    let ret = class(pool.ty(ret))?;
+    let ret = class(pool.ty(*ret))?;
     let ints = args.iter().filter(|c| matches!(c, Class::Int { .. })).count();
-    if ints > 8 || args.len() - ints > 8 {
-        return None;
-    }
-    symbol(name).map(|addr| Foreign { addr, args, ret })
+    (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret })
 }
 
 /// The address of C symbol `name` in the process; `errno` is left as it was.

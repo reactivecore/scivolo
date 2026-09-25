@@ -65,8 +65,10 @@ pub enum Instr {
         dst: u32,
         v: Arg,
     },
+    /// A call through a function value of function type `ty`.
     Call {
         dst: u32,
+        ty: TypeId,
         target: Arg,
         args: Box<[Arg]>,
         unwind: Handler,

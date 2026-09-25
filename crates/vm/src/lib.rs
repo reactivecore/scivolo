@@ -99,6 +99,13 @@ impl Vm {
         }
     }
 
+    /// Exits the process with `code`, keeping the VM available to exit handlers C registered.
+    pub fn exit(&mut self, code: i32) -> ! {
+        let vm: *mut Vm = self;
+        let _running = self.callbacks.enter(vm);
+        std::process::exit(code)
+    }
+
     pub fn heap_bytes(&self) -> usize {
         self.heap.allocated
     }

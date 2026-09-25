@@ -2,7 +2,7 @@ mod libs;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
-use vm::{Classpath, Vm};
+use vm::{Classpath, Vm, VmError};
 
 const USAGE: &str = "usage: scalai [--cp DIR_OR_JAR]... MAIN_CLASS [ARGS...]";
 
@@ -54,11 +54,19 @@ fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<(), St
     cp.extend(libs::jars()?);
     let classpath = Classpath::open(&cp).map_err(|e| e.to_string())?;
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    let result = vm.run_main(main_class, args).map_err(|e| e.to_string());
+    let result = vm.run_main(main_class, args);
     if std::env::var_os("SCALAI_PROFILE").is_some() {
         for (calls, name) in vm.profile_report(30) {
             eprintln!("{calls:>12}  {name}");
         }
     }
-    result
+    let code = match result {
+        Ok(()) => 0,
+        Err(VmError::Exit(code)) => code,
+        Err(e) => {
+            eprintln!("scalai: {e}");
+            1
+        }
+    };
+    vm.exit(code)
 }

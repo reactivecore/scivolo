@@ -49,9 +49,9 @@ impl Vm {
             }
             Instr::Copy { dst, v } => (dst, self.arg(code, slots, v)?),
             Instr::Nop => return Ok(()),
-            Instr::Call { dst, target, ref args, .. } => {
+            Instr::Call { dst, ty, target, ref args, .. } => {
                 let target = self.arg(code, slots, target)?;
-                (dst, self.call_args(code, slots, target, args)?)
+                (dst, self.call_args(code, slots, target, ty, args)?)
             }
             Instr::CallGlobal { dst, name, site, ref args, .. } => {
                 let f = self.cached_func(&code.sites[site as usize], name)?;

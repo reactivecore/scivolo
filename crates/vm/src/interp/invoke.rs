@@ -4,7 +4,7 @@
 use super::code::{Arg, Code};
 use super::{Flow, Func, FuncId};
 use crate::Vm;
-use nir::GlobalId;
+use nir::{GlobalId, TypeId};
 use std::cell::Cell;
 
 /// Arguments of one call, kept on the stack when there are few.
@@ -65,9 +65,10 @@ impl Vm {
         Ok(cells[1].get() as FuncId)
     }
 
-    /// Calls the function behind `target` with `args` evaluated in the caller's frame.
-    pub fn call_args(&mut self, caller: &Code, slots: &[u64], target: u64, args: &[Arg]) -> Flow {
-        self.call_evaluated(caller, slots, |vm, values| vm.call_value(target, values), args)
+    /// Calls the function behind `target`, a function value of function type `ty`, with `args`
+    /// evaluated in the caller's frame.
+    pub fn call_args(&mut self, caller: &Code, slots: &[u64], target: u64, ty: TypeId, args: &[Arg]) -> Flow {
+        self.call_evaluated(caller, slots, |vm, values| vm.call_value_typed(target, ty, values), args)
     }
 
     fn call_evaluated(

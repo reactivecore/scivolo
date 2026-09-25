@@ -104,6 +104,18 @@ impl Vm {
         self.call(f, args)
     }
 
+    /// Calls `target`, a function value of type `ty`: a function reference, a trampoline, or
+    /// the address of a C function.
+    pub fn call_value_typed(&mut self, target: u64, ty: nir::TypeId, args: &[u64]) -> Flow {
+        if is_func_ref(target) || self.callbacks.target(target as usize).is_some() {
+            return self.call_value(target, args);
+        }
+        if target == 0 {
+            return self.null_pointer();
+        }
+        self.call_c(target as usize, ty, args)
+    }
+
     /// Calls the function behind a function reference or an extern address.
     pub fn call_value(&mut self, target: u64, args: &[u64]) -> Flow {
         if !is_func_ref(target) {

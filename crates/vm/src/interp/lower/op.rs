@@ -41,7 +41,7 @@ impl Lowerer<'_> {
                     self.site();
                     Instr::Invoke { dst, sig, site, args: self.args(args), unwind }
                 }
-                _ => Instr::Call { dst, target: self.arg(*ptr), args: self.args(args), unwind },
+                _ => Instr::Call { dst, ty: *ty, target: self.arg(*ptr), args: self.args(args), unwind },
             },
             Op::Method { .. } if self.fusable.contains_key(&(dst as u64)) => Instr::Nop,
             Op::Method { obj, sig } => {
