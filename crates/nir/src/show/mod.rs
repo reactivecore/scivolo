@@ -1,11 +1,12 @@
 //! Text form of definitions, following Scala Native's `nir.Show`.
 
+mod attr;
 mod inst;
 mod op;
 mod value;
 
 use crate::demangle;
-use crate::nir::{Attr, Defn, DefnKind, Global, GlobalId, Inst, Local, Next};
+use crate::nir::{Defn, DefnKind, Global, GlobalId, Inst, Local, Next};
 use crate::pool::Pool;
 use rustc_hash::FxHashMap;
 use std::fmt::Write;
@@ -17,25 +18,25 @@ pub struct Printer<'p> {
     out: String,
 }
 
+pub use op::text as op;
+
 pub fn defn(pool: &Pool, d: &Defn, readable: bool) -> String {
-    let mut p = Printer { pool, readable, names: FxHashMap::default(), out: String::new() };
+    let mut p = Printer::new(pool, readable);
     p.defn(d);
     p.out
 }
 
-pub fn op(pool: &Pool, op: &crate::nir::Op) -> String {
-    let mut p = Printer { pool, readable: true, names: FxHashMap::default(), out: String::new() };
-    p.op(op);
-    p.out
-}
-
 pub fn global(pool: &Pool, g: GlobalId, readable: bool) -> String {
-    let mut p = Printer { pool, readable, names: FxHashMap::default(), out: String::new() };
+    let mut p = Printer::new(pool, readable);
     p.global(g);
     p.out
 }
 
 impl<'p> Printer<'p> {
+    fn new(pool: &'p Pool, readable: bool) -> Self {
+        Self { pool, readable, names: FxHashMap::default(), out: String::new() }
+    }
+
     fn s(&mut self, s: &str) {
         self.out.push_str(s);
     }
@@ -79,26 +80,6 @@ impl<'p> Printer<'p> {
         let _ = write!(self.out, "%{}", l.0);
         if let Some(name) = self.names.get(&l.0) {
             let _ = write!(self.out, " <{name}>");
-        }
-    }
-
-    fn attrs(&mut self, attrs: &[Attr]) {
-        let pool = self.pool;
-        for a in attrs {
-            let _ = match a {
-                Attr::BailOpt(m) => write!(self.out, "bailopt(\"{}\")", pool.str(*m)),
-                Attr::Extern { blocking } => {
-                    write!(self.out, "extern{}", if *blocking { " blocking" } else { "" })
-                }
-                Attr::Link(n) => write!(self.out, "link(\"{}\")", pool.str(*n)),
-                Attr::Define(n) => write!(self.out, "define(\"{}\")", pool.str(*n)),
-                Attr::Align { size, group } => match group {
-                    Some(g) => write!(self.out, "align({size}, {})", pool.str(*g)),
-                    None => write!(self.out, "align({size})"),
-                },
-                other => write!(self.out, "{}", attr_name(other)),
-            };
-            self.s(" ");
         }
     }
 
@@ -178,29 +159,5 @@ impl<'p> Printer<'p> {
                 }
             }
         }
-    }
-}
-
-fn attr_name(a: &Attr) -> &'static str {
-    match a {
-        Attr::MayInline => "mayinline",
-        Attr::InlineHint => "inlinehint",
-        Attr::NoInline => "noinline",
-        Attr::AlwaysInline => "alwaysinline",
-        Attr::MaySpecialize => "mayspecialize",
-        Attr::NoSpecialize => "nospecialize",
-        Attr::UnOpt => "unopt",
-        Attr::NoOpt => "noopt",
-        Attr::DidOpt => "didopt",
-        Attr::Dyn => "dyn",
-        Attr::Stub => "stub",
-        Attr::LinkCppRuntime => "linkCppRuntime",
-        Attr::Abstract => "abstract",
-        Attr::Volatile => "volatile",
-        Attr::Final => "final",
-        Attr::SafePublish => "safe-publish",
-        Attr::LinktimeResolved => "linktime",
-        Attr::UsesIntrinsic => "uses-intrinsics",
-        _ => "",
     }
 }

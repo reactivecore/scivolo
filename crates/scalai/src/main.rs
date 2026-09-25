@@ -47,6 +47,5 @@ fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<(), St
     cp.extend(libs::jars()?);
     let classpath = Classpath::open(&cp).map_err(|e| e.to_string())?;
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    vm.set_stack_budget(STACK - (4 << 20));
     vm.run_main(main_class, args).map_err(|e| e.to_string())
 }

@@ -1,3 +1,5 @@
+use super::code::Num;
+use super::lower::num;
 use super::{Flow, Func, FuncId, func_ref};
 use crate::heap;
 use crate::layout::{self, WORD};
@@ -101,14 +103,18 @@ impl Vm {
             return Ok(func_ref(f));
         }
         let name = *name;
-        let arity = match &defn.kind {
+        let (params, ret) = match &defn.kind {
             DefnKind::Define { ty, .. } => match self.world.pool.ty(*ty) {
-                Type::Function(args, _) => args.len(),
-                _ => 0,
+                Type::Function(args, ret) => {
+                    let pool = &self.world.pool;
+                    (args.iter().map(|t| num(pool.ty(*t))).collect(), num(pool.ty(*ret)))
+                }
+                _ => (Vec::new(), Num::I64),
             },
-            _ => 0,
+            _ => (Vec::new(), Num::I64),
         };
-        match self.callbacks.address(f, arity) {
+        let vm: *mut Vm = self;
+        match self.callbacks.address(vm, f, &params, ret) {
             Some(addr) => Ok(addr as u64),
             None => Err(VmError::Unsupported(format!("C callback {}", self.world.name(name))).into()),
         }

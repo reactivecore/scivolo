@@ -60,8 +60,9 @@ pub struct Funcs {
 }
 
 impl Funcs {
-    pub fn has_stack_budget(&self) -> bool {
-        self.stack_floor != 0
+    /// Interpreted calls whose frame would lie below `floor` throw `StackOverflowError`.
+    pub fn set_stack_floor(&mut self, floor: usize) {
+        self.stack_floor = floor;
     }
 }
 
@@ -126,13 +127,17 @@ impl Vm {
             self.funcs.overflowing = false;
             return result;
         }
+        if !self.funcs.trace {
+            return self.exec(&code, args);
+        }
         self.funcs.stack.push(f);
         let result = self.exec(&code, args);
         self.funcs.stack.pop();
         result
     }
 
-    /// The names of the innermost `depth` interpreted methods on the call stack.
+    /// The names of the innermost `depth` interpreted methods on the call stack, which is only
+    /// recorded while tracing.
     pub fn backtrace(&self, depth: usize) -> Vec<String> {
         self.funcs.stack.iter().rev().take(depth).map(|&f| self.func_name(f)).collect()
     }
@@ -161,13 +166,6 @@ impl Vm {
         let init = self.world.member(self.class(cls).name, "RE");
         self.call_global(init, &[obj as u64])?;
         Err(Unwind::Throw(obj))
-    }
-
-    /// Lets interpreted calls use the native stack down to `budget` bytes below the caller's
-    /// frame; deeper calls throw `StackOverflowError`.
-    pub fn set_stack_budget(&mut self, budget: usize) {
-        let marker = 0u8;
-        self.funcs.stack_floor = (&raw const marker as usize).saturating_sub(budget);
     }
 
     pub fn null_pointer<T>(&mut self) -> Flow<T> {

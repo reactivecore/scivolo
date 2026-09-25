@@ -36,8 +36,9 @@ Rationale goes in `docs/adr/`, one decision per file.
 - No `Rc<RefCell<_>>` in runtime state, no global state, no async, no macros
   that obscure control flow, minimal generics. Arena / index handles over
   pointers. In the VM, `unsafe` lives only in `heap.rs` (every raw memory
-  access by address goes through `heap::read`/`heap::write`) and in
-  `natives/ffi.rs` and `natives/callback.rs` (calls across the C boundary).
+  access by address goes through `heap::read`/`heap::write`), `stack.rs`, and
+  `natives/ffi.rs` and `natives/callback.rs` (the C boundary); the callback
+  slot table is the one piece of state outside `Vm` (ADR 0002).
 - Documentation is short: one home per fact.
 
 ## Tooling

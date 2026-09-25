@@ -10,6 +10,7 @@ mod linktime;
 mod natives;
 mod object;
 mod rtti;
+mod stack;
 mod world;
 
 pub use classpath::Classpath;
@@ -22,9 +23,8 @@ use interp::Funcs;
 use nir::{GlobalId, StrId};
 use rustc_hash::FxHashMap;
 
-/// Native stack interpreted calls may use when the embedder sets no budget: most of the
-/// 8 MiB a main thread gets by default.
-const DEFAULT_STACK_BUDGET: usize = 6 << 20;
+/// Native stack kept free for the Rust and C code running below the innermost interpreted call.
+const STACK_RESERVE: usize = 512 << 10;
 
 pub struct Vm {
     pub world: World,
@@ -67,19 +67,20 @@ impl Vm {
     }
 
     /// Runs `main(args)` of the top-level object or class `entry`.
+    /// Interpreted calls throw `StackOverflowError` when they get this close to the end of the
+    /// thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
-        natives::enter(self);
-        if !self.funcs.has_stack_budget() {
-            self.set_stack_budget(DEFAULT_STACK_BUDGET);
-        }
+        self.funcs.set_stack_floor(stack::low_end().map_or(0, |low| low + STACK_RESERVE));
         let arr = self.string_array(args)?;
         let top = self.world.top(entry);
         let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");
-        match self.call_global(main, &[arr as u64]) {
+        let result = match self.call_global(main, &[arr as u64]) {
             Ok(_) => Ok(()),
             Err(interp::Unwind::Throw(exc)) => Err(VmError::Uncaught(self.describe_throwable(exc))),
             Err(interp::Unwind::Fatal(e)) => Err(e),
-        }
+        };
+        self.callbacks.release();
+        result
     }
 
     pub fn heap_bytes(&self) -> usize {

@@ -42,15 +42,21 @@ fn chunk(size: usize) -> usize {
     ptr as usize
 }
 
+/// Addresses below this lie in the page every platform leaves unmapped; accessing them is a
+/// VM or program bug that panics instead of faulting.
+const NULL_PAGE: usize = 4096;
+
 /// Reads a `T` at `addr`, which the running program vouches for.
 pub fn read<T: Copy>(addr: usize) -> T {
+    assert!(addr >= NULL_PAGE, "read of address {addr:#x}");
     // SAFETY: the trusted program owns `addr..addr + size_of::<T>()`, see the module
-    // documentation; the read tolerates misalignment.
+    // documentation and ADR 0002; the read tolerates misalignment.
     unsafe { (addr as *const T).read_unaligned() }
 }
 
 /// Writes a `T` at `addr`, which the running program vouches for.
 pub fn write<T: Copy>(addr: usize, value: T) {
+    assert!(addr >= NULL_PAGE, "write of address {addr:#x}");
     // SAFETY: as for `read`.
     unsafe { (addr as *mut T).write_unaligned(value) }
 }

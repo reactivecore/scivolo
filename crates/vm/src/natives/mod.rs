@@ -7,7 +7,7 @@ mod gc;
 mod llvm;
 mod runtime;
 
-pub use callback::{Callbacks, enter};
+pub use callback::Callbacks;
 pub use ffi::load_runtime;
 
 use crate::interp::Flow;

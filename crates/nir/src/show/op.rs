@@ -1,6 +1,14 @@
 use super::Printer;
 use crate::nir::{MemoryOrder, Op, TypeId, ValId};
+use crate::pool::Pool;
 use std::fmt::Write;
+
+/// The text of `op` on its own.
+pub fn text(pool: &Pool, op: &Op) -> String {
+    let mut p = Printer::new(pool, true);
+    p.op(op);
+    p.out
+}
 
 impl Printer<'_> {
     fn typed(&mut self, name: &str, ty: TypeId) {

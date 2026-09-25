@@ -21,6 +21,9 @@ fn programs() {
     let mut failures = Vec::new();
     for entry in std::fs::read_dir(&root).unwrap() {
         let dir = entry.unwrap().path();
+        if !dir.is_dir() {
+            continue;
+        }
         let name = dir.file_name().unwrap().to_str().unwrap().to_owned();
         let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
         match run(&dir, &name) {

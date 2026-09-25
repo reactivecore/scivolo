@@ -38,9 +38,7 @@ impl Vm {
         for id in std::mem::take(&mut self.rtti.pending) {
             self.init_rtti(id)?;
         }
-        for id in 0..self.classes.all.len() as ClassId {
-            self.link_rtti(id)?;
-        }
+        self.link_rtti(meta)?;
         self.link_top("java.lang.String")?;
         self.link_top("scala.scalanative.runtime.CharArray")?;
         self.rtti.strings_ready = true;
@@ -66,6 +64,7 @@ impl Vm {
         heap::write(addr + self.meta_field("F2idO")?, class_id);
         heap::write(addr + self.meta_field("F4sizeO")?, size);
         heap::write(addr + self.meta_field("F12idRangeUntilO")?, class_id);
+        // `java.lang.Class` is set up before its ancestors, so `bootstrap` links it again.
         self.link_rtti(id)?;
         match self.rtti.strings_ready {
             true => self.name_rtti(id),
