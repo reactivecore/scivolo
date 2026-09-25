@@ -1,5 +1,6 @@
 //! Abrupt completion: thrown exceptions and fatal VM errors, and the helpers that throw.
 
+use crate::world::LoadError;
 use crate::{Vm, VmError};
 
 /// Why a call did not return normally; boxed so `Flow` stays two words.
@@ -60,6 +61,50 @@ impl Vm {
         let obj = self.alloc_object(cls);
         let init = self.world.member(self.class(cls).name, "RE");
         self.call_global(init, &[obj as u64])?;
+        Err(Unwind::throw(obj))
+    }
+
+    /// `value` if it is a `Throwable`; otherwise the `NullPointerException` or, as a JVM's cast
+    /// to `Nothing$` would, the `ClassCastException` to throw instead.
+    pub fn throwable(&mut self, value: usize) -> Flow<usize> {
+        if value == 0 {
+            return self.null_pointer();
+        }
+        let throwable = self.link_top("java.lang.Throwable")?;
+        let class = self.class_of(value);
+        if self.is_subclass(class, throwable) {
+            return Ok(value);
+        }
+        let (from, to) = (self.class(class).rtti as u64, self.class(throwable).rtti as u64);
+        self.throw_runtime("D14throwClassCastR_R_nEO", &[from, to]).map(|_| unreachable!("throws"))
+    }
+
+    /// A missing definition or native as the `NoClassDefFoundError` or `UnsatisfiedLinkError` a
+    /// JVM would throw; any other unwinding unchanged.
+    pub fn as_linkage_error(&mut self, u: Unwind) -> Unwind {
+        let (class, message) = match &*u.0 {
+            Unwound::Fatal(VmError::Load(LoadError::Missing(name))) => {
+                ("java.lang.NoClassDefFoundError", name)
+            }
+            Unwound::Fatal(VmError::Unsupported(what)) if what.starts_with("native ") => {
+                ("java.lang.UnsatisfiedLinkError", what)
+            }
+            _ => return u,
+        };
+        let message = message.clone();
+        match self.throw_new_with(class, &message) {
+            Err(thrown) if thrown.thrown().is_some() => thrown,
+            _ => u,
+        }
+    }
+
+    /// Throws a new instance of `class`, built by its constructor taking a message.
+    pub fn throw_new_with(&mut self, class: &str, message: &str) -> Flow {
+        let cls = self.link_top(class)?;
+        let obj = self.alloc_object(cls);
+        let text = self.new_string(message)?;
+        let init = self.world.member(self.class(cls).name, "RL16java.lang.StringE");
+        self.call_global(init, &[obj as u64, text as u64])?;
         Err(Unwind::throw(obj))
     }
 

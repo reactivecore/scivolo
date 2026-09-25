@@ -12,9 +12,8 @@ default: gates
 # them in the VM. Needs `ref/scala-native` (v0.5.12) and scala-cli.
 sn-tests *dirs:
     scripts/sn-tests.sh {{ dirs }}
-    cargo run -q --release -p scalai -- --cp tmp/sn-tests/nir \
-        --cp ref/libs/junit-runtime_native0.5_3-0.5.12.jar \
-        --cp ref/libs/test-interface-sbt-defs_native0.5_3-0.5.12.jar runner
+    cargo build -q --release -p scalai
+    scripts/sn-run.sh
 
 # Copy the Scala Native library jars from the Coursier cache into ref/libs.
 libs:

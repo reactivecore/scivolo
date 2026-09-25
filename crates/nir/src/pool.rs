@@ -43,6 +43,9 @@ pub struct Pool {
     pub types: Interner<Type>,
     pub vals: Interner<Val>,
     pub positions: Interner<Pos>,
+    /// The exact UTF-16 units of strings that are not valid Unicode (lone surrogates), which
+    /// `strings` holds only lossily.
+    pub utf16: FxHashMap<StrId, Box<[u16]>>,
 }
 
 impl Default for Pool {
@@ -53,6 +56,7 @@ impl Default for Pool {
             types: Interner::new(),
             vals: Interner::new(),
             positions: Interner::new(),
+            utf16: FxHashMap::default(),
         }
     }
 }

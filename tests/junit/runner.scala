@@ -17,15 +17,18 @@ def isAssumption(t: Throwable): Boolean =
   t.isInstanceOf[org.junit.AssumptionViolatedException] ||
     t.isInstanceOf[org.junit.internal.AssumptionViolatedException]
 
-def attempt(body: => Any): Try[Unit] =
-  try { body; Success(()) }
+// Like `Try`, but also catches fatal throwables such as `LinkageError`, as JUnit does.
+def capture[A](body: => A): Try[A] =
+  try Success(body)
   catch { case t: Throwable => Failure(t) }
+
+def attempt(body: => Any): Try[Unit] = capture(body).map(_ => ())
 
 def runTest(b: Bootstrapper, name: String, expected: Class[?]): Try[Unit] =
   val wantException = expected != classOf[org.junit.Test.None]
-  Try(b.newInstance()).flatMap { instance =>
+  capture(b.newInstance()).flatMap { instance =>
     val result = attempt(b.before(instance)).flatMap { _ =>
-      Try(b.invokeTest(instance, name)).flatMap(_.value.get.flatten)
+      capture(b.invokeTest(instance, name)).flatMap(_.value.get.flatten)
     }
     val checked = (result, wantException) match
       case (Success(_), true)                            => Failure(new AssertionError(s"Expected exception: ${expected.getName}"))

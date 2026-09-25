@@ -58,15 +58,13 @@ impl Vm {
                 }
                 Instr::Ret(v) => return self.arg(code, slots, *v),
                 Instr::Throw { v, unwind } => {
-                    let exc = match self.arg(code, slots, *v)? as usize {
-                        0 => match self.null_pointer::<u64>() {
-                            Err(u) => match u.thrown() {
-                                Some(npe) => npe,
-                                None => return Err(u),
-                            },
-                            Ok(v) => return Ok(v),
+                    let value = self.arg(code, slots, *v)? as usize;
+                    let exc = match self.throwable(value) {
+                        Ok(exc) => exc,
+                        Err(u) => match u.thrown() {
+                            Some(exc) => exc,
+                            None => return Err(u),
                         },
-                        exc => exc,
                     };
                     match unwind {
                         Some(h) => {
@@ -83,6 +81,7 @@ impl Vm {
                         continue;
                     }
                     Err(u) => {
+                        let u = self.as_linkage_error(u);
                         if self.funcs.trace && u.thrown().is_some() {
                             self.trace_throw(code, pc);
                         }

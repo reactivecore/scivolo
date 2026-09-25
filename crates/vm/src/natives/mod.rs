@@ -13,9 +13,10 @@ pub use callback::Callbacks;
 pub use ffi::load_runtime;
 
 use crate::interp::Flow;
+use crate::interp::code::Num;
 use crate::linktime;
 use crate::{Vm, VmError};
-use nir::{GlobalId, demangle};
+use nir::{DefnKind, GlobalId, Type, demangle};
 
 pub type NativeFn = fn(&mut Vm, &[u64]) -> Flow;
 
@@ -36,6 +37,25 @@ impl Native {
 }
 
 impl Vm {
+    /// Calls variadic C function `g` with `args` and their numeric kinds.
+    pub fn call_variadic(&mut self, g: GlobalId, args: &[(u64, Num)], ret: Num) -> Flow {
+        let unsupported = |vm: &Vm| VmError::Unsupported(format!("native {}", vm.world.name(g)));
+        let defn = self.world.defn(g)?;
+        let named = match (&defn.kind, self.world.pool.member_sig(g).and_then(demangle::extern_name)) {
+            (DefnKind::Declare { ty }, Some(name)) => match self.world.pool.ty(*ty) {
+                Type::Function(params, _) => {
+                    let named =
+                        params.iter().take_while(|t| !matches!(self.world.pool.ty(**t), Type::Vararg));
+                    ffi::symbol(&name).map(|addr| (addr, named.count()))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        let Some((addr, named)) = named else { return Err(unsupported(self).into()) };
+        ffi::variadic::call(addr, named, args, ret).ok_or_else(|| unsupported(self).into())
+    }
+
     /// The address of the C variable declared by `g`.
     pub fn extern_variable(&mut self, g: GlobalId) -> Result<usize, VmError> {
         let sig = self.world.pool.member_sig(g).unwrap_or_default();

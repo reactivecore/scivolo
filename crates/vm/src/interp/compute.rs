@@ -15,6 +15,7 @@ impl Instr {
             | Instr::Call { unwind, .. }
             | Instr::CallGlobal { unwind, .. }
             | Instr::Invoke { unwind, .. }
+            | Instr::CallVariadic { unwind, .. }
             | Instr::Method { unwind, .. }
             | Instr::Module { unwind, .. }
             | Instr::FieldLoad { unwind, .. }
@@ -58,6 +59,13 @@ impl Vm {
             }
             Instr::Invoke { dst, sig, site, ref args, .. } => {
                 (dst, self.invoke(code, slots, sig, site, args)?)
+            }
+            Instr::CallVariadic { dst, name, ref args, ret, .. } => {
+                let values = args
+                    .iter()
+                    .map(|&(a, n)| Ok((self.arg(code, slots, a)?, n)))
+                    .collect::<Flow<Vec<_>>>()?;
+                (dst, self.call_variadic(name, &values, ret)?)
             }
             Instr::Method { dst, obj, sig, site, .. } => {
                 let obj = self.object(code, slots, obj)?;

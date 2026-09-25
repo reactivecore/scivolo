@@ -99,11 +99,18 @@ impl<'a> Reader<'a> {
             for _ in 0..n {
                 units.push(r.c.uleb32()? as u16);
             }
-            let s = match units.iter().all(|&u| u < 0x80) {
-                true => units.iter().map(|&u| u as u8 as char).collect::<String>(),
-                false => String::from_utf16_lossy(&units),
-            };
-            Ok(r.pool.strings.intern(s.into_boxed_str()))
+            if units.iter().all(|&u| u < 0x80) {
+                let s: String = units.iter().map(|&u| u as u8 as char).collect();
+                return Ok(r.pool.strings.intern(s.into_boxed_str()));
+            }
+            match String::from_utf16(&units) {
+                Ok(s) => Ok(r.pool.strings.intern(s.into_boxed_str())),
+                Err(_) => {
+                    let id = r.pool.strings.intern(String::from_utf16_lossy(&units).into_boxed_str());
+                    r.pool.utf16.insert(StrId(id), units.into_boxed_slice());
+                    Ok(id)
+                }
+            }
         })
         .map(StrId)
     }

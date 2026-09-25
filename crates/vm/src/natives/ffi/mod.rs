@@ -1,6 +1,8 @@
 //! Calls into C functions found with `dlsym`, for non-variadic signatures of up to eight
 //! integer and eight floating-point arguments passed in registers.
 
+pub mod variadic;
+
 use crate::Vm;
 use crate::interp::Flow;
 use nir::{DefnKind, GlobalId, Type};
@@ -54,13 +56,19 @@ fn class(ty: &Type) -> Option<Class> {
     }
 }
 
-/// Makes the symbols of Scala Native's C runtime visible to `dlsym`.
+/// Makes the symbols of Scala Native's C runtime, and of the libraries listed in
+/// `SCALAI_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
 pub fn load_runtime() -> Result<(), String> {
-    let path = CString::new(snrt::PATH).map_err(|e| e.to_string())?;
+    let extra = std::env::var("SCALAI_NATIVE_LIBS").unwrap_or_default();
+    std::iter::once(snrt::PATH).chain(extra.split(':').filter(|p| !p.is_empty())).try_for_each(open)
+}
+
+fn open(lib: &str) -> Result<(), String> {
+    let path = CString::new(lib).map_err(|e| e.to_string())?;
     // SAFETY: `path` is a valid C string; loading runs only the library's static initializers.
     let handle = unsafe { libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_GLOBAL) };
     match handle.is_null() {
-        true => Err(format!("cannot load the C runtime at {}", snrt::PATH)),
+        true => Err(format!("cannot load the native library {lib}")),
         false => Ok(()),
     }
 }
@@ -80,12 +88,36 @@ pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     symbol(name).map(|addr| Foreign { addr, args, ret })
 }
 
-/// The address of C symbol `name` in the process.
+/// The address of C symbol `name` in the process; `errno` is left as it was.
 pub fn symbol(name: &str) -> Option<usize> {
     let cname = CString::new(name).ok()?;
+    let saved = errno();
     // SAFETY: `dlsym` with RTLD_DEFAULT and a valid C string only reads the symbol tables.
     let addr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, cname.as_ptr()) } as usize;
+    set_errno(saved);
     (addr != 0).then_some(addr)
+}
+
+#[cfg(target_os = "macos")]
+fn errno_location() -> *mut i32 {
+    // SAFETY: `__error` returns the calling thread's errno cell and has no preconditions.
+    unsafe { libc::__error() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn errno_location() -> *mut i32 {
+    // SAFETY: `__errno_location` returns the calling thread's errno cell and has no preconditions.
+    unsafe { libc::__errno_location() }
+}
+
+fn errno() -> i32 {
+    // SAFETY: the errno cell of the calling thread is always valid to read.
+    unsafe { *errno_location() }
+}
+
+fn set_errno(v: i32) {
+    // SAFETY: the errno cell of the calling thread is always valid to write.
+    unsafe { *errno_location() = v }
 }
 
 type IntFn =

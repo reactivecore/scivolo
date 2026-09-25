@@ -17,6 +17,8 @@ if [ "${dirs[0]}" = all ]; then
     cp -R "$tests/shared/src/test/$d/." "$work/src/"
   done
   cp -R "$tests/native/src/test/scala/." "$work/src/"
+  cp "$tests"/native/src/test/resources/scala-native/*.c "$work/src/"
+  cc -shared -fPIC -w -o "$work/libsntest.dylib" "$tests"/native/src/test/resources/scala-native/*.c
   for t in $(find "$work/src" -name '*.scala.template'); do
     out=${t%.template}
     cp "$t" "$out"

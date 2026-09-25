@@ -27,6 +27,13 @@ fn main() -> ExitCode {
     }
     let Some(main_class) = main_class else { return usage() };
     let rest: Vec<String> = args.collect();
+    if let Some(secs) = std::env::var("SCALAI_TIMEOUT").ok().and_then(|s| s.parse().ok()) {
+        std::thread::spawn(move || {
+            std::thread::sleep(std::time::Duration::from_secs(secs));
+            eprintln!("scalai: timed out after {secs} s");
+            std::process::exit(124);
+        });
+    }
     let thread = std::thread::Builder::new().stack_size(STACK).spawn(move || run(cp, &main_class, &rest));
     match thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|_| "interpreter panicked".into()))
     {

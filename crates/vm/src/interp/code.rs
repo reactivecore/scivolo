@@ -71,6 +71,15 @@ pub enum Instr {
         args: Box<[Arg]>,
         unwind: Handler,
     },
+    /// A call of variadic C function `name`, with the numeric kind of each argument and of the
+    /// result.
+    CallVariadic {
+        dst: u32,
+        name: GlobalId,
+        args: Box<[(Arg, Num)]>,
+        ret: Num,
+        unwind: Handler,
+    },
     /// A direct call of a method or extern, resolved to its function at `site`.
     CallGlobal {
         dst: u32,

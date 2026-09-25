@@ -4,18 +4,19 @@ use crate::class::{self, ClassId, Kind};
 use crate::heap;
 use crate::{Vm, VmError};
 
-const PRIMITIVES: [&str; 11] = [
-    "PrimitiveByte",
-    "PrimitiveShort",
-    "PrimitiveInt",
-    "PrimitiveLong",
-    "PrimitiveChar",
-    "PrimitiveFloat",
-    "PrimitiveDouble",
-    "PrimitiveBoolean",
-    "PrimitiveUnit",
-    "RawSize",
-    "RawPtr",
+/// The primitive classes in id order, with the name `Class.getName` reports for each.
+const PRIMITIVES: [(&str, &str); 11] = [
+    ("PrimitiveByte", "byte"),
+    ("PrimitiveShort", "short"),
+    ("PrimitiveInt", "int"),
+    ("PrimitiveLong", "long"),
+    ("PrimitiveChar", "char"),
+    ("PrimitiveFloat", "float"),
+    ("PrimitiveDouble", "double"),
+    ("PrimitiveBoolean", "boolean"),
+    ("PrimitiveUnit", "void"),
+    ("RawSize", "size"),
+    ("RawPtr", "pointer"),
 ];
 
 #[derive(Default)]
@@ -103,7 +104,13 @@ impl Vm {
     }
 
     fn name_rtti(&mut self, id: ClassId) -> Result<(), VmError> {
-        let name = self.class_name(id).to_owned();
+        let name = self.class_name(id);
+        let short = name.strip_prefix("scala.scalanative.runtime.").unwrap_or("");
+        let name = match PRIMITIVES.iter().find(|(p, _)| *p == short) {
+            Some((_, java)) => java.to_string(),
+            None if short == "BoxedUnit$" => "scala.runtime.BoxedUnit".into(),
+            None => name.to_owned(),
+        };
         let s = self.new_string(&name)?;
         let at = self.class(id).rtti + self.meta_field("F4nameO")?;
         heap::write(at, s);
@@ -113,7 +120,7 @@ impl Vm {
     fn class_id_value(&mut self, id: ClassId) -> i32 {
         let name = self.class_name(id).to_owned();
         let short = name.strip_prefix("scala.scalanative.runtime.").unwrap_or("");
-        if let Some(i) = PRIMITIVES.iter().position(|p| *p == short) {
+        if let Some(i) = PRIMITIVES.iter().position(|(p, _)| *p == short) {
             return i as i32;
         }
         if let Some(i) = class::array_names().position(|a| a == short) {

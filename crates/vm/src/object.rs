@@ -55,8 +55,11 @@ impl Vm {
         if let Some(&obj) = self.strings.get(&s) {
             return Ok(obj);
         }
-        let text = self.world.pool.str(s).to_owned();
-        let obj = self.new_string(&text)?;
+        let units: Vec<u16> = match self.world.pool.utf16.get(&s) {
+            Some(units) => units.to_vec(),
+            None => self.world.pool.str(s).encode_utf16().collect(),
+        };
+        let obj = self.new_string_utf16(&units)?;
         self.strings.insert(s, obj);
         Ok(obj)
     }
