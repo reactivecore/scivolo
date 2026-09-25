@@ -3,11 +3,8 @@ use super::{Flow, Unwind};
 use crate::{Vm, VmError};
 use nir::Inst;
 
-/// Arguments of one call, kept on the stack when there are few.
+/// Block parameters assigned at once, kept on the stack when there are few.
 const INLINE_ARGS: usize = 12;
-
-/// Frames kept for reuse; deeper recursion allocates its extra frames afresh.
-const MAX_POOLED_FRAMES: usize = 256;
 
 impl Vm {
     pub fn exec(&mut self, code: &Code, args: &[u64]) -> Flow {
@@ -18,9 +15,7 @@ impl Vm {
             slots[p as usize] = a;
         }
         let result = self.run(code, &mut slots);
-        if self.funcs.frames.len() < MAX_POOLED_FRAMES {
-            self.funcs.frames.push(slots);
-        }
+        self.funcs.recycle(slots);
         result
     }
 
@@ -30,7 +25,7 @@ impl Vm {
         }
     }
 
-    fn run(&mut self, code: &Code, slots: &mut [u64]) -> Flow {
+    pub fn run(&mut self, code: &Code, slots: &mut [u64]) -> Flow {
         let mut pc = 0;
         loop {
             let instr = &code.instrs[pc];
@@ -65,8 +60,11 @@ impl Vm {
                 Instr::Throw { v, unwind } => {
                     let exc = match self.arg(code, slots, *v)? as usize {
                         0 => match self.null_pointer::<u64>() {
-                            Err(Unwind::Throw(npe)) => npe,
-                            other => return other,
+                            Err(u) => match u.thrown() {
+                                Some(npe) => npe,
+                                None => return Err(u),
+                            },
+                            Ok(v) => return Ok(v),
                         },
                         exc => exc,
                     };
@@ -75,7 +73,7 @@ impl Vm {
                             slots[h.0 as usize] = exc as u64;
                             &h.1
                         }
-                        None => return Err(Unwind::Throw(exc)),
+                        None => return Err(Unwind::throw(exc)),
                     }
                 }
                 Instr::Unreachable => return Err(VmError::Unsupported("reached unreachable".into()).into()),
@@ -84,19 +82,14 @@ impl Vm {
                         pc += 1;
                         continue;
                     }
-                    Err(Unwind::Throw(exc)) => {
+                    Err(u) => {
+                        let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
                         if self.funcs.trace {
                             self.trace_throw(code, pc);
                         }
-                        match instr.unwind() {
-                            Some(h) => {
-                                slots[h.0 as usize] = exc as u64;
-                                &h.1
-                            }
-                            None => return Err(Unwind::Throw(exc)),
-                        }
+                        slots[h.0 as usize] = exc as u64;
+                        &h.1
                     }
-                    Err(fatal) => return Err(fatal),
                 },
             };
             pc = self.jump(code, slots, next)?;
@@ -143,19 +136,6 @@ impl Vm {
                 }
             }
         }
-    }
-
-    /// Calls `target` with `args` evaluated, without allocating for short argument lists.
-    pub fn call_args(&mut self, code: &Code, slots: &[u64], target: u64, args: &[Arg]) -> Flow {
-        if args.len() <= INLINE_ARGS {
-            let mut values = [0u64; INLINE_ARGS];
-            for (v, a) in values.iter_mut().zip(args) {
-                *v = self.arg(code, slots, *a)?;
-            }
-            return self.call_value(target, &values[..args.len()]);
-        }
-        let values = args.iter().map(|a| self.arg(code, slots, *a)).collect::<Flow<Vec<_>>>()?;
-        self.call_value(target, &values)
     }
 }
 

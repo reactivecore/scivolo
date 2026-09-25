@@ -4,6 +4,7 @@ pub mod code;
 mod compute;
 mod dispatch;
 mod exec;
+mod invoke;
 mod lower;
 mod memory;
 mod ops;
@@ -22,20 +23,41 @@ pub type FuncId = u32;
 /// Function references are tagged so they never collide with a real address.
 const FUNC_TAG: u64 = 0xF1C0 << 48;
 
-pub enum Unwind {
+/// Why a call did not return normally; boxed so `Flow` stays two words.
+pub struct Unwind(Box<Unwound>);
+
+pub enum Unwound {
     Throw(usize),
     Fatal(VmError),
 }
 
+impl Unwind {
+    pub fn throw(exc: usize) -> Self {
+        Unwind(Box::new(Unwound::Throw(exc)))
+    }
+
+    /// The exception object, unless this is a fatal error.
+    pub fn thrown(&self) -> Option<usize> {
+        match *self.0 {
+            Unwound::Throw(exc) => Some(exc),
+            Unwound::Fatal(_) => None,
+        }
+    }
+
+    pub fn into_inner(self) -> Unwound {
+        *self.0
+    }
+}
+
 impl From<VmError> for Unwind {
     fn from(e: VmError) -> Self {
-        Unwind::Fatal(e)
+        Unwind(Box::new(Unwound::Fatal(e)))
     }
 }
 
 impl From<crate::world::LoadError> for Unwind {
     fn from(e: crate::world::LoadError) -> Self {
-        Unwind::Fatal(e.into())
+        VmError::from(e).into()
     }
 }
 
@@ -65,7 +87,22 @@ impl Funcs {
     pub fn set_stack_floor(&mut self, floor: usize) {
         self.stack_floor = floor;
     }
+
+    /// Whether calls must go through `Vm::call`, which traces and profiles.
+    pub fn instrumented(&self) -> bool {
+        self.trace || self.profile.on
+    }
+
+    /// Keeps `frame` for reuse unless enough frames are pooled already.
+    pub fn recycle(&mut self, frame: Vec<u64>) {
+        if self.frames.len() < MAX_POOLED_FRAMES {
+            self.frames.push(frame);
+        }
+    }
 }
+
+/// Frames kept for reuse; deeper recursion allocates its extra frames afresh.
+const MAX_POOLED_FRAMES: usize = 256;
 
 pub fn func_ref(id: FuncId) -> u64 {
     FUNC_TAG | id as u64
@@ -121,14 +158,10 @@ impl Vm {
                 code
             }
         };
-        let marker = 0u8;
-        if (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing {
-            self.funcs.overflowing = true;
-            let result = self.throw_new("java.lang.StackOverflowError");
-            self.funcs.overflowing = false;
-            return result;
+        if self.stack_exhausted() {
+            return self.stack_overflow();
         }
-        if !self.funcs.trace && !self.funcs.profile.on {
+        if !self.funcs.instrumented() {
             return self.exec(&code, args);
         }
         if self.funcs.profile.on {
@@ -137,6 +170,20 @@ impl Vm {
         self.funcs.stack.push(f);
         let result = self.exec(&code, args);
         self.funcs.stack.pop();
+        result
+    }
+
+    /// Whether the current native frame lies below the stack floor.
+    #[inline]
+    pub fn stack_exhausted(&self) -> bool {
+        let marker = 0u8;
+        (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing
+    }
+
+    pub fn stack_overflow(&mut self) -> Flow {
+        self.funcs.overflowing = true;
+        let result = self.throw_new("java.lang.StackOverflowError");
+        self.funcs.overflowing = false;
         result
     }
 
@@ -169,7 +216,7 @@ impl Vm {
         let obj = self.alloc_object(cls);
         let init = self.world.member(self.class(cls).name, "RE");
         self.call_global(init, &[obj as u64])?;
-        Err(Unwind::Throw(obj))
+        Err(Unwind::throw(obj))
     }
 
     pub fn null_pointer<T>(&mut self) -> Flow<T> {
@@ -177,5 +224,13 @@ impl Vm {
             eprintln!("null pointer in:\n  {}", self.backtrace(12).join("\n  "));
         }
         self.throw_runtime("D16throwNullPointernEO", &[]).map(|_| unreachable!("throws"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn flow_fits_two_registers() {
+        assert_eq!(size_of::<super::Flow>(), 16);
     }
 }

@@ -4,7 +4,7 @@
 
 use crate::Vm;
 use crate::interp::code::Num;
-use crate::interp::{FuncId, Unwind};
+use crate::interp::{FuncId, Unwound};
 use std::cell::Cell;
 
 const SLOTS: usize = 64;
@@ -54,10 +54,12 @@ fn dispatch(slot: usize, args: [u64; MAX_ARITY]) -> u64 {
     let vm = unsafe { &mut *vm };
     match vm.call(s.f, &values[..s.arity]) {
         Ok(v) => v,
-        Err(Unwind::Throw(exc)) => {
-            abort(&format!("exception escaped a C callback: {}", vm.describe_throwable(exc)))
-        }
-        Err(Unwind::Fatal(e)) => abort(&e.to_string()),
+        Err(u) => match u.into_inner() {
+            Unwound::Throw(exc) => {
+                abort(&format!("exception escaped a C callback: {}", vm.describe_throwable(exc)))
+            }
+            Unwound::Fatal(e) => abort(&e.to_string()),
+        },
     }
 }
 

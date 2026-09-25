@@ -87,8 +87,10 @@ impl Vm {
         let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");
         match self.call_global(main, &[arr as u64]) {
             Ok(_) => Ok(()),
-            Err(interp::Unwind::Throw(exc)) => Err(VmError::Uncaught(self.describe_throwable(exc))),
-            Err(interp::Unwind::Fatal(e)) => Err(e),
+            Err(u) => match u.into_inner() {
+                interp::Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
+                interp::Unwound::Fatal(e) => Err(e),
+            },
         }
     }
 

@@ -3,7 +3,7 @@
 mod op;
 
 use super::code::{Arg, Code, Handler, Instr, Num, Target};
-use nir::{Defn, DefnKind, Inst, Next, Pool, Type, TypeId, Val, ValId};
+use nir::{Defn, DefnKind, Inst, Next, Op, Pool, StrId, Type, TypeId, Val, ValId};
 use rustc_hash::FxHashMap;
 use std::cell::Cell;
 use std::rc::Rc;
@@ -16,6 +16,7 @@ struct Lowerer<'p> {
     sites: u32,
     max_slot: u32,
     nowhere: u32,
+    fusable: FxHashMap<u64, (ValId, StrId)>,
 }
 
 pub fn num(ty: &Type) -> Num {
@@ -57,6 +58,7 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         sites: 0,
         max_slot: 0,
         nowhere: 0,
+        fusable: FxHashMap::default(),
     };
     let mut pc = 0;
     for inst in &body.insts {
@@ -69,6 +71,7 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         }
     }
     l.nowhere = pc;
+    l.fusable = fusable_methods(body, pool);
     let params = match body.insts.first() {
         Some(Inst::Label(_, params)) => params.iter().map(|p| p.id.0 as u32).collect(),
         _ => Box::default(),
@@ -87,6 +90,30 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         lazy: l.lazy.into_boxed_slice(),
         defn: defn.clone(),
     }
+}
+
+/// The locals holding a `method` result whose only uses are as call targets, by the
+/// receiver and signature of that `method`.
+fn fusable_methods(body: &nir::Body, pool: &Pool) -> FxHashMap<u64, (ValId, StrId)> {
+    let local = |v: ValId| match pool.val(v) {
+        Val::Local(l, _) => Some(l.0),
+        _ => None,
+    };
+    let mut methods = FxHashMap::default();
+    let mut other_uses = rustc_hash::FxHashSet::default();
+    for inst in &body.insts {
+        if let Inst::Let { id, op: Op::Method { obj, sig }, .. } = inst {
+            methods.insert(id.0, (*obj, *sig));
+        }
+        let ops = inst.operands();
+        let skip = match inst {
+            Inst::Let { op: Op::Call { .. }, .. } => 1,
+            _ => 0,
+        };
+        other_uses.extend(ops.into_iter().skip(skip).filter_map(local));
+    }
+    methods.retain(|l, _| !other_uses.contains(l));
+    methods
 }
 
 impl Lowerer<'_> {

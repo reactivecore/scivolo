@@ -25,8 +25,19 @@ impl Lowerer<'_> {
                 Val::Global(name, _) => {
                     Instr::CallGlobal { dst, name, site: self.site(), args: self.args(args), unwind }
                 }
+                Val::Local(l, _)
+                    if self.fusable.get(&l.0).is_some_and(|(obj, _)| args.first() == Some(obj)) =>
+                {
+                    let sig = self.fusable[&l.0].1;
+                    let site = self.site();
+                    self.site();
+                    Instr::Invoke { dst, sig, site, args: self.args(args), unwind }
+                }
                 _ => Instr::Call { dst, target: self.arg(*ptr), args: self.args(args), unwind },
             },
+            Op::Method { .. } if self.fusable.contains_key(&(dst as u64)) => {
+                Instr::Copy { dst, v: Arg::Imm(0) }
+            }
             Op::Method { obj, sig } => {
                 let site = self.site();
                 self.site();

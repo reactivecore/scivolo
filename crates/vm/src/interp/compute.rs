@@ -1,9 +1,9 @@
 //! Executes the value-producing lowered instructions, using and filling per-site caches.
 
-use super::Flow;
 use super::code::{Code, Handler, Instr, Num};
 use super::exec::body;
 use super::ops::arith;
+use super::{Flow, FuncId};
 use crate::Vm;
 use crate::VmError;
 use nir::Inst;
@@ -14,6 +14,7 @@ impl Instr {
             Instr::Bin { unwind, .. }
             | Instr::Call { unwind, .. }
             | Instr::CallGlobal { unwind, .. }
+            | Instr::Invoke { unwind, .. }
             | Instr::Method { unwind, .. }
             | Instr::Module { unwind, .. }
             | Instr::FieldLoad { unwind, .. }
@@ -53,9 +54,12 @@ impl Vm {
             Instr::CallGlobal { dst, name, site, ref args, .. } => {
                 let cell = &code.sites[site as usize];
                 if cell.get() == 0 {
-                    cell.set(super::func_ref(self.func(name)?));
+                    cell.set(self.func(name)? as u64 + 1);
                 }
-                (dst, self.call_args(code, slots, cell.get(), args)?)
+                (dst, self.call_direct(code, slots, cell.get() as FuncId - 1, args)?)
+            }
+            Instr::Invoke { dst, sig, site, ref args, .. } => {
+                (dst, self.invoke(code, slots, sig, site, args)?)
             }
             Instr::Method { dst, obj, sig, site, .. } => {
                 let obj = self.object(code, slots, obj)?;

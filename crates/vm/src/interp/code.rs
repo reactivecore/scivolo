@@ -79,6 +79,15 @@ pub enum Instr {
         args: Box<[Arg]>,
         unwind: Handler,
     },
+    /// A virtual call: `method args[0], sig` then the call, with the receiver's class and the
+    /// implementation cached at `site` and `site + 1`.
+    Invoke {
+        dst: u32,
+        sig: StrId,
+        site: u32,
+        args: Box<[Arg]>,
+        unwind: Handler,
+    },
     Method {
         dst: u32,
         obj: Arg,
