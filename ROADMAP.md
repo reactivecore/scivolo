@@ -46,6 +46,12 @@ with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and
 8,286 of Scala Native's unit tests pass, 72 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
 Not yet done: threads, library index, GC (the heap never frees), stack traces, M4/M5 suites.
 
+Next steps in phase 1:
+1. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
+   as scheduler waits; report multithreading enabled.
+2. OS threads (later): a concurrency-safe heap, caches and callback table.
+3. Linux x86-64: CI build and test run; variadic calls with floating-point arguments.
+
 Execute NIR from any source with Scala Native's precompiled libraries. The
 frontend is still dotc + nscplugin, behind a cache.
 
@@ -173,15 +179,18 @@ with no JVM involved.
    target.
 5. Get the VM running M1 (hello) end to end.
 
-## Open decisions
+## Decisions (2026-09-25)
 
-1. **Accept ADR 0001?** Code from NIR, types from TASTy. The alternative is
-   pure TASTy execution, which means porting dotc's lowering first.
-2. **Phase 1 compiler.** Warm JVM (Bloop) or scalino? scalino is JVM-free but
-   is one person's three-week-old fork of both compilers.
-3. **Scala Native coupling.** Should we pin to the 0.5.x NIR format and plan
-   the move to 0.6, or also accept Scala.js IR, which is better specified but
-   bound to a JavaScript host?
+1. **ADR 0001 accepted:** code from NIR, types from TASTy. NIR gives an exercised
+   environment (Scala Native's libraries and test suites) to start from.
+2. **Compiler until the own frontend exists:** scala-cli (JVM, Bloop) for development and
+   tests. scalino is not used.
+3. **Scala Native coupling:** stay on the 0.5.x NIR format and port to 0.6 when it ships.
+4. **Threads ([ADR 0003](docs/adr/0003-green-threads-first.md)):** green threads first,
+   also backing Java virtual threads; real OS threads later.
+5. **Platforms:** macOS arm64 and Linux x86-64 are the targets. Development happens on
+   Apple Silicon; nothing may rule out Linux x86-64 (known gap today: variadic C calls with
+   floating-point arguments there).
 
 ## Risks
 

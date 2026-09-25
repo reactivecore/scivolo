@@ -96,11 +96,12 @@ scripts/sn-tests.sh all && scripts/sn-report.sh   # Scala Native's unit tests in
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
 stops a run. Programs still need scala-cli to produce NIR; the own frontend is phase 3.
 
-Decisions taken so work could continue alone: ADR 0001 treated as accepted; phase 1
-compiles NIR with JVM scala-cli; ADR 0002 records the memory trust model.
+Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
+exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS threads later;
+targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
-1. Threads (80 skipped tests, blocking I/O, process timeouts).
+1. Green threads (80 skipped tests, blocking I/O, process timeouts).
 2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
 3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
 4. Stack traces from the interpreter's frames; a garbage collector.

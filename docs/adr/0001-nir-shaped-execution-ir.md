@@ -1,6 +1,6 @@
 # ADR 0001 — One NIR-shaped execution IR; TASTy for types, NIR for code
 
-Status: proposed · Date: 2026-09-24
+Status: accepted 2026-09-25 · Date: 2026-09-24
 
 ## Context
 Two compiled forms of Scala 3.9 are available without a JVM at run time:
