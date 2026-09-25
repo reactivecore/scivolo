@@ -52,10 +52,15 @@ pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     if ints > 8 || args.len() - ints > 8 {
         return None;
     }
+    symbol(name).map(|addr| Foreign { addr, args, ret })
+}
+
+/// The address of C symbol `name` in the process.
+pub fn symbol(name: &str) -> Option<usize> {
     let cname = CString::new(name).ok()?;
     // SAFETY: `dlsym` with RTLD_DEFAULT and a valid C string only reads the symbol tables.
     let addr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, cname.as_ptr()) } as usize;
-    (addr != 0).then_some(Foreign { addr, args, ret })
+    (addr != 0).then_some(addr)
 }
 
 type IntFn =

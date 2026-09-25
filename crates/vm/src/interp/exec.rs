@@ -60,7 +60,12 @@ impl Vm {
                         pc += 1;
                         continue;
                     }
-                    Err(Unwind::Throw(exc)) => self.handler(unwind, exc, &mut slots)?,
+                    Err(Unwind::Throw(exc)) => {
+                        if self.funcs.trace {
+                            eprintln!("  thrown by {}", nir::show::op(&self.world.pool, op));
+                        }
+                        self.handler(unwind, exc, &mut slots)?
+                    }
                     Err(fatal) => return Err(fatal),
                 },
                 Inst::Ret(v) => return self.val(*v, &slots),

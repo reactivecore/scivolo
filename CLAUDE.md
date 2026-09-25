@@ -42,7 +42,9 @@ Rationale goes in `docs/adr/`, one decision per file.
 
 Create and change files with the Write/Edit tools, never with shell
 redirection, heredocs or `sed -i`; those are pre-approved, the shell forms
-are not.
+are not. Scratch files, dumps and experiments go to the gitignored `tmp/`
+in this repo, reference checkouts to `ref/`; never `/tmp` or other
+directories outside the repo.
 
 ## Commits
 

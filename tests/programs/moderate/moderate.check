@@ -1,0 +1,13 @@
+Engineering  n=2 avg=115000.00 names=Alice,Carol
+Sales        n=2 avg=92500.00 names=Bob,Eve
+Support      n=2 avg=71000.00 names=Dave,Frank
+Seniors: Bob:99000, Dave:77000, Frank:79200
+Total area: 34.777; largest: Circle(2.5)
+negative int -3
+int 7
+string of length 5
+pair(1, x)
+list of 3
+unknown
+top: the=3, brown=1, dog=1
+Oldest: Dave

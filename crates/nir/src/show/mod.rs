@@ -23,6 +23,12 @@ pub fn defn(pool: &Pool, d: &Defn, readable: bool) -> String {
     p.out
 }
 
+pub fn op(pool: &Pool, op: &crate::nir::Op) -> String {
+    let mut p = Printer { pool, readable: true, names: FxHashMap::default(), out: String::new() };
+    p.op(op);
+    p.out
+}
+
 pub fn global(pool: &Pool, g: GlobalId, readable: bool) -> String {
     let mut p = Printer { pool, readable, names: FxHashMap::default(), out: String::new() };
     p.global(g);

@@ -1,4 +1,4 @@
-use super::{Flow, func_ref};
+use super::{Flow, Func, FuncId, func_ref};
 use crate::heap;
 use crate::layout::{self, WORD};
 use crate::{Vm, VmError};
@@ -66,19 +66,52 @@ impl Vm {
             return Ok(addr as u64);
         }
         if let Some(&f) = self.funcs.by_name.get(&g) {
-            return Ok(func_ref(f));
+            return self.callable(f);
         }
         if self.native(g).is_none() {
             let defn = self.world.defn(g)?;
-            if let DefnKind::Var { ty, rhs } | DefnKind::Const { ty, rhs } = defn.kind {
-                let addr = self.heap.alloc(layout::size_of(&self.world.pool, ty) as usize);
-                let value = self.val(rhs, &[])?;
-                self.store_ty(addr, ty, value);
-                self.funcs.globals.insert(g, addr);
-                return Ok(addr as u64);
-            }
+            let is_extern = defn.attrs.iter().any(nir::Attr::is_extern);
+            let addr = match defn.kind {
+                DefnKind::Var { .. } | DefnKind::Const { .. } if is_extern => self.extern_variable(g)?,
+                DefnKind::Var { ty, rhs } | DefnKind::Const { ty, rhs } => {
+                    let addr = self.heap.alloc(layout::size_of(&self.world.pool, ty) as usize);
+                    let value = self.val(rhs, &[])?;
+                    self.store_ty(addr, ty, value);
+                    addr
+                }
+                DefnKind::Declare { ty } if !matches!(self.world.pool.ty(ty), Type::Function(..)) => {
+                    self.extern_variable(g)?
+                }
+                _ => {
+                    let f = self.func(g)?;
+                    return self.callable(f);
+                }
+            };
+            self.funcs.globals.insert(g, addr);
+            return Ok(addr as u64);
         }
         Ok(func_ref(self.func(g)?))
+    }
+
+    /// The value code holds for function `f`: a C trampoline for extern definitions, which C
+    /// may call, and a function reference otherwise.
+    pub fn callable(&mut self, f: FuncId) -> Flow {
+        let Func::Nir { defn, name, .. } = &self.funcs.all[f as usize] else { return Ok(func_ref(f)) };
+        if !defn.attrs.iter().any(nir::Attr::is_extern) {
+            return Ok(func_ref(f));
+        }
+        let name = *name;
+        let arity = match &defn.kind {
+            DefnKind::Define { ty, .. } => match self.world.pool.ty(*ty) {
+                Type::Function(args, _) => args.len(),
+                _ => 0,
+            },
+            _ => 0,
+        };
+        match self.callbacks.address(f, arity) {
+            Some(addr) => Ok(addr as u64),
+            None => Err(VmError::Unsupported(format!("C callback {}", self.world.name(name))).into()),
+        }
     }
 
     /// The address of constant data `v`, laid out in memory once.

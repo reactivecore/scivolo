@@ -12,3 +12,4 @@ spikes/*/corpus/
 .claude/settings.local.json
 !spikes/**/artifacts/*.tasty
 ref/
+tmp/

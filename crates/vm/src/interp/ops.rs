@@ -1,4 +1,4 @@
-use super::{Flow, func_ref};
+use super::Flow;
 use crate::layout;
 use crate::{Vm, VmError};
 use nir::{Op, Type, Val};
@@ -65,7 +65,8 @@ impl Vm {
                 if obj == 0 {
                     return self.null_pointer();
                 }
-                Ok(func_ref(self.virtual_method(obj, *sig)?))
+                let f = self.virtual_method(obj, *sig)?;
+                self.callable(f)
             }
             Op::Module(name) => Ok(self.module(*name)? as u64),
             Op::Is { ty, obj } => {

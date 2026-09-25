@@ -31,6 +31,7 @@ pub struct Vm {
     modules: FxHashMap<GlobalId, usize>,
     strings: FxHashMap<StrId, usize>,
     thread: CurrentThread,
+    callbacks: natives::Callbacks,
 }
 
 /// The `java.lang.Thread` and native thread objects of the only thread.
@@ -52,13 +53,16 @@ impl Vm {
             modules: FxHashMap::default(),
             strings: FxHashMap::default(),
             thread: CurrentThread::default(),
+            callbacks: natives::Callbacks::default(),
         };
+        vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.bootstrap()?;
         Ok(vm)
     }
 
     /// Runs `main(args)` of the top-level object or class `entry`.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
+        natives::enter(self);
         let arr = self.string_array(args)?;
         let top = self.world.top(entry);
         let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");

@@ -1,15 +1,17 @@
 //! Functions implemented outside NIR: C externs, link-time properties and VM overrides of
 //! runtime methods.
 
+mod callback;
 mod ffi;
 mod llvm;
 mod runtime;
 
+pub use callback::{Callbacks, enter};
 pub use ffi::load_runtime;
 
-use crate::Vm;
 use crate::interp::Flow;
 use crate::linktime;
+use crate::{Vm, VmError};
 use nir::{GlobalId, demangle};
 
 pub type NativeFn = fn(&mut Vm, &[u64]) -> Flow;
@@ -31,6 +33,14 @@ impl Native {
 }
 
 impl Vm {
+    /// The address of the C variable declared by `g`.
+    pub fn extern_variable(&mut self, g: GlobalId) -> Result<usize, VmError> {
+        let sig = self.world.pool.member_sig(g).unwrap_or_default();
+        demangle::extern_name(sig)
+            .and_then(|name| ffi::symbol(&name))
+            .ok_or_else(|| VmError::Unsupported(format!("extern variable {}", self.world.name(g))))
+    }
+
     /// The native implementation of `g`, if the VM provides one.
     pub fn native(&mut self, g: GlobalId) -> Option<Native> {
         let sig = self.world.pool.member_sig(g)?;

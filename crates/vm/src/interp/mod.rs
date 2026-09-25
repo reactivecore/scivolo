@@ -8,7 +8,7 @@ mod value;
 
 use crate::natives::Native;
 use crate::{Vm, VmError};
-use nir::{Defn, DefnKind, Global, GlobalId, Inst};
+use nir::{Defn, DefnKind, GlobalId, Inst};
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
@@ -49,6 +49,8 @@ pub struct Funcs {
     by_name: FxHashMap<GlobalId, FuncId>,
     globals: FxHashMap<GlobalId, usize>,
     consts: FxHashMap<nir::ValId, usize>,
+    stack: Vec<FuncId>,
+    pub trace: bool,
 }
 
 pub fn func_ref(id: FuncId) -> u64 {
@@ -85,7 +87,10 @@ impl Vm {
     /// Calls the function behind a function reference or an extern address.
     pub fn call_value(&mut self, target: u64, args: &[u64]) -> Flow {
         if target & FUNC_TAG != FUNC_TAG {
-            return Err(VmError::Unsupported(format!("call through raw pointer {target:#x}")).into());
+            return match self.callbacks.target(target as usize) {
+                Some(f) => self.call(f, args),
+                None => Err(VmError::Unsupported(format!("call through raw pointer {target:#x}")).into()),
+            };
         }
         self.call((target & !FUNC_TAG) as FuncId, args)
     }
@@ -104,7 +109,15 @@ impl Vm {
             }
         };
         let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("only defines are compiled") };
-        self.exec(&body.insts, &code, args)
+        self.funcs.stack.push(f);
+        let result = self.exec(&body.insts, &code, args);
+        self.funcs.stack.pop();
+        result
+    }
+
+    /// The names of the innermost `depth` interpreted methods on the call stack.
+    pub fn backtrace(&self, depth: usize) -> Vec<String> {
+        self.funcs.stack.iter().rev().take(depth).map(|&f| self.func_name(f)).collect()
     }
 
     pub fn func_name(&self, f: FuncId) -> String {
@@ -125,11 +138,10 @@ impl Vm {
     }
 
     pub fn null_pointer<T>(&mut self) -> Flow<T> {
+        if self.funcs.trace {
+            eprintln!("null pointer in:\n  {}", self.backtrace(12).join("\n  "));
+        }
         self.throw_runtime("D16throwNullPointernEO", &[]).map(|_| unreachable!("throws"))
-    }
-
-    pub fn is_member(&self, g: GlobalId) -> bool {
-        matches!(self.world.pool.global(g), Global::Member(..))
     }
 }
 
