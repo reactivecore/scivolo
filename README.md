@@ -65,26 +65,36 @@ label each claim as verified [V] or inferred [I], and list their sources.
   - tasty-query: a model of TASTy symbols and types.
   - Rust JVMs, e.g. ristretto: none is documented to run Scala.
 
-## Where we stopped (2026-09-24)
+## Status (2026-09-25): milestone M1 reached
 
-- Research and spikes 00–04 are complete. Spike 05 has a loader only.
-- Waiting on decisions: the three open decisions in `ROADMAP.md` (ADR 0001,
-  the phase 1 compiler, how tightly to couple to Scala Native).
-- Resume with "Next concrete steps" in `ROADMAP.md`:
-  1. workspace + `crates/nir`
-  2. mangling round-trip spike
-  3. C runtime link spike
-  4. library index
-  5. M1 hello
-- Known loose ends:
-  - `spikes/04-nir-reader/src/show/op.rs` is 358 lines, over the 200-line
-    rule.
-  - The warm-dotc compile-server measurement in `spikes/03` was never taken.
-  - The `rss` target in `spikes/03`'s `run.sh` was not run, and one of its
-    rows was never re-run.
-- Toolchain used: rustc 1.95, scala-cli 1.14 (pin `scala 3.9.0` and
-  `--native-version 0.5.12`), JDK 21, and scalino v0.0.13 (macOS arm64
-  release, unpacked in `spikes/03-native-frontend/work/`).
+The NIR VM (`crates/vm`, CLI `crates/scalai`) runs the M1 programs with Scala Native's
+precompiled libraries and prints exactly what their Scala Native builds print. The
+programs are hello, moderate (case classes, collections, pattern matching, string
+formatting) and cpu (fib(30), sorting 100k elements), plus a runtime test covering
+type tests, interfaces, `NegativeArraySizeException` and `StackOverflowError`.
+
+| Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
+|---|---:|---:|---:|
+| hello | 47 ms | 292 ms | 5 ms |
+| moderate | 70 ms | 329 ms | 5 ms |
+| cpu | 1.12 s | 349 ms | 22 ms |
+
+```sh
+just libs                       # copy the Scala Native jars into ref/libs once
+just gates                      # fmt, clippy, tests (incl. tests/programs/*)
+cargo run --release -p scalai -- --cp tests/programs/moderate moderate
+scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
+```
+
+`SCALAI_TRACE=1` prints the interpreted call stack and the instruction on a thrown
+exception. Test programs still need scala-cli to produce NIR; the frontend is
+phase 3.
+
+Decisions taken so work could continue alone: ADR 0001 treated as accepted; phase 1
+compiles NIR with JVM scala-cli; ADR 0002 records the memory trust model.
+
+Next: interpreter speed (cpu is 10× CPython), a library index for startup, then M2
+(Scala Native's shared unit tests, which need a JUnit driver).
 
 ## Layout
 
