@@ -12,7 +12,9 @@ impl Vm {
     /// Calls `f` with `args` evaluated in the caller's frame.
     pub fn call_direct(&mut self, caller: &Code, slots: &[u64], f: FuncId, args: &[Arg]) -> Flow {
         let callee = match &self.funcs.all[f as usize] {
-            Func::Nir { code: Some(code), .. } if !self.funcs.instrumented() => code.clone(),
+            Func::Nir { code: Some(code), .. } if !self.funcs.instrumented() && code.shortcut.is_none() => {
+                code.clone()
+            }
             _ => return self.call_evaluated(caller, slots, |vm, values| vm.call(f, values), args),
         };
         if self.stack_exhausted() {

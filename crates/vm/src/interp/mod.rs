@@ -9,6 +9,7 @@ mod lower;
 mod memory;
 mod ops;
 mod profile;
+mod shortcut;
 mod value;
 
 use crate::natives::Native;
@@ -162,7 +163,10 @@ impl Vm {
             return self.stack_overflow();
         }
         if !self.funcs.instrumented() {
-            return self.exec(&code, args);
+            return match &code.shortcut {
+                Some(s) => self.shortcut(&code, s, args),
+                None => self.exec(&code, args),
+            };
         }
         if self.funcs.profile.on {
             self.funcs.profile.count(f);

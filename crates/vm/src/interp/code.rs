@@ -222,5 +222,6 @@ pub struct Code {
     /// The index of the NIR instruction each of `instrs` was lowered from.
     pub origin: Box<[u32]>,
     pub lazy: Box<[(ValId, Cell<u64>)]>,
+    pub shortcut: Option<super::shortcut::Shortcut>,
     pub sites: Box<[Cell<u64>]>,
 }

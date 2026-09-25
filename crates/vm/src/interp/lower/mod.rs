@@ -81,7 +81,9 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         lowered.map(|(i, inst)| (l.inst(i as u32, inst), i as u32)).unzip();
     instrs.push(Instr::Unreachable);
     origin.push(u32::MAX);
+    let shortcut = super::shortcut::detect(&instrs, &params);
     Code {
+        shortcut,
         slots: l.max_slot as usize + 1,
         params,
         instrs: instrs.into_boxed_slice(),
