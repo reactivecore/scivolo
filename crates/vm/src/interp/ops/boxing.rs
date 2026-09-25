@@ -2,20 +2,18 @@
 
 use crate::interp::{Flow, FuncId};
 use crate::{Vm, VmError};
-use nir::{Type, TypeId, ValId};
+use nir::{Type, TypeId};
+use std::cell::Cell;
 
 impl Vm {
-    pub fn boxing(&mut self, ty: TypeId, obj: ValId, slots: &[u64], boxing: bool) -> Flow {
-        let v = self.val(obj, slots)?;
-        let (module, f) = match self.funcs.boxers.get(&(ty, boxing)) {
-            Some(&cached) => cached,
-            None => {
-                let helper = self.box_helper(ty, boxing)?;
-                self.funcs.boxers.insert((ty, boxing), helper);
-                helper
-            }
-        };
-        self.call(f, &[module, v])
+    /// Boxes or unboxes `v`, caching the helper's module and function in `cells`.
+    pub fn boxed(&mut self, ty: TypeId, boxing: bool, v: u64, cells: &[Cell<u64>]) -> Flow {
+        if cells[0].get() == 0 {
+            let (module, f) = self.box_helper(ty, boxing)?;
+            cells[1].set(f as u64);
+            cells[0].set(module);
+        }
+        self.call(cells[1].get() as FuncId, &[cells[0].get(), v])
     }
 
     fn box_helper(&mut self, ty: TypeId, boxing: bool) -> Flow<(u64, FuncId)> {

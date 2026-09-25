@@ -104,4 +104,22 @@ impl Vm {
         };
         Ok(self.is_subclass(self.class_of(obj), target))
     }
+
+    /// `obj` if it is null or an instance of class type `ty`, whose class `cell` caches;
+    /// otherwise a thrown `ClassCastException`.
+    pub fn cast(&mut self, obj: u64, ty: TypeId, cell: &std::cell::Cell<u64>) -> Flow {
+        if obj == 0 {
+            return Ok(0);
+        }
+        if cell.get() == 0 {
+            let Some(target) = self.class_of_type(ty)? else { return Ok(obj) };
+            cell.set(target as u64 + 1);
+        }
+        let (from, to) = (self.class_of(obj as usize), cell.get() as ClassId - 1);
+        if !self.is_subclass(from, to) {
+            let (from, to) = (self.class(from).rtti as u64, self.class(to).rtti as u64);
+            self.throw_runtime("D14throwClassCastR_R_nEO", &[from, to])?;
+        }
+        Ok(obj)
+    }
 }

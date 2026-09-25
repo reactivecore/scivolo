@@ -51,8 +51,6 @@ impl Vm {
             }
             Op::SizeOf(ty) => Ok(layout::size_of(&self.world.pool, *ty) as u64),
             Op::AlignmentOf(ty) => Ok(layout::align_of(&self.world.pool, *ty) as u64),
-            Op::Box { ty, obj } => self.boxing(*ty, *obj, slots, true),
-            Op::Unbox { ty, obj } => self.boxing(*ty, *obj, slots, false),
             Op::Var(_) => Ok(self.heap.alloc(8) as u64),
             Op::Varload(slot) => {
                 let addr = self.val(*slot, slots)?;

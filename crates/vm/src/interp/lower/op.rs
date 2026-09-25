@@ -1,6 +1,7 @@
 use super::Lowerer;
-use crate::interp::code::Instr;
-use nir::{Next, Op, Val};
+use crate::interp::code::{Arg, Instr};
+use crate::layout;
+use nir::{Next, Op, Type, TypeId, Val, ValId};
 
 impl Lowerer<'_> {
     pub fn op(&mut self, at: u32, dst: u32, op: &Op, unwind: &Next) -> Instr {
@@ -54,15 +55,68 @@ impl Lowerer<'_> {
                 unwind,
             },
             Op::Arraylength(arr) => Instr::ArrayLength { dst, arr: self.arg(*arr), unwind },
-            Op::Load { ty, ptr, order: None } => Instr::Load { dst, ty: *ty, ptr: self.arg(*ptr) },
-            Op::Store { ty, ptr, value, order: None } => {
+            Op::Load { ty, ptr, .. } => Instr::Load { dst, ty: *ty, ptr: self.arg(*ptr) },
+            Op::Store { ty, ptr, value, .. } => {
                 Instr::Store { ty: *ty, ptr: self.arg(*ptr), v: self.arg(*value) }
+            }
+            Op::Var(_) => Instr::Copy { dst, v: Arg::Imm(0) },
+            Op::Varload(cell) => Instr::Copy { dst, v: self.arg(*cell) },
+            Op::Varstore { slot: cell, value } => match self.arg(*cell) {
+                Arg::Slot(cell) => Instr::Copy { dst: cell, v: self.arg(*value) },
+                _ => Instr::Op { dst, inst: at, unwind },
+            },
+            Op::SizeOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty) as u64) },
+            Op::AlignmentOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::align_of(self.pool, *ty) as u64) },
+            Op::Elem { ty, ptr, indexes } => {
+                self.elem(dst, *ty, *ptr, indexes).unwrap_or(Instr::Op { dst, inst: at, unwind })
             }
             Op::Classalloc { name, zone: None } => {
                 Instr::Classalloc { dst, name: *name, site: self.site(), unwind }
             }
             Op::Is { ty, obj } => Instr::Is { dst, ty: *ty, obj: self.arg(*obj), site: self.site() },
+            Op::As { ty, obj } if matches!(self.pool.ty(*ty), Type::Ref { .. } | Type::Array { .. }) => {
+                Instr::As { dst, ty: *ty, obj: self.arg(*obj), site: self.site(), unwind }
+            }
+            Op::Box { ty, obj } | Op::Unbox { ty, obj } => {
+                let site = self.site();
+                self.site();
+                let boxing = matches!(op, Op::Box { .. });
+                Instr::Box { dst, ty: *ty, boxing, v: self.arg(*obj), site, unwind }
+            }
             _ => Instr::Op { dst, inst: at, unwind },
         }
+    }
+
+    /// `elem[ty] ptr, i, c1, c2...` with constant `c`s, as `ptr + i * size + offset`.
+    fn elem(&mut self, dst: u32, ty: TypeId, ptr: ValId, indexes: &[ValId]) -> Option<Instr> {
+        let (&first, rest) = indexes.split_first()?;
+        let (mut offset, mut inner) = (0i64, ty);
+        for &i in rest {
+            let i = match self.pool.val(i) {
+                Val::Int(i) => *i as i64,
+                Val::Long(i) => *i,
+                Val::Size(i) => *i as i64,
+                _ => return None,
+            };
+            match self.pool.ty(inner) {
+                Type::StructValue(tys) => {
+                    offset += layout::struct_layout(self.pool, tys).1[i as usize] as i64;
+                    inner = tys[i as usize];
+                }
+                Type::ArrayValue(elem, _) => {
+                    offset += i * layout::size_of(self.pool, *elem) as i64;
+                    inner = *elem;
+                }
+                _ => return None,
+            }
+        }
+        Some(Instr::Elem {
+            dst,
+            base: self.arg(ptr),
+            idx: self.arg(first),
+            idx_num: self.val_num(first),
+            scale: layout::size_of(self.pool, ty),
+            offset,
+        })
     }
 }

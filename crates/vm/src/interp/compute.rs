@@ -1,7 +1,7 @@
 //! Executes the value-producing lowered instructions, using and filling per-site caches.
 
 use super::Flow;
-use super::code::{Code, Handler, Instr};
+use super::code::{Code, Handler, Instr, Num};
 use super::exec::body;
 use super::ops::arith;
 use crate::Vm;
@@ -22,6 +22,8 @@ impl Instr {
             | Instr::ArrayStore { unwind, .. }
             | Instr::ArrayLength { unwind, .. }
             | Instr::Classalloc { unwind, .. }
+            | Instr::As { unwind, .. }
+            | Instr::Box { unwind, .. }
             | Instr::Op { unwind, .. }
             | Instr::Throw { unwind, .. } => unwind,
             _ => &None,
@@ -129,9 +131,31 @@ impl Vm {
                 let is = obj != 0 && self.is_subclass(self.class_of(obj), cell.get() as u32 - 1);
                 (dst, is as u64)
             }
+            Instr::Elem { dst, base, idx, idx_num, scale, offset } => {
+                let (base, idx) = (self.arg(code, slots, base)?, self.arg(code, slots, idx)?);
+                let idx = match idx_num {
+                    Num::I32 => idx as i32 as i64,
+                    Num::I16 => idx as i16 as i64,
+                    Num::I8 => idx as i8 as i64,
+                    _ => idx as i64,
+                };
+                (dst, base.wrapping_add_signed(idx * scale as i64 + offset))
+            }
+            Instr::As { dst, ty, obj, site, .. } => {
+                let obj = self.arg(code, slots, obj)?;
+                (dst, self.cast(obj, ty, &code.sites[site as usize])?)
+            }
+            Instr::Box { dst, ty, boxing, v, site, .. } => {
+                let v = self.arg(code, slots, v)?;
+                let cells = &code.sites[site as usize..site as usize + 2];
+                (dst, self.boxed(ty, boxing, v, cells)?)
+            }
             Instr::Op { dst, inst, .. } => {
                 let insts = body(code).0;
                 let Inst::Let { op, .. } = &insts[inst as usize] else { unreachable!("lowered from a let") };
+                if self.funcs.profile.on {
+                    self.funcs.profile.fallback(op);
+                }
                 (dst, self.op(op, slots)?)
             }
             _ => unreachable!("control instructions run in `run`"),

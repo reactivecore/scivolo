@@ -7,12 +7,13 @@ mod exec;
 mod lower;
 mod memory;
 mod ops;
+mod profile;
 mod value;
 
 use crate::natives::Native;
 use crate::{Vm, VmError};
 use code::Code;
-use nir::{Defn, DefnKind, GlobalId, TypeId};
+use nir::{Defn, DefnKind, GlobalId};
 use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
@@ -53,10 +54,10 @@ pub struct Funcs {
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
     frames: Vec<Vec<u64>>,
-    boxers: FxHashMap<(TypeId, bool), (u64, FuncId)>,
     stack_floor: usize,
     overflowing: bool,
     pub trace: bool,
+    pub profile: profile::Profile,
 }
 
 impl Funcs {
@@ -127,8 +128,11 @@ impl Vm {
             self.funcs.overflowing = false;
             return result;
         }
-        if !self.funcs.trace {
+        if !self.funcs.trace && !self.funcs.profile.on {
             return self.exec(&code, args);
+        }
+        if self.funcs.profile.on {
+            self.funcs.profile.count(f);
         }
         self.funcs.stack.push(f);
         let result = self.exec(&code, args);

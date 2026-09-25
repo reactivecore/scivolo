@@ -66,6 +66,7 @@ impl Vm {
             linktime: linktime::Linktime::default(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
+        vm.funcs.profile.on = std::env::var_os("SCALAI_PROFILE").is_some();
         vm.bootstrap()?;
         Ok(vm)
     }

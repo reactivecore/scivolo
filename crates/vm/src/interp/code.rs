@@ -149,6 +149,31 @@ pub enum Instr {
         obj: Arg,
         site: u32,
     },
+    /// `base + idx * scale + offset`, with `idx` sign-extended from `idx_num`.
+    Elem {
+        dst: u32,
+        base: Arg,
+        idx: Arg,
+        idx_num: Num,
+        scale: u32,
+        offset: i64,
+    },
+    As {
+        dst: u32,
+        ty: TypeId,
+        obj: Arg,
+        site: u32,
+        unwind: Handler,
+    },
+    /// `box` or `unbox`, calling the helper cached at `site` and `site + 1`.
+    Box {
+        dst: u32,
+        ty: TypeId,
+        boxing: bool,
+        v: Arg,
+        site: u32,
+        unwind: Handler,
+    },
     /// Any other operation, executed from the NIR instruction at `inst`.
     Op {
         dst: u32,
