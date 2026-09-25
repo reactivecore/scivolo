@@ -47,10 +47,13 @@ with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and
 Not yet done: threads, library index, GC (the heap never frees), stack traces, M4/M5 suites.
 
 Next steps in phase 1:
-1. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
-   as scheduler waits; report multithreading enabled.
-2. OS threads (later): a concurrency-safe heap, caches and callback table.
-3. Linux x86-64: CI build and test run; variadic calls with floating-point arguments.
+1. Minimal garbage collector ([ADR 0004](docs/adr/0004-minimal-mark-sweep-gc.md)):
+   non-moving mark-sweep, precise heap tracing, conservative interpreter-frame roots; plus a
+   stress-test program that allocates far more than it keeps.
+2. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
+   as scheduler waits; report multithreading enabled. Each thread's frames become GC roots.
+3. OS threads (later): a concurrency-safe heap, caches and callback table.
+4. Linux x86-64: CI build and test run; variadic calls with floating-point arguments.
 
 Execute NIR from any source with Scala Native's precompiled libraries. The
 frontend is still dotc + nscplugin, behind a cache.

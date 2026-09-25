@@ -101,6 +101,7 @@ exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS th
 targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
+0. A minimal garbage collector (ADR 0004): today the heap never frees.
 1. Green threads (80 skipped tests, blocking I/O, process timeouts).
 2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
 3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
