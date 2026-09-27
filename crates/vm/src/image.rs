@@ -25,9 +25,12 @@ impl Image {
     /// The image of `jars` in directory `cache`, built there first if missing.
     pub fn open(jars: &[PathBuf], cache: &Path) -> io::Result<Self> {
         let path = cache.join(format!("libs-{:016x}.img", key(jars)?));
-        if !path.exists() {
-            build(jars, cache, &path)?;
+        if path.exists()
+            && let Ok(image) = Self::map(&path)
+        {
+            return Ok(image);
         }
+        build(jars, cache, &path)?;
         Self::map(&path)
     }
 

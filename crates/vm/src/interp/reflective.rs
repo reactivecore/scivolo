@@ -110,7 +110,7 @@ impl Vm {
         let Some(class) = box_class(self.world.pool.ty(ty)) else { return Ok(v) };
         let name = self.world.top(class);
         let boxed = TypeId(self.world.pool.types.intern(Type::Ref { name, exact: false, nullable: true }));
-        let cells = [std::cell::Cell::new(0), std::cell::Cell::new(0)];
+        let cells: [std::cell::Cell<u64>; 4] = Default::default();
         self.boxed(boxed, boxing, v, &cells)
     }
 }

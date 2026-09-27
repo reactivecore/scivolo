@@ -42,6 +42,10 @@ sn-build *dirs:
 bench name runs="10" *args: release
     python3 scripts/bench.py {{ name }} {{ runs }} {{ args }}
 
+# Run test program `name` with call and instruction counts on stderr (`SCALAI_PROFILE`).
+vm-profile name *args: release
+    SCALAI_PROFILE=1 target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}

@@ -1,5 +1,5 @@
 //! Scala Native's unwinder interface over the interpreter's frames, and the stack trace element
-//! for each frame. An "instruction pointer" is `pc << 32 | method`.
+//! for each frame. An "instruction pointer" is `tier << 63 | pc << 32 | method`.
 //!
 //! `get_context` snapshots the frame chain; a cursor is `[generation, index]` into the latest
 //! snapshot and ends when a newer snapshot replaced it.
@@ -77,7 +77,8 @@ fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
     walk.generation += 1;
     walk.ips.clear();
     while header != 0 && walk.ips.len() < MAX_FRAMES {
-        walk.ips.push((Frames::pc(header) as u64) << 32 | Frames::method(header) & 0xFFFF_FFFF);
+        let (method, pc) = (Frames::method(header), Frames::pc(header) as u64 & 0x7FFF_FFFF);
+        walk.ips.push((method >> 32) << 63 | pc << 32 | method & 0xFFFF_FFFF);
         header = Frames::caller(header);
     }
     heap::write(args[0] as usize, walk.generation);
@@ -93,7 +94,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
 /// `withNameFromUnwind(ip, context, position)`: the `StackTraceElement` for `ip`.
 fn element(vm: &mut Vm, args: &[u64]) -> Flow {
     let ip = args[1];
-    let (method, pc) = (GlobalId(ip as u32), (ip >> 32) as usize);
+    let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & 0x7FFF_FFFF) as usize, (ip >> 63) as u8);
     let (class, name) = match (method.0 as usize) < vm.world.pool.globals.len() {
         true => (
             vm.world.pool.top_name(method).to_owned(),
@@ -101,7 +102,7 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
         ),
         false => ("<unknown>".to_owned(), "<unknown>".to_owned()),
     };
-    let (file, line) = match vm.source_position(method, pc) {
+    let (file, line) = match vm.source_position(method, pc, tier) {
         Some((file, line)) if !file.is_empty() => {
             (Some(file.rsplit('/').next().unwrap_or(file).to_owned()), line as i32 + 1)
         }

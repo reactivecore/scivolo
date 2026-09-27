@@ -26,8 +26,11 @@ was compared are in `docs/research/`; this list covers what we actually use or p
   compilation and resolving variables to slots ahead of execution.
 - **CPython 3.11's specializing adaptive interpreter**
   ([What's new](https://docs.python.org/3/whatsnew/3.11.html)): per-site inline caches and
-  specialization, behind our call-site cells and planned superinstructions
+  specialization, behind our call-site cells and superinstructions
   ([docs/performance.md](docs/performance.md)).
+- **HotSpot's tiered compilation and guarded inlining** (profile-driven inlining of
+  monomorphic call sites behind a class check): our tier-up
+  ([ADR 0006](docs/adr/0006-tier-up-inlining.md)).
 - **scalino** ([coreyoconnor](https://github.com/coreyoconnor/scalino),
   [lolgab](https://github.com/lolgab/scalino)): evidence that dotc runs without a JVM and that
   macros can be interpreted from TASTy; its patched `quoted/Interpreter` is the reference for

@@ -1,21 +1,33 @@
 //! Lowers a NIR method body to `Code`.
 
+mod blocks;
+mod compact;
+mod finish;
 mod op;
 mod uses;
+mod vars;
 
-use super::code::{Arg, Code, Handler, Instr, Num, Target};
-use nir::{Defn, DefnKind, Inst, Next, Pool, StrId, Type, TypeId, Val, ValId};
+use super::code::{Code, Instr, Num};
+use nir::{Defn, DefnKind, GlobalId, Inst, Op, Pool, StrId, Type, Val, ValId};
 use rustc_hash::FxHashMap;
 use std::cell::Cell;
 use std::rc::Rc;
 
 struct Lowerer<'p> {
     pool: &'p Pool,
-    blocks: FxHashMap<u64, (u32, Vec<u32>)>,
+    /// Each block's first instruction and parameters, by local and slot.
+    blocks: FxHashMap<u64, (u32, Vec<(u64, u32)>)>,
+    /// Slots by local, numbered densely.
+    slots: FxHashMap<u64, u32>,
+    aliases: FxHashMap<u64, ValId>,
+    /// Locals holding a module constructed before lowering, by its address.
+    modules: FxHashMap<u64, u64>,
+    /// Comparisons lowered into the `if` that branches on them.
+    branch_comps: rustc_hash::FxHashSet<u64>,
+    insts: &'p [Inst],
     lazy: Vec<(ValId, Cell<u64>)>,
     lazy_ids: FxHashMap<ValId, u32>,
     sites: u32,
-    max_slot: u32,
     nowhere: u32,
     fusable: FxHashMap<u64, (ValId, StrId)>,
     slot_vars: rustc_hash::FxHashSet<u64>,
@@ -50,34 +62,64 @@ pub fn immediate(v: &Val) -> Option<u64> {
     })
 }
 
-pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
+/// Lowers `defn`; `constructed` gives the address of a module whose construction has finished.
+pub fn lower(defn: Rc<Defn>, pool: &mut Pool, constructed: &dyn Fn(GlobalId) -> Option<u64>) -> Code {
     let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("only defines are lowered") };
+    let modules: FxHashMap<u64, u64> = body
+        .insts
+        .iter()
+        .filter_map(|inst| match inst {
+            Inst::Let { id, op: Op::Module(name), .. } => constructed(*name).map(|obj| (id.0, obj)),
+            _ => None,
+        })
+        .collect();
+    let (mut code, mut slots, aliases) = lower_body(&defn, body, pool, modules.clone());
+    let mut instrs = std::mem::take(&mut code.instrs).into_vec();
+    finish::renumber_ops(&mut instrs, pool, &mut slots, &aliases, &modules);
+    code.instrs = instrs.into_boxed_slice();
+    code.slots = slots.len().max(1);
+    code
+}
+
+fn lower_body<'p>(
+    defn: &Rc<Defn>,
+    body: &'p nir::Body,
+    pool: &'p Pool,
+    modules: FxHashMap<u64, u64>,
+) -> (Code, FxHashMap<u64, u32>, FxHashMap<u64, ValId>) {
+    let slot_vars = uses::slot_vars(body, pool);
+    let use_counts = uses::use_counts(body, pool);
+    let mut aliases = uses::aliases(body);
+    let aliased = uses::aliased(pool, &aliases);
+    aliases.extend(vars::direct_var_reads(body, pool, &use_counts, &slot_vars, &aliased));
     let mut l = Lowerer {
         pool,
+        insts: &body.insts,
         blocks: FxHashMap::default(),
+        slots: FxHashMap::default(),
+        branch_comps: uses::branch_comps(body, pool, &use_counts, &uses::aliased(pool, &aliases)),
+        aliases,
+        modules,
         lazy: Vec::new(),
         lazy_ids: FxHashMap::default(),
         sites: 0,
-        max_slot: 0,
         nowhere: 0,
-        fusable: FxHashMap::default(),
-        slot_vars: Default::default(),
+        fusable: uses::fusable_methods(body, pool),
+        slot_vars,
     };
     let mut pc = 0;
     for inst in &body.insts {
         match inst {
             Inst::Label(label, params) => {
-                let slots: Vec<u32> = params.iter().map(|p| l.slot(p.id.0)).collect();
+                let slots: Vec<(u64, u32)> = params.iter().map(|p| (p.id.0, l.slot(p.id.0))).collect();
                 l.blocks.insert(label.0, (pc, slots));
             }
             _ => pc += 1,
         }
     }
     l.nowhere = pc;
-    l.fusable = uses::fusable_methods(body, pool);
-    l.slot_vars = uses::slot_vars(body, pool);
     let params = match body.insts.first() {
-        Some(Inst::Label(_, params)) => params.iter().map(|p| p.id.0 as u32).collect(),
+        Some(Inst::Label(_, params)) => params.iter().map(|p| l.slot(p.id.0)).collect(),
         _ => Box::default(),
     };
     let lowered = body.insts.iter().enumerate().filter(|(_, inst)| !matches!(inst, Inst::Label(..)));
@@ -85,114 +127,19 @@ pub fn lower(defn: Rc<Defn>, pool: &Pool) -> Code {
         lowered.map(|(i, inst)| (l.inst(i as u32, inst), i as u32)).unzip();
     instrs.push(Instr::Unreachable);
     origin.push(u32::MAX);
+    let (instrs, origin) = compact::compact(instrs, origin);
     let shortcut = super::shortcut::detect(&instrs, &params);
-    Code {
+    let code = Code {
         shortcut,
-        slots: l.max_slot as usize + 1,
+        slots: 0,
         params,
         instrs: instrs.into_boxed_slice(),
         origin: origin.into_boxed_slice(),
         sites: (0..l.sites).map(|_| Cell::new(0)).collect(),
         lazy: l.lazy.into_boxed_slice(),
         defn: defn.clone(),
-    }
-}
-
-impl Lowerer<'_> {
-    fn slot(&mut self, local: u64) -> u32 {
-        self.max_slot = self.max_slot.max(local as u32);
-        local as u32
-    }
-
-    fn site(&mut self) -> u32 {
-        self.sites += 1;
-        self.sites - 1
-    }
-
-    fn arg(&mut self, v: ValId) -> Arg {
-        match self.pool.val(v) {
-            Val::Local(l, _) => Arg::Slot(l.0 as u32),
-            other => match immediate(other) {
-                Some(bits) => Arg::Imm(bits),
-                None => {
-                    let next = self.lazy.len() as u32;
-                    let id = *self.lazy_ids.entry(v).or_insert(next);
-                    if id == next {
-                        self.lazy.push((v, Cell::new(0)));
-                    }
-                    Arg::Lazy(id)
-                }
-            },
-        }
-    }
-
-    fn args(&mut self, vs: &[ValId]) -> Box<[Arg]> {
-        vs.iter().map(|&v| self.arg(v)).collect()
-    }
-
-    fn val_num(&self, v: ValId) -> Num {
-        match self.pool.val(v) {
-            Val::Local(_, ty) | Val::Zero(ty) => num(self.pool.ty(*ty)),
-            Val::True | Val::False => Num::Bool,
-            Val::Byte(_) => Num::I8,
-            Val::Short(_) => Num::I16,
-            Val::Char(_) => Num::U16,
-            Val::Int(_) => Num::I32,
-            Val::Float(_) => Num::F32,
-            Val::Double(_) => Num::F64,
-            _ => Num::I64,
-        }
-    }
-
-    fn num_of(&self, ty: TypeId) -> Num {
-        num(self.pool.ty(ty))
-    }
-
-    /// Where `next` continues; a missing label continues at the trailing `Unreachable`.
-    fn target(&mut self, next: &Next) -> Target {
-        let nowhere = Target { pc: self.nowhere, moves: Box::default() };
-        let Next::Label(label, args) = next else { return nowhere };
-        let Some((pc, params)) = self.blocks.get(&label.0).cloned() else { return nowhere };
-        let moves = params.into_iter().zip(args).map(|(p, &a)| (p, self.arg(a))).collect();
-        Target { pc, moves }
-    }
-
-    fn handler(&mut self, unwind: &Next) -> Handler {
-        match unwind {
-            Next::Unwind(param, to) => {
-                let slot = self.slot(param.id.0);
-                Some(Box::new((slot, self.target(to))))
-            }
-            _ => None,
-        }
-    }
-
-    fn inst(&mut self, at: u32, inst: &Inst) -> Instr {
-        match inst {
-            Inst::Let { id, op, unwind, .. } => {
-                let dst = self.slot(id.0);
-                self.op(at, dst, op, unwind)
-            }
-            Inst::Ret(v) => Instr::Ret(self.arg(*v)),
-            Inst::Jump(next) => Instr::Jump(self.target(next)),
-            Inst::If(cond, then, other) => {
-                Instr::If { cond: self.arg(*cond), then: self.target(then), other: self.target(other) }
-            }
-            Inst::Switch(v, default, cases) => {
-                let cases = cases
-                    .iter()
-                    .filter_map(|c| match c {
-                        Next::Case(value, to) => Some((self.arg(*value), self.target(to))),
-                        _ => None,
-                    })
-                    .collect();
-                Instr::Switch { v: self.arg(*v), cases, default: self.target(default) }
-            }
-            Inst::Throw(v, unwind) => Instr::Throw { v: self.arg(*v), unwind: self.handler(unwind) },
-            Inst::LinktimeIf(_, then, other) => {
-                Instr::LinktimeIf { inst: at, then: self.target(then), other: self.target(other) }
-            }
-            Inst::Unreachable(_) | Inst::Label(..) => Instr::Unreachable,
-        }
-    }
+        calls: Cell::new(0),
+        tier: 0,
+    };
+    (code, l.slots, l.aliases)
 }

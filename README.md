@@ -86,8 +86,8 @@ and its C runtime built from `native/`.
 | Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
 | hello | 20 ms | 292 ms | 5 ms |
-| moderate | 35 ms | 329 ms | 5 ms |
-| cpu (fib 30 + sort 100k) | 0.76 s | 349 ms | 22 ms |
+| moderate | 37 ms | 329 ms | 5 ms |
+| cpu (fib 30 + sort 100k) | 0.35 s | 349 ms | 22 ms |
 
 Speed work and ideas: [docs/performance.md](docs/performance.md).
 
@@ -96,6 +96,7 @@ just libs                       # copy the Scala Native jars into ref/libs once
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
 just check                      # every test program against its .check file, with timings
+just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
 scripts/sn-tests.sh all && just sn-report   # Scala Native's unit tests in the VM
 just sn-run Name -Other         # selected Scala Native test classes
@@ -110,7 +111,8 @@ exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS th
 targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
-1. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
+1. Interpreter speed: `cpu` from 0.35 s to the 0.34 s target and beyond; superinstructions,
+   deeper inlining (docs/performance.md, ADR 0006).
 2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
 3. Linux x86-64 CI; the M4 suite (dotty `tests/run`).
 

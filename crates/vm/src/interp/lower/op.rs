@@ -1,10 +1,12 @@
 use super::Lowerer;
-use crate::interp::code::{Arg, Instr};
+use crate::interp::code::{Arg, Instr, Mem};
 use crate::layout;
 use nir::{Next, Op, Type, TypeId, Val, ValId};
 
 impl Lowerer<'_> {
-    pub fn op(&mut self, at: u32, dst: u32, op: &Op, unwind: &Next) -> Instr {
+    /// `op`, whose result is local `local` in slot `dst`. What no instruction covers stays a NIR
+    /// operation, whose operands `lower` later renumbers to slots.
+    pub fn op(&mut self, local: u64, dst: u32, op: &Op, unwind: &Next) -> Instr {
         let unwind = self.handler(unwind);
         match op {
             Op::Bin { bin, ty, l, r } => {
@@ -43,7 +45,7 @@ impl Lowerer<'_> {
                 }
                 _ => Instr::Call { dst, ty: *ty, target: self.arg(*ptr), args: self.args(args), unwind },
             },
-            Op::Method { .. } if self.fusable.contains_key(&(dst as u64)) => Instr::Nop,
+            Op::Method { .. } if self.fusable.contains_key(&local) => Instr::Nop,
             Op::Method { obj, sig } => {
                 let site = self.site();
                 self.site();
@@ -51,10 +53,11 @@ impl Lowerer<'_> {
             }
             Op::Module(name) => Instr::Module { dst, name: *name, site: self.site(), unwind },
             Op::Fieldload { ty, obj, name } => {
-                Instr::FieldLoad { dst, ty: *ty, obj: self.arg(*obj), name: *name, site: self.site(), unwind }
+                let mem = Mem::of(self.pool, *ty);
+                Instr::FieldLoad { dst, mem, obj: self.arg(*obj), name: *name, site: self.site(), unwind }
             }
             Op::Fieldstore { ty, obj, name, value } => Instr::FieldStore {
-                ty: *ty,
+                mem: Mem::of(self.pool, *ty),
                 obj: self.arg(*obj),
                 name: *name,
                 v: self.arg(*value),
@@ -62,33 +65,37 @@ impl Lowerer<'_> {
                 unwind,
             },
             Op::Arrayload { ty, arr, idx } => {
-                Instr::ArrayLoad { dst, ty: *ty, arr: self.arg(*arr), idx: self.arg(*idx), unwind }
+                let mem = Mem::of(self.pool, *ty);
+                Instr::ArrayLoad { dst, mem, arr: self.arg(*arr), idx: self.arg(*idx), unwind }
             }
             Op::Arraystore { ty, arr, idx, value } => Instr::ArrayStore {
-                ty: *ty,
+                mem: Mem::of(self.pool, *ty),
                 arr: self.arg(*arr),
                 idx: self.arg(*idx),
                 v: self.arg(*value),
                 unwind,
             },
             Op::Arraylength(arr) => Instr::ArrayLength { dst, arr: self.arg(*arr), unwind },
-            Op::Load { ty, ptr, .. } => Instr::Load { dst, ty: *ty, ptr: self.arg(*ptr) },
-            Op::Store { ty, ptr, value, .. } => {
-                Instr::Store { ty: *ty, ptr: self.arg(*ptr), v: self.arg(*value) }
+            Op::Load { ty, ptr, .. } => {
+                Instr::Load { dst, mem: Mem::of(self.pool, *ty), ptr: self.arg(*ptr) }
             }
-            Op::Var(_) if self.slot_vars.contains(&(dst as u64)) => Instr::Copy { dst, v: Arg::Imm(0) },
+            Op::Store { ty, ptr, value, .. } => {
+                Instr::Store { mem: Mem::of(self.pool, *ty), ptr: self.arg(*ptr), v: self.arg(*value) }
+            }
+            Op::Var(_) if self.slot_vars.contains(&local) => Instr::Copy { dst, v: Arg::Imm(0) },
             Op::Varload(cell) if self.is_slot_var(*cell) => Instr::Copy { dst, v: self.arg(*cell) },
             Op::Varstore { slot: cell, value } if self.is_slot_var(*cell) => match self.arg(*cell) {
                 Arg::Slot(cell) => Instr::Copy { dst: cell, v: self.arg(*value) },
-                _ => Instr::Op { dst, inst: at, unwind },
+                _ => Instr::Op { dst, op: Box::new(op.clone()), unwind },
             },
             Op::SizeOf(ty) if !matches!(self.pool.ty(*ty), Type::Ref { .. }) => {
                 Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty) as u64) }
             }
             Op::AlignmentOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::align_of(self.pool, *ty) as u64) },
-            Op::Elem { ty, ptr, indexes } => {
-                self.elem(dst, *ty, *ptr, indexes).unwrap_or(Instr::Op { dst, inst: at, unwind })
-            }
+            Op::Elem { ty, ptr, indexes } => match self.elem(dst, *ty, *ptr, indexes) {
+                Some(instr) => instr,
+                None => Instr::Op { dst, op: Box::new(op.clone()), unwind },
+            },
             Op::Classalloc { name, zone: None } => {
                 Instr::Classalloc { dst, name: *name, site: self.site(), unwind }
             }
@@ -98,11 +105,11 @@ impl Lowerer<'_> {
             }
             Op::Box { ty, obj } | Op::Unbox { ty, obj } => {
                 let site = self.site();
-                self.site();
+                self.sites += 3;
                 let boxing = matches!(op, Op::Box { .. });
                 Instr::Box { dst, ty: *ty, boxing, v: self.arg(*obj), site, unwind }
             }
-            _ => Instr::Op { dst, inst: at, unwind },
+            _ => Instr::Op { dst, op: Box::new(op.clone()), unwind },
         }
     }
 

@@ -85,6 +85,7 @@ impl Vm {
             scratch: Vec::new(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
+        vm.funcs.no_inline = std::env::var_os("SCALAI_NO_INLINE").is_some();
         vm.funcs.profile.on = std::env::var_os("SCALAI_PROFILE").is_some();
         vm.start_threads(bounds);
         let ptr: *mut Vm = &mut vm;

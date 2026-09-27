@@ -1,37 +1,11 @@
 //! Executes the value-producing lowered instructions, using and filling per-site caches.
 
 use super::Flow;
-use super::code::{Code, Handler, Instr, Num};
-use super::exec::body;
+use super::code::{Code, Instr, Num};
+use super::memory::{load_mem, store_mem};
 use super::ops::arith;
 use crate::Vm;
 use crate::VmError;
-use nir::Inst;
-
-impl Instr {
-    pub fn unwind(&self) -> &Handler {
-        match self {
-            Instr::Bin { unwind, .. }
-            | Instr::Call { unwind, .. }
-            | Instr::CallGlobal { unwind, .. }
-            | Instr::Invoke { unwind, .. }
-            | Instr::CallVariadic { unwind, .. }
-            | Instr::Method { unwind, .. }
-            | Instr::Module { unwind, .. }
-            | Instr::FieldLoad { unwind, .. }
-            | Instr::FieldStore { unwind, .. }
-            | Instr::ArrayLoad { unwind, .. }
-            | Instr::ArrayStore { unwind, .. }
-            | Instr::ArrayLength { unwind, .. }
-            | Instr::Classalloc { unwind, .. }
-            | Instr::As { unwind, .. }
-            | Instr::Box { unwind, .. }
-            | Instr::Op { unwind, .. }
-            | Instr::Throw { unwind, .. } => unwind,
-            _ => &None,
-        }
-    }
-}
 
 impl Vm {
     pub fn compute(&mut self, code: &Code, slots: &mut [u64], instr: &Instr) -> Flow<()> {
@@ -85,41 +59,41 @@ impl Vm {
                     obj => (dst, obj),
                 }
             }
-            Instr::FieldLoad { dst, ty, obj, name, site, .. } => {
+            Instr::FieldLoad { dst, mem, obj, name, site, .. } => {
                 let obj = self.object(code, slots, obj)?;
                 let at = obj + self.cached_offset(code, site, name)?;
-                (dst, self.load_ty(at, ty))
+                (dst, load_mem(at, mem))
             }
-            Instr::FieldStore { ty, obj, name, v, site, .. } => {
+            Instr::FieldStore { mem, obj, name, v, site, .. } => {
                 let obj = self.object(code, slots, obj)?;
                 let at = obj + self.cached_offset(code, site, name)?;
                 let v = self.arg(code, slots, v)?;
-                self.store_ty(at, ty, v);
+                store_mem(at, mem, v);
                 return Ok(());
             }
-            Instr::ArrayLoad { dst, ty, arr, idx, .. } => {
+            Instr::ArrayLoad { dst, mem, arr, idx, .. } => {
                 let (arr, idx) = (self.arg(code, slots, arr)?, self.arg(code, slots, idx)?);
-                let at = self.array_elem(arr, idx, ty)?;
-                (dst, self.load_ty(at, ty))
+                let at = self.array_elem_sized(arr, idx, mem.size())?;
+                (dst, load_mem(at, mem))
             }
-            Instr::ArrayStore { ty, arr, idx, v, .. } => {
+            Instr::ArrayStore { mem, arr, idx, v, .. } => {
                 let (arr, idx, v) =
                     (self.arg(code, slots, arr)?, self.arg(code, slots, idx)?, self.arg(code, slots, v)?);
-                let at = self.array_elem(arr, idx, ty)?;
-                self.store_ty(at, ty, v);
+                let at = self.array_elem_sized(arr, idx, mem.size())?;
+                store_mem(at, mem, v);
                 return Ok(());
             }
             Instr::ArrayLength { dst, arr, .. } => {
                 let arr = self.arg(code, slots, arr)?;
                 (dst, self.array_length(arr)?)
             }
-            Instr::Load { dst, ty, ptr } => {
+            Instr::Load { dst, mem, ptr } => {
                 let ptr = self.arg(code, slots, ptr)?;
-                (dst, self.load_ty(ptr as usize, ty))
+                (dst, load_mem(ptr as usize, mem))
             }
-            Instr::Store { ty, ptr, v } => {
+            Instr::Store { mem, ptr, v } => {
                 let (ptr, v) = (self.arg(code, slots, ptr)?, self.arg(code, slots, v)?);
-                self.store_ty(ptr as usize, ty, v);
+                store_mem(ptr as usize, mem, v);
                 return Ok(());
             }
             Instr::Classalloc { dst, name, site, .. } => {
@@ -157,12 +131,10 @@ impl Vm {
             }
             Instr::Box { dst, ty, boxing, v, site, .. } => {
                 let v = self.arg(code, slots, v)?;
-                let cells = &code.sites[site as usize..site as usize + 2];
+                let cells = &code.sites[site as usize..site as usize + 4];
                 (dst, self.boxed(ty, boxing, v, cells)?)
             }
-            Instr::Op { dst, inst, .. } => {
-                let insts = body(code).0;
-                let Inst::Let { op, .. } = &insts[inst as usize] else { unreachable!("lowered from a let") };
+            Instr::Op { dst, ref op, .. } => {
                 if self.funcs.profile.on {
                     self.funcs.profile.fallback(op);
                 }

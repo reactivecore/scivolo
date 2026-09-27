@@ -27,6 +27,40 @@ pub enum Num {
     F64,
 }
 
+/// How a load or store accesses memory: a scalar of 1, 2, 4 or 8 bytes, or an aggregate of the
+/// given size, whose value is its address.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Mem {
+    B1,
+    B2,
+    B4,
+    B8,
+    Aggregate(u32),
+}
+
+impl Mem {
+    pub fn of(pool: &nir::Pool, ty: TypeId) -> Mem {
+        let size = crate::layout::size_of(pool, ty);
+        match (pool.ty(ty), size) {
+            (nir::Type::StructValue(_) | nir::Type::ArrayValue(..), size) => Mem::Aggregate(size),
+            (_, 1) => Mem::B1,
+            (_, 2) => Mem::B2,
+            (_, 4) => Mem::B4,
+            _ => Mem::B8,
+        }
+    }
+
+    pub fn size(self) -> usize {
+        match self {
+            Mem::B1 => 1,
+            Mem::B2 => 2,
+            Mem::B4 => 4,
+            Mem::B8 => 8,
+            Mem::Aggregate(size) => size as usize,
+        }
+    }
+}
+
 /// Where control continues: an instruction index plus the block parameters to assign.
 #[derive(Debug)]
 pub struct Target {
@@ -114,14 +148,14 @@ pub enum Instr {
     },
     FieldLoad {
         dst: u32,
-        ty: TypeId,
+        mem: Mem,
         obj: Arg,
         name: GlobalId,
         site: u32,
         unwind: Handler,
     },
     FieldStore {
-        ty: TypeId,
+        mem: Mem,
         obj: Arg,
         name: GlobalId,
         v: Arg,
@@ -130,13 +164,13 @@ pub enum Instr {
     },
     ArrayLoad {
         dst: u32,
-        ty: TypeId,
+        mem: Mem,
         arr: Arg,
         idx: Arg,
         unwind: Handler,
     },
     ArrayStore {
-        ty: TypeId,
+        mem: Mem,
         arr: Arg,
         idx: Arg,
         v: Arg,
@@ -149,11 +183,11 @@ pub enum Instr {
     },
     Load {
         dst: u32,
-        ty: TypeId,
+        mem: Mem,
         ptr: Arg,
     },
     Store {
-        ty: TypeId,
+        mem: Mem,
         ptr: Arg,
         v: Arg,
     },
@@ -194,15 +228,24 @@ pub enum Instr {
         site: u32,
         unwind: Handler,
     },
-    /// Any other operation, executed from the NIR instruction at `inst`.
+    /// A NIR operation without its own instruction; its locals are slot numbers.
     Op {
         dst: u32,
-        inst: u32,
+        op: Box<nir::Op>,
         unwind: Handler,
     },
     Jump(Target),
     If {
         cond: Arg,
+        then: Target,
+        other: Target,
+    },
+    /// A comparison whose only use is the branch on it.
+    CompIf {
+        comp: Comp,
+        num: Num,
+        l: Arg,
+        r: Arg,
         then: Target,
         other: Target,
     },
@@ -237,4 +280,78 @@ pub struct Code {
     pub lazy: Box<[(ValId, Cell<u64>)]>,
     pub shortcut: Option<super::shortcut::Shortcut>,
     pub sites: Box<[Cell<u64>]>,
+    /// Calls so far, counted up to `speculate::TIER_UP`.
+    pub calls: Cell<u32>,
+    /// 0 for the first lowering, 1 after tier-up.
+    pub tier: u8,
+}
+
+impl Code {
+    /// What a frame header records of the method this code belongs to: its name and tier.
+    pub fn frame_method(&self) -> u64 {
+        self.defn.name.0 as u64 | (self.tier as u64) << 32
+    }
+}
+
+impl Instr {
+    /// Where an exception thrown by this instruction continues, if in this method.
+    pub fn unwind(&self) -> &Handler {
+        match self {
+            Instr::Bin { unwind, .. }
+            | Instr::Call { unwind, .. }
+            | Instr::CallGlobal { unwind, .. }
+            | Instr::Invoke { unwind, .. }
+            | Instr::CallVariadic { unwind, .. }
+            | Instr::Method { unwind, .. }
+            | Instr::Module { unwind, .. }
+            | Instr::FieldLoad { unwind, .. }
+            | Instr::FieldStore { unwind, .. }
+            | Instr::ArrayLoad { unwind, .. }
+            | Instr::ArrayStore { unwind, .. }
+            | Instr::ArrayLength { unwind, .. }
+            | Instr::Classalloc { unwind, .. }
+            | Instr::As { unwind, .. }
+            | Instr::Box { unwind, .. }
+            | Instr::Op { unwind, .. }
+            | Instr::Throw { unwind, .. } => unwind,
+            _ => &None,
+        }
+    }
+
+    fn unwind_mut(&mut self) -> Option<&mut Handler> {
+        match self {
+            Instr::Bin { unwind, .. }
+            | Instr::Call { unwind, .. }
+            | Instr::CallGlobal { unwind, .. }
+            | Instr::Invoke { unwind, .. }
+            | Instr::CallVariadic { unwind, .. }
+            | Instr::Method { unwind, .. }
+            | Instr::Module { unwind, .. }
+            | Instr::FieldLoad { unwind, .. }
+            | Instr::FieldStore { unwind, .. }
+            | Instr::ArrayLoad { unwind, .. }
+            | Instr::ArrayStore { unwind, .. }
+            | Instr::ArrayLength { unwind, .. }
+            | Instr::Classalloc { unwind, .. }
+            | Instr::As { unwind, .. }
+            | Instr::Box { unwind, .. }
+            | Instr::Op { unwind, .. }
+            | Instr::Throw { unwind, .. } => Some(unwind),
+            _ => None,
+        }
+    }
+
+    /// Every place this instruction may continue at other than the next instruction.
+    pub fn targets_mut(&mut self) -> Vec<&mut Target> {
+        match self {
+            Instr::Jump(t) => vec![t],
+            Instr::If { then, other, .. }
+            | Instr::CompIf { then, other, .. }
+            | Instr::LinktimeIf { then, other, .. } => vec![then, other],
+            Instr::Switch { cases, default, .. } => {
+                cases.iter_mut().map(|(_, t)| t).chain(std::iter::once(default)).collect()
+            }
+            other => other.unwind_mut().and_then(|h| h.as_mut()).map(|h| &mut h.1).into_iter().collect(),
+        }
+    }
 }

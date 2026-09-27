@@ -65,6 +65,7 @@ fn float_bin(bin: Bin, num: Num, l: u64, r: u64) -> u64 {
 }
 
 impl Vm {
+    #[inline]
     pub fn bin(&mut self, bin: Bin, num: Num, l: u64, r: u64) -> Flow {
         if matches!(num, Num::F32 | Num::F64) {
             return Ok(float_bin(bin, num, l, r));
@@ -108,6 +109,7 @@ fn signed_div(a: i64, b: i64, bits: u32, rem: bool) -> u64 {
     }
 }
 
+#[inline]
 pub fn comp(comp: Comp, num: Num, l: u64, r: u64) -> bool {
     let n = bits(num);
     match comp {

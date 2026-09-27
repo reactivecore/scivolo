@@ -73,11 +73,16 @@ impl Frames {
     }
 
     /// Pushes a frame of method `method`: a header linking to the enclosing frame, then `len`
-    /// zeroed slots, whose address it returns.
+    /// slots, whose address it returns. The slots keep what earlier frames left there.
+    #[inline]
     pub fn push_frame(&mut self, method: u64, len: usize) -> Option<usize> {
-        let at = self.push(HEADER + 8 * len)?;
-        crate::heap::write(at, self.innermost);
-        crate::heap::write(at + 8, method);
+        let at = self.bounds[1].next_multiple_of(ALIGN);
+        let limit = if self.reserve_open { self.end } else { self.end - RESERVE };
+        let top = at.checked_add(HEADER + 8 * len).filter(|&t| t <= limit)?;
+        // SAFETY: `at..at + HEADER` lies inside the mapping, above every live frame, and is
+        // 16-byte aligned.
+        unsafe { (at as *mut [u64; 3]).write([self.innermost as u64, method, 0]) };
+        self.bounds[1] = top;
         self.innermost = at;
         Some(at + HEADER)
     }
@@ -101,7 +106,8 @@ impl Frames {
     #[inline]
     pub fn set_pc(&mut self, pc: usize) {
         debug_assert!(self.innermost != 0, "no frame to record a pc in");
-        crate::heap::write(self.innermost + 16, pc as u64);
+        // SAFETY: `innermost` is the header `push_frame` wrote, whose third word is the pc.
+        unsafe { ((self.innermost + 16) as *mut u64).write(pc as u64) };
     }
 
     /// The instruction the frame at `header` executes.

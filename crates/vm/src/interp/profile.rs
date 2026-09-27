@@ -8,9 +8,18 @@ pub struct Profile {
     pub on: bool,
     calls: Vec<u64>,
     fallback: rustc_hash::FxHashMap<String, u64>,
+    instrs: rustc_hash::FxHashMap<String, u64>,
 }
 
 impl Profile {
+    /// Counts an executed instruction by kind.
+    #[cold]
+    pub fn instr(&mut self, instr: &super::code::Instr) {
+        let text = format!("{instr:?}");
+        let kind = text.split(['{', '(', ' ']).next().unwrap_or_default().to_owned();
+        *self.instrs.entry(kind).or_default() += 1;
+    }
+
     /// Counts an operation the lowering left to the NIR fallback, by operation kind.
     pub fn fallback(&mut self, op: &nir::Op) {
         let text = format!("{op:?}");
@@ -37,6 +46,10 @@ impl Vm {
         let mut report: Vec<(u64, String)> =
             top.into_iter().take(n).map(|(c, f)| (c, self.func_name(f))).collect();
         report.extend(self.funcs.profile.fallback.iter().map(|(k, &c)| (c, format!("fallback op {k}"))));
+        let mut instrs: Vec<(u64, String)> =
+            self.funcs.profile.instrs.iter().map(|(k, &c)| (c, format!("instruction {k}"))).collect();
+        instrs.sort_unstable_by(|a, b| b.cmp(a));
+        report.extend(instrs);
         report
     }
 }

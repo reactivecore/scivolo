@@ -14,42 +14,38 @@ SCALAI_PROFILE=1 ...   # call counts per function and fallback operations, on st
 sample <pid> 1 -file tmp/x.sample   # native profile (macOS)
 ```
 
-## Where it stands (2026-09-25, M4 Pro, release)
+## Where it stands (2026-09-27, M4 Pro, release)
 
 | Program | scalai | Scala Native binary | notes |
 |---|---:|---:|---|
-| hello | 20 ms | 5 ms | runtime initialization (2026-09-27, library image) |
-| fib 30 | 142 ms | 7 ms | 2.7M calls, ≈15 ns per call + ≈2.5 ns per instruction |
-| loops 100 | 9.3 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
-| cpu | 0.76 s | 22 ms | dominated by the sort's comparator chain, ~27M calls |
+| hello | 20 ms | 5 ms | runtime initialization (library image) |
+| moderate | 37 ms | 5 ms | |
+| fib 30 | 85 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
+| loops 100 | 7.0 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
+| cpu | 0.35 s | 22 ms | dominated by the sort's comparator chain |
 
 Steps so far and their effect on `cpu`: interpreting NIR directly 3.5 s → lowered code
 with per-site caches 1.08 s → casts/boxing/vars/elem lowered 0.97 s → fused `method`+`call`
 and direct frame filling 0.89 s → two-word `Flow` 0.87 s → frame-less getters, constants
-and forwarders 0.80 s → virtual forwarders too 0.76 s.
+and forwarders 0.80 s → virtual forwarders too 0.76 s → dense slots, copy aliases and
+module constants → compare-and-branch fusion and sized memory access → tier-up with
+devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s.
 
 ## Ideas
 
-1. **Inline small callees at lowering time.** Library code is written for Scala Native's
-   whole-program optimizer (Interflow), which inlines its many tiny methods. For a static
-   call or an `Invoke` whose site has seen one class, splice the callee's lowered
-   instructions into the caller with renamed slots, guarded by a class check. The
-   comparator chain in `cpu` is 10 calls per comparison. Expected 2–3× on collection-heavy
-   code. Needs care with unwind handlers and recursion limits.
-2. **Superinstructions for common shapes**, chosen with `SCALAI_PROFILE` instruction-pair
-   counts, e.g. compare-and-branch (`Comp` + `If`), `Bin` on I32 with an immediate operand,
-   `FieldLoad` of `this`. Removes one dispatch and one slot write each. Expected 20–40% on
-   loops.
+1. **Deeper inlining** (ADR 0006 does small callees after tier-up): polymorphic sites with
+   two targets, larger callees on hot paths, and inlined frames in stack traces.
+2. **More superinstructions**, chosen with `SCALAI_PROFILE` instruction counts, e.g. `Bin` on
+   I32 with an immediate operand, `FieldLoad` of `this` (compare-and-branch is done).
+   Removes one dispatch and one slot write each.
 3. **Operand specialization.** `arg()` matches three operand kinds on every read. Emit
    variants per operand kind (slot/slot, slot/imm), or convert all constants into
    preloaded frame slots so every operand is a slot index.
 4. **Closure compilation** (research report 03): each instruction becomes a boxed closure
    that captures resolved operands, and the dispatch `match` goes away. Reported gains are
    1.3–2× over a match-based loop. Larger rewrite; combine with 2 and 3.
-5. **Cheaper frames.** Frames live on one contiguous frame stack (done with the collector);
-   still to do: skip zero-filling, since SSA defines every slot before use, and avoid the
-   `Rc<Code>` clone per call. Each instruction that may call stores its index in the frame
-   header for stack traces.
+5. **Cheaper frames.** Frames live on one contiguous frame stack and are not zero-filled;
+   still to do: avoid the `Rc<Code>` clone per call.
 6. **Unwind handling off the hot path.** `compute` returns `Flow<()>` for every instruction;
    separate throwing from non-throwing instructions so the common path needs no result check.
 7. **Baseline JIT with Cranelift** (roadmap phase 2): translate hot lowered methods to machine

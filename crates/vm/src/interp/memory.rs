@@ -1,34 +1,44 @@
 use super::Flow;
+use super::code::Mem;
 use crate::heap;
 use crate::layout::{self, ARRAY_HEADER, ARRAY_LENGTH};
 use crate::{Vm, VmError};
 use nir::{Type, TypeId, ValId};
 
+/// Loads a value accessed as `mem`, zero-extended to 64 bits; an aggregate's value is its
+/// address.
+#[inline]
+pub fn load_mem(addr: usize, mem: Mem) -> u64 {
+    match mem {
+        Mem::B1 => heap::read::<u8>(addr) as u64,
+        Mem::B2 => heap::read::<u16>(addr) as u64,
+        Mem::B4 => heap::read::<u32>(addr) as u64,
+        Mem::B8 => heap::read::<u64>(addr),
+        Mem::Aggregate(_) => addr as u64,
+    }
+}
+
+/// Stores `v` accessed as `mem`; an aggregate is copied from the address `v`.
+#[inline]
+pub fn store_mem(addr: usize, mem: Mem, v: u64) {
+    match mem {
+        Mem::B1 => heap::write(addr, v as u8),
+        Mem::B2 => heap::write(addr, v as u16),
+        Mem::B4 => heap::write(addr, v as u32),
+        Mem::B8 => heap::write(addr, v),
+        Mem::Aggregate(size) if v != 0 => heap::copy(v as usize, addr, size as usize),
+        Mem::Aggregate(_) => {}
+    }
+}
+
 impl Vm {
     /// Loads a value of type `ty`, zero-extended to 64 bits.
-    /// Aggregate values are the addresses of their bytes.
     pub fn load_ty(&self, addr: usize, ty: TypeId) -> u64 {
-        match layout::size_of(&self.world.pool, ty) {
-            _ if self.is_aggregate(ty) => addr as u64,
-            1 => heap::read::<u8>(addr) as u64,
-            2 => heap::read::<u16>(addr) as u64,
-            4 => heap::read::<u32>(addr) as u64,
-            _ => heap::read::<u64>(addr),
-        }
+        load_mem(addr, Mem::of(&self.world.pool, ty))
     }
 
     pub fn store_ty(&self, addr: usize, ty: TypeId, v: u64) {
-        match layout::size_of(&self.world.pool, ty) {
-            size if self.is_aggregate(ty) => {
-                if v != 0 {
-                    heap::copy(v as usize, addr, size as usize);
-                }
-            }
-            1 => heap::write(addr, v as u8),
-            2 => heap::write(addr, v as u16),
-            4 => heap::write(addr, v as u32),
-            _ => heap::write(addr, v),
-        }
+        store_mem(addr, Mem::of(&self.world.pool, ty), v)
     }
 
     pub fn is_aggregate(&self, ty: TypeId) -> bool {
@@ -73,6 +83,13 @@ impl Vm {
 
     /// The address of element `idx` of array `arr`, after null and bounds checks.
     pub fn array_elem(&mut self, arr: u64, idx: u64, elem: TypeId) -> Flow<usize> {
+        let size = layout::size_of(&self.world.pool, elem) as usize;
+        self.array_elem_sized(arr, idx, size)
+    }
+
+    /// The address of element `idx` of `size` bytes in array `arr`, checking bounds.
+    #[inline]
+    pub fn array_elem_sized(&mut self, arr: u64, idx: u64, size: usize) -> Flow<usize> {
         if arr == 0 {
             return self.null_pointer();
         }
@@ -82,7 +99,7 @@ impl Vm {
         if i < 0 || i >= len {
             self.throw_runtime("D16throwOutOfBoundsiinEO", &[i as u32 as u64, len as u32 as u64])?;
         }
-        Ok(arr + ARRAY_HEADER as usize + i as usize * layout::size_of(&self.world.pool, elem) as usize)
+        Ok(arr + ARRAY_HEADER as usize + i as usize * size)
     }
 
     pub fn array_length(&mut self, arr: u64) -> Flow {

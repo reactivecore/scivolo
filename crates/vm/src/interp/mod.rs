@@ -2,15 +2,20 @@
 
 pub mod code;
 mod compute;
+mod devirtualize;
 mod dispatch;
 mod exec;
+mod inline;
 mod invoke;
 mod lower;
 mod memory;
+mod names;
 mod ops;
 mod profile;
 mod reflective;
+mod rename;
 mod shortcut;
+mod speculate;
 mod unwind;
 mod value;
 
@@ -29,9 +34,22 @@ const FUNC_TAG: u64 = 0xF1C0 << 48;
 pub use unwind::{Flow, Unwind, Unwound};
 
 pub enum Func {
-    Nir { name: GlobalId, defn: Rc<Defn>, code: Option<Rc<Code>> },
-    Native { name: GlobalId, native: Rc<Native> },
-    Proxy { name: GlobalId, proxy: Rc<reflective::Proxy> },
+    /// A NIR method; `retired` is the code `code` replaced at tier-up, which running calls and
+    /// their stack traces may still use.
+    Nir {
+        name: GlobalId,
+        defn: Rc<Defn>,
+        code: Option<Rc<Code>>,
+        retired: Option<Rc<Code>>,
+    },
+    Native {
+        name: GlobalId,
+        native: Rc<Native>,
+    },
+    Proxy {
+        name: GlobalId,
+        proxy: Rc<reflective::Proxy>,
+    },
 }
 
 #[derive(Default)]
@@ -45,6 +63,10 @@ pub struct Funcs {
     /// The running thread's native stack limit.
     pub guard: StackGuard,
     pub trace: bool,
+    /// Lower methods as they are, without inlining callees.
+    pub no_inline: bool,
+    /// Whether each method judged so far may be inlined, with its definition if so.
+    pub inlinable: FxHashMap<GlobalId, Option<Rc<nir::Defn>>>,
     pub profile: profile::Profile,
 }
 
@@ -87,7 +109,7 @@ impl Vm {
             None => {
                 let defn = self.world.defn(name)?;
                 match &defn.kind {
-                    DefnKind::Define { .. } => Func::Nir { name, defn, code: None },
+                    DefnKind::Define { .. } => Func::Nir { name, defn, code: None, retired: None },
                     _ => return Err(VmError::Unsupported(format!("native {}", self.world.name(name)))),
                 }
             }
@@ -126,13 +148,35 @@ impl Vm {
         self.call((target & !FUNC_TAG) as FuncId, args)
     }
 
+    /// `defn` lowered, with modules constructed by now as constants.
+    pub fn lower_code(&mut self, defn: Rc<nir::Defn>) -> code::Code {
+        let (modules, initializing) = (&self.modules, &self.threads.initializing);
+        let constructed = |g: GlobalId| match initializing.contains_key(&g) {
+            true => None,
+            false => modules.get(&g).map(|&obj| obj as u64),
+        };
+        lower::lower(defn, &mut self.world.pool, &constructed)
+    }
+
+    /// Counts a call of `f` running `code`, lowering `f` again once it is hot.
+    #[inline]
+    pub fn count_call(&mut self, f: FuncId, code: &code::Code) {
+        let n = code.calls.get();
+        if n <= speculate::TIER_UP {
+            code.calls.set(n + 1);
+            if n == speculate::TIER_UP && !self.funcs.no_inline {
+                self.tier_up(f);
+            }
+        }
+    }
+
     pub fn call(&mut self, f: FuncId, args: &[u64]) -> Flow {
         let code = match &self.funcs.all[f as usize] {
             Func::Native { native, .. } => return native.clone().call(self, args),
             Func::Proxy { proxy, .. } => return self.call_proxy(&proxy.clone(), args),
             Func::Nir { code: Some(code), .. } => code.clone(),
             Func::Nir { defn, code: None, .. } => {
-                let code = Rc::new(lower::lower(defn.clone(), &self.world.pool));
+                let code = Rc::new(self.lower_code(defn.clone()));
                 if let Func::Nir { code: slot, .. } = &mut self.funcs.all[f as usize] {
                     *slot = Some(code.clone());
                 }
@@ -142,6 +186,7 @@ impl Vm {
         if self.stack_exhausted() {
             return self.stack_overflow();
         }
+        self.count_call(f, &code);
         if !self.funcs.instrumented() {
             return match &code.shortcut {
                 Some(s) => self.shortcut(&code, s, args),
@@ -162,29 +207,5 @@ impl Vm {
     pub fn stack_exhausted(&self) -> bool {
         let marker = 0u8;
         (&raw const marker as usize) < self.funcs.guard.floor && !self.funcs.guard.overflowing
-    }
-
-    /// The names of the innermost `depth` interpreted methods on the call stack, which is only
-    /// recorded while tracing.
-    pub fn backtrace(&self, depth: usize) -> Vec<String> {
-        self.funcs.stack.iter().rev().take(depth).map(|&f| self.func_name(f)).collect()
-    }
-
-    /// The source file and zero-based line of instruction `pc` of method `g`, once lowered.
-    pub fn source_position(&self, g: GlobalId, pc: usize) -> Option<(&str, u32)> {
-        let f = *self.funcs.by_name.get(&g)?;
-        let Func::Nir { code: Some(code), .. } = &self.funcs.all[f as usize] else { return None };
-        let nir::DefnKind::Define { body, .. } = &code.defn.kind else { return None };
-        let inst = *code.origin.get(pc)? as usize;
-        let pos = self.world.pool.pos(*body.positions.get(inst)?);
-        Some((self.world.pool.str(pos.file), pos.line))
-    }
-
-    pub fn func_name(&self, f: FuncId) -> String {
-        match &self.funcs.all[f as usize] {
-            Func::Nir { name, .. } | Func::Native { name, .. } | Func::Proxy { name, .. } => {
-                self.world.name(*name)
-            }
-        }
     }
 }

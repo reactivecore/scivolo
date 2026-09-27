@@ -14,17 +14,17 @@ impl Vm {
         self.tick();
         let mark = self.frames.mark();
         let slots = self.push_frame(code)?;
-        for (&p, &a) in code.params.iter().zip(args) {
-            slots[p as usize] = a;
+        for (i, &p) in code.params.iter().enumerate() {
+            slots[p as usize] = args.get(i).copied().unwrap_or(0);
         }
         let result = self.run(code, slots);
         self.frames.reset(mark);
         result
     }
 
-    /// The zeroed slots of a frame for `code`, which the caller resets when its call ends.
+    /// The slots of a new frame for `code`, which the caller resets when its call ends.
     pub fn push_frame<'a>(&mut self, code: &Code) -> Flow<&'a mut [u64]> {
-        match self.frames.push_frame(code.defn.name.0 as u64, code.slots) {
+        match self.frames.push_frame(code.frame_method(), code.slots) {
             Some(at) => Ok(self.frames.slots(at, code.slots)),
             None => match self.stack_overflow() {
                 Err(u) => Err(u),
@@ -51,12 +51,22 @@ impl Vm {
         let mut pc = 0;
         loop {
             let instr = &code.instrs[pc];
+            if self.funcs.profile.on {
+                self.funcs.profile.instr(instr);
+            }
             let next: &Target = match instr {
                 Instr::Jump(t) => t,
                 Instr::If { cond, then, other } => match self.arg(code, slots, *cond)? & 1 {
                     1 => then,
                     _ => other,
                 },
+                Instr::CompIf { comp, num, l, r, then, other } => {
+                    let (l, r) = (self.arg(code, slots, *l)?, self.arg(code, slots, *r)?);
+                    match super::ops::arith::comp(*comp, *num, l, r) {
+                        true => then,
+                        false => other,
+                    }
+                }
                 Instr::Switch { v, cases, default } => {
                     let v = self.arg(code, slots, *v)?;
                     let mut next = default;

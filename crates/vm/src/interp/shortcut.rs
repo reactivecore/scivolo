@@ -1,9 +1,9 @@
 //! Methods simple enough to run without a frame: constants, getters and forwarders.
 
-use super::code::{Arg, Code, Instr};
+use super::code::{Arg, Code, Instr, Mem};
 use super::{Flow, FuncId};
 use crate::Vm;
-use nir::{GlobalId, StrId, TypeId};
+use nir::{GlobalId, StrId};
 
 const MAX_ARGS: usize = 8;
 
@@ -20,7 +20,7 @@ pub enum Shortcut {
     Const(u64),
     /// `this.field`, with the field offset cached at `site`.
     Field {
-        ty: TypeId,
+        mem: Mem,
         name: GlobalId,
         site: u32,
     },
@@ -46,10 +46,12 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
     match instrs {
         [Instr::Ret(Arg::Imm(v)), Instr::Unreachable] => Some(Shortcut::Const(*v)),
         [
-            Instr::FieldLoad { dst, ty, obj: Arg::Slot(o), name, site, unwind: None },
+            Instr::FieldLoad { dst, mem, obj: Arg::Slot(o), name, site, unwind: None },
             Instr::Ret(Arg::Slot(r)),
             Instr::Unreachable,
-        ] if r == dst && param(*o) == Some(0) => Some(Shortcut::Field { ty: *ty, name: *name, site: *site }),
+        ] if r == dst && param(*o) == Some(0) => {
+            Some(Shortcut::Field { mem: *mem, name: *name, site: *site })
+        }
         [body @ .., Instr::Ret(Arg::Slot(r)), Instr::Unreachable] => {
             let pc = body.iter().rposition(|i| !matches!(i, Instr::Nop))? as u32;
             let rest: Vec<&Instr> = body.iter().filter(|i| !matches!(i, Instr::Nop)).collect();
@@ -87,15 +89,24 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
 }
 
 impl Vm {
-    /// Runs the shortcut of `code` with `args`, in a frame without slots unless it is a constant.
+    /// Runs the shortcut of `code` with `args`, in a frame without slots unless it is a constant
+    /// or a field read of a resolved field on an object.
     pub fn shortcut(&mut self, code: &Code, shortcut: &Shortcut, args: &[u64]) -> Flow {
         let pc = match shortcut {
             Shortcut::Const(v) => return Ok(*v),
-            Shortcut::Field { .. } => 0,
+            Shortcut::Field { mem, site, .. } => {
+                let offset = code.sites[*site as usize].get();
+                match args.first() {
+                    Some(&obj) if obj != 0 && offset != 0 => {
+                        return Ok(super::memory::load_mem(obj as usize + offset as usize - 1, *mem));
+                    }
+                    _ => 0,
+                }
+            }
             Shortcut::Forward { pc, .. } => *pc as usize,
         };
         let mark = self.frames.mark();
-        if self.frames.push_frame(code.defn.name.0 as u64, 0).is_none() {
+        if self.frames.push_frame(code.frame_method(), 0).is_none() {
             return self.stack_overflow();
         }
         self.frames.set_pc(pc);
@@ -107,7 +118,7 @@ impl Vm {
     fn run_shortcut(&mut self, code: &Code, shortcut: &Shortcut, args: &[u64]) -> Flow {
         match shortcut {
             Shortcut::Const(v) => Ok(*v),
-            Shortcut::Field { ty, name, site } => {
+            Shortcut::Field { mem, name, site } => {
                 let obj = match args.first() {
                     Some(&obj) if obj != 0 => obj as usize,
                     _ => return self.null_pointer(),
@@ -116,7 +127,7 @@ impl Vm {
                 if cell.get() == 0 {
                     cell.set(self.field_offset(*name)? as u64 + 1);
                 }
-                Ok(self.load_ty(obj + cell.get() as usize - 1, *ty))
+                Ok(super::memory::load_mem(obj + cell.get() as usize - 1, *mem))
             }
             Shortcut::Forward { callee, args: sources, module, .. } => {
                 let module = match module {
