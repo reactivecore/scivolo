@@ -85,8 +85,8 @@ and its C runtime built from `native/`.
 
 | Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
-| hello | 47 ms | 292 ms | 5 ms |
-| moderate | 70 ms | 329 ms | 5 ms |
+| hello | 20 ms | 292 ms | 5 ms |
+| moderate | 35 ms | 329 ms | 5 ms |
 | cpu (fib 30 + sort 100k) | 0.76 s | 349 ms | 22 ms |
 
 Speed work and ideas: [docs/performance.md](docs/performance.md).
@@ -111,7 +111,7 @@ targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust mode
 
 Next, by expected value:
 1. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
-2. Startup: prebuilt library image (hello 47 ms → under 20 ms).
+2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
 3. Linux x86-64 CI; the M4 suite (dotty `tests/run`).
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).

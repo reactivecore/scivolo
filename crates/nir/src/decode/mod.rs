@@ -35,13 +35,21 @@ pub struct Reader<'a> {
     caches: &'a mut Caches,
     pub pool: &'a mut Pool,
     depth: u32,
+    /// Whether bodies keep their local names and lexical scopes.
+    pub debug_info: bool,
 }
 
 impl<'a> Reader<'a> {
     pub fn new(data: &'a [u8], caches: &'a mut Caches, pool: &'a mut Pool) -> Result<Self> {
         let prelude = Prelude::read(data)?;
         caches.reset(&prelude);
-        Ok(Self { c: Cursor::new(data), prelude, caches, pool, depth: 0 })
+        Ok(Self { c: Cursor::new(data), prelude, caches, pool, depth: 0, debug_info: true })
+    }
+
+    /// A reader of `data` whose `caches` an earlier reader of the same file filled.
+    pub fn resume(data: &'a [u8], caches: &'a mut Caches, pool: &'a mut Pool) -> Result<Self> {
+        let prelude = Prelude::read(data)?;
+        Ok(Self { c: Cursor::new(data), prelude, caches, pool, depth: 0, debug_info: true })
     }
 
     fn tag(&mut self) -> Result<u8> {

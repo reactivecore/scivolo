@@ -5,6 +5,7 @@ mod classpath;
 mod error;
 mod gcinfo;
 mod heap;
+mod image;
 mod interp;
 mod layout;
 mod linktime;

@@ -42,9 +42,15 @@ impl Reader<'_> {
             }
             Ok((insts, positions))
         })?;
-        let local_names = self.seq(|r| Ok((r.local()?, r.string()?)))?;
-        let scopes =
-            self.seq(|r| Ok(LexicalScope { id: r.c.uleb32()?, parent: r.c.uleb32()?, pos: r.position()? }))?;
+        let (local_names, scopes) = match self.debug_info {
+            true => (
+                self.seq(|r| Ok((r.local()?, r.string()?)))?,
+                self.seq(|r| {
+                    Ok(LexicalScope { id: r.c.uleb32()?, parent: r.c.uleb32()?, pos: r.position()? })
+                })?,
+            ),
+            false => (Vec::new(), Vec::new()),
+        };
         Ok(Body { insts, positions, local_names, scopes })
     }
 

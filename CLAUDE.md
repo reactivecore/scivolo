@@ -37,7 +37,7 @@ Rationale goes in `docs/adr/`, one decision per file.
   that obscure control flow, minimal generics. Arena / index handles over
   pointers. In the VM, `unsafe` lives only in `heap.rs` (every raw memory
   access by address goes through `heap::read`/`heap::write`), `stack/` (frame
-  stacks and green-thread coroutines), and
+  stacks and green-thread coroutines), `image.rs` (maps the library image), and
   `natives/ffi/` and `natives/callback.rs` (the C boundary); the callback
   slot table (ADR 0002) and the collector (ADR 0004) are the only state
   outside `Vm`.

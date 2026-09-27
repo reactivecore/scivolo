@@ -18,7 +18,7 @@ sample <pid> 1 -file tmp/x.sample   # native profile (macOS)
 
 | Program | scalai | Scala Native binary | notes |
 |---|---:|---:|---|
-| hello | 47 ms | 5 ms | mostly startup: loading and linking library classes |
+| hello | 20 ms | 5 ms | runtime initialization (2026-09-27, library image) |
 | fib 30 | 142 ms | 7 ms | 2.7M calls, ≈15 ns per call + ≈2.5 ns per instruction |
 | loops 100 | 9.3 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
 | cpu | 0.76 s | 22 ms | dominated by the sort's comparator chain, ~27M calls |
@@ -55,10 +55,10 @@ and forwarders 0.80 s → virtual forwarders too 0.76 s.
 7. **Baseline JIT with Cranelift** (roadmap phase 2): translate hot lowered methods to machine
    code. Largest gain (10×+ on loops) and largest effort. Only worth it after 1–4 show their
    limits.
-8. **Startup:** a prebuilt library image (roadmap phase 2). Today hello spends most of its
-   47 ms opening jars, decoding NIR files and linking about 200 classes; an mmap-able index
-   plus lazily decoded method bodies should bring it under 20 ms. A pre-initialized heap
-   snapshot is the next step after that.
+8. **Startup:** the library image and lazy decoding (ADR 0005) brought hello from 47 to 20 ms.
+   What remains is initializing the runtime: hello touches ~330 files, indexing them costs
+   ~3 ms and decoding the used definitions ~7 ms. A pre-initialized heap snapshot is the next
+   step; a faster decoder (fewer allocations per value) a smaller one.
 9. **Allocation:** boxing in generic collections allocates an `Integer` per element. Cache
    small boxed values the way `Integer.valueOf` does on the JVM (javalib may already do it;
    check).

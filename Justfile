@@ -6,6 +6,9 @@ locked := if env_var_or_default("CI", "") == "" { "" } else { "--locked" }
 # Scala Native's library jars, copied into the repo by `just libs`.
 export SCALAI_LIBS := justfile_directory() + "/ref/libs"
 
+# The library image of development runs.
+export SCALAI_CACHE := justfile_directory() + "/tmp/cache"
+
 default: gates
 
 # Compile Scala Native's shared unit tests (default: the language tests in `scala`) and run
@@ -34,6 +37,10 @@ check *names: release
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
 sn-build *dirs:
     scripts/sn-tests.sh {{ dirs }}
+
+# Wall time of test program `name` over `runs` runs, after one warm-up run.
+bench name runs="10" *args: release
+    python3 scripts/bench.py {{ name }} {{ runs }} {{ args }}
 
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release

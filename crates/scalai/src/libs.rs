@@ -43,3 +43,16 @@ pub fn jars() -> Result<Vec<PathBuf>, String> {
         })
         .collect()
 }
+
+/// Where the library image lives: `$SCALAI_CACHE`, else the user's cache directory.
+pub fn cache_dir() -> PathBuf {
+    if let Some(dir) = std::env::var_os("SCALAI_CACHE") {
+        return PathBuf::from(dir);
+    }
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    match std::env::var_os("XDG_CACHE_HOME") {
+        Some(xdg) => PathBuf::from(xdg).join("scalai"),
+        None if cfg!(target_os = "macos") => home.join("Library/Caches/scalai"),
+        None => home.join(".cache/scalai"),
+    }
+}

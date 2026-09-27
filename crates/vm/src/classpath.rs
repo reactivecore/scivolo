@@ -1,5 +1,6 @@
-//! Finds the `.nir` file of a top-level name in directories and jars.
+//! Finds the `.nir` file of a top-level name in directories, jars and the library image.
 
+use crate::image::Image;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -8,6 +9,7 @@ use zip::ZipArchive;
 enum Root {
     Dir(PathBuf),
     Jar(ZipArchive<File>),
+    Image(Image),
 }
 
 pub struct Classpath {
@@ -26,6 +28,13 @@ impl Classpath {
         Ok(Self { roots })
     }
 
+    /// `paths`, then the library `jars` through their image in directory `cache`.
+    pub fn with_image(paths: &[PathBuf], jars: &[PathBuf], cache: &Path) -> io::Result<Self> {
+        let mut classpath = Self::open(paths)?;
+        classpath.roots.push(Root::Image(Image::open(jars, cache)?));
+        Ok(classpath)
+    }
+
     /// The top-level names defined on the classpath that end in `suffix`, sorted.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         let file_suffix = format!("{suffix}.nir");
@@ -35,6 +44,7 @@ impl Classpath {
             match root {
                 Root::Dir(dir) => walk(dir, dir, &mut files),
                 Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
+                Root::Image(image) => files.extend(image.names().map(str::to_owned)),
             }
         }
         crate::natives::set_errno(errno);
@@ -79,5 +89,6 @@ fn read(root: &mut Root, rel: &str) -> Option<Vec<u8>> {
             file.read_to_end(&mut data).ok()?;
             Some(data)
         }
+        Root::Image(image) => image.find(rel).map(<[u8]>::to_vec),
     }
 }

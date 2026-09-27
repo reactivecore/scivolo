@@ -51,8 +51,15 @@ fn usage() -> ExitCode {
 }
 
 fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<(), String> {
-    cp.extend(libs::jars()?);
-    let classpath = Classpath::open(&cp).map_err(|e| e.to_string())?;
+    let jars = libs::jars()?;
+    let classpath = match Classpath::with_image(&cp, &jars, &libs::cache_dir()) {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("scalai: no library image ({e}); reading the jars");
+            cp.extend(jars);
+            Classpath::open(&cp).map_err(|e| e.to_string())?
+        }
+    };
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let result = vm.run_main(main_class, args);
     if std::env::var_os("SCALAI_PROFILE").is_some() {
