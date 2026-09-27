@@ -38,6 +38,10 @@ was compared are in `docs/research/`; this list covers what we actually use or p
   `TastyFormat.scala` for the TASTy reader spike; `Scanners`/`Parsers`/`Desugar` as the parser to
   port in phase 3.
 
+- **Go's scheduler** hands a goroutine's blocking system call to another OS thread; our green
+  threads do the same for `blocking` externs (ADR 0003). **corosensei**
+  ([crate](https://docs.rs/corosensei)) provides the stackful coroutines.
+
 ## Ideas on the roadmap
 
 - **Heap snapshots / prebuilt images:** Dart snapshots
