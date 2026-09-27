@@ -106,7 +106,8 @@ The JUnit driver in Rust calls the generated `Bootstrapper`s directly.
 **Exit criteria.** M2 passes and M3 is above 80%. A cached hello takes
 ≤ 20 ms. `cpu.scala` runs within 3× of CPython (113 ms).
 Status (2026-09-27): M2 and M3 met; hello takes 20 ms (library image, ADR 0005); `cpu`
-takes 0.35 s after tier-up inlining (ADR 0006), just over the 0.34 s target.
+takes 0.34 s after tier-up inlining (ADR 0006), at the target. Phase 1 exit criteria met,
+on the M4 Pro reference machine.
 
 ## Phase 2 — startup and speed (~3–4 person-months, overlaps phase 1)
 

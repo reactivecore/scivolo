@@ -87,7 +87,7 @@ and its C runtime built from `native/`.
 |---|---:|---:|---:|
 | hello | 20 ms | 292 ms | 5 ms |
 | moderate | 37 ms | 329 ms | 5 ms |
-| cpu (fib 30 + sort 100k) | 0.35 s | 349 ms | 22 ms |
+| cpu (fib 30 + sort 100k) | 0.34 s | 349 ms | 22 ms |
 
 Speed work and ideas: [docs/performance.md](docs/performance.md).
 
@@ -111,8 +111,8 @@ exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS th
 targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
-1. Interpreter speed: `cpu` from 0.35 s to the 0.34 s target and beyond; superinstructions,
-   deeper inlining (docs/performance.md, ADR 0006).
+1. Interpreter speed beyond the phase 1 target: superinstructions, polymorphic inlining
+   (docs/performance.md, ADR 0006).
 2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
 3. Linux x86-64 CI; the M4 suite (dotty `tests/run`).
 

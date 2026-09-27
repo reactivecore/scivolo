@@ -20,16 +20,17 @@ sample <pid> 1 -file tmp/x.sample   # native profile (macOS)
 |---|---:|---:|---|
 | hello | 20 ms | 5 ms | runtime initialization (library image) |
 | moderate | 37 ms | 5 ms | |
-| fib 30 | 85 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
+| fib 30 | 72 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
 | loops 100 | 7.0 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
-| cpu | 0.35 s | 22 ms | dominated by the sort's comparator chain |
+| cpu | 0.34 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
 
 Steps so far and their effect on `cpu`: interpreting NIR directly 3.5 s → lowered code
 with per-site caches 1.08 s → casts/boxing/vars/elem lowered 0.97 s → fused `method`+`call`
 and direct frame filling 0.89 s → two-word `Flow` 0.87 s → frame-less getters, constants
 and forwarders 0.80 s → virtual forwarders too 0.76 s → dense slots, copy aliases and
 module constants → compare-and-branch fusion and sized memory access → tier-up with
-devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s.
+devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s →
+speculation inside inlined callees 0.34 s.
 
 ## Ideas
 

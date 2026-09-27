@@ -14,7 +14,7 @@ const MAX_CALLEE: usize = 24;
 /// Instructions a caller may grow to by inlining.
 const MAX_BODY: usize = 2000;
 /// Passes over a caller; each inlines the calls the previous one exposed.
-const ROUNDS: usize = 6;
+const ROUNDS: usize = 12;
 
 impl Vm {
     /// `defn` with small static callees inlined, or `defn` itself if none are.
@@ -71,19 +71,22 @@ impl Vm {
         changed
     }
 
-    /// The definition of the method `ptr` statically calls, if it is small enough and safe to
-    /// inline into `caller`.
+    /// The definition of the method `ptr` statically calls, speculated, if it is small enough
+    /// and safe to inline into `caller`.
     fn inline_target(&mut self, caller: GlobalId, ptr: ValId, recursive: bool) -> Option<Rc<Defn>> {
         let Val::Global(g, _) = *self.world.pool.val(ptr) else { return None };
         if g == caller && !recursive {
             return None;
         }
-        if let Some(known) = self.funcs.inlinable.get(&g) {
-            return known.clone();
-        }
-        let target = self.judge_inline(g);
-        self.funcs.inlinable.insert(g, target.clone());
-        target
+        let target = match self.funcs.inlinable.get(&g) {
+            Some(known) => known.clone(),
+            None => {
+                let target = self.judge_inline(g);
+                self.funcs.inlinable.insert(g, target.clone());
+                target
+            }
+        }?;
+        Some(self.speculated_callee(g, target))
     }
 
     /// The definition of method `g` if it is small enough and safe to inline anywhere.

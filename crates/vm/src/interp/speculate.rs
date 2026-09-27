@@ -19,16 +19,40 @@ impl Vm {
     pub fn tier_up(&mut self, f: FuncId) {
         let Func::Nir { code: Some(code), .. } = &self.funcs.all[f as usize] else { return };
         let code = code.clone();
-        let targets = self.site_targets(&code);
-        let DefnKind::Define { ty, body } = &code.defn.kind else { return };
-        let body = self.speculate(body, &targets);
-        let defn = Rc::new(Defn { kind: DefnKind::Define { ty: *ty, body }, ..(*code.defn).clone() });
+        let defn = self.speculated(&code);
         let defn = self.inline(defn);
         let mut new = self.lower_code(defn);
         new.calls.set(TIER_UP + 1);
         new.tier = 1;
         if let Func::Nir { code: slot, retired, .. } = &mut self.funcs.all[f as usize] {
             *retired = slot.replace(Rc::new(new));
+        }
+    }
+
+    /// The definition of `code` with its virtual calls split by the targets they resolved to.
+    fn speculated(&mut self, code: &Code) -> Rc<Defn> {
+        let targets = self.site_targets(code);
+        let DefnKind::Define { ty, body } = &code.defn.kind else { return code.defn.clone() };
+        if targets.is_empty() {
+            return code.defn.clone();
+        }
+        let mut body = body.clone();
+        self.devirtualize(&mut body);
+        let body = self.speculate(&body, &targets);
+        Rc::new(Defn { kind: DefnKind::Define { ty: *ty, body }, ..(*code.defn).clone() })
+    }
+
+    /// Method `g`'s definition `defn`, speculated like its first code if that ran.
+    pub fn speculated_callee(&mut self, g: GlobalId, defn: Rc<Defn>) -> Rc<Defn> {
+        let Some(&f) = self.funcs.by_name.get(&g) else { return defn };
+        let (Func::Nir { retired: Some(code), .. } | Func::Nir { code: Some(code), retired: None, .. }) =
+            &self.funcs.all[f as usize]
+        else {
+            return defn;
+        };
+        match Rc::ptr_eq(&code.defn, &defn) {
+            true => self.speculated(&code.clone()),
+            false => defn,
         }
     }
 
@@ -66,6 +90,11 @@ impl Vm {
                 positions.push(pos);
                 continue;
             };
+            if !matches!(self.world.pool.val(*ptr), Val::Local(..)) {
+                insts.push(inst.clone());
+                positions.push(pos);
+                continue;
+            }
             let Type::Function(_, ret) = self.world.pool.ty(*ty).clone() else { unreachable!("a call") };
             let pool = &mut self.world.pool;
             let direct = ValId(pool.vals.intern(Val::Global(target, *ty)));
