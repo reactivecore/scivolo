@@ -11,6 +11,7 @@ impl Vm {
         if self.heap.take_weak_refs_collected() {
             self.run_weak_handler()?;
         }
+        self.tick();
         let mark = self.frames.mark();
         let slots = self.push_frame(code)?;
         for (&p, &a) in code.params.iter().zip(args) {
@@ -72,7 +73,7 @@ impl Vm {
                     let Inst::LinktimeIf(cond, ..) = &insts[*inst as usize] else {
                         unreachable!("lowered from it")
                     };
-                    match self.linktime_cond(cond)? {
+                    match self.linktime_cond(cond, code.defn.name)? {
                         true => then,
                         false => other,
                     }
@@ -116,7 +117,11 @@ impl Vm {
                     }
                 }
             };
-            pc = self.jump(code, slots, next)?;
+            let target = self.jump(code, slots, next)?;
+            if target <= pc {
+                self.tick();
+            }
+            pc = target;
         }
     }
 

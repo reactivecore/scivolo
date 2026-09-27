@@ -1,6 +1,6 @@
 # ADR 0003 — Green threads first, OS threads later
 
-Status: accepted · Date: 2026-09-25
+Status: accepted, implemented 2026-09-27 (`crates/vm/src/threads/`) · Date: 2026-09-25
 
 ## Context
 The VM runs one thread and reports multithreading disabled, so Scala Native's concurrent tests

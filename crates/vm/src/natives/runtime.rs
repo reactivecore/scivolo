@@ -24,6 +24,7 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
             return super::llvm::intrinsic(name)
                 .or_else(|| super::gc::extern_fn(name))
                 .or_else(|| super::unwind::extern_fn(name))
+                .or_else(|| super::threads::extern_fn(name))
                 .or_else(|| super::junit::extern_fn(name));
         }
     };
@@ -33,15 +34,29 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
 fn assign_thread(vm: &mut Vm, args: &[u64]) -> Flow {
     heap::write(vm.thread, args[0]);
     heap::write(vm.thread + 8, args[1]);
+    vm.set_native_thread(args[1] as usize);
     Ok(0)
 }
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
         ("java.lang.Class", "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class") => class_is,
-        _ => return super::services::method(owner, sig).or_else(|| super::unwind::method(owner, sig)),
+        ("java.util.HashSet", s) if s.starts_with("D22containsAll$$anonfun$1") => hash_set_contains,
+        _ => {
+            return super::services::method(owner, sig)
+                .or_else(|| super::unwind::method(owner, sig))
+                .or_else(|| super::threads::method(owner, sig));
+        }
     };
     Some(f)
+}
+
+/// `HashSet.containsAll`'s `forall(contains)` lambda, which the published javalib compiled with a
+/// `Nothing` parameter into `throw o`: `this.contains(o)`.
+fn hash_set_contains(vm: &mut Vm, args: &[u64]) -> Flow {
+    let sig = nir::StrId(vm.world.pool.strings.intern("D8containsL16java.lang.ObjectzEO".into()));
+    let f = vm.virtual_method(args[0] as usize, sig)?;
+    vm.call(f, &args[..2])
 }
 
 /// `java.lang.Class.is(left, right)`: whether `left` is `right` or a subtype of it.

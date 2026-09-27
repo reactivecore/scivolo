@@ -3,6 +3,8 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "nativeThreadTLS.h"
+#include "immix/MutatorThread.h"
+#include "immix/State.h"
 
 void scalanative_GC_init(void);
 
@@ -21,8 +23,15 @@ int __weak_ref_field_offset = -1;
 void *__modules = NULL;
 int __modules_size = 0;
 
-// Bounds of the interpreter's frame stack: [0] its low end, [1] the current top.
-uintptr_t *scalai_frame_stack = NULL;
+// Roots of each green thread: `frames` points to its frame stack's [low end, top]; [low, high)
+// is its native stack while suspended, empty while running.
+typedef struct {
+    uintptr_t *frames;
+    uintptr_t low, high;
+} ScalaiThreadRoots;
+
+ScalaiThreadRoots *scalai_threads = NULL;
+int scalai_threads_count = 0;
 
 typedef struct {
     int object_array, blob_array, arrays_min, arrays_max, boxed_ptr;
@@ -40,7 +49,17 @@ void scalai_GC_set_ids(const GcIds *ids) {
     __weak_ref_field_offset = ids->weak_referent_offset;
 }
 
-void scalai_GC_set_frame_stack(uintptr_t *bounds) { scalai_frame_stack = bounds; }
+void scalai_GC_set_threads(ScalaiThreadRoots *threads, int count) {
+    scalai_threads = threads;
+    scalai_threads_count = count;
+}
+
+// Makes the collector scan the calling code's native stack up to `high`, within [low, high).
+void scalai_GC_switch_stack(void *low, void *high) {
+    currentThreadInfo.stackTop = low;
+    currentThreadInfo.stackBottom = high;
+    currentMutatorThread->stackBottom = (word_t **)high;
+}
 
 // Starts the collector on the calling thread, whose stack spans [low, high).
 void scalai_GC_init(void *low, void *high) {

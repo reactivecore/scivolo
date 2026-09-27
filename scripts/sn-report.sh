@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # Runs the JUnit tests built by `scripts/sn-tests.sh all` in groups and prints a Markdown table
 # of passed, failed and skipped tests per group. Per-group output lands in tmp/sn-report/.
-# java.net is left out: its socket tests block without threads. SCALAI_TIMEOUT (default 60 s)
-# bounds each group.
+# SCALAI_TIMEOUT (default 60 s) bounds each group.
 set -uo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 out=$root/tmp/sn-report
@@ -12,6 +11,7 @@ groups=(
   "scala.scalanative:scala.scalanative."
   "java.lang:testsuite.javalib.lang."
   "java.io:testsuite.javalib.io."
+  "java.net:testsuite.javalib.net."
   "java.math:testsuite.javalib.math."
   "java.nio:testsuite.javalib.nio."
   "java.util:testsuite.javalib.util.:-concurrent"

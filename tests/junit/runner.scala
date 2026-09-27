@@ -72,3 +72,4 @@ def runTest(b: Bootstrapper, name: String, expected: Class[?]): Try[Unit] =
                     println(s"FAIL $cls.${t.name}: $e")
             attempt(b.afterClass())
   println(s"passed $passed, failed $failed, skipped $skipped")
+  System.exit(0)

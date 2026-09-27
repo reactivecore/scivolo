@@ -17,25 +17,26 @@ through the externs in `crates/vm/src/natives/junit.rs`, because Scala Native's 
 lookup needs metadata that its linker generates. Tests run from the root of `ref/scala-native`,
 where their resource files are.
 
-## Results (2026-09-27, with the Immix collector and stack traces)
+## Results (2026-09-27, with green threads, the Immix collector and stack traces)
 
 | Group | Passed | Failed | Skipped |
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
-| scala.scalanative | 735 | 0 | 3 |
-| java.lang | 363 | 18 | 16 |
-| java.io | 200 | 0 | 4 |
-| java.math | 779 | 1 | 0 |
-| java.net (earlier run, not in `sn-report.sh`) | 72 | 1 | 1 (run stops: blocking socket test) |
-| java.nio | 2621 | 13 | 1 |
-| java.util | 2560 | 6 | 8 |
-| java.util.concurrent | 143 | 0 | 80 |
+| scala.scalanative | 737 | 1 | 0 |
+| java.lang | 390 | 11 | 9 |
+| java.io | 247 | 0 | 0 |
+| java.net | 107 | 0 | 1 |
+| java.math | 780 | 0 | 0 |
+| java.nio | 2634 | 0 | 1 |
+| java.util | 2651 | 1 | 2 |
+| java.util.concurrent | 2928 | 6 | 6 |
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 60 | 1 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **8318** | **40** | **115** |
+| **total** | **11319** | **20** | **21** |
 
-`ProcessTest` waits up to 60 s per case, so `just sn-report` gives each group 300 s.
+Counts are test methods; before threads, the concurrent group skipped its 80 classes whole.
+`just sn-report` gives each group 30 minutes; the concurrent group needs about 20.
 
 A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
@@ -43,11 +44,13 @@ instead of the run.
 
 ## Known gaps behind the failures
 
-- **Threads.** The VM runs one thread and reports multithreading disabled; 80 concurrent tests
-  skip, blocking socket tests hang, and process tests that wait with timeouts fail.
-- **Class metadata.** `Class.forName` and other reflection needing linker metadata.
-- **Environment.** A few `System`/`ProcessTest` cases (environment variables, `user.dir`,
-  git subprocess with timeouts) depend on threads or on how the test harness starts the process.
-- **javalib miscompiles.** Some javalib lambdas take a `Nothing` parameter and compile to
-  `throw o` (e.g. `HashSet.containsAll`); the VM throws `ClassCastException` there, as a JVM
-  would, and the affected tests fail.
+- **Class metadata and resources.** `Class.forName`, `ServiceLoader` and
+  `getResourceAsStream` need metadata or embedded resources Scala Native's linker generates.
+- **Environment.** `System.getenv` and `user.dir` cases depend on how the test harness starts
+  the process.
+- **javalib bugs.** `ForkJoinPool.helpAsyncBlocker` matches only worker threads (5
+  `SubmissionPublisher` cases), and one `LinkedTransferQueue` case. The published javalib also
+  compiled `HashSet.containsAll`'s lambda to `throw o`; the VM replaces that lambda.
+- **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
+  Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
+- **Single cases.** `Math.multiplyHigh` and one `dlopen` test.

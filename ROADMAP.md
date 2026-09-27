@@ -43,15 +43,15 @@ Evidence for every number below is in `docs/research/` and `spikes/*/README.md`
 
 Progress (2026-09-25): workspace and `crates/nir` done; `crates/vm` interprets lowered NIR
 with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and M3 pass**:
-8,318 of Scala Native's unit tests pass, 40 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
+11,319 of Scala Native's unit tests pass, 20 fail, 21 skip ([docs/conformance.md](docs/conformance.md)).
 Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garbage-collector.md), done).
-Stack traces come from the interpreter's frames (2026-09-27).
-Not yet done: threads, library index, M4/M5 suites.
+Stack traces come from the interpreter's frames, and Java threads run as green threads
+([ADR 0003](docs/adr/0003-green-threads-first.md), done 2026-09-27).
+Not yet done: library index, M4/M5 suites.
 
 Next steps in phase 1:
 1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).
-2. Green threads (ADR 0003): scheduler, monitors, `park`/`unpark`, sleep and blocking I/O
-   as scheduler waits; report multithreading enabled. Each thread's frames become GC roots.
+2. ~~Green threads~~ (done 2026-09-27, ADR 0003).
 3. OS threads (later): a concurrency-safe heap, caches and callback table.
 4. Linux x86-64: CI build and test run; variadic calls with floating-point arguments.
 

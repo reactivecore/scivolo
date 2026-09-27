@@ -4,14 +4,39 @@ use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, StrId, Type, TypeId};
 
 impl Vm {
-    /// The instance of module `name`, constructed on first access.
+    /// The instance of module `name`, constructed on first access; other threads wait until the
+    /// constructing thread is done.
     pub fn module(&mut self, name: GlobalId) -> Flow<usize> {
         if let Some(&obj) = self.modules.get(&name) {
+            if !self.threads.initializing.is_empty() {
+                self.await_module(name);
+            }
             return Ok(obj);
         }
         let cls = self.link(name)?;
         let obj = self.alloc_object_in(cls, crate::object::Space::Permanent);
         self.modules.insert(name, obj);
+        let me = self.threads.sched.current;
+        self.threads.initializing.insert(name, (me, Vec::new()));
+        let result = self.construct_module(name, obj);
+        if let Some((_, waiters)) = self.threads.initializing.remove(&name) {
+            for id in waiters {
+                self.threads.sched.wake_if(id, crate::threads::Wait::Monitor);
+            }
+        }
+        result.map(|()| obj)
+    }
+
+    /// Module `name`, remembered in `cell` unless a module is being constructed.
+    pub fn cached_module(&mut self, cell: &std::cell::Cell<u64>, name: GlobalId) -> Flow {
+        let obj = self.module(name)? as u64;
+        if self.threads.initializing.is_empty() {
+            cell.set(obj);
+        }
+        Ok(obj)
+    }
+
+    fn construct_module(&mut self, name: GlobalId, obj: usize) -> Flow<()> {
         let init = self.world.member(name, "RE");
         if self.world.defn(init).is_ok() {
             self.call_global(init, &[obj as u64])?;
@@ -19,7 +44,21 @@ impl Vm {
         if self.world.pool.top_name(name) == "scala.scalanative.reflect.Reflect$" {
             self.register_reflective_classes()?;
         }
-        Ok(obj)
+        Ok(())
+    }
+
+    /// Waits while another thread constructs module `name`.
+    fn await_module(&mut self, name: GlobalId) {
+        let me = self.threads.sched.current;
+        while let Some((owner, waiters)) = self.threads.initializing.get_mut(&name) {
+            if *owner == me {
+                return;
+            }
+            waiters.push(me);
+            if !self.block(crate::threads::Wait::Monitor, None) {
+                return;
+            }
+        }
     }
 
     /// The implementation of method `sig` for the class of `obj`.

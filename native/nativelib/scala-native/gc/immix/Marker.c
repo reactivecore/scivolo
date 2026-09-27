@@ -15,7 +15,13 @@
 
 extern word_t *__modules;
 extern int __modules_size;
-extern uintptr_t *scalai_frame_stack;
+// scalai: roots of each green thread, see native/scalai/gc_glue.c.
+typedef struct {
+    uintptr_t *frames;
+    uintptr_t low, high;
+} ScalaiThreadRoots;
+extern ScalaiThreadRoots *scalai_threads;
+extern int scalai_threads_count;
 
 #define LAST_FIELD_OFFSET -1
 
@@ -229,10 +235,17 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
     }
     Marker_markModules(heap, stack);
     Marker_markCustomRoots(heap, stack, customRoots);
-    // scalai: the interpreter's frame stack.
-    if (scalai_frame_stack != NULL) {
-        Marker_markRange(heap, stack, (word_t **)scalai_frame_stack[0],
-                         (word_t **)scalai_frame_stack[1], sizeof(word_t));
+    // scalai: each green thread's frame stack and, while it is suspended, its native stack.
+    for (int i = 0; i < scalai_threads_count; i++) {
+        ScalaiThreadRoots *t = &scalai_threads[i];
+        if (t->frames != NULL) {
+            Marker_markRange(heap, stack, (word_t **)t->frames[0],
+                             (word_t **)t->frames[1], sizeof(word_t));
+        }
+        if (t->high > t->low) {
+            Marker_markRange(heap, stack, (word_t **)t->low,
+                             (word_t **)t->high, sizeof(word_t));
+        }
     }
     Marker_Mark(heap, stack);
 }

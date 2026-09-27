@@ -122,10 +122,10 @@ impl Vm {
                 let module = match module {
                     Some((name, site)) => {
                         let cell = &code.sites[*site as usize];
-                        if cell.get() == 0 {
-                            cell.set(self.module(*name)? as u64);
+                        match cell.get() {
+                            0 => self.cached_module(cell, *name)?,
+                            obj => obj,
                         }
-                        cell.get()
                     }
                     None => 0,
                 };

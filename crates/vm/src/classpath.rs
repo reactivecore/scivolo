@@ -30,12 +30,14 @@ impl Classpath {
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         let file_suffix = format!("{suffix}.nir");
         let mut files = Vec::new();
+        let errno = crate::natives::errno();
         for root in &mut self.roots {
             match root {
                 Root::Dir(dir) => walk(dir, dir, &mut files),
                 Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
             }
         }
+        crate::natives::set_errno(errno);
         let mut tops: Vec<String> = files
             .iter()
             .filter_map(|f| f.strip_suffix(".nir").filter(|_| f.ends_with(&file_suffix)))
@@ -45,10 +47,14 @@ impl Classpath {
         tops
     }
 
-    /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`.
+    /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`; C's
+    /// `errno` is left as it was.
     pub fn find(&mut self, top: &str) -> Option<Vec<u8>> {
         let rel = format!("{}.nir", top.replace('.', "/"));
-        self.roots.iter_mut().find_map(|root| read(root, &rel))
+        let errno = crate::natives::errno();
+        let found = self.roots.iter_mut().find_map(|root| read(root, &rel));
+        crate::natives::set_errno(errno);
+        found
     }
 }
 

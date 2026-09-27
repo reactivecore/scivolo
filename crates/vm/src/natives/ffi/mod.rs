@@ -40,6 +40,8 @@ pub struct Foreign {
     pub addr: usize,
     pub args: Vec<Class>,
     pub ret: Class,
+    /// Declared `blocking`: the call may wait for I/O or other threads.
+    pub blocking: bool,
 }
 
 fn class(ty: &Type) -> Option<Class> {
@@ -83,7 +85,9 @@ fn open(lib: &str) -> Result<(), String> {
 pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     let defn = vm.world.defn(g).ok()?;
     let DefnKind::Declare { ty } = defn.kind else { return None };
-    foreign(&vm.world.pool, ty, symbol(name)?)
+    let blocking = defn.attrs.iter().any(|a| matches!(a, nir::Attr::Extern { blocking: true }))
+        && !name.starts_with("pthread_");
+    foreign(&vm.world.pool, ty, symbol(name)?).map(|f| Foreign { blocking, ..f })
 }
 
 /// A call of the C function at `addr` with function type `ty`, if its signature fits the
@@ -93,7 +97,7 @@ pub fn foreign(pool: &nir::Pool, ty: nir::TypeId, addr: usize) -> Option<Foreign
     let args: Vec<Class> = args.iter().map(|t| class(pool.ty(*t))).collect::<Option<_>>()?;
     let ret = class(pool.ty(*ret))?;
     let ints = args.iter().filter(|c| matches!(c, Class::Int { .. })).count();
-    (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret })
+    (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret, blocking: false })
 }
 
 /// The address of C symbol `name` in the process; `errno` is left as it was.
@@ -118,12 +122,12 @@ fn errno_location() -> *mut i32 {
     unsafe { libc::__errno_location() }
 }
 
-fn errno() -> i32 {
+pub fn errno() -> i32 {
     // SAFETY: the errno cell of the calling thread is always valid to read.
     unsafe { *errno_location() }
 }
 
-fn set_errno(v: i32) {
+pub fn set_errno(v: i32) {
     // SAFETY: the errno cell of the calling thread is always valid to write.
     unsafe { *errno_location() = v }
 }

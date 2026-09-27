@@ -135,16 +135,16 @@ impl Vm {
     }
 
     pub fn stack_overflow(&mut self) -> Flow {
-        if self.funcs.overflowing {
+        if self.funcs.guard.overflowing {
             return Err(
                 VmError::Unsupported("stack overflow while throwing StackOverflowError".into()).into()
             );
         }
-        self.funcs.overflowing = true;
+        self.funcs.guard.overflowing = true;
         self.frames.open_reserve(true);
         let result = self.throw_new("java.lang.StackOverflowError");
         self.frames.open_reserve(false);
-        self.funcs.overflowing = false;
+        self.funcs.guard.overflowing = false;
         result
     }
 }

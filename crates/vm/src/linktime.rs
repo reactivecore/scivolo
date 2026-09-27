@@ -2,10 +2,11 @@
 
 use crate::interp::Flow;
 use crate::{Vm, VmError};
-use nir::{Bin, Comp, Cond, StrId, Val};
+use nir::{Bin, Comp, Cond, GlobalId, StrId, Val};
 use rustc_hash::FxHashMap;
 
 const PREFIX: &str = "scala.scalanative.meta.linktimeinfo.";
+const MULTITHREADING: &str = "scala.scalanative.meta.linktimeinfo.isMultithreadingEnabled";
 
 /// Evaluated properties and conditions.
 #[derive(Default)]
@@ -25,11 +26,10 @@ fn property(name: &str) -> Option<Prop> {
     Some(match key {
         "debugMode"
         | "is32BitPlatform"
-        | "isMultithreadingEnabled"
         | "isMsys"
         | "debugMetadata.enabled"
         | "debugMetadata.generateFunctionSourcePositions" => Prop::Bool(false),
-        "releaseMode" | "isWeakReferenceSupported" => Prop::Bool(true),
+        "releaseMode" | "isWeakReferenceSupported" | "isMultithreadingEnabled" => Prop::Bool(true),
         "contendedPaddingWidth" => Prop::Int(64),
         "runtimeVersion" => Prop::Str("0.5.12"),
         "garbageCollector" => Prop::Str("immix"),
@@ -69,29 +69,39 @@ impl Vm {
         Ok(v)
     }
 
-    /// Evaluates `cond` once; definitions live as long as the VM, so the address is a key.
-    pub fn linktime_cond(&mut self, cond: &Cond) -> Flow<bool> {
+    /// Evaluates `cond` in method `method` once; definitions live as long as the VM, so the
+    /// address is a key. `MemoryLayout` and `Object.clone` see multithreading disabled: objects
+    /// have no lock word.
+    pub fn linktime_cond(&mut self, cond: &Cond, method: GlobalId) -> Flow<bool> {
         let key = cond as *const Cond as usize;
         if let Some(&b) = self.linktime.conds.get(&key) {
             return Ok(b);
         }
-        let b = self.eval_cond(cond)?;
+        let owner = self.world.pool.top_name(method);
+        let sig = self.world.pool.member_sig(method).unwrap_or("");
+        let layout = owner.starts_with("scala.scalanative.runtime.MemoryLayout$")
+            || (owner == "java.lang.Object" && sig.starts_with("D5clone"));
+        let b = self.eval_cond(cond, layout)?;
         self.linktime.conds.insert(key, b);
         Ok(b)
     }
 
-    fn eval_cond(&mut self, cond: &Cond) -> Flow<bool> {
+    fn eval_cond(&mut self, cond: &Cond, layout: bool) -> Flow<bool> {
         match cond {
             Cond::Complex { bin, left, right, .. } => {
-                let l = self.eval_cond(left)?;
+                let l = self.eval_cond(left, layout)?;
                 match (bin, l) {
                     (Bin::And, false) => Ok(false),
                     (Bin::Or, true) => Ok(true),
-                    _ => self.eval_cond(right),
+                    _ => self.eval_cond(right, layout),
                 }
             }
             Cond::Simple { property, comp, value, .. } => {
-                let actual = self.property_or_accessor(*property)?;
+                let multithreading = self.world.pool.str(*property) == MULTITHREADING;
+                let actual = match layout && multithreading {
+                    true => 0,
+                    false => self.property_or_accessor(*property)?,
+                };
                 let expected = self.world.pool.val(*value).clone();
                 let equal = match expected {
                     Val::String(s) => {

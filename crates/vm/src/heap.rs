@@ -28,8 +28,19 @@ struct Collector {
     add_roots: extern "C" fn(usize, usize),
     set_ids: extern "C" fn(*const GcIds),
     watch_weak_refs: extern "C" fn(),
+    set_threads: extern "C" fn(*const ThreadRoots, i32),
+    switch_stack: extern "C" fn(usize, usize),
     /// The `int` the collector sets when it has cleared weak references.
     weak_refs_collected: usize,
+}
+
+/// The roots of one green thread: its frame stack's `[low, top]` bounds, and `low..high` of its
+/// native stack while suspended (empty while it runs).
+#[repr(C)]
+pub struct ThreadRoots {
+    pub frames: *const usize,
+    pub low: usize,
+    pub high: usize,
 }
 
 /// Class ids the collector needs to tell arrays, blobs, boxed pointers and weak references
@@ -47,52 +58,46 @@ pub struct GcIds {
 }
 
 impl Heap {
-    /// Starts the collector on the calling thread, whose stack spans `stack`, with `frames` as
-    /// the bounds of the frame stack. `symbol` finds C runtime functions.
-    pub fn new(
-        symbol: impl Fn(&str) -> Option<usize>,
-        stack: (usize, usize),
-        frames: *const usize,
-    ) -> Result<Self, String> {
+    /// Starts the collector on the calling thread, whose stack spans `stack`. `symbol` finds C
+    /// runtime functions.
+    pub fn new(symbol: impl Fn(&str) -> Option<usize>, stack: (usize, usize)) -> Result<Self, String> {
         static STARTED: AtomicBool = AtomicBool::new(false);
         if STARTED.swap(true, Ordering::SeqCst) {
             return Err("the collector serves one VM per process".into());
         }
         let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
-        let (init, set_frames) = (find("scalai_GC_init")?, find("scalai_GC_set_frame_stack")?);
-        // SAFETY: each address is the named C runtime function, whose C signature the type
-        // spells out.
+        // SAFETY: each address is the named C runtime function, whose C signature the type the
+        // result is assigned to spells out.
         let gc = unsafe {
             Collector {
-                alloc: std::mem::transmute::<usize, extern "C" fn(usize, usize) -> usize>(find(
-                    "scalanative_GC_alloc",
-                )?),
-                alloc_array: std::mem::transmute::<usize, extern "C" fn(usize, usize, usize) -> usize>(find(
-                    "scalanative_GC_alloc_array",
-                )?),
-                add_roots: std::mem::transmute::<usize, extern "C" fn(usize, usize)>(find(
-                    "scalanative_GC_add_roots",
-                )?),
-                set_ids: std::mem::transmute::<usize, extern "C" fn(*const GcIds)>(find(
-                    "scalai_GC_set_ids",
-                )?),
-                watch_weak_refs: std::mem::transmute::<usize, extern "C" fn()>(find(
-                    "scalai_GC_watch_weak_refs",
-                )?),
+                alloc: c_fn(find("scalanative_GC_alloc")?),
+                alloc_array: c_fn(find("scalanative_GC_alloc_array")?),
+                add_roots: c_fn(find("scalanative_GC_add_roots")?),
+                set_ids: c_fn(find("scalai_GC_set_ids")?),
+                watch_weak_refs: c_fn(find("scalai_GC_watch_weak_refs")?),
+                set_threads: c_fn(find("scalai_GC_set_threads")?),
+                switch_stack: c_fn(find("scalai_GC_switch_stack")?),
                 weak_refs_collected: find("scalai_weak_refs_collected")?,
             }
         };
-        // SAFETY: as above; `frames` points to the frame stack's bounds, which live as long as
-        // the VM, and the stack bounds are the calling thread's.
-        unsafe {
-            std::mem::transmute::<usize, extern "C" fn(usize, usize)>(init)(stack.0, stack.1);
-            std::mem::transmute::<usize, extern "C" fn(*const usize)>(set_frames)(frames);
-        }
+        // SAFETY: as above.
+        let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scalai_GC_init")?) };
+        init(stack.0, stack.1);
         Ok(Self { cur: 0, end: 0, allocated: 0, gc })
     }
 
     pub fn set_ids(&self, ids: &GcIds) {
         (self.gc.set_ids)(ids);
+    }
+
+    /// Makes the collector scan `threads`, which must stay in place until the next call.
+    pub fn set_threads(&self, threads: &[ThreadRoots]) {
+        (self.gc.set_threads)(threads.as_ptr(), threads.len() as i32);
+    }
+
+    /// Makes the collector scan the running code's native stack within `low..high`.
+    pub fn switch_stack(&self, (low, high): (usize, usize)) {
+        (self.gc.switch_stack)(low, high);
     }
 
     /// Makes collections that clear weak references raise a flag instead of calling back.
@@ -144,6 +149,16 @@ impl Heap {
         (self.gc.add_roots)(ptr, ptr + size);
         ptr
     }
+}
+
+/// The C function at `addr` as the function pointer type `F`.
+///
+/// # Safety
+/// `F` must be an `extern "C" fn` type matching the function's C signature.
+unsafe fn c_fn<F: Copy>(addr: usize) -> F {
+    assert_eq!(size_of::<F>(), size_of::<usize>());
+    // SAFETY: `F` is a function pointer, as large as `addr`, per the caller's contract.
+    unsafe { std::mem::transmute_copy(&addr) }
 }
 
 /// Addresses below this lie in the page every platform leaves unmapped; accessing them is a

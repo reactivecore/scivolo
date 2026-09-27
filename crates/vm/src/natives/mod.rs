@@ -4,14 +4,16 @@
 mod callback;
 mod ffi;
 mod gc;
+mod java_thread;
 mod junit;
 mod llvm;
 mod runtime;
 mod services;
+mod threads;
 mod unwind;
 
 pub use callback::Callbacks;
-pub use ffi::{exit_immediately, load_runtime, symbol};
+pub use ffi::{Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol};
 pub use unwind::StackWalk;
 
 use crate::interp::Flow;
@@ -32,6 +34,7 @@ impl Native {
     pub fn call(&self, vm: &mut Vm, args: &[u64]) -> Flow {
         match self {
             Native::Rust(f) => f(vm, args),
+            Native::C(f) if f.blocking => vm.call_blocking(f, args),
             Native::C(f) => ffi::call(f, args),
             Native::Property(name) => vm.property_value(name),
         }

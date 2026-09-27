@@ -74,8 +74,11 @@ and its C runtime built from `native/`.
 - **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
   what their Scala Native builds print.
 - **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 8,318 of Scala Native's unit tests pass, 40 fail, 115 skip (threads). Per package and
-  the known gaps: [docs/conformance.md](docs/conformance.md).
+- **M3:** 11,319 of Scala Native's unit tests pass, 20 fail, 21 skip. Per package and the known
+  gaps: [docs/conformance.md](docs/conformance.md).
+- **Threads:** Java threads run as green threads on coroutines, with monitors, parking,
+  timers and blocking C calls on helper OS threads ([ADR 0003](docs/adr/0003-green-threads-first.md));
+  `tests/programs/threads` covers `synchronized`, `wait`/`notify`, interrupts, executors and futures.
 - **GC:** Scala Native's Immix collector reclaims memory ([ADR 0004](docs/adr/0004-immix-garbage-collector.md));
   `tests/programs/gcstress` allocates far more than it keeps. `GC_MAXIMUM_HEAP_SIZE` and the
   other Immix settings apply.
@@ -107,9 +110,9 @@ exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS th
 targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
 
 Next, by expected value:
-1. Green threads (80 skipped tests, blocking I/O, process timeouts).
-2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
-3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
+1. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
+2. Startup: prebuilt library image (hello 47 ms → under 20 ms).
+3. Linux x86-64 CI; the M4 suite (dotty `tests/run`).
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 

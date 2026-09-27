@@ -31,6 +31,10 @@ check *names: release
       if [ "$out" == "$(cat tests/programs/$p/$p.check)" ]; then echo "ok   $p ${t}s"; else echo "DIFF $p ${t}s"; fi
     done
 
+# Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
+sn-build *dirs:
+    scripts/sn-tests.sh {{ dirs }}
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}

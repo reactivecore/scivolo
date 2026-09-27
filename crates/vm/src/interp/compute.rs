@@ -80,10 +80,10 @@ impl Vm {
             }
             Instr::Module { dst, name, site, .. } => {
                 let cell = &code.sites[site as usize];
-                if cell.get() == 0 {
-                    cell.set(self.module(name)? as u64);
+                match cell.get() {
+                    0 => (dst, self.cached_module(cell, name)?),
+                    obj => (dst, obj),
                 }
-                (dst, cell.get())
             }
             Instr::FieldLoad { dst, ty, obj, name, site, .. } => {
                 let obj = self.object(code, slots, obj)?;

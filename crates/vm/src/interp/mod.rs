@@ -42,18 +42,21 @@ pub struct Funcs {
     consts: FxHashMap<nir::ValId, usize>,
     stack: Vec<FuncId>,
     proxies: FxHashMap<(crate::class::ClassId, nir::StrId), FuncId>,
-    stack_floor: usize,
-    overflowing: bool,
+    /// The running thread's native stack limit.
+    pub guard: StackGuard,
     pub trace: bool,
     pub profile: profile::Profile,
 }
 
-impl Funcs {
-    /// Interpreted calls whose frame would lie below `floor` throw `StackOverflowError`.
-    pub fn set_stack_floor(&mut self, floor: usize) {
-        self.stack_floor = floor;
-    }
+/// Interpreted calls whose native frame would lie below `floor` throw `StackOverflowError`,
+/// unless one is being constructed (`overflowing`).
+#[derive(Default)]
+pub struct StackGuard {
+    pub floor: usize,
+    pub overflowing: bool,
+}
 
+impl Funcs {
     /// Whether calls must go through `Vm::call`, which traces and profiles.
     pub fn instrumented(&self) -> bool {
         self.trace || self.profile.on
@@ -158,7 +161,7 @@ impl Vm {
     #[inline]
     pub fn stack_exhausted(&self) -> bool {
         let marker = 0u8;
-        (&raw const marker as usize) < self.funcs.stack_floor && !self.funcs.overflowing
+        (&raw const marker as usize) < self.funcs.guard.floor && !self.funcs.guard.overflowing
     }
 
     /// The names of the innermost `depth` interpreted methods on the call stack, which is only

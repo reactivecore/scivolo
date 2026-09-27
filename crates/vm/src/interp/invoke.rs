@@ -22,6 +22,7 @@ impl Vm {
         if self.stack_exhausted() {
             return self.stack_overflow();
         }
+        self.tick();
         let mark = self.frames.mark();
         let frame = self.push_frame(&callee)?;
         for (&p, &a) in callee.params.iter().zip(args) {

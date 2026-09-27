@@ -10,6 +10,7 @@ snrt = { path = "../snrt" }
 rustc-hash.workspace = true
 zip.workspace = true
 libc = "0.2"
+corosensei = "0.3"
 
 [lints]
 workspace = true
