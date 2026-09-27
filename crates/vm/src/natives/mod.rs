@@ -8,9 +8,11 @@ mod junit;
 mod llvm;
 mod runtime;
 mod services;
+mod unwind;
 
 pub use callback::Callbacks;
 pub use ffi::{exit_immediately, load_runtime, symbol};
+pub use unwind::StackWalk;
 
 use crate::interp::Flow;
 use crate::interp::code::Num;

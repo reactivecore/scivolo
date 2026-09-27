@@ -10,6 +10,10 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
         "scalanative_currentNativeThread" => |vm, _| Ok(heap::read(vm.thread + 8)),
         "scalanative_assignCurrentThread" => assign_thread,
         "scalanative_setupCurrentThreadInfo"
+        | "scalanative_StackOverflowGuards_setup"
+        | "scalanative_StackOverflowGuards_reset"
+        | "scalanative_StackOverflowGuards_close"
+        | "scalanative_StackOverflowGuards_size"
         | "scalanative_Throwable_sizeOfExceptionWrapper"
         | "scalanative_resource_get_embedded_size"
         | "scalanative_resource_get_content_length"
@@ -19,6 +23,7 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
         _ => {
             return super::llvm::intrinsic(name)
                 .or_else(|| super::gc::extern_fn(name))
+                .or_else(|| super::unwind::extern_fn(name))
                 .or_else(|| super::junit::extern_fn(name));
         }
     };
@@ -33,9 +38,8 @@ fn assign_thread(vm: &mut Vm, args: &[u64]) -> Flow {
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
-        ("scala.scalanative.runtime.StackTrace$", "D20currentRawStackTraceLAj_EO") => empty_stack_trace,
         ("java.lang.Class", "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class") => class_is,
-        _ => return super::services::method(owner, sig),
+        _ => return super::services::method(owner, sig).or_else(|| super::unwind::method(owner, sig)),
     };
     Some(f)
 }
@@ -44,9 +48,4 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
 fn class_is(vm: &mut Vm, args: &[u64]) -> Flow {
     let (left, right) = (vm.class_of_rtti(args[1] as usize), vm.class_of_rtti(args[2] as usize));
     Ok(vm.is_subclass(left, right) as u64)
-}
-
-fn empty_stack_trace(vm: &mut Vm, _: &[u64]) -> Flow {
-    let cls = vm.link_top("scala.scalanative.runtime.LongArray")?;
-    Ok(vm.alloc_array(cls, 0) as u64)
 }

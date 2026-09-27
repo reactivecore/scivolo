@@ -46,9 +46,10 @@ and forwarders 0.80 s → virtual forwarders too 0.76 s.
 4. **Closure compilation** (research report 03): each instruction becomes a boxed closure
    that captures resolved operands, and the dispatch `match` goes away. Reported gains are
    1.3–2× over a match-based loop. Larger rewrite; combine with 2 and 3.
-5. **Cheaper frames.** Replace pooled `Vec` frames with one contiguous value stack indexed by
-   frame base; skip zero-filling, since SSA defines every slot before use; avoid the `Rc<Code>`
-   clone per call.
+5. **Cheaper frames.** Frames live on one contiguous frame stack (done with the collector);
+   still to do: skip zero-filling, since SSA defines every slot before use, and avoid the
+   `Rc<Code>` clone per call. Each instruction that may call stores its index in the frame
+   header for stack traces.
 6. **Unwind handling off the hot path.** `compute` returns `Flow<()>` for every instruction;
    separate throwing from non-throwing instructions so the common path needs no result check.
 7. **Baseline JIT with Cranelift** (roadmap phase 2): translate hot lowered methods to machine
@@ -58,6 +59,10 @@ and forwarders 0.80 s → virtual forwarders too 0.76 s.
    47 ms opening jars, decoding NIR files and linking about 200 classes; an mmap-able index
    plus lazily decoded method bodies should bring it under 20 ms. A pre-initialized heap
    snapshot is the next step after that.
-9. **Allocation:** the bump heap is fast, but boxing in generic collections allocates an
-   `Integer` per element. Cache small boxed values the way `Integer.valueOf` does on the JVM
-   (javalib may already do it; check), and later let a precise GC reclaim them.
+9. **Allocation:** boxing in generic collections allocates an `Integer` per element. Cache
+   small boxed values the way `Integer.valueOf` does on the JVM (javalib may already do it;
+   check).
+10. **Exceptions:** every new `Throwable` snapshots up to 1,024 frames through the unwind
+   externs (one native call per frame) and builds `StackTraceElement`s lazily. Code that throws
+   in loops pays for it; a native `currentRawStackTrace` returning the snapshot as one array
+   would cut the calls.

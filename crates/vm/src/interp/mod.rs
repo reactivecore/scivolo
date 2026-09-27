@@ -167,6 +167,16 @@ impl Vm {
         self.funcs.stack.iter().rev().take(depth).map(|&f| self.func_name(f)).collect()
     }
 
+    /// The source file and zero-based line of instruction `pc` of method `g`, once lowered.
+    pub fn source_position(&self, g: GlobalId, pc: usize) -> Option<(&str, u32)> {
+        let f = *self.funcs.by_name.get(&g)?;
+        let Func::Nir { code: Some(code), .. } = &self.funcs.all[f as usize] else { return None };
+        let nir::DefnKind::Define { body, .. } = &code.defn.kind else { return None };
+        let inst = *code.origin.get(pc)? as usize;
+        let pos = self.world.pool.pos(*body.positions.get(inst)?);
+        Some((self.world.pool.str(pos.file), pos.line))
+    }
+
     pub fn func_name(&self, f: FuncId) -> String {
         match &self.funcs.all[f as usize] {
             Func::Nir { name, .. } | Func::Native { name, .. } | Func::Proxy { name, .. } => {

@@ -43,9 +43,10 @@ Evidence for every number below is in `docs/research/` and `spikes/*/README.md`
 
 Progress (2026-09-25): workspace and `crates/nir` done; `crates/vm` interprets lowered NIR
 with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and M3 pass**:
-8,300 of Scala Native's unit tests pass, 58 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
+8,318 of Scala Native's unit tests pass, 40 fail, 115 skip ([docs/conformance.md](docs/conformance.md)).
 Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garbage-collector.md), done).
-Not yet done: threads, library index, stack traces, M4/M5 suites.
+Stack traces come from the interpreter's frames (2026-09-27).
+Not yet done: threads, library index, M4/M5 suites.
 
 Next steps in phase 1:
 1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).

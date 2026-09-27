@@ -101,14 +101,18 @@ impl Vm {
         Ok(obj)
     }
 
-    pub fn string_array(&mut self, items: &[String]) -> Result<usize, VmError> {
-        let cls = self.link_top("scala.scalanative.runtime.ObjectArray")?;
-        let arr = self.alloc_array(cls, items.len());
+    /// A C `argv` of `program` and `args`, NUL-terminated strings in the permanent heap.
+    pub fn c_argv(&mut self, program: &str, args: &[String]) -> usize {
+        let items: Vec<&str> = std::iter::once(program).chain(args.iter().map(String::as_str)).collect();
+        let argv = self.heap.permanent(8 * (items.len() + 1));
         for (i, s) in items.iter().enumerate() {
-            let obj = self.new_string(s)?;
-            heap::write(arr + ARRAY_HEADER as usize + 8 * i, obj);
+            let c = self.heap.permanent(s.len() + 1);
+            for (j, b) in s.bytes().enumerate() {
+                heap::write(c + j, b);
+            }
+            heap::write(argv + 8 * i, c);
         }
-        Ok(arr)
+        argv
     }
 
     /// `toString()` of throwable `exc`, or its class name if that fails too.

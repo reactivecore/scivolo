@@ -22,19 +22,19 @@ impl Vm {
         if self.stack_exhausted() {
             return self.stack_overflow();
         }
-        let base = self.frames.top();
-        let frame = self.push_frame(callee.slots)?;
+        let mark = self.frames.mark();
+        let frame = self.push_frame(&callee)?;
         for (&p, &a) in callee.params.iter().zip(args) {
             match self.arg(caller, slots, a) {
                 Ok(v) => frame[p as usize] = v,
                 Err(e) => {
-                    self.frames.truncate(base);
+                    self.frames.reset(mark);
                     return Err(e);
                 }
             }
         }
         let result = self.run(&callee, frame);
-        self.frames.truncate(base);
+        self.frames.reset(mark);
         result
     }
 

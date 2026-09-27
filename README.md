@@ -74,7 +74,7 @@ and its C runtime built from `native/`.
 - **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
   what their Scala Native builds print.
 - **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 8,300 of Scala Native's unit tests pass, 58 fail, 115 skip (threads). Per package and
+- **M3:** 8,318 of Scala Native's unit tests pass, 40 fail, 115 skip (threads). Per package and
   the known gaps: [docs/conformance.md](docs/conformance.md).
 - **GC:** Scala Native's Immix collector reclaims memory ([ADR 0004](docs/adr/0004-immix-garbage-collector.md));
   `tests/programs/gcstress` allocates far more than it keeps. `GC_MAXIMUM_HEAP_SIZE` and the
@@ -91,11 +91,14 @@ Speed work and ideas: [docs/performance.md](docs/performance.md).
 ```sh
 just libs                       # copy the Scala Native jars into ref/libs once
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
-cargo run --release -p scalai -- --cp tests/programs/moderate moderate
+just run moderate               # run tests/programs/moderate in the release build
+just check                      # every test program against its .check file, with timings
 scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
-scripts/sn-tests.sh all && scripts/sn-report.sh   # Scala Native's unit tests in the VM
+scripts/sn-tests.sh all && just sn-report   # Scala Native's unit tests in the VM
+just sn-run Name -Other         # selected Scala Native test classes
 ```
 
+Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
 stops a run. Programs still need scala-cli to produce NIR; the own frontend is phase 3.
 
@@ -107,7 +110,6 @@ Next, by expected value:
 1. Green threads (80 skipped tests, blocking I/O, process timeouts).
 2. Interpreter speed: inlining of small callees and superinstructions (docs/performance.md).
 3. Startup: prebuilt library image (hello 47 ms → under 20 ms).
-4. Stack traces from the interpreter's frames.
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 

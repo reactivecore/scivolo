@@ -11,20 +11,20 @@ impl Vm {
         if self.heap.take_weak_refs_collected() {
             self.run_weak_handler()?;
         }
-        let base = self.frames.top();
-        let slots = self.push_frame(code.slots)?;
+        let mark = self.frames.mark();
+        let slots = self.push_frame(code)?;
         for (&p, &a) in code.params.iter().zip(args) {
             slots[p as usize] = a;
         }
         let result = self.run(code, slots);
-        self.frames.truncate(base);
+        self.frames.reset(mark);
         result
     }
 
-    /// `len` zeroed slots on the frame stack, which the caller truncates when its call ends.
-    pub fn push_frame<'a>(&mut self, len: usize) -> Flow<&'a mut [u64]> {
-        match self.frames.push(8 * len) {
-            Some(at) => Ok(self.frames.slots(at, len)),
+    /// The zeroed slots of a frame for `code`, which the caller resets when its call ends.
+    pub fn push_frame<'a>(&mut self, code: &Code) -> Flow<&'a mut [u64]> {
+        match self.frames.push_frame(code.defn.name.0 as u64, code.slots) {
+            Some(at) => Ok(self.frames.slots(at, code.slots)),
             None => match self.stack_overflow() {
                 Err(u) => Err(u),
                 Ok(_) => unreachable!("stack_overflow throws"),
@@ -79,6 +79,7 @@ impl Vm {
                 }
                 Instr::Ret(v) => return self.arg(code, slots, *v),
                 Instr::Throw { v, unwind } => {
+                    self.frames.set_pc(pc);
                     let value = self.arg(code, slots, *v)? as usize;
                     let exc = match self.throwable(value) {
                         Ok(exc) => exc,
@@ -96,21 +97,24 @@ impl Vm {
                     }
                 }
                 Instr::Unreachable => return Err(VmError::Unsupported("reached unreachable".into()).into()),
-                _ => match self.compute(code, slots, instr) {
-                    Ok(()) => {
-                        pc += 1;
-                        continue;
-                    }
-                    Err(u) => {
-                        let u = self.as_linkage_error(u);
-                        if self.funcs.trace && u.thrown().is_some() {
-                            self.trace_throw(code, pc);
+                _ => {
+                    self.frames.set_pc(pc);
+                    match self.compute(code, slots, instr) {
+                        Ok(()) => {
+                            pc += 1;
+                            continue;
                         }
-                        let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
-                        slots[h.0 as usize] = exc as u64;
-                        &h.1
+                        Err(u) => {
+                            let u = self.as_linkage_error(u);
+                            if self.funcs.trace && u.thrown().is_some() {
+                                self.trace_throw(code, pc);
+                            }
+                            let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
+                            slots[h.0 as usize] = exc as u64;
+                            &h.1
+                        }
                     }
-                },
+                }
             };
             pc = self.jump(code, slots, next)?;
         }

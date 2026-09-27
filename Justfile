@@ -15,6 +15,33 @@ sn-tests *dirs:
     cargo build -q --release -p scalai
     scripts/sn-run.sh
 
+# Run test program `name` from tests/programs in the release VM, stopped after `SCALAI_TIMEOUT`
+# seconds (default 60).
+run name *args: release
+    SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
+
+# Compare test programs (default: all) with their `.check` files, with wall time.
+check *names: release
+    #!/usr/bin/env bash
+    names="{{ names }}"; [ -z "$names" ] && names=$(ls tests/programs)
+    for p in $names; do
+      start=$(date +%s.%N)
+      out=$(SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/$p $p 2>&1)
+      t=$(echo "$(date +%s.%N) - $start" | bc)
+      if [ "$out" == "$(cat tests/programs/$p/$p.check)" ]; then echo "ok   $p ${t}s"; else echo "DIFF $p ${t}s"; fi
+    done
+
+# Run Scala Native test classes whose names contain the arguments (`-part` excludes).
+sn-run *filters: release
+    scripts/sn-run.sh {{ filters }}
+
+# The per-group Scala Native test report, each group stopped after `timeout` seconds.
+sn-report timeout="300": release
+    SCALAI_TIMEOUT={{ timeout }} scripts/sn-report.sh
+
+release:
+    cargo build -q --release -p scalai
+
 # Copy the Scala Native library jars from the Coursier cache into ref/libs.
 libs:
     mkdir -p ref/libs

@@ -40,12 +40,24 @@ const ALIGN: usize = 16;
 /// The end of the frame stack only `StackOverflowError` construction may use.
 const RESERVE: usize = 16 << 20;
 
+/// A frame's header: the header of the enclosing frame, the frame's method and the index of the
+/// instruction it executes.
+const HEADER: usize = 24;
+
 /// The slots, `stackalloc` memory and escaping variables of every active interpreted call, in
 /// one region: `[0]` is its low end, `[1]` the top, which the collector scans up to.
 pub struct Frames {
     bounds: Box<[usize; 2]>,
     end: usize,
     reserve_open: bool,
+    innermost: usize,
+}
+
+/// A state of the frame stack to return to.
+#[derive(Clone, Copy)]
+pub struct Mark {
+    top: usize,
+    innermost: usize,
 }
 
 impl Frames {
@@ -66,7 +78,7 @@ impl Frames {
             return Err("cannot reserve the frame stack".into());
         }
         let low = base as usize;
-        Ok(Self { bounds: Box::new([low, low]), end: low + FRAMES, reserve_open: false })
+        Ok(Self { bounds: Box::new([low, low]), end: low + FRAMES, reserve_open: false, innermost: 0 })
     }
 
     /// Lets pushes use the reserve, or stops them.
@@ -79,8 +91,51 @@ impl Frames {
         self.bounds.as_ptr()
     }
 
-    pub fn top(&self) -> usize {
-        self.bounds[1]
+    pub fn mark(&self) -> Mark {
+        Mark { top: self.bounds[1], innermost: self.innermost }
+    }
+
+    /// Frees everything pushed since `mark`, and returns to its innermost frame.
+    pub fn reset(&mut self, mark: Mark) {
+        self.bounds[1] = mark.top;
+        self.innermost = mark.innermost;
+    }
+
+    /// Pushes a frame of method `method`: a header linking to the enclosing frame, then `len`
+    /// zeroed slots, whose address it returns.
+    pub fn push_frame(&mut self, method: u64, len: usize) -> Option<usize> {
+        let at = self.push(HEADER + 8 * len)?;
+        crate::heap::write(at, self.innermost);
+        crate::heap::write(at + 8, method);
+        self.innermost = at;
+        Some(at + HEADER)
+    }
+
+    /// The header of the innermost frame, 0 when there is none.
+    pub fn innermost(&self) -> usize {
+        self.innermost
+    }
+
+    /// The header of the frame enclosing the one at `header`, 0 when there is none.
+    pub fn caller(header: usize) -> usize {
+        crate::heap::read(header)
+    }
+
+    /// The method of the frame at `header`.
+    pub fn method(header: usize) -> u64 {
+        crate::heap::read(header + 8)
+    }
+
+    /// Records that the innermost frame executes instruction `pc`.
+    #[inline]
+    pub fn set_pc(&mut self, pc: usize) {
+        debug_assert!(self.innermost != 0, "no frame to record a pc in");
+        crate::heap::write(self.innermost + 16, pc as u64);
+    }
+
+    /// The instruction the frame at `header` executes.
+    pub fn pc(header: usize) -> usize {
+        crate::heap::read::<u64>(header + 16) as usize
     }
 
     /// `bytes` zeroed bytes aligned to 16 on top, or `None` when the region is full.
@@ -94,17 +149,12 @@ impl Frames {
         Some(at)
     }
 
-    /// Frees everything pushed since `top` was current.
-    pub fn truncate(&mut self, top: usize) {
-        self.bounds[1] = top;
-    }
-
     /// The `len` slots pushed at `at`.
     pub fn slots<'a>(&self, at: usize, len: usize) -> &'a mut [u64] {
         debug_assert!(at >= self.bounds[0] && at + 8 * len <= self.bounds[1]);
         // SAFETY: `at` came from `push` of at least `8 * len` bytes; the region is never unmapped
         // and later pushes lie above it, so the slice aliases nothing until its frame is
-        // truncated, after which its call no longer uses it.
+        // reset, after which its call no longer uses it.
         unsafe { std::slice::from_raw_parts_mut(at as *mut u64, len) }
     }
 }

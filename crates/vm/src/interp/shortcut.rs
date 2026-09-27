@@ -24,12 +24,13 @@ pub enum Shortcut {
         name: GlobalId,
         site: u32,
     },
-    /// A call of another function with these arguments; `module` is loaded first if any
-    /// argument is `Source::Module`.
+    /// A call of another function with these arguments, at instruction `pc`; `module` is loaded
+    /// first if any argument is `Source::Module`.
     Forward {
         callee: Callee,
         args: Box<[Source]>,
         module: Option<(GlobalId, u32)>,
+        pc: u32,
     },
 }
 
@@ -49,8 +50,9 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
             Instr::Ret(Arg::Slot(r)),
             Instr::Unreachable,
         ] if r == dst && param(*o) == Some(0) => Some(Shortcut::Field { ty: *ty, name: *name, site: *site }),
-        [rest @ .., Instr::Ret(Arg::Slot(r)), Instr::Unreachable] => {
-            let rest: Vec<&Instr> = rest.iter().filter(|i| !matches!(i, Instr::Nop)).collect();
+        [body @ .., Instr::Ret(Arg::Slot(r)), Instr::Unreachable] => {
+            let pc = body.iter().rposition(|i| !matches!(i, Instr::Nop))? as u32;
+            let rest: Vec<&Instr> = body.iter().filter(|i| !matches!(i, Instr::Nop)).collect();
             let (module, call) = match rest[..] {
                 [call] => (None, call),
                 [Instr::Module { dst, name, site, unwind: None }, call] => (Some((*dst, *name, *site)), call),
@@ -78,15 +80,31 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
                 })
                 .collect::<Option<Box<[Source]>>>()?;
             let module = module.map(|(_, name, site)| (name, site));
-            Some(Shortcut::Forward { callee, args: sources, module })
+            Some(Shortcut::Forward { callee, args: sources, module, pc })
         }
         _ => None,
     }
 }
 
 impl Vm {
-    /// Runs the shortcut of `code` with `args`.
+    /// Runs the shortcut of `code` with `args`, in a frame without slots unless it is a constant.
     pub fn shortcut(&mut self, code: &Code, shortcut: &Shortcut, args: &[u64]) -> Flow {
+        let pc = match shortcut {
+            Shortcut::Const(v) => return Ok(*v),
+            Shortcut::Field { .. } => 0,
+            Shortcut::Forward { pc, .. } => *pc as usize,
+        };
+        let mark = self.frames.mark();
+        if self.frames.push_frame(code.defn.name.0 as u64, 0).is_none() {
+            return self.stack_overflow();
+        }
+        self.frames.set_pc(pc);
+        let result = self.run_shortcut(code, shortcut, args);
+        self.frames.reset(mark);
+        result
+    }
+
+    fn run_shortcut(&mut self, code: &Code, shortcut: &Shortcut, args: &[u64]) -> Flow {
         match shortcut {
             Shortcut::Const(v) => Ok(*v),
             Shortcut::Field { ty, name, site } => {
@@ -100,7 +118,7 @@ impl Vm {
                 }
                 Ok(self.load_ty(obj + cell.get() as usize - 1, *ty))
             }
-            Shortcut::Forward { callee, args: sources, module } => {
+            Shortcut::Forward { callee, args: sources, module, .. } => {
                 let module = match module {
                     Some((name, site)) => {
                         let cell = &code.sites[*site as usize];

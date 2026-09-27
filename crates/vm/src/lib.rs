@@ -46,6 +46,7 @@ pub struct Vm {
     /// thread.
     thread: usize,
     callbacks: natives::Callbacks,
+    stack_walk: natives::StackWalk,
     linktime: linktime::Linktime,
     junit: Option<Vec<String>>,
     variadics: FxHashMap<GlobalId, (usize, usize)>,
@@ -72,6 +73,7 @@ impl Vm {
             strings: FxHashMap::default(),
             thread,
             callbacks: natives::Callbacks::default(),
+            stack_walk: natives::StackWalk::default(),
             linktime: linktime::Linktime::default(),
             junit: None,
             variadics: FxHashMap::default(),
@@ -86,8 +88,10 @@ impl Vm {
         booted.map(|()| vm)
     }
 
-    /// Runs `main(args)` of the top-level object or class `entry`. Interpreted calls throw
-    /// `StackOverflowError` within `STACK_RESERVE` of the end of the thread's stack.
+    /// Runs `main(args)` of the top-level object or class `entry` as a Scala Native executable
+    /// does: runtime initialization, `main`, then the runtime's shutdown, which runs queued
+    /// tasks. Interpreted calls throw `StackOverflowError` within `STACK_RESERVE` of the end of
+    /// the thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
         let here = &raw const self as usize;
         let floor = match stack::bounds() {
@@ -97,16 +101,27 @@ impl Vm {
         self.funcs.set_stack_floor(floor);
         let vm: *mut Vm = self;
         let _running = self.callbacks.enter(vm);
-        let arr = self.string_array(args)?;
-        let top = self.world.top(entry);
-        let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");
-        match self.call_global(main, &[arr as u64]) {
-            Ok(_) => Ok(()),
+        let argv = self.c_argv(entry, args);
+        match self.run_program(entry, args.len() + 1, argv) {
+            Ok(()) => Ok(()),
             Err(u) => match u.into_inner() {
                 interp::Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
                 interp::Unwound::Fatal(e) => Err(e),
             },
         }
+    }
+
+    fn run_program(&mut self, entry: &str, argc: usize, argv: usize) -> interp::Flow<()> {
+        let runtime = self.world.top("scala.scalanative.runtime.package$");
+        let module = self.module(runtime)? as u64;
+        let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
+        let args = self.call_global(init, &[module, argc as u64, argv as u64])?;
+        let top = self.world.top(entry);
+        let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");
+        self.call_global(main, &[args])?;
+        let shutdown = self.world.member(runtime, "D10onShutdownuEO");
+        self.call_global(shutdown, &[module])?;
+        Ok(())
     }
 
     /// Exits the process with `code`, keeping the VM available to exit handlers C registered.
