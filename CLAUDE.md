@@ -47,8 +47,10 @@ Rationale goes in `docs/adr/`, one decision per file.
 ## Tooling
 
 Create and change files with the Write/Edit tools, never with shell
-redirection, heredocs or `sed -i`; those are pre-approved, the shell forms
-are not. Scratch files, dumps and experiments go to the gitignored `tmp/`
+redirection, heredocs or `sed -i`; read them with the Read tool, never with
+`cat`, `head`, `tail` or `sed -n`. Those tools are pre-approved, the shell
+forms are not. The shell already starts in the repository root: run
+commands directly, without a `cd` prefix. Scratch files, dumps and experiments go to the gitignored `tmp/`
 in this repo, reference checkouts to `ref/`; never `/tmp` or other
 directories outside the repo.
 
