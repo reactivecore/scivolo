@@ -57,6 +57,47 @@ impl Classpath {
         tops
     }
 
+    /// The resource files of the directories and jars, as `/`-rooted paths and contents; the
+    /// first of equal paths wins. Left out, as Scala Native's resource embedding leaves them
+    /// out: `META-INF/`, `scala-native/`, license and build files, classes, NIR, TASTy, sources.
+    pub fn resources(&mut self) -> Vec<(String, Vec<u8>)> {
+        let errno = crate::natives::errno();
+        let mut seen = std::collections::HashSet::new();
+        let mut out = Vec::new();
+        for root in &mut self.roots {
+            let mut names = Vec::new();
+            match root {
+                Root::Dir(dir) => walk(dir, dir, &mut names),
+                Root::Jar(zip) => {
+                    names.extend(zip.file_names().filter(|n| !n.ends_with('/')).map(str::to_owned))
+                }
+                Root::Image(_) => continue,
+            }
+            for name in names.into_iter().filter(|n| is_resource(n)) {
+                if seen.insert(name.clone())
+                    && let Some(data) = read(root, &name)
+                {
+                    out.push((format!("/{name}"), data));
+                }
+            }
+        }
+        crate::natives::set_errno(errno);
+        out
+    }
+
+    /// The contents of file `rel` in each directory and jar that has one, in classpath order.
+    pub fn all(&mut self, rel: &str) -> Vec<Vec<u8>> {
+        let errno = crate::natives::errno();
+        let found = self
+            .roots
+            .iter_mut()
+            .filter(|r| !matches!(r, Root::Image(_)))
+            .filter_map(|r| read(r, rel))
+            .collect();
+        crate::natives::set_errno(errno);
+        found
+    }
+
     /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`; C's
     /// `errno` is left as it was.
     pub fn find(&mut self, top: &str) -> Option<Vec<u8>> {
@@ -78,6 +119,16 @@ fn walk(base: &Path, dir: &Path, out: &mut Vec<String>) {
             out.push(rel.to_string_lossy().replace('\\', "/"));
         }
     }
+}
+
+fn is_resource(rel: &str) -> bool {
+    const META: [&str; 6] =
+        ["LICENSE", "NOTICE", "CONTRIBUTING", "library.properties", "BUILD", "rootdoc.txt"];
+    const SOURCES: [&str; 6] = [".class", ".tasty", ".nir", ".jar", ".scala", ".java"];
+    !(rel.starts_with("META-INF/")
+        || rel.starts_with("scala-native/")
+        || META.contains(&rel)
+        || SOURCES.iter().any(|ext| rel.ends_with(ext)))
 }
 
 fn read(root: &mut Root, rel: &str) -> Option<Vec<u8>> {

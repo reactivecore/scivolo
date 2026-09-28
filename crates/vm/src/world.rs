@@ -66,6 +66,16 @@ impl World {
         self.classpath.tops_ending(suffix)
     }
 
+    /// The classpath's resource files, see `Classpath::resources`.
+    pub fn resources(&mut self) -> Vec<(String, Vec<u8>)> {
+        self.classpath.resources()
+    }
+
+    /// The contents of file `rel` in each classpath directory and jar that has one.
+    pub fn classpath_files(&mut self, rel: &str) -> Vec<Vec<u8>> {
+        self.classpath.all(rel)
+    }
+
     pub fn owner(&self, g: GlobalId) -> GlobalId {
         match self.pool.global(g) {
             Global::Member(owner, _) => *owner,

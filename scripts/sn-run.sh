@@ -15,6 +15,7 @@ export SCALA_NATIVE_ENV_WITH_EQUALS='1+1=2' SCALA_NATIVE_ENV_WITHOUT_VALUE=
 export SCALA_NATIVE_ENV_WITH_UNICODE=$(printf '\342\206\222')
 export SCALA_NATIVE_USER_DIR=$(pwd -P)
 exec "$root/target/release/scalai" --cp "$root/tmp/sn-tests/nir" \
+  --cp unit-tests/shared/src/test/resources --cp unit-tests/native/src/test/resources \
   --cp "$root/ref/libs/junit-runtime_native0.5_3-0.5.12.jar" \
   --cp "$root/ref/libs/test-interface-sbt-defs_native0.5_3-0.5.12.jar" \
   runner "$@"
