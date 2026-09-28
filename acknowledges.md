@@ -15,7 +15,8 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 - **Scala Native NIR and its lowering** (`nir/`, `tools/.../codegen/Lower.scala`,
   `RuntimeTypeInformation.scala`, `Generate.scala`): the execution IR, the object and array
   layout, RTTI, name mangling, module initialization, and the linker symbols the runtime expects.
-  See [ADR 0001](docs/adr/0001-nir-shaped-execution-ir.md).
+  See [ADR 0001](docs/adr/0001-nir-shaped-execution-ir.md). Its `ResourceEmbedder` gives the
+  files left out of classpath resources ([ADR 0007](docs/adr/0007-classpath-resources-and-services.md)).
 - **Immix**, S. M. Blackburn and K. S. McKinley, "Immix: A Mark-Region Garbage Collector with
   Space Efficiency, Fast Collection, and Mutator Performance", PLDI 2008; used through Scala
   Native's implementation ([ADR 0004](docs/adr/0004-immix-garbage-collector.md)).

@@ -12,12 +12,14 @@ has no build configuration.
 - **Resources:** the `scalanative_resource_*` externs serve the files of the classpath's
   directories and jars (not the library image), with Scala Native's built-in exclusions
   (`META-INF/`, `scala-native/`, license and build files, classes, NIR, TASTy, sources); the
-  first of equal paths wins. They are read on first use into permanent memory. Scala Native's
-  `Class.getResourceAsStream` runs unchanged on top.
+  first of equal paths wins. The list is made on first use, each content read on first use into
+  memory the VM owns, outside the collected heap. Scala Native's `Class.getResourceAsStream`
+  runs unchanged on top.
 - **Service providers:** `ServiceLoader.load(service)` lists every class that the classpath's
-  `META-INF/services/<service>` files name, as the JVM does; each provider instantiates its
-  class with the constructor without parameters on `get`, through a callback address for
-  Scala Native's `createIntrinsicProvider`.
+  `META-INF/services/<service>` files name, as the JVM does. Each provider's `get` makes an
+  instance with the constructor without parameters (a VM function passed to Scala Native's
+  `createIntrinsicProvider`), or throws `ServiceConfigurationError` when the class is missing,
+  abstract, not a subclass of the service or without such a constructor.
 - **`Class.forName(name)`:** links and initializes the class, module or trait `name` on the
   classpath; otherwise `ClassNotFoundException`.
 

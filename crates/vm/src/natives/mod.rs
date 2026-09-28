@@ -30,8 +30,9 @@ pub enum Native {
     Rust(NativeFn),
     C(ffi::Foreign),
     Property(String),
-    /// A new instance of the class, made with its constructor without parameters.
-    New(GlobalId),
+    /// A new instance of the class, made with its constructor without parameters, as a provider
+    /// of the service class.
+    New(GlobalId, crate::class::ClassId),
 }
 
 impl Native {
@@ -41,7 +42,7 @@ impl Native {
             Native::C(f) if f.blocking => vm.call_blocking(f, args),
             Native::C(f) => ffi::call(f, args),
             Native::Property(name) => vm.property_value(name),
-            Native::New(class) => vm.instantiate(*class),
+            Native::New(class, service) => services::instantiate(vm, *class, *service),
         }
     }
 }

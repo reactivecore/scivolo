@@ -3,11 +3,11 @@
 //! instantiated on first use.
 
 use super::{Native, NativeFn};
-use crate::interp::code::Num;
-use crate::interp::{Flow, Func};
+use crate::class::ClassId;
+use crate::interp::{Flow, Func, func_ref};
 use crate::layout::ARRAY_HEADER;
-use crate::{Vm, VmError, heap};
-use nir::{DefnKind, GlobalId};
+use crate::{Vm, heap};
+use nir::{Attr, DefnKind, GlobalId};
 use std::rc::Rc;
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
@@ -29,14 +29,13 @@ fn loader(vm: &mut Vm, service: u64) -> Flow {
     if service == 0 {
         return vm.null_pointer();
     }
-    let name = vm.class_name(vm.class_of_rtti(service as usize)).to_owned();
-    let mut providers = Vec::new();
-    for class in provider_names(vm, &name) {
-        providers.push(provider(vm, &class)?);
-    }
+    let service_class = vm.class_of_rtti(service as usize);
+    let service_name = String::from(vm.class_name(service_class));
+    let names = provider_names(vm, &service_name);
     let array = vm.link_top("scala.scalanative.runtime.ObjectArray")?;
-    let array = vm.alloc_array(array, providers.len());
-    for (i, &p) in providers.iter().enumerate() {
+    let array = vm.alloc_array(array, names.len());
+    for (i, name) in names.iter().enumerate() {
+        let p = provider(vm, name, service_class)?;
         heap::write(array + ARRAY_HEADER as usize + i * 8, p);
     }
     let cls = vm.link_top("java.util.ServiceLoader")?;
@@ -62,36 +61,61 @@ fn provider_names(vm: &mut Vm, service: &str) -> Vec<String> {
     names
 }
 
-/// A `ServiceLoader.Provider` of `class`, whose `get` makes a new instance.
-fn provider(vm: &mut Vm, class: &str) -> Flow {
-    let g = vm.world.top(class);
-    if !matches!(vm.world.defn(g).map(|d| matches!(d.kind, DefnKind::Class { .. })), Ok(true)) {
-        let message = format!("provider {class} not found");
-        return vm.throw_new_with("java.util.ServiceConfigurationError", &message);
-    }
-    let cls = vm.link(g)?;
-    let f = vm.funcs.all.len() as u32;
-    vm.funcs.all.push(Func::Native { name: g, native: Rc::new(Native::New(g)) });
-    let load = vm
-        .callbacks
-        .address(f, &[], Num::I64)
-        .ok_or_else(|| VmError::Unsupported("no free callback for a service provider".into()))?;
+/// A `ServiceLoader.Provider` of `service` implemented by class `name`, whose `get` makes a new
+/// instance, or throws `ServiceConfigurationError` if `name` is not a concrete subclass of
+/// `service` with a constructor without parameters.
+fn provider(vm: &mut Vm, name: &str, service: ClassId) -> Flow {
+    let class = vm.world.top(name);
+    let cls = match constructible(vm, class) {
+        true => vm.link(class)?,
+        false => service,
+    };
     let module = vm.world.top("java.util.ServiceLoader$");
     let create = vm.world.member(
         module,
         "D23createIntrinsicProviderL15java.lang.ClassR_L32java.util.ServiceLoader$ProviderEO",
     );
+    let make = instantiator(vm, class, service);
     let module = vm.module(module)? as u64;
-    vm.call_global(create, &[module, vm.class(cls).rtti as u64, load as u64])
+    vm.call_global(create, &[module, vm.class(cls).rtti as u64, func_ref(make)])
 }
 
-impl Vm {
-    /// A new instance of `class`, made with its constructor without parameters.
-    pub fn instantiate(&mut self, class: GlobalId) -> Flow {
-        let cls = self.link(class)?;
-        let obj = self.alloc_object(cls) as u64;
-        let init = self.world.member(class, "RE");
-        self.call_global(init, &[obj])?;
-        Ok(obj)
+/// Whether `class` is a concrete class with a constructor without parameters.
+fn constructible(vm: &mut Vm, class: GlobalId) -> bool {
+    let init = vm.world.member(class, "RE");
+    vm.world.defn(class).is_ok_and(|d| {
+        matches!(d.kind, DefnKind::Class { .. }) && !d.attrs.iter().any(|a| matches!(a, Attr::Abstract))
+    }) && vm.world.defn(init).is_ok()
+}
+
+/// The function that makes a new instance of `class` for `service`, created on first use.
+fn instantiator(vm: &mut Vm, class: GlobalId, service: ClassId) -> u32 {
+    if let Some(&f) = vm.funcs.instantiators.get(&(class, service)) {
+        return f;
     }
+    let f = vm.funcs.all.len() as u32;
+    vm.funcs.all.push(Func::Native { name: class, native: Rc::new(Native::New(class, service)) });
+    vm.funcs.instantiators.insert((class, service), f);
+    f
+}
+
+/// A new instance of `class` made with its constructor without parameters, as a provider of
+/// `service`.
+pub fn instantiate(vm: &mut Vm, class: GlobalId, service: ClassId) -> Flow {
+    let cls = match constructible(vm, class) {
+        true => Some(vm.link(class)?),
+        false => None,
+    };
+    let Some(cls) = cls.filter(|&c| vm.is_subclass(c, service)) else {
+        let message = format!(
+            "{}: provider {} not found or not a concrete subclass with a constructor without parameters",
+            vm.class_name(service),
+            vm.world.pool.top_name(class)
+        );
+        return vm.throw_new_with("java.util.ServiceConfigurationError", &message);
+    };
+    let obj = vm.alloc_object(cls) as u64;
+    let init = vm.world.member(class, "RE");
+    vm.call_global(init, &[obj])?;
+    Ok(obj)
 }

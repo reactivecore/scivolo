@@ -66,9 +66,14 @@ impl World {
         self.classpath.tops_ending(suffix)
     }
 
-    /// The classpath's resource files, see `Classpath::resources`.
-    pub fn resources(&mut self) -> Vec<(String, Vec<u8>)> {
+    /// The classpath's resource files as root index and path, see `Classpath::resources`.
+    pub fn resources(&mut self) -> Vec<(usize, String)> {
         self.classpath.resources()
+    }
+
+    /// The contents of resource `rel` in classpath root `root`.
+    pub fn resource(&mut self, root: usize, rel: &str) -> Option<Vec<u8>> {
+        self.classpath.read_at(root, rel)
     }
 
     /// The contents of file `rel` in each classpath directory and jar that has one.

@@ -39,15 +39,15 @@ impl Classpath {
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         let file_suffix = format!("{suffix}.nir");
         let mut files = Vec::new();
-        let errno = crate::natives::errno();
-        for root in &mut self.roots {
-            match root {
-                Root::Dir(dir) => walk(dir, dir, &mut files),
-                Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
-                Root::Image(image) => files.extend(image.names().map(str::to_owned)),
+        keep_errno(|| {
+            for root in &mut self.roots {
+                match root {
+                    Root::Dir(dir) => walk(dir, dir, &mut files),
+                    Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
+                    Root::Image(image) => files.extend(image.names().map(str::to_owned)),
+                }
             }
-        }
-        crate::natives::set_errno(errno);
+        });
         let mut tops: Vec<String> = files
             .iter()
             .filter_map(|f| f.strip_suffix(".nir").filter(|_| f.ends_with(&file_suffix)))
@@ -57,63 +57,68 @@ impl Classpath {
         tops
     }
 
-    /// The resource files of the directories and jars, as `/`-rooted paths and contents; the
-    /// first of equal paths wins. Left out, as Scala Native's resource embedding leaves them
-    /// out: `META-INF/`, `scala-native/`, license and build files, classes, NIR, TASTy, sources.
-    pub fn resources(&mut self) -> Vec<(String, Vec<u8>)> {
-        let errno = crate::natives::errno();
+    /// The resource files of the directories and jars, as root index and path; the first of
+    /// equal paths wins. Left out, as Scala Native's resource embedding leaves them out:
+    /// `META-INF/`, `scala-native/`, license and build files, classes, NIR, TASTy, sources.
+    pub fn resources(&mut self) -> Vec<(usize, String)> {
         let mut seen = std::collections::HashSet::new();
         let mut out = Vec::new();
-        for root in &mut self.roots {
-            let mut names = Vec::new();
-            match root {
-                Root::Dir(dir) => walk(dir, dir, &mut names),
-                Root::Jar(zip) => {
-                    names.extend(zip.file_names().filter(|n| !n.ends_with('/')).map(str::to_owned))
+        keep_errno(|| {
+            for (i, root) in self.roots.iter_mut().enumerate() {
+                let mut names = Vec::new();
+                match root {
+                    Root::Dir(dir) => walk(dir, dir, &mut names),
+                    Root::Jar(zip) => {
+                        names.extend(zip.file_names().filter(|n| !n.ends_with('/')).map(str::to_owned))
+                    }
+                    Root::Image(_) => continue,
                 }
-                Root::Image(_) => continue,
+                out.extend(
+                    names.into_iter().filter(|n| is_resource(n) && seen.insert(n.clone())).map(|n| (i, n)),
+                );
             }
-            for name in names.into_iter().filter(|n| is_resource(n)) {
-                if seen.insert(name.clone())
-                    && let Some(data) = read(root, &name)
-                {
-                    out.push((format!("/{name}"), data));
-                }
-            }
-        }
-        crate::natives::set_errno(errno);
+        });
         out
+    }
+
+    /// The contents of file `rel` in root `root`, one of `resources`.
+    pub fn read_at(&mut self, root: usize, rel: &str) -> Option<Vec<u8>> {
+        keep_errno(|| read(self.roots.get_mut(root)?, rel))
     }
 
     /// The contents of file `rel` in each directory and jar that has one, in classpath order.
     pub fn all(&mut self, rel: &str) -> Vec<Vec<u8>> {
-        let errno = crate::natives::errno();
-        let found = self
-            .roots
-            .iter_mut()
-            .filter(|r| !matches!(r, Root::Image(_)))
-            .filter_map(|r| read(r, rel))
-            .collect();
-        crate::natives::set_errno(errno);
-        found
+        keep_errno(|| {
+            self.roots
+                .iter_mut()
+                .filter(|r| !matches!(r, Root::Image(_)))
+                .filter_map(|r| read(r, rel))
+                .collect()
+        })
     }
 
-    /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`; C's
-    /// `errno` is left as it was.
+    /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`.
     pub fn find(&mut self, top: &str) -> Option<Vec<u8>> {
         let rel = format!("{}.nir", top.replace('.', "/"));
-        let errno = crate::natives::errno();
-        let found = self.roots.iter_mut().find_map(|root| read(root, &rel));
-        crate::natives::set_errno(errno);
-        found
+        keep_errno(|| self.roots.iter_mut().find_map(|root| read(root, &rel)))
     }
 }
 
-/// The paths of the files under `dir`, relative to `base` and `/`-separated.
+/// `f`, leaving C's `errno` as it was.
+fn keep_errno<T>(f: impl FnOnce() -> T) -> T {
+    let errno = crate::natives::errno();
+    let out = f();
+    crate::natives::set_errno(errno);
+    out
+}
+
+/// The paths of the files under `dir`, relative to `base` and `/`-separated, not following
+/// symbolic links.
 fn walk(base: &Path, dir: &Path, out: &mut Vec<String>) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
-    for path in entries.flatten().map(|e| e.path()) {
-        if path.is_dir() {
+    for entry in entries.flatten() {
+        let (path, is_dir) = (entry.path(), entry.file_type().is_ok_and(|t| t.is_dir()));
+        if is_dir {
             walk(base, &path, out);
         } else if let Ok(rel) = path.strip_prefix(base) {
             out.push(rel.to_string_lossy().replace('\\', "/"));

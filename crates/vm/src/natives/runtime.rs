@@ -64,6 +64,10 @@ fn class_for_name(vm: &mut Vm, args: &[u64]) -> Flow {
         return vm.null_pointer();
     }
     let name = vm.read_string(args[1] as usize)?;
+    let well_formed = !name.contains(['/', '[']) && name.split('.').all(|part| !part.is_empty());
+    if !well_formed {
+        return vm.throw_new_with("java.lang.ClassNotFoundException", &name);
+    }
     let g = vm.world.top(&name);
     let is_class = vm.world.defn(g).is_ok_and(|d| {
         matches!(
