@@ -103,6 +103,13 @@ impl<'a> Reader<'a> {
     pub fn string(&mut self) -> Result<StrId> {
         self.interned(Section::Strings, |r| {
             let n = r.c.len_prefixed()?;
+            let data = r.c.data;
+            if let Some(ascii) = data.get(r.c.pos..r.c.pos + n).filter(|b| b.is_ascii())
+                && let Ok(s) = std::str::from_utf8(ascii)
+            {
+                r.c.pos += n;
+                return Ok(r.pool.strings.intern_str(s));
+            }
             let mut units = Vec::with_capacity(n);
             for _ in 0..n {
                 units.push(r.c.uleb32()? as u16);
