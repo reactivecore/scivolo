@@ -4,12 +4,15 @@
 Usage: scripts/programs.py update NAME     write tests/programs/NAME's NIR and .check
        scripts/programs.py stale [NAME...]  list programs whose NIR or .check differs from a rebuild
 
-NIR files whose bytes differ are compared by their decoded definitions, in any order. A program
+NIR files whose bytes differ are compared by their decoded definitions, as Scala Native orders
+forwarders and local variables differently on other machines: definitions and their lines in
+any order, value numbers erased. A program
 with a `.check-by-hand` marker keeps its hand-written `.check`.
 """
 import concurrent.futures
 import filecmp
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -68,9 +71,10 @@ def nir(directory):
 
 
 def definitions(path):
-    """The decoded definitions of a NIR file, in any order."""
+    """The decoded definitions of a NIR file, each as its sorted lines without value numbers."""
     out = subprocess.run([str(NIR_DUMP), "--dump", str(path)], capture_output=True, text=True, check=True).stdout
-    return sorted(d.strip() for d in "\n".join(out.splitlines()[3:]).split("\n\n") if d.strip())
+    blocks = "\n".join(out.splitlines()[3:]).split("\n\n")
+    return sorted(sorted(re.sub(r"%\d+", "%", l) for l in d.strip().splitlines()) for d in blocks if d.strip())
 
 
 def update(name):
