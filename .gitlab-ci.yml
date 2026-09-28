@@ -118,15 +118,17 @@ suite:linux:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
-# The runner provides scala-cli and a JDK, as for test:macos.
+# The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
 suite:macos:
   extends: .suite
   tags: [ "macos" ]
   needs: []
   cache:
     - key: scalai-suite-macos
-      paths: [ref/libs]
+      paths: [ref/libs, tmp/tools]
   script:
+    - scripts/fetch-scala-cli.sh
+    - export PATH="$CI_PROJECT_DIR/tmp/tools:$PATH"
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
