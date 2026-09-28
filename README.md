@@ -108,7 +108,8 @@ Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, al
 `#!/usr/bin/env scalai` shebang. The first run compiles the file through scala-cli
 (`SCALAI_SCALA_CLI` names another binary) and caches its NIR in `SCALAI_CACHE`/`scripts`, keyed
 by the file's path and content; later runs start no JVM. Files it pulls in with
-`//> using file` and changed dependencies do not invalidate the cache.
+`//> using file` and changed dependencies do not invalidate the cache. Compiled scripts and
+library images unused for 30 days are removed when the next one is built.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`

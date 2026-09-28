@@ -1,5 +1,6 @@
 //! An interpreter for Scala Native NIR.
 
+pub mod cache;
 mod class;
 mod classpath;
 mod error;
