@@ -127,33 +127,8 @@ pub fn aliases(body: &Body) -> FxHashMap<u64, ValId> {
 /// How many branches, jumps and handlers enter each block.
 pub fn entries(body: &Body) -> FxHashMap<u64, usize> {
     let mut entries: FxHashMap<u64, usize> = FxHashMap::default();
-    let mut count = |n: &Next| {
-        let mut n = n;
-        loop {
-            match n {
-                Next::Label(l, _) => {
-                    *entries.entry(l.0).or_default() += 1;
-                    return;
-                }
-                Next::Unwind(_, to) | Next::Case(_, to) => n = to,
-                Next::None => return,
-            }
-        }
-    };
     for inst in &body.insts {
-        match inst {
-            Inst::Let { unwind, .. } | Inst::Throw(_, unwind) | Inst::Unreachable(unwind) => count(unwind),
-            Inst::Jump(n) => count(n),
-            Inst::If(_, t, e) | Inst::LinktimeIf(_, t, e) => {
-                count(t);
-                count(e);
-            }
-            Inst::Switch(_, d, cases) => {
-                count(d);
-                cases.iter().for_each(&mut count);
-            }
-            Inst::Label(..) | Inst::Ret(_) => {}
-        }
+        inst.for_each_successor(&mut |l| *entries.entry(l.0).or_default() += 1);
     }
     entries
 }

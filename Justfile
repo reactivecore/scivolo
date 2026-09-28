@@ -84,7 +84,7 @@ m5-fetch:
     test -d ref/scala2 || (git clone -q --depth 1 --branch v2.13.18 --filter=blob:none --sparse https://github.com/scala/scala ref/scala2 && git -C ref/scala2 sparse-checkout set test/junit src/testkit)
 
 # Compile scala/scala's JUnit tests, minus Scala Native's denylist, to NIR under tmp/m5.
-m5-build: m5-fetch
+m5-build: m5-fetch fetch-scala-native
     python3 scripts/m5-tests.py build
 
 # Run the M5 test classes (those whose names contain `filter`) in the VM; report under tmp/m5.

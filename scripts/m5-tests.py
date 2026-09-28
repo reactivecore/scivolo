@@ -31,8 +31,8 @@ BOOTSTRAPPER = "$scalanative$junit$bootstrapper.nir"
 
 def sources():
     """Test files relative to test/junit, except those Scala Native denylists."""
-    if not JUNIT.is_dir():
-        sys.exit(f"{JUNIT} missing: run `just m5-fetch`")
+    if not JUNIT.is_dir() or not DENYLIST.is_file():
+        sys.exit(f"{JUNIT} or {DENYLIST} missing: run `just m5-fetch` and `just fetch-scala-native`")
     deny = {l.strip() for l in DENYLIST.read_text().splitlines() if l.strip() and not l.startswith("#")}
     return sorted(str(p.relative_to(JUNIT)) for p in JUNIT.rglob("*.scala") if str(p.relative_to(JUNIT)) not in deny)
 
@@ -61,56 +61,67 @@ def compile_all(files):
 def build(_filter):
     """Compiles all test files together, dropping those with errors until the rest compiles."""
     files, failed = sources(), {}
+    for d in ("results", "logs"):
+        shutil.rmtree(WORK / d, ignore_errors=True)
     while (output := compile_all([f for f in files if f not in failed])) is not None:
         lines = output.splitlines()
         errors = {m.group(1): lines[i + 1][8:] if i + 1 < len(lines) else ""
                   for i, l in enumerate(lines) if (m := ERROR_AT.match(l))}
-        if not errors or any(Path(e).name in {h.name for h in HELPERS} for e in errors):
+        new = {e: m for e, m in errors.items() if e in files and e not in failed}
+        if not new:
             (WORK / "compile.log").write_text(output)
             sys.exit(f"compilation failed outside the test files; see {WORK / 'compile.log'}")
-        failed.update({e: m for e, m in errors.items() if e not in failed})
-        print(f"dropping {len(errors)} files with errors", flush=True)
+        failed.update(new)
+        print(f"dropping {len(new)} files with errors", flush=True)
     rows = [(f, "compile failed", failed[f]) if f in failed else (f, "compiled", "") for f in files]
     (WORK / "compile.tsv").write_text("".join(f"{f}\t{o}\t{d}\n" for f, o, d in rows))
     print(f"{len(files)} files: {dict(collections.Counter(o for _, o, _ in rows))}")
 
 
+def text(out):
+    return out.decode(errors="replace") if isinstance(out, bytes) else out or ""
+
+
 def run_class(cls):
-    """PASS/FAIL/SKIP lines of test class `cls`, or one line for a crash or timeout."""
+    """PASS/FAIL/SKIP lines of test class `cls`, then `ENDED cls: reason` if its run ended early."""
     cmd = [str(SCALAI), "--cp", str(WORK / "nir"), "--cp", str(LIBS / f"junit-runtime_native0.5_3-{NATIVE}.jar"),
            "--cp", str(LIBS / f"test-interface-sbt-defs_native0.5_3-{NATIVE}.jar"), "runner", cls]
     env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env, timeout=TIMEOUT + 10)
-    except subprocess.TimeoutExpired:
-        return [f"FAIL {cls}: timeout"]
-    (WORK / "logs" / (cls + ".log")).write_text(r.stdout + "\n--- stderr ---\n" + r.stderr)
-    lines = [l for l in r.stdout.splitlines() if re.match(rf"(PASS|FAIL|SKIP) {re.escape(cls)}[.: ]", l)]
-    if not re.search(r"^passed \d+, failed \d+, skipped \d+$", r.stdout, re.M):
-        err = next((l for l in r.stderr.splitlines() if l.strip()), f"exit {r.returncode}")
-        lines.append(f"FAIL {cls}: run ended: {err[:160]}")
+        out, err, code = r.stdout, r.stderr, r.returncode
+    except subprocess.TimeoutExpired as e:
+        out, err, code = text(e.stdout), text(e.stderr) + "\nscalai: timed out", None
+    (WORK / "logs" / (cls + ".log")).write_text(out + "\n--- stderr ---\n" + err)
+    lines = [l for l in out.splitlines() if re.match(rf"(PASS|FAIL|SKIP) {re.escape(cls)}[.: ]", l)]
+    if code != 0 or not re.search(r"^passed \d+, failed \d+, skipped \d+$", out, re.M):
+        reason = "timeout" if "scalai: timed out" in err else next((l for l in err.splitlines() if l.strip()), f"exit {code}")
+        lines.append(f"ENDED {cls}: {reason[:160]}")
     return lines
 
 
 def report(filter_):
-    (WORK / "logs").mkdir(exist_ok=True)
-    classes = sorted(str(p.relative_to(WORK / "nir"))[: -len(BOOTSTRAPPER)].replace("/", ".")
-                     for p in (WORK / "nir").rglob("*" + BOOTSTRAPPER) if filter_ in p.name)
-    (WORK / "results").mkdir(exist_ok=True)
+    if not (WORK / "compile.tsv").exists():
+        sys.exit("nothing built: run `just m5-build`")
+    for d in ("results", "logs"):
+        (WORK / d).mkdir(exist_ok=True)
+    built = sorted(str(p.relative_to(WORK / "nir"))[: -len(BOOTSTRAPPER)].replace("/", ".")
+                   for p in (WORK / "nir").rglob("*" + BOOTSTRAPPER))
+    selected = [c for c in built if filter_ in c]
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        for cls, ls in zip(classes, pool.map(run_class, classes)):
+        for cls, ls in zip(selected, pool.map(run_class, selected)):
             (WORK / "results" / (cls + ".txt")).write_text("".join(l + "\n" for l in ls))
-    lines = [l for p in sorted((WORK / "results").iterdir()) for l in p.read_text().splitlines()]
+    runs = [WORK / "results" / (c + ".txt") for c in built]
+    lines = [l for p in runs if p.exists() for l in p.read_text().splitlines()]
     (WORK / "results.txt").write_text("".join(l + "\n" for l in lines))
-    classes = sorted(p.stem for p in (WORK / "results").iterdir())
-    counts = collections.Counter(l[:4] for l in lines)
-    compile_rows = [l.split("\t") for l in (WORK / "compile.tsv").read_text().splitlines()]
-    not_compiled = sum(1 for r in compile_rows if r[1] == "compile failed")
+    counts = collections.Counter(l.split(" ", 1)[0] for l in lines)
+    not_compiled = sum(1 for l in (WORK / "compile.tsv").read_text().splitlines() if "\tcompile failed\t" in l)
     table = ("| Outcome | Count |\n|---|---:|\n"
              f"| passed | {counts['PASS']} |\n| failed | {counts['FAIL']} |\n| skipped | {counts['SKIP']} |\n"
-             f"| test classes | {len(classes)} |\n| files not compiling | {not_compiled} |\n")
+             f"| classes ending early | {counts['ENDED']} |\n| classes run | {sum(p.exists() for p in runs)} "
+             f"of {len(built)} |\n| files not compiling | {not_compiled} |\n")
     (WORK / "report.md").write_text(table)
-    print(table)
+    print(table + (f"\nThis run: {len(selected)} classes matching `{filter_}`." if filter_ else ""))
 
 
 if __name__ == "__main__":

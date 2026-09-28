@@ -18,8 +18,9 @@ to lower and pushed hello past 20 ms.
   - direct calls of callees with at most 48 instructions, without `Stackalloc`, `Var` or
     `Dynmethod`, are inlined for up to twelve rounds while the caller stays under 2,000
     instructions; a method may be inlined into itself once (`interp/inline.rs`); a
-    callee's link-time conditions are decided first and its unreached blocks dropped
-    (`interp/fold.rs`);
+    callee's link-time conditions on properties the VM knows are decided first and its
+    unreached blocks dropped (`interp/fold.rs`); one read through an accessor method keeps
+    the callee out, so no Scala code runs while a method tiers up;
   - an inlined callee's virtual calls are split the same way, by the targets its own call
     sites resolved to; devirtualization runs first, so only calls still virtual get a guard.
 - The replaced code is kept as `retired`, since running frames still execute it; frame

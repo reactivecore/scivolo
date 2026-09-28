@@ -94,16 +94,12 @@ impl Vm {
         if self.native(g).is_some() {
             return None;
         }
-        let mut defn = self.world.defn(g).ok()?;
-        let DefnKind::Define { ty, body } = &defn.kind else { return None };
+        let defn = self.world.defn(g).ok()?;
         if defn.attrs.iter().any(|a| matches!(a, Attr::NoInline | Attr::Extern { .. })) {
             return None;
         }
-        if body.insts.iter().any(|i| matches!(i, Inst::LinktimeIf(..))) {
-            let body = self.fold_linktime(g, body)?;
-            defn = Rc::new(Defn { kind: DefnKind::Define { ty: *ty, body }, ..(*defn).clone() });
-        }
-        let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("a define") };
+        let defn = self.fold_linktime(defn)?;
+        let DefnKind::Define { body, .. } = &defn.kind else { return None };
         (body.insts.len() <= MAX_CALLEE && body.insts.iter().all(inlinable)).then_some(defn)
     }
 }
