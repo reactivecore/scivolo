@@ -13,6 +13,11 @@ impl Lowerer<'_> {
         *self.slots.entry(local).or_insert(next)
     }
 
+    /// The slot `local`'s value goes to: its own, or the var's it is written to directly.
+    pub fn dst(&mut self, local: u64) -> u32 {
+        self.slot(self.writes.get(&local).copied().unwrap_or(local))
+    }
+
     pub fn site(&mut self) -> u32 {
         self.sites += 1;
         self.sites - 1
@@ -97,7 +102,7 @@ impl Lowerer<'_> {
                 Instr::Nop
             }
             Inst::Let { id, op, unwind, .. } => {
-                let dst = self.slot(self.writes.get(&id.0).copied().unwrap_or(id.0));
+                let dst = self.dst(id.0);
                 self.op(id.0, dst, op, unwind)
             }
             Inst::Ret(v) => Instr::Ret(self.arg(*v)),

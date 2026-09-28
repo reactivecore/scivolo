@@ -55,28 +55,37 @@ pub fn direct_var_reads(
     direct
 }
 
-/// Values stored into a slot var by the instruction right after theirs and used nowhere else,
-/// with the var's local; the value's instruction writes the var's slot. Values whose instruction
-/// lowers to nothing (copies, var operations, `known` constants) are left out.
+/// Values stored into a slot var by the instruction right after their definition and used
+/// nowhere else, with the var's local: the value's instruction, or the moves into the block
+/// parameter, write the var's slot. Values without a slot of their own (copies, var operations,
+/// `known` constants, `aliases`) are left out.
 pub fn direct_var_writes(
     body: &Body,
     pool: &Pool,
     uses: &FxHashMap<u64, usize>,
     vars: &FxHashSet<u64>,
     known: &FxHashMap<u64, u64>,
+    aliases: &FxHashMap<u64, ValId>,
 ) -> FxHashMap<u64, u64> {
-    body.insts
-        .windows(2)
-        .filter_map(|pair| match pair {
-            [Inst::Let { id, op, .. }, Inst::Let { op: Op::Varstore { slot, value }, .. }]
-                if !matches!(op, Op::Copy(_) | Op::Varload(_) | Op::Varstore { .. } | Op::Var(_))
-                    && !known.contains_key(&id.0)
-                    && local(pool, *value) == Some(id.0)
-                    && uses.get(&id.0) == Some(&1) =>
-            {
-                local(pool, *slot).filter(|c| vars.contains(c)).map(|c| (id.0, c))
+    let mut writes = FxHashMap::default();
+    for pair in body.insts.windows(2) {
+        let [defining, Inst::Let { op: Op::Varstore { slot, value }, .. }] = pair else { continue };
+        let Some(v) = local(pool, *value).filter(|v| uses.get(v) == Some(&1) && !aliases.contains_key(v))
+        else {
+            continue;
+        };
+        let defined = match defining {
+            Inst::Let { id, op, .. } => {
+                id.0 == v
+                    && !known.contains_key(&v)
+                    && !matches!(op, Op::Copy(_) | Op::Varload(_) | Op::Varstore { .. } | Op::Var(_))
             }
-            _ => None,
-        })
-        .collect()
+            Inst::Label(_, params) => params.iter().any(|p| p.id.0 == v),
+            _ => false,
+        };
+        if let Some(cell) = local(pool, *slot).filter(|c| defined && vars.contains(c)) {
+            writes.insert(v, cell);
+        }
+    }
+    writes
 }

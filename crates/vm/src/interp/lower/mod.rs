@@ -103,7 +103,7 @@ fn lower_body<'p>(
     let mut aliases = uses::aliases(body);
     let aliased = uses::aliased(pool, &aliases);
     aliases.extend(vars::direct_var_reads(body, pool, &use_counts, &slot_vars, &aliased));
-    let writes = vars::direct_var_writes(body, pool, &use_counts, &slot_vars, &constants);
+    let writes = vars::direct_var_writes(body, pool, &use_counts, &slot_vars, &constants, &aliases);
     let mut l = Lowerer {
         writes,
         pool,
@@ -124,7 +124,7 @@ fn lower_body<'p>(
     for inst in &body.insts {
         match inst {
             Inst::Label(label, params) => {
-                let slots: Vec<(u64, u32)> = params.iter().map(|p| (p.id.0, l.slot(p.id.0))).collect();
+                let slots: Vec<(u64, u32)> = params.iter().map(|p| (p.id.0, l.dst(p.id.0))).collect();
                 l.blocks.insert(label.0, (pc, slots));
             }
             _ => pc += 1,
@@ -132,7 +132,7 @@ fn lower_body<'p>(
     }
     l.nowhere = pc;
     let params = match body.insts.first() {
-        Some(Inst::Label(_, params)) => params.iter().map(|p| l.slot(p.id.0)).collect(),
+        Some(Inst::Label(_, params)) => params.iter().map(|p| l.dst(p.id.0)).collect(),
         _ => Box::default(),
     };
     let lowered = body.insts.iter().enumerate().filter(|(_, inst)| !matches!(inst, Inst::Label(..)));

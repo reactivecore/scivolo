@@ -1,14 +1,36 @@
-//! Drops `Nop`s and jumps to the next instruction from lowered code, retargeting the rest.
+//! Drops `Nop`s and jumps to the next instruction from lowered code, retargeting the rest, and
+//! replaces jumps to a branch by the branch.
 
 use crate::interp::code::Instr;
 
 pub fn compact(instrs: Vec<Instr>, origin: Vec<u32>) -> (Vec<Instr>, Vec<u32>) {
     let (instrs, origin) = remove(instrs, origin, |_, i| matches!(i, Instr::Nop));
-    remove(
+    let (mut instrs, origin) = remove(
         instrs,
         origin,
         |at, i| matches!(i, Instr::Jump(t) if t.moves.is_empty() && t.pc as usize == at + 1),
-    )
+    );
+    thread_branches(&mut instrs);
+    (instrs, origin)
+}
+
+/// Each jump without moves to a conditional branch becomes a copy of that branch.
+fn thread_branches(instrs: &mut [Instr]) {
+    for at in 0..instrs.len() {
+        let Instr::Jump(t) = &instrs[at] else { continue };
+        if !t.moves.is_empty() {
+            continue;
+        }
+        instrs[at] = match instrs[t.pc as usize] {
+            Instr::CompIf { comp, num, l, r, ref then, ref other } => {
+                Instr::CompIf { comp, num, l, r, then: then.clone(), other: other.clone() }
+            }
+            Instr::If { cond, ref then, ref other } => {
+                Instr::If { cond, then: then.clone(), other: other.clone() }
+            }
+            _ => continue,
+        };
+    }
 }
 
 /// `instrs` without those `drop` selects; a target of a dropped instruction continues at the
