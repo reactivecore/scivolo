@@ -74,7 +74,7 @@ and its C runtime built from `native/`.
 - **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
   what their Scala Native builds print.
 - **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 11,319 of Scala Native's unit tests pass, 20 fail, 21 skip. Per package and the known
+- **M3:** 11,336 of Scala Native's unit tests pass, 3 fail, 21 skip. Per package and the known
   gaps: [docs/conformance.md](docs/conformance.md).
 - **Threads:** Java threads run as green threads on coroutines, with monitors, parking,
   timers and blocking C calls on helper OS threads ([ADR 0003](docs/adr/0003-green-threads-first.md));

@@ -25,21 +25,20 @@ where their resource files are.
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
 | scala.scalanative | 737 | 1 | 0 |
-| java.lang | 393 | 8 | 9 |
+| java.lang | 401 | 0 | 9 |
 | java.io | 247 | 0 | 0 |
 | java.net | 107 | 0 | 1 |
 | java.math | 780 | 0 | 0 |
 | java.nio | 2634 | 0 | 1 |
 | java.util | 2651 | 1 | 2 |
-| java.util.concurrent | 2928 | 6 | 6 |
+| java.util.concurrent | 2933 | 1 | 6 |
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 61 | 0 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **11323** | **16** | **21** |
+| **total** | **11336** | **3** | **21** |
 
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
-read-only-file cases, because the CI container runs as root. `SubmissionPublisherTest.testCancelledConsume`
-fails now and then on either platform.
+read-only-file cases, because the CI container runs as root.
 
 A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
