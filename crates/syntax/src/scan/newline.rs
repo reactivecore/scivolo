@@ -15,7 +15,7 @@ impl Scanner<'_> {
         IndentWidth::at(&self.source.text, offset)
     }
 
-    fn can_start_stat_tokens(&self) -> TokenSet {
+    pub fn can_start_stat_tokens(&self) -> TokenSet {
         if self.cfg.source_version.migrate_to_3() { CAN_START_STAT_TOKENS2 } else { CAN_START_STAT_TOKENS3 }
     }
 

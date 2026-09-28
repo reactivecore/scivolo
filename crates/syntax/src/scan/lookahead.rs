@@ -7,7 +7,16 @@ use crate::token::Token;
 impl Scanner<'_> {
     /// A scanner starting at the current token, without significant indentation.
     pub fn lookahead_scanner(&mut self) -> Scanner<'_> {
-        Scanner::start(self.source, self.names, self.cfg, self.cur.offset, false)
+        self.lookahead_scanner_with(false)
+    }
+
+    pub fn lookahead_scanner_with(&mut self, allow_indent: bool) -> Scanner<'_> {
+        Scanner::start(self.source, self.names, self.cfg, self.cur.offset, allow_indent)
+    }
+
+    /// The offset of the last character the reader read.
+    pub fn last_char_offset(&self) -> Offset {
+        self.reader.last_char_offset
     }
 
     /// Insert `token` at `offset` in front of the current one.

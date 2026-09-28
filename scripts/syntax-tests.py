@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-"""The Rust scanner against dotty 3.9.0 on tests/pos and tests/neg (docs/research/06-parser-port.md).
+"""The Rust scanner or parser against dotty 3.9.0 on tests/pos and tests/neg (docs/research/06-parser-port.md).
 
-Usage: scripts/syntax-tests.py oracle|report [FILTER] | diff PATH
+Usage: scripts/syntax-tests.py tokens|trees oracle|report [FILTER] | tokens|trees diff PATH
 """
 import collections
 import difflib
@@ -14,8 +14,9 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "ref/dotty/tests"
 CORPORA = ("pos", "neg")
 WORK = ROOT / "tmp/syntax/3.9.0"
+MODE = "tokens"
 DUMP = ROOT / "target/release/syntax-dump"
-OUTCOMES = ["passed", "tokens differ", "errors differ", "messages differ", "warnings differ", "crashed", "skipped"]
+OUTCOMES = ["passed", "differ", "errors differ", "messages differ", "warnings differ", "crashed", "skipped"]
 USING = re.compile(r"^//> using options (.*)$", re.M)
 
 
@@ -53,7 +54,7 @@ def split(output):
 def oracle(filter_):
     lst = write_list(filter_)
     cmd = ["scala-cli", "--power", "run", "--server=false", "--quiet", "--workspace", str(WORK / "oracle-ws"),
-           str(ROOT / "scripts/syntax-oracle"), "--", "tokens", "--list", str(lst)]
+           str(ROOT / "scripts/syntax-oracle"), "--", MODE, "--list", str(lst)]
     out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
         sys.exit(out.stderr)
@@ -74,7 +75,7 @@ def classify(expected, actual):
     tokens = lambda ls: [l for l in ls if not l.startswith("== ")]
     errors = lambda ls: [l for l in ls if l.startswith("== E ")]
     warnings = lambda ls: [l for l in ls if l.startswith("== W ")]
-    for outcome, a, b in [("tokens differ", tokens(exp), tokens(act)), ("messages differ", errors(exp), errors(act)),
+    for outcome, a, b in [("differ", tokens(exp), tokens(act)), ("messages differ", errors(exp), errors(act)),
                           ("warnings differ", warnings(exp), warnings(act))]:
         if a != b:
             at = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), min(len(a), len(b)))
@@ -88,7 +89,7 @@ def classify(expected, actual):
 def report(filter_):
     lst = write_list(filter_)
     expected = load_expected()
-    out = subprocess.run([str(DUMP), "tokens", "--list", str(lst)], capture_output=True, text=True,
+    out = subprocess.run([str(DUMP), MODE, "--list", str(lst)], capture_output=True, text=True,
                          encoding="utf-8", errors="replace")
     actual = split(out.stdout)
     rows = {}
@@ -113,7 +114,7 @@ def diff(path):
     lst = WORK / "one.tsv"
     opts = next((o for r, o, _ in tests(rel) if r == rel), "")
     lst.write_text(f"{TESTS / rel}\t{opts}\n")
-    out = subprocess.run([str(DUMP), "tokens", "--list", str(lst)], capture_output=True, text=True)
+    out = subprocess.run([str(DUMP), MODE, "--list", str(lst)], capture_output=True, text=True)
     actual = split(out.stdout).get(rel, "")
     sys.stdout.writelines(difflib.unified_diff(load_expected().get(rel, "").splitlines(True),
                                                actual.splitlines(True), "dotty", "rust"))
@@ -121,7 +122,9 @@ def diff(path):
 
 if __name__ == "__main__":
     commands = {"oracle": oracle, "report": report, "diff": diff}
-    if len(sys.argv) < 2 or sys.argv[1] not in commands:
+    if len(sys.argv) < 3 or sys.argv[1] not in ("tokens", "trees") or sys.argv[2] not in commands:
         sys.exit(__doc__)
+    MODE = sys.argv[1]
+    WORK = WORK / MODE
     WORK.mkdir(parents=True, exist_ok=True)
-    commands[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else "")
+    commands[sys.argv[2]](sys.argv[3] if len(sys.argv) > 3 else "")

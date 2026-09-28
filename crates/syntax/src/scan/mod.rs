@@ -17,6 +17,7 @@ mod skip;
 mod string;
 mod token_data;
 
+pub use chars::{is_identifier_part, is_identifier_start, is_operator_part};
 pub use indent::IndentWidth;
 pub use region::{RegionId, RegionKind, Regions};
 pub use token_data::TokenData;

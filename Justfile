@@ -104,19 +104,20 @@ m5-report filter="": release
 syntax-fetch:
     test -d ref/dotty || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/dotty && git -C ref/dotty sparse-checkout set compiler/src/dotty/tools/dotc/parsing compiler/src/dotty/tools/dotc/ast compiler/src/dotty/tools/dotc/util compiler/src/dotty/tools/dotc/config tests/pos tests/neg docs/_spec docs/_docs/reference)
 
-# Record dotty's tokens for tests/pos and tests/neg under tmp/syntax (JVM, about a minute).
-syntax-oracle filter="": syntax-fetch
-    python3 scripts/syntax-tests.py oracle {{ filter }}
+# Record dotty's tokens or trees (`mode`) for tests/pos and tests/neg under tmp/syntax (JVM).
+syntax-oracle mode="trees" filter="": syntax-fetch
+    python3 scripts/syntax-tests.py {{ mode }} oracle {{ filter }}
 
-# Compare the Rust scanner with the recorded tokens; report.md and results.tsv under tmp/syntax.
-syntax-report filter="":
+# Compare the Rust scanner or parser with the recorded output; report.md and results.tsv
+# under tmp/syntax/3.9.0/<mode>.
+syntax-report mode="trees" filter="":
     cargo build -q --release -p syntax
-    python3 scripts/syntax-tests.py report {{ filter }}
+    python3 scripts/syntax-tests.py {{ mode }} report {{ filter }}
 
-# The difference between dotty's and the Rust scanner's tokens for one file.
-syntax-diff path:
+# The difference between dotty's and the Rust tokens or trees for one file.
+syntax-diff mode path:
     cargo build -q --release -p syntax
-    python3 scripts/syntax-tests.py diff {{ path }}
+    python3 scripts/syntax-tests.py {{ mode }} diff {{ path }}
 
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release

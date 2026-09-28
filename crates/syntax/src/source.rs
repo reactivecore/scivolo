@@ -48,6 +48,25 @@ impl SourceFile {
         self.line_starts[line]
     }
 
+    /// The offset `units` UTF-16 units after `from`, as dotty's offsets count.
+    pub fn advance_utf16(&self, from: Offset, units: usize) -> Offset {
+        let rest = self.text.get(from as usize..).unwrap_or("");
+        let (mut n, mut bytes) = (0, 0);
+        for c in rest.chars() {
+            if n >= units {
+                break;
+            }
+            n += c.len_utf16();
+            bytes += c.len_utf8();
+        }
+        from + bytes as Offset + (units.saturating_sub(n)) as Offset
+    }
+
+    /// The offset of the start of the line containing `offset`.
+    pub fn start_of_line(&self, offset: Offset) -> Offset {
+        self.line_to_offset(self.offset_to_line(offset))
+    }
+
     /// The 0-based column of `offset` in its line, in characters.
     pub fn column(&self, offset: Offset) -> usize {
         let start = self.line_to_offset(self.offset_to_line(offset)) as usize;

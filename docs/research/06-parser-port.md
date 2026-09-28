@@ -97,7 +97,7 @@ Estimated size: scanner 2.1–2.6k lines, parser 5.5–7k, trees/names/spans/fla
 
 ## 4. Differential testing
 
-- **Oracle** (prototype in `tmp/parser-oracle/Oracle.scala`, 163 lines) [V]: a scala-cli program
+- **Oracle** (`scripts/syntax-oracle/Oracle.scala`, mode `trees`) [V]: a scala-cli program
   on `scala3-compiler` 3.9.0 that initializes one `ContextBase` (277 ms; the parser needs
   `defn.andType` for `A with B`), then per file sets that file's `//> using options`, parses
   with `new Parsers.Parser(source).parse()` under a `CompilationUnit`, and prints the tree as an
@@ -105,14 +105,14 @@ Estimated size: scanner 2.1–2.6k lines, parser 5.5–7k, trees/names/spans/fla
   `UniqueMessagePositions`, as dotty's test framework). All of `tests/pos` in 1.9 s, `tests/neg`
   in 1.1 s, in one JVM. `-Vprint:parser` is no alternative: it prints source-like text without
   node kinds or offsets.
-- **Tokens:** the same program in scanner mode prints `kind offset lastOffset lineOffset name`
+- **Tokens:** the same program in mode `tokens` prints `kind offset lastOffset lineOffset name`
   per token of a free-running scanner.
 - **Corpora:** `tests/pos` (3967 files; 256 with `//> using options`) and `tests/neg` (1932
   files; 254 of them get a parser error, about 164 only parser errors). Pos files must match
   byte for byte; neg files must report errors at the same offsets. Skip `-Ymagic-offset-header`
   files and `.java` sources.
-- **Harness:** `scripts/parser-tests.py` in the shape of `scripts/dotty-tests.py`, results under
-  `tmp/parser/`, recipes `parser-oracle` and `parser-report`.
+- **Harness:** `scripts/syntax-tests.py tokens|trees`, results under `tmp/syntax/3.9.0/<mode>`,
+  recipes `syntax-oracle`, `syntax-report` and `syntax-diff`.
 
 ## 5. Order of work
 

@@ -24,7 +24,7 @@ fn scan_with(text: &str, cfg: Config) -> (Vec<(Token, String)>, Vec<String>) {
         out.push((s.token(), v));
         s.next_token();
     }
-    (out, s.diags.items.iter().map(|d| format!("{}: {}", d.offset, d.message)).collect())
+    (out, s.diags.items.iter().map(|d| format!("{}: {}", d.pos(), d.message)).collect())
 }
 
 fn kinds(text: &str) -> Vec<Token> {
