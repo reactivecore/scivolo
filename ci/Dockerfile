@@ -28,11 +28,12 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     rustup component add rustfmt clippy && \
     rm -rf /root/.cargo/registry /root/.cargo/git
 
-# The builder plus what compiles Scala Native's unit tests (`just ci-suite`).
+# The builder plus what compiles Scala Native's unit tests (`just ci-suite`) and the `ping`
+# the process tests run.
 FROM builder AS suite
 
 RUN apt-get update -yqq && apt-get install -yqq --no-install-recommends \
-        openjdk-17-jdk-headless cpio \
+        openjdk-17-jdk-headless cpio iputils-ping \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 ARG SCALA_CLI_VERSION=1.14.0
