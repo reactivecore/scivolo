@@ -96,6 +96,7 @@ just fetch-libs                 # download the Scala Native jars into ref/libs o
 just libs                       # or copy them from the Coursier cache
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
+just script FILE.sc ARGS        # run a script, compiled through scala-cli unless cached
 just check                      # every test program against its .check file, with timings
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
@@ -103,9 +104,16 @@ scripts/sn-tests.sh all && just sn-report   # Scala Native's unit tests in the V
 just sn-run Name -Other         # selected Scala Native test classes
 ```
 
+Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
+`#!/usr/bin/env scalai` shebang. The first run compiles the file through scala-cli (Scala
+3.9.0, Scala Native 0.5.12; `SCALAI_SCALA_CLI` names another binary) and caches its NIR in
+`SCALAI_CACHE`/`scripts`, keyed by the file's path and content; later runs start no JVM (hello
+in about 20 ms). Files it pulls in with `//> using file` and changed dependencies do not
+invalidate the cache. The own frontend that drops scala-cli is phase 3.
+
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
-stops a run. Programs still need scala-cli to produce NIR; the own frontend is phase 3.
+stops a run.
 
 Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
 exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS threads later;

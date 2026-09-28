@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+nir.workspace = true
 vm = { path = "../vm" }
 
 [lints]
