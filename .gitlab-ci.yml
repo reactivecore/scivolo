@@ -9,13 +9,15 @@ variables:
   CARGO_TERM_COLOR: "always"
   CARGO_INCREMENTAL: "0"
   CI_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG
+  SUITE_IMAGE: $CI_REGISTRY_IMAGE/suite:$BUILDER_TAG
 
 # Job scripts are thin: every command lives in the Justfile.
 stages:
   - prepare
   - test
 
-# Builds ci/Dockerfile into builder:sha-<hash of the Dockerfile> unless the registry has it.
+# Builds each target of ci/Dockerfile into <target>:sha-<hash of the Dockerfile> unless the
+# registry has it.
 build-image:
   stage: prepare
   interruptible: true
@@ -35,12 +37,16 @@ build-image:
     - echo 'short-name-mode = "permissive"' > /etc/containers/registries.conf.d/00-shortnames.conf
     - buildah login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
     - |
-      if skopeo inspect "docker://${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}" >/dev/null; then
-        echo "Builder image already exists — skipping build."
+      if skopeo inspect "docker://${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}" >/dev/null &&
+         skopeo inspect "docker://${CI_REGISTRY_IMAGE}/suite:${BUILDER_TAG}" >/dev/null; then
+        echo "Images already exist — skipping build."
         exit 0
       fi
-    - buildah bud -f ci/Dockerfile -t "${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}" "$CI_PROJECT_DIR"
-    - buildah push "${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}"
+      for target in builder suite; do
+        image="${CI_REGISTRY_IMAGE}/${target}:${BUILDER_TAG}"
+        buildah bud --layers -f ci/Dockerfile --target "$target" -t "$image" "$CI_PROJECT_DIR"
+        buildah push "$image"
+      done
   artifacts:
     reports:
       dotenv: builder_tag.env
@@ -73,6 +79,41 @@ test:linux:
   script:
     - rustc --version && cargo --version && just --version && clang --version
     - just ci
+
+# Scala Native's unit tests: on main, and on demand in a merge request.
+suite:linux:
+  image: ${SUITE_IMAGE}
+  stage: test
+  interruptible: false
+  timeout: 4h
+  needs:
+    - job: build-image
+      artifacts: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+      allow_failure: true
+    - when: on_success
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
+  cache:
+    - key: scalai-cargo-linux
+      paths: *cargo_cache_paths
+      policy: pull
+    - key:
+        prefix: scalai-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+      policy: pull
+    - key: scalai-suite-linux
+      paths: [.cache/coursier, ref/libs]
+  script:
+    - rustc --version && clang --version && java -version && scala-cli version --cli-version
+    - just ci-suite
+  artifacts:
+    when: always
+    paths: [tmp/sn-report/]
+    expire_in: 4 weeks
 
 # Native shell runner: `image:` is ignored, the runner provides rustup and `just`, and it
 # keeps target/ between pipelines.

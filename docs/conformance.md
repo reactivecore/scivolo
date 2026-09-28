@@ -5,11 +5,13 @@ How the VM is checked against Scala Native's own test suites, and where it stand
 ## Running
 
 ```sh
-just libs                      # once: Scala Native jars into ref/libs
+just fetch-libs                # once: Scala Native jars into ref/libs
 scripts/sn-tests.sh all        # compile unit-tests (shared + native, JDK ≤ 17) with the JUnit
                                # plugin into tmp/sn-tests/nir; needs ref/scala-native at v0.5.12
 scripts/sn-report.sh           # run them in the VM by group, print the table below
 scripts/sn-run.sh Name -Other  # run test classes whose name contains `Name`, except `Other`
+just ci-suite                  # all of it from scratch, as CI runs it on main (Linux x86-64);
+                               # the table is the job artifact tmp/sn-report/report.md
 ```
 
 `tests/junit/runner.scala` is the test runner. The VM gives it the JUnit bootstrapper modules
@@ -36,7 +38,7 @@ where their resource files are.
 | **total** | **11319** | **20** | **21** |
 
 Counts are test methods; before threads, the concurrent group skipped its 80 classes whole.
-`just sn-report` gives each group 30 minutes; the concurrent group needs about 20.
+The concurrent group needs about 20 minutes.
 
 A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test

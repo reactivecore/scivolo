@@ -76,8 +76,17 @@ libs:
 fetch-libs:
     scripts/fetch-libs.sh
 
+# Check out Scala Native v0.5.12 into ref/scala-native.
+fetch-scala-native:
+    scripts/fetch-scala-native.sh
+
 # Everything a pipeline job runs.
 ci: fetch-libs gates check
+
+# Scala Native's whole unit-test suite, as the pipeline's suite job runs it.
+ci-suite: fetch-libs fetch-scala-native (sn-build "all") release
+    scala-cli --power bloop exit
+    SCALAI_TIMEOUT=1800 scripts/sn-report.sh
 
 # The three gates that must pass before every commit.
 gates: fmt-check lint test

@@ -7,6 +7,7 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 tests=$root/ref/scala-native/unit-tests
 work=$root/tmp/sn-tests
 dirs=("${@:-scala}")
+suffix=$([ "$(uname)" = Darwin ] && echo dylib || echo so)
 
 rm -rf "$work/src" "$work/nir"
 mkdir -p "$work/src" "$work/nir"
@@ -18,7 +19,7 @@ if [ "${dirs[0]}" = all ]; then
   done
   cp -R "$tests/native/src/test/scala/." "$work/src/"
   cp "$tests"/native/src/test/resources/scala-native/*.c "$work/src/"
-  cc -shared -fPIC -w -o "$work/libsntest.dylib" "$tests"/native/src/test/resources/scala-native/*.c
+  cc -shared -fPIC -w -o "$work/libsntest.$suffix" "$tests"/native/src/test/resources/scala-native/*.c
   for t in $(find "$work/src" -name '*.scala.template'); do
     out=${t%.template}
     cp "$t" "$out"
