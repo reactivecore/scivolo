@@ -140,6 +140,7 @@ fn lower_body<'p>(
         defn: defn.clone(),
         calls: Cell::new(0),
         tier: 0,
+        inlined: None,
     };
     (code, l.slots, l.aliases)
 }

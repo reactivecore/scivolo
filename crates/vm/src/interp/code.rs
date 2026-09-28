@@ -293,6 +293,8 @@ pub struct Code {
     pub calls: Cell<u32>,
     /// 0 for the first lowering, 1 after tier-up.
     pub tier: u8,
+    /// Where the instructions of `defn` came from, if it has inlined callees.
+    pub inlined: Option<super::inlined::Inlined>,
 }
 
 impl Code {

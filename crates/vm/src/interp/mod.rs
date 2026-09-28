@@ -8,6 +8,7 @@ mod exec;
 mod fold;
 mod funcs;
 mod inline;
+mod inlined;
 mod invoke;
 mod lower;
 mod memory;

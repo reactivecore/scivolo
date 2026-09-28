@@ -37,7 +37,7 @@ or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which mad
 ## Ideas
 
 1. **Deeper inlining** (ADR 0006 does small callees after tier-up): polymorphic sites with
-   two targets, larger callees on hot paths, and inlined frames in stack traces.
+   two targets, larger callees on hot paths.
 2. **More superinstructions**, chosen with `SCALAI_PROFILE` instruction counts, e.g. `Bin` on
    I32 with an immediate operand, `FieldLoad` of `this` (compare-and-branch is done).
    Removes one dispatch and one slot write each.

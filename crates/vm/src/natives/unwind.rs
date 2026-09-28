@@ -1,10 +1,12 @@
 //! Scala Native's unwinder interface over the interpreter's frames, and the stack trace element
-//! for each frame. An "instruction pointer" is `tier << 63 | pc << 32 | method`.
+//! for each frame. An "instruction pointer" is `tier << 63 | pc << 32 | method`, or
+//! `INLINED | position << 32 | method` for a method inlined into a frame.
 //!
 //! `get_context` snapshots the frame chain; a cursor is `[generation, index]` into the latest
 //! snapshot and ends when a newer snapshot replaced it.
 
 use super::NativeFn;
+use crate::class::ClassId;
 use crate::interp::Flow;
 use crate::stack::Frames;
 use crate::{Vm, heap};
@@ -19,6 +21,11 @@ pub struct StackWalk {
 
 /// Scala Native reads at most this many frames.
 const MAX_FRAMES: usize = 1025;
+/// Marks the instruction pointer of a method inlined into a frame: `INLINED | pos << 32 | method`.
+const INLINED: u64 = 1 << 62;
+const PC_MASK: u64 = 0x3FFF_FFFF;
+/// Frames past `MAX_FRAMES` walked for the throwable's constructors skipped at the top.
+const SKIPPABLE: usize = 32;
 
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     let f: NativeFn = match name.strip_prefix("scalanative_")? {
@@ -55,34 +62,42 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
     Some(f)
 }
 
-/// `get_context(context)`: snapshots the frames from the innermost one, past the constructors and
-/// `fillInStackTrace` of the throwable being built and its supertypes.
+/// `get_context(context)`: snapshots the frames from the innermost one, each inlined method as a
+/// frame of its own, past the constructors and `fillInStackTrace` of the throwable being built
+/// and its supertypes.
 fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
-    let throwable = vm.link_top("java.lang.Throwable")?;
+    let mut ips = Vec::new();
     let mut header = vm.frames.innermost();
-    while header != 0 && Frames::caller(header) != 0 {
-        let method = GlobalId(Frames::method(Frames::caller(header)) as u32);
-        let sig = vm.world.pool.member_sig(method).unwrap_or("");
-        if !(sig.starts_with('R') || sig.starts_with("D16fillInStackTrace")) {
-            break;
-        }
-        let owner = vm.world.owner(method);
-        let Ok(class) = vm.link(owner) else { break };
-        if !(vm.is_subclass(class, throwable) || vm.is_subclass(throwable, class)) {
-            break;
+    while header != 0 && ips.len() < MAX_FRAMES + SKIPPABLE {
+        let (method, pc) = (Frames::method(header), Frames::pc(header) as u64 & PC_MASK);
+        let (g, tier) = (GlobalId(method as u32), (method >> 32) as u8);
+        match vm.inline_chain(g, pc as usize, tier) {
+            Some(chain) => ips.extend(
+                chain.into_iter().map(|(m, pos)| INLINED | (pos.0 as u64 & PC_MASK) << 32 | m.0 as u64),
+            ),
+            None => ips.push((tier as u64) << 63 | pc << 32 | g.0 as u64),
         }
         header = Frames::caller(header);
     }
+    let throwable = vm.link_top("java.lang.Throwable")?;
+    let start = ips.windows(2).take_while(|w| builds_throwable(vm, GlobalId(w[1] as u32), throwable)).count();
     let walk = &mut vm.stack_walk;
     walk.generation += 1;
     walk.ips.clear();
-    while header != 0 && walk.ips.len() < MAX_FRAMES {
-        let (method, pc) = (Frames::method(header), Frames::pc(header) as u64 & 0x7FFF_FFFF);
-        walk.ips.push((method >> 32) << 63 | pc << 32 | method & 0xFFFF_FFFF);
-        header = Frames::caller(header);
-    }
+    walk.ips.extend(ips.into_iter().skip(start).take(MAX_FRAMES));
     heap::write(args[0] as usize, walk.generation);
     Ok(0)
+}
+
+/// Whether `method` is a constructor or `fillInStackTrace` of a throwable class or a supertype.
+fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: ClassId) -> bool {
+    let sig = vm.world.pool.member_sig(method).unwrap_or("");
+    if !(sig.starts_with('R') || sig.starts_with("D16fillInStackTrace")) {
+        return false;
+    }
+    let owner = vm.world.owner(method);
+    let Ok(class) = vm.link(owner) else { return false };
+    vm.is_subclass(class, throwable) || vm.is_subclass(throwable, class)
 }
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
@@ -94,7 +109,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
 /// `withNameFromUnwind(ip, context, position)`: the `StackTraceElement` for `ip`.
 fn element(vm: &mut Vm, args: &[u64]) -> Flow {
     let ip = args[1];
-    let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & 0x7FFF_FFFF) as usize, (ip >> 63) as u8);
+    let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & PC_MASK) as usize, (ip >> 63) as u8);
     let (class, name) = match (method.0 as usize) < vm.world.pool.globals.len() {
         true => (
             vm.world.pool.top_name(method).to_owned(),
@@ -102,7 +117,12 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
         ),
         false => ("<unknown>".to_owned(), "<unknown>".to_owned()),
     };
-    let (file, line) = match vm.source_position(method, pc, tier) {
+    let position = if ip & INLINED != 0 {
+        Some(vm.source_of(nir::PosId(pc as u32)))
+    } else {
+        vm.source_position(method, pc, tier)
+    };
+    let (file, line) = match position {
         Some((file, line)) if !file.is_empty() => {
             (Some(file.rsplit('/').next().unwrap_or(file).to_owned()), line as i32 + 1)
         }

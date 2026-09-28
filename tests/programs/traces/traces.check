@@ -1,5 +1,14 @@
-Parser.digits
-Parser.parse
-traces$package$.traces
-traces.main
-traces.scala:4
+Parser.digits traces.scala:5
+Parser.parse traces.scala:4
+traces$package$.traces traces.scala:26
+traces.main traces.scala:25
+Checker.fail traces.scala:9
+Checker.check traces.scala:8
+traces$package$.run traces.scala:11
+traces$package$.traces traces.scala:31
+traces.main traces.scala:25
+Checker.fail traces.scala:9
+Checker.check traces.scala:8
+traces$package$.both traces.scala:15
+traces$package$.traces traces.scala:34
+traces.main traces.scala:25

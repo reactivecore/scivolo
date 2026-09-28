@@ -29,6 +29,8 @@ to lower and pushed hello past 20 ms.
 
 ## Consequences
 - `cpu` takes 0.34 s (from 0.76), fib 30 72 ms (from 142); hello is unchanged at 20 ms.
-- Inlined callees have no frame of their own: stack traces show the caller's line only.
+- Inlined callees have no frame of their own; the inliner records for each instruction the
+  callee it came from and that callee's call site (`interp/inlined.rs`), and stack traces
+  list each inlined method as a frame with its own line.
 - A guard failure costs one comparison and the ordinary virtual call; there is no
   deoptimization, so speculation is always safe.

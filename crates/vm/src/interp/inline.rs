@@ -3,6 +3,7 @@
 //! whose parameter is the call's result, and its instructions without an exception handler get
 //! the call's.
 
+use super::inlined::{InlineFrame, Inlined};
 use super::ops::boxing::is_boxed_equals;
 use super::rename::Renamer;
 use crate::Vm;
@@ -18,63 +19,89 @@ const MAX_BODY: usize = 2000;
 const ROUNDS: usize = 12;
 
 impl Vm {
-    /// `defn` with small static callees inlined, or `defn` itself if none are.
-    pub fn inline(&mut self, defn: Rc<Defn>) -> Rc<Defn> {
-        let DefnKind::Define { ty, body } = &defn.kind else { return defn };
+    /// `defn` with small static callees inlined and where each instruction came from, or `defn`
+    /// itself if none are.
+    pub fn inline(&mut self, defn: Rc<Defn>) -> (Rc<Defn>, Option<Inlined>) {
+        let DefnKind::Define { ty, body } = &defn.kind else { return (defn, None) };
         let (ty, mut body) = (*ty, body.clone());
+        let mut inlined = Inlined::own(body.insts.len());
         let mut changed = false;
         for round in 0..ROUNDS {
-            if body.insts.len() > MAX_BODY || !self.inline_round(defn.name, &mut body, round == 0) {
+            if body.insts.len() > MAX_BODY
+                || !self.inline_round(defn.name, &mut body, &mut inlined, round == 0)
+            {
                 break;
             }
             changed = true;
         }
-        match changed {
-            true => Rc::new(Defn { kind: DefnKind::Define { ty, body }, ..(*defn).clone() }),
-            false => defn,
+        if changed {
+            (Rc::new(Defn { kind: DefnKind::Define { ty, body }, ..(*defn).clone() }), Some(inlined))
+        } else {
+            (defn, None)
         }
     }
 
-    /// Inlines the calls of `body`; `recursive` lets the caller be inlined into itself once.
-    fn inline_round(&mut self, caller: GlobalId, body: &mut Body, recursive: bool) -> bool {
+    /// Inlines the calls of `body`, recording in `inlined` where each instruction came from;
+    /// `recursive` lets the caller be inlined into itself once.
+    fn inline_round(
+        &mut self,
+        caller: GlobalId,
+        body: &mut Body,
+        inlined: &mut Inlined,
+        recursive: bool,
+    ) -> bool {
         let mut changed = self.devirtualize(body);
         let mut next_local = max_local(body) + 1;
-        let (mut insts, mut positions) = (Vec::new(), Vec::new());
-        for (inst, pos) in body.insts.iter().zip(&body.positions) {
-            let Inst::Let { id, op: Op::Call { ty, ptr, args }, unwind, .. } = inst else {
+        let (mut insts, mut positions, mut of) = (Vec::new(), Vec::new(), Vec::new());
+        for ((inst, pos), &frame) in body.insts.iter().zip(&body.positions).zip(&inlined.of) {
+            let mut keep = |inst: &Inst| {
                 insts.push(inst.clone());
                 positions.push(*pos);
+                of.push(frame);
+            };
+            let Inst::Let { id, op: Op::Call { ty, ptr, args }, unwind, .. } = inst else {
+                keep(inst);
                 continue;
             };
-            let Some(callee) = self.inline_target(caller, *ptr, recursive) else {
-                insts.push(inst.clone());
-                positions.push(*pos);
+            let Some((g, callee)) = self.inline_target(caller, *ptr, recursive) else {
+                keep(inst);
                 continue;
             };
             let DefnKind::Define { body: cb, .. } = &callee.kind else { unreachable!("a define") };
             let Type::Function(_, ret) = self.world.pool.ty(*ty).clone() else { unreachable!("a call") };
+            inlined.frames.push(InlineFrame { method: g, call: *pos, parent: frame });
+            let inner = inlined.frames.len() as u32;
             let mut r = Renamer { locals: FxHashMap::default(), next: &mut next_local, vm: self };
             let cont = r.fresh();
             let Some(Inst::Label(entry, _)) = cb.insts.first() else { unreachable!("an entry block") };
             let entry = r.local(*entry);
             insts.push(Inst::Jump(Next::Label(entry, args.clone())));
             positions.push(*pos);
+            of.push(frame);
             for (ci, cp) in cb.insts.iter().zip(&cb.positions) {
                 insts.push(r.inst(ci, unwind, cont));
                 positions.push(*cp);
+                of.push(inner);
             }
             insts.push(Inst::Label(cont, vec![Param { id: *id, ty: ret }]));
             positions.push(*pos);
+            of.push(frame);
             changed = true;
         }
         body.insts = insts;
         body.positions = positions;
+        inlined.of = of;
         changed
     }
 
-    /// The definition of the method `ptr` statically calls, speculated, if it is small enough
+    /// The method `ptr` statically calls and its definition, speculated, if it is small enough
     /// and safe to inline into `caller`.
-    fn inline_target(&mut self, caller: GlobalId, ptr: ValId, recursive: bool) -> Option<Rc<Defn>> {
+    fn inline_target(
+        &mut self,
+        caller: GlobalId,
+        ptr: ValId,
+        recursive: bool,
+    ) -> Option<(GlobalId, Rc<Defn>)> {
         let Val::Global(g, _) = *self.world.pool.val(ptr) else { return None };
         if g == caller && !recursive {
             return None;
@@ -87,7 +114,7 @@ impl Vm {
                 target
             }
         }?;
-        Some(self.speculated_callee(g, target))
+        Some((g, self.speculated_callee(g, target)))
     }
 
     /// The definition of method `g` if it is small enough and safe to inline anywhere.
