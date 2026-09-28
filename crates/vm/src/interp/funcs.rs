@@ -46,6 +46,8 @@ pub struct Funcs {
     pub no_inline: bool,
     /// Whether each method judged so far may be inlined, with its definition if so.
     pub inlinable: FxHashMap<GlobalId, Option<Rc<Defn>>>,
+    /// Per provider class and service, the function that makes a new provider instance.
+    pub instantiators: FxHashMap<(GlobalId, crate::class::ClassId), FuncId>,
     /// Per type object, the value field of a `java.lang` box as `==` compares it, if one.
     pub boxes: FxHashMap<u64, Option<(usize, Mem, bool)>>,
     pub profile: profile::Profile,

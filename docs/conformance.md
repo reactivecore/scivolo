@@ -47,8 +47,8 @@ instead of the run.
 
 ## Known gaps behind the failures
 
-- **Class metadata and resources.** `Class.forName`, `ServiceLoader` and
-  `getResourceAsStream` need metadata or embedded resources Scala Native's linker generates.
+- **Service providers.** `ServiceLoader` lists every provider `META-INF/services` names, so
+  `ServiceLoaderTest.loadService`'s provider that is not opted in is found too (ADR 0007).
 - **javalib bugs.** `ForkJoinPool.helpAsyncBlocker` matches only worker threads (5
   `SubmissionPublisher` cases), and one `LinkedTransferQueue` case. The published javalib also
   compiled `HashSet.containsAll`'s lambda to `throw o`; the VM replaces that lambda.

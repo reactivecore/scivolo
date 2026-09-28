@@ -7,6 +7,7 @@ mod gc;
 mod java_thread;
 mod junit;
 mod llvm;
+mod resources;
 mod runtime;
 mod services;
 mod threads;
@@ -14,6 +15,7 @@ mod unwind;
 
 pub use callback::Callbacks;
 pub use ffi::{Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol};
+pub use resources::Resources;
 pub use unwind::StackWalk;
 
 use crate::interp::Flow;
@@ -28,6 +30,9 @@ pub enum Native {
     Rust(NativeFn),
     C(ffi::Foreign),
     Property(String),
+    /// A new instance of the class, made with its constructor without parameters, as a provider
+    /// of the service class.
+    New(GlobalId, crate::class::ClassId),
 }
 
 impl Native {
@@ -37,6 +42,7 @@ impl Native {
             Native::C(f) if f.blocking => vm.call_blocking(f, args),
             Native::C(f) => ffi::call(f, args),
             Native::Property(name) => vm.property_value(name),
+            Native::New(class, service) => services::instantiate(vm, *class, *service),
         }
     }
 }

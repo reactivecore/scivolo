@@ -14,14 +14,10 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
         | "scalanative_StackOverflowGuards_reset"
         | "scalanative_StackOverflowGuards_close"
         | "scalanative_StackOverflowGuards_size"
-        | "scalanative_Throwable_sizeOfExceptionWrapper"
-        | "scalanative_resource_get_embedded_size"
-        | "scalanative_resource_get_content_length"
-        | "scalanative_resource_get_content_ptr"
-        | "scalanative_resource_get_path_length"
-        | "scalanative_resource_get_path_ptr" => |_, _| Ok(0),
+        | "scalanative_Throwable_sizeOfExceptionWrapper" => |_, _| Ok(0),
         _ => {
             return super::llvm::intrinsic(name)
+                .or_else(|| super::resources::extern_fn(name))
                 .or_else(|| super::gc::extern_fn(name))
                 .or_else(|| super::unwind::extern_fn(name))
                 .or_else(|| super::threads::extern_fn(name))
@@ -42,6 +38,7 @@ fn assign_thread(vm: &mut Vm, args: &[u64]) -> Flow {
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     let f: NativeFn = match (owner, sig) {
         ("java.lang.Class", "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class") => class_is,
+        ("java.lang.Class$", "D7forNameL16java.lang.StringL15java.lang.ClassEO") => class_for_name,
         ("java.util.HashSet", s) if s.starts_with("D22containsAll$$anonfun$1") => hash_set_contains,
         _ => {
             return super::services::method(owner, sig)
@@ -58,6 +55,31 @@ fn hash_set_contains(vm: &mut Vm, args: &[u64]) -> Flow {
     let sig = nir::StrId(vm.world.pool.strings.intern("D8containsL16java.lang.ObjectzEO".into()));
     let f = vm.virtual_method(args[0] as usize, sig)?;
     vm.call(f, &args[..2])
+}
+
+/// `Class.forName(name)`: the class, module or trait `name` on the classpath, linked and
+/// initialized, else `ClassNotFoundException`.
+fn class_for_name(vm: &mut Vm, args: &[u64]) -> Flow {
+    if args[1] == 0 {
+        return vm.null_pointer();
+    }
+    let name = vm.read_string(args[1] as usize)?;
+    let well_formed = !name.contains(['/', '[']) && name.split('.').all(|part| !part.is_empty());
+    if !well_formed {
+        return vm.throw_new_with("java.lang.ClassNotFoundException", &name);
+    }
+    let g = vm.world.top(&name);
+    let is_class = vm.world.defn(g).is_ok_and(|d| {
+        matches!(
+            d.kind,
+            nir::DefnKind::Class { .. } | nir::DefnKind::Module { .. } | nir::DefnKind::Trait { .. }
+        )
+    });
+    if !is_class {
+        return vm.throw_new_with("java.lang.ClassNotFoundException", &name);
+    }
+    let cls = vm.link(g)?;
+    Ok(vm.class(cls).rtti as u64)
 }
 
 /// `java.lang.Class.is(left, right)`: whether `left` is `right` or a subtype of it.
