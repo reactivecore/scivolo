@@ -71,7 +71,7 @@ pub struct Target {
 /// The block an exception thrown by an instruction continues in, and the slot it lands in.
 pub type Handler = Option<Box<(u32, Target)>>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Instr {
     Bin {
         bin: Bin,

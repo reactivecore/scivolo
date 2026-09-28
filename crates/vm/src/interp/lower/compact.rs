@@ -17,19 +17,12 @@ pub fn compact(instrs: Vec<Instr>, origin: Vec<u32>) -> (Vec<Instr>, Vec<u32>) {
 /// Each jump without moves to a conditional branch becomes a copy of that branch.
 fn thread_branches(instrs: &mut [Instr]) {
     for at in 0..instrs.len() {
-        let Instr::Jump(t) = &instrs[at] else { continue };
-        if !t.moves.is_empty() {
-            continue;
+        if let Instr::Jump(t) = &instrs[at]
+            && t.moves.is_empty()
+            && let branch @ (Instr::CompIf { .. } | Instr::If { .. }) = &instrs[t.pc as usize]
+        {
+            instrs[at] = branch.clone();
         }
-        instrs[at] = match instrs[t.pc as usize] {
-            Instr::CompIf { comp, num, l, r, ref then, ref other } => {
-                Instr::CompIf { comp, num, l, r, then: then.clone(), other: other.clone() }
-            }
-            Instr::If { cond, ref then, ref other } => {
-                Instr::If { cond, then: then.clone(), other: other.clone() }
-            }
-            _ => continue,
-        };
     }
 }
 
