@@ -53,7 +53,8 @@ Next steps in phase 1:
 1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).
 2. ~~Green threads~~ (done 2026-09-27, ADR 0003).
 3. OS threads (later): a concurrency-safe heap, caches and callback table.
-4. Linux x86-64: CI build and test run; variadic calls with floating-point arguments.
+4. ~~Linux x86-64: CI build and test run; variadic calls with floating-point arguments~~
+   (done 2026-09-28, #1).
 
 Execute NIR from any source with Scala Native's precompiled libraries. The
 frontend is still dotc + nscplugin, behind a cache.
@@ -196,8 +197,7 @@ with no JVM involved.
 4. **Threads ([ADR 0003](docs/adr/0003-green-threads-first.md)):** green threads first,
    also backing Java virtual threads; real OS threads later.
 5. **Platforms:** macOS arm64 and Linux x86-64 are the targets. Development happens on
-   Apple Silicon; nothing may rule out Linux x86-64 (known gap today: variadic C calls with
-   floating-point arguments there).
+   Apple Silicon; GitLab CI tests both on every MR and on main.
 
 ## Risks
 
