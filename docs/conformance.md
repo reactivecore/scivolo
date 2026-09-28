@@ -56,6 +56,32 @@ instead of the run.
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
 
+## Upstream bugs to report
+
+Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`ref/scala-native`).
+
+1. **`LinkedTransferQueue.remove` reads `null.next`** (javalib,
+   `java/util/concurrent/LinkedTransferQueue.scala:1214`).
+   - Port of the JDK loop `for (Node c = p;; q = p.next)`: the update `q = p.next` also runs
+     after the `break` that set `p = q = null`.
+   - Removing an element the queue does not hold throws `NullPointerException` unless the
+     optimizer drops the unused load; `LinkedTransferQueueTest$Generic.testRemoveElement`.
+   - Fix: update `q` only when the loop continues. VM: not worked around.
+2. **`ForkJoinPool.helpAsyncBlocker` fails on other threads** (javalib,
+   `java/util/concurrent/ForkJoinPool.scala:2063`).
+   - `Thread.currentThread() match { case wt: ForkJoinWorkerThread => … }` has no default
+     case: `MatchError` where the JDK does nothing.
+   - Reached from `SubmissionPublisher` when a producer blocks outside the pool, which green
+     threads make likely; 5 `SubmissionPublisherTest` cases.
+   - Fix: `case _ => ()`. VM: overridden (`natives/runtime.rs`).
+3. **`HashSet.containsAll`'s lambda throws** (javalib, `java/util/HashSet.scala:31`).
+   - `c.iterator().scalaOps.forall(contains)` on a `Collection[_]` eta-expands `contains` with a
+     `Nothing` parameter; the published javalib's lambda body is `throw o`.
+   - Fix: `forall(e => contains(e))`. VM: the lambda is replaced (`natives/runtime.rs`).
+4. **A SAM lambda crashes natively** (dotty `tests/run/i24573.scala`, Scala Native or the
+   compiler): the lambda class lacks the bridge `apply(Object, Object)`; the Scala Native binary
+   segfaults, the VM throws `InternalError`. Needs a minimal reproduction first (#20).
+
 ## M4: dotty `tests/run`
 
 ```sh
