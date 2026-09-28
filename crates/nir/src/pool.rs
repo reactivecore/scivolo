@@ -37,6 +37,16 @@ impl<T: Hash + Eq + Clone> Interner<T> {
     }
 }
 
+impl Interner<Box<str>> {
+    /// The id of `s`, allocating only when it is new.
+    pub fn intern_str(&mut self, s: &str) -> u32 {
+        match self.ids.get(s) {
+            Some(&id) => id,
+            None => self.intern(s.into()),
+        }
+    }
+}
+
 pub struct Pool {
     pub strings: Interner<Box<str>>,
     pub globals: Interner<Global>,

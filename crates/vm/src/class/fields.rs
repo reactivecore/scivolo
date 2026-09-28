@@ -3,7 +3,7 @@
 use super::{ClassId, Field, InstanceLayout};
 use crate::layout::{self, ARRAY_HEADER, OBJECT_HEADER};
 use crate::{Vm, VmError};
-use nir::{Attr, DefnKind, GlobalId};
+use nir::{Attr, GlobalId};
 use rustc_hash::FxHashMap;
 
 impl Vm {
@@ -28,9 +28,8 @@ impl Vm {
         let mut own = Vec::new();
         let mut specs = Vec::new();
         for m in self.world.members(name)?.to_vec() {
-            let defn = self.world.defn(m)?;
-            let DefnKind::Var { ty, .. } = defn.kind else { continue };
-            let align = defn.attrs.iter().find_map(|a| match a {
+            let Some((ty, attrs)) = self.world.var(m)? else { continue };
+            let align = attrs.iter().find_map(|a| match a {
                 Attr::Align { size, group } => Some((*size, *group)),
                 _ => None,
             });

@@ -1,8 +1,9 @@
 //! Every definition loaded so far, found by global name; files load on first use.
 
 use crate::classpath::Classpath;
-use nir::{Caches, Defn, Global, GlobalId, Pool, Reader, StrId};
+use nir::{Attr, Caches, Defn, Global, GlobalId, Pool, Reader, StrId, TypeId};
 use rustc_hash::{FxHashMap, FxHashSet};
+use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
 pub struct World {
@@ -51,12 +52,12 @@ impl World {
     }
 
     pub fn top(&mut self, name: &str) -> GlobalId {
-        let s = StrId(self.pool.strings.intern(name.into()));
+        let s = StrId(self.pool.strings.intern_str(name));
         GlobalId(self.pool.globals.intern(Global::Top(s)))
     }
 
     pub fn member(&mut self, owner: GlobalId, sig: &str) -> GlobalId {
-        let s = StrId(self.pool.strings.intern(sig.into()));
+        let s = StrId(self.pool.strings.intern_str(sig));
         GlobalId(self.pool.globals.intern(Global::Member(owner, s)))
     }
 
@@ -81,20 +82,33 @@ impl World {
         if let Some(d) = self.defns.get(&g) {
             return Ok(d.clone());
         }
+        let defn = Rc::new(self.read(g, |r, offset| {
+            r.debug_info = false;
+            r.defn_at(offset)
+        })?);
+        self.defns.insert(g, defn.clone());
+        Ok(defn)
+    }
+
+    /// The type and attributes of member `g` if it is a `var`, without decoding it whole.
+    pub fn var(&mut self, g: GlobalId) -> Result<Option<(TypeId, Vec<Attr>)>, LoadError> {
+        self.read(g, |r, offset| r.var_at(offset))
+    }
+
+    /// What `f` reads with a reader of `g`'s file, given `g`'s offset in it.
+    fn read<T>(
+        &mut self,
+        g: GlobalId,
+        f: impl FnOnce(&mut Reader, u32) -> nir::Result<T>,
+    ) -> Result<T, LoadError> {
         self.load(self.owner(g))?;
         let Some(&(file, offset)) = self.places.get(&g) else {
             return Err(LoadError::Missing(self.name(g)));
         };
-        let f = &mut self.files[file as usize];
-        let defn = Reader::resume(&f.data, &mut f.caches, &mut self.pool)
-            .and_then(|mut r| {
-                r.debug_info = false;
-                r.defn_at(offset)
-            })
-            .map_err(|e| LoadError::Corrupt(self.pool.top_name(g).to_owned(), e))?;
-        let defn = Rc::new(defn);
-        self.defns.insert(g, defn.clone());
-        Ok(defn)
+        let file = &mut self.files[file as usize];
+        Reader::resume(&file.data, &mut file.caches, &mut self.pool)
+            .and_then(|mut r| f(&mut r, offset))
+            .map_err(|e| LoadError::Corrupt(self.pool.top_name(g).to_owned(), e))
     }
 
     /// The members defined in the file of top-level `top`, in file order.
@@ -118,13 +132,11 @@ impl World {
             .map_err(|e| LoadError::Corrupt(text, e))?;
         let file = self.files.len() as u32;
         for (g, offset) in index {
+            let Entry::Vacant(place) = self.places.entry(g) else { continue };
+            place.insert((file, offset));
             if let Global::Member(owner, _) = *self.pool.global(g) {
-                let list = self.members.entry(owner).or_default();
-                if !list.contains(&g) {
-                    list.push(g);
-                }
+                self.members.entry(owner).or_default().push(g);
             }
-            self.places.entry(g).or_insert((file, offset));
         }
         self.files.push(File { data, caches });
         Ok(())
