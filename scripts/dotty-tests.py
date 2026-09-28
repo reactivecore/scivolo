@@ -7,13 +7,15 @@ import collections
 import concurrent.futures
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
+from dotty_sources import tests
+
 SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
-TESTS = ROOT / "ref/scala3/tests/run"
 WORK = ROOT / "tmp/dotty" / f"{SCALA}-{NATIVE}"
 SCALAI = ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
@@ -21,35 +23,6 @@ TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 FAILED = ("wrong output", "crashed", "timeout")
 SAME = "fails in Scala Native too"
 OUTCOMES = ["passed", *FAILED, SAME, "not built", "compile failed", "skipped"]
-
-# Code outside comments using APIs the Scala Native javalib lacks.
-JVM_ONLY = re.compile(
-    r"java\.lang\.reflect|getDeclared|\.getMethods?\b|\.getFields?\b|scala\.tools\.|scala\.sys\.process"
-    r"|java\.lang\.invoke|javax\.|ObjectOutputStream"
-)
-COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
-
-
-def tests(filter_):
-    """(name, Scala sources, check file or None, skip reason or None) for each test."""
-    if not TESTS.is_dir():
-        sys.exit(f"{TESTS} missing: run `just dotty-fetch`")
-    for path in sorted(TESTS.iterdir()):
-        name = path.name if path.is_dir() else path.stem
-        if not (path.is_dir() or path.suffix == ".scala") or filter_ not in name:
-            continue
-        files = [s for s in sorted(path.rglob("*")) if s.is_file()] if path.is_dir() else [path]
-        sources = [s for s in files if s.suffix == ".scala"]
-        texts = [s.read_text(errors="replace") for s in sources]
-        reason = None
-        if any(s.suffix == ".java" for s in files):
-            reason = "java sources"
-        elif any("//> using target.platform" in t for t in texts):
-            reason = "platform-specific"
-        elif any(JVM_ONLY.search(COMMENT.sub("", t)) for t in texts):
-            reason = "jvm-only api"
-        check = TESTS / (name + ".check")
-        yield name, sources, check if check.exists() else None, reason
 
 
 def scala_cli(command, name, sources, *extra):
@@ -100,22 +73,32 @@ def classify(name, outcome, detail, native):
     return outcome, f"{detail}; natively {n_outcome}"
 
 
-def compile_one(name, sources):
+def compile_one(name, groups):
+    """Compiles the groups in order into one directory, each seeing the output before it."""
     out = WORK / "nir" / name
     if (out / ".done").exists():
         return "compiled"
-    r = subprocess.run(scala_cli("compile", name, sources, "-d", str(out)), capture_output=True, text=True)
-    (WORK / "logs" / (name + ".compile")).write_text(r.stdout + r.stderr)
+    shutil.rmtree(out, ignore_errors=True)
+    log = ""
+    for i, sources in enumerate(groups):
+        extra = ["--extra-jars", str(out)] if i else []
+        r = subprocess.run(scala_cli("compile", name, sources, *extra, "-d", str(out)), capture_output=True, text=True)
+        log += r.stdout + r.stderr
+        if r.returncode != 0:
+            break
+    (WORK / "logs" / (name + ".compile")).write_text(log)
     if r.returncode != 0:
         return "compile failed"
     (out / ".done").touch()
     return "compiled"
 
 
-def native_one(name, sources, check):
+def native_one(name, groups, check):
     binary = WORK / "bin" / name
     if not binary.exists():
-        cmd = scala_cli("package", name, sources, "-f", "-o", str(binary), "--main-class", "Test")
+        earlier = ["--extra-jars", str(WORK / "nir" / name)] if len(groups) > 1 else []
+        extra = [*earlier, "-f", "-o", str(binary), "--main-class", "Test"]
+        cmd = scala_cli("package", name, groups[-1], *extra)
         r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
         (WORK / "logs" / (name + ".link")).write_text(r.stdout + r.stderr)
         if r.returncode != 0:
@@ -162,8 +145,12 @@ def report(filter_):
             rows[name] = ("skipped", reason)
         elif (WORK / "nir" / name / ".done").exists():
             runnable.append((name, check))
+        elif (log := WORK / "logs" / (name + ".compile")).exists():
+            plain = re.sub(r"\x1b\[[\d;]*m", "", log.read_text(errors="replace")).replace("\t", " ").splitlines()
+            errors = [l.removeprefix("[error] ") for l in plain if l.startswith("[error] ") and ".scala:" not in l]
+            rows[name] = ("compile failed", (errors or [next((l for l in plain if l.strip()), "")])[0][:160])
         else:
-            rows[name] = ("compile failed" if (WORK / "logs" / (name + ".compile")).exists() else "not built", "")
+            rows[name] = ("not built", "")
     cmd = lambda name: [str(SCALAI), "--cp", str(WORK / "nir" / name), "Test"]
     runs = parallel(lambda n, c: run(cmd(n), c, WORK / "logs" / (n + ".run")), runnable)
     for (name, _), (outcome, detail) in zip(runnable, runs):

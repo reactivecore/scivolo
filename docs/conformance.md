@@ -84,6 +84,14 @@ Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`
 4. **A SAM lambda crashes natively** (dotty `tests/run/i24573.scala`, Scala Native or the
    compiler): the lambda class lacks the bridge `apply(Object, Object)`; the Scala Native binary
    segfaults, the VM throws `InternalError`. Needs a minimal reproduction first (#20).
+5. **No static forwarder beside a `@static` method of the same name** (nscplugin,
+   `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:835`).
+   - An object with `@static def foo` and an instance method `foo` of the same signature (e.g.
+     through `@targetName("foo")`) fails to compile: "found existing public static method …
+     cannot generate a static forwarder".
+   - Scala 3's JVM backend skips forwarders whose name the companion class already has (dotty
+     `tests/run/i19394.scala`).
+   - Fix: skip the forwarder instead of reporting an error. VM: not affected.
 
 ## M4: dotty `tests/run`
 
@@ -94,21 +102,24 @@ just dotty-native   # link the tests failing in the VM as Scala Native binaries,
 ```
 
 A test passes when `Test.main` exits normally and its stdout matches the `.check` file, if any.
-Skipped: tests for one platform, with Java sources, or using APIs the Scala Native javalib
-lacks (member reflection, processes, serialization). A VM failure counts as failing in Scala
-Native too when the native binary fails the same way with the same stdout, or does not link
-for a missing definition. A run with a filter updates only its tests' rows.
+As in dotty, a directory's files are compiled in groups by the `_N` suffix of their names, in
+ascending order, each group seeing the output of the ones before it. Skipped: tests for one
+platform, with Java sources, compiled partly by another compiler (a `_c3.0.2` suffix), or using
+APIs the Scala Native javalib lacks (member reflection, processes, serialization). A VM failure
+counts as failing in Scala Native too when the native binary fails the same way with the same
+stdout, or does not link for a missing definition. A run with a filter updates only its tests'
+rows.
 
 Results (2026-09-28):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1503 |
+| passed | 1502 |
 | wrong output | 1 |
 | crashed | 1 |
 | fails in Scala Native too | 31 |
-| compile failed | 4 |
-| skipped | 169 |
+| compile failed | 1 |
+| skipped | 173 |
 | **total** | **1709** |
 
 - **Fails in Scala Native too:** reflection Scala Native lacks (`getConstructors`,
@@ -117,7 +128,7 @@ Results (2026-09-28):
 - **Failing in the VM:** `i24573` (a SAM lambda without its `apply(Object, Object)` bridge;
   segfaults natively) and `redundantParents` (`getInterfaces` lists all interfaces, in another
   order than natively). Both fail natively too, differently (#20).
-- **Compile failed:** tests that need separate compilation (#21).
+- **Compile failed:** `i19394`, in Scala Native's compiler plugin (upstream bug 5).
 
 ## M5: scala/scala `test/junit`
 
