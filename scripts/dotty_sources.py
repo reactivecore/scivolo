@@ -11,21 +11,23 @@ JVM_ONLY = re.compile(
     r"|java\.lang\.invoke|javax\.|ObjectOutputStream"
 )
 COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
-OLD_COMPILER = re.compile(r"_c[\d.]+\.scala$")
+OTHER_COMPILER =re.compile(r"_c[\d.]+\.scala$")
 
 
 def group(source):
     """The separate-compilation group of a file, from the ordinal in its `_N` name suffix."""
-    ordinals = [int(p) for p in source.stem.split("_")[1:] if p.isdigit()]
+    ordinals = [int(p) for p in source.stem.split("_")[1:] if re.fullmatch(r"[0-9]+", p)]
     return ordinals[0] if ordinals else -1
 
 
 def skip_reason(files, sources):
     texts = [s.read_text(errors="replace") for s in sources]
+    if not sources:
+        return "no sources"
     if any(s.suffix == ".java" for s in files):
         return "java sources"
-    if any(OLD_COMPILER.search(s.name) for s in sources):
-        return "older compiler"
+    if any(OTHER_COMPILER.search(s.name) for s in sources):
+        return "other compiler"
     if any("//> using target.platform" in t for t in texts):
         return "platform-specific"
     if any(JVM_ONLY.search(COMMENT.sub("", t)) for t in texts):

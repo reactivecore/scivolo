@@ -7,6 +7,7 @@ import collections
 import concurrent.futures
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,19 +73,15 @@ def classify(name, outcome, detail, native):
     return outcome, f"{detail}; natively {n_outcome}"
 
 
-def earlier(groups, out):
-    """The classpath option giving a group the output of the groups before it."""
-    return ["--extra-jars", str(out)] if len(groups) > 1 else []
-
-
 def compile_one(name, groups):
     """Compiles the groups in order into one directory, each seeing the output before it."""
     out = WORK / "nir" / name
     if (out / ".done").exists():
         return "compiled"
+    shutil.rmtree(out, ignore_errors=True)
     log = ""
     for i, sources in enumerate(groups):
-        extra = earlier(groups, out) if i > 0 else []
+        extra = ["--extra-jars", str(out)] if i else []
         r = subprocess.run(scala_cli("compile", name, sources, *extra, "-d", str(out)), capture_output=True, text=True)
         log += r.stdout + r.stderr
         if r.returncode != 0:
@@ -99,7 +96,8 @@ def compile_one(name, groups):
 def native_one(name, groups, check):
     binary = WORK / "bin" / name
     if not binary.exists():
-        extra = [*earlier(groups, WORK / "nir" / name), "-f", "-o", str(binary), "--main-class", "Test"]
+        earlier = ["--extra-jars", str(WORK / "nir" / name)] if len(groups) > 1 else []
+        extra = [*earlier, "-f", "-o", str(binary), "--main-class", "Test"]
         cmd = scala_cli("package", name, groups[-1], *extra)
         r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
         (WORK / "logs" / (name + ".link")).write_text(r.stdout + r.stderr)
@@ -148,9 +146,9 @@ def report(filter_):
         elif (WORK / "nir" / name / ".done").exists():
             runnable.append((name, check))
         elif (log := WORK / "logs" / (name + ".compile")).exists():
-            plain = re.sub(r"\x1b\[\d+m", "", log.read_text(errors="replace")).splitlines()
-            errors = [l[8:] for l in plain if l.startswith("[error] ") and ".scala:" not in l]
-            rows[name] = ("compile failed", errors[0][:160] if errors else "")
+            plain = re.sub(r"\x1b\[[\d;]*m", "", log.read_text(errors="replace")).replace("\t", " ").splitlines()
+            errors = [l.removeprefix("[error] ") for l in plain if l.startswith("[error] ") and ".scala:" not in l]
+            rows[name] = ("compile failed", (errors or [next((l for l in plain if l.strip()), "")])[0][:160])
         else:
             rows[name] = ("not built", "")
     cmd = lambda name: [str(SCALAI), "--cp", str(WORK / "nir" / name), "Test"]
