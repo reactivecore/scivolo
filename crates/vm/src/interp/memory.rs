@@ -18,7 +18,8 @@ pub fn load_mem(addr: usize, mem: Mem) -> u64 {
     }
 }
 
-/// Stores `v` accessed as `mem`; an aggregate is copied from the address `v`.
+/// Stores `v` accessed as `mem`; an aggregate is copied from the address `v`, or zeroed if `v`
+/// is 0.
 #[inline]
 pub fn store_mem(addr: usize, mem: Mem, v: u64) {
     match mem {
@@ -27,7 +28,7 @@ pub fn store_mem(addr: usize, mem: Mem, v: u64) {
         Mem::B4 => heap::write(addr, v as u32),
         Mem::B8 => heap::write(addr, v),
         Mem::Aggregate(size) if v != 0 => heap::copy(v as usize, addr, size as usize),
-        Mem::Aggregate(_) => {}
+        Mem::Aggregate(size) => heap::zero(addr, size as usize),
     }
 }
 
@@ -107,5 +108,19 @@ impl Vm {
             return self.null_pointer();
         }
         Ok(heap::read::<u32>(arr as usize + ARRAY_LENGTH) as u64)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{Mem, store_mem};
+
+    #[test]
+    fn aggregate_store_copies_or_zeroes() {
+        let (src, mut dst) = ([7u8; 8], [0xffu8; 8]);
+        store_mem(dst.as_mut_ptr() as usize, Mem::Aggregate(8), src.as_ptr() as u64);
+        assert_eq!(dst, [7; 8]);
+        store_mem(dst.as_mut_ptr() as usize, Mem::Aggregate(8), 0);
+        assert_eq!(dst, [0; 8]);
     }
 }
