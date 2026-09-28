@@ -56,3 +56,27 @@ directories outside the repo.
 
 Very short messages: one summary line; body only when essential. No
 Claude/Anthropic attribution trailers.
+
+## GitLab
+
+Work is tracked in GitLab issues (`reactivecore/scala-interpreter`, `glab`),
+with the labels of rcui.
+
+Issues and comments:
+
+- Texts stay short.
+- Numbers and bullets rather than paragraphs.
+
+Merge requests:
+
+- Review your own code before raising one.
+- The title starts with the issue number (`#123`).
+- The description summarizes; it does not repeat the issue text.
+- A short note on *how* something was done belongs in it.
+- It carries the checkboxes `Human Code Review` and `Human Test`, which are
+  not exclusive:
+
+  ```markdown
+  - [ ] Human Code Review
+  - [ ] Human Test
+  ```
