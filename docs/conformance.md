@@ -25,21 +25,20 @@ where their resource files are.
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
 | scala.scalanative | 737 | 1 | 0 |
-| java.lang | 393 | 8 | 9 |
+| java.lang | 401 | 0 | 9 |
 | java.io | 247 | 0 | 0 |
 | java.net | 107 | 0 | 1 |
 | java.math | 780 | 0 | 0 |
 | java.nio | 2634 | 0 | 1 |
 | java.util | 2651 | 1 | 2 |
-| java.util.concurrent | 2928 | 6 | 6 |
+| java.util.concurrent | 2933 | 1 | 6 |
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 61 | 0 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **11323** | **16** | **21** |
+| **total** | **11336** | **3** | **21** |
 
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
-read-only-file cases, because the CI container runs as root. `SubmissionPublisherTest.testCancelledConsume`
-fails now and then on either platform.
+read-only-file cases, because the CI container runs as root.
 
 A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
@@ -49,12 +48,39 @@ instead of the run.
 
 - **Service providers.** `ServiceLoader` lists every provider `META-INF/services` names, so
   `ServiceLoaderTest.loadService`'s provider that is not opted in is found too (ADR 0007).
-- **javalib bugs.** `ForkJoinPool.helpAsyncBlocker` matches only worker threads (5
-  `SubmissionPublisher` cases), and one `LinkedTransferQueue` case. The published javalib also
-  compiled `HashSet.containsAll`'s lambda to `throw o`; the VM replaces that lambda.
+- **javalib bug.** `LinkedTransferQueue.remove` reads `p.next` after `p` became null when the
+  queue does not hold the element (`LinkedTransferQueueTest$Generic.testRemoveElement`); Scala
+  Native's optimizer drops that unused load, the VM executes it. The VM works around two other
+  javalib bugs: `ForkJoinPool.helpAsyncBlocker` matching only worker threads (a no-op on other
+  threads) and `HashSet.containsAll`'s lambda compiled to `throw o`.
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
-- **Single cases.** `Math.multiplyHigh`.
+
+## Upstream bugs to report
+
+Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`ref/scala-native`).
+
+1. **`LinkedTransferQueue.remove` reads `null.next`** (javalib,
+   `java/util/concurrent/LinkedTransferQueue.scala:1214`).
+   - Port of the JDK loop `for (Node c = p;; q = p.next)`: the update `q = p.next` also runs
+     after the `break` that set `p = q = null`.
+   - Removing an element the queue does not hold throws `NullPointerException` unless the
+     optimizer drops the unused load; `LinkedTransferQueueTest$Generic.testRemoveElement`.
+   - Fix: update `q` only when the loop continues. VM: not worked around.
+2. **`ForkJoinPool.helpAsyncBlocker` fails on other threads** (javalib,
+   `java/util/concurrent/ForkJoinPool.scala:2063`).
+   - `Thread.currentThread() match { case wt: ForkJoinWorkerThread => … }` has no default
+     case: `MatchError` where the JDK does nothing.
+   - Reached from `SubmissionPublisher` when a producer blocks outside the pool, which green
+     threads make likely; 5 `SubmissionPublisherTest` cases.
+   - Fix: `case _ => ()`. VM: overridden (`natives/runtime.rs`).
+3. **`HashSet.containsAll`'s lambda throws** (javalib, `java/util/HashSet.scala:31`).
+   - `c.iterator().scalaOps.forall(contains)` on a `Collection[_]` eta-expands `contains` with a
+     `Nothing` parameter; the published javalib's lambda body is `throw o`.
+   - Fix: `forall(e => contains(e))`. VM: the lambda is replaced (`natives/runtime.rs`).
+4. **A SAM lambda crashes natively** (dotty `tests/run/i24573.scala`, Scala Native or the
+   compiler): the lambda class lacks the bridge `apply(Object, Object)`; the Scala Native binary
+   segfaults, the VM throws `InternalError`. Needs a minimal reproduction first (#20).
 
 ## M4: dotty `tests/run`
 
