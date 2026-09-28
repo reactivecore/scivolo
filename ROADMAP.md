@@ -48,7 +48,8 @@ Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garb
 Stack traces come from the interpreter's frames, and Java threads run as green threads
 ([ADR 0003](docs/adr/0003-green-threads-first.md), done 2026-09-27).
 M4 (2026-09-28): dotty's `tests/run` fail in the VM only where they fail in Scala Native too
-([docs/conformance.md](docs/conformance.md)). Not yet done: M5.
+([docs/conformance.md](docs/conformance.md)). M5: every scala/scala JUnit test that compiles with
+Scala 3 passes.
 
 Next steps in phase 1:
 1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).

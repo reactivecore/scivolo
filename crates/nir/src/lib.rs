@@ -8,6 +8,7 @@ mod operands;
 pub mod pool;
 pub mod prelude;
 pub mod show;
+mod successors;
 mod tags;
 
 pub use cursor::{Error, Result};

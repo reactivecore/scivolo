@@ -89,3 +89,24 @@ Results (2026-09-28):
   segfaults natively) and `redundantParents` (`getInterfaces` lists all interfaces, in another
   order than natively). Both fail natively too, differently (#20).
 - **Compile failed:** tests that need separate compilation (#21).
+
+## M5: scala/scala `test/junit`
+
+```sh
+just m5-build    # ref/scala2 at v2.13.18 (sparse), compiled with Scala 3.9 into tmp/m5
+just m5-report   # run each test class; report.md and results.txt under tmp/m5
+```
+
+Since Scala 3.8 the standard library is compiled by Scala 3, so scala/scala's JUnit tests for
+it (v2.13.18, the version it is based on) are compiled with Scala 3.9 and Scala Native's JUnit
+plugin, minus the files Scala Native's denylist for 2.13.18 excludes. Files that do not compile
+with Scala 3 are dropped until the rest does; `AssertUtil` gets one Scala 3 fix. Each test
+class runs in its own VM, 900 s at most.
+
+Results (2026-09-28): of 104 files, 92 compile; all 867 tests in their 112 classes pass.
+
+- **Not compiling with Scala 3 (12 files):** ambiguous givens (`BuildFromTest`,
+  `DecoratorsTest`), missing `ClassTag`s, `==` between unrelated types, and overloads that
+  Scala 3 resolves differently (`SortingTest`, `ArraySortingTest`, `RicherTest`).
+- **Slow:** `ListSetTest.hasTailRecursiveDelete` takes about 5 minutes; generic `==` on boxed
+  values is slow (#22).
