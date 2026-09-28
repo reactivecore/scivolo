@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Downloads scala-cli 1.14.0 for macOS arm64 into tmp/tools and checks its sha256.
+# Downloads scala-cli 1.14.0 for macOS arm64 into tmp/tools/scala-cli-1.14.0 and checks its
+# sha256.
 set -euo pipefail
-dir=$(cd "$(dirname "$0")/.." && pwd)/tmp/tools
+dir=$(cd "$(dirname "$0")/.." && pwd)/tmp/tools/scala-cli-1.14.0
 bin=$dir/scala-cli
 if [ ! -x "$bin" ]; then
   mkdir -p "$dir"

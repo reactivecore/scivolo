@@ -128,7 +128,7 @@ suite:macos:
       paths: [ref/libs, tmp/tools]
   script:
     - scripts/fetch-scala-cli.sh
-    - export PATH="$CI_PROJECT_DIR/tmp/tools:$PATH"
+    - export PATH="$CI_PROJECT_DIR/tmp/tools/scala-cli-1.14.0:$PATH"
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 

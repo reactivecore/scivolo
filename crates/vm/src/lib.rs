@@ -54,6 +54,8 @@ pub struct Vm {
     linktime: linktime::Linktime,
     junit: Option<Vec<String>>,
     variadics: FxHashMap<GlobalId, (usize, usize)>,
+    /// The message `dlerror` last returned to the program.
+    dlerror: std::ffi::CString,
     scratch: Vec<usize>,
 }
 
@@ -82,6 +84,7 @@ impl Vm {
             linktime: linktime::Linktime::default(),
             junit: None,
             variadics: FxHashMap::default(),
+            dlerror: std::ffi::CString::default(),
             scratch: Vec::new(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();

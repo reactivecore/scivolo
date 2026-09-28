@@ -6,8 +6,8 @@ const STACK_WORDS: usize = 32;
 
 const APPLE_ARM64: bool = cfg!(all(target_arch = "aarch64", target_vendor = "apple"));
 
-/// The integer argument registers: 8 on arm64, 6 on x86-64.
-const INT_REGS: usize = if APPLE_ARM64 { 8 } else { 6 };
+/// The integer argument registers: 6 on x86-64, 8 on arm64.
+const INT_REGS: usize = if cfg!(target_arch = "x86_64") { 6 } else { 8 };
 
 /// Up to 8 integer and 8 floating-point registers, then 32 words the callee finds on the stack.
 #[cfg(all(target_arch = "aarch64", target_vendor = "apple"))]
@@ -19,12 +19,12 @@ type VarFn = unsafe extern "C" fn(
     u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64,
 ) -> u64;
 
-/// 6 integer and 8 floating-point registers, then the stack words, passed as C variadic
+/// The integer and floating-point registers, then the stack words, passed as C variadic
 /// arguments, which sets `%al` on x86-64.
 #[cfg(not(all(target_arch = "aarch64", target_vendor = "apple")))]
 type VarFn = unsafe extern "C" fn(u64, ...) -> u64;
 
-#[cfg(all(target_arch = "aarch64", target_vendor = "apple"))]
+#[cfg(not(target_arch = "x86_64"))]
 #[rustfmt::skip]
 unsafe fn invoke(fun: VarFn, a: [u64; 8], f: [f64; 8], s: [u64; STACK_WORDS]) -> u64 {
     // SAFETY: the caller guarantees `fun` takes these registers and stack words.
@@ -38,7 +38,7 @@ unsafe fn invoke(fun: VarFn, a: [u64; 8], f: [f64; 8], s: [u64; STACK_WORDS]) ->
     }
 }
 
-#[cfg(not(all(target_arch = "aarch64", target_vendor = "apple")))]
+#[cfg(target_arch = "x86_64")]
 #[rustfmt::skip]
 unsafe fn invoke(fun: VarFn, a: [u64; 8], f: [f64; 8], s: [u64; STACK_WORDS]) -> u64 {
     // SAFETY: the caller guarantees `fun` takes these registers and stack words.
@@ -65,21 +65,23 @@ fn promote(num: Num, v: u64) -> u64 {
 }
 
 /// Calls the C function at `addr` whose first `named` parameters are fixed, with `args`;
-/// `None` if the arguments do not fit the registers and stack words this path passes.
+/// `None` if the arguments do not fit the registers and stack words this path passes (on Apple
+/// arm64, named arguments beyond the registers).
 pub fn call(addr: usize, named: usize, args: &[(u64, Num)], ret: Num) -> Option<u64> {
     let (mut ints, mut floats, mut stack) = ([0u64; 8], [0f64; 8], [0u64; STACK_WORDS]);
     let (mut ni, mut nf, mut ns) = (0, 0, 0);
     for (i, &(v, num)) in args.iter().enumerate() {
         let float = matches!(num, Num::F32 | Num::F64);
-        let spill = (i >= named && APPLE_ARM64) || if float { nf == 8 } else { ni == INT_REGS };
-        if spill {
-            *stack.get_mut(ns)? = promote(num, v);
+        let full = if float { nf == 8 } else { ni == INT_REGS };
+        let bits = if i >= named || !float { promote(num, v) } else { v };
+        if (i >= named && APPLE_ARM64) || (full && !APPLE_ARM64) {
+            *stack.get_mut(ns)? = bits;
             ns += 1;
         } else if float {
-            floats[nf] = f64::from_bits(promote(num, v));
+            *floats.get_mut(nf)? = f64::from_bits(bits);
             nf += 1;
         } else {
-            ints[ni] = promote(num, v);
+            *ints.get_mut(ni)? = bits;
             ni += 1;
         }
     }

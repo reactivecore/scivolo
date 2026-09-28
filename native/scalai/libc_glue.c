@@ -1,5 +1,4 @@
-// libc functions that glibc links statically (libc_nonshared.a), exported under a `scalai_`
-// name for `dlsym`.
+// `scalai_`-prefixed exported wrappers of atexit, at_quick_exit and pthread_atfork.
 
 #include <pthread.h>
 #include <stdlib.h>

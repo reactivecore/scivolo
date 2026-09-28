@@ -1,12 +1,14 @@
 //! Calls into C functions found with `dlsym`, for non-variadic signatures of up to eight
 //! integer and eight floating-point arguments passed in registers.
 
+mod dl;
 pub mod variadic;
+
+pub use dl::{extern_fn, load_runtime, symbol};
 
 use crate::Vm;
 use crate::interp::Flow;
 use nir::{DefnKind, GlobalId, Type};
-use std::ffi::CString;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Class {
@@ -64,32 +66,6 @@ pub fn exit_immediately(code: i32) -> ! {
     unsafe { libc::_exit(code) }
 }
 
-/// Makes the symbols of Scala Native's C runtime, and of the libraries listed in
-/// `SCALAI_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
-pub fn load_runtime() -> Result<(), String> {
-    let extra = std::env::var("SCALAI_NATIVE_LIBS").unwrap_or_default();
-    std::iter::once(snrt::PATH).chain(extra.split(':').filter(|p| !p.is_empty())).try_for_each(open)
-}
-
-fn open(lib: &str) -> Result<(), String> {
-    let path = CString::new(lib).map_err(|e| e.to_string())?;
-    // SAFETY: `path` is a valid C string; loading runs only the library's static initializers.
-    let handle = unsafe { libc::dlopen(path.as_ptr(), libc::RTLD_NOW | libc::RTLD_GLOBAL) };
-    match handle.is_null() {
-        true => Err(format!("cannot load the native library {lib}")),
-        false => Ok(()),
-    }
-}
-
-/// `dlerror`, called without a `dlsym` of its own that would clear the pending error.
-pub fn extern_fn(name: &str) -> Option<super::NativeFn> {
-    match name {
-        // SAFETY: `dlerror` has no preconditions; its result stays valid until the next dl call.
-        "dlerror" => Some(|_, _| Ok(unsafe { libc::dlerror() } as u64)),
-        _ => None,
-    }
-}
-
 /// The C function `name` declared by `g`, if the process can find and call it.
 pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     let defn = vm.world.defn(g).ok()?;
@@ -107,21 +83,6 @@ pub fn foreign(pool: &nir::Pool, ty: nir::TypeId, addr: usize) -> Option<Foreign
     let ret = class(pool.ty(*ret))?;
     let ints = args.iter().filter(|c| matches!(c, Class::Int { .. })).count();
     (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret, blocking: false })
-}
-
-/// The address of C symbol `name` in the process, else of the runtime's `scalai_<name>`
-/// (`native/scalai/libc_glue.c`); `errno` is left as it was.
-pub fn symbol(name: &str) -> Option<usize> {
-    lookup(name).or_else(|| lookup(&format!("scalai_{name}")))
-}
-
-fn lookup(name: &str) -> Option<usize> {
-    let cname = CString::new(name).ok()?;
-    let saved = errno();
-    // SAFETY: `dlsym` with RTLD_DEFAULT and a valid C string only reads the symbol tables.
-    let addr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, cname.as_ptr()) } as usize;
-    set_errno(saved);
-    (addr != 0).then_some(addr)
 }
 
 #[cfg(target_os = "macos")]
