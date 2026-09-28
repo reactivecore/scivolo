@@ -49,12 +49,13 @@ instead of the run.
 
 - **Service providers.** `ServiceLoader` lists every provider `META-INF/services` names, so
   `ServiceLoaderTest.loadService`'s provider that is not opted in is found too (ADR 0007).
-- **javalib bugs.** `ForkJoinPool.helpAsyncBlocker` matches only worker threads (5
-  `SubmissionPublisher` cases), and one `LinkedTransferQueue` case. The published javalib also
-  compiled `HashSet.containsAll`'s lambda to `throw o`; the VM replaces that lambda.
+- **javalib bug.** `LinkedTransferQueue.remove` reads `p.next` after `p` became null when the
+  queue does not hold the element (`LinkedTransferQueueTest$Generic.testRemoveElement`); Scala
+  Native's optimizer drops that unused load, the VM executes it. The VM works around two other
+  javalib bugs: `ForkJoinPool.helpAsyncBlocker` matching only worker threads (a no-op on other
+  threads) and `HashSet.containsAll`'s lambda compiled to `throw o`.
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
-- **Single cases.** `Math.multiplyHigh`.
 
 ## M4: dotty `tests/run`
 
