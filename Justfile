@@ -56,18 +56,17 @@ vm-profile name *args: release
 
 # Check out dotty's tests/run at the Scala version the VM runs into ref/scala3 (M4).
 dotty-fetch:
-    test -d ref/scala3 || git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3
-    git -C ref/scala3 sparse-checkout set tests/run
+    test -d ref/scala3 || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3 && git -C ref/scala3 sparse-checkout set tests/run)
 
 # Compile dotty's tests/run (those whose names contain `filter`) to NIR under tmp/dotty.
 dotty-build filter="": dotty-fetch
     python3 scripts/dotty-tests.py build {{ filter }}
 
-# Run the compiled dotty tests; report in tmp/dotty/report.md, results in tmp/dotty/results.tsv.
+# Run the compiled dotty tests; report.md and results.tsv under tmp/dotty.
 dotty-report filter="": release
     python3 scripts/dotty-tests.py report {{ filter }}
 
-# Run the dotty tests failing in the VM as Scala Native binaries, for the next dotty-report.
+# Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
 

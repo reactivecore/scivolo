@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""Runs dotty's tests/run (ref/scala3, tag 3.9.0) in the VM: milestone M4.
+"""Milestone M4, dotty's tests/run in the VM (docs/conformance.md).
 
-Usage: scripts/dotty-tests.py build [FILTER]   compile the Scala Native subset to NIR
-       scripts/dotty-tests.py report [FILTER]  run it; summary in tmp/dotty/report.md,
-                                              one line per test in tmp/dotty/results.tsv
-       scripts/dotty-tests.py native [FILTER]  run the tests failing in the VM as Scala Native
-                                              binaries; tmp/dotty/native.tsv, used by report
-FILTER keeps tests whose name contains it. SCALAI_TIMEOUT (default 60) bounds each run.
+Usage: scripts/dotty-tests.py build|report|native [FILTER]
 """
+import collections
 import concurrent.futures
 import os
 import re
@@ -15,142 +11,167 @@ import subprocess
 import sys
 from pathlib import Path
 
+SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "ref/scala3/tests/run"
-WORK = ROOT / "tmp/dotty"
+WORK = ROOT / "tmp/dotty" / f"{SCALA}-{NATIVE}"
 SCALAI = ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
+TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
+FAILED = ("wrong output", "crashed", "timeout")
+SAME = "fails in Scala Native too"
+OUTCOMES = ["passed", *FAILED, SAME, "not built", "compile failed", "skipped"]
 
-# Source text that needs the JVM: runtime reflection, class loading, processes, serialization.
+# Code outside comments using APIs the Scala Native javalib lacks.
 JVM_ONLY = re.compile(
-    r"scala\.reflect\.runtime|java\.lang\.reflect|getDeclared|\.getMethods?\b|\.getFields?\b"
-    r"|Class\.forName|ClassLoader|scala\.tools\.|dotty\.tools|scala\.quoted\.staging"
-    r"|scala\.sys\.process|java\.lang\.invoke|javax\.|sun\.misc|com\.sun\.|java\.rmi|java\.beans"
-    r"|java\.awt|java\.lang\.management|ObjectOutputStream|ObjectInputStream|getResource"
-    r"|//> using target\.platform"
+    r"java\.lang\.reflect|getDeclared|\.getMethods?\b|\.getFields?\b|scala\.tools\.|scala\.sys\.process"
+    r"|java\.lang\.invoke|javax\.|ObjectOutputStream"
 )
+COMMENT = re.compile(r"//[^\n]*|/\*.*?\*/", re.S)
 
 
 def tests(filter_):
-    """(name, sources, check file or None, skip reason or None) for each test."""
+    """(name, Scala sources, check file or None, skip reason or None) for each test."""
+    if not TESTS.is_dir():
+        sys.exit(f"{TESTS} missing: run `just dotty-fetch`")
     for path in sorted(TESTS.iterdir()):
         name = path.name if path.is_dir() else path.stem
         if not (path.is_dir() or path.suffix == ".scala") or filter_ not in name:
             continue
-        sources = [s for s in sorted(path.rglob("*")) if s.is_file()] if path.is_dir() else [path]
-        check = TESTS / (name + ".check")
+        files = [s for s in sorted(path.rglob("*")) if s.is_file()] if path.is_dir() else [path]
+        sources = [s for s in files if s.suffix == ".scala"]
+        texts = [s.read_text(errors="replace") for s in sources]
         reason = None
-        if any(s.suffix == ".java" for s in sources):
+        if any(s.suffix == ".java" for s in files):
             reason = "java sources"
-        elif any(JVM_ONLY.search(s.read_text(errors="replace")) for s in sources if s.suffix == ".scala"):
+        elif any("//> using target.platform" in t for t in texts):
+            reason = "platform-specific"
+        elif any(JVM_ONLY.search(COMMENT.sub("", t)) for t in texts):
             reason = "jvm-only api"
-        yield name, [s for s in sources if s.suffix == ".scala"], check if check.exists() else None, reason
+        check = TESTS / (name + ".check")
+        yield name, sources, check if check.exists() else None, reason
 
 
-def compile_one(name, sources):
-    out, log = WORK / "nir" / name, WORK / "logs" / (name + ".compile")
-    if (out / ".done").exists():
-        return name, "compiled"
-    cmd = ["scala-cli", "--power", "compile", "--quiet", "--native", "--native-version", "0.5.12",
-           "--scala", "3.9.0", "--workspace", str(WORK / "ws" / name), "-d", str(out)] + [str(s) for s in sources]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    log.write_text(result.stdout + result.stderr)
-    if result.returncode != 0:
-        return name, "compile failed"
-    (out / ".done").touch()
-    return name, "compiled"
-
-
-def run_one(name, check, cmd=None):
-    env = dict(os.environ, SCALAI_TIMEOUT=os.environ.get("SCALAI_TIMEOUT", "60"))
-    cmd = cmd or [str(SCALAI), "--cp", str(WORK / "nir" / name), "Test"]
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env,
-                                timeout=int(env["SCALAI_TIMEOUT"]) + 10)
-    except subprocess.TimeoutExpired:
-        return "timeout", ""
-    log = name + (".run" if cmd[0] == str(SCALAI) else ".native")
-    (WORK / "logs" / log).write_text(result.stdout + "\n--- stderr ---\n" + result.stderr)
-    first_err = next((l for l in result.stderr.splitlines() if l.strip()), "")
-    if result.returncode == 124:
-        return "timeout", ""
-    if result.returncode != 0:
-        return "crashed", first_err[:160]
-    if check and lines(result.stdout) != lines(check.read_text(errors="replace")):
-        return "wrong output", ""
-    return "passed", ""
+def scala_cli(command, name, sources, *extra):
+    return ["scala-cli", "--power", command, "--quiet", "--native", "--native-version", NATIVE,
+            "--scala", SCALA, "--workspace", str(WORK / "ws" / name), *extra, *map(str, sources)]
 
 
 def lines(text):
     return text.rstrip("\n").splitlines()
 
 
+def text(out):
+    return out.decode(errors="replace") if isinstance(out, bytes) else out or ""
+
+
+def run(cmd, check, log):
+    """The outcome of `cmd` and a detail, with its output written to `log`."""
+    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env, timeout=TIMEOUT + 10)
+        out, err, code = r.stdout, r.stderr, r.returncode
+    except subprocess.TimeoutExpired as e:
+        out, err, code = text(e.stdout), text(e.stderr), None
+    log.write_text(out + "\n--- stderr ---\n" + err)
+    if code is None or "scalai: timed out" in err:
+        return "timeout", ""
+    if code != 0:
+        return "crashed", next((l for l in err.splitlines() if l.strip()), "").replace("\t", " ")[:160]
+    if check and lines(out) != lines(check.read_text(errors="replace")):
+        return "wrong output", ""
+    return "passed", ""
+
+
+def stdout(name, suffix):
+    """The stdout in a run log, with source positions as Scala Native prints them."""
+    log = (WORK / "logs" / (name + suffix)).read_text(errors="replace").split("\n--- stderr ---\n")[0]
+    log = re.sub(r"\([\w$.-]+\.scala:\d+\)", "(Unknown Source)", log)
+    return [l for l in lines(log) if l != "<none>.main(Unknown Source)"]
+
+
+def classify(name, outcome, detail, native):
+    """A VM failure counts as Scala Native's when the native binary fails alike or does not link."""
+    if outcome == "passed" or native is None:
+        return outcome, detail
+    n_outcome, n_detail = native
+    if n_outcome == "link failed" or (n_outcome == outcome and stdout(name, ".run") == stdout(name, ".native")):
+        return SAME, f"{n_outcome}: {n_detail or detail}"
+    return outcome, f"{detail}; natively {n_outcome}"
+
+
+def compile_one(name, sources):
+    out = WORK / "nir" / name
+    if (out / ".done").exists():
+        return "compiled"
+    r = subprocess.run(scala_cli("compile", name, sources, "-d", str(out)), capture_output=True, text=True)
+    (WORK / "logs" / (name + ".compile")).write_text(r.stdout + r.stderr)
+    if r.returncode != 0:
+        return "compile failed"
+    (out / ".done").touch()
+    return "compiled"
+
+
 def native_one(name, sources, check):
     binary = WORK / "bin" / name
     if not binary.exists():
-        cmd = ["scala-cli", "--power", "package", "--quiet", "--native", "--native-version", "0.5.12",
-               "--scala", "3.9.0", "--workspace", str(WORK / "ws" / name), "-f", "-o", str(binary),
-               "--main-class", "Test"] + [str(s) for s in sources]
-        if subprocess.run(cmd, capture_output=True).returncode != 0:
-            return "link failed", ""
-    return run_one(name, check, [str(binary)])
+        cmd = scala_cli("package", name, sources, "-f", "-o", str(binary), "--main-class", "Test")
+        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        (WORK / "logs" / (name + ".link")).write_text(r.stdout + r.stderr)
+        if r.returncode != 0:
+            if "Unreachable symbols" not in r.stdout + r.stderr:
+                return "link error", ""
+            return "link failed", next((l for l in r.stdout.splitlines() if "Unknown " in l), "")[:160]
+    return run([str(binary)], check, WORK / "logs" / (name + ".native"))
 
 
-def native(filter_):
-    (WORK / "bin").mkdir(parents=True, exist_ok=True)
-    failing = {n for n, o, _ in read_results() if o not in ("passed", "compile failed", "skipped")}
-    todo = [(n, s, c) for n, s, c, _ in tests(filter_) if n in failing]
-    with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        outcomes = list(pool.map(lambda t: native_one(*t), todo))
-    rows = sorted((n, *o) for (n, _, _), o in zip(todo, outcomes))
-    (WORK / "native.tsv").write_text("".join(f"{n}\t{o}\t{d}\n" for n, o, d in rows))
-    print(f"{len(rows)} tests: " + ", ".join(f"{o} {sum(r[1] == o for r in rows)}" for o in sorted({r[1] for r in rows})))
-
-
-def read_results(file="results.tsv"):
+def load(file):
     path = WORK / file
-    lines = path.read_text().splitlines() if path.exists() else []
-    return [tuple((line.split("\t") + ["", ""])[:3]) for line in lines]
+    rows = [l.split("\t") + [""] for l in path.read_text().splitlines()] if path.exists() else []
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
+def save(file, rows):
+    (WORK / file).write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
+
+
+def parallel(fn, items):
+    with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
+        return list(pool.map(lambda t: fn(*t), items))
 
 
 def build(filter_):
-    (WORK / "logs").mkdir(parents=True, exist_ok=True)
     todo = [(n, s) for n, s, _, reason in tests(filter_) if reason is None]
-    counts = {}
-    with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        for i, (name, outcome) in enumerate(pool.map(lambda t: compile_one(*t), todo), 1):
-            counts[outcome] = counts.get(outcome, 0) + 1
-            if i % 100 == 0:
-                print(f"{i}/{len(todo)} {counts}", flush=True)
-    print(f"{len(todo)} tests: {counts}")
+    counts = collections.Counter(parallel(compile_one, todo))
+    print(f"{len(todo)} tests: {dict(counts)}")
+
+
+def native(filter_):
+    (WORK / "bin").mkdir(exist_ok=True)
+    failing = {n for n, (o, _) in load("results.tsv").items() if o in (*FAILED, SAME)}
+    todo = [(n, s, c) for n, s, c, _ in tests(filter_) if n in failing]
+    rows = load("native.tsv") | dict(zip((n for n, _, _ in todo), parallel(native_one, todo)))
+    save("native.tsv", rows)
+    print(f"{len(todo)} tests: {dict(collections.Counter(rows[n][0] for n, _, _ in todo))}")
 
 
 def report(filter_):
-    (WORK / "logs").mkdir(parents=True, exist_ok=True)
-    rows = []
-    runnable = []
+    rows, native_rows, runnable = load("results.tsv"), load("native.tsv"), []
     for name, _, check, reason in tests(filter_):
         if reason:
-            rows.append((name, "skipped", reason))
-        elif not (WORK / "nir" / name / ".done").exists():
-            rows.append((name, "compile failed", ""))
-        else:
+            rows[name] = ("skipped", reason)
+        elif (WORK / "nir" / name / ".done").exists():
             runnable.append((name, check))
-    with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        runs = pool.map(lambda t: run_one(*t), runnable)
-        rows += [(name, *outcome) for (name, _), outcome in zip(runnable, runs)]
-    in_native = {n: o for n, o, _ in read_results("native.tsv")}
-    rows = sorted(
-        (n, "fails in Scala Native", f"{in_native[n]}; {d}") if in_native.get(n, "passed") != "passed" and o != "passed"
-        else (n, o, d)
-        for n, o, d in rows
-    )
-    (WORK / "results.tsv").write_text("".join(f"{n}\t{o}\t{d}\n" for n, o, d in rows))
-    outcomes = ["passed", "wrong output", "crashed", "timeout", "fails in Scala Native", "compile failed", "skipped"]
-    counted = {o: sum(1 for r in rows if r[1] == o) for o in outcomes}
-    ran = sum(counted[o] for o in outcomes[:4])
-    table = "| Outcome | Tests |\n|---|---:|\n" + "".join(f"| {o} | {counted[o]} |\n" for o in outcomes)
-    table += f"| **total** | **{len(rows)}** |\n\nPassed {counted['passed']} of {ran} run.\n"
+        else:
+            rows[name] = ("compile failed" if (WORK / "logs" / (name + ".compile")).exists() else "not built", "")
+    cmd = lambda name: [str(SCALAI), "--cp", str(WORK / "nir" / name), "Test"]
+    runs = parallel(lambda n, c: run(cmd(n), c, WORK / "logs" / (n + ".run")), runnable)
+    for (name, _), (outcome, detail) in zip(runnable, runs):
+        rows[name] = classify(name, outcome, detail, native_rows.get(name))
+    save("results.tsv", rows)
+    counts = collections.Counter(o for o, _ in rows.values())
+    table = "| Outcome | Tests |\n|---|---:|\n" + "".join(f"| {o} | {counts[o]} |\n" for o in OUTCOMES)
+    table += f"| **total** | **{len(rows)}** |\n"
     (WORK / "report.md").write_text(table)
     print(table)
 
@@ -159,4 +180,5 @@ if __name__ == "__main__":
     commands = {"build": build, "report": report, "native": native}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
+    (WORK / "logs").mkdir(parents=True, exist_ok=True)
     commands[sys.argv[1]](sys.argv[2] if len(sys.argv) > 2 else "")

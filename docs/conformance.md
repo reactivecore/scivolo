@@ -60,31 +60,33 @@ instead of the run.
 ## M4: dotty `tests/run`
 
 ```sh
-just dotty-build    # ref/scala3 at 3.9.0 (sparse), each test compiled to NIR in tmp/dotty
-just dotty-report   # run them; tmp/dotty/report.md, one line per test in tmp/dotty/results.tsv
+just dotty-build    # ref/scala3 at 3.9.0 (sparse), each test compiled to NIR under tmp/dotty
+just dotty-report   # run them; report.md and results.tsv (one line per test) under tmp/dotty
 just dotty-native   # link the tests failing in the VM as Scala Native binaries, for the report
 ```
 
 A test passes when `Test.main` exits normally and its stdout matches the `.check` file, if any.
-Skipped: tests for the JVM or Scala.js only, with Java sources, or using JVM-only APIs
-(runtime reflection, class loading, processes, serialization). A test failing in the VM counts
-as failing in Scala Native when its native binary fails too, or does not link.
+Skipped: tests for one platform, with Java sources, or using APIs the Scala Native javalib
+lacks (member reflection, processes, serialization). A VM failure counts as failing in Scala
+Native too when the native binary fails the same way with the same stdout, or does not link
+for a missing definition. A run with a filter updates only its tests' rows.
 
 Results (2026-09-28):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1498 |
-| failed in the VM only | 0 |
-| fails in Scala Native too | 39 |
+| passed | 1497 |
+| wrong output | 1 |
+| crashed | 1 |
+| fails in Scala Native too | 37 |
 | compile failed | 4 |
-| skipped | 170 |
-| **total** | **1711** |
+| skipped | 169 |
+| **total** | **1709** |
 
-- **Fails in Scala Native too:** 17 crash, 13 print other output, 9 do not link. Reasons: Java
-  reflection Scala Native lacks (`getConstructors`, `getEnclosingClass`, `getEnumConstants`,
-  interface order), an empty `Thread.getStackTrace`, `Runtime.totalMemory`, and a crash in a
-  SAM lambda (`i24573`, segfault natively). The VM prints the same output, except that its
-  stack traces carry file and line.
-- **Compile failed:** tests that need separate compilation or the JVM
-  (`backwardsCompat-implicitParens`, `i19394`, `unroll-*`).
+- **Fails in Scala Native too:** reflection Scala Native lacks (`getConstructors`,
+  `getEnclosingClass`, `getEnumConstants`), an empty `Thread.getStackTrace`,
+  `Runtime.totalMemory`, and a `main` returning a value (`t4536`).
+- **Failing in the VM:** `i24573` (a SAM lambda without its `apply(Object, Object)` bridge;
+  segfaults natively) and `redundantParents` (`getInterfaces` lists all interfaces, in another
+  order than natively). Both fail natively too, differently (#20).
+- **Compile failed:** tests that need separate compilation (#21).

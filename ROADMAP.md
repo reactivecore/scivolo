@@ -47,8 +47,8 @@ with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and
 Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garbage-collector.md), done).
 Stack traces come from the interpreter's frames, and Java threads run as green threads
 ([ADR 0003](docs/adr/0003-green-threads-first.md), done 2026-09-27).
-M4 (2026-09-28): all 1,498 of dotty's `tests/run` that pass as Scala Native binaries pass in
-the VM. Not yet done: M5.
+M4 (2026-09-28): dotty's `tests/run` fail in the VM only where they fail in Scala Native too
+([docs/conformance.md](docs/conformance.md)). Not yet done: M5.
 
 Next steps in phase 1:
 1. ~~Garbage collector~~ (done 2026-09-25, ADR 0004).
