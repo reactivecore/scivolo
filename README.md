@@ -123,7 +123,7 @@ Next, by expected value:
 1. Interpreter speed beyond the phase 1 target: superinstructions, polymorphic inlining
    (docs/performance.md, ADR 0006).
 2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
-3. The M4 suite (dotty `tests/run`).
+3. The M5 suite (scala/scala `test/junit`).
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 

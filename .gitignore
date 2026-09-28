@@ -17,3 +17,4 @@ spikes/*/corpus/
 !spikes/**/artifacts/*.tasty
 ref/
 tmp/
+__pycache__/
