@@ -68,6 +68,8 @@ pub struct Funcs {
     pub no_inline: bool,
     /// Whether each method judged so far may be inlined, with its definition if so.
     pub inlinable: FxHashMap<GlobalId, Option<Rc<nir::Defn>>>,
+    /// Type object, value offset and kind of each `java.lang` box class, once `==` needs them.
+    pub boxes: Option<Vec<(u64, usize, ops::boxing::BoxValue)>>,
     pub profile: profile::Profile,
 }
 

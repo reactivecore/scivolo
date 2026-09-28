@@ -108,5 +108,5 @@ Results (2026-09-28): of 104 files, 92 compile; all 867 tests in their 112 class
 - **Not compiling with Scala 3 (12 files):** ambiguous givens (`BuildFromTest`,
   `DecoratorsTest`), missing `ClassTag`s, `==` between unrelated types, and overloads that
   Scala 3 resolves differently (`SortingTest`, `ArraySortingTest`, `RicherTest`).
-- **Slow:** `ListSetTest.hasTailRecursiveDelete` takes about 5 minutes; generic `==` on boxed
-  values is slow (#22).
+- **Slowest:** `ListSetTest.hasTailRecursiveDelete` builds a 50,000-element `ListSet`, a
+  quadratic 1.25 billion `==` on boxed `Int`s.

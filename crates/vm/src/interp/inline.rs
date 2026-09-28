@@ -3,6 +3,7 @@
 //! whose parameter is the call's result, and its instructions without an exception handler get
 //! the call's.
 
+use super::ops::boxing::is_boxed_equals;
 use super::rename::Renamer;
 use crate::Vm;
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, Inst, Next, Op, Param, Type, Val, ValId};
@@ -91,7 +92,7 @@ impl Vm {
 
     /// The definition of method `g` if it is small enough and safe to inline anywhere.
     fn judge_inline(&mut self, g: GlobalId) -> Option<Rc<Defn>> {
-        if self.native(g).is_some() {
+        if self.native(g).is_some() || is_boxed_equals(&self.world.pool, g) {
             return None;
         }
         let defn = self.world.defn(g).ok()?;

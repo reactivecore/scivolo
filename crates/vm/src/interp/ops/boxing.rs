@@ -8,6 +8,23 @@ use crate::{Vm, VmError, heap};
 use nir::{Type, TypeId};
 use std::cell::Cell;
 
+/// The mangled signature of `equals(Object, Object): Boolean`, without its scope suffix.
+const BOXED_EQUALS: &str = "D6equalsL16java.lang.ObjectL16java.lang.ObjectzE";
+
+/// Whether `g` is `BoxesRunTime.equals(Object, Object)`, static or on the module.
+pub fn is_boxed_equals(pool: &nir::Pool, g: nir::GlobalId) -> bool {
+    matches!(pool.top_name(g), "scala.runtime.BoxesRunTime" | "scala.runtime.BoxesRunTime$")
+        && pool.member_sig(g).is_some_and(|s| s.starts_with(BOXED_EQUALS))
+}
+
+/// How the value in a `java.lang` box compares: by its bits, or as a floating-point number.
+#[derive(Clone, Copy)]
+pub enum BoxValue {
+    Bits(Mem),
+    F32,
+    F64,
+}
+
 impl Vm {
     /// Boxes or unboxes `v`, caching in `cells` the helper's module and function and, for
     /// `java.lang` boxes, the box class's type object and the value field's offset and width.
@@ -39,9 +56,58 @@ impl Vm {
         self.call(cells[1].get() as FuncId, &[cells[0].get(), v])
     }
 
+    /// `BoxesRunTime.equals(x, y)` when `x` and `y` are the same reference or boxes of the same
+    /// `java.lang` class; `None` otherwise.
+    pub fn boxed_equals(&mut self, x: u64, y: u64) -> Option<bool> {
+        if x == y {
+            return Some(true);
+        }
+        if x == 0 || y == 0 {
+            return None;
+        }
+        let rtti = heap::read::<u64>(x as usize);
+        if heap::read::<u64>(y as usize) != rtti {
+            return None;
+        }
+        if self.funcs.boxes.is_none() {
+            self.funcs.boxes = Some(self.value_boxes());
+        }
+        let &(_, offset, value) = self.funcs.boxes.as_ref()?.iter().find(|b| b.0 == rtti)?;
+        let (x, y) = (x as usize + offset, y as usize + offset);
+        Some(match value {
+            BoxValue::Bits(mem) => load_mem(x, mem) == load_mem(y, mem),
+            BoxValue::F32 => heap::read::<f32>(x) == heap::read::<f32>(y),
+            BoxValue::F64 => heap::read::<f64>(x) == heap::read::<f64>(y),
+        })
+    }
+
+    /// Type object, value field offset and value kind of each `java.lang` box class.
+    fn value_boxes(&mut self) -> Vec<(u64, usize, BoxValue)> {
+        let classes = ["Boolean", "Character", "Byte", "Short", "Integer", "Long", "Float", "Double"];
+        let mut out = Vec::new();
+        for short in classes {
+            let name = self.world.top(&format!("java.lang.{short}"));
+            let Ok(Some((rtti, field))) = self.value_field_of(name) else { continue };
+            let value = match (short, field & 0xFF) {
+                ("Float", _) => BoxValue::F32,
+                ("Double", _) => BoxValue::F64,
+                (_, 1) => BoxValue::Bits(Mem::B1),
+                (_, 2) => BoxValue::Bits(Mem::B2),
+                (_, 4) => BoxValue::Bits(Mem::B4),
+                _ => BoxValue::Bits(Mem::B8),
+            };
+            out.push((rtti as u64, (field >> 8) as usize, value));
+        }
+        out
+    }
+
     /// The type object of `java.lang` box class `ty` and its value field as `offset << 8 | width`.
     fn value_field(&mut self, ty: TypeId) -> Flow<Option<(usize, u64)>> {
         let Type::Ref { name, .. } = *self.world.pool.ty(ty) else { return Ok(None) };
+        self.value_field_of(name)
+    }
+
+    fn value_field_of(&mut self, name: nir::GlobalId) -> Flow<Option<(usize, u64)>> {
         let class = self.world.pool.top_name(name).to_owned();
         if helper(&class, false).is_none() || !class.starts_with("java.lang.") {
             return Ok(None);
