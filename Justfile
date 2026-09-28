@@ -50,9 +50,18 @@ sn-build *dirs:
 bench name runs="10" *args: release
     python3 scripts/bench.py {{ name }} {{ runs }} {{ args }}
 
+# Like bench, alternating runs between the scalai binary `base` and the release VM.
+bench-base base name runs="10" *args: release
+    python3 scripts/bench.py --base {{ base }} {{ name }} {{ runs }} {{ args }}
+
 # Run test program `name` with call and instruction counts on stderr (`SCALAI_PROFILE`).
 vm-profile name *args: release
     SCALAI_PROFILE=1 target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
+
+# Run a `.scala` or `.sc` file with call and instruction counts on stderr.
+[no-cd]
+script-profile file *args: release
+    SCALAI_PROFILE=1 {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}
 
 # Check out dotty's tests/run at the Scala version the VM runs into ref/scala3 (M4).
 dotty-fetch:
@@ -69,6 +78,18 @@ dotty-report filter="": release
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
+
+# Check out scala/scala's test/junit and testkit at the standard library Scala 3.9 builds on (M5).
+m5-fetch:
+    test -d ref/scala2 || (git clone -q --depth 1 --branch v2.13.18 --filter=blob:none --sparse https://github.com/scala/scala ref/scala2 && git -C ref/scala2 sparse-checkout set test/junit src/testkit)
+
+# Compile scala/scala's JUnit tests, minus Scala Native's denylist, to NIR under tmp/m5.
+m5-build: m5-fetch
+    python3 scripts/m5-tests.py build
+
+# Run the M5 test classes (those whose names contain `filter`) in the VM; report under tmp/m5.
+m5-report filter="": release
+    python3 scripts/m5-tests.py report {{ filter }}
 
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release

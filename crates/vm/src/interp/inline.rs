@@ -10,7 +10,7 @@ use rustc_hash::FxHashMap;
 use std::rc::Rc;
 
 /// Instructions a callee may have to be inlined.
-const MAX_CALLEE: usize = 24;
+const MAX_CALLEE: usize = 48;
 /// Instructions a caller may grow to by inlining.
 const MAX_BODY: usize = 2000;
 /// Passes over a caller; each inlines the calls the previous one exposed.
@@ -94,23 +94,23 @@ impl Vm {
         if self.native(g).is_some() {
             return None;
         }
-        let defn = self.world.defn(g).ok()?;
-        let DefnKind::Define { body, .. } = &defn.kind else { return None };
-        let blocked = defn.attrs.iter().any(|a| matches!(a, Attr::NoInline | Attr::Extern { .. }));
-        if blocked || body.insts.len() > MAX_CALLEE || !body.insts.iter().all(inlinable) {
+        let mut defn = self.world.defn(g).ok()?;
+        let DefnKind::Define { ty, body } = &defn.kind else { return None };
+        if defn.attrs.iter().any(|a| matches!(a, Attr::NoInline | Attr::Extern { .. })) {
             return None;
         }
-        Some(defn)
+        if body.insts.iter().any(|i| matches!(i, Inst::LinktimeIf(..))) {
+            let body = self.fold_linktime(g, body)?;
+            defn = Rc::new(Defn { kind: DefnKind::Define { ty: *ty, body }, ..(*defn).clone() });
+        }
+        let DefnKind::Define { body, .. } = &defn.kind else { unreachable!("a define") };
+        (body.insts.len() <= MAX_CALLEE && body.insts.iter().all(inlinable)).then_some(defn)
     }
 }
 
 /// Whether an instruction keeps its meaning inside another method's frame.
 fn inlinable(inst: &Inst) -> bool {
-    !matches!(
-        inst,
-        Inst::LinktimeIf(..)
-            | Inst::Let { op: Op::Stackalloc { .. } | Op::Var(_) | Op::Dynmethod { .. }, .. }
-    )
+    !matches!(inst, Inst::Let { op: Op::Stackalloc { .. } | Op::Var(_) | Op::Dynmethod { .. }, .. })
 }
 
 pub fn max_local(body: &Body) -> u64 {

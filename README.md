@@ -120,10 +120,12 @@ targets are macOS arm64 and Linux x86-64, both tested in GitLab CI (`just ci`). 
 records the memory trust model.
 
 Next, by expected value:
-1. Interpreter speed beyond the phase 1 target: superinstructions, polymorphic inlining
-   (docs/performance.md, ADR 0006).
+1. Interpreter speed beyond the phase 1 target: boxed equality, superinstructions,
+   polymorphic inlining (docs/performance.md, ADR 0006).
 2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
-3. The M5 suite (scala/scala `test/junit`).
+3. Phase 3, the own frontend, starting with the parser.
+
+Work is tracked in the GitLab issues.
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 

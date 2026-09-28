@@ -5,6 +5,7 @@ mod compute;
 mod devirtualize;
 mod dispatch;
 mod exec;
+mod fold;
 mod inline;
 mod invoke;
 mod lower;
