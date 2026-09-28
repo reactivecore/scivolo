@@ -8,6 +8,26 @@ use crate::{Vm, VmError, heap};
 use nir::{Type, TypeId};
 use std::cell::Cell;
 
+/// The mangled static forwarder `BoxesRunTime.equals(Object, Object): Boolean`.
+const BOXED_EQUALS: &str = "D6equalsL16java.lang.ObjectL16java.lang.ObjectzEo";
+
+/// The box classes whose instances `boxed_equals` compares by value.
+const VALUE_BOXES: [&str; 8] = [
+    "java.lang.Boolean",
+    "java.lang.Character",
+    "java.lang.Byte",
+    "java.lang.Short",
+    "java.lang.Integer",
+    "java.lang.Long",
+    "java.lang.Float",
+    "java.lang.Double",
+];
+
+/// Whether `g` is the static `BoxesRunTime.equals(Object, Object)` that generic `==` calls.
+pub fn is_boxed_equals(pool: &nir::Pool, g: nir::GlobalId) -> bool {
+    pool.top_name(g) == "scala.runtime.BoxesRunTime" && pool.member_sig(g) == Some(BOXED_EQUALS)
+}
+
 impl Vm {
     /// Boxes or unboxes `v`, caching in `cells` the helper's module and function and, for
     /// `java.lang` boxes, the box class's type object and the value field's offset and width.
@@ -37,6 +57,53 @@ impl Vm {
             }
         }
         self.call(cells[1].get() as FuncId, &[cells[0].get(), v])
+    }
+
+    /// `BoxesRunTime.equals(x, y)` when `x` and `y` are the same reference, `x` is null, or both
+    /// are boxes of the same `java.lang` class; `None` otherwise.
+    pub fn boxed_equals(&mut self, x: u64, y: u64) -> Option<bool> {
+        if x == y {
+            return Some(true);
+        }
+        if x == 0 {
+            return Some(false);
+        }
+        if y == 0 {
+            return None;
+        }
+        let rtti = heap::read::<u64>(x as usize);
+        if heap::read::<u64>(y as usize) != rtti {
+            return None;
+        }
+        let (offset, mem, float) = self.box_value(rtti)?;
+        let (a, b) = (load_mem(x as usize + offset, mem), load_mem(y as usize + offset, mem));
+        Some(match (float, mem) {
+            (true, Mem::B4) => f32::from_bits(a as u32) == f32::from_bits(b as u32),
+            (true, _) => f64::from_bits(a) == f64::from_bits(b),
+            (false, _) => a == b,
+        })
+    }
+
+    /// The value field of the box class with type object `rtti` as offset, access and whether
+    /// it holds a floating-point number, if it is one of `VALUE_BOXES`; cached per type object.
+    fn box_value(&mut self, rtti: u64) -> Option<(usize, Mem, bool)> {
+        if let Some(&known) = self.funcs.boxes.get(&rtti) {
+            return known;
+        }
+        let cls = self.class_of_rtti(rtti as usize);
+        let name = self.class(cls).name;
+        let class = self.world.pool.top_name(name).to_owned();
+        let value = match VALUE_BOXES.contains(&class.as_str()) {
+            false => None,
+            true => {
+                let field = self.world.member(name, &format!("F6_valuePT{}{class}", class.len()));
+                let float = class.ends_with("Float") || class.ends_with("Double");
+                let f = self.class(cls).fields.get(&field);
+                f.map(|f| (f.offset as usize, Mem::of(&self.world.pool, f.ty), float))
+            }
+        };
+        self.funcs.boxes.insert(rtti, value);
+        value
     }
 
     /// The type object of `java.lang` box class `ty` and its value field as `offset << 8 | width`.

@@ -6,12 +6,10 @@ expected gain per effort.
 ## Measuring
 
 ```sh
-cargo build --release
-SCALAI_LIBS=ref/libs target/release/scalai --cp tests/programs/cpu cpu      # sort + fib
-SCALAI_LIBS=ref/libs target/release/scalai --cp tests/programs/fib fib 30   # calls
-SCALAI_LIBS=ref/libs target/release/scalai --cp tests/programs/loops loops 100  # arithmetic loops
-SCALAI_PROFILE=1 ...   # call counts per function and fallback operations, on stderr
-sample <pid> 1 -file tmp/x.sample   # native profile (macOS)
+just bench cpu                     # wall time of tests/programs/cpu (sort + fib)
+just bench-base OLD/scalai cpu     # alternating runs of an older build and the current one
+just vm-profile cpu                # call and instruction counts; `just script-profile FILE`
+python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
 ## Where it stands (2026-09-27, M4 Pro, release)
@@ -31,6 +29,10 @@ and forwarders 0.80 s → virtual forwarders too 0.76 s → dense slots, copy al
 module constants → compare-and-branch fusion and sized memory access → tier-up with
 devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s →
 speculation inside inlined callees 0.34 s.
+
+Generic `==` (`BoxesRunTime.equals`) is never inlined; its call compares two references
+or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which made building a
+`ListSet` of boxed `Int`s 3× faster.
 
 ## Ideas
 

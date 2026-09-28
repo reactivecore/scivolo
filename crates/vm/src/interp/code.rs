@@ -124,6 +124,15 @@ pub enum Instr {
         args: Box<[Arg]>,
         unwind: Handler,
     },
+    /// A call of `BoxesRunTime.equals(Object, Object)`, whose last two arguments are compared
+    /// directly when they are the same reference or boxes of the same `java.lang` class.
+    BoxedEquals {
+        dst: u32,
+        name: GlobalId,
+        site: u32,
+        args: Box<[Arg]>,
+        unwind: Handler,
+    },
     /// A virtual call: `method args[0], sig` then the call, with the receiver's class and the
     /// implementation cached at `site` and `site + 1`.
     Invoke {
@@ -300,6 +309,7 @@ impl Instr {
             Instr::Bin { unwind, .. }
             | Instr::Call { unwind, .. }
             | Instr::CallGlobal { unwind, .. }
+            | Instr::BoxedEquals { unwind, .. }
             | Instr::Invoke { unwind, .. }
             | Instr::CallVariadic { unwind, .. }
             | Instr::Method { unwind, .. }
@@ -323,6 +333,7 @@ impl Instr {
             Instr::Bin { unwind, .. }
             | Instr::Call { unwind, .. }
             | Instr::CallGlobal { unwind, .. }
+            | Instr::BoxedEquals { unwind, .. }
             | Instr::Invoke { unwind, .. }
             | Instr::CallVariadic { unwind, .. }
             | Instr::Method { unwind, .. }

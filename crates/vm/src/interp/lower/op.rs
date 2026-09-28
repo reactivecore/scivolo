@@ -1,5 +1,6 @@
 use super::Lowerer;
 use crate::interp::code::{Arg, Instr, Mem};
+use crate::interp::ops::boxing::is_boxed_equals;
 use crate::layout;
 use nir::{Next, Op, Type, TypeId, Val, ValId};
 
@@ -31,6 +32,9 @@ impl Lowerer<'_> {
                         _ => super::Num::I64,
                     };
                     Instr::CallVariadic { dst, name, args, ret, unwind }
+                }
+                Val::Global(name, _) if is_boxed_equals(self.pool, name) => {
+                    Instr::BoxedEquals { dst, name, site: self.site(), args: self.args(args), unwind }
                 }
                 Val::Global(name, _) => {
                     Instr::CallGlobal { dst, name, site: self.site(), args: self.args(args), unwind }

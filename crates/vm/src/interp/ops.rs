@@ -6,7 +6,7 @@ use crate::{Vm, VmError};
 use nir::{Op, Type, TypeId, Val};
 
 pub mod arith;
-mod boxing;
+pub(super) mod boxing;
 
 impl Vm {
     pub fn op(&mut self, op: &Op, slots: &[u64]) -> Flow {

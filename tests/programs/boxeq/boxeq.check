@@ -1,0 +1,31 @@
+int: true
+int ne: false
+long: true
+int long: true
+byte short: true
+char: true
+char int: true
+bool: true
+bool ne: false
+double: true
+zeros: true
+float zeros: true
+nan same box: true
+float nan same box: true
+double float: true
+null null: true
+null int: false
+int null: false
+string: true
+point: true
+point ne: false
+bigint int: true
+nan boxes: false false
+char: true false
+short: true false
+byte: true false
+bool: true false
+long: true false
+int: true false
+double: true false
+loop: 200000

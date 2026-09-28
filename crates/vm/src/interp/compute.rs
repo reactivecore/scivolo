@@ -31,6 +31,17 @@ impl Vm {
                 let f = self.cached_func(&code.sites[site as usize], name)?;
                 (dst, self.call_direct(code, slots, f, args)?)
             }
+            Instr::BoxedEquals { dst, name, site, ref args, .. } => {
+                let [.., x, y] = **args else { unreachable!("two operands") };
+                let (x, y) = (self.arg(code, slots, x)?, self.arg(code, slots, y)?);
+                match self.boxed_equals(x, y) {
+                    Some(equal) => (dst, equal as u64),
+                    None => {
+                        let f = self.cached_func(&code.sites[site as usize], name)?;
+                        (dst, self.call_direct(code, slots, f, args)?)
+                    }
+                }
+            }
             Instr::Invoke { dst, sig, site, ref args, .. } => {
                 (dst, self.invoke(code, slots, sig, site, args)?)
             }
