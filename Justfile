@@ -42,6 +42,14 @@ check *names: release
     done
     exit $failed
 
+# Compile test program `name` with Scala Native into its committed NIR and `.check`.
+program-update name:
+    python3 scripts/programs.py update {{ name }}
+
+# List test programs (default: all) whose committed NIR or `.check` differs from a rebuild.
+programs-stale *names:
+    python3 scripts/programs.py stale {{ names }}
+
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
 sn-build *dirs:
     scripts/sn-tests.sh {{ dirs }}

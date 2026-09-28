@@ -118,6 +118,29 @@ suite:linux:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
+# The test programs' committed NIR and .check files against a rebuild: in a merge request that
+# touches them, and in scheduled pipelines.
+programs-stale:
+  stage: test
+  interruptible: true
+  image: ${SUITE_IMAGE}
+  needs:
+    - job: build-image
+      artifacts: true
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
+  cache:
+    - key: scalai-suite-linux
+      paths: [.cache/coursier]
+      policy: pull
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [tests/programs/**/*, scripts/programs.py]
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - scala-cli version --cli-version
+    - just programs-stale
+
 # The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
 suite:macos:
   extends: .suite
