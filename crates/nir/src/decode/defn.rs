@@ -31,8 +31,12 @@ impl Reader<'_> {
     /// is a `var`, reading nothing beyond them.
     pub fn var_at(&mut self, offset: u32) -> Result<Option<(TypeId, Vec<Attr>)>> {
         self.at(self.prelude.start(Section::Defns) + offset as usize, |r| {
-            if r.tag()? != defn::VAR {
-                return Ok(None);
+            match r.tag()? {
+                defn::VAR => {}
+                defn::CONST | defn::DECLARE | defn::DEFINE | defn::TRAIT | defn::CLASS | defn::MODULE => {
+                    return Ok(None);
+                }
+                t => return r.bad_tag("definition", t),
             }
             r.global()?;
             let attrs = r.seq(Self::attr)?;
