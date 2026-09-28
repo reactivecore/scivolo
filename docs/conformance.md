@@ -48,6 +48,9 @@ instead of the run.
 
 - **Service providers.** `ServiceLoader` lists every provider `META-INF/services` names, so
   `ServiceLoaderTest.loadService`'s provider that is not opted in is found too (ADR 0007).
+- **Stack traces of threads.** `Thread.getStackTrace` of the current thread lists its frames as
+  on the JDK; `ThreadTest.currentThreadGetStackTrace` expects Scala Native's empty array
+  (ADR 0008).
 - **javalib bug.** `LinkedTransferQueue.remove` reads `p.next` after `p` became null when the
   queue does not hold the element (`LinkedTransferQueueTest$Generic.testRemoveElement`); Scala
   Native's optimizer drops that unused load, the VM executes it. The VM works around two other

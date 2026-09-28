@@ -5,6 +5,7 @@ mod callback;
 mod ffi;
 mod gc;
 mod java_thread;
+mod jdk;
 mod junit;
 mod llvm;
 mod resources;
