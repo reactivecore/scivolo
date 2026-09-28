@@ -1,10 +1,11 @@
 //! Every definition loaded so far, found by global name; files load on first use.
 
+mod files;
+
 use crate::classpath::Classpath;
-use crate::member_table::Table;
-use nir::{Attr, Caches, Defn, Global, GlobalId, Pool, Reader, StrId, TypeId};
+use files::File;
+use nir::{Attr, Defn, Global, GlobalId, Pool, Reader, StrId, TypeId};
 use rustc_hash::FxHashMap;
-use std::collections::hash_map::Entry;
 use std::rc::Rc;
 
 pub struct World {
@@ -17,14 +18,6 @@ pub struct World {
     places: FxHashMap<GlobalId, (u32, u32)>,
     defns: FxHashMap<GlobalId, Rc<Defn>>,
     members: FxHashMap<GlobalId, Vec<GlobalId>>,
-}
-
-/// A loaded NIR file, whose definitions decode on first use; with a member table, its index
-/// is not decoded.
-struct File {
-    data: std::borrow::Cow<'static, [u8]>,
-    caches: Caches,
-    table: Option<Table>,
 }
 
 #[derive(Debug)]
@@ -127,78 +120,5 @@ impl World {
         Reader::resume(&file.data, &mut file.caches, &mut self.pool)
             .and_then(|mut r| f(&mut r, offset))
             .map_err(|e| LoadError::Corrupt(self.pool.top_name(g).to_owned(), e))
-    }
-
-    /// The file and offset of `g`'s definition, loading its owner's file first.
-    fn place(&mut self, g: GlobalId) -> Result<Option<(u32, u32)>, LoadError> {
-        let file = self.load(self.owner(g))?;
-        if let Some(&place) = self.places.get(&g) {
-            return Ok(Some(place));
-        }
-        let Some(table) = file.and_then(|f| self.files[f as usize].table) else { return Ok(None) };
-        let offset = match *self.pool.global(g) {
-            Global::Member(_, sig) => table.find(self.pool.str(sig)),
-            _ => table.top(),
-        };
-        Ok(file.zip(offset).inspect(|&place| {
-            self.places.insert(g, place);
-        }))
-    }
-
-    /// The member table of top-level `top`'s file, if it has one.
-    fn table(&mut self, top: GlobalId) -> Result<Option<Table>, LoadError> {
-        Ok(self.load(top)?.and_then(|f| self.files[f as usize].table))
-    }
-
-    /// The members defined in the file of top-level `top`, in file order.
-    pub fn members(&mut self, top: GlobalId) -> Result<&[GlobalId], LoadError> {
-        if let Some(table) = self.table(top)?
-            && !self.members.contains_key(&top)
-        {
-            let members = table.members().map(|(sig, _, _)| self.member(top, sig)).collect();
-            self.members.insert(top, members);
-        }
-        Ok(self.members.get(&top).map_or(&[], Vec::as_slice))
-    }
-
-    /// The members of top-level `top` that may be fields, in file order: the fields its member
-    /// table lists, else all members.
-    pub fn fields(&mut self, top: GlobalId) -> Result<Vec<GlobalId>, LoadError> {
-        match self.table(top)? {
-            Some(table) => {
-                Ok(table.members().filter(|m| m.2).map(|(sig, _, _)| self.member(top, sig)).collect())
-            }
-            None => Ok(self.members(top)?.to_vec()),
-        }
-    }
-
-    /// The file of top-level `top`, loaded on first use; `None` if the classpath has none or it
-    /// cannot be read.
-    fn load(&mut self, top: GlobalId) -> Result<Option<u32>, LoadError> {
-        let Global::Top(name) = *self.pool.global(top) else {
-            return Err(LoadError::Missing(self.name(top)));
-        };
-        if let Some(&file) = self.loaded.get(&name) {
-            return Ok(file);
-        }
-        self.loaded.insert(name, None);
-        let text = self.pool.str(name).to_owned();
-        let Some((data, table)) = self.classpath.find(&text) else { return Ok(None) };
-        let file = self.files.len() as u32;
-        let mut caches = Caches::default();
-        let mut reader = Reader::new(&data, &mut caches, &mut self.pool)
-            .map_err(|e| LoadError::Corrupt(text.clone(), e))?;
-        if table.is_none() {
-            for (g, offset) in reader.index().map_err(|e| LoadError::Corrupt(text, e))? {
-                let Entry::Vacant(place) = self.places.entry(g) else { continue };
-                place.insert((file, offset));
-                if let Global::Member(owner, _) = *self.pool.global(g) {
-                    self.members.entry(owner).or_default().push(g);
-                }
-            }
-        }
-        self.files.push(File { data, caches, table });
-        self.loaded.insert(name, Some(file));
-        Ok(Some(file))
     }
 }
