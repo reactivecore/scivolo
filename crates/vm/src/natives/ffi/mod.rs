@@ -81,6 +81,15 @@ fn open(lib: &str) -> Result<(), String> {
     }
 }
 
+/// `dlerror`, called without a `dlsym` of its own that would clear the pending error.
+pub fn extern_fn(name: &str) -> Option<super::NativeFn> {
+    match name {
+        // SAFETY: `dlerror` has no preconditions; its result stays valid until the next dl call.
+        "dlerror" => Some(|_, _| Ok(unsafe { libc::dlerror() } as u64)),
+        _ => None,
+    }
+}
+
 /// The C function `name` declared by `g`, if the process can find and call it.
 pub fn resolve(vm: &mut Vm, g: GlobalId, name: &str) -> Option<Foreign> {
     let defn = vm.world.defn(g).ok()?;

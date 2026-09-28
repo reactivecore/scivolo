@@ -25,7 +25,8 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
                 .or_else(|| super::gc::extern_fn(name))
                 .or_else(|| super::unwind::extern_fn(name))
                 .or_else(|| super::threads::extern_fn(name))
-                .or_else(|| super::junit::extern_fn(name));
+                .or_else(|| super::junit::extern_fn(name))
+                .or_else(|| super::ffi::extern_fn(name));
         }
     };
     Some(f)
