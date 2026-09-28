@@ -27,13 +27,15 @@ fn property(name: &str) -> Option<Prop> {
         "debugMode"
         | "is32BitPlatform"
         | "isMsys"
+        | "isCygwin"
         | "debugMetadata.enabled"
         | "debugMetadata.generateFunctionSourcePositions" => Prop::Bool(false),
         "releaseMode" | "isWeakReferenceSupported" | "isMultithreadingEnabled" => Prop::Bool(true),
         "contendedPaddingWidth" => Prop::Int(64),
         "runtimeVersion" => Prop::Str("0.5.12"),
         "garbageCollector" => Prop::Str("immix"),
-        "enabledSanitizer" | "target.env" => Prop::Str(""),
+        "enabledSanitizer" => Prop::Str(""),
+        "target.env" => Prop::Str(if cfg!(target_os = "macos") { "unknown" } else { "gnu" }),
         "target.arch" => Prop::Str(if cfg!(target_arch = "aarch64") { "aarch64" } else { "x86_64" }),
         "target.vendor" => Prop::Str(if cfg!(target_os = "macos") { "apple" } else { "unknown" }),
         "target.os" => Prop::Str(if cfg!(target_os = "macos") { "darwin" } else { "linux" }),
