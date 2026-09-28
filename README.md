@@ -105,11 +105,10 @@ just sn-run Name -Other         # selected Scala Native test classes
 ```
 
 Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
-`#!/usr/bin/env scalai` shebang. The first run compiles the file through scala-cli (Scala
-3.9.0, Scala Native 0.5.12; `SCALAI_SCALA_CLI` names another binary) and caches its NIR in
-`SCALAI_CACHE`/`scripts`, keyed by the file's path and content; later runs start no JVM (hello
-in about 20 ms). Files it pulls in with `//> using file` and changed dependencies do not
-invalidate the cache. The own frontend that drops scala-cli is phase 3.
+`#!/usr/bin/env scalai` shebang. The first run compiles the file through scala-cli
+(`SCALAI_SCALA_CLI` names another binary) and caches its NIR in `SCALAI_CACHE`/`scripts`, keyed
+by the file's path and content; later runs start no JVM. Files it pulls in with
+`//> using file` and changed dependencies do not invalidate the cache.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`

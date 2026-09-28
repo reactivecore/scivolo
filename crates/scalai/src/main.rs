@@ -18,9 +18,10 @@ fn main() -> ExitCode {
         match a.as_str() {
             "--cp" | "--main" => {
                 let Some(v) = args.next() else { return usage() };
-                match a.as_str() {
-                    "--cp" => cp.push(PathBuf::from(v)),
-                    _ => chosen = Some(v),
+                if a == "--cp" {
+                    cp.push(PathBuf::from(v));
+                } else {
+                    chosen = Some(v);
                 }
             }
             _ => {
@@ -31,12 +32,8 @@ fn main() -> ExitCode {
     }
     let Some(target) = target else { return usage() };
     let rest: Vec<String> = args.collect();
-    let main_class = match script::is_source(&target) {
-        false if chosen.is_some() => return usage(),
-        false => target,
-        true => match script::compile(target.as_ref())
-            .and_then(|(classes, mains)| Ok((classes, script::pick_main(&target, &mains, chosen)?)))
-        {
+    let main_class = if script::is_source(&target) {
+        match script::main_of(&target, chosen) {
             Ok((classes, main)) => {
                 cp.push(classes);
                 main
@@ -45,7 +42,11 @@ fn main() -> ExitCode {
                 eprintln!("scalai: {e}");
                 return ExitCode::FAILURE;
             }
-        },
+        }
+    } else if chosen.is_some() {
+        return usage();
+    } else {
+        target
     };
     if let Some(secs) = std::env::var("SCALAI_TIMEOUT").ok().and_then(|s| s.parse().ok()) {
         std::thread::spawn(move || {
