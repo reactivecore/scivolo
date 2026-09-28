@@ -4,7 +4,8 @@
 set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 export SCALAI_LIBS=${SCALAI_LIBS:-$root/ref/libs}
-export SCALAI_NATIVE_LIBS=${SCALAI_NATIVE_LIBS:-$root/tmp/sn-tests/libsntest.dylib}
+suffix=$([ "$(uname)" = Darwin ] && echo dylib || echo so)
+export SCALAI_NATIVE_LIBS=${SCALAI_NATIVE_LIBS:-$root/tmp/sn-tests/libsntest.$suffix}
 export SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60}
 # Tests find their resource files relative to the Scala Native repository root.
 cd "$root/ref/scala-native"

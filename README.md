@@ -100,7 +100,7 @@ just script FILE.sc ARGS        # run a script, compiled through scala-cli unles
 just check                      # every test program against its .check file, with timings
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 scripts/test-program.sh NAME    # compile tests/programs/NAME with Scala Native (NIR + .check)
-scripts/sn-tests.sh all && just sn-report   # Scala Native's unit tests in the VM
+just ci-suite                   # Scala Native's unit tests in the VM (CI: on main)
 just sn-run Name -Other         # selected Scala Native test classes
 ```
 
