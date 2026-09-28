@@ -1,0 +1,91 @@
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - when: never
+
+variables:
+  CARGO_HOME: ${CI_PROJECT_DIR}/.cargo
+  CARGO_TERM_COLOR: "always"
+  CARGO_INCREMENTAL: "0"
+  CI_IMAGE: $CI_REGISTRY_IMAGE/builder:$BUILDER_TAG
+
+# Job scripts are thin: every command lives in the Justfile.
+stages:
+  - prepare
+  - test
+
+# Builds ci/Dockerfile into builder:sha-<hash of the Dockerfile> unless the registry has it.
+build-image:
+  stage: prepare
+  interruptible: true
+  image:
+    name: quay.io/containers/aio:latest
+    entrypoint: [""]
+  variables:
+    STORAGE_DRIVER: overlay
+    BUILDAH_FORMAT: docker
+    REGISTRY_AUTH_FILE: /tmp/auth.json
+  script:
+    - HASH=$(sha256sum ci/Dockerfile | cut -c1-12)
+    - export BUILDER_TAG="sha-${HASH}"
+    - echo "BUILDER_TAG=${BUILDER_TAG}" > builder_tag.env
+    - cat builder_tag.env
+    - mkdir -p /etc/containers/registries.conf.d
+    - echo 'short-name-mode = "permissive"' > /etc/containers/registries.conf.d/00-shortnames.conf
+    - buildah login -u "$CI_REGISTRY_USER" -p "$CI_REGISTRY_PASSWORD" "$CI_REGISTRY"
+    - |
+      if skopeo inspect "docker://${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}" >/dev/null; then
+        echo "Builder image already exists — skipping build."
+        exit 0
+      fi
+    - buildah bud -f ci/Dockerfile -t "${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}" "$CI_PROJECT_DIR"
+    - buildah push "${CI_REGISTRY_IMAGE}/builder:${BUILDER_TAG}"
+  artifacts:
+    reports:
+      dotenv: builder_tag.env
+
+.cargo_cache_paths: &cargo_cache_paths
+  - .cargo/registry/index
+  - .cargo/registry/cache
+
+# The library jars and the library image built from them.
+.libs_cache_paths: &libs_cache_paths
+  - ref/libs
+  - tmp/cache
+
+test:linux:
+  image: ${CI_IMAGE}
+  stage: test
+  interruptible: true
+  needs:
+    - job: build-image
+      artifacts: true
+  cache:
+    - key: scalai-cargo-linux
+      paths: *cargo_cache_paths
+    - key:
+        prefix: scalai-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+    - key: scalai-libs-linux
+      paths: *libs_cache_paths
+  script:
+    - rustc --version && cargo --version && just --version && clang --version
+    - just ci
+
+# Native shell runner: `image:` is ignored, the runner provides rustup and `just`, and it
+# keeps target/ between pipelines.
+test:macos:
+  stage: test
+  interruptible: true
+  tags: [ "macos" ]
+  needs: []
+  cache:
+    - key: scalai-cargo-macos
+      paths: *cargo_cache_paths
+    - key: scalai-libs-macos
+      paths: *libs_cache_paths
+  script:
+    - rustc --version && cargo --version && just --version && clang --version
+    - just ci

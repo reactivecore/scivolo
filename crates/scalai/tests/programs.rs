@@ -27,7 +27,7 @@ fn programs() {
         let name = dir.file_name().unwrap().to_str().unwrap().to_owned();
         let expected = std::fs::read_to_string(dir.join(format!("{name}.check"))).unwrap();
         match run(&dir, &name) {
-            Err(e) if e.contains("or the Coursier cache") => {
+            Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
                 eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
                 return;
             }

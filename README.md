@@ -92,7 +92,8 @@ and its C runtime built from `native/`.
 Speed work and ideas: [docs/performance.md](docs/performance.md).
 
 ```sh
-just libs                       # copy the Scala Native jars into ref/libs once
+just fetch-libs                 # download the Scala Native jars into ref/libs once
+just libs                       # or copy them from the Coursier cache
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
 just check                      # every test program against its .check file, with timings
@@ -108,13 +109,14 @@ stops a run. Programs still need scala-cli to produce NIR; the own frontend is p
 
 Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
 exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS threads later;
-targets are macOS arm64 and Linux x86-64. ADR 0002 records the memory trust model.
+targets are macOS arm64 and Linux x86-64, both tested in GitLab CI (`just ci`). ADR 0002
+records the memory trust model.
 
 Next, by expected value:
 1. Interpreter speed beyond the phase 1 target: superinstructions, polymorphic inlining
    (docs/performance.md, ADR 0006).
 2. Startup: a heap snapshot of the initialized runtime (hello 20 ms today, ADR 0005).
-3. Linux x86-64 CI; the M4 suite (dotty `tests/run`).
+3. The M4 suite (dotty `tests/run`).
 
 Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 
