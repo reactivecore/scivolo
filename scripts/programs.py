@@ -31,20 +31,34 @@ def by_hand(name):
     return (PROGRAMS / name / ".check-by-hand").exists()
 
 
+class Failed(Exception):
+    pass
+
+
 def build(name):
-    """Compiles NAME's NIR into tmp/programs/NAME/out; the native binary's stdout unless checked by hand."""
-    work = WORK / name
+    """Compiles NAME's NIR into tmp/programs/NAME/out; the native binary's output unless checked by hand."""
+    source, work = PROGRAMS / name / f"{name}.scala", WORK / name
+    if not source.exists():
+        raise Failed(f"no {source.relative_to(ROOT)}")
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True)
-    shutil.copy(PROGRAMS / name / f"{name}.scala", work)
+    shutil.copy(source, work)
     cmds = [scala_cli("compile", name, "-d", str(work / "out"))]
     if not by_hand(name):
         cmds.append(scala_cli("package", name, "-f", "-o", str(work / "bin")))
     for cmd in cmds:
         r = subprocess.run(cmd, capture_output=True, text=True)
         if r.returncode != 0:
-            sys.exit(f"{name}: scala-cli failed\n{r.stdout}{r.stderr}")
-    return None if by_hand(name) else subprocess.run([str(work / "bin")], capture_output=True, text=True, timeout=600).stdout
+            raise Failed(f"scala-cli failed\n{r.stdout}{r.stderr}")
+    if by_hand(name):
+        return None
+    try:
+        r = subprocess.run([str(work / "bin")], cwd=work, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=600)
+    except subprocess.TimeoutExpired:
+        raise Failed("binary timed out")
+    if r.returncode != 0:
+        raise Failed(f"binary exited with {r.returncode}\n{r.stdout}")
+    return r.stdout
 
 
 def nir(directory):
@@ -62,29 +76,35 @@ def update(name):
 
 
 def differences(name):
-    """What differs between NAME's committed files and a rebuild."""
-    out = build(name)
+    """What differs between NAME's committed files and a rebuild, or why the rebuild failed."""
+    try:
+        out = build(name)
+    except Failed as e:
+        return f"FAILED {name}: {e}"
     committed, built = PROGRAMS / name, WORK / name / "out"
     added, removed = nir(built) - nir(committed), nir(committed) - nir(built)
     _, changed, errors = filecmp.cmpfiles(committed, built, sorted(nir(committed) & nir(built)), shallow=False)
     found = [f"+{f}" for f in sorted(added)] + [f"-{f}" for f in sorted(removed)] + changed + errors
-    if out is not None and out != (committed / f"{name}.check").read_text():
-        found.append(f"{name}.check")
-    return found
+    check = committed / f"{name}.check"
+    if out is not None and (not check.exists() or out != check.read_text()):
+        found.append(check.name)
+    return " ".join(["STALE", name, *found]) if found else f"ok    {name}"
 
 
 def stale(names):
     names = names or sorted(p.name for p in PROGRAMS.iterdir() if p.is_dir())
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        found = dict(zip(names, pool.map(differences, names)))
-    for name, files in found.items():
-        print(f"{'STALE' if files else 'ok   '} {name} {' '.join(files)}")
-    sys.exit(1 if any(found.values()) else 0)
+        lines = list(pool.map(differences, names))
+    print("\n".join(lines))
+    sys.exit(0 if all(l.startswith("ok ") for l in lines) else 1)
 
 
 if __name__ == "__main__":
     if len(sys.argv) == 3 and sys.argv[1] == "update":
-        update(sys.argv[2])
+        try:
+            update(sys.argv[2])
+        except Failed as e:
+            sys.exit(f"{sys.argv[2]}: {e}")
     elif len(sys.argv) >= 2 and sys.argv[1] == "stale":
         stale(sys.argv[2:])
     else:
