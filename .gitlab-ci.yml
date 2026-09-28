@@ -81,19 +81,26 @@ test:linux:
     - just ci
 
 # Scala Native's unit tests: on main, and on demand in a merge request.
-suite:linux:
-  image: ${SUITE_IMAGE}
+.suite:
   stage: test
   interruptible: false
   timeout: 4h
-  needs:
-    - job: build-image
-      artifacts: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
       allow_failure: true
     - when: on_success
+  artifacts:
+    when: always
+    paths: [tmp/sn-report/]
+    expire_in: 4 weeks
+
+suite:linux:
+  extends: .suite
+  image: ${SUITE_IMAGE}
+  needs:
+    - job: build-image
+      artifacts: true
   variables:
     XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
@@ -110,10 +117,20 @@ suite:linux:
   script:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
-  artifacts:
-    when: always
-    paths: [tmp/sn-report/]
-    expire_in: 4 weeks
+
+# The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
+suite:macos:
+  extends: .suite
+  tags: [ "macos" ]
+  needs: []
+  cache:
+    - key: scalai-suite-macos
+      paths: [ref/libs, tmp/tools]
+  script:
+    - scripts/fetch-scala-cli.sh
+    - export PATH="$CI_PROJECT_DIR/tmp/tools/scala-cli-1.14.0:$PATH"
+    - rustc --version && clang --version && java -version && scala-cli version --cli-version
+    - just ci-suite
 
 # Native shell runner: `image:` is ignored, the runner provides rustup and `just`, and it
 # keeps target/ between pipelines.

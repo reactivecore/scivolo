@@ -6,6 +6,9 @@ const STACK_WORDS: usize = 32;
 
 const APPLE_ARM64: bool = cfg!(all(target_arch = "aarch64", target_vendor = "apple"));
 
+/// The integer argument registers: 6 on x86-64, 8 on arm64.
+const INT_REGS: usize = if cfg!(target_arch = "x86_64") { 6 } else { 8 };
+
 /// Up to 8 integer and 8 floating-point registers, then 32 words the callee finds on the stack.
 #[cfg(all(target_arch = "aarch64", target_vendor = "apple"))]
 #[rustfmt::skip]
@@ -16,9 +19,38 @@ type VarFn = unsafe extern "C" fn(
     u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64, u64,
 ) -> u64;
 
-/// The same arguments passed as C variadic arguments, which sets `%al` on x86-64.
+/// The integer and floating-point registers, then the stack words, passed as C variadic
+/// arguments, which sets `%al` on x86-64.
 #[cfg(not(all(target_arch = "aarch64", target_vendor = "apple")))]
 type VarFn = unsafe extern "C" fn(u64, ...) -> u64;
+
+#[cfg(not(target_arch = "x86_64"))]
+#[rustfmt::skip]
+unsafe fn invoke(fun: VarFn, a: [u64; 8], f: [f64; 8], s: [u64; STACK_WORDS]) -> u64 {
+    // SAFETY: the caller guarantees `fun` takes these registers and stack words.
+    unsafe {
+        fun(
+            a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7], f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7],
+            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15],
+            s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23], s[24], s[25], s[26], s[27], s[28], s[29], s[30],
+            s[31],
+        )
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[rustfmt::skip]
+unsafe fn invoke(fun: VarFn, a: [u64; 8], f: [f64; 8], s: [u64; STACK_WORDS]) -> u64 {
+    // SAFETY: the caller guarantees `fun` takes these registers and stack words.
+    unsafe {
+        fun(
+            a[0], a[1], a[2], a[3], a[4], a[5], f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7],
+            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15],
+            s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23], s[24], s[25], s[26], s[27], s[28], s[29], s[30],
+            s[31],
+        )
+    }
+}
 
 /// The bits a variadic argument of kind `num` is passed as: C promotes `float` to `double`
 /// and small integers to `int`.
@@ -33,42 +65,33 @@ fn promote(num: Num, v: u64) -> u64 {
 }
 
 /// Calls the C function at `addr` whose first `named` parameters are fixed, with `args`;
-/// `None` if the arguments do not fit the registers and stack words this path passes.
+/// `None` if the arguments do not fit the registers and stack words this path passes (on Apple
+/// arm64, named arguments beyond the registers).
 pub fn call(addr: usize, named: usize, args: &[(u64, Num)], ret: Num) -> Option<u64> {
     let (mut ints, mut floats, mut stack) = ([0u64; 8], [0f64; 8], [0u64; STACK_WORDS]);
     let (mut ni, mut nf, mut ns) = (0, 0, 0);
     for (i, &(v, num)) in args.iter().enumerate() {
         let float = matches!(num, Num::F32 | Num::F64);
-        if i >= named && APPLE_ARM64 {
-            *stack.get_mut(ns)? = promote(num, v);
+        let full = if float { nf == 8 } else { ni == INT_REGS };
+        let bits = if i >= named || !float { promote(num, v) } else { v };
+        if (i >= named && APPLE_ARM64) || (full && !APPLE_ARM64) {
+            *stack.get_mut(ns)? = bits;
             ns += 1;
         } else if float {
-            *floats.get_mut(nf)? = f64::from_bits(promote(num, v));
+            *floats.get_mut(nf)? = f64::from_bits(bits);
             nf += 1;
         } else {
-            *ints.get_mut(ni)? = promote(num, v);
+            *ints.get_mut(ni)? = bits;
             ni += 1;
         }
     }
     if matches!(ret, Num::F32 | Num::F64) {
         return None;
     }
-    let [a0, a1, a2, a3, a4, a5, a6, a7] = ints;
-    let [f0, f1, f2, f3, f4, f5, f6, f7] = floats;
-    let s = stack;
-    // SAFETY: `addr` is a variadic C function; its fixed arguments are in the registers the
-    // C ABI assigns them, and its variadic arguments in the stack words that follow the sixteen
-    // register parameters (Apple arm64) or in the next registers (elsewhere).
-    #[rustfmt::skip]
-    let out = unsafe {
-        let fun: VarFn = std::mem::transmute(addr);
-        fun(
-            a0, a1, a2, a3, a4, a5, a6, a7, f0, f1, f2, f3, f4, f5, f6, f7,
-            s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9], s[10], s[11], s[12], s[13], s[14], s[15],
-            s[16], s[17], s[18], s[19], s[20], s[21], s[22], s[23], s[24], s[25], s[26], s[27], s[28], s[29], s[30],
-            s[31],
-        )
-    };
+    // SAFETY: `addr` is a variadic C function; its arguments are in the registers the C ABI
+    // assigns them and the rest, in order, in the stack words after the register parameters
+    // (on Apple arm64 all variadic arguments are on the stack).
+    let out = unsafe { invoke(std::mem::transmute::<usize, VarFn>(addr), ints, floats, stack) };
     Some(match ret {
         Num::Bool | Num::I8 => out & 0xFF,
         Num::I16 | Num::U16 => out & 0xFFFF,
@@ -99,5 +122,17 @@ mod tests {
         let out = std::ffi::CStr::from_bytes_until_nul(&buf).unwrap();
         assert_eq!(out.to_str().unwrap(), "-7 2.50 x 1.5 1099511627776");
         assert_eq!(n as usize, out.count_bytes());
+    }
+
+    #[test]
+    fn sprintf_with_more_arguments_than_registers() {
+        let mut buf = [0u8; 128];
+        let fmt = c"%d %d %d %d %d %d %d %d %d %d|%.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f";
+        let mut args = vec![(buf.as_mut_ptr() as u64, Num::I64), (fmt.as_ptr() as u64, Num::I64)];
+        args.extend((1..=10).map(|i| (i as u64, Num::I32)));
+        args.extend((11..=20).map(|i| ((i as f64).to_bits(), Num::F64)));
+        call(super::super::symbol("sprintf").unwrap(), 2, &args, Num::I32).unwrap();
+        let out = std::ffi::CStr::from_bytes_until_nul(&buf).unwrap();
+        assert_eq!(out.to_str().unwrap(), "1 2 3 4 5 6 7 8 9 10|11 12 13 14 15 16 17 18 19 20");
     }
 }
