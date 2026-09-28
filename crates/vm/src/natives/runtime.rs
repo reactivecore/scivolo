@@ -49,6 +49,7 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
         ("java.util.concurrent.ForkJoinPool$", HELP_ASYNC_BLOCKER) => help_async_blocker,
         _ => {
             return super::services::method(owner, sig)
+                .or_else(|| super::jdk::method(owner, sig))
                 .or_else(|| super::unwind::method(owner, sig))
                 .or_else(|| super::threads::method(owner, sig));
         }

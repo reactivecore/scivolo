@@ -20,7 +20,7 @@ pub struct StackWalk {
 }
 
 /// Scala Native reads at most this many frames.
-const MAX_FRAMES: usize = 1025;
+pub const MAX_FRAMES: usize = 1025;
 /// Marks the instruction pointer of a method inlined into a frame: `INLINED | pos << 32 | method`.
 const INLINED: u64 = 1 << 62;
 const PC_MASK: u64 = 0x3FFF_FFFF;
@@ -66,9 +66,23 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
 /// frame of its own, past the constructors and `fillInStackTrace` of the throwable being built
 /// and its supertypes.
 fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
+    let ips = frame_ips(vm, MAX_FRAMES + SKIPPABLE);
+    let throwable = vm.link_top("java.lang.Throwable")?;
+    let start = ips.windows(2).take_while(|w| builds_throwable(vm, GlobalId(w[1] as u32), throwable)).count();
+    let walk = &mut vm.stack_walk;
+    walk.generation += 1;
+    walk.ips.clear();
+    walk.ips.extend(ips.into_iter().skip(start).take(MAX_FRAMES));
+    heap::write(args[0] as usize, walk.generation);
+    Ok(0)
+}
+
+/// The instruction pointers of the innermost `limit` frames, each inlined method as a frame of
+/// its own, innermost first.
+pub fn frame_ips(vm: &Vm, limit: usize) -> Vec<u64> {
     let mut ips = Vec::new();
     let mut header = vm.frames.innermost();
-    while header != 0 && ips.len() < MAX_FRAMES + SKIPPABLE {
+    while header != 0 && ips.len() < limit {
         let (method, pc) = (Frames::method(header), Frames::pc(header) as u64 & PC_MASK);
         let (g, tier) = (GlobalId(method as u32), (method >> 32) as u8);
         match vm.inline_chain(g, pc as usize, tier) {
@@ -79,14 +93,8 @@ fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
         }
         header = Frames::caller(header);
     }
-    let throwable = vm.link_top("java.lang.Throwable")?;
-    let start = ips.windows(2).take_while(|w| builds_throwable(vm, GlobalId(w[1] as u32), throwable)).count();
-    let walk = &mut vm.stack_walk;
-    walk.generation += 1;
-    walk.ips.clear();
-    walk.ips.extend(ips.into_iter().skip(start).take(MAX_FRAMES));
-    heap::write(args[0] as usize, walk.generation);
-    Ok(0)
+    ips.truncate(limit);
+    ips
 }
 
 /// Whether `method` is a constructor or `fillInStackTrace` of a throwable class or a supertype.
@@ -108,7 +116,11 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
 
 /// `withNameFromUnwind(ip, context, position)`: the `StackTraceElement` for `ip`.
 fn element(vm: &mut Vm, args: &[u64]) -> Flow {
-    let ip = args[1];
+    element_of(vm, args[1])
+}
+
+/// The `StackTraceElement` for instruction pointer `ip`.
+pub fn element_of(vm: &mut Vm, ip: u64) -> Flow {
     let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & PC_MASK) as usize, (ip >> 63) as u8);
     let (class, name) = match (method.0 as usize) < vm.world.pool.globals.len() {
         true => (
@@ -128,12 +140,17 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
         }
         _ => (None, -1),
     };
+    new_element(vm, &class, &name, file.as_deref(), line)
+}
+
+/// A new `StackTraceElement` for method `method` of class `class`, at `line` of `file`.
+pub fn new_element(vm: &mut Vm, class: &str, method: &str, file: Option<&str>, line: i32) -> Flow {
     let cls = vm.link_top("java.lang.StackTraceElement")?;
     let obj = vm.alloc_object(cls);
-    let class = vm.new_string(&class)?;
-    let name = vm.new_string(&name)?;
+    let class = vm.new_string(class)?;
+    let name = vm.new_string(method)?;
     let file = match file {
-        Some(f) => vm.new_string(&f)?,
+        Some(f) => vm.new_string(f)?,
         None => 0,
     };
     let init =
