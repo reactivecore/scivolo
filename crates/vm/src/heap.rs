@@ -180,6 +180,13 @@ pub fn copy(from: usize, to: usize, len: usize) {
     unsafe { std::ptr::copy(from as *const u8, to as *mut u8, len) }
 }
 
+/// Sets `len` bytes at `addr` to zero, which the running program vouches for.
+pub fn zero(addr: usize, len: usize) {
+    assert!(addr >= NULL_PAGE, "zeroing address {addr:#x}");
+    // SAFETY: as for `read`.
+    unsafe { std::ptr::write_bytes(addr as *mut u8, 0, len) }
+}
+
 /// Writes a `T` at `addr`, which the running program vouches for.
 pub fn write<T: Copy>(addr: usize, value: T) {
     assert!(addr >= NULL_PAGE, "write of address {addr:#x}");
