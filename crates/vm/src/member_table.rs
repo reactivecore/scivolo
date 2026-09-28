@@ -56,6 +56,7 @@ pub fn build(data: &[u8], top: &str) -> Option<Vec<u8>> {
 }
 
 /// A member table in the mapped library image.
+#[derive(Clone, Copy)]
 pub struct Table(pub &'static [u8]);
 
 impl Table {

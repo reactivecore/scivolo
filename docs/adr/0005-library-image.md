@@ -18,7 +18,8 @@ roadmap's startup target is a cached hello in ≤ 20 ms; it took 47 ms.
 - **Member tables.** Per file the image holds its members' signatures, sorted, with their
   definition offsets and which are fields (`crates/vm/src/member_table.rs`). A definition is
   found by binary search on its signature and a class's fields without looking at its other
-  members, so a file's index is not decoded. Files holding members of other owners get no table.
+  members, so a file's index is not decoded. Files holding members of other owners get no table
+  and are indexed as before; none of Scala Native 0.5.12's 9,677 library files does.
 - **Lazy decoding.** A definition decodes on first use, with the file's decode caches kept;
   files without a table read their index first. Local names and lexical scopes are skipped.
 
