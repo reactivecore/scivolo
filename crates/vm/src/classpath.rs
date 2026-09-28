@@ -1,6 +1,8 @@
 //! Finds the `.nir` file of a top-level name in directories, jars and the library image.
 
 use crate::image::Image;
+use crate::member_table::Table;
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -9,7 +11,8 @@ use zip::ZipArchive;
 enum Root {
     Dir(PathBuf),
     Jar(ZipArchive<File>),
-    Image(Image),
+    /// Mapped for the rest of the process, so its files are borrowed without copying.
+    Image(&'static Image),
 }
 
 pub struct Classpath {
@@ -31,7 +34,7 @@ impl Classpath {
     /// `paths`, then the library `jars` through their image in directory `cache`.
     pub fn with_image(paths: &[PathBuf], jars: &[PathBuf], cache: &Path) -> io::Result<Self> {
         let mut classpath = Self::open(paths)?;
-        classpath.roots.push(Root::Image(Image::open(jars, cache)?));
+        classpath.roots.push(Root::Image(Box::leak(Box::new(Image::open(jars, cache)?))));
         Ok(classpath)
     }
 
@@ -98,9 +101,16 @@ impl Classpath {
     }
 
     /// The bytes of the file defining `top`, e.g. `scala.Predef$` → `scala/Predef$.nir`.
-    pub fn find(&mut self, top: &str) -> Option<Vec<u8>> {
+    pub fn find(&mut self, top: &str) -> Option<(Cow<'static, [u8]>, Option<Table>)> {
         let rel = format!("{}.nir", top.replace('.', "/"));
-        keep_errno(|| self.roots.iter_mut().find_map(|root| read(root, &rel)))
+        keep_errno(|| {
+            self.roots.iter_mut().find_map(|root| match root {
+                Root::Image(image) => {
+                    image.find(&rel).map(|(data, table)| (Cow::Borrowed(data), table.map(Table)))
+                }
+                root => read(root, &rel).map(|data| (Cow::Owned(data), None)),
+            })
+        })
     }
 }
 
@@ -145,6 +155,6 @@ fn read(root: &mut Root, rel: &str) -> Option<Vec<u8>> {
             file.read_to_end(&mut data).ok()?;
             Some(data)
         }
-        Root::Image(image) => image.find(rel).map(<[u8]>::to_vec),
+        Root::Image(image) => image.find(rel).map(|(data, _)| data.to_vec()),
     }
 }

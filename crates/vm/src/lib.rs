@@ -9,6 +9,7 @@ mod image;
 mod interp;
 mod layout;
 mod linktime;
+mod member_table;
 mod natives;
 mod object;
 mod rtti;
