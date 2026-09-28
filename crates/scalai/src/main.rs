@@ -1,32 +1,53 @@
 mod libs;
+mod script;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
 use vm::{Classpath, Vm, VmError};
 
-const USAGE: &str = "usage: scalai [--cp DIR_OR_JAR]... MAIN_CLASS [ARGS...]";
+const USAGE: &str =
+    "usage: scalai [--cp DIR_OR_JAR]... (MAIN_CLASS | [--main CLASS] FILE.scala | FILE.sc) [ARGS...]";
 
 /// The interpreter thread's stack; only the pages deep recursion touches are committed.
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
     let mut args = std::env::args().skip(1);
-    let mut cp = Vec::new();
-    let mut main_class = None;
+    let (mut cp, mut chosen, mut target) = (Vec::new(), None, None);
     while let Some(a) = args.next() {
         match a.as_str() {
-            "--cp" => match args.next() {
-                Some(p) => cp.push(PathBuf::from(p)),
-                None => return usage(),
-            },
+            "--cp" | "--main" => {
+                let Some(v) = args.next() else { return usage() };
+                if a == "--cp" {
+                    cp.push(PathBuf::from(v));
+                } else {
+                    chosen = Some(v);
+                }
+            }
             _ => {
-                main_class = Some(a);
+                target = Some(a);
                 break;
             }
         }
     }
-    let Some(main_class) = main_class else { return usage() };
+    let Some(target) = target else { return usage() };
     let rest: Vec<String> = args.collect();
+    let main_class = if script::is_source(&target) {
+        match script::main_of(&target, chosen) {
+            Ok((classes, main)) => {
+                cp.push(classes);
+                main
+            }
+            Err(e) => {
+                eprintln!("scalai: {e}");
+                return ExitCode::FAILURE;
+            }
+        }
+    } else if chosen.is_some() {
+        return usage();
+    } else {
+        target
+    };
     if let Some(secs) = std::env::var("SCALAI_TIMEOUT").ok().and_then(|s| s.parse().ok()) {
         std::thread::spawn(move || {
             std::thread::sleep(std::time::Duration::from_secs(secs));
