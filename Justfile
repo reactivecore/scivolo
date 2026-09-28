@@ -100,9 +100,7 @@ fetch-scala-native:
 ci: fetch-libs gates check
 
 # Scala Native's whole unit-test suite, as the pipeline's suite job runs it.
-ci-suite: fetch-libs fetch-scala-native (sn-build "all") release
-    scala-cli --power bloop exit
-    SCALAI_TIMEOUT=1800 scripts/sn-report.sh
+ci-suite: fetch-libs fetch-scala-native (sn-build "all") (sn-report "1800")
 
 # The three gates that must pass before every commit.
 gates: fmt-check lint test

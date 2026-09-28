@@ -43,6 +43,7 @@ cd "$work"
 opts=(--power --native --native-version 0.5.12 -S 3.9.0
   --dep org.scala-native::junit-runtime::0.5.12
   --compiler-plugin org.scala-native:::junit-plugin:0.5.12)
+[ -n "${CI:-}" ] && opts+=(--server=false)
 scala-cli compile "${opts[@]}" src
 classes=$(find . -path '*/.scala-build/*/classes/main' -type d | head -1)
 (cd "$classes" && find . -name '*.nir' | cpio -pdm --quiet "$work/nir")
