@@ -27,12 +27,14 @@ run name *args: release
 check *names: release
     #!/usr/bin/env bash
     names="{{ names }}"; [ -z "$names" ] && names=$(ls tests/programs)
+    failed=0
     for p in $names; do
       start=$(date +%s.%N)
       out=$(SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/$p $p 2>&1)
       t=$(echo "$(date +%s.%N) - $start" | bc)
-      if [ "$out" == "$(cat tests/programs/$p/$p.check)" ]; then echo "ok   $p ${t}s"; else echo "DIFF $p ${t}s"; fi
+      if [ "$out" == "$(cat tests/programs/$p/$p.check)" ]; then echo "ok   $p ${t}s"; else echo "DIFF $p ${t}s"; failed=1; fi
     done
+    exit $failed
 
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
 sn-build *dirs:
@@ -63,6 +65,13 @@ libs:
     for j in $(find ~/Library/Caches/Coursier/v1 ~/.cache/coursier/v1 -path '*org/scala-native/*' \
         \( -name '*_native0.5_3-0.5.12.jar' -o -name 'scalalib_native0.5_3-3.9.0%2B0.5.12.jar' \) \
         ! -name '*-sources.jar' 2>/dev/null); do cp "$j" ref/libs/; done
+
+# Download the library jars the VM loads from Maven Central into ref/libs.
+fetch-libs:
+    scripts/fetch-libs.sh
+
+# Everything a pipeline job runs.
+ci: fetch-libs gates check
 
 # The three gates that must pass before every commit.
 gates: fmt-check lint test

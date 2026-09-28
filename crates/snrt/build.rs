@@ -21,7 +21,7 @@ fn main() {
     let mut files = Vec::new();
     sources(&native, &mut files);
     files.sort();
-    let cc = std::env::var("CC").unwrap_or_else(|_| "cc".into());
+    let cc = std::env::var("CC").unwrap_or_else(|_| "clang".into());
     let lib = out_dir.join(if cfg!(target_os = "macos") { "libsnrt.dylib" } else { "libsnrt.so" });
     let mut cmd = Command::new(cc);
     cmd.args(["-std=gnu11", "-O2", "-fPIC", "-shared", "-w"])
