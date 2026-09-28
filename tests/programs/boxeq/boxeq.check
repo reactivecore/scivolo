@@ -20,4 +20,12 @@ string: true
 point: true
 point ne: false
 bigint int: true
+nan boxes: false false
+char: true false
+short: true false
+byte: true false
+bool: true false
+long: true false
+int: true false
+double: true false
 loop: 200000
