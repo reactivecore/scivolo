@@ -10,6 +10,10 @@ class Checker:
 
 def run(c: Checker, i: Int): Int = c.check(i)
 
+def both(c: Checker, i: Int, j: Int): Int =
+  val a = c.check(i)
+  a + c.check(j)
+
 def show(e: Throwable): Unit =
   val frames = e.getStackTrace.toList
   val ours = frames.filter(f => Seq("Parser", "Checker", "traces").exists(f.getClassName.startsWith))
@@ -25,4 +29,7 @@ def show(e: Throwable): Unit =
   var sum = 0
   for i <- 0 until 1500 do sum += run(c, i)
   try run(c, -1)
+  catch case e: IllegalArgumentException => show(e)
+  for i <- 0 until 1500 do sum += both(c, i, i)
+  try both(c, 1, -2)
   catch case e: IllegalArgumentException => show(e)

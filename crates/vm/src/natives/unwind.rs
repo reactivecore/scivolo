@@ -6,6 +6,7 @@
 //! snapshot and ends when a newer snapshot replaced it.
 
 use super::NativeFn;
+use crate::class::ClassId;
 use crate::interp::Flow;
 use crate::stack::Frames;
 use crate::{Vm, heap};
@@ -23,6 +24,8 @@ const MAX_FRAMES: usize = 1025;
 /// Marks the instruction pointer of a method inlined into a frame: `INLINED | pos << 32 | method`.
 const INLINED: u64 = 1 << 62;
 const PC_MASK: u64 = 0x3FFF_FFFF;
+/// Frames past `MAX_FRAMES` walked for the throwable's constructors skipped at the top.
+const SKIPPABLE: usize = 32;
 
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     let f: NativeFn = match name.strip_prefix("scalanative_")? {
@@ -63,33 +66,31 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
 /// frame of its own, past the constructors and `fillInStackTrace` of the throwable being built
 /// and its supertypes.
 fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
-    let mut frames: Vec<(GlobalId, u64)> = Vec::new();
+    let mut ips = Vec::new();
     let mut header = vm.frames.innermost();
-    while header != 0 && frames.len() < MAX_FRAMES {
+    while header != 0 && ips.len() < MAX_FRAMES + SKIPPABLE {
         let (method, pc) = (Frames::method(header), Frames::pc(header) as u64 & PC_MASK);
         let (g, tier) = (GlobalId(method as u32), (method >> 32) as u8);
         match vm.inline_chain(g, pc as usize, tier) {
-            Some(chain) => frames
-                .extend(chain.into_iter().map(|(m, pos)| (m, INLINED | (pos.0 as u64) << 32 | m.0 as u64))),
-            None => frames.push((g, (tier as u64) << 63 | pc << 32 | g.0 as u64)),
+            Some(chain) => ips.extend(
+                chain.into_iter().map(|(m, pos)| INLINED | (pos.0 as u64 & PC_MASK) << 32 | m.0 as u64),
+            ),
+            None => ips.push((tier as u64) << 63 | pc << 32 | g.0 as u64),
         }
         header = Frames::caller(header);
     }
     let throwable = vm.link_top("java.lang.Throwable")?;
-    let mut start = 0;
-    while start + 1 < frames.len() && builds_throwable(vm, frames[start + 1].0, throwable) {
-        start += 1;
-    }
+    let start = ips.windows(2).take_while(|w| builds_throwable(vm, GlobalId(w[1] as u32), throwable)).count();
     let walk = &mut vm.stack_walk;
     walk.generation += 1;
     walk.ips.clear();
-    walk.ips.extend(frames[start..].iter().take(MAX_FRAMES).map(|&(_, ip)| ip));
+    walk.ips.extend(ips.into_iter().skip(start).take(MAX_FRAMES));
     heap::write(args[0] as usize, walk.generation);
     Ok(0)
 }
 
 /// Whether `method` is a constructor or `fillInStackTrace` of a throwable class or a supertype.
-fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: crate::class::ClassId) -> bool {
+fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: ClassId) -> bool {
     let sig = vm.world.pool.member_sig(method).unwrap_or("");
     if !(sig.starts_with('R') || sig.starts_with("D16fillInStackTrace")) {
         return false;
@@ -116,9 +117,10 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
         ),
         false => ("<unknown>".to_owned(), "<unknown>".to_owned()),
     };
-    let position = match ip & INLINED != 0 {
-        true => Some(vm.source_of(nir::PosId(pc as u32))),
-        false => vm.source_position(method, pc, tier),
+    let position = if ip & INLINED != 0 {
+        Some(vm.source_of(nir::PosId(pc as u32)))
+    } else {
+        vm.source_position(method, pc, tier)
     };
     let (file, line) = match position {
         Some((file, line)) if !file.is_empty() => {

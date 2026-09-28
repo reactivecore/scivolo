@@ -24,7 +24,7 @@ impl Vm {
         let mut new = self.lower_code(defn);
         new.calls.set(TIER_UP + 1);
         new.tier = 1;
-        new.inlined = (!inlined.frames.is_empty()).then_some(inlined);
+        new.inlined = inlined;
         if let Func::Nir { code: slot, retired, .. } = &mut self.funcs.all[f as usize] {
             *retired = slot.replace(Rc::new(new));
         }

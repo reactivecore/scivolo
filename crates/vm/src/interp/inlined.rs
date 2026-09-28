@@ -3,7 +3,6 @@
 use nir::{GlobalId, PosId};
 
 /// Per instruction of an inlined body, the innermost callee it was copied from, if any.
-#[derive(Default)]
 pub struct Inlined {
     pub frames: Vec<InlineFrame>,
     /// Per NIR instruction, the index of its frame in `frames` plus one; 0 for the method's own.

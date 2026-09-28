@@ -19,10 +19,10 @@ const MAX_BODY: usize = 2000;
 const ROUNDS: usize = 12;
 
 impl Vm {
-    /// `defn` with small static callees inlined, or `defn` itself if none are, with where each
-    /// instruction came from.
-    pub fn inline(&mut self, defn: Rc<Defn>) -> (Rc<Defn>, Inlined) {
-        let DefnKind::Define { ty, body } = &defn.kind else { return (defn, Inlined::default()) };
+    /// `defn` with small static callees inlined and where each instruction came from, or `defn`
+    /// itself if none are.
+    pub fn inline(&mut self, defn: Rc<Defn>) -> (Rc<Defn>, Option<Inlined>) {
+        let DefnKind::Define { ty, body } = &defn.kind else { return (defn, None) };
         let (ty, mut body) = (*ty, body.clone());
         let mut inlined = Inlined::own(body.insts.len());
         let mut changed = false;
@@ -34,9 +34,10 @@ impl Vm {
             }
             changed = true;
         }
-        match changed {
-            true => (Rc::new(Defn { kind: DefnKind::Define { ty, body }, ..(*defn).clone() }), inlined),
-            false => (defn, inlined),
+        if changed {
+            (Rc::new(Defn { kind: DefnKind::Define { ty, body }, ..(*defn).clone() }), Some(inlined))
+        } else {
+            (defn, None)
         }
     }
 
@@ -69,7 +70,7 @@ impl Vm {
             let DefnKind::Define { body: cb, .. } = &callee.kind else { unreachable!("a define") };
             let Type::Function(_, ret) = self.world.pool.ty(*ty).clone() else { unreachable!("a call") };
             inlined.frames.push(InlineFrame { method: g, call: *pos, parent: frame });
-            let own = inlined.frames.len() as u32;
+            let inner = inlined.frames.len() as u32;
             let mut r = Renamer { locals: FxHashMap::default(), next: &mut next_local, vm: self };
             let cont = r.fresh();
             let Some(Inst::Label(entry, _)) = cb.insts.first() else { unreachable!("an entry block") };
@@ -80,7 +81,7 @@ impl Vm {
             for (ci, cp) in cb.insts.iter().zip(&cb.positions) {
                 insts.push(r.inst(ci, unwind, cont));
                 positions.push(*cp);
-                of.push(own);
+                of.push(inner);
             }
             insts.push(Inst::Label(cont, vec![Param { id: *id, ty: ret }]));
             positions.push(*pos);
