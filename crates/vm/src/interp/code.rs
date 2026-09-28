@@ -62,7 +62,7 @@ impl Mem {
 }
 
 /// Where control continues: an instruction index plus the block parameters to assign.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct Target {
     pub pc: u32,
     pub moves: Box<[(u32, Arg)]>,
@@ -71,7 +71,7 @@ pub struct Target {
 /// The block an exception thrown by an instruction continues in, and the slot it lands in.
 pub type Handler = Option<Box<(u32, Target)>>;
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Instr {
     Bin {
         bin: Bin,

@@ -87,7 +87,7 @@ and its C runtime built from `native/`.
 |---|---:|---:|---:|
 | hello | 10 ms | 292 ms | 5 ms |
 | moderate | 19 ms | 329 ms | 5 ms |
-| cpu (fib 30 + sort 100k) | 0.34 s | 349 ms | 22 ms |
+| cpu (fib 30 + sort 100k) | 0.32 s | 349 ms | 22 ms |
 
 Speed work and ideas: [docs/performance.md](docs/performance.md).
 

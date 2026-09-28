@@ -12,15 +12,15 @@ just vm-profile cpu                # call and instruction counts; `just script-p
 python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
-## Where it stands (2026-09-27, M4 Pro, release)
+## Where it stands (2026-09-28, M4 Pro, release)
 
 | Program | scalai | Scala Native binary | notes |
 |---|---:|---:|---|
-| hello | 10 ms | 5 ms | runtime initialization (2026-09-28) |
+| hello | 10 ms | 5 ms | runtime initialization |
 | moderate | 19 ms | 5 ms | |
-| fib 30 | 72 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
-| loops 100 | 7.0 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
-| cpu | 0.34 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
+| fib 30 | 63 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
+| loops 100 | 3.8 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
+| cpu | 0.32 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
 
 Steps so far and their effect on `cpu`: interpreting NIR directly 3.5 s → lowered code
 with per-site caches 1.08 s → casts/boxing/vars/elem lowered 0.97 s → fused `method`+`call`
@@ -28,7 +28,8 @@ and direct frame filling 0.89 s → two-word `Flow` 0.87 s → frame-less getter
 and forwarders 0.80 s → virtual forwarders too 0.76 s → dense slots, copy aliases and
 module constants → compare-and-branch fusion and sized memory access → tier-up with
 devirtualization, guarded speculation of virtual calls and inlining (ADR 0006) 0.35 s →
-speculation inside inlined callees 0.34 s.
+speculation inside inlined callees 0.34 s → constant conversions folded, var values written
+in place, jumps to a branch replaced by the branch 0.32 s (`loops` 7.0 → 3.8 s).
 
 Generic `==` (`BoxesRunTime.equals`) is never inlined; its call compares two references
 or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which made building a

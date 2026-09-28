@@ -1,6 +1,7 @@
 //! Operands, block targets and control instructions of the lowering.
 
 use super::finish::resolve;
+use super::uses::local;
 use super::{Lowerer, immediate, num};
 use crate::interp::code::{Arg, Handler, Instr, Num, Target};
 use nir::{Inst, Next, Op, TypeId, Val, ValId};
@@ -12,6 +13,11 @@ impl Lowerer<'_> {
         *self.slots.entry(local).or_insert(next)
     }
 
+    /// The slot `local`'s value goes to: its own, or the var's it is written to directly.
+    pub fn dst(&mut self, local: u64) -> u32 {
+        self.slot(self.writes.get(&local).copied().unwrap_or(local))
+    }
+
     pub fn site(&mut self) -> u32 {
         self.sites += 1;
         self.sites - 1
@@ -20,7 +26,7 @@ impl Lowerer<'_> {
     pub fn arg(&mut self, v: ValId) -> Arg {
         let v = resolve(self.pool, &self.aliases, v);
         match self.pool.val(v) {
-            Val::Local(l, _) if self.modules.contains_key(&l.0) => Arg::Imm(self.modules[&l.0]),
+            Val::Local(l, _) if self.constants.contains_key(&l.0) => Arg::Imm(self.constants[&l.0]),
             Val::Local(l, _) => Arg::Slot(self.slot(l.0)),
             other => match immediate(other) {
                 Some(bits) => Arg::Imm(bits),
@@ -41,17 +47,7 @@ impl Lowerer<'_> {
     }
 
     pub fn val_num(&self, v: ValId) -> Num {
-        match self.pool.val(v) {
-            Val::Local(_, ty) | Val::Zero(ty) => num(self.pool.ty(*ty)),
-            Val::True | Val::False => Num::Bool,
-            Val::Byte(_) => Num::I8,
-            Val::Short(_) => Num::I16,
-            Val::Char(_) => Num::U16,
-            Val::Int(_) => Num::I32,
-            Val::Float(_) => Num::F32,
-            Val::Double(_) => Num::F64,
-            _ => Num::I64,
-        }
+        super::val_num(self.pool, v)
     }
 
     pub fn num_of(&self, ty: TypeId) -> Num {
@@ -98,10 +94,15 @@ impl Lowerer<'_> {
             Inst::Let { id, op: Op::Copy(_) | Op::Varload(_), .. } if self.aliases.contains_key(&id.0) => {
                 Instr::Nop
             }
-            Inst::Let { id, op: Op::Module(_), .. } if self.modules.contains_key(&id.0) => Instr::Nop,
+            Inst::Let { id, .. } if self.constants.contains_key(&id.0) => Instr::Nop,
             Inst::Let { id, op: Op::Comp { .. }, .. } if self.branch_comps.contains(&id.0) => Instr::Nop,
+            Inst::Let { op: Op::Varstore { value, .. }, .. }
+                if local(self.pool, *value).is_some_and(|v| self.writes.contains_key(&v)) =>
+            {
+                Instr::Nop
+            }
             Inst::Let { id, op, unwind, .. } => {
-                let dst = self.slot(id.0);
+                let dst = self.dst(id.0);
                 self.op(id.0, dst, op, unwind)
             }
             Inst::Ret(v) => Instr::Ret(self.arg(*v)),
