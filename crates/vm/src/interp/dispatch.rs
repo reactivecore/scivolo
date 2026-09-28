@@ -62,7 +62,7 @@ impl Vm {
     }
 
     /// The implementation of method `sig` for the class of `obj`: a definition, else a native the
-    /// VM provides for a method the class lacks.
+    /// VM provides for that exact class and a method it lacks.
     pub fn virtual_method(&mut self, obj: usize, sig: StrId) -> Flow<FuncId> {
         let cls = self.class_of(obj);
         if let Some(&f) = self.classes.vtables.get(&(cls, sig)) {
@@ -71,10 +71,10 @@ impl Vm {
         let target = match self.resolve(cls, sig)? {
             Some(target) => target,
             None => {
-                let sig = self.world.pool.str(sig).to_owned();
-                let provided = self.world.member(self.class(cls).name, &sig);
+                let provided =
+                    GlobalId(self.world.pool.globals.intern(nir::Global::Member(self.class(cls).name, sig)));
                 if self.native(provided).is_none() {
-                    let what = format!("{}::{sig}", self.class_name(cls));
+                    let what = format!("{}::{}", self.class_name(cls), self.world.pool.str(sig));
                     return Err(VmError::Unsupported(format!("no method {what}")).into());
                 }
                 provided
