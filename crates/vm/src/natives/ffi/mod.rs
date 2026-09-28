@@ -100,8 +100,13 @@ pub fn foreign(pool: &nir::Pool, ty: nir::TypeId, addr: usize) -> Option<Foreign
     (ints <= 8 && args.len() - ints <= 8).then_some(Foreign { addr, args, ret, blocking: false })
 }
 
-/// The address of C symbol `name` in the process; `errno` is left as it was.
+/// The address of C symbol `name` in the process, else of the runtime's `scalai_<name>`
+/// (`native/scalai/libc_glue.c`); `errno` is left as it was.
 pub fn symbol(name: &str) -> Option<usize> {
+    lookup(name).or_else(|| lookup(&format!("scalai_{name}")))
+}
+
+fn lookup(name: &str) -> Option<usize> {
     let cname = CString::new(name).ok()?;
     let saved = errno();
     // SAFETY: `dlsym` with RTLD_DEFAULT and a valid C string only reads the symbol tables.
