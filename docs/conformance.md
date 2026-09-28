@@ -25,7 +25,7 @@ where their resource files are.
 |---|---:|---:|---:|
 | language (`scala.*`) | 237 | 0 | 1 |
 | scala.scalanative | 737 | 1 | 0 |
-| java.lang | 401 | 0 | 9 |
+| java.lang | 400 | 1 | 9 |
 | java.io | 247 | 0 | 0 |
 | java.net | 107 | 0 | 1 |
 | java.math | 780 | 0 | 0 |
@@ -35,7 +35,7 @@ where their resource files are.
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 61 | 0 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **11336** | **3** | **21** |
+| **total** | **11335** | **4** | **21** |
 
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
 read-only-file cases, because the CI container runs as root.
@@ -103,17 +103,17 @@ Results (2026-09-28):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1497 |
+| passed | 1503 |
 | wrong output | 1 |
 | crashed | 1 |
-| fails in Scala Native too | 37 |
+| fails in Scala Native too | 31 |
 | compile failed | 4 |
 | skipped | 169 |
 | **total** | **1709** |
 
 - **Fails in Scala Native too:** reflection Scala Native lacks (`getConstructors`,
-  `getEnclosingClass`, `getEnumConstants`), an empty `Thread.getStackTrace`,
-  `Runtime.totalMemory`, and a `main` returning a value (`t4536`).
+  `getEnclosingClass`, `getEnumConstants`) and a `main` returning a value (`t4536`). Tests that
+  need `Thread.getStackTrace` or `Runtime.totalMemory` pass in the VM (ADR 0008).
 - **Failing in the VM:** `i24573` (a SAM lambda without its `apply(Object, Object)` bridge;
   segfaults natively) and `redundantParents` (`getInterfaces` lists all interfaces, in another
   order than natively). Both fail natively too, differently (#20).
