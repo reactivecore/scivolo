@@ -48,6 +48,7 @@ program-update name:
 
 # List test programs (default: all) whose committed NIR or `.check` differs from a rebuild.
 programs-stale *names:
+    cargo build -q --release -p nir-dump
     python3 scripts/programs.py stale {{ names }}
 
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.

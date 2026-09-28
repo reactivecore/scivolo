@@ -138,9 +138,21 @@ programs-stale:
   variables:
     XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
+    - key: scalai-cargo-linux
+      paths: *cargo_cache_paths
+      policy: pull
+    - key:
+        prefix: scalai-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+      policy: pull
     - key: scalai-suite-linux
       paths: [.cache/coursier]
       policy: pull
+  artifacts:
+    when: on_failure
+    paths: [tmp/programs/*/out/]
+    expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       changes: [tests/programs/**/*, scripts/programs.py, ci/Dockerfile, Justfile]

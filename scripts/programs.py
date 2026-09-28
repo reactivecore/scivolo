@@ -4,7 +4,8 @@
 Usage: scripts/programs.py update NAME     write tests/programs/NAME's NIR and .check
        scripts/programs.py stale [NAME...]  list programs whose NIR or .check differs from a rebuild
 
-A program with a `.check-by-hand` marker keeps its hand-written `.check`.
+NIR files whose bytes differ are compared by their decoded definitions, in any order. A program
+with a `.check-by-hand` marker keeps its hand-written `.check`.
 """
 import concurrent.futures
 import filecmp
@@ -18,6 +19,7 @@ NATIVE = "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 PROGRAMS = ROOT / "tests/programs"
 WORK = ROOT / "tmp/programs"
+NIR_DUMP = ROOT / "target/release/nir-dump"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 
 
@@ -65,6 +67,12 @@ def nir(directory):
     return {p.name for p in directory.glob("*.nir")}
 
 
+def definitions(path):
+    """The decoded definitions of a NIR file, in any order."""
+    out = subprocess.run([str(NIR_DUMP), "--dump", str(path)], capture_output=True, text=True, check=True).stdout
+    return sorted(d.strip() for d in "\n".join(out.splitlines()[3:]).split("\n\n") if d.strip())
+
+
 def update(name):
     out = build(name)
     for f in (PROGRAMS / name).glob("*.nir"):
@@ -83,7 +91,8 @@ def differences(name):
         return f"FAILED {name}: {e}"
     committed, built = PROGRAMS / name, WORK / name / "out"
     added, removed = nir(built) - nir(committed), nir(committed) - nir(built)
-    _, changed, errors = filecmp.cmpfiles(committed, built, sorted(nir(committed) & nir(built)), shallow=False)
+    _, differ, errors = filecmp.cmpfiles(committed, built, sorted(nir(committed) & nir(built)), shallow=False)
+    changed = [f for f in differ if definitions(committed / f) != definitions(built / f)]
     found = [f"+{f}" for f in sorted(added)] + [f"-{f}" for f in sorted(removed)] + changed + errors
     check = committed / f"{name}.check"
     if out is not None and (not check.exists() or out != check.read_text()):
