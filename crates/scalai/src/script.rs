@@ -39,12 +39,12 @@ fn compile(source: &Path) -> Result<(PathBuf, Vec<String>), String> {
     (&source, &text, env!("CARGO_PKG_VERSION"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
+    vm::cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
-        vm::cache::touch(&dir);
         return Ok(cached);
     }
-    vm::cache::prune(&scripts, vm::cache::UNUSED, |n| !n.contains('.'));
-    vm::cache::prune(&scripts, vm::cache::ABANDONED, |n| n.contains('.'));
+    vm::cache::prune(&scripts, vm::cache::UNUSED, vm::cache::is_key);
+    vm::cache::prune(&scripts, vm::cache::ABANDONED, |n| vm::cache::is_staging(n, "", "."));
     let staging = dir.with_extension(std::process::id().to_string());
     let built = build(&source, &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {

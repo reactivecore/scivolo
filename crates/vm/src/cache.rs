@@ -9,46 +9,62 @@ pub const UNUSED: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// How long a half-written entry, left by a build that did not finish, is kept.
 pub const ABANDONED: Duration = Duration::from_secs(24 * 60 * 60);
 
-/// Marks `path` as used now; a directory by its `main` file.
-pub fn touch(path: &Path) {
-    let file = mark(path);
-    let _ = File::options().write(true).open(file).and_then(|f| f.set_modified(SystemTime::now()));
+/// Whether `s` is a cache key as the cache names its entries: 16 lowercase hex digits.
+pub fn is_key(s: &str) -> bool {
+    s.len() == 16 && s.bytes().all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
 }
 
-/// Removes the entries of `dir` whose names `stale` accepts and that went unused for `age`.
-pub fn prune(dir: &Path, age: Duration, stale: impl Fn(&str) -> bool) {
+/// Whether `s` is `key_prefix`, a cache key, `suffix` and a process id, as the cache names what
+/// a build writes before moving it into place.
+pub fn is_staging(s: &str, key_prefix: &str, suffix: &str) -> bool {
+    s.strip_prefix(key_prefix).and_then(|rest| rest.split_at_checked(16)).is_some_and(|(key, rest)| {
+        is_key(key)
+            && rest
+                .strip_prefix(suffix)
+                .is_some_and(|pid| !pid.is_empty() && pid.bytes().all(|b| b.is_ascii_digit()))
+    })
+}
+
+/// Marks file or directory `path` as used now.
+pub fn touch(path: &Path) {
+    let _ = File::open(path).and_then(|f| f.set_modified(SystemTime::now()));
+}
+
+/// Removes the entries of `dir` whose names `ours` accepts and that went unused for `age`,
+/// without following symbolic links.
+pub fn prune(dir: &Path, age: Duration, ours: impl Fn(&str) -> bool) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
-    for path in entries.flatten().map(|e| e.path()) {
-        let named = path.file_name().and_then(|n| n.to_str()).is_some_and(&stale);
-        let used =
-            std::fs::metadata(mark(&path)).or_else(|_| std::fs::metadata(&path)).and_then(|m| m.modified());
-        if !named || !used.is_ok_and(|t| t.elapsed().unwrap_or_default() >= age) {
+    let named = entries
+        .flatten()
+        .map(|e| e.path())
+        .filter(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(&ours));
+    for path in named {
+        let Ok(meta) = std::fs::symlink_metadata(&path) else { continue };
+        if !meta.modified().is_ok_and(|t| t.elapsed().unwrap_or_default() >= age) {
             continue;
         }
-        let _ = match path.is_dir() {
-            true => std::fs::remove_dir_all(&path),
-            false => std::fs::remove_file(&path),
-        };
-    }
-}
-
-/// The file whose modification time marks `path`'s last use.
-fn mark(path: &Path) -> std::path::PathBuf {
-    match path.is_dir() {
-        true => path.join("main"),
-        false => path.to_owned(),
+        let _ = if meta.is_dir() { std::fs::remove_dir_all(&path) } else { std::fs::remove_file(&path) };
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{ABANDONED, UNUSED, prune, touch};
+    use super::{ABANDONED, UNUSED, is_key, is_staging, prune, touch};
     use std::fs::{self, File};
     use std::time::{Duration, SystemTime};
 
     fn age(path: &std::path::Path, days: u64) {
         let then = SystemTime::now() - Duration::from_secs(days * 24 * 60 * 60);
-        File::options().write(true).open(path).and_then(|f| f.set_modified(then)).expect("a file");
+        File::open(path).and_then(|f| f.set_modified(then)).expect("an entry");
+    }
+
+    #[test]
+    fn names_are_ours_only() {
+        assert!(is_key("0123456789abcdef"));
+        assert!(!is_key("0123456789ABCDEF") && !is_key("deploy") && !is_key("0123456789abcde"));
+        assert!(is_staging("0123456789abcdef.42", "", "."));
+        assert!(is_staging("libs-0123456789abcdef.tmp7", "libs-", ".tmp"));
+        assert!(!is_staging("0123456789abcdef.", "", ".") && !is_staging("backup.sh", "", "."));
     }
 
     #[test]
@@ -56,22 +72,22 @@ mod tests {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("../../tmp/cache-test")
             .join(std::process::id().to_string());
-        fs::create_dir_all(dir.join("old-entry")).expect("a directory");
-        fs::create_dir_all(dir.join("new-entry")).expect("a directory");
-        for file in ["old.img", "used.img", "other.txt", "old-entry/main", "new-entry/main"] {
-            fs::write(dir.join(file), b"x").expect("a file");
+        let (old, used, young) = ("00000000000000aa", "00000000000000bb", "00000000000000cc");
+        for entry in [old, used, young, "0000000000000dd0.1", "deploy"] {
+            fs::create_dir_all(dir.join(entry)).expect("a directory");
         }
-        for file in ["old.img", "used.img", "other.txt", "old-entry/main"] {
-            age(&dir.join(file), 40);
+        fs::write(dir.join("notes"), b"x").expect("a file");
+        for entry in [old, used, "0000000000000dd0.1", "deploy", "notes"] {
+            age(&dir.join(entry), 40);
         }
-        touch(&dir.join("used.img"));
-        prune(&dir, UNUSED, |n| n.ends_with(".img") || n.ends_with("-entry"));
-        prune(&dir, ABANDONED, |n| n == "missing");
-        let left: Vec<bool> = ["old.img", "used.img", "other.txt", "old-entry", "new-entry"]
+        touch(&dir.join(used));
+        prune(&dir, UNUSED, is_key);
+        prune(&dir, ABANDONED, |n| is_staging(n, "", "."));
+        let left: Vec<bool> = [old, used, young, "0000000000000dd0.1", "deploy", "notes"]
             .iter()
-            .map(|f| dir.join(f).exists())
+            .map(|e| dir.join(e).exists())
             .collect();
-        assert_eq!(left, [false, true, true, false, true]);
-        fs::remove_dir_all(&dir).expect("cleanup");
+        let _ = fs::remove_dir_all(&dir);
+        assert_eq!(left, [false, true, true, false, true, true]);
     }
 }

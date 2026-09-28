@@ -33,8 +33,10 @@ impl Image {
             return Ok(image);
         }
         build(jars, cache, &path)?;
-        crate::cache::prune(cache, crate::cache::UNUSED, |n| n.starts_with("libs-") && n.ends_with(".img"));
-        crate::cache::prune(cache, crate::cache::ABANDONED, |n| n.starts_with("libs-") && n.contains(".tmp"));
+        crate::cache::prune(cache, crate::cache::UNUSED, |n| {
+            n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(crate::cache::is_key)
+        });
+        crate::cache::prune(cache, crate::cache::ABANDONED, |n| crate::cache::is_staging(n, "libs-", ".tmp"));
         Self::map(&path)
     }
 
