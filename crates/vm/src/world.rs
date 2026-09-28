@@ -136,13 +136,11 @@ impl World {
             .map_err(|e| LoadError::Corrupt(text, e))?;
         let file = self.files.len() as u32;
         for (g, offset) in index {
+            let std::collections::hash_map::Entry::Vacant(place) = self.places.entry(g) else { continue };
+            place.insert((file, offset));
             if let Global::Member(owner, _) = *self.pool.global(g) {
-                let list = self.members.entry(owner).or_default();
-                if !list.contains(&g) {
-                    list.push(g);
-                }
+                self.members.entry(owner).or_default().push(g);
             }
-            self.places.entry(g).or_insert((file, offset));
         }
         self.files.push(File { data, caches });
         Ok(())
