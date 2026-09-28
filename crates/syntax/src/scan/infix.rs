@@ -11,6 +11,7 @@ impl Scanner<'_> {
     pub fn is_leading_infix_operator(&mut self, next_width: &IndentWidth, in_conditional: bool) -> bool {
         let ch = self.reader.ch;
         let cc_arrow = self.cfg.features.contains(Features::CAPTURE_CHECKING)
+            && self.cur.token == Token::Identifier
             && matches!(self.name_text(), "->" | "?->")
             && ch == '{';
         if !(self.allow_leading_infix

@@ -6,7 +6,7 @@ use crate::token::Token;
 use crate::token::sets::CLOSING_PARENS;
 
 impl Scanner<'_> {
-    pub(super) fn drop_until(&mut self, matches: impl Fn(&RegionKind) -> bool) {
+    pub fn drop_until(&mut self, matches: impl Fn(&RegionKind) -> bool) {
         while !matches(&self.regions.get(self.region).kind) && !self.regions.is_outermost(self.region) {
             self.region = self.regions.enclosing(self.region);
         }

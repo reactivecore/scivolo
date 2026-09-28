@@ -10,7 +10,7 @@ use crate::token::sets::{ACCEPT_OUTDENT_TOKENS, CLOSING_PARENS, COLON_EOL_PREDEC
 impl Scanner<'_> {
     /// Fuse `case class`/`case object`, drop `;` before `else` and trailing commas, classify
     /// `:` and `end`, and close indented regions at closing parentheses and the end.
-    pub(super) fn post_process_token(&mut self, last_token: Token, last_name: Option<Name>) {
+    pub fn post_process_token(&mut self, last_token: Token, last_name: Option<Name>) {
         match self.cur.token {
             Token::Case => {
                 self.peek_ahead();
@@ -69,7 +69,7 @@ impl Scanner<'_> {
 
     /// Whether the current `end` starts an end marker: it begins a line, and a tag token follows
     /// on the same line as the last token there.
-    pub(super) fn is_end_marker(&mut self) -> bool {
+    pub fn is_end_marker(&mut self) -> bool {
         if !(self.check_end_markers && self.indent_syntax && self.cur.is_after_line_end()) {
             return false;
         }

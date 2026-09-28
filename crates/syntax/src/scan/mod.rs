@@ -49,13 +49,14 @@ pub struct Scanner<'a> {
     allow_leading_infix: bool,
     check_end_markers: bool,
     skipping: bool,
+    /// The low half of a supplementary character reported as illegal, still to be reported,
+    /// and the line start before it.
+    pending_low_surrogate: Option<(u16, Offset)>,
 }
 
 impl<'a> Scanner<'a> {
     pub fn new(source: &'a SourceFile, names: &'a mut Names, cfg: Config) -> Self {
-        let mut s = Self::start(source, names, cfg, 0, true);
-        s.region = s.top_level_region(IndentWidth::at(&source.text, s.cur.offset));
-        s
+        Self::start(source, names, cfg, 0, true)
     }
 
     fn start(
@@ -85,9 +86,11 @@ impl<'a> Scanner<'a> {
             allow_leading_infix: true,
             check_end_markers: true,
             skipping: false,
+            pending_low_surrogate: None,
         };
         s.reader.next_char();
         s.next_token();
+        s.region = s.top_level_region(IndentWidth::at(&source.text, s.cur.offset));
         s
     }
 

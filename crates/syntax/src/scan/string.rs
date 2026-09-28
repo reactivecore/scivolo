@@ -10,7 +10,7 @@ use crate::token::Token;
 
 impl Scanner<'_> {
     /// At `"`: a string, a multi-line string, or the first part of an interpolated string.
-    pub(super) fn fetch_double_quote(&mut self) {
+    pub fn fetch_double_quote(&mut self) {
         if self.cur.token == Token::InterpolationId {
             self.reader.next_raw_char();
             if self.reader.ch == '"' {
@@ -62,7 +62,7 @@ impl Scanner<'_> {
         }
     }
 
-    pub(super) fn get_raw_string_lit(&mut self) {
+    pub fn get_raw_string_lit(&mut self) {
         loop {
             match self.reader.ch {
                 '"' => {
@@ -83,7 +83,7 @@ impl Scanner<'_> {
     }
 
     /// Read an interpolated string up to its end (STRINGLIT) or a splice (STRINGPART).
-    pub(super) fn get_string_part(&mut self, multi_line: bool) {
+    pub fn get_string_part(&mut self, multi_line: bool) {
         loop {
             let ch = self.reader.ch;
             if ch == '"' {
@@ -153,7 +153,7 @@ impl Scanner<'_> {
         self.finish_named_token(Token::Identifier, Target::Next);
     }
 
-    pub(super) fn fetch_string_part(&mut self, multi_line: bool) {
+    pub fn fetch_string_part(&mut self, multi_line: bool) {
         self.cur.offset = self.reader.ch_offset();
         self.get_string_part(multi_line);
     }

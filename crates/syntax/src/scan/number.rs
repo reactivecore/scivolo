@@ -6,7 +6,7 @@ use crate::token::Token;
 
 impl Scanner<'_> {
     /// Read a number into the string value and set its base and token.
-    pub(super) fn get_number(&mut self) {
+    pub fn get_number(&mut self) {
         let mut base = 10;
         if self.reader.ch == '0' {
             self.reader.next_char();
@@ -50,7 +50,7 @@ impl Scanner<'_> {
     }
 
     /// Read the fractional part and exponent of a floating point number.
-    pub(super) fn get_fraction(&mut self) {
+    pub fn get_fraction(&mut self) {
         self.cur.token = Token::DeciLit;
         self.put_digits();
         if matches!(self.reader.ch, 'e' | 'E') {

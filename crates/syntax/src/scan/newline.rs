@@ -23,7 +23,7 @@ impl Scanner<'_> {
         if self.cfg.source_version.migrate_to_3() { CAN_START_EXPR_TOKENS2 } else { CAN_START_EXPR_TOKENS3 }
     }
 
-    pub(super) fn handle_new_line(&mut self, last_token: Token) {
+    pub fn handle_new_line(&mut self, last_token: Token) {
         let next_width = self.indent_width(self.cur.offset);
         let r = self.region;
         let (significant, separating, last_width, prefix) = match &self.regions.get(r).kind {
@@ -154,7 +154,7 @@ impl Scanner<'_> {
     }
 
     /// Whether a blank line lies between the last token and the current one.
-    pub(super) fn past_blank_line(&self) -> bool {
+    pub fn past_blank_line(&self) -> bool {
         let bytes = self.source.text.as_bytes();
         let mut blank = false;
         for &b in &bytes[self.cur.last_offset as usize..(self.cur.offset as usize).min(bytes.len())] {

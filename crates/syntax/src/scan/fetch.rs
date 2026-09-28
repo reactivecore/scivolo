@@ -9,12 +9,16 @@ use super::region::RegionKind;
 use crate::token::Token;
 
 impl Scanner<'_> {
-    pub(super) fn fetch_token(&mut self) {
+    pub fn fetch_token(&mut self) {
         loop {
             self.cur.offset = self.reader.ch_offset();
             self.cur.line_offset = (self.cur.last_offset < self.reader.line_start_offset)
                 .then_some(self.reader.line_start_offset);
             self.cur.name = None;
+            if let Some((low, line_start)) = self.pending_low_surrogate.take() {
+                self.cur.line_offset = (self.cur.last_offset < line_start).then_some(line_start);
+                return self.error(format!("illegal character '\\u{low:04x}'"), self.cur.offset);
+            }
             let ch = self.reader.ch;
             match ch {
                 ' ' | '\t' | CR | LF | FF => {
@@ -101,7 +105,7 @@ impl Scanner<'_> {
         self.reader.next_char();
         let ch = self.reader.ch;
         if matches!(last, b' ' | b'\t' | b'\n' | b'{' | b'(' | b'>')
-            && (is_xml_name_start(ch) || ch == '!' || ch == '?')
+            && ((ch as u32) <= 0xFFFF && is_xml_name_start(ch) || ch == '!' || ch == '?')
         {
             self.cur.token = Token::XmlStart;
         } else {
@@ -127,7 +131,7 @@ impl Scanner<'_> {
                 if empty {
                     self.error("empty character literal (use '\\'' for single quote)", self.cur.offset);
                 } else if self.lit.len16() != 1 {
-                    let units: String = self.lit.take().iter().map(|u| format!("\\u{u:04x}")).collect();
+                    let units: String = self.lit.units().iter().map(|u| format!("\\u{u:04x}")).collect();
                     self.error(format!("illegal codepoint in Char constant: '{units}'"), self.cur.offset);
                 } else {
                     self.finish_char_lit();
@@ -162,8 +166,9 @@ impl Scanner<'_> {
             self.reader.next_char();
             self.get_operator_rest();
         } else {
-            let unit = ch.encode_utf16(&mut [0; 2])[0];
-            self.error(format!("illegal character '\\u{unit:04x}'"), self.cur.offset);
+            let units = ch.encode_utf16(&mut [0; 2]).to_vec();
+            self.error(format!("illegal character '\\u{:04x}'", units[0]), self.cur.offset);
+            self.pending_low_surrogate = units.get(1).map(|&u| (u, self.reader.line_start_offset));
             self.reader.next_char();
         }
     }

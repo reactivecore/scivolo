@@ -5,7 +5,7 @@ use super::reader::{CR, LF, SU};
 
 impl Scanner<'_> {
     /// After a `/`: skip a comment and return true, or return false if there is none.
-    pub(super) fn skip_comment(&mut self) -> bool {
+    pub fn skip_comment(&mut self) -> bool {
         self.reader.next_char();
         match self.reader.ch {
             '/' => {

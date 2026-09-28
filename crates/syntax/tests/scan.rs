@@ -155,6 +155,32 @@ fn errors_point_at_the_offending_input() {
 }
 
 #[test]
+fn lookahead_scanners_start_at_the_line_indentation() {
+    let tokens = kinds("object A:\n  val x = a\n    ++\n  (b)\n");
+    assert_eq!(tokens[6..8], [Identifier, Newline]);
+}
+
+#[test]
+fn supplementary_characters_count_as_two_utf16_units() {
+    assert_eq!(kinds("val x = a\n  \u{1D6C1} b")[4], Newline);
+    assert_eq!(kinds("val q = (<\u{1D400} )")[4], Identifier);
+    let (tokens, errors) = scan("\u{1F3FB}\n");
+    assert_eq!(tokens.iter().map(|(t, _)| *t).collect::<Vec<_>>(), [Error, Error]);
+    assert_eq!(errors, ["0: illegal character '\\ud83c'", "4: illegal character '\\udffb'"]);
+}
+
+#[test]
+fn names_with_lone_surrogates_stay_distinct() {
+    let source = SourceFile::new("t.scala", "`\\uD800` `\\uD801`");
+    let mut names = Names::default();
+    let mut s = Scanner::new(&source, &mut names, Config::default());
+    let first = s.cur.name;
+    s.next_token();
+    assert_ne!(first, s.cur.name);
+    assert_eq!(syntax::names::to_utf16(s.name_text()), [0xD801]);
+}
+
+#[test]
 fn no_indent_keeps_newlines_only() {
     let cfg = Config::from_options(&["-no-indent"]);
     let tokens: Vec<_> = scan_with("def f =\n  1\n", cfg).0.into_iter().map(|(t, _)| t).collect();

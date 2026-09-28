@@ -69,7 +69,7 @@ fn line(s: &Scanner, td: &TokenData, b: &mut String) {
         None => b.push('-'),
     }
     if matches!(t, Token::Identifier | Token::BackquotedIdent | Token::InterpolationId) {
-        let name: Vec<u16> = td.name.map_or("null", |n| s.names.text(n)).encode_utf16().collect();
+        let name = syntax::names::to_utf16(td.name.map_or("null", |n| s.names.text(n)));
         write!(b, " {}", quote(&name)).unwrap();
     } else if (Token::CharLit..=Token::StringPart).contains(&t) || t == Token::QuoteId {
         write!(b, " {}", quote(s.str_val(td).unwrap_or(&[]))).unwrap();

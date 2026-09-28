@@ -28,13 +28,17 @@ impl LitBuf {
         self.units.last().copied()
     }
 
+    pub fn units(&self) -> &[u16] {
+        &self.units
+    }
+
     pub fn take(&mut self) -> Vec<u16> {
         std::mem::take(&mut self.units)
     }
 
-    /// The buffer as a string, lone surrogates replaced, and clear it.
-    pub fn take_string(&mut self) -> String {
-        String::from_utf16_lossy(&self.take())
+    /// The buffer as a name's text, and clear it.
+    pub fn take_name(&mut self) -> String {
+        crate::names::from_utf16(&self.take())
     }
 
     pub fn clear(&mut self) {
@@ -43,23 +47,23 @@ impl LitBuf {
 }
 
 impl Scanner<'_> {
-    pub(super) fn put_char(&mut self, c: char) {
+    pub fn put_char(&mut self, c: char) {
         self.lit.put(c);
     }
 
     /// Store the buffer as the current token's string value.
-    pub(super) fn set_str_val(&mut self) {
+    pub fn set_str_val(&mut self) {
         let s = self.lit.take();
         self.push_str_val(s);
     }
 
-    pub(super) fn push_str_val(&mut self, units: Vec<u16>) {
+    pub fn push_str_val(&mut self, units: Vec<u16>) {
         self.strings.push(units.into_boxed_slice());
         self.cur.str_val = Some(self.strings.len() as u32 - 1);
     }
 
     /// Copy the current character into the buffer, interpreting an escape sequence.
-    pub(super) fn get_lit_char(&mut self) {
+    pub fn get_lit_char(&mut self) {
         if self.reader.ch == '\\' {
             self.reader.next_char();
             self.char_escape();
@@ -127,7 +131,7 @@ impl Scanner<'_> {
         self.lit.put_unit(oct as u16);
     }
 
-    pub(super) fn get_lit_chars(&mut self, delimiter: char) {
+    pub fn get_lit_chars(&mut self, delimiter: char) {
         while self.reader.ch != delimiter
             && !self.reader.is_at_end()
             && !matches!(self.reader.ch, SU | CR | LF)
@@ -136,7 +140,7 @@ impl Scanner<'_> {
         }
     }
 
-    pub(super) fn finish_char_lit(&mut self) {
+    pub fn finish_char_lit(&mut self) {
         self.reader.next_char();
         self.cur.token = Token::CharLit;
         self.set_str_val();
@@ -144,7 +148,7 @@ impl Scanner<'_> {
 
     /// A character literal if the current character is followed by `'`, else a quoted
     /// identifier read by `rest`.
-    pub(super) fn char_lit_or(&mut self, rest: fn(&mut Self)) {
+    pub fn char_lit_or(&mut self, rest: fn(&mut Self)) {
         self.put_char(self.reader.ch);
         self.reader.next_char();
         if self.reader.ch == '\'' {

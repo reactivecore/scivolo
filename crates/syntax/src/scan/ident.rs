@@ -9,13 +9,13 @@ use crate::token::{Token, keyword};
 
 /// Which token data a name is finished into.
 #[derive(Clone, Copy, PartialEq)]
-pub(super) enum Target {
+pub enum Target {
     Current,
     Next,
 }
 
 impl Scanner<'_> {
-    pub(super) fn get_backquoted_ident(&mut self) {
+    pub fn get_backquoted_ident(&mut self) {
         self.reader.next_char();
         self.get_lit_chars('`');
         if self.reader.ch == '`' {
@@ -31,7 +31,7 @@ impl Scanner<'_> {
         }
     }
 
-    pub(super) fn get_ident_rest(&mut self) {
+    pub fn get_ident_rest(&mut self) {
         loop {
             let ch = self.reader.ch;
             if ch.is_ascii_alphanumeric() || ch == '$' {
@@ -50,7 +50,7 @@ impl Scanner<'_> {
         }
     }
 
-    pub(super) fn get_operator_rest(&mut self) {
+    pub fn get_operator_rest(&mut self) {
         loop {
             let ch = self.reader.ch;
             let op = match ch {
@@ -73,8 +73,8 @@ impl Scanner<'_> {
 
     /// Set `target`'s name from the buffer and its token; identifiers become keywords, and
     /// `end` only in the current token.
-    pub(super) fn finish_named_token(&mut self, token: Token, target: Target) {
-        let text = self.lit.take_string();
+    pub fn finish_named_token(&mut self, token: Token, target: Target) {
+        let text = self.lit.take_name();
         let name = self.names.intern(&text);
         let converted = if token == Token::Identifier { self.keyword_token(&text) } else { token };
         let td = match target {
@@ -103,14 +103,15 @@ impl Scanner<'_> {
         kw
     }
 
-    /// Whether `td` is an operator: backquoted, or ending in an operator character.
+    /// Whether `td` is an operator: backquoted, or ending in an operator character (a UTF-16
+    /// unit, as dotty tests it, so never the low half of a supplementary character).
     pub fn is_operator(&self, td: &TokenData) -> bool {
         td.token == Token::BackquotedIdent
             || td.token == Token::Identifier
                 && td
                     .name
                     .and_then(|n| self.names.text(n).chars().last())
-                    .is_some_and(super::chars::is_operator_part)
+                    .is_some_and(|c| (c as u32) <= 0xFFFF && super::chars::is_operator_part(c))
     }
 
     pub fn is_soft_modifier(&self) -> bool {
