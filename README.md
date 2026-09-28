@@ -85,8 +85,8 @@ and its C runtime built from `native/`.
 
 | Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
-| hello | 10 ms | 292 ms | 5 ms |
-| moderate | 19 ms | 329 ms | 5 ms |
+| hello | 9.3 ms | 292 ms | 5 ms |
+| moderate | 17 ms | 329 ms | 5 ms |
 | cpu (fib 30 + sort 100k) | 0.32 s | 349 ms | 22 ms |
 
 Speed work and ideas: [docs/performance.md](docs/performance.md).
@@ -122,7 +122,8 @@ records the memory trust model.
 Next, by expected value:
 1. Interpreter speed beyond the phase 1 target: boxed equality, superinstructions,
    polymorphic inlining (docs/performance.md, ADR 0006).
-2. Startup: a prebuilt index of the library image, then a heap snapshot (hello 10 ms today).
+2. Startup: a heap snapshot of the initialized runtime after a training run (hello 9.3 ms
+   today).
 3. Phase 3, the own frontend, starting with the parser.
 
 Work is tracked in the GitLab issues.

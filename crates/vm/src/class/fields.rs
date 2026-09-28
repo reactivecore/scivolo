@@ -27,7 +27,7 @@ impl Vm {
         }
         let mut own = Vec::new();
         let mut specs = Vec::new();
-        for m in self.world.members(name)?.to_vec() {
+        for m in self.world.fields(name)? {
             let Some((ty, attrs)) = self.world.var(m)? else { continue };
             let align = attrs.iter().find_map(|a| match a {
                 Attr::Align { size, group } => Some((*size, *group)),

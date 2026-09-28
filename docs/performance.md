@@ -16,8 +16,8 @@ python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 
 | Program | scalai | Scala Native binary | notes |
 |---|---:|---:|---|
-| hello | 10 ms | 5 ms | runtime initialization |
-| moderate | 19 ms | 5 ms | |
+| hello | 9.3 ms | 5 ms | runtime initialization |
+| moderate | 17 ms | 5 ms | |
 | fib 30 | 63 ms | 7 ms | 2.7M calls; the recursion is inlined one level |
 | loops 100 | 3.8 s | 0.8 s | 10⁷-iteration sum and Collatz up to 10⁶, ≈130M loop iterations |
 | cpu | 0.32 s | 22 ms | fib 30 and a sort through a boxed comparator chain |
@@ -57,10 +57,11 @@ or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which mad
    limits.
 8. **Startup:** the library image and lazy decoding (ADR 0005) brought hello from 47 to 20 ms;
    linking classes from their fields alone (not decoding every method) and ASCII strings
-   straight from the file to 10 ms. Of hello's 10 ms, ~2 ms are process start, ~2.6 ms
-   reading the indexes of the 328 files it touches, ~1.4 ms decoding the 1,093 definitions
-   it uses, ~1.6 ms lowering 736 methods and ~1 ms laying out classes. Next: a prebuilt
-   index or snapshot of the decoded world in the library image, then a heap snapshot.
+   straight from the file to 10 ms; member tables in the image (no index decoding) and files
+   read from the mapping without copying to 9.3 ms. What remains: ~2 ms process start,
+   ~1.4 ms decoding the 1,093 definitions hello uses, ~1.6 ms lowering 736 methods, ~1 ms
+   laying out classes, and running the runtime's initialization. Next: a heap snapshot of the
+   initialized runtime, taken after a training run (#9).
 9. **Allocation:** boxing in generic collections allocates an `Integer` per element. Cache
    small boxed values the way `Integer.valueOf` does on the JVM (javalib may already do it;
    check).

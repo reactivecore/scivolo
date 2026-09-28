@@ -1,8 +1,9 @@
 //! The library image: every `.nir` file of a list of jars, uncompressed in one file with a sorted
-//! index, built once per set of jar versions and mapped read-only afterwards.
+//! index and each file's member table (`member_table`), built once per set of jar versions and
+//! mapped read-only afterwards.
 //!
-//! Layout, little-endian: `MAGIC`, `u32` entry count, then per entry `u64` name offset, `u64`
-//! name length, `u64` data offset, `u64` data length, sorted by name; then names and data.
+//! Layout, little-endian: `MAGIC`, `u32` entry count, then per entry `u64` offset and length of
+//! its name, its data and its member table (empty if none), sorted by name; then the contents.
 
 use rustc_hash::FxHasher;
 use std::fs::File;
@@ -11,8 +12,8 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
-const MAGIC: &[u8; 8] = b"SCALAI01";
-const ENTRY: usize = 32;
+const MAGIC: &[u8; 8] = b"SCALAI02";
+const ENTRY: usize = 48;
 const HEADER: usize = 12;
 
 pub struct Image {
@@ -80,15 +81,18 @@ impl Image {
         self.slice(entry, 0)
     }
 
-    /// The bytes of file `rel`, e.g. `scala/Predef$.nir`.
-    pub fn find(&self, rel: &str) -> Option<&[u8]> {
+    /// The bytes of file `rel`, e.g. `scala/Predef$.nir`, and its member table if it has one.
+    pub fn find(&self, rel: &str) -> Option<(&[u8], Option<&[u8]>)> {
         let (mut low, mut high) = (0, self.count);
         while low < high {
             let mid = (low + high) / 2;
             match self.name(mid).cmp(rel.as_bytes()) {
                 std::cmp::Ordering::Less => low = mid + 1,
                 std::cmp::Ordering::Greater => high = mid,
-                std::cmp::Ordering::Equal => return Some(self.slice(mid, 1)),
+                std::cmp::Ordering::Equal => {
+                    let table = self.slice(mid, 2);
+                    return Some((self.slice(mid, 1), Some(table).filter(|t| !t.is_empty())));
+                }
             }
         }
         None
@@ -137,13 +141,20 @@ fn build(jars: &[PathBuf], cache: &Path, path: &Path) -> io::Result<()> {
         }
     }
     files.sort_by(|a, b| a.0.cmp(&b.0));
+    let tables: Vec<Vec<u8>> = files
+        .iter()
+        .map(|(name, data)| {
+            let top = name.strip_suffix(".nir").unwrap_or(name).replace('/', ".");
+            crate::member_table::build(data, &top).unwrap_or_default()
+        })
+        .collect();
     let mut out = Vec::new();
     out.extend_from_slice(MAGIC);
     out.extend_from_slice(&(files.len() as u32).to_le_bytes());
     let mut at = HEADER + files.len() * ENTRY;
     let mut blobs = Vec::new();
-    for (name, data) in &files {
-        for part in [name.as_bytes(), data.as_slice()] {
+    for ((name, data), table) in files.iter().zip(&tables) {
+        for part in [name.as_bytes(), data.as_slice(), table.as_slice()] {
             out.extend_from_slice(&(at as u64).to_le_bytes());
             out.extend_from_slice(&(part.len() as u64).to_le_bytes());
             at += part.len();
