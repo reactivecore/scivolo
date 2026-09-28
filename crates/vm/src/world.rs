@@ -97,6 +97,24 @@ impl World {
         Ok(defn)
     }
 
+    /// The type and attributes of member `g` if it is a `var`, without decoding it whole.
+    pub fn var(&mut self, g: GlobalId) -> Result<Option<(nir::TypeId, Vec<nir::Attr>)>, LoadError> {
+        if let Some(d) = self.defns.get(&g) {
+            return Ok(match &d.kind {
+                nir::DefnKind::Var { ty, .. } => Some((*ty, d.attrs.clone())),
+                _ => None,
+            });
+        }
+        self.load(self.owner(g))?;
+        let Some(&(file, offset)) = self.places.get(&g) else {
+            return Err(LoadError::Missing(self.name(g)));
+        };
+        let f = &mut self.files[file as usize];
+        Reader::resume(&f.data, &mut f.caches, &mut self.pool)
+            .and_then(|mut r| r.var_at(offset))
+            .map_err(|e| LoadError::Corrupt(self.pool.top_name(g).to_owned(), e))
+    }
+
     /// The members defined in the file of top-level `top`, in file order.
     pub fn members(&mut self, top: GlobalId) -> Result<&[GlobalId], LoadError> {
         self.load(top)?;

@@ -1,6 +1,6 @@
 use super::Reader;
 use crate::cursor::Result;
-use crate::nir::{Attr, Body, Defn, DefnKind, LexicalScope};
+use crate::nir::{Attr, Body, Defn, DefnKind, LexicalScope, TypeId};
 use crate::prelude::Section;
 use crate::tags::{attr, defn};
 
@@ -25,6 +25,20 @@ impl Reader<'_> {
             t => return self.bad_tag("definition", t),
         };
         Ok(Defn { name, attrs, pos, kind })
+    }
+
+    /// The type and attributes of the definition at `offset` in the definitions section if it
+    /// is a `var`, reading nothing beyond them.
+    pub fn var_at(&mut self, offset: u32) -> Result<Option<(TypeId, Vec<Attr>)>> {
+        self.at(self.prelude.start(Section::Defns) + offset as usize, |r| {
+            if r.tag()? != defn::VAR {
+                return Ok(None);
+            }
+            r.global()?;
+            let attrs = r.seq(Self::attr)?;
+            r.position()?;
+            Ok(Some((r.ty()?, attrs)))
+        })
     }
 
     fn body(&mut self) -> Result<Body> {
