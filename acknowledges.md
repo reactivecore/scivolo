@@ -8,6 +8,7 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 | Source | What we took | Licence |
 |---|---|---|
 | [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 | The C runtime in `native/` (nativelib, javalib, posixlib, clib), including the Immix collector (`gc/immix`, `gc/immix_commix`, `gc/shared`, with one patch in `Marker.c`) | BSD-3, `native/LICENSE-scala-native.md` |
+| [Scala 3 compiler (dotty)](https://github.com/scala/scala3) 3.9.0 | `crates/syntax/src/scan`: a Rust translation of `parsing/Scanners.scala`, `Tokens.scala`, `CharArrayReader.scala` and `util/Chars.scala` | Apache-2.0 |
 | Scala Native precompiled libraries | scalalib, javalib, nativelib, auxlib, posixlib and clib as NIR, executed by the VM (fetched, not vendored) | BSD-3 / Apache-2.0 |
 
 ## Designs we follow
