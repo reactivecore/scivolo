@@ -29,9 +29,12 @@ impl Image {
         if path.exists()
             && let Ok(image) = Self::map(&path)
         {
+            crate::cache::touch(&path);
             return Ok(image);
         }
         build(jars, cache, &path)?;
+        crate::cache::prune(cache, crate::cache::UNUSED, |n| n.starts_with("libs-") && n.ends_with(".img"));
+        crate::cache::prune(cache, crate::cache::ABANDONED, |n| n.starts_with("libs-") && n.contains(".tmp"));
         Self::map(&path)
     }
 
