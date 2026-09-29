@@ -55,18 +55,6 @@ impl Vm {
         Ok(id)
     }
 
-    /// The function running method `name`'s own NIR, also where the VM overrides it.
-    pub fn original(&mut self, name: GlobalId) -> Result<FuncId, VmError> {
-        if let Some(&id) = self.funcs.originals.get(&name) {
-            return Ok(id);
-        }
-        let defn = self.world.defn(name)?;
-        let id = self.funcs.all.len() as FuncId;
-        self.funcs.all.push(Func::Nir { name, defn, code: None, retired: None });
-        self.funcs.originals.insert(name, id);
-        Ok(id)
-    }
-
     pub fn call_global(&mut self, name: GlobalId, args: &[u64]) -> Flow {
         let f = self.func(name)?;
         self.call(f, args)

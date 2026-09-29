@@ -63,12 +63,21 @@ impl World {
         let Global::Top(name) = *self.pool.global(top) else {
             return Err(LoadError::Missing(self.name(top)));
         };
+        if let Some(mismatch) = self.broken.get(&name) {
+            return Err(LoadError::Overlay(mismatch.clone()));
+        }
         if let Some(&file) = self.loaded.get(&name) {
             return Ok(file);
         }
         self.loaded.insert(name, None);
         let text = self.pool.str(name).to_owned();
-        let Some((data, table)) = self.classpath.find(&text) else { return Ok(None) };
+        let overlay = super::overlay::file(&text);
+        let (found, overlaid) = match (self.classpath.find(&text), overlay) {
+            (Some(found), overlay) => (found, overlay),
+            (None, Some(data)) => ((std::borrow::Cow::Borrowed(data), None), None),
+            (None, None) => return Ok(None),
+        };
+        let (data, table) = found;
         let file = self.files.len() as u32;
         let mut caches = Caches::default();
         let mut reader = Reader::new(&data, &mut caches, &mut self.pool)
@@ -84,6 +93,9 @@ impl World {
         }
         self.files.push(File { data, caches, table });
         self.loaded.insert(name, Some(file));
+        if let Some(data) = overlaid {
+            self.merge(top, data)?;
+        }
         Ok(Some(file))
     }
 }

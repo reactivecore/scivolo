@@ -34,7 +34,7 @@ impl Vm {
 
     /// The code, NIR instruction index and position of instruction `pc` of tier `tier` of `g`.
     fn instruction(&self, g: GlobalId, pc: usize, tier: u8) -> Option<(&Code, usize, PosId)> {
-        let f = *self.funcs.originals.get(&g).or_else(|| self.funcs.by_name.get(&g))?;
+        let f = *self.funcs.by_name.get(&g)?;
         let Func::Nir { code, retired, .. } = &self.funcs.all[f as usize] else { return None };
         let code = [code, retired].into_iter().flatten().find(|c| c.tier == tier)?;
         let nir::DefnKind::Define { body, .. } = &code.defn.kind else { return None };

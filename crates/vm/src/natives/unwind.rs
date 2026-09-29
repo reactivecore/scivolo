@@ -20,7 +20,7 @@ pub struct StackWalk {
 }
 
 /// Scala Native reads at most this many frames.
-pub const MAX_FRAMES: usize = 1025;
+const MAX_FRAMES: usize = 1025;
 /// Marks the instruction pointer of a method inlined into a frame: `INLINED | pos << 32 | method`.
 const INLINED: u64 = 1 << 62;
 const PC_MASK: u64 = 0x3FFF_FFFF;
@@ -79,7 +79,7 @@ fn get_context(vm: &mut Vm, args: &[u64]) -> Flow {
 
 /// The instruction pointers of the innermost `limit` frames, each inlined method as a frame of
 /// its own, innermost first.
-pub fn frame_ips(vm: &Vm, limit: usize) -> Vec<u64> {
+fn frame_ips(vm: &Vm, limit: usize) -> Vec<u64> {
     let mut ips = Vec::new();
     let mut header = vm.frames.innermost();
     while header != 0 && ips.len() < limit {
@@ -120,7 +120,7 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
 }
 
 /// The `StackTraceElement` for instruction pointer `ip`.
-pub fn element_of(vm: &mut Vm, ip: u64) -> Flow {
+fn element_of(vm: &mut Vm, ip: u64) -> Flow {
     let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & PC_MASK) as usize, (ip >> 63) as u8);
     let (class, name) = match (method.0 as usize) < vm.world.pool.globals.len() {
         true => (
@@ -144,7 +144,7 @@ pub fn element_of(vm: &mut Vm, ip: u64) -> Flow {
 }
 
 /// A new `StackTraceElement` for method `method` of class `class`, at `line` of `file`.
-pub fn new_element(vm: &mut Vm, class: &str, method: &str, file: Option<&str>, line: i32) -> Flow {
+fn new_element(vm: &mut Vm, class: &str, method: &str, file: Option<&str>, line: i32) -> Flow {
     let cls = vm.link_top("java.lang.StackTraceElement")?;
     let obj = vm.alloc_object(cls);
     let class = vm.new_string(class)?;

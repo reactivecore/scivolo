@@ -7,7 +7,7 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 
 | Source | What we took | Licence |
 |---|---|---|
-| [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 | The C runtime in `native/` (nativelib, javalib, posixlib, clib), including the Immix collector (`gc/immix`, `gc/immix_commix`, `gc/shared`, with one patch in `Marker.c`) | BSD-3, `native/LICENSE-scala-native.md` |
+| [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 | The C runtime in `native/` (nativelib, javalib, posixlib, clib), including the Immix collector (`gc/immix`, `gc/immix_commix`, `gc/shared`, with one patch in `Marker.c`); in `overlay/src`, javalib's `LinkedTransferQueue.remove` (a JSR-166 port) and `ForkJoinPool.helpAsyncBlocker`, patched | BSD-3, `native/LICENSE-scala-native.md`; JSR-166 public domain |
 | [Scala 3 compiler (dotty)](https://github.com/scala/scala3) 3.9.0 | `crates/syntax/src/scan`: a Rust translation of `parsing/Scanners.scala`, `Tokens.scala`, `CharArrayReader.scala` and `util/Chars.scala`; `crates/syntax/src/parse` and `ast`: of `parsing/Parsers.scala`, `ast/untpd.scala`, `ast/Trees.scala`, `ast/Positioned.scala`, `util/Spans.scala`, `core/Flags.scala` and the parser's messages | Apache-2.0 |
 | Scala Native precompiled libraries | scalalib, javalib, nativelib, auxlib, posixlib and clib as NIR, executed by the VM (fetched, not vendored) | BSD-3 / Apache-2.0 |
 
@@ -30,6 +30,9 @@ was compared are in `docs/research/`; this list covers what we actually use or p
   ([What's new](https://docs.python.org/3/whatsnew/3.11.html)): per-site inline caches and
   specialization, behind our call-site cells and superinstructions
   ([docs/performance.md](docs/performance.md)).
+- **GraalVM Native Image substitutions** (`@TargetClass`, `@Substitute`, `@Alias`): replacing
+  library methods member by member from separately compiled classes, behind the library
+  overlay ([ADR 0009](docs/adr/0009-library-overlay.md)).
 - **HotSpot's tiered compilation and guarded inlining** (profile-driven inlining of
   monomorphic call sites behind a class check): our tier-up
   ([ADR 0006](docs/adr/0006-tier-up-inlining.md)).

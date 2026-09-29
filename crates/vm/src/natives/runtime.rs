@@ -45,40 +45,13 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
         ("scala.scalanative.runtime.Intrinsics$", "D20unsignedMultiplyHighjjjEO") => {
             |_, args| Ok((((args[1] as u128) * (args[2] as u128)) >> 64) as u64)
         }
-        ("java.util.HashSet", s) if s.starts_with("D22containsAll$$anonfun$1") => hash_set_contains,
-        ("java.util.concurrent.ForkJoinPool$", HELP_ASYNC_BLOCKER) => help_async_blocker,
         _ => {
             return super::services::method(owner, sig)
-                .or_else(|| super::jdk::method(owner, sig))
                 .or_else(|| super::unwind::method(owner, sig))
                 .or_else(|| super::threads::method(owner, sig));
         }
     };
     Some(f)
-}
-
-const HELP_ASYNC_BLOCKER: &str = "D16helpAsyncBlockerL29java.util.concurrent.ExecutorL48java.util.concurrent.ForkJoinPool$ManagedBlockeruEO";
-
-/// `ForkJoinPool.helpAsyncBlocker(e, blocker)`, whose javalib version matches the current thread
-/// against `ForkJoinWorkerThread` only: nothing on other threads, the javalib method on workers.
-fn help_async_blocker(vm: &mut Vm, args: &[u64]) -> Flow {
-    let thread = heap::read::<u64>(vm.thread) as usize;
-    let worker = vm.link_top("java.util.concurrent.ForkJoinWorkerThread")?;
-    if thread == 0 || !vm.is_subclass(vm.class_of(thread), worker) {
-        return Ok(vm.unit()? as u64);
-    }
-    let owner = vm.world.top("java.util.concurrent.ForkJoinPool$");
-    let method = vm.world.member(owner, HELP_ASYNC_BLOCKER);
-    let original = vm.original(method)?;
-    vm.call(original, args)
-}
-
-/// `HashSet.containsAll`'s `forall(contains)` lambda, which the published javalib compiled with a
-/// `Nothing` parameter into `throw o`: `this.contains(o)`.
-fn hash_set_contains(vm: &mut Vm, args: &[u64]) -> Flow {
-    let sig = nir::StrId(vm.world.pool.strings.intern("D8containsL16java.lang.ObjectzEO".into()));
-    let f = vm.virtual_method(args[0] as usize, sig)?;
-    vm.call(f, &args[..2])
 }
 
 /// `Class.forName(name)`: the class, module or trait `name` on the classpath, linked and

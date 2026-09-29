@@ -35,8 +35,6 @@ pub enum Func {
 pub struct Funcs {
     pub all: Vec<Func>,
     pub by_name: FxHashMap<GlobalId, FuncId>,
-    /// Methods the VM overrides, by name: the function of their own NIR.
-    pub originals: FxHashMap<GlobalId, FuncId>,
     pub globals: FxHashMap<GlobalId, usize>,
     pub consts: FxHashMap<nir::ValId, usize>,
     pub stack: Vec<FuncId>,

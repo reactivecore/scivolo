@@ -1,6 +1,7 @@
 //! Every definition loaded so far, found by global name; files load on first use.
 
 mod files;
+mod overlay;
 
 use crate::classpath::Classpath;
 use files::File;
@@ -18,12 +19,16 @@ pub struct World {
     places: FxHashMap<GlobalId, (u32, u32)>,
     defns: FxHashMap<GlobalId, Rc<Defn>>,
     members: FxHashMap<GlobalId, Vec<GlobalId>>,
+    /// Top-level names whose overlay does not match the library, with the mismatch.
+    broken: FxHashMap<StrId, String>,
 }
 
 #[derive(Debug)]
 pub enum LoadError {
     Missing(String),
     Corrupt(String, nir::Error),
+    /// An overlay member the library does not match.
+    Overlay(String),
 }
 
 impl std::fmt::Display for LoadError {
@@ -31,6 +36,7 @@ impl std::fmt::Display for LoadError {
         match self {
             LoadError::Missing(name) => write!(f, "no definition of {name} on the classpath"),
             LoadError::Corrupt(name, e) => write!(f, "{name}: {e}"),
+            LoadError::Overlay(what) => write!(f, "overlay: {what}"),
         }
     }
 }
@@ -45,6 +51,7 @@ impl World {
             places: FxHashMap::default(),
             defns: FxHashMap::default(),
             members: FxHashMap::default(),
+            broken: FxHashMap::default(),
         }
     }
 
