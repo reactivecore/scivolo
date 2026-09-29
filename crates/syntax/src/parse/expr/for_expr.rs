@@ -9,7 +9,7 @@ use crate::token::Token;
 
 impl Parser<'_> {
     fn enumerators(&mut self) -> Vec<NodeId> {
-        let mut enums = if self.s.cfg.source_version.enables_better_fors() {
+        let mut enums = if self.s.cfg.enables_better_fors() {
             self.aliases_until_generator()
         } else {
             vec![self.generator()]

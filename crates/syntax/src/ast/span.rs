@@ -5,6 +5,11 @@ use crate::source::Offset;
 /// The point delta marking a synthetic span.
 const SYNTHETIC: u16 = 4095;
 
+/// `point - start` in the 12 bits of dotty's point delta; 4095 reads as synthetic.
+fn wrapped_delta(start: Offset, point: Offset) -> u16 {
+    (point.wrapping_sub(start) & SYNTHETIC as u32) as u16
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Span {
     start: Offset,
@@ -80,7 +85,7 @@ impl Span {
         if !self.exists() {
             return self;
         }
-        let delta = if self.is_synthetic() { SYNTHETIC } else { (self.point() - start) as u16 };
+        let delta = if self.is_synthetic() { SYNTHETIC } else { wrapped_delta(start, self.point()) };
         Span { start, end: self.end, point_delta: delta }
     }
 
@@ -89,7 +94,7 @@ impl Span {
     }
 
     pub fn with_point(self, point: Offset) -> Span {
-        if self.exists() { Span { point_delta: (point - self.start) as u16, ..self } } else { self }
+        if self.exists() { Span { point_delta: wrapped_delta(self.start, point), ..self } } else { self }
     }
 
     pub fn to_synthetic(self) -> Span {

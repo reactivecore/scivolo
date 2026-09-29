@@ -2,6 +2,7 @@
 //! a compilation unit (a port of `ast/Desugar.scala`).
 
 mod case_lambda;
+mod defs;
 mod exprs;
 mod for_expr;
 mod generators;
@@ -19,7 +20,7 @@ use crate::ast::flags::FlagSet;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::ModsId;
 use crate::ast::{Ast, Attrs, List, NodeId, TName, Tree};
-use crate::config::SourceVersion;
+use crate::config::Config;
 use crate::diag::Diagnostics;
 use crate::names::{FreshNames, Names};
 use crate::source::SourceFile;
@@ -36,7 +37,7 @@ pub enum Mode {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Owner {
     Package,
-    Class { is_trait: bool },
+    Class { is_trait: bool, is_package_object: bool },
     Term,
 }
 
@@ -48,12 +49,13 @@ impl Owner {
 }
 
 pub struct Desugar<'a> {
-    pub ast: &'a mut Ast,
-    pub names: &'a mut Names,
-    pub diags: &'a mut Diagnostics,
-    pub fresh: &'a mut FreshNames,
+    ast: &'a mut Ast,
+    names: &'a mut Names,
+    diags: &'a mut Diagnostics,
+    fresh: &'a mut FreshNames,
     source: &'a SourceFile,
-    version: SourceVersion,
+    /// The settings, with the source version the unit's language imports chose.
+    cfg: Config,
     mode: Mode,
     owner: Owner,
 }
@@ -65,9 +67,9 @@ impl<'a> Desugar<'a> {
         diags: &'a mut Diagnostics,
         fresh: &'a mut FreshNames,
         source: &'a SourceFile,
-        version: SourceVersion,
+        cfg: Config,
     ) -> Self {
-        Desugar { ast, names, diags, fresh, source, version, mode: Mode::Expr, owner: Owner::Package }
+        Desugar { ast, names, diags, fresh, source, cfg, mode: Mode::Expr, owner: Owner::Package }
     }
 
     /// The desugared compilation unit `root`.

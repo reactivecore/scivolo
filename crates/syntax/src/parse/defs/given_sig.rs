@@ -42,7 +42,7 @@ impl Parser<'_> {
             return (paramss, parents);
         }
         let parents = self.implemented(new_syntax);
-        if self.tok() == Token::Arrow && parents.len() == 1 && self.is_type(parents[0]) {
+        if self.tok() == Token::Arrow && parents.len() == 1 && self.ast.is_type(parents[0]) {
             self.next();
             let (mut paramss, parents1) = self.given_params_and_parents(num_lead + 1, new_syntax);
             let ps = self.types_to_params(&parents, ParamOwner::Given, num_lead, flags::GIVEN);

@@ -2,7 +2,7 @@
 
 use super::Desugar;
 use crate::ast::flags;
-use crate::ast::{Attrs, NodeId, Tree};
+use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::names::is_var_pattern_name;
 
 impl Desugar<'_> {
@@ -95,7 +95,7 @@ impl Desugar<'_> {
         }
     }
 
-    pub fn name_of(&self, named: NodeId) -> crate::ast::TName {
+    pub fn name_of(&self, named: NodeId) -> TName {
         match *self.ast.tree(named) {
             Tree::Ident { name } | Tree::Bind { name, .. } => name,
             _ => unreachable!("a named tree"),

@@ -4,7 +4,7 @@
 use super::{Desugar, Mode};
 use crate::ast::constant::Constant;
 use crate::ast::span::Span;
-use crate::ast::{Attrs, List, NodeId, Tree};
+use crate::ast::{Attrs, List, NodeId, TName, Tree};
 
 /// The largest arity of `scala.TupleN` (dotty's `MaxTupleArity`).
 pub const MAX_TUPLE_ARITY: usize = 22;
@@ -47,7 +47,7 @@ impl Desugar<'_> {
         self.ast.respan(t, span)
     }
 
-    fn interpolated_string(&mut self, id: NodeId, interpolator: crate::ast::TName, segments: List) -> NodeId {
+    fn interpolated_string(&mut self, id: NodeId, interpolator: TName, segments: List) -> NodeId {
         let segments = self.ast.items(segments).to_vec();
         let mut strs = Vec::new();
         let mut elems = Vec::new();

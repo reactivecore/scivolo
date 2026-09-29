@@ -71,8 +71,8 @@ fn parse_and_print(source: &SourceFile, options: &[&str], desugar: bool, b: &mut
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
     let mut root = p.parse();
     if desugar {
-        let version = p.s.cfg.source_version;
-        let mut d = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, version);
+        let cfg = p.s.cfg;
+        let mut d = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, cfg);
         root = d.unit(root);
     }
     let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };

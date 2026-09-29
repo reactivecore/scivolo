@@ -62,10 +62,6 @@ impl SourceVersion {
         self.is_at_least(Self::V3_7)
     }
 
-    pub fn enables_better_fors(self) -> bool {
-        self.is_at_least(Self::V3_8)
-    }
-
     pub fn requires_new_syntax(self) -> bool {
         self.is_at_least(Self::FUTURE_VERSION)
     }

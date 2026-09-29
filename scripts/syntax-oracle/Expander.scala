@@ -100,8 +100,23 @@ class Expander(stage: Stage = Stage.Exprs) extends untpd.UntypedTreeMap:
       val cls = classSym(tree)
       cpy.TypeDef(tree)(name, transformTemplate(impl)(using ctx.fresh.setOwner(cls).setTree(tree)))
     case tree @ TypeDef(name, rhs) => cpy.TypeDef(tree)(name, transform(rhs)(using typeCtx))
+    case tree @ ModuleDef(name, impl) =>
+      val clsName = (if tree.mods.is(Package) then nme.PACKAGE else name).moduleClassName
+      val cls = newCompleteClassSymbol(ctx.owner, clsName, ModuleClass | Final, Nil, newScope)
+      untpd.cpy.ModuleDef(tree)(name, transformTemplate(impl)(using ctx.fresh.setOwner(cls).setTree(tree)))
     case tree: Template => transformTemplate(tree)
+    case Quote(body, tags) =>
+      cpy.Quote(tree)(transform(body)(using if body.isType then typeCtx else exprCtx), transform(tags))
+    case SplicePattern(body, targs, args) =>
+      cpy.SplicePattern(tree)(transform(body)(using patCtx), transform(targs), transform(args))
+    case Import(expr, selectors) => cpy.Import(tree)(transform(expr), transformSelectors(selectors))
+    case Export(expr, selectors) => cpy.Export(tree)(transform(expr), transformSelectors(selectors))
     case _ => super.transform(tree)
+
+  /** Import selectors with their bounds typed as types, as `Typer.typedSelectors` does. */
+  private def transformSelectors(selectors: List[ImportSelector])(using Context): List[ImportSelector] =
+    selectors.mapConserve(sel => untpd.cpy.ImportSelector(sel)(sel.imported, sel.renamed, transform(sel.bound)(using typeCtx))
+      .asInstanceOf[ImportSelector])
 
   private def transformTemplate(impl: Template)(using Context): Template =
     def parent(p: Tree): Tree = p match

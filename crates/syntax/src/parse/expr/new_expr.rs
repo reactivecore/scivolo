@@ -29,7 +29,7 @@ impl Parser<'_> {
                     derived: None,
                 });
                 self.ast.node(Tree::New { tpt: tmpl })
-            } else if self.is_type(parent) {
+            } else if self.ast.is_type(parent) {
                 let w = self.wrap_new(parent);
                 self.ensure_applied(w)
             } else {

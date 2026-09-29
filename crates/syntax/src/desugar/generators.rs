@@ -129,19 +129,11 @@ impl Desugar<'_> {
     }
 
     /// Mark `apply`, the last call of a `for`, when its `map` only returns the pattern.
-    pub fn mark_trailing_map(
-        &mut self,
-        apply: NodeId,
-        gen_: NodeId,
-        select: TName,
-        map: TName,
-        body: NodeId,
-    ) {
+    pub fn mark_trailing_map(&mut self, apply: NodeId, gen_: NodeId, body: NodeId) {
         let Tree::GenFrom { pat, check_mode, .. } = *self.ast.tree(gen_) else { unreachable!("a generator") };
         let unit_body =
             matches!(self.ast.tree(self.unsplice(body)), Tree::Tuple { trees } if trees.is_empty());
-        if self.version.enables_better_fors()
-            && select == map
+        if self.cfg.enables_better_fors()
             && check_mode != GenCheckMode::Filtered
             && (self.deep_equals(pat, body) || unit_body)
         {

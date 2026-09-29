@@ -79,6 +79,8 @@ pub struct Config {
     pub old_syntax: bool,
     /// `-new-syntax`.
     pub new_syntax: bool,
+    /// `-preview`.
+    pub preview: bool,
     pub features: Features,
     pub kind_projector: KindProjector,
 }
@@ -91,6 +93,7 @@ impl Default for Config {
             indent: false,
             old_syntax: false,
             new_syntax: false,
+            preview: false,
             features: Features::default(),
             kind_projector: KindProjector::Disabled,
         }
@@ -126,6 +129,7 @@ impl Config {
                     cfg.old_syntax = true;
                 }
                 "-new-syntax" => cfg.new_syntax = true,
+                "-preview" => cfg.preview = true,
                 "-indent" => cfg.indent = true,
                 "-language" => {
                     for feature in value().split(',').filter_map(Features::named) {
@@ -143,6 +147,12 @@ impl Config {
             }
         }
         cfg
+    }
+
+    /// Whether `for` comprehensions follow the rules of 3.8 (dotty's `enablesBetterFors`).
+    pub fn enables_better_fors(&self) -> bool {
+        let v = self.source_version;
+        v.is_at_least(SourceVersion::V3_8) || v.is_at_least(SourceVersion::V3_7) && self.preview
     }
 
     /// Whether indentation is significant, as dotty's `indentSyntax` with `allowIndent`.

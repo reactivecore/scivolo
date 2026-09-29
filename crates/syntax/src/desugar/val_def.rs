@@ -32,7 +32,11 @@ impl Desugar<'_> {
         let m = self.ast.modifiers(mods).clone();
         let needs_setter = m.is(flags::MUTABLE)
             && self.owner.is_class()
-            && (!m.is(flags::PRIVATE) || self.owner == Owner::Class { is_trait: true });
+            && (!m.is(flags::PRIVATE)
+                || matches!(
+                    self.owner,
+                    Owner::Class { is_trait: true, .. } | Owner::Class { is_package_object: true, .. }
+                ));
         if !needs_setter {
             return vdef;
         }

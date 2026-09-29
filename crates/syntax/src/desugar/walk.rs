@@ -1,7 +1,7 @@
 //! The traversal: each tree desugared as the typer would meet it, then its children.
 
 use super::{Desugar, Mode, Owner};
-use crate::ast::flags;
+use crate::ast::tree::Clauses;
 use crate::ast::{List, NodeId, Tree};
 
 impl Desugar<'_> {
@@ -47,7 +47,8 @@ impl Desugar<'_> {
             }
             Tree::New { tpt } => {
                 let tpt = if matches!(self.ast.tree(tpt), Tree::Template { .. }) {
-                    self.in_owner(Owner::Class { is_trait: false }, |d| d.transform_template(tpt))
+                    let owner = Owner::Class { is_trait: false, is_package_object: false };
+                    self.in_owner(owner, |d| d.transform_template(tpt))
                 } else {
                     self.in_mode(Mode::Type, |d| d.transform(tpt))
                 };
@@ -89,27 +90,20 @@ impl Desugar<'_> {
                 let expr = self.transform(expr);
                 self.ast.derived(id, Tree::GenAlias { pat, expr })
             }
-            Tree::ValDef { name, tpt, rhs, mods } => self.in_owner(Owner::Term, |d| {
-                let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
-                let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
-                d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
-            }),
-            Tree::DefDef { name, paramss, tpt, rhs, mods } => self.in_owner(Owner::Term, |d| {
-                let paramss = d.transform_clauses(paramss);
-                let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
-                let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
-                d.ast.derived(id, Tree::DefDef { name, paramss, tpt, rhs, mods })
-            }),
-            Tree::TypeDef { name, rhs, mods } => {
-                let rhs = if matches!(self.ast.tree(rhs), Tree::Template { .. }) {
-                    let is_trait = self.ast.modifiers(mods).is(flags::TRAIT);
-                    self.in_owner(Owner::Class { is_trait }, |d| d.transform_template(rhs))
-                } else {
-                    self.in_mode(Mode::Type, |d| d.transform(rhs))
-                };
-                self.ast.derived(id, Tree::TypeDef { name, rhs, mods })
+            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ModuleDef { .. } => {
+                self.transform_def(id)
             }
+            Tree::Import { .. } | Tree::Export { .. } => self.transform_import(id),
             Tree::Template { .. } => self.transform_template(id),
+            Tree::Quote { body } => {
+                let mode = if self.ast.is_type(body) { Mode::Type } else { Mode::Expr };
+                let body = self.in_mode(mode, |d| d.transform(body));
+                self.ast.derived(id, Tree::Quote { body })
+            }
+            Tree::SplicePattern { body } => {
+                let body = self.in_mode(Mode::Pattern, |d| d.transform(body));
+                self.ast.derived(id, Tree::SplicePattern { body })
+            }
             _ => self.map_children(id),
         }
     }
@@ -126,7 +120,7 @@ impl Desugar<'_> {
         if flat == items { l } else { self.list(&flat) }
     }
 
-    pub fn transform_clauses(&mut self, c: crate::ast::tree::Clauses) -> crate::ast::tree::Clauses {
+    pub fn transform_clauses(&mut self, c: Clauses) -> Clauses {
         let clauses = self.ast.clause_items(c).to_vec();
         let mapped: Vec<List> = clauses.iter().map(|&l| self.transform_list(l)).collect();
         if mapped == clauses { c } else { self.ast.clauses(&mapped) }

@@ -14,8 +14,8 @@ fn desugar(text: &str, options: &[&str]) -> String {
     let mut names = Names::default();
     let mut p = Parser::new(&source, &mut names, Config::from_options(options));
     let root = p.parse();
-    let version = p.s.cfg.source_version;
-    let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, version).unit(root);
+    let cfg = p.s.cfg;
+    let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(root);
     let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };
     printer.tree(root);
     let mut out = printer.out;
@@ -109,5 +109,23 @@ fn for_with_alias_and_guard_before_3_8_tuples_the_alias() {
          (Match 47..67 (Ident 47..47 @check=IrrefutableGenFrom t:x$1) [ (CaseDef 47..67 (Apply 47..53@47 \
          (TypedSplice 48..48 t:scala.Tuple2) [ (Ident 48..49@48 t:a) (Ident 51..52@51 t:b)]) _ (Ident \
          66..67@66 t:a))]))]))]))]))])"
+    );
+}
+
+#[test]
+fn type_quotes_hold_types_and_preview_enables_better_fors() {
+    let text = "object O:\n  def f(using Quotes) = '[ A | (B, C) ]\n  def g = for x <- xs; y = x yield y\n";
+    assert_eq!(
+        desugar(text, &["-source:3.7", "-preview"]),
+        "(PackageDef 0..86 (Ident 0..0 t:<empty>) [ (ModuleDef 0..86@7 (Mods [module] [] []) t:O (Template \
+         12..86 (DefDef 12..12 (Mods [] [] []) t:<init> [] (TypeTree 12..12) _) [] _self [ (DefDef 12..49@16 \
+         (Mods [<method>] [] []) t:f [ [ (ValDef 24..30 (Mods [<param> <synthetic> given] [] []) t:x$1 (Ident \
+         24..30@24 T:Quotes) _)]] (TypeTree 31..31) (Quote 34..49@34 (AppliedTypeTree 37..47@39 (Ident \
+         39..40@39 T:|) [ (Ident 37..38@37 T:A) (AppliedTypeTree 41..47@41 (TypedSplice 42..42 \
+         T:scala.Tuple2) [ (Ident 42..43@42 T:B) (Ident 45..46@45 T:C)])]) [])) (DefDef 52..86@56 (Mods \
+         [<method>] [] []) t:g [] (TypeTree 57..57) (Apply 60..86@60 (Select 69..71 (Ident 69..71@69 t:xs) \
+         t:map) [ (Function 64..86 [ (ValDef 64..65@64 @patternvar (Mods [<param>] [] []) t:x (TypeTree \
+         64..64) _)] (Block 73..86 [ (ValDef 73..78@73 @patternvar (Mods [] [] []) t:y (TypeTree 77..77) \
+         (Ident 77..78@77 t:x))] (Ident 85..86@85 t:y)))]))]))])"
     );
 }

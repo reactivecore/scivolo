@@ -4,6 +4,7 @@
 pub mod children;
 pub mod constant;
 pub mod flags;
+mod kinds;
 pub mod modifiers;
 mod positions;
 pub mod print;
@@ -51,24 +52,6 @@ impl Attrs {
     pub const CHECK_PAT_DEF: Attrs = Attrs(1 << 14);
     /// A selector checked to match the pattern of a generator.
     pub const CHECK_GEN_FROM: Attrs = Attrs(1 << 15);
-
-    /// The attributes the tree printer shows, in its order.
-    pub const PRINTED: [(Attrs, &str); 14] = [
-        (Attrs::BACKQUOTED, " @backquoted"),
-        (Attrs::CAPTURE_VAR, " @capturevar"),
-        (Attrs::RETAINS_ANNOT, " @retains"),
-        (Attrs::SYNTHETIC_UNIT, " @syntheticunit"),
-        (Attrs::FOR_ARTIFACT, " @forartifact"),
-        (Attrs::PATTERN_VAR, " @patternvar"),
-        (Attrs::TRAILING_FOR_MAP, " @trailingmap"),
-        (Attrs::TUPLING_FOR_MAP, " @tuplingmap"),
-        (Attrs::MULTI_LINE_INFIX, " @multiline"),
-        (Attrs::WAS_TYPED_INFIX, " @infix"),
-        (Attrs::CHECK_PAT_DEF, " @check=IrrefutablePatDef"),
-        (Attrs::CHECK_GEN_FROM, " @check=IrrefutableGenFrom"),
-        (Attrs::USING_APPLY, " @apply=Using"),
-        (Attrs::INFIX_TUPLE_APPLY, " @apply=InfixTuple"),
-    ];
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

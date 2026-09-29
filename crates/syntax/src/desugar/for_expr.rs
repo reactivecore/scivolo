@@ -8,7 +8,7 @@ use crate::ast::{Attrs, NodeId, TName, Tree};
 impl Desugar<'_> {
     /// The expansion of a `for` with `enums` and `body`; an empty tree for erroneous input.
     pub fn make_for(&mut self, map: TName, flat_map: TName, enums: &[NodeId], body: NodeId) -> NodeId {
-        let better = self.version.enables_better_fors();
+        let better = self.cfg.enables_better_fors();
         let Some((&first, rest)) = enums.split_first() else {
             return if better { body } else { self.ast.node(Tree::Empty) };
         };
@@ -18,7 +18,7 @@ impl Desugar<'_> {
                 let fun = self.rhs_select(first, map);
                 let lambda = self.make_lambda(first, body);
                 let apply = self.apply(fun, &[lambda]);
-                self.mark_trailing_map(apply, first, map, map, body);
+                self.mark_trailing_map(apply, first, body);
                 apply
             }
             Tree::GenFrom { .. } if matches!(self.ast.tree(rest[0]), Tree::GenFrom { .. }) => {
