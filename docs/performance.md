@@ -37,7 +37,8 @@ comparisons, copies and cached field and array loads run in `run` without record
 Measured and not pursued: virtual call sites that change target are rare (a few dozen target
 changes per run of `cpu` or `moderate`, none in hot loops), so guarded inlining of a second
 target would not pay; moving block-parameter moves out of `Target` into one table per method
-gained nothing.
+gained nothing. The `Rc<Code>` clone per call stays: one non-atomic increment and decrement,
+and it keeps the code alive while tier-up replaces it.
 
 Generic `==` (`BoxesRunTime.equals`) is never inlined; its call compares two references
 or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which made building a

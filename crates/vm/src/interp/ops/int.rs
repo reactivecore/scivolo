@@ -4,6 +4,8 @@ use super::arith;
 use crate::interp::code::Num;
 use nir::{Bin, Comp};
 
+/// A `Bin` on `Int` or `Long` that cannot throw; `Div` and `Rem` divide by a constant other
+/// than 0 and -1.
 #[derive(Clone, Copy, Debug)]
 pub enum IntBin {
     Add32,
@@ -15,7 +17,6 @@ pub enum IntBin {
     Shl32,
     Lshr32,
     Ashr32,
-    /// Division and remainder by a constant other than 0 and -1.
     Div32,
     Rem32,
     Add64,

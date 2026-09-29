@@ -111,7 +111,7 @@ impl Vm {
         }
         let len: i32 = heap::read(arr as usize + ARRAY_LENGTH);
         self.throw_runtime("D16throwOutOfBoundsiinEO", &[idx as u32 as u64, len as u32 as u64])?;
-        unreachable!("throws")
+        Err(VmError::Unsupported("throwOutOfBounds returned".into()).into())
     }
 
     pub fn array_length(&mut self, arr: u64) -> Flow {

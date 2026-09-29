@@ -9,7 +9,7 @@ use nir::Inst;
 impl Vm {
     /// Runs value instruction `instr` at `pc`: `None` to continue with the next instruction, else
     /// the handler it throws to.
-    pub fn general<'c>(
+    pub fn compute_at<'c>(
         &mut self,
         code: &Code,
         slots: &mut [u64],

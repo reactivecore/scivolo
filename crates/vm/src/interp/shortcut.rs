@@ -40,11 +40,20 @@ pub enum Callee {
     Virtual { sig: StrId, site: u32 },
 }
 
-/// The shortcut `instrs` with parameters `params` allow, if any.
-pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
+/// The shortcut `instrs` with parameters `params` and lazy operands `lazy` allow, if any.
+pub fn detect(
+    instrs: &[Instr],
+    params: &[u32],
+    lazy: &[(nir::ValId, std::cell::Cell<u64>)],
+) -> Option<Shortcut> {
     let param = |slot: u32| params.iter().position(|&p| p == slot);
+    let constant = |a: Arg| match a {
+        Arg::Imm(v) => Some(v as u64),
+        Arg::Lazy(i) => Some(lazy[i as usize].1.get()).filter(|&v| v != 0),
+        Arg::Slot(_) => None,
+    };
     match instrs {
-        [Instr::Ret(Arg::Imm(v)), Instr::Unreachable] => Some(Shortcut::Const(*v as u64)),
+        [Instr::Ret(v), Instr::Unreachable] if constant(*v).is_some() => constant(*v).map(Shortcut::Const),
         [
             Instr::FieldLoad { dst, mem, obj: Arg::Slot(o), name, site, unwind: None },
             Instr::Ret(Arg::Slot(r)),
@@ -75,10 +84,9 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
             let sources = args
                 .iter()
                 .map(|a| match *a {
-                    Arg::Imm(v) => Some(Source::Imm(v as u64)),
                     Arg::Slot(s) if module.is_some_and(|(m, _, _)| m == s) => Some(Source::Module),
                     Arg::Slot(s) => param(s).map(Source::Param),
-                    Arg::Lazy(_) => None,
+                    a => constant(a).map(Source::Imm),
                 })
                 .collect::<Option<Box<[Source]>>>()?;
             let module = module.map(|(_, name, site)| (name, site));

@@ -104,7 +104,7 @@ impl Vm {
                             pc += 1;
                             continue;
                         }
-                        None => match self.general(code, slots, pc, instr)? {
+                        None => match self.compute_at(code, slots, pc, instr)? {
                             Some(t) => t,
                             None => {
                                 pc += 1;
@@ -166,7 +166,7 @@ impl Vm {
                     }
                 }
                 Instr::Unreachable => return Err(VmError::Unsupported("reached unreachable".into()).into()),
-                _ => match self.general(code, slots, pc, instr)? {
+                _ => match self.compute_at(code, slots, pc, instr)? {
                     Some(t) => t,
                     None => {
                         pc += 1;
