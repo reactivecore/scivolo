@@ -132,7 +132,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 
 1. **Parser.** Port dotty's `Scanners` and `Parsers`, about 7k lines of Scala
    becoming 8–10k lines of Rust. Also port `Desugar`. Test against dotty's
-   parser on `tests/pos` and `tests/neg`.
+   parser on `tests/pos` and `tests/neg`
+   ([research 06](docs/research/06-parser-port.md)). The scanner is done
+   (`crates/syntax`, 2026-09-28): its tokens match dotty's on all 5893 files
+   (`just syntax-report`).
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy.

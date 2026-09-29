@@ -100,6 +100,24 @@ m5-build: m5-fetch fetch-scala-native
 m5-report filter="": release
     python3 scripts/m5-tests.py report {{ filter }}
 
+# Check out dotty 3.9.0's parser sources, tests/pos, tests/neg and the spec into ref/dotty (#15).
+syntax-fetch:
+    test -d ref/dotty || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/dotty && git -C ref/dotty sparse-checkout set compiler/src/dotty/tools/dotc/parsing compiler/src/dotty/tools/dotc/ast compiler/src/dotty/tools/dotc/util compiler/src/dotty/tools/dotc/config tests/pos tests/neg docs/_spec docs/_docs/reference)
+
+# Record dotty's tokens for tests/pos and tests/neg under tmp/syntax (JVM, about a minute).
+syntax-oracle filter="": syntax-fetch
+    python3 scripts/syntax-tests.py oracle {{ filter }}
+
+# Compare the Rust scanner with the recorded tokens; report.md and results.tsv under tmp/syntax.
+syntax-report filter="":
+    cargo build -q --release -p syntax
+    python3 scripts/syntax-tests.py report {{ filter }}
+
+# The difference between dotty's and the Rust scanner's tokens for one file.
+syntax-diff path:
+    cargo build -q --release -p syntax
+    python3 scripts/syntax-tests.py diff {{ path }}
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}

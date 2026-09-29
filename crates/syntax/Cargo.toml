@@ -1,0 +1,12 @@
+[package]
+name = "syntax"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rustc-hash.workspace = true
+unicode-general-category = "1.1"
+
+[lints]
+workspace = true
