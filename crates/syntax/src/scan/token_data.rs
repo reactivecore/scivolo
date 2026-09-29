@@ -41,6 +41,22 @@ impl TokenData {
         matches!(self.token, Token::Identifier | Token::BackquotedIdent)
     }
 
+    pub fn is_colon(&self) -> bool {
+        matches!(self.token, Token::ColonOp | Token::ColonFollow | Token::ColonEol)
+    }
+
+    pub fn is_arrow(&self) -> bool {
+        matches!(self.token, Token::Arrow | Token::CtxArrow)
+    }
+
+    pub fn is_nested_start(&self) -> bool {
+        matches!(self.token, Token::LBrace | Token::Indent)
+    }
+
+    pub fn is_nested_end(&self) -> bool {
+        matches!(self.token, Token::RBrace | Token::Outdent)
+    }
+
     pub fn is_after_line_end(&self) -> bool {
         self.line_offset.is_some()
     }

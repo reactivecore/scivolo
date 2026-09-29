@@ -155,6 +155,12 @@ impl Token {
         }
     }
 
+    /// dotty's `showToken`: keywords and colons quoted.
+    pub fn display(self) -> String {
+        let quoted = sets::KEYWORDS.contains(self) || matches!(self, Token::ColonFollow | Token::ColonEol);
+        if quoted { format!("'{}'", self.show()) } else { self.show().to_string() }
+    }
+
     /// The source text of a keyword token.
     pub fn keyword(self) -> Option<&'static str> {
         KEYWORDS.iter().find(|(_, t)| *t == self).map(|(s, _)| *s)
