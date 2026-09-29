@@ -1,6 +1,6 @@
 use super::ParamOwner;
 use crate::ast::flags;
-use crate::ast::mods::{Mod, ModKind, Modifiers};
+use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{NodeId, Span, TName, Tree};
 use crate::parse::Parser;
 use crate::source::Offset;

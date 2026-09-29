@@ -1,7 +1,7 @@
 //! The positioned children of each tree, in the order of dotty's case class fields.
 
-use super::arena::Ast;
-use super::tree::{Clauses, List, ModsId, NodeId, Opt, Tree};
+use super::Ast;
+use super::tree::{Clauses, List, ModsId, NodeId, Tree};
 
 #[derive(Clone, Copy, Debug)]
 pub enum Child {
@@ -44,7 +44,7 @@ impl Ast {
     /// The tree fields of `tree` in declaration order.
     pub fn children_of(&self, tree: &Tree) -> Children {
         use Child::{List as L, Node as N};
-        let o = |t: &Opt| t.map_or(Child::Empty, N);
+        let o = |t: &Option<NodeId>| t.map_or(Child::Empty, N);
         let c = Children::of;
         match tree {
             Tree::Ident { .. }

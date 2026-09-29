@@ -2,7 +2,7 @@
 
 use super::super::migration::Migration;
 use super::super::{Location, Parser};
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Span, TName, Tree};
 use crate::source::Offset;
 use crate::token::Token;

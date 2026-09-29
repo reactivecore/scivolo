@@ -2,7 +2,7 @@
 
 use super::Parser;
 use crate::ast::flags::{self, FlagSet};
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 
 impl Parser<'_> {

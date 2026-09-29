@@ -1,10 +1,10 @@
-use super::super::fields::Child;
+use super::super::children::Child;
 use super::super::tree::{NumberKind, Tree};
-use super::{Show, quote};
+use super::{Printer, quote};
 use crate::names::to_utf16;
 use std::fmt::Write;
 
-impl Show<'_> {
+impl Printer<'_> {
     /// Print the fields of `tree`.
     pub fn fields(&mut self, tree: &Tree) {
         let ast = self.ast;

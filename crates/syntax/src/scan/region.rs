@@ -1,4 +1,4 @@
-//! Regions: what encloses the current token (dotty's `Region` hierarchy), kept in an arena.
+//! Regions: what encloses the current token (dotty's `Region` hierarchy), kept in a `Vec` and addressed by `RegionId`.
 
 use super::indent::IndentWidth;
 use crate::token::Token;

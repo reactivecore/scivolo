@@ -2,7 +2,7 @@
 
 use super::Parser;
 use crate::ast::flags;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Tree};
 use crate::source::Offset;
 use crate::token::Token;

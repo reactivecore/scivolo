@@ -2,15 +2,15 @@
 
 use syntax::ast::constant::Constant;
 use syntax::ast::flags;
-use syntax::ast::mods::{Mod, ModKind, Modifiers};
-use syntax::ast::show::Show;
+use syntax::ast::modifiers::{Mod, ModKind, Modifiers};
+use syntax::ast::print::Printer;
 use syntax::ast::{Ast, Span, TName, Tree};
 use syntax::names::Names;
 
 fn show(ast: &Ast, names: &Names, id: syntax::ast::NodeId) -> String {
-    let mut s = Show { ast, names, out: String::new() };
-    s.tree(id);
-    s.out
+    let mut p = Printer { ast, names, out: String::new() };
+    p.tree(id);
+    p.out
 }
 
 #[test]

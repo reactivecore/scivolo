@@ -1,5 +1,5 @@
 use super::Parser;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Tree};
 use crate::token::Token;
 

@@ -11,7 +11,7 @@ use std::ops::Range;
 pub struct NodeId(NonZeroU32);
 
 impl NodeId {
-    /// The id of the node at `index` in the arena's node pool.
+    /// The id of the node at `index` in the `Ast`'s nodes.
     pub fn new(index: usize) -> NodeId {
         NodeId(NonZeroU32::new(index as u32 + 1).expect("a node index"))
     }
@@ -21,9 +21,7 @@ impl NodeId {
     }
 }
 
-pub type Opt = Option<NodeId>;
-
-/// A list of trees, a slice of the arena's list pool.
+/// A list of trees, a slice of the `Ast`'s list pool.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub struct List {
     start: u32,
@@ -131,11 +129,11 @@ pub enum Tree {
     },
     /// `qual` is `EmptyTypeIdent` when absent.
     This {
-        qual: Opt,
+        qual: Option<NodeId>,
     },
     Super {
         qual: NodeId,
-        mix: Opt,
+        mix: Option<NodeId>,
     },
     Apply {
         fun: NodeId,
@@ -165,26 +163,26 @@ pub enum Tree {
     },
     Block {
         stats: List,
-        expr: Opt,
+        expr: Option<NodeId>,
     },
     If {
         cond: NodeId,
         thenp: NodeId,
-        elsep: Opt,
+        elsep: Option<NodeId>,
         inline: bool,
     },
     Match {
-        selector: Opt,
+        selector: Option<NodeId>,
         cases: List,
         kind: MatchKind,
     },
     CaseDef {
         pat: NodeId,
-        guard: Opt,
+        guard: Option<NodeId>,
         body: NodeId,
     },
     Return {
-        expr: Opt,
+        expr: Option<NodeId>,
     },
     WhileDo {
         cond: NodeId,
@@ -204,7 +202,7 @@ pub enum Tree {
         reference: NodeId,
     },
     RefinedTypeTree {
-        tpt: Opt,
+        tpt: Option<NodeId>,
         refinements: List,
     },
     AppliedTypeTree {
@@ -220,7 +218,7 @@ pub enum Tree {
         body: NodeId,
     },
     MatchTypeTree {
-        bound: Opt,
+        bound: Option<NodeId>,
         selector: NodeId,
         cases: List,
     },
@@ -228,9 +226,9 @@ pub enum Tree {
         result: NodeId,
     },
     TypeBoundsTree {
-        lo: Opt,
-        hi: Opt,
-        alias: Opt,
+        lo: Option<NodeId>,
+        hi: Option<NodeId>,
+        alias: Option<NodeId>,
     },
     Bind {
         name: TName,
@@ -243,14 +241,14 @@ pub enum Tree {
     ValDef {
         name: TName,
         tpt: NodeId,
-        rhs: Opt,
+        rhs: Option<NodeId>,
         mods: ModsId,
     },
     DefDef {
         name: TName,
         paramss: Clauses,
         tpt: NodeId,
-        rhs: Opt,
+        rhs: Option<NodeId>,
         mods: ModsId,
     },
     TypeDef {
@@ -262,7 +260,7 @@ pub enum Tree {
     Template {
         constr: NodeId,
         parents_or_derived: List,
-        self_: Opt,
+        self_: Option<NodeId>,
         body: List,
         derived: Option<u32>,
     },
@@ -292,8 +290,8 @@ pub enum Tree {
     },
     ParsedTry {
         expr: NodeId,
-        handler: Opt,
-        finalizer: Opt,
+        handler: Option<NodeId>,
+        finalizer: Option<NodeId>,
     },
     SymbolLit {
         value: Box<[u16]>,
@@ -361,7 +359,7 @@ pub enum Tree {
         mods: ModsId,
         pats: List,
         tpt: NodeId,
-        rhs: Opt,
+        rhs: Option<NodeId>,
     },
     ExtMethods {
         paramss: Clauses,
@@ -377,8 +375,8 @@ pub enum Tree {
     },
     ImportSelector {
         imported: NodeId,
-        renamed: Opt,
-        bound: Opt,
+        renamed: Option<NodeId>,
+        bound: Option<NodeId>,
     },
     Number {
         digits: Box<str>,

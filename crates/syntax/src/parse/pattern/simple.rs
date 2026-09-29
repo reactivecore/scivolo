@@ -1,7 +1,7 @@
 use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use super::is_var_pattern_name;
-use crate::ast::mods::{Mod, ModKind, Modifiers};
+use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, Tree};
 use crate::token::Token;
 

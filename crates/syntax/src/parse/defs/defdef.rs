@@ -1,7 +1,7 @@
 use super::ParamOwner;
 use crate::ast::constant::Constant;
 use crate::ast::flags;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, List, NodeId, Tree};
 use crate::parse::Parser;
 use crate::parse::migration::Migration;

@@ -4,7 +4,7 @@
 
 use std::fmt::Write as _;
 use std::io::Write as _;
-use syntax::ast::show::Show;
+use syntax::ast::print::Printer;
 use syntax::config::Config;
 use syntax::diag::{Diagnostics, Level};
 use syntax::names::Names;
@@ -60,9 +60,9 @@ fn trees(source: &SourceFile, options: &[&str], b: &mut String) {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
     let root = p.parse();
-    let mut show = Show { ast: &p.ast, names: p.s.names, out: String::new() };
-    show.tree(root);
-    b.push_str(&show.out);
+    let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };
+    printer.tree(root);
+    b.push_str(&printer.out);
     b.push('\n');
     diagnostics(&p.s.diags, b);
 }

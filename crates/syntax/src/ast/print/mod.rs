@@ -2,15 +2,15 @@
 
 mod fields;
 
-use super::arena::{Ast, Attrs};
 use super::constant::Constant;
-use super::mods::Modifiers;
+use super::modifiers::Modifiers;
 use super::span::Span;
-use super::tree::{Clauses, List, MatchKind, NodeId, Opt, TName, Tree};
+use super::tree::{Clauses, List, MatchKind, NodeId, TName, Tree};
+use super::{Ast, Attrs};
 use crate::names::{Names, to_utf16};
 use std::fmt::Write;
 
-pub struct Show<'a> {
+pub struct Printer<'a> {
     pub ast: &'a Ast,
     pub names: &'a Names,
     pub out: String,
@@ -45,7 +45,7 @@ pub fn span(s: Span) -> String {
     }
 }
 
-impl Show<'_> {
+impl Printer<'_> {
     fn name(&mut self, n: TName) {
         self.out.push(' ');
         self.bare_name(n);
@@ -56,7 +56,7 @@ impl Show<'_> {
         write!(self.out, "{}:{}", if n.is_type { "T" } else { "t" }, &q[1..q.len() - 1]).unwrap();
     }
 
-    fn opt(&mut self, t: &Opt, empty: &str) {
+    fn opt(&mut self, t: &Option<NodeId>, empty: &str) {
         match t {
             Some(t) => {
                 self.out.push(' ');

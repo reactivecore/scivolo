@@ -3,7 +3,7 @@
 use super::migration::Migration;
 use super::{Location, Parser};
 use crate::ast::flags;
-use crate::ast::mods::{ModKind, Modifiers};
+use crate::ast::modifiers::{ModKind, Modifiers};
 use crate::ast::{NodeId, Tree};
 use crate::token::Token;
 use crate::token::sets::{

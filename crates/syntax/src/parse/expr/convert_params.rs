@@ -3,7 +3,7 @@
 use super::super::Parser;
 use super::super::migration::Migration;
 use crate::ast::flags;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::config::Features;
 use crate::token::Token;

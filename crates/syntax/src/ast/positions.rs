@@ -1,7 +1,7 @@
 //! Positions as dotty's `Positioned` assigns them.
 
-use super::arena::Ast;
-use super::fields::Child;
+use super::Ast;
+use super::children::Child;
 use super::span::Span;
 use super::tree::{ModsId, NodeId, Tree};
 

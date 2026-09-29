@@ -4,7 +4,7 @@ use super::super::Parser;
 use super::super::migration::Migration;
 use super::ParamOwner;
 use crate::ast::flags;
-use crate::ast::mods::{Mod, ModKind, Modifiers};
+use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
 use crate::token::Token;
 

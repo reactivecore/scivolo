@@ -1,5 +1,5 @@
 use crate::ast::flags;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
 use crate::parse::migration::Migration;
 use crate::parse::{Location, Parser};

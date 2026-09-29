@@ -1,7 +1,7 @@
 //! The parser on small inputs, against trees recorded from dotty 3.9.0; `just syntax-report`
 //! compares it with dotty on its test suites.
 
-use syntax::ast::show::Show;
+use syntax::ast::print::Printer;
 use syntax::config::Config;
 use syntax::names::Names;
 use syntax::parse::Parser;
@@ -13,9 +13,9 @@ fn parse(text: &str) -> String {
     let mut names = Names::default();
     let mut p = Parser::new(&source, &mut names, Config::default());
     let root = p.parse();
-    let mut show = Show { ast: &p.ast, names: p.s.names, out: String::new() };
-    show.tree(root);
-    let mut out = show.out;
+    let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };
+    printer.tree(root);
+    let mut out = printer.out;
     for d in p.s.diags.unique() {
         out.push_str(&format!("\n{} {}", d.pos(), d.message));
     }

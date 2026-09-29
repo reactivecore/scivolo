@@ -2,7 +2,7 @@ use super::Parser;
 use super::migration::Migration;
 use crate::ast::Span;
 use crate::ast::flags::{self, FlagSet};
-use crate::ast::mods::{Mod, ModKind, Modifiers};
+use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::config::Features;
 use crate::token::Token;
 use crate::token::sets::{ACCESS_MODIFIER_TOKENS, LOCAL_MODIFIER_TOKENS, TokenSet};

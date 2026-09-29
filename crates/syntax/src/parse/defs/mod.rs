@@ -13,7 +13,7 @@ mod typedef;
 mod valdef;
 
 use super::Parser;
-use crate::ast::mods::{Mod, ModKind, Modifiers};
+use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, Tree};
 use crate::config::SourceVersion;
 use crate::source::Offset;

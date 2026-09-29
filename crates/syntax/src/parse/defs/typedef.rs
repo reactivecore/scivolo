@@ -1,6 +1,6 @@
 use super::ParamOwner;
 use crate::ast::flags;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Tree};
 use crate::config::Features;
 use crate::parse::{Parser, stage};

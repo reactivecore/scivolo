@@ -14,7 +14,7 @@ mod simple;
 use super::migration::Migration;
 use super::{Location, Parser};
 use crate::ast::NodeId;
-use crate::ast::mods::Modifiers;
+use crate::ast::modifiers::Modifiers;
 use crate::config::Features;
 use crate::scan::RegionKind;
 use crate::token::Token;
