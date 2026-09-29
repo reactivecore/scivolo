@@ -54,6 +54,18 @@ pub struct Ast {
 }
 
 impl Ast {
+    /// An `Ast` with room for the trees of `source_len` bytes of source, up to 1 MiB: one tree
+    /// per 5 bytes, as in dotty's test suites.
+    pub fn for_source(source_len: usize) -> Ast {
+        let source_len = source_len.min(1 << 20);
+        Ast {
+            nodes: Vec::with_capacity(source_len / 5),
+            lists: Vec::with_capacity(source_len / 12),
+            clauses: Vec::with_capacity(source_len / 128),
+            mods: Vec::with_capacity(source_len / 20),
+        }
+    }
+
     /// A new node, spanning the envelope of its children as in dotty.
     pub fn node(&mut self, tree: Tree) -> NodeId {
         self.nodes.push(Node { tree, span: Span::NONE, attrs: Attrs::default() });

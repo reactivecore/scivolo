@@ -234,6 +234,16 @@ pub fn keyword(text: &str) -> Option<Token> {
     Some(KEYWORDS[i].1)
 }
 
+/// The spellings of all keywords, in the order `keyword_at` indexes them.
+pub fn keyword_spellings() -> impl Iterator<Item = &'static str> {
+    KEYWORDS.iter().map(|(s, _)| *s)
+}
+
+/// The keyword token at `index` of `keyword_spellings`, if any.
+pub fn keyword_at(index: usize) -> Option<Token> {
+    KEYWORDS.get(index).map(|(_, t)| *t)
+}
+
 #[cfg(test)]
 mod tests {
     use super::{KEYWORDS, keyword};

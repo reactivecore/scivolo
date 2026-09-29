@@ -4,8 +4,9 @@ use super::chars::{is_identifier_part, is_special, is_unicode_identifier_part};
 use super::reader::SU;
 use super::{Scanner, TokenData};
 use crate::config::Features;
+use crate::names::Name;
+use crate::token::Token;
 use crate::token::sets::{MODIFIER_FOLLOWERS, SCALA3_KEYWORDS, SOFT_MODIFIER_NAMES};
-use crate::token::{Token, keyword};
 
 /// Which token data a name is finished into.
 #[derive(Clone, Copy, PartialEq)]
@@ -74,9 +75,9 @@ impl Scanner<'_> {
     /// Set `target`'s name from the buffer and its token; identifiers become keywords, and
     /// `end` only in the current token.
     pub fn finish_named_token(&mut self, token: Token, target: Target) {
-        let text = self.lit.take_name();
-        let name = self.names.intern(&text);
-        let converted = if token == Token::Identifier { self.keyword_token(&text) } else { token };
+        let name = self.names.intern_utf16(self.lit.units());
+        self.lit.clear();
+        let converted = if token == Token::Identifier { self.keyword_token(name) } else { token };
         let td = match target {
             Target::Current => &mut self.cur,
             Target::Next => &mut self.next,
@@ -88,10 +89,11 @@ impl Scanner<'_> {
         }
     }
 
-    /// The keyword spelled `text`, or IDENTIFIER (dotty's `toToken`).
-    fn keyword_token(&mut self, text: &str) -> Token {
-        let Some(kw) = keyword(text) else { return Token::Identifier };
+    /// The keyword `name` spells, or IDENTIFIER (dotty's `toToken`).
+    fn keyword_token(&mut self, name: Name) -> Token {
+        let Some(kw) = name.keyword() else { return Token::Identifier };
         if SCALA3_KEYWORDS.contains(kw) && self.cfg.source_version.migrate_to_3() {
+            let text = self.names.text(name);
             self.diags.warning(
                 self.cur.offset,
                 format!(

@@ -67,6 +67,16 @@ impl SourceFile {
         self.line_to_offset(self.offset_to_line(offset))
     }
 
+    /// The offset after the last `\n` before `offset`, or 0.
+    pub fn after_last_line_feed(&self, offset: Offset) -> Offset {
+        let bytes = self.text.as_bytes();
+        let mut start = self.start_of_line(offset.min(self.len()));
+        while start > 0 && bytes[start as usize - 1] != b'\n' {
+            start = self.start_of_line(start - 1);
+        }
+        start
+    }
+
     /// The 0-based column of `offset` in its line, in characters.
     pub fn column(&self, offset: Offset) -> usize {
         let start = self.line_to_offset(self.offset_to_line(offset)) as usize;
