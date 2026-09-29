@@ -94,7 +94,7 @@ impl Parser<'_> {
             && name.chars().next().is_some_and(crate::scan::is_identifier_start)
         {
             let start = self.offset() + 1;
-            let t = match crate::token::keyword(&name) {
+            let t = match self.s.cur.name.and_then(crate::names::Name::keyword) {
                 Some(tok @ (Token::True | Token::False | Token::Null)) => {
                     let value = match tok {
                         Token::True => Constant::Boolean(true),

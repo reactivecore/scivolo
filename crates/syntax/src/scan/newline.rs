@@ -12,7 +12,7 @@ use crate::token::sets::{
 
 impl Scanner<'_> {
     pub fn indent_width(&self, offset: u32) -> IndentWidth {
-        IndentWidth::at(&self.source.text, offset)
+        IndentWidth::at(self.source, offset)
     }
 
     pub fn can_start_stat_tokens(&self) -> TokenSet {

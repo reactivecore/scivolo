@@ -91,7 +91,7 @@ impl<'a> Scanner<'a> {
         };
         s.reader.next_char();
         s.next_token();
-        s.region = s.top_level_region(IndentWidth::at(&source.text, s.cur.offset));
+        s.region = s.top_level_region(IndentWidth::at(source, s.cur.offset));
         s
     }
 

@@ -1,5 +1,6 @@
 //! Indentation widths: runs of spaces and tabs, ordered by the prefix relation.
 
+use crate::source::SourceFile;
 use std::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -17,38 +18,73 @@ impl Run {
 /// The runs of a line's leading whitespace, left to right.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct IndentWidth {
-    runs: Vec<Run>,
+    runs: Runs,
 }
+
+/// Up to `INLINE` runs in place, more on the heap.
+#[derive(Clone, Debug)]
+enum Runs {
+    Inline([Run; INLINE], u8),
+    Heap(Box<[Run]>),
+}
+
+const INLINE: usize = 3;
+
+impl Runs {
+    fn as_slice(&self) -> &[Run] {
+        match self {
+            Runs::Inline(runs, len) => &runs[..*len as usize],
+            Runs::Heap(runs) => runs,
+        }
+    }
+}
+
+impl PartialEq for Runs {
+    fn eq(&self, other: &Runs) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for Runs {}
 
 impl IndentWidth {
     pub fn zero() -> Self {
-        IndentWidth { runs: vec![Run { ch: ' ', n: 0 }] }
+        Self::of(&[Run { ch: ' ', n: 0 }])
     }
 
-    /// The indentation of the line containing `offset` in `text`.
-    pub fn at(text: &str, offset: u32) -> Self {
-        let bytes = text.as_bytes();
-        let (mut ch, mut n, mut right) = (' ', 0, Vec::new());
-        for &b in bytes[..(offset as usize).min(bytes.len())].iter().rev() {
-            match b {
-                b'\n' => break,
-                b' ' | b'\t' if b as char == ch => n += 1,
-                b' ' | b'\t' => {
-                    if n > 0 {
-                        right.push(Run { ch, n });
-                    }
-                    (ch, n) = (b as char, 1);
-                }
-                _ => (ch, n, right) = (' ', 0, Vec::new()),
-            }
+    fn of(runs: &[Run]) -> Self {
+        let runs = if runs.len() <= INLINE {
+            let mut inline = [Run { ch: ' ', n: 0 }; INLINE];
+            inline[..runs.len()].copy_from_slice(runs);
+            Runs::Inline(inline, runs.len() as u8)
+        } else {
+            Runs::Heap(runs.into())
+        };
+        IndentWidth { runs }
+    }
+
+    /// The leading blanks, before `offset`, of the line (ended by `\n`) containing `offset`.
+    pub fn at(source: &SourceFile, offset: u32) -> Self {
+        let bytes = source.text.as_bytes();
+        let line = &bytes[source.after_last_line_feed(offset) as usize..(offset as usize).min(bytes.len())];
+        let blanks = &line[..line.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(line.len())];
+        let run = |chunk: &[u8]| Run { ch: chunk[0] as char, n: chunk.len() as u32 };
+        let count = blanks.chunk_by(|a, b| a == b).count();
+        if count == 0 {
+            return Self::zero();
         }
-        right.push(Run { ch, n });
-        right.reverse();
-        IndentWidth { runs: right }
+        if count > INLINE {
+            return IndentWidth { runs: Runs::Heap(blanks.chunk_by(|a, b| a == b).map(run).collect()) };
+        }
+        let mut inline = [Run { ch: ' ', n: 0 }; INLINE];
+        for (slot, chunk) in inline.iter_mut().zip(blanks.chunk_by(|a, b| a == b)) {
+            *slot = run(chunk);
+        }
+        IndentWidth { runs: Runs::Inline(inline, count as u8) }
     }
 
     fn split_last(&self) -> (&[Run], Run) {
-        let (last, init) = self.runs.split_last().expect("an indent width has a run");
+        let (last, init) = self.runs.as_slice().split_last().expect("an indent width has a run");
         (init, *last)
     }
 
@@ -62,7 +98,7 @@ impl IndentWidth {
     }
 
     pub fn le(&self, that: &IndentWidth) -> bool {
-        Self::le_runs(&self.runs, &that.runs)
+        Self::le_runs(self.runs.as_slice(), that.runs.as_slice())
     }
 
     pub fn lt(&self, that: &IndentWidth) -> bool {
@@ -78,7 +114,7 @@ impl IndentWidth {
 
 impl fmt::Display for IndentWidth {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for (i, r) in self.runs.iter().enumerate() {
+        for (i, r) in self.runs.as_slice().iter().enumerate() {
             let kind = match r.ch {
                 ' ' => "space".to_string(),
                 '\t' => "tab".to_string(),
@@ -94,16 +130,33 @@ impl fmt::Display for IndentWidth {
 #[cfg(test)]
 mod tests {
     use super::IndentWidth;
+    use crate::source::SourceFile;
 
     #[test]
     fn widths_of_lines() {
-        let text = "a\n  b\n\t  c\n  d e";
-        let w = |o| IndentWidth::at(text, o);
+        let text = SourceFile::new("t", "a\n  b\n\t  c\n  d e");
+        let w = |o| IndentWidth::at(&text, o);
         assert_eq!(w(4).to_string(), "2 spaces");
         assert_eq!(w(9).to_string(), "1 tab, 2 spaces");
         assert_eq!(w(15).to_string(), "2 spaces");
         assert!(IndentWidth::zero().lt(&w(4)));
         assert!(!w(4).le(&w(9)) && !w(9).le(&w(4)));
         assert!(w(4).is_close(&w(15)));
+    }
+
+    #[test]
+    fn widths_count_leading_blanks_only_and_keep_many_runs() {
+        let text = SourceFile::new("t", "x\n \t \t y z\n \t \t w");
+        let w = |o| IndentWidth::at(&text, o);
+        assert_eq!(w(9).to_string(), "1 space, 1 tab, 1 space, 1 tab, 1 space");
+        assert_eq!(w(9), w(18));
+        assert!(!w(9).lt(&w(18)));
+        assert_eq!(w(4).to_string(), "1 space, 1 tab");
+    }
+
+    #[test]
+    fn only_line_feeds_end_lines() {
+        let text = SourceFile::new("t", "x\n  a\r  b");
+        assert_eq!(IndentWidth::at(&text, 8).to_string(), "2 spaces");
     }
 }

@@ -75,7 +75,7 @@ impl<'a> Parser<'a> {
             new_syntax: cfg.new_syntax || cfg.source_version.requires_new_syntax(),
             depth: 0,
             s: Scanner::new(source, names, cfg),
-            ast: Ast::default(),
+            ast: Ast::for_source(source.text.len()),
             last_error_offset: None,
             placeholder_params: Vec::new(),
             op_stack: Vec::new(),

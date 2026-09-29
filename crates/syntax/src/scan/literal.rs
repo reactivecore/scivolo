@@ -36,11 +36,6 @@ impl LitBuf {
         std::mem::take(&mut self.units)
     }
 
-    /// The buffer as a name's text, and clear it.
-    pub fn take_name(&mut self) -> String {
-        crate::names::from_utf16(&self.take())
-    }
-
     pub fn clear(&mut self) {
         self.units.clear();
     }
