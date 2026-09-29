@@ -1,6 +1,6 @@
 package java.util.concurrent
 
-/** `helpAsyncBlocker` doing nothing on threads other than workers (upstream bug 2). */
+/** `helpAsyncBlocker`, which does nothing on threads other than workers. */
 abstract class ForkJoinPool extends AbstractExecutorService
 
 object ForkJoinPool {

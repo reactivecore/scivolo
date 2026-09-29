@@ -1,6 +1,6 @@
 # ADR 0008 — JDK behaviour where Scala Native falls short
 
-Status: accepted · Date: 2026-09-28
+Status: accepted · Date: 2026-09-28 · Amended 2026-09-29: implemented in the overlay (ADR 0009)
 
 ## Context
 Scala Native's javalib stubs or leaves out some JDK methods its native runtime cannot provide

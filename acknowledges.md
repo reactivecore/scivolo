@@ -7,9 +7,8 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 
 | Source | What we took | Licence |
 |---|---|---|
-| [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 | The C runtime in `native/` (nativelib, javalib, posixlib, clib), including the Immix collector (`gc/immix`, `gc/immix_commix`, `gc/shared`, with one patch in `Marker.c`) | BSD-3, `native/LICENSE-scala-native.md` |
+| [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 | The C runtime in `native/` (nativelib, javalib, posixlib, clib), including the Immix collector (`gc/immix`, `gc/immix_commix`, `gc/shared`, with one patch in `Marker.c`); in `overlay/src`, javalib's `LinkedTransferQueue.remove` (a JSR-166 port) and `ForkJoinPool.helpAsyncBlocker`, patched | BSD-3, `native/LICENSE-scala-native.md`; JSR-166 public domain |
 | [Scala 3 compiler (dotty)](https://github.com/scala/scala3) 3.9.0 | `crates/syntax/src/scan`: a Rust translation of `parsing/Scanners.scala`, `Tokens.scala`, `CharArrayReader.scala` and `util/Chars.scala`; `crates/syntax/src/parse` and `ast`: of `parsing/Parsers.scala`, `ast/untpd.scala`, `ast/Trees.scala`, `ast/Positioned.scala`, `util/Spans.scala`, `core/Flags.scala` and the parser's messages | Apache-2.0 |
-| Scala Native javalib 0.5.12 | `overlay/src`: `LinkedTransferQueue.remove` (a port of JSR-166), `ForkJoinPool.helpAsyncBlocker` and `HashSet.containsAll`, patched | BSD-3; JSR-166 public domain |
 | Scala Native precompiled libraries | scalalib, javalib, nativelib, auxlib, posixlib and clib as NIR, executed by the VM (fetched, not vendored) | BSD-3 / Apache-2.0 |
 
 ## Designs we follow

@@ -63,6 +63,9 @@ impl World {
         let Global::Top(name) = *self.pool.global(top) else {
             return Err(LoadError::Missing(self.name(top)));
         };
+        if let Some(mismatch) = self.broken.get(&name) {
+            return Err(LoadError::Overlay(mismatch.clone()));
+        }
         if let Some(&file) = self.loaded.get(&name) {
             return Ok(file);
         }

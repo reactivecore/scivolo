@@ -2,7 +2,7 @@ package java.util.concurrent
 
 import java.util.AbstractQueue
 
-/** `remove` reading `p.next` only while the inner loop continues (upstream bug 1). */
+/** `remove`, which reads `p.next` only while the inner loop continues. */
 abstract class LinkedTransferQueue[E <: AnyRef] extends AbstractQueue[E] {
   import LinkedTransferQueue.Node
 

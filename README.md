@@ -102,6 +102,7 @@ just bench cpu                  # wall time; `just vm-profile cpu` counts calls 
 just program-update NAME        # compile tests/programs/NAME with Scala Native (NIR + .check)
 just programs-stale             # programs whose committed NIR or .check a rebuild changes
 just overlay                    # compile the library overlay (javalib fixes in Scala, ADR 0009)
+just overlay-stale              # whether the committed overlay NIR differs from a rebuild
 just ci-suite                   # Scala Native's unit tests in the VM (CI: on main)
 just sn-run Name -Other         # selected Scala Native test classes
 ```

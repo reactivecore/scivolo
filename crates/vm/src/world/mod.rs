@@ -19,6 +19,8 @@ pub struct World {
     places: FxHashMap<GlobalId, (u32, u32)>,
     defns: FxHashMap<GlobalId, Rc<Defn>>,
     members: FxHashMap<GlobalId, Vec<GlobalId>>,
+    /// Top-level names whose overlay does not match the library, with the mismatch.
+    broken: FxHashMap<StrId, String>,
 }
 
 #[derive(Debug)]
@@ -49,6 +51,7 @@ impl World {
             places: FxHashMap::default(),
             defns: FxHashMap::default(),
             members: FxHashMap::default(),
+            broken: FxHashMap::default(),
         }
     }
 

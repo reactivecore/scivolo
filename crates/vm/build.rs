@@ -22,6 +22,7 @@ fn main() {
     let mut files = Vec::new();
     nir_files(&root, &mut files);
     files.sort();
+    assert!(!files.is_empty(), "no overlay NIR in {}: run `just overlay`", root.display());
     let mut code = String::from("pub const FILES: &[(&str, &[u8])] = &[\n");
     for file in &files {
         println!("cargo::rerun-if-changed={}", file.display());

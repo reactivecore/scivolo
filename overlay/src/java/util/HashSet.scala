@@ -1,6 +1,6 @@
 package java.util
 
-/** `containsAll` without javalib's lambda, which is compiled into `throw` (upstream bug 3). */
+/** `containsAll` as a loop over `contains`. */
 abstract class HashSet[E] extends AbstractSet[E] {
   override def contains(o: Any): scala.Boolean = ???
 
