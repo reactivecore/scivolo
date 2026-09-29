@@ -155,6 +155,8 @@ class Sexp(bytes: Array[Int], b: StringBuilder):
     val cls = Some(t.getClass.getSimpleName).filter(_.nonEmpty).getOrElse(t.productPrefix)
     b += '(' ++= cls += ' ' ++= span(t.span)
     if t.hasAttachment(Trees.Backquoted) then b ++= " @backquoted"
+    if t.hasAttachment(Trees.CaptureVar) then b ++= " @capturevar"
+    if t.hasAttachment(untpd.RetainsAnnot) then b ++= " @retains"
     t match
       case t: MemberDef => b += ' '; mods(t.rawMods)
       case t: FunctionWithMods => b += ' '; mods(t.mods); b ++= " erased=" ++= t.erasedParams.mkString("[", " ", "]")

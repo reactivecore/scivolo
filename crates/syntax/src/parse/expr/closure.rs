@@ -101,10 +101,19 @@ impl Parser<'_> {
         arrow: Offset,
         error_tree: impl FnOnce(&mut Self, Offset) -> NodeId,
     ) -> NodeId {
-        let t = if self.get_function(body).is_none() {
+        let f = self.get_function(body);
+        let captures = f.is_some_and(|f| {
+            matches!(self.ast.tree(f), Tree::Function { body, .. }
+                if matches!(self.ast.tree(*body), Tree::CapturesAndResult { .. }))
+        });
+        let t = if f.is_none() {
             let msg = format!(
                 "Implementation restriction: polymorphic function {kind}s must have a value parameter"
             );
+            self.syntax_error(msg, arrow);
+            error_tree(self, arrow)
+        } else if captures {
+            let msg = "Implementation restriction: polymorphic function types cannot wrap function types that have capture sets";
             self.syntax_error(msg, arrow);
             error_tree(self, arrow)
         } else {

@@ -119,6 +119,12 @@ impl Printer<'_> {
         if node.attrs.contains(Attrs::BACKQUOTED) {
             self.out.push_str(" @backquoted");
         }
+        if node.attrs.contains(Attrs::CAPTURE_VAR) {
+            self.out.push_str(" @capturevar");
+        }
+        if node.attrs.contains(Attrs::RETAINS_ANNOT) {
+            self.out.push_str(" @retains");
+        }
         self.fields(&node.tree);
         self.out.push(')');
     }

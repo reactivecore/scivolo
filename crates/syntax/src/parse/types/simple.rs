@@ -18,7 +18,7 @@ impl Parser<'_> {
         loop {
             self.argument_start();
             if !matches!(self.tok(), Token::LBrace | Token::Indent) {
-                return t;
+                return self.capturing_type(t);
             }
             let start = self.start_offset(t);
             let tpt = self.reject_wildcard_type(t);
@@ -79,6 +79,9 @@ impl Parser<'_> {
         if crate::token::sets::SIMPLE_LITERAL_TOKENS.contains(self.tok()) || self.is_negated_number() {
             let reference = self.simple_literal();
             return self.ast.node(Tree::SingletonTypeTree { reference });
+        }
+        if let Some(id) = self.kind_projector_underscore() {
+            return id;
         }
         if self.tok() == Token::Uscore {
             if !self.in_match_pattern {
@@ -161,36 +164,11 @@ impl Parser<'_> {
                     let start = self.start_offset(t);
                     let tpt = self.reject_wildcard_type(t);
                     let args = self.type_args(false, true);
-                    let args = self.ast.list(&args);
-                    let a = self.ast.node(Tree::AppliedTypeTree { tpt, args });
+                    let a = self.applied_type(tpt, args, start);
                     t = self.at_span1(start, a);
                 }
-                _ => return t,
+                _ => return self.kind_projector_tuple(t),
             }
-        }
-    }
-
-    /// An identifier or selection turned into a type name.
-    pub fn convert_to_type_id(&mut self, t: NodeId) -> NodeId {
-        match &mut self.ast.get_mut(t).tree {
-            Tree::Ident { name } | Tree::Select { name, .. } => {
-                name.is_type = true;
-                t
-            }
-            _ => {
-                let span = self.ast.span(t);
-                self.syntax_error_span("identifier expected", span);
-                t
-            }
-        }
-    }
-
-    /// `{ RefineStatSeq }`, or indented if `indent_ok`.
-    pub fn refinement(&mut self, indent_ok: bool) -> Vec<NodeId> {
-        if indent_ok {
-            self.in_braces_or_indented(|p| p.refine_stat_seq())
-        } else {
-            self.in_braces(|p| p.refine_stat_seq())
         }
     }
 }

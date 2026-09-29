@@ -1,77 +1,8 @@
 //! What the compiler settings and language imports decide about syntax.
 
-/// The `-source` version, as dotty's `SourceVersion`: `3.minor` or `future`, possibly in
-/// its `-migration` variant, which counts as the version itself in comparisons.
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct SourceVersion {
-    /// The minor version; `FUTURE` for `future`.
-    minor: u8,
-    pub migrating: bool,
-}
+mod version;
 
-impl SourceVersion {
-    const FUTURE: u8 = 99;
-    pub const V3_0: SourceVersion = SourceVersion::stable(0);
-    pub const V3_2: SourceVersion = SourceVersion::stable(2);
-    pub const V3_3: SourceVersion = SourceVersion::stable(3);
-    pub const V3_4: SourceVersion = SourceVersion::stable(4);
-    pub const V3_6: SourceVersion = SourceVersion::stable(6);
-    pub const V3_7: SourceVersion = SourceVersion::stable(7);
-    pub const V3_8: SourceVersion = SourceVersion::stable(8);
-    pub const V3_9: SourceVersion = SourceVersion::stable(9);
-    pub const FUTURE_VERSION: SourceVersion = SourceVersion::stable(Self::FUTURE);
-
-    const fn stable(minor: u8) -> SourceVersion {
-        SourceVersion { minor, migrating: false }
-    }
-
-    /// `3.x`, `3.x-migration`, `future` or `future-migration`.
-    pub fn parse(s: &str) -> Option<Self> {
-        let (base, migrating) = s.strip_suffix("-migration").map_or((s, false), |b| (b, true));
-        let minor = match base {
-            "future" => Self::FUTURE,
-            v => (0..=10u8).find(|m| v.strip_prefix("3.") == Some(&m.to_string()))?,
-        };
-        Some(SourceVersion { minor, migrating })
-    }
-
-    /// The `-migration` variant of this version.
-    pub fn migrating_variant(self) -> SourceVersion {
-        SourceVersion { migrating: true, ..self }
-    }
-
-    pub fn is_at_least(self, v: SourceVersion) -> bool {
-        self.minor >= v.minor
-    }
-
-    pub fn migrate_to_3(self) -> bool {
-        self.minor == 0 && self.migrating
-    }
-
-    pub fn enables_fewer_braces(self) -> bool {
-        self.is_at_least(Self::V3_3)
-    }
-
-    pub fn enables_clause_interleaving(self) -> bool {
-        self.is_at_least(Self::V3_6)
-    }
-
-    pub fn enables_new_givens(self) -> bool {
-        self.is_at_least(Self::V3_6)
-    }
-
-    pub fn enables_named_tuples(self) -> bool {
-        self.is_at_least(Self::V3_7)
-    }
-
-    pub fn enables_better_fors(self) -> bool {
-        self.is_at_least(Self::V3_8)
-    }
-
-    pub fn requires_new_syntax(self) -> bool {
-        self.is_at_least(Self::FUTURE_VERSION)
-    }
-}
+pub use version::SourceVersion;
 
 /// Language features that change scanning or parsing.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -115,6 +46,25 @@ impl Features {
     pub fn insert(&mut self, f: Features) {
         self.0 |= f.0;
     }
+
+    /// dotty's `ccEnabled`.
+    pub fn capture_checking(self) -> bool {
+        self.contains(Features::CAPTURE_CHECKING)
+    }
+
+    /// dotty's `pureFunsEnabled`: `->` is a pure function and `=>` an impure one.
+    pub fn pure_functions(self) -> bool {
+        self.contains(Features::PURE_FUNCTIONS) || self.capture_checking()
+    }
+}
+
+/// `-Xkind-projector`: `*` (and with `underscores`, `_`) as type lambda placeholders.
+#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub enum KindProjector {
+    #[default]
+    Disabled,
+    Asterisks,
+    Underscores,
 }
 
 /// The settings of one compilation unit that the scanner reads.
@@ -130,6 +80,7 @@ pub struct Config {
     /// `-new-syntax`.
     pub new_syntax: bool,
     pub features: Features,
+    pub kind_projector: KindProjector,
 }
 
 impl Default for Config {
@@ -141,23 +92,25 @@ impl Default for Config {
             old_syntax: false,
             new_syntax: false,
             features: Features::default(),
+            kind_projector: KindProjector::Disabled,
         }
     }
 }
 
 impl Config {
-    /// The settings given by scalac options such as `-source:future`, `-no-indent` and
-    /// `-language:experimental.erasedDefinitions`; other options are ignored.
+    /// The settings given by scalac options such as `-source:future`, `-no-indent`,
+    /// `-Xkind-projector` and `-language:experimental.erasedDefinitions`; other options are
+    /// ignored.
     pub fn from_options(options: &[&str]) -> Config {
         let mut cfg = Config::default();
         let mut args = options.iter().copied();
         while let Some(arg) = args.next() {
-            let (key, value) = match arg.split_once(':') {
+            let (key, colon_value) = match arg.split_once(':') {
                 Some((k, v)) => (k, Some(v)),
                 None => (arg, None),
             };
             let key = key.strip_prefix('-').filter(|k| k.starts_with('-')).unwrap_or(key);
-            let mut value = || value.or_else(|| args.next()).unwrap_or("");
+            let mut value = || colon_value.or_else(|| args.next()).unwrap_or("");
             match key {
                 "-source" => {
                     let v = value();
@@ -177,6 +130,13 @@ impl Config {
                 "-language" => {
                     for feature in value().split(',').filter_map(Features::named) {
                         cfg.features.insert(feature);
+                    }
+                }
+                "-Xkind-projector" => {
+                    cfg.kind_projector = match colon_value {
+                        None | Some("") => KindProjector::Asterisks,
+                        Some("underscores") => KindProjector::Underscores,
+                        Some(_) => KindProjector::Disabled,
                     }
                 }
                 _ => {}

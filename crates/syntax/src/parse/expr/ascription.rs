@@ -79,7 +79,7 @@ impl Parser<'_> {
         self.at_span1(start, r)
     }
 
-    fn lookahead_is_ident_named(&mut self, name: &str) -> bool {
+    pub fn lookahead_is_ident_named(&mut self, name: &str) -> bool {
         let la = self.s.lookahead();
         la.token == Token::Identifier && la.name.is_some_and(|n| self.s.names.text(n) == name)
     }

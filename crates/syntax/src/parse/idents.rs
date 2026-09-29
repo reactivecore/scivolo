@@ -147,4 +147,19 @@ impl Parser<'_> {
         let id = self.term_ident();
         self.dot_selectors(id)
     }
+
+    /// An identifier or selection turned into a type name.
+    pub fn convert_to_type_id(&mut self, t: NodeId) -> NodeId {
+        match &mut self.ast.get_mut(t).tree {
+            Tree::Ident { name } | Tree::Select { name, .. } => {
+                name.is_type = true;
+                t
+            }
+            _ => {
+                let span = self.ast.span(t);
+                self.syntax_error_span("identifier expected", span);
+                t
+            }
+        }
+    }
 }

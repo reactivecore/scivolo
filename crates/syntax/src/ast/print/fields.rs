@@ -115,6 +115,10 @@ impl Printer<'_> {
                 self.name(*param_name);
                 self.name(*own_name);
             }
+            UseRef { reference, initially } => {
+                self.node(*reference);
+                write!(self.out, " {initially}").unwrap();
+            }
             Number { digits, kind } => {
                 let kind = match kind {
                     NumberKind::Whole(r) => format!("Whole({r})"),

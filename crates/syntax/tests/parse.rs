@@ -9,9 +9,13 @@ use syntax::source::SourceFile;
 
 /// The tree of `text` and its diagnostics, as `syntax-dump trees` prints them.
 fn parse(text: &str) -> String {
+    parse_with(text, &[])
+}
+
+fn parse_with(text: &str, options: &[&str]) -> String {
     let source = SourceFile::new("t.scala", text);
     let mut names = Names::default();
-    let mut p = Parser::new(&source, &mut names, Config::default());
+    let mut p = Parser::new(&source, &mut names, Config::from_options(options));
     let root = p.parse();
     let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };
     printer.tree(root);
@@ -112,6 +116,40 @@ fn errors_recover_with_placeholder_trees() {
          4 an identifier expected, but '=' found\n\
          23 expression expected but eof found\n\
          22 Missing return type"
+    );
+}
+
+#[test]
+fn capture_sets_pure_arrows_and_impure_by_name_types() {
+    let text = "def f(g: Int -> {io} Int, h: => Int): Object^{io} = ???\n";
+    assert_eq!(
+        parse_with(text, &["-language:experimental.captureChecking"]),
+        "(PackageDef 0..55 (Ident 0..0 t:<empty>) [ (DefDef 0..55@4 (Mods [<method>] [] []) t:f [ [ (ValDef \
+         6..24@6 (Mods [<param>] [] []) t:g (Function 9..24@13 [ (Ident 9..12@9 T:Int)] (CapturesAndResult 17..24 [ \
+         (Ident 17..19@17 t:io)] (Ident 21..24@21 T:Int))) _) (ValDef 26..35@26 (Mods [<param>] [] []) t:h \
+         (ByNameTypeTree 29..35@29 (CapturesAndResult 32..35 [ (Select 32..32 (Select 32..32 (Select 32..32 (Ident \
+         32..32 t:_root_) t:scala) t:caps) t:any)] (Ident 32..35@32 T:Int))) _)]] (Annotated 38..49@38 (Ident \
+         38..44@38 T:Object) (Apply 46..48 @retains (TypeApply 46..48 (Select 46..46 (New 46..46 (Select 46..46 (Select \
+         46..46 (Select 46..46 (Ident 46..46 t:_root_) t:scala) t:annotation) T:retains)) t:<init>) [ \
+         (SingletonTypeTree 46..48 (Ident 46..48@46 t:io))]) [])) (Ident 52..55@52 t:???))])"
+    );
+}
+
+#[test]
+fn kind_projector_placeholders_become_type_lambdas() {
+    let text = "trait F[G[_]]\ntype E = F[Either[Int, *]]\ntype L = F[λ[X => List[X]]]\n";
+    assert_eq!(
+        parse_with(text, &["-Xkind-projector"]),
+        "(PackageDef 0..69 (Ident 0..0 t:<empty>) [ (TypeDef 0..13@6 (Mods [<trait>] [] []) T:F (Template 7..13 \
+         (DefDef 7..13@7 (Mods [] [] []) t:<init> [ [ (TypeDef 8..12@8 (Mods [private[this] <param>] [] []) T:G \
+         (LambdaTypeTree 10..11 [ (TypeDef 10..11@10 (Mods [<param>] [] []) T:_$1 (TypeBoundsTree 10..10 _ _ _))] \
+         (TypeBoundsTree 11..11 _ _ _)))]] (TypeTree 12..12) _) [] _self [])) (TypeDef 14..40@19 (Mods [] [] []) \
+         T:E (AppliedTypeTree 23..40@23 (Ident 23..24@23 T:F) [ (LambdaTypeTree 25..39@25 [ (TypeDef 25..25 (Mods \
+         [<param>] [] []) T:_$2 (TypeBoundsTree 25..25 _ _ _))] (AppliedTypeTree 25..35 (Ident 25..31@25 T:Either) [ \
+         (Ident 32..35@32 T:Int) (Ident 35..35 T:_$2)]))])) (TypeDef 41..69@46 (Mods [] [] []) T:L (AppliedTypeTree \
+         50..69@50 (Ident 50..51@50 T:F) [ (LambdaTypeTree 52..68@52 [ (TypeDef 55..56@55 (Mods [<param>] [] []) \
+         T:X (TypeBoundsTree 55..55 _ _ _))] (AppliedTypeTree 60..67@60 (Ident 60..64@60 T:List) [ (Ident 65..66@65 \
+         T:X)]))]))])"
     );
 }
 

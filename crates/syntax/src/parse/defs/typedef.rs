@@ -2,7 +2,6 @@ use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Tree};
-use crate::config::Features;
 use crate::parse::{Parser, stage};
 use crate::source::Offset;
 use crate::token::Token;
@@ -13,7 +12,7 @@ impl Parser<'_> {
         self.new_lines_opt();
         let point = self.name_start();
         let name_ident = self.type_ident();
-        self.gobble_hat();
+        let capture_var = self.gobble_hat();
         let Tree::Ident { name: tname } = *self.ast.tree(name_ident) else {
             unreachable!("a type identifier")
         };
@@ -26,14 +25,14 @@ impl Parser<'_> {
         let rhs = match self.tok() {
             Token::Equals => {
                 self.next();
-                self.toplevel_typ()
+                self.type_def_rhs()
             }
             Token::Subtype | Token::Supertype => {
                 let bounds = self.type_and_ctx_bounds(tname);
                 match *self.ast.tree(bounds) {
                     Tree::TypeBoundsTree { lo, hi, .. } if self.tok() == Token::Equals => {
                         let eq_offset = self.s.skip_token();
-                        let rhs = self.toplevel_typ();
+                        let rhs = self.type_def_rhs();
                         match *self.ast.tree(rhs) {
                             Tree::MatchTypeTree { selector, cases, .. } => match (lo, hi) {
                                 (None, upper) => {
@@ -79,22 +78,22 @@ impl Parser<'_> {
                 return self.empty_tree();
             }
         };
-        let rhs = paramss.iter().rev().fold(rhs, |t, ps| self.lambda_abstract(ps, t));
+        let rhs1 = paramss.iter().rev().fold(rhs, |t, ps| self.lambda_abstract(ps, t));
         let m = self.empty_mods();
-        let td = self.ast.node(Tree::TypeDef { name: tname, rhs, mods: m });
+        let td = self.ast.node(Tree::TypeDef { name: tname, rhs: rhs1, mods: m });
         if backquoted {
             self.ast.add_attrs(td, Attrs::BACKQUOTED);
+        }
+        if capture_var {
+            self.ast.add_attrs(td, Attrs::CAPTURE_VAR);
+            self.ast.add_attrs(rhs, Attrs::CAPTURE_VAR);
         }
         let td = self.finalize_def(td, mods);
         self.at_span2(start, point, td)
     }
 
-    /// Skip `^` after a name under capture checking.
-    pub fn gobble_hat(&mut self) -> bool {
-        let hat = self.s.cfg.features.contains(Features::CAPTURE_CHECKING) && self.is_ident_named("^");
-        if hat {
-            self.next();
-        }
-        hat
+    /// A type, or a capture set under capture checking.
+    fn type_def_rhs(&mut self) -> NodeId {
+        self.capture_set_type(false).unwrap_or_else(|| self.toplevel_typ())
     }
 }

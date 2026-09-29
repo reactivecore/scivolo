@@ -27,6 +27,10 @@ impl Attrs {
     pub const USING_APPLY: Attrs = Attrs(1 << 2);
     /// A `()` literal the parser inserted.
     pub const SYNTHETIC_UNIT: Attrs = Attrs(1 << 3);
+    /// A capture variable `C^`, on its definition and its bounds.
+    pub const CAPTURE_VAR: Attrs = Attrs(1 << 4);
+    /// A `@retains` annotation made from a capture set.
+    pub const RETAINS_ANNOT: Attrs = Attrs(1 << 5);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

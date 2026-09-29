@@ -103,6 +103,8 @@ pub const END_MARKER_TOKENS: TokenSet =
 pub const COLON_EOL_PREDECESSORS: TokenSet =
     TokenSet::of(&[RParen, RBracket, BackquotedIdent, This, Super, New]);
 pub const CLOSING_PARENS: TokenSet = TokenSet::of(&[RParen, RBracket, RBrace]);
+pub const CAN_START_CAPTURE_SET_CONTENTS_TOKENS: TokenSet =
+    TokenSet::of(&[Identifier, BackquotedIdent, This, RBrace]);
 
 /// The soft modifiers that need no language import.
 pub const SOFT_MODIFIER_NAMES: [&str; 6] = ["inline", "into", "opaque", "open", "transparent", "infix"];

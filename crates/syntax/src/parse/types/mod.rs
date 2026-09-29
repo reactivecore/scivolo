@@ -2,7 +2,9 @@
 
 mod args;
 mod bounds;
+mod fun_params;
 mod function;
+mod kind_projector;
 mod match_type;
 mod quotes;
 mod simple;
@@ -49,7 +51,7 @@ impl Parser<'_> {
                     let body = self.toplevel_typ();
                     let t = self.ast.node(Tree::LambdaTypeTree { tparams, body });
                     self.at_span2(start, point, t)
-                } else if self.tok() == Token::Arrow {
+                } else if self.tok() == Token::Arrow || self.is_pure_arrow_named("->") {
                     let arrow = self.s.skip_token();
                     let body = self.toplevel_typ();
                     self.make_poly_function(tparams, body, "type", start, arrow, |p, _| {
@@ -97,6 +99,7 @@ impl Parser<'_> {
             ParseKind::Type,
             move |p| {
                 !p.following_is_vararg()
+                    && !p.is_pure_arrow()
                     && (!in_context_bound
                         || !p.is_ident_named("as")
                         || !p.s.cfg.source_version.enables_new_givens())

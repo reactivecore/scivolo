@@ -378,6 +378,17 @@ pub enum Tree {
         renamed: Option<NodeId>,
         bound: Option<NodeId>,
     },
+    /// `{refs} parent`: the result of `-> {refs} parent` under capture checking, or of an impure
+    /// by-name type `=> parent` (with `refs` = `caps.any`) under pure functions.
+    CapturesAndResult {
+        refs: List,
+        parent: NodeId,
+    },
+    /// A reference of a `uses` clause.
+    UseRef {
+        reference: NodeId,
+        initially: bool,
+    },
     Number {
         digits: Box<str>,
         kind: NumberKind,

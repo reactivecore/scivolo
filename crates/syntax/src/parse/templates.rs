@@ -72,7 +72,7 @@ impl Parser<'_> {
             Vec::new()
         };
         self.new_lines_opt_when_followed_by_name("derives");
-        let derived = if self.is_ident_named("derives") {
+        let mut derived = if self.is_ident_named("derives") {
             self.next();
             self.comma_separated(|p| {
                 let q = p.qual_id();
@@ -81,6 +81,11 @@ impl Parser<'_> {
         } else {
             Vec::new()
         };
+        self.new_lines_opt_when_followed_by_name("uses");
+        if self.is_ident_named("uses") {
+            self.next();
+            derived.extend(self.comma_separated(Self::use_ref));
+        }
         self.new_template_start();
         if is_enum {
             let saved = std::mem::replace(&mut self.in_enum, true);
@@ -94,7 +99,7 @@ impl Parser<'_> {
 
     pub fn template_opt(&mut self, constr: NodeId) -> NodeId {
         self.new_lines_opt_when_followed_by_name("derives");
-        if self.tok() == Token::Extends || self.is_ident_named("derives") {
+        if self.tok() == Token::Extends || self.is_ident_named("derives") || self.is_ident_named("uses") {
             return self.template(constr, false);
         }
         self.new_template_start();

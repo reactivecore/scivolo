@@ -124,6 +124,9 @@ impl Parser<'_> {
         {
             return (mods, true);
         }
+        if self.is_consume() {
+            return (mods, true);
+        }
         if self.is_erased() {
             mods = self.add_modifier(mods);
         }

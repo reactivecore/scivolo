@@ -1,7 +1,7 @@
 use super::super::Parser;
 use super::ParamOwner;
 use crate::ast::flags;
-use crate::ast::{NodeId, TName, Tree};
+use crate::ast::{Attrs, NodeId, TName, Tree};
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -33,7 +33,7 @@ impl Parser<'_> {
         } else {
             TName { is_type: true, ..self.ident() }
         };
-        self.gobble_hat();
+        let capture_var = self.gobble_hat();
         let hk = self.type_param_clause_opt(ParamOwner::Hk);
         let bounds = self.type_and_ctx_bounds(name);
         let bounds = match *self.ast.tree(bounds) {
@@ -51,6 +51,10 @@ impl Parser<'_> {
         let rhs = self.lambda_abstract(&hk, bounds);
         let mods = self.ast.mods(mods);
         let t = self.ast.node(Tree::TypeDef { name, rhs, mods });
+        if capture_var {
+            self.ast.add_attrs(t, Attrs::CAPTURE_VAR);
+            self.ast.add_attrs(bounds, Attrs::CAPTURE_VAR);
+        }
         self.at_span2(start, point, t)
     }
 
