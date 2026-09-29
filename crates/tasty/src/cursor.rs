@@ -120,8 +120,4 @@ impl<'a> Cursor<'a> {
         }
         Ok(end)
     }
-
-    pub fn sub(&self, from: usize, to: usize) -> Cursor<'a> {
-        Cursor { bytes: &self.bytes[from..to], pos: 0 }
-    }
 }

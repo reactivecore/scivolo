@@ -32,15 +32,16 @@ phase 3 step 3.
 | Scala 2 pickles | 1,849 | no (the stdlib is TASTy since 3.8) |
 | Trees, printers | 2,553 | bodies later (inline); printer for dumps |
 
-About 9,800 lines to port for signatures, members, types and subtyping [I: ~11–14k lines of
-Rust]. dotty's own versions are 3–4× larger (`Types.scala` 7,318, `TypeComparer.scala` 4,113).
+The rows marked "yes" are 8,275 lines without the TASTy reader, 11,511 with it [I: ~10–14k lines
+of Rust]. dotty's own versions are larger (`Types.scala` 7,318 against 2,457;
+`TypeComparer.scala` 4,113 against `Subtyping.scala`'s 572).
 
 ## 2. How tasty-query loads [V]
 
 - **Up front:** every package symbol, with the raw bytes of its classpath entries; no file is
   decoded (`Loaders.scala:226`).
 - **On a miss:** `PackageSymbol.getDecl(name)` loads the one root the name belongs to
-  (`Symbols.scala:1900`, `Loaders.scala:79`); listing a package's declarations loads all of its
+  (`Symbols.scala:1900`, `Loaders.scala:70`); listing a package's declarations loads all of its
   roots. A re-entrant load is an error ("Cyclic loading").
 - **Per file:** decoded whole: all symbols first (forward references), then typed trees of all
   bodies (`TreeUnpickler.scala:47–187`); `SHAREDtype` results cached by address.
@@ -59,7 +60,7 @@ needed only for `inline` expansion); spike 01's arena for the whole stdlib would
 | library | TASTy | NIR | notes |
 |---|---|---|---|
 | Scala standard library | `scala-library-3.9.0.jar` (941 files) | `scalalib_native` | the native jar strips TASTy |
-| nativelib, clib, posixlib | yes | yes | |
+| nativelib, clib, posixlib | yes | yes | TASTy 28.1 (Scala 3.1.3), decodes |
 | javalib, auxlib | **no** | yes | Scala Native keeps only NIR (`NIROnlySettings`) |
 | JDK API (`java.*`) | — | — | what scala-cli compiles scripts against today |
 
@@ -70,10 +71,19 @@ Scripts call `java.*`. Two ways to know those types without a JVM:
   compiled against today. A JDK installation becomes a data dependency of the frontend, and
   the JDK offers methods javalib lacks, which then fail at link time instead of in the typer.
 - **B. javalib's TASTy.** Build javalib (and the overlay, ADR 0009) with TASTy kept and cache it
-  with the other libraries. Types match exactly what the VM can run; no JDK needed; no
-  classfile reader. It needs a Scala Native javalib build once per version, and differs from
-  the JDK where javalib is incomplete (a script using a missing JDK method fails in the typer,
-  which is the earlier, clearer error).
+  with the other libraries. Types follow what the VM can run; no JDK at run time; no
+  classfile reader. What it takes:
+  - One Scala Native build per version, with sbt and a JDK: `NIROnlySettings`
+    (`project/Settings.scala:694`) only drops `.class`/`.tasty` from the packaged jar, so
+    `javalib3/compile` leaves the TASTy of all 602 javalib sources in `target/…/classes`.
+  - The names nscplugin maps when it writes NIR (`NirGenName.scala:168–180`): javalib defines
+    `java.lang._String`, `_Enum`, `_Comparable`, `_Cloneable`, `java.io._Serializable`,
+    `_NullPointerException`, `annotation._Retention`; `Object` and `Class` are nativelib's
+    `private[runtime] _Object` and `_Class`. The frontend applies the same mapping.
+  - javalib is compiled against the build JDK, so its TASTy refers to `java.lang.String` and
+    others by name; with the mapping those resolve to javalib's own classes.
+  - It differs from the JDK where javalib is incomplete: a script using a missing JDK method
+    fails in the typer, the earlier, clearer error.
 
 Recommendation: **B**, with A as a fallback if building javalib's TASTy proves impractical.
 
@@ -97,7 +107,7 @@ Recommendation: **B**, with A as a fallback if building javalib's TASTy proves i
   members (`$extension`, `$default$N`, bridges, forwarders) come from lowering, not from TASTy,
   and are excluded.
 - **Members, types, linearization, subtyping:** golden dumps from tasty-query run by scala-cli
-  (a JVM for the oracle only, as the parser's oracle uses dotty); its test suites (~6k lines)
+  (a JVM for the oracle only, as the parser's oracle uses dotty); its test suites (~10k lines)
   also give test cases.
 - **Typer results later:** dotc's `-Vprint:typer -Xprint-types`.
 

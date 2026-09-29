@@ -47,7 +47,8 @@ impl<'a> Names<'a> {
     pub fn parse(cur: &mut Cursor<'a>, end: usize) -> Result<Self> {
         let mut entries = Vec::new();
         while cur.pos() < end {
-            entries.push(read_name(cur)?);
+            let name = read_name(cur, entries.len() as u32)?;
+            entries.push(name);
         }
         if cur.pos() != end {
             return cur.err("name table overrun");
@@ -155,13 +156,17 @@ impl<'a> Names<'a> {
     }
 }
 
-fn read_name<'a>(cur: &mut Cursor<'a>) -> Result<Name<'a>> {
+/// The name at the cursor, whose references must be to the `next` names before it.
+fn read_name<'a>(cur: &mut Cursor<'a>, next: u32) -> Result<Name<'a>> {
     let tag = cur.byte()?;
     if tag == UTF8 {
         return Ok(Name::Utf8(cur.utf8()?));
     }
     let end = cur.end()?;
-    let r = |cur: &mut Cursor<'a>| cur.nat32().map(NameRef);
+    let r = |cur: &mut Cursor<'a>| match cur.nat32()? {
+        n if n < next => Ok(NameRef(n)),
+        n => cur.err(format!("name {n} referenced before its definition")),
+    };
     let name = match tag {
         QUALIFIED => Name::Qualified(r(cur)?, r(cur)?),
         EXPANDED => Name::Expanded(r(cur)?, r(cur)?),
@@ -185,7 +190,8 @@ fn read_name<'a>(cur: &mut Cursor<'a>) -> Result<Name<'a>> {
             while cur.pos() < end {
                 let v = cur.long_int()?;
                 params.push(match u32::try_from(v) {
-                    Ok(n) => ParamSig::Term(NameRef(n)),
+                    Ok(n) if n < next => ParamSig::Term(NameRef(n)),
+                    Ok(n) => return cur.err(format!("name {n} referenced before its definition")),
                     Err(_) => ParamSig::TypeParams(v.unsigned_abs() as u32),
                 });
             }

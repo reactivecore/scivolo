@@ -11,8 +11,7 @@ const WIDTH: usize = 110;
 
 /// Indented dump of an ASTs section: statements and terms one per line, types and paths inline.
 pub fn dump(ast: &Ast, names: &Names) -> String {
-    let p = Printer { i: Inline { ast, names }, out: String::new() };
-    let mut p = p;
+    let mut p = Printer { i: Inline { ast, names }, out: String::new() };
     for &r in ast.roots() {
         p.tree(r, 0);
     }

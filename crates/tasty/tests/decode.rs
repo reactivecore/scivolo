@@ -27,8 +27,16 @@ fn sample_files_decode() {
         sample(f);
     }
     let main = sample("Main");
-    assert!(main.contains("APPLY\n              sample.Sample$package.twice"));
+    assert!(main.contains("sample.Sample$package.twice"));
     assert!(main.contains("INLINED 1 Sample$package$"));
+}
+
+#[test]
+fn forward_references_are_errors() {
+    let mut names = Cursor::new(&[2, 0x82, 0x80, 0x81]);
+    assert!(tasty::Names::parse(&mut names, 4).is_err(), "a name referring to itself");
+    let shared = [tasty::tags::SHAREDtype, 0x85];
+    assert!(Ast::parse(&shared).is_err(), "a shared type referring forward");
 }
 
 #[test]

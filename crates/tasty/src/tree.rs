@@ -126,6 +126,9 @@ impl Parser<'_> {
             _ if tag < FIRST_NAT => self.push(addr, tag, 0),
             _ if tag < FIRST_AST => {
                 let a = if is_signed_payload(tag) { self.cur.long_int()? } else { self.cur.nat()? as i64 };
+                if matches!(tag, SHAREDterm | SHAREDtype) && a as usize >= addr {
+                    return self.cur.err(format!("shared tree at {addr} refers forward to {a}"));
+                }
                 self.push(addr, tag, a)
             }
             _ if tag < FIRST_NAT_AST => {
@@ -173,11 +176,9 @@ impl Parser<'_> {
         if is_methodic(tag) {
             self.kid(depth)?;
             while self.cur.pos() < end {
-                let next = self.cur.peek()?;
-                if (6..FIRST_NAT).contains(&next) {
-                    self.kid(depth)?;
-                } else {
-                    self.kid(depth)?;
+                let modifier = (PRIVATE..FIRST_NAT).contains(&self.cur.peek()?);
+                self.kid(depth)?;
+                if !modifier {
                     let at = self.cur.pos();
                     let name = self.cur.nat()? as i64;
                     let k = self.push(at, NAMEref, name);
