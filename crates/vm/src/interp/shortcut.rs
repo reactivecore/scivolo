@@ -44,7 +44,7 @@ pub enum Callee {
 pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
     let param = |slot: u32| params.iter().position(|&p| p == slot);
     match instrs {
-        [Instr::Ret(Arg::Imm(v)), Instr::Unreachable] => Some(Shortcut::Const(*v)),
+        [Instr::Ret(Arg::Imm(v)), Instr::Unreachable] => Some(Shortcut::Const(*v as u64)),
         [
             Instr::FieldLoad { dst, mem, obj: Arg::Slot(o), name, site, unwind: None },
             Instr::Ret(Arg::Slot(r)),
@@ -75,7 +75,7 @@ pub fn detect(instrs: &[Instr], params: &[u32]) -> Option<Shortcut> {
             let sources = args
                 .iter()
                 .map(|a| match *a {
-                    Arg::Imm(v) => Some(Source::Imm(v)),
+                    Arg::Imm(v) => Some(Source::Imm(v as u64)),
                     Arg::Slot(s) if module.is_some_and(|(m, _, _)| m == s) => Some(Source::Module),
                     Arg::Slot(s) => param(s).map(Source::Param),
                     Arg::Lazy(_) => None,

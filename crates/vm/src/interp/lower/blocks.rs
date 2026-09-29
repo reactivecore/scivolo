@@ -26,20 +26,37 @@ impl Lowerer<'_> {
     pub fn arg(&mut self, v: ValId) -> Arg {
         let v = resolve(self.pool, &self.aliases, v);
         match self.pool.val(v) {
-            Val::Local(l, _) if self.constants.contains_key(&l.0) => Arg::Imm(self.constants[&l.0]),
+            Val::Local(l, _) if self.constants.contains_key(&l.0) => self.imm(v, self.constants[&l.0]),
             Val::Local(l, _) => Arg::Slot(self.slot(l.0)),
             other => match immediate(other) {
-                Some(bits) => Arg::Imm(bits),
-                None => {
-                    let next = self.lazy.len() as u32;
-                    let id = *self.lazy_ids.entry(v).or_insert(next);
-                    if id == next {
-                        self.lazy.push((v, Cell::new(0)));
-                    }
-                    Arg::Lazy(id)
-                }
+                Some(bits) => self.imm(v, bits),
+                None => self.lazy_entry(v, 0),
             },
         }
+    }
+
+    /// Operand `v` of constant value `bits`: inline if it fits 32 bits, else a lazy operand that
+    /// holds it already.
+    fn imm(&mut self, v: ValId, bits: u64) -> Arg {
+        match u32::try_from(bits) {
+            Ok(small) => Arg::Imm(small),
+            Err(_) => self.lazy_entry(v, bits),
+        }
+    }
+
+    /// Whether reading operand `a` cannot fail: it is not a lazy operand still to materialize.
+    pub fn is_known(&self, a: Arg) -> bool {
+        !matches!(a, Arg::Lazy(i) if self.lazy[i as usize].1.get() == 0)
+    }
+
+    /// The lazy operand for `v`, whose cell starts as `value` (0: not yet materialized).
+    fn lazy_entry(&mut self, v: ValId, value: u64) -> Arg {
+        let next = self.lazy.len() as u32;
+        let id = *self.lazy_ids.entry(v).or_insert(next);
+        if id == next {
+            self.lazy.push((v, Cell::new(value)));
+        }
+        Arg::Lazy(id)
     }
 
     pub fn args(&mut self, vs: &[ValId]) -> Box<[Arg]> {
@@ -109,8 +126,7 @@ impl Lowerer<'_> {
             Inst::Jump(next) => Instr::Jump(self.target(next)),
             Inst::If(cond, then, other) => match self.branch_comp(at) {
                 Some((comp, ty, l, r)) => Instr::CompIf {
-                    comp,
-                    num: self.num_of(ty),
+                    test: crate::interp::ops::int::Test::of(comp, self.num_of(ty)),
                     l: self.arg(l),
                     r: self.arg(r),
                     then: self.target(then),

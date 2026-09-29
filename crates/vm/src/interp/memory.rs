@@ -5,6 +5,18 @@ use crate::layout::{self, ARRAY_HEADER, ARRAY_LENGTH};
 use crate::{Vm, VmError};
 use nir::{Type, TypeId, ValId};
 
+/// The address of element `idx` of size `size` of array `arr`, if `arr` is not null and `idx`
+/// in bounds.
+#[inline(always)]
+pub fn array_elem(arr: u64, idx: u64, size: usize) -> Option<usize> {
+    if arr == 0 {
+        return None;
+    }
+    let len: i32 = heap::read(arr as usize + ARRAY_LENGTH);
+    let i = idx as u32 as i32;
+    (i >= 0 && i < len).then(|| arr as usize + ARRAY_HEADER as usize + i as usize * size)
+}
+
 /// Loads a value accessed as `mem`, zero-extended to 64 bits; an aggregate's value is its
 /// address.
 #[inline]
@@ -91,16 +103,15 @@ impl Vm {
     /// The address of element `idx` of `size` bytes in array `arr`, checking bounds.
     #[inline]
     pub fn array_elem_sized(&mut self, arr: u64, idx: u64, size: usize) -> Flow<usize> {
+        if let Some(at) = array_elem(arr, idx, size) {
+            return Ok(at);
+        }
         if arr == 0 {
             return self.null_pointer();
         }
-        let arr = arr as usize;
-        let len: i32 = heap::read(arr + ARRAY_LENGTH);
-        let i = idx as u32 as i32;
-        if i < 0 || i >= len {
-            self.throw_runtime("D16throwOutOfBoundsiinEO", &[i as u32 as u64, len as u32 as u64])?;
-        }
-        Ok(arr + ARRAY_HEADER as usize + i as usize * size)
+        let len: i32 = heap::read(arr as usize + ARRAY_LENGTH);
+        self.throw_runtime("D16throwOutOfBoundsiinEO", &[idx as u32 as u64, len as u32 as u64])?;
+        unreachable!("throws")
     }
 
     pub fn array_length(&mut self, arr: u64) -> Flow {
