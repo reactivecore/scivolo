@@ -11,13 +11,19 @@ pub struct Name(u32);
 /// Where a lone surrogate `u` of a name is kept: private-use character `SURROGATE_BASE + u`.
 const SURROGATE_BASE: u32 = 0x10_0000;
 
+/// The character that stands for lone surrogate `u` in text.
+pub fn surrogate_char(u: u16) -> char {
+    char::from_u32(SURROGATE_BASE + u as u32).expect("a private-use character")
+}
+
 /// Append the text of a name given as UTF-16 units to `out`; lone surrogates stay distinct.
 pub fn push_utf16(out: &mut String, units: &[u16]) {
     let ascii = units.iter().position(|&u| u >= 0x80).unwrap_or(units.len());
     out.extend(units[..ascii].iter().map(|&u| u as u8 as char));
-    out.extend(char::decode_utf16(units[ascii..].iter().copied()).map(|c| {
-        c.unwrap_or_else(|e| char::from_u32(SURROGATE_BASE + e.unpaired_surrogate() as u32).unwrap())
-    }));
+    out.extend(
+        char::decode_utf16(units[ascii..].iter().copied())
+            .map(|c| c.unwrap_or_else(|e| surrogate_char(e.unpaired_surrogate()))),
+    );
 }
 
 /// The UTF-16 units of a name's text, the inverse of `push_utf16`.

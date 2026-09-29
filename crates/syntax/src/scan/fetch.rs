@@ -105,7 +105,7 @@ impl Scanner<'_> {
         self.reader.next_char();
         let ch = self.reader.ch;
         if matches!(last, b' ' | b'\t' | b'\n' | b'{' | b'(' | b'>')
-            && ((ch as u32) <= 0xFFFF && is_xml_name_start(ch) || ch == '!' || ch == '?')
+            && (is_xml_name_start(ch) || ch == '!' || ch == '?')
         {
             self.cur.token = Token::XmlStart;
         } else {

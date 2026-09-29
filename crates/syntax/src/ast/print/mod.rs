@@ -114,7 +114,8 @@ impl Printer<'_> {
             self.out.push('_');
             return;
         }
-        let class = class_name(&node.tree);
+        let class =
+            if node.attrs.contains(Attrs::XML_BLOCK) { "XMLBlock".into() } else { class_name(&node.tree) };
         write!(self.out, "({class} {}", span(self.ast.span(id))).unwrap();
         if node.attrs.contains(Attrs::BACKQUOTED) {
             self.out.push_str(" @backquoted");

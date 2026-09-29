@@ -31,6 +31,8 @@ impl Attrs {
     pub const CAPTURE_VAR: Attrs = Attrs(1 << 4);
     /// A `@retains` annotation made from a capture set.
     pub const RETAINS_ANNOT: Attrs = Attrs(1 << 5);
+    /// A `Block` an XML literal made (dotty's `XMLBlock`).
+    pub const XML_BLOCK: Attrs = Attrs(1 << 6);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

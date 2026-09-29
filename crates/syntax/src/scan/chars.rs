@@ -93,11 +93,17 @@ pub fn digit(c: char, base: u32) -> Option<u32> {
     (d < base).then_some(d)
 }
 
-/// Whether `c` can start an XML name (`scala.xml.Utility.isNameStart`).
+/// Whether `c` can start an XML name (`scala.xml.Utility.isNameStart`), for a UTF-16 unit:
+/// false for supplementary characters.
 pub fn is_xml_name_start(c: char) -> bool {
     c == '_'
-        || matches!(
-            get_general_category(c),
-            G::UppercaseLetter | G::LowercaseLetter | G::TitlecaseLetter | G::OtherLetter | G::LetterNumber
-        )
+        || (c as u32) <= 0xFFFF
+            && matches!(
+                get_general_category(c),
+                G::UppercaseLetter
+                    | G::LowercaseLetter
+                    | G::TitlecaseLetter
+                    | G::OtherLetter
+                    | G::LetterNumber
+            )
 }

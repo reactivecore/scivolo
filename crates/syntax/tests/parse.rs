@@ -154,12 +154,38 @@ fn kind_projector_placeholders_become_type_lambdas() {
 }
 
 #[test]
+fn xml_literals_build_scala_xml_trees() {
+    assert_eq!(
+        parse("val x = <a k=\"v\">t{1}</a>\n"),
+        "(PackageDef 0..25 (Ident 0..0 t:<empty>) [ (ValDef 0..25@4 (Mods [] [] []) t:x (TypeTree 5..5) (XMLBlock \
+         8..25@8 [] (XMLBlock 8..25 [ (ValDef 8..8 (Mods [mutable] [] []) t:$md (Select 8..8 (Select 8..8 (Select \
+         8..8 (Ident 8..8 t:_root_) t:scala) t:xml) T:MetaData) (Select 8..8 (Select 8..8 (Select 8..8 (Ident 8..8 \
+         t:_root_) t:scala) t:xml) t:Null)) (Assign 8..25@8 (Ident 11..11 t:$md) (Apply 11..16 (Select 11..11 (New \
+         11..11 (Select 11..11 (Select 11..11 (Select 11..11 (Ident 11..11 t:_root_) t:scala) t:xml) \
+         T:UnprefixedAttribute)) t:<init>) [ (Literal 11..11 #String:\"k\") (Apply 11..16@13 (Select 11..11 (New \
+         11..11 (Select 11..11 (Select 11..11 (Select 11..11 (Ident 11..11 t:_root_) t:scala) t:xml) T:Text)) \
+         t:<init>) [ (Literal 11..11 #String:\"v\")]) (Ident 16..16 t:$md)]))] (Apply 8..25@8 (Select 8..8 (New \
+         8..8 (Select 8..8 (Select 8..8 (Select 8..8 (Ident 8..8 t:_root_) t:scala) t:xml) T:Elem)) t:<init>) [ \
+         (Literal 8..8 #Null) (Literal 8..8 #String:\"a\") (Ident 8..8 t:$md) (Ident 8..8 t:$scope) (Literal 8..8 \
+         #Boolean:\"false\") (Typed 8..25 (XMLBlock 8..25@8 [ (ValDef 17..17 (Mods [] [] []) t:$buf (TypeTree \
+         17..17) (Apply 17..17 (Select 17..17 (New 17..17 (Select 17..17 (Select 17..17 (Select 17..17 (Ident \
+         17..17 t:_root_) t:scala) t:xml) T:NodeBuffer)) t:<init>) [])) (Apply 17..17 (Select 17..17 (Ident 17..17 \
+         t:$buf) t:&+) [ (Apply 17..17 (Select 17..17 (New 17..17 (Select 17..17 (Select 17..17 (Select 17..17 \
+         (Ident 17..17 t:_root_) t:scala) t:xml) T:Text)) t:<init>) [ (Literal 17..17 #String:\"t\")])]) (Apply \
+         19..20 (Select 19..19 (Ident 19..19 t:$buf) t:&+) [ (Block 19..20 [] (Number 19..20@19 \"1\" \
+         Whole(10)))])] (Select 20..20 (Ident 20..20 t:$buf) t:toVector)) (Ident 25..25 T:_*))]))))])"
+    );
+}
+
+#[test]
 fn deep_nesting_is_an_error_not_a_stack_overflow() {
     let cases = [
         ("val x = ", "(", "1", ")"),
         ("val x = ", "{", "1", "}"),
         ("val x: ", "List[", "Int", "]"),
         ("", "class A { ", "", "}"),
+        ("val x = ", "<a>", "t", "</a>"),
+        ("def f(x: Any) = x match { case ", "<a>", "", "</a>"),
     ];
     for (prefix, open, inner, close) in cases {
         let text = format!("{prefix}{}{inner}{}", open.repeat(20_000), close.repeat(20_000));
