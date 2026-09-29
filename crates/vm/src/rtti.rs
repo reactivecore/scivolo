@@ -94,18 +94,22 @@ impl Vm {
         }
     }
 
-    /// Points the metadata of `id` at the metadata of its superclass and, as the JVM lists them,
-    /// its direct traits in declaration order without those its superclass or another direct
-    /// trait extends.
+    /// Points the metadata of `id` at the metadata of its superclass and its interfaces: its
+    /// direct traits in declaration order without those its superclass or another direct trait
+    /// extends; for an array class, `runtime.Array`'s traits `Cloneable` and `Serializable`.
     fn link_rtti(&mut self, id: ClassId) -> Result<(), VmError> {
+        let array_class = self.world.top("scala.scalanative.runtime.Array");
         let c = self.class(id);
         let parent = c.parent.map_or(0, |p| self.class(p).rtti);
+        let array = c.parent.filter(|&p| self.class(p).name == array_class);
         let implied = |t: ClassId| {
             c.parent.is_some_and(|p| self.is_subclass(p, t))
                 || c.traits.iter().any(|&u| u != t && self.is_subclass(u, t))
         };
-        let traits: Vec<usize> =
-            c.traits.iter().filter(|&&t| !implied(t)).map(|&t| self.class(t).rtti).collect();
+        let traits: Vec<usize> = match array {
+            Some(p) => self.class(p).traits.iter().rev().map(|&t| self.class(t).rtti).collect(),
+            None => c.traits.iter().filter(|&&t| !implied(t)).map(|&t| self.class(t).rtti).collect(),
+        };
         let rtti = c.rtti;
         let interfaces = self.heap.permanent(8 * traits.len());
         for (i, t) in traits.iter().enumerate() {

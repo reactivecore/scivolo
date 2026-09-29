@@ -18,9 +18,13 @@ collector's figures. Scripts written against the JDK expect its behaviour.
     `freeMemory` reports 0, as the collector does not report live bytes.
 - Where Scala Native's compiler or linker produces something the JVM would not, and the VM can
   correct it at run time:
-  - a virtual call of a method a class lacks, where the class has exactly one method of that
-    name and arity whose types differ only by boxing, calls a bridge the VM synthesizes as
-    NIR, as the JVM's lambda factory adds bridges (`interp/bridge.rs`);
+  - a virtual call of a method a class lacks calls a bridge the VM synthesizes as NIR, as the
+    JVM's lambda factory adds bridges (`interp/bridge/`): among the class's methods of that
+    name and arity whose argument and result types convert by boxing, unboxing, a cast or
+    `unit`, the one needing fewest boxing conversions, called virtually; none if two tie.
+    Unboxing `null` gives zero, as Scala's `BoxesRunTime` does. Scala Native's lambda classes
+    do not cast their `Object` parameters, so an argument of the wrong type fails in the
+    lambda's body, not with the JVM's `ClassCastException`;
   - `Class.getInterfaces` lists the direct interfaces in declaration order, without those the
     superclass or another direct interface extends, as Scala's JVM backend emits them.
 - A Scala Native test that asserts the stub then fails; it is listed as a known difference.

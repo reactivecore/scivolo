@@ -1,50 +1,15 @@
 //! Renders mangled member signatures (`Sig.mangle`, docs/contrib/mangling.md) as readable text.
 
+mod parts;
+
+pub use parts::{extern_name, method, to_proxy};
+
 pub fn sig(s: &str) -> String {
-    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
+    let mut d = Demangler::new(s);
     match d.sig() {
         Some(()) if d.pos == d.chars.len() => d.out,
         _ => s.to_string(),
     }
-}
-
-/// The reflective proxy signature `P<name><params>E` of method signature
-/// `D<name><params><result>E<scope>`, as Scala Native's `Sig.toProxy` builds it.
-pub fn to_proxy(s: &str) -> Option<String> {
-    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
-    if d.next()? != 'D' {
-        return None;
-    }
-    d.ident()?;
-    let mut result_start = None;
-    while d.peek()? != 'E' {
-        result_start = Some(d.pos);
-        d.ty()?;
-    }
-    let name_and_params: String = d.chars[1..result_start?].iter().collect();
-    Some(format!("P{name_and_params}E"))
-}
-
-/// The name and the mangled parameter and result types, result last, of public instance
-/// method signature `D<name><params><result>EO`.
-pub fn method(s: &str) -> Option<(String, Vec<String>)> {
-    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
-    if d.next()? != 'D' {
-        return None;
-    }
-    let name = d.ident()?;
-    let mut tys = Vec::new();
-    while d.peek()? != 'E' {
-        let start = d.pos;
-        d.ty()?;
-        tys.push(d.chars[start..d.pos].iter().collect());
-    }
-    (d.chars[d.pos + 1..] == ['O'] && !tys.is_empty()).then_some((name, tys))
-}
-
-pub fn extern_name(s: &str) -> Option<String> {
-    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
-    (d.next()? == 'C').then(|| d.ident())?
 }
 
 struct Demangler {
@@ -54,6 +19,10 @@ struct Demangler {
 }
 
 impl Demangler {
+    fn new(s: &str) -> Self {
+        Demangler { chars: s.chars().collect(), pos: 0, out: String::new() }
+    }
+
     fn peek(&self) -> Option<char> {
         self.chars.get(self.pos).copied()
     }
