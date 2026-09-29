@@ -62,7 +62,10 @@ impl Parser<'_> {
         };
         self.s.regions.get_mut(r).commas_expected = false;
         self.accept(Token::RParen);
-        if matches!(self.tok(), Token::Arrow | Token::CtxArrow) || ft.erased.contains(&true) {
+        if matches!(self.tok(), Token::Arrow | Token::CtxArrow)
+            || self.is_pure_arrow()
+            || ft.erased.contains(&true)
+        {
             return self.function_rest(ft, args);
         }
         let elems: Vec<NodeId> = args.into_iter().map(|t| self.convert_to_elem(t)).collect();
@@ -110,6 +113,10 @@ impl Parser<'_> {
                 self.function_rest(ft, vec![t])
             }
             Token::Match => self.match_type(t),
+            _ if self.is_pure_arrow() => {
+                ft.erased.push(false);
+                self.function_rest(ft, vec![t])
+            }
             Token::ForSome => {
                 let o = self.offset();
                 self.syntax_error(
@@ -134,9 +141,16 @@ impl Parser<'_> {
         let (start, point) = (ft.start, self.offset());
         let param_span = Span::synthetic(start, self.last_offset());
         let mut token = self.tok();
-        if token == Token::TLArrow && (!ft.mods.flags.is_empty() || params.is_empty()) {
-            self.syntax_error("illegal parameter list for type lambda", start);
-            token = Token::Arrow;
+        let pure = self.is_pure_arrow();
+        if pure {
+            token = if self.is_ident_named("->") { Token::Arrow } else { Token::CtxArrow };
+        } else if token == Token::TLArrow {
+            if !ft.mods.flags.is_empty() || params.is_empty() {
+                self.syntax_error("illegal parameter list for type lambda", start);
+                token = Token::Arrow;
+            }
+        } else if self.s.cfg.features.pure_functions() {
+            ft.mods.flags = ft.mods.flags.or(flags::IMPURE);
         }
         match token {
             Token::CtxArrow => {
@@ -148,7 +162,7 @@ impl Parser<'_> {
                 self.accept(Token::Arrow);
             }
         }
-        let result = self.typ();
+        let result = if pure { self.captures_and_result(Self::typ) } else { self.typ() };
         let t = if token == Token::TLArrow {
             for &p in &params {
                 if let Tree::ValDef { tpt, .. } = *self.ast.tree(p)
@@ -170,27 +184,8 @@ impl Parser<'_> {
             let erased = ft.erased.clone().into_boxed_slice();
             self.ast.node(Tree::Function { args, body: result, mods: Some((mods, erased)), wildcard: false })
         } else {
-            let args = self.ast.list(&params);
-            self.ast.node(Tree::Function { args, body: result, mods: None, wildcard: false })
+            self.function_type(&params, result)
         };
         self.at_span2(start, point, t)
-    }
-
-    /// `[erased] id : Type`.
-    fn typed_fun_param(&mut self, start: Offset, name: TName, mods: Modifiers) -> NodeId {
-        self.accept_colon();
-        let tpt = self.typ();
-        let p = self.make_parameter(name, tpt, mods, false);
-        self.at_span1(start, p)
-    }
-
-    /// `(id: Type, ...)`.
-    pub fn fun_param_clause(&mut self) -> Vec<NodeId> {
-        self.in_parens_with_commas(|p| {
-            p.comma_separated(|p| {
-                let (o, name) = (p.offset(), p.ident());
-                p.typed_fun_param(o, name, Modifiers::default())
-            })
-        })
     }
 }

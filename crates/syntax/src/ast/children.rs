@@ -107,6 +107,8 @@ impl Ast {
             Tree::ExtMethods { paramss, methods } => c(&[Child::Clauses(*paramss), L(*methods)]),
             Tree::ContextBoundTypeTree { tycon, .. } => c(&[N(*tycon)]),
             Tree::ImportSelector { imported, renamed, bound } => c(&[N(*imported), o(renamed), o(bound)]),
+            Tree::CapturesAndResult { refs, parent } => c(&[L(*refs), N(*parent)]),
+            Tree::UseRef { reference, .. } => c(&[N(*reference)]),
         }
     }
 }

@@ -62,6 +62,15 @@ impl Parser<'_> {
         })
     }
 
+    /// `{ RefineStatSeq }`, or indented if `indent_ok`.
+    pub fn refinement(&mut self, indent_ok: bool) -> Vec<NodeId> {
+        if indent_ok {
+            self.in_braces_or_indented(|p| p.refine_stat_seq())
+        } else {
+            self.in_braces(|p| p.refine_stat_seq())
+        }
+    }
+
     /// `RefineStat {semi RefineStat}`: declarations only.
     pub fn refine_stat_seq(&mut self) -> Vec<NodeId> {
         let mut stats = Vec::new();

@@ -13,7 +13,7 @@ impl Parser<'_> {
                 let start = p.offset();
                 let name = p.ident();
                 p.accept(Token::Equals);
-                let t = p.typ();
+                let t = p.type_arg();
                 let arg = check(p, t);
                 let n = p.ast.node(Tree::NamedArg { name: TName { is_type: true, ..name }, arg });
                 p.at_span1(start, n)
@@ -34,10 +34,15 @@ impl Parser<'_> {
             })
         } else {
             self.comma_separated(|p| {
-                let t = p.typ();
+                let t = p.type_arg();
                 check(p, t)
             })
         }
+    }
+
+    /// A type, or a capture set under capture checking.
+    fn type_arg(&mut self) -> NodeId {
+        self.capture_set_type(false).unwrap_or_else(|| self.typ())
     }
 
     /// `[TypeArg {, TypeArg}]`.

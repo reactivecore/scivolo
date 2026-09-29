@@ -16,12 +16,11 @@ impl Parser<'_> {
     }
 
     fn bound(&mut self, tok: Token) -> Option<NodeId> {
-        if self.tok() == tok {
-            self.next();
-            Some(self.toplevel_typ())
-        } else {
-            None
+        if self.tok() != tok {
+            return None;
         }
+        self.next();
+        Some(self.capture_set_type(tok == Token::Supertype).unwrap_or_else(|| self.toplevel_typ()))
     }
 
     /// `TypeBounds [: ContextBounds]` of type parameter `pname`.
@@ -90,13 +89,21 @@ impl Parser<'_> {
         }
     }
 
-    /// `core`, or `=> core` as a by-name type.
+    /// `core`, or `=> core` (`-> [CaptureSet] core`) as a by-name type.
     pub fn param_type_of(&mut self, core: fn(&mut Self) -> NodeId) -> NodeId {
-        if self.tok() != Token::Arrow {
+        let impure = self.tok() == Token::Arrow;
+        if !impure && !self.is_pure_arrow_named("->") {
             return core(self);
         }
         let start = self.s.skip_token();
-        let result = core(self);
+        let result = if !impure {
+            self.captures_and_result(core)
+        } else if self.s.cfg.features.pure_functions() {
+            let tp = core(self);
+            self.impure_result(tp)
+        } else {
+            core(self)
+        };
         let t = self.ast.node(Tree::ByNameTypeTree { result });
         self.at_span1(start, t)
     }

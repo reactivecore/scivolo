@@ -14,6 +14,10 @@ impl Parser<'_> {
             && self.s.is_soft_modifier_in_param_modifier_position()
     }
 
+    pub fn is_consume(&self) -> bool {
+        self.s.cfg.features.capture_checking() && self.is_ident_named("consume")
+    }
+
     /// Whether the current token is a hard or soft modifier.
     pub fn is_modifier(&self) -> bool {
         crate::token::sets::MODIFIER_TOKENS.contains(self.tok()) || self.s.is_soft_modifier()
@@ -60,6 +64,14 @@ impl Parser<'_> {
 
     /// Add the modifier at the current token.
     pub fn add_modifier(&mut self, mods: Modifiers) -> Modifiers {
+        if self.is_consume() {
+            let start = self.s.skip_token();
+            let annot = self.consume_annot();
+            let annot = self.at_span1(start, annot);
+            let annots: Vec<_> = self.ast.items(mods.annotations).iter().copied().chain([annot]).collect();
+            let annotations = self.ast.list(&annots);
+            return Modifiers { annotations, ..mods };
+        }
         let (tok, name) = (self.tok(), self.s.name_text().to_string());
         let start = self.s.skip_token();
         let kind = self.mod_of_token(tok, &name);

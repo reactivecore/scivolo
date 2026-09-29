@@ -5,17 +5,12 @@ use super::super::migration::Migration;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
-use crate::config::Features;
 use crate::token::Token;
 
 impl Parser<'_> {
-    fn is_pure_ctx_arrow(&self) -> bool {
-        self.is_ident_named("?->") && self.s.cfg.features.contains(Features::PURE_FUNCTIONS)
-    }
-
     /// The parameters of a lambda whose parameter part was parsed as expression `t`.
     pub fn convert_to_params(&mut self, t: NodeId) -> Vec<NodeId> {
-        let given = self.tok() == Token::CtxArrow || self.is_pure_ctx_arrow();
+        let given = self.tok() == Token::CtxArrow || self.is_pure_arrow_named("?->");
         let mods = if given { Modifiers::with_flags(flags::GIVEN) } else { Modifiers::default() };
         match self.ast.tree(t).clone() {
             Tree::Parens { t } => vec![self.convert_to_param(t, mods)],

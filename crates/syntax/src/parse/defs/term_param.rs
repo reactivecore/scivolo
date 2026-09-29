@@ -50,7 +50,7 @@ impl Parser<'_> {
         let annots = self.annotations(false);
         let annotations = self.ast.list(&annots);
         let mut mods = Modifiers { annotations, ..implied.clone() };
-        if self.is_erased() {
+        if self.is_consume() || self.is_erased() {
             mods = self.add_modifier(mods);
         }
         if owner.is_class() {

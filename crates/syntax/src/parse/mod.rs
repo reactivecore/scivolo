@@ -1,6 +1,7 @@
 //! The parser, a port of dotty's `Parsers.Parser`: tokens to untyped trees.
 
 mod annotations;
+mod capture;
 mod colon_lambda;
 mod combinators;
 mod defs;

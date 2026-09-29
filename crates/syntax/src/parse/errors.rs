@@ -65,37 +65,6 @@ impl Parser<'_> {
         self.last_error_offset = Some(self.offset());
     }
 
-    /// dotty's `Message.rewriteNotice`, appended to messages about rewritable syntax.
-    pub fn rewrite_notice(what: &str, version: &str, options: &str) -> String {
-        let source = if version.is_empty() { String::new() } else { format!("-source {version}") };
-        let opts = match (source.is_empty(), options.is_empty()) {
-            (_, true) => source,
-            (true, false) => options.to_string(),
-            (false, false) => format!("{source} {options}"),
-        };
-        format!("\n{what} can be rewritten automatically under -rewrite {opts}.")
-    }
-
-    /// An error for syntax that `option` disallows.
-    pub fn syntax_version_error(&mut self, option: &str, span: Span) {
-        let notice = Self::rewrite_notice("This construct", "3.0-migration", option);
-        self.syntax_error_span(format!("This construct is not allowed under {option}.{notice}"), span);
-    }
-
-    /// Under `-new-syntax` (or `-source future`), old syntax at `span` is an error.
-    pub fn rewrite_to_new_syntax(&mut self, span: Span) {
-        if self.new_syntax {
-            self.syntax_version_error("-new-syntax or -language:future", span);
-        }
-    }
-
-    /// Under `-old-syntax`, new syntax at `span` is an error.
-    pub fn rewrite_to_old_syntax(&mut self, span: Span) {
-        if self.s.cfg.old_syntax {
-            self.syntax_version_error("-old-syntax", span);
-        }
-    }
-
     /// dotty's `ExpectedTokenButFound` message.
     pub fn expected_but_found(expected: Token, found: Token, prefix: &str, suffix: &str) -> String {
         let expected = match expected {
