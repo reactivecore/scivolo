@@ -25,6 +25,23 @@ pub fn to_proxy(s: &str) -> Option<String> {
     Some(format!("P{name_and_params}E"))
 }
 
+/// The name and the mangled parameter and result types, result last, of public instance
+/// method signature `D<name><params><result>EO`.
+pub fn method(s: &str) -> Option<(String, Vec<String>)> {
+    let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
+    if d.next()? != 'D' {
+        return None;
+    }
+    let name = d.ident()?;
+    let mut tys = Vec::new();
+    while d.peek()? != 'E' {
+        let start = d.pos;
+        d.ty()?;
+        tys.push(d.chars[start..d.pos].iter().collect());
+    }
+    (d.chars[d.pos + 1..] == ['O'] && !tys.is_empty()).then_some((name, tys))
+}
+
 pub fn extern_name(s: &str) -> Option<String> {
     let mut d = Demangler { chars: s.chars().collect(), pos: 0, out: String::new() };
     (d.next()? == 'C').then(|| d.ident())?

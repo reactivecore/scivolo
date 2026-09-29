@@ -77,9 +77,14 @@ The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
    - `c.iterator().scalaOps.forall(contains)` on a `Collection[_]` eta-expands `contains` with a
      `Nothing` parameter; the published javalib's lambda body is `throw o`.
    - Fix: `forall(e => contains(e))`. VM: `containsAll` is replaced in the overlay.
-4. **A SAM lambda crashes natively** (dotty `tests/run/i24573.scala`, Scala Native or the
-   compiler): the lambda class lacks the bridge `apply(Object, Object)`; the Scala Native binary
-   segfaults, the VM throws `InternalError`. Needs a minimal reproduction first (#20).
+4. **A SAM lambda lacks its bridge** (nscplugin's lambda classes; dotty
+   `tests/run/i24573.scala`).
+   - For `trait ToInt[-T] extends (T => Int) { def apply(t: T): Int }`, the lambda class of
+     `(s: String) => s.length` defines `apply(Object): Int` only; a call through `Function1`
+     needs `apply(Object): Object`, which the JVM's lambda factory adds as a bridge.
+   - The Scala Native binary segfaults; minimal reproduction: `tests/programs/bridges`.
+   - Fix: emit the bridges of the functional interface's erased signatures. VM: synthesizes the
+     bridge on dispatch (ADR 0008).
 5. **No static forwarder beside a `@static` method of the same name** (nscplugin,
    `scala-3/scala/scalanative/nscplugin/NirGenStat.scala:835`).
    - An object with `@static def foo` and an instance method `foo` of the same signature (e.g.
@@ -106,13 +111,13 @@ counts as failing in Scala Native too when the native binary fails the same way 
 stdout, or does not link for a missing definition. A run with a filter updates only its tests'
 rows.
 
-Results (2026-09-28):
+Results (2026-09-29):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 1502 |
-| wrong output | 1 |
-| crashed | 1 |
+| passed | 1504 |
+| wrong output | 0 |
+| crashed | 0 |
 | fails in Scala Native too | 31 |
 | compile failed | 1 |
 | skipped | 173 |
@@ -120,10 +125,8 @@ Results (2026-09-28):
 
 - **Fails in Scala Native too:** reflection Scala Native lacks (`getConstructors`,
   `getEnclosingClass`, `getEnumConstants`) and a `main` returning a value (`t4536`). Tests that
-  need `Thread.getStackTrace` or `Runtime.totalMemory` pass in the VM (ADR 0008).
-- **Failing in the VM:** `i24573` (a SAM lambda without its `apply(Object, Object)` bridge;
-  segfaults natively) and `redundantParents` (`getInterfaces` lists all interfaces, in another
-  order than natively). Both fail natively too, differently (#20).
+  need `Thread.getStackTrace` or `Runtime.totalMemory` pass in the VM, as do `i24573` (a
+  missing lambda bridge) and `redundantParents` (`getInterfaces`) (ADR 0008).
 - **Compile failed:** `i19394`, in Scala Native's compiler plugin (upstream bug 5).
 
 ## M5: scala/scala `test/junit`

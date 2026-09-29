@@ -1,5 +1,6 @@
 //! Executes NIR method bodies.
 
+mod bridge;
 pub mod code;
 mod compute;
 mod devirtualize;

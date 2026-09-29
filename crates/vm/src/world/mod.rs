@@ -109,6 +109,11 @@ impl World {
         Ok(defn)
     }
 
+    /// Adds `defn`, which no file defines, under its name.
+    pub fn define(&mut self, defn: Defn) {
+        self.defns.insert(defn.name, Rc::new(defn));
+    }
+
     /// The type and attributes of member `g` if it is a `var`, without decoding it whole.
     pub fn var(&mut self, g: GlobalId) -> Result<Option<(TypeId, Vec<Attr>)>, LoadError> {
         self.read(g, |r, offset| r.var_at(offset))

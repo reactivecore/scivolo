@@ -94,17 +94,18 @@ impl Vm {
         }
     }
 
-    /// Points the metadata of `id` at the metadata of its superclass and traits.
+    /// Points the metadata of `id` at the metadata of its superclass and, as the JVM lists them,
+    /// its direct traits in declaration order without those its superclass or another direct
+    /// trait extends.
     fn link_rtti(&mut self, id: ClassId) -> Result<(), VmError> {
         let c = self.class(id);
         let parent = c.parent.map_or(0, |p| self.class(p).rtti);
-        let mut traits: Vec<usize> = c
-            .ancestors
-            .iter()
-            .filter(|&&a| a != id && self.class(a).kind == Kind::Trait)
-            .map(|&a| self.class(a).rtti)
-            .collect();
-        traits.sort_unstable();
+        let implied = |t: ClassId| {
+            c.parent.is_some_and(|p| self.is_subclass(p, t))
+                || c.traits.iter().any(|&u| u != t && self.is_subclass(u, t))
+        };
+        let traits: Vec<usize> =
+            c.traits.iter().filter(|&&t| !implied(t)).map(|&t| self.class(t).rtti).collect();
         let rtti = c.rtti;
         let interfaces = self.heap.permanent(8 * traits.len());
         for (i, t) in traits.iter().enumerate() {
