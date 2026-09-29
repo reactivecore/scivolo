@@ -129,7 +129,8 @@ impl Parser<'_> {
 
     /// `A & B` for `A with B` (dotty's `makeAndType`).
     pub fn make_and_type(&mut self, left: NodeId, right: NodeId) -> NodeId {
-        let and = self.ast.node(Tree::TypedSplice { what: "&" });
+        let sym = self.type_name("scala.&");
+        let and = self.ast.node(Tree::TypedSplice { sym });
         let args = self.ast.list(&[left, right]);
         self.ast.node(Tree::AppliedTypeTree { tpt: and, args })
     }

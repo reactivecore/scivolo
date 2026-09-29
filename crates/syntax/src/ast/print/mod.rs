@@ -117,14 +117,10 @@ impl Printer<'_> {
         let class =
             if node.attrs.contains(Attrs::XML_BLOCK) { "XMLBlock".into() } else { class_name(&node.tree) };
         write!(self.out, "({class} {}", span(self.ast.span(id))).unwrap();
-        if node.attrs.contains(Attrs::BACKQUOTED) {
-            self.out.push_str(" @backquoted");
-        }
-        if node.attrs.contains(Attrs::CAPTURE_VAR) {
-            self.out.push_str(" @capturevar");
-        }
-        if node.attrs.contains(Attrs::RETAINS_ANNOT) {
-            self.out.push_str(" @retains");
+        for (a, text) in Attrs::PRINTED {
+            if node.attrs.contains(a) {
+                self.out.push_str(text);
+            }
         }
         self.fields(&node.tree);
         self.out.push(')');
@@ -140,6 +136,7 @@ fn class_name(tree: &Tree) -> String {
         Tree::Template { derived: Some(_), .. } => "DerivingTemplate".into(),
         Tree::Function { mods: Some(_), .. } => "FunctionWithMods".into(),
         Tree::Function { wildcard: true, .. } => "WildcardFunction".into(),
+        Tree::DerivedTypeTree { kind, .. } => kind.class_name().into(),
         t => {
             let s = format!("{t:?}");
             s[..s.find([' ', '{', '(']).unwrap_or(s.len())].to_string()

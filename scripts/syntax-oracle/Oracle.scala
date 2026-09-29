@@ -4,21 +4,21 @@
 package dotty.tools.dotc.syntaxoracle
 
 import dotty.tools.dotc.*
-import dotty.tools.dotc.ast.{Trees, untpd}
 import dotty.tools.dotc.core.Contexts.*
-import dotty.tools.dotc.core.{Constants, Names}
+import dotty.tools.dotc.core.Mode
+import dotty.tools.dotc.core.Symbols.defn
 import dotty.tools.dotc.parsing.Parsers
 import dotty.tools.dotc.parsing.Scanners.Scanner
 import dotty.tools.dotc.parsing.Tokens.*
-import dotty.tools.dotc.reporting.{Diagnostic, HideNonSensicalMessages, StoreReporter, UniqueMessagePositions}
+import dotty.tools.dotc.reporting.{HideNonSensicalMessages, StoreReporter, UniqueMessagePositions}
 import dotty.tools.dotc.util.SourceFile
-import dotty.tools.dotc.util.Spans.Span
 import dotty.tools.io.AbstractFile
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.CollectionConverters.*
 
-/** Prints what dotty 3.9.0 makes of Scala files, in the format of `syntax-dump` (crates/syntax).
- *  Usage: Oracle tokens|trees --list LIST, one `path<TAB>options` per line.
+/** Prints what dotty 3.9.0 makes of Scala files, in the format of `syntax-dump` (crates/syntax):
+ *  tokens, parsed trees, or parsed trees after the desugaring that precedes typing (`Expander`).
+ *  Usage: Oracle tokens|trees|desugar --list LIST, one `path<TAB>options` per line.
  */
 object Oracle:
   def main(args: Array[String]): Unit =
@@ -29,7 +29,7 @@ object Oracle:
     }
     val root = (new ContextBase).initialCtx.fresh
     root.setSetting(root.settings.color, "never")
-    if mode == "trees" then
+    if mode != "tokens" then
       root.setSetting(root.settings.Yusejavacp, true)
       root.setReporter(new StoreReporter(null))
       root.initialize()(using root)
@@ -37,7 +37,9 @@ object Oracle:
     for (path, opts) <- jobs do
       val b = new StringBuilder(s"== file $path\n")
       try run(mode, root, path, opts, b)
-      catch case e: Throwable => b ++= s"== crash ${e.getClass.getName}: ${e.getMessage}\n"
+      catch case e: Throwable =>
+        val at = e.getStackTrace.take(3).map(f => s"${f.getFileName}:${f.getLineNumber}").mkString(" ")
+        b ++= s"== crash ${e.getClass.getName}: ${e.getMessage} @ $at\n"
       out.print(b)
     out.flush()
 
@@ -51,14 +53,21 @@ object Oracle:
     val source = SourceFile(AbstractFile.getFile(path.toString), scala.io.Codec.UTF8)
     val uctx = fctx.fresh.setCompilationUnit(CompilationUnit(source, mustExist = true))
     val bytes = utf8Offsets(source.content())
-    if mode == "trees" then
-      val tree = new Parsers.Parser(source)(using uctx).parse()
+    if mode == "tokens" then tokens(source, bytes, b)(using uctx)
+    else
+      val parsed = new Parsers.Parser(source)(using uctx).parse()
+      val tree =
+        if mode == "trees" then parsed
+        else
+          val ectx = uctx.fresh.setOwner(defn.EmptyPackageClass).setMode(Mode.None)
+          new Expander().unit(parsed)(using ectx)
       Sexp(bytes, b).tree(tree)(using uctx)
       b += '\n'
-    else tokens(source, bytes, b)(using uctx)
     for d <- reporter.removeBufferedMessages(using uctx) do
-      val at = if d.pos.span.exists then bytes(d.pos.span.point).toString else "-"
-      val msg = d.msg.message.replaceAll("\u001b\\[[0-9;]*m", "")
+      val at = if d.pos.span.exists then bytes(d.pos.span.point min (bytes.length - 1)).toString else "-"
+      val msg =
+        try d.msg.message.replaceAll("\u001b\\[[0-9;]*m", "")
+        catch case e: Throwable => s"<unrenderable ${d.msg.getClass.getSimpleName}: ${e.getClass.getSimpleName}>"
       b ++= s"== ${if d.level == interfaces.Diagnostic.ERROR then "E" else "W"} $at ${str(msg)}\n"
 
   def tokens(source: SourceFile, bytes: Array[Int], b: StringBuilder)(using Context): Unit =
@@ -104,68 +113,3 @@ object Oracle:
     }
     b += '"'
     b.toString
-
-/** Untyped trees as S-expressions: `(Class span [@backquoted] fields)`, offsets in UTF-8 bytes. */
-class Sexp(bytes: Array[Int], b: StringBuilder):
-  import untpd.*
-
-  def at(o: Int): Int = bytes(o min (bytes.length - 1))
-
-  def span(s: Span): String =
-    if !s.exists then "-"
-    else if s.isSynthetic then s"${at(s.start)}..${at(s.end)}"
-    else s"${at(s.start)}..${at(s.end)}@${at(s.point)}"
-
-  def name(n: Names.Name): String = (if n.isTypeName then "T:" else "t:") + Oracle.str(n.toString).drop(1).dropRight(1)
-
-  def const(c: Constants.Constant): String =
-    val tag = c.tag match
-      case Constants.UnitTag => "Unit"; case Constants.BooleanTag => "Boolean"; case Constants.ByteTag => "Byte"
-      case Constants.ShortTag => "Short"; case Constants.CharTag => "Char"; case Constants.IntTag => "Int"
-      case Constants.LongTag => "Long"; case Constants.FloatTag => "Float"; case Constants.DoubleTag => "Double"
-      case Constants.StringTag => "String"; case Constants.NullTag => "Null"; case Constants.ClazzTag => "Class"
-      case t => s"tag$t"
-    if c.tag == Constants.UnitTag || c.tag == Constants.NullTag then s"#$tag" else s"#$tag:${Oracle.str(c.stringValue)}"
-
-  def mods(m: Modifiers)(using Context): Unit =
-    b ++= "(Mods ["
-    b ++= m.flags.flagsString.split(' ').filter(_.nonEmpty).mkString(" ")
-    b += ']'
-    if !m.privateWithin.isEmpty then b ++= " within=" ++= name(m.privateWithin)
-    b ++= " ["; m.annotations.foreach { a => b += ' '; tree(a) }; b ++= "]"
-    b ++= " ["; m.mods.foreach { md => b ++= s" (${md.getClass.getSimpleName} ${span(md.span)})" }; b ++= "]"
-    b += ')'
-
-  def value(v: Any)(using Context): Unit = v match
-    case t: Tree => tree(t)
-    case m: Modifiers => mods(m)
-    case n: Names.Name => b ++= name(n)
-    case c: Constants.Constant => b ++= const(c)
-    case l: List[?] => b += '['; l.foreach { x => b += ' '; value(x) }; b ++= "]"
-    case s: String => b ++= Oracle.str(s)
-    case null => b ++= "null"
-    case e: (Boolean | Int) => b ++= e.toString
-    case e: scala.reflect.Enum => b ++= e.toString
-    case other => b ++= s"<${other.getClass.getSimpleName}>"
-
-  def tree(t: Tree)(using Context): Unit =
-    if t eq EmptyTree then { b ++= "_"; return }
-    if t eq EmptyValDef then { b ++= "_self"; return }
-    if t eq EmptyTypeIdent then { b ++= "_tident"; return }
-    val cls = Some(t.getClass.getSimpleName).filter(_.nonEmpty).getOrElse(t.productPrefix)
-    b += '(' ++= cls += ' ' ++= span(t.span)
-    if t.hasAttachment(Trees.Backquoted) then b ++= " @backquoted"
-    if t.hasAttachment(Trees.CaptureVar) then b ++= " @capturevar"
-    if t.hasAttachment(untpd.RetainsAnnot) then b ++= " @retains"
-    t match
-      case t: MemberDef => b += ' '; mods(t.rawMods)
-      case t: FunctionWithMods => b += ' '; mods(t.mods); b ++= " erased=" ++= t.erasedParams.mkString("[", " ", "]")
-      case t: DerivingTemplate => b ++= s" derived=${t.derived.length}"
-      case _ =>
-    t match
-      case t: DefDef => b += ' '; value(t.name); b += ' '; value(t.paramss); b += ' '; tree(t.tpt); b += ' '; tree(t.rhs)
-      case t: ValDef => b += ' '; value(t.name); b += ' '; tree(t.tpt); b += ' '; tree(t.rhs)
-      case t: Template => b += ' '; tree(t.constr); b += ' '; value(t.parentsOrDerived); b += ' '; tree(t.self); b += ' '; value(t.body)
-      case t: TypedSplice => b ++= " <typed>"
-      case t: Product => t.productIterator.foreach { f => b += ' '; value(f) }
-    b += ')'

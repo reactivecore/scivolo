@@ -33,11 +33,10 @@ mod xml;
 
 use crate::ast::{Ast, NodeId, Span, TName};
 use crate::config::Config;
-use crate::names::{Name, Names};
+use crate::names::{FreshNames, Name, Names};
 use crate::scan::Scanner;
 use crate::source::{Offset, SourceFile};
 use crate::token::Token;
-use rustc_hash::FxHashMap;
 
 pub use location::{Location, ParseKind};
 
@@ -60,7 +59,7 @@ pub struct Parser<'a> {
     in_enum: bool,
     in_match_pattern: bool,
     staged: u8,
-    fresh: FxHashMap<&'static str, u32>,
+    pub fresh: FreshNames,
     possible_colon_offset: Offset,
     /// Whether a language import set the source version.
     unit_version_set: bool,
@@ -90,7 +89,7 @@ impl<'a> Parser<'a> {
             in_enum: false,
             in_match_pattern: false,
             staged: 0,
-            fresh: FxHashMap::default(),
+            fresh: FreshNames::default(),
             possible_colon_offset: 0,
             unit_version_set: false,
         }
@@ -126,10 +125,7 @@ impl<'a> Parser<'a> {
 
     /// A fresh name `prefix` + counter, unique in this compilation unit.
     fn fresh_name(&mut self, prefix: &'static str) -> Name {
-        let n = self.fresh.entry(prefix).or_insert(0);
-        *n += 1;
-        let text = format!("{prefix}{n}");
-        self.intern(&text)
+        self.fresh.next(self.s.names, prefix)
     }
 
     // Positions ------------------------------------------------------------------------

@@ -69,7 +69,8 @@ impl Parser<'_> {
         let ts = self.attribute_value(span, text)?;
         Some(match ts[..] {
             [] => {
-                let t = self.ast.node(Tree::TypedSplice { what: "Nil" });
+                let sym = self.term("scala.collection.immutable.Nil");
+                let t = self.ast.node(Tree::TypedSplice { sym });
                 self.ast.with_span(t, span.to_synthetic());
                 t
             }

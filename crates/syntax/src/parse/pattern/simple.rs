@@ -1,8 +1,8 @@
 use super::super::migration::Migration;
 use super::super::{Location, Parser};
-use super::is_var_pattern_name;
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, Tree};
+use crate::names::is_var_pattern_name;
 use crate::token::Token;
 
 impl Parser<'_> {

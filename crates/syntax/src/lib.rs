@@ -2,6 +2,7 @@
 
 pub mod ast;
 pub mod config;
+pub mod desugar;
 pub mod diag;
 pub mod names;
 pub mod parse;

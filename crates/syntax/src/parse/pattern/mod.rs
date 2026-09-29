@@ -6,16 +6,9 @@ use super::migration::Migration;
 use super::{Location, ParseKind, Parser};
 use crate::ast::flags;
 use crate::ast::{NodeId, Tree};
+use crate::names::is_var_pattern_name;
 use crate::token::Token;
 use crate::token::sets::CAN_START_PATTERN_TOKENS;
-use unicode_general_category::{GeneralCategory as G, get_general_category};
-
-/// Whether `name` is the name of a variable pattern: it starts with a lower case letter or `_`.
-pub fn is_var_pattern_name(name: &str) -> bool {
-    let Some(first) = name.chars().next() else { return false };
-    (first == '_' || get_general_category(first) == G::LowercaseLetter)
-        && !matches!(name, "false" | "true" | "null")
-}
 
 impl Parser<'_> {
     /// `Pattern1 {| Pattern1}`.

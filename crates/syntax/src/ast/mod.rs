@@ -18,14 +18,14 @@ use tree::{Clauses, ModsId};
 
 /// Facts dotty keeps as tree attachments.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
-pub struct Attrs(u8);
+pub struct Attrs(u32);
 
 impl Attrs {
     pub const BACKQUOTED: Attrs = Attrs(1);
     pub const HAS_END_MARKER: Attrs = Attrs(1 << 1);
     /// An `Apply` of a `using` argument clause.
     pub const USING_APPLY: Attrs = Attrs(1 << 2);
-    /// A `()` literal the parser inserted.
+    /// A `()` literal the parser or desugaring inserted.
     pub const SYNTHETIC_UNIT: Attrs = Attrs(1 << 3);
     /// A capture variable `C^`, on its definition and its bounds.
     pub const CAPTURE_VAR: Attrs = Attrs(1 << 4);
@@ -33,9 +33,49 @@ impl Attrs {
     pub const RETAINS_ANNOT: Attrs = Attrs(1 << 5);
     /// A `Block` an XML literal made (dotty's `XMLBlock`).
     pub const XML_BLOCK: Attrs = Attrs(1 << 6);
+    /// An `Apply` of an infix operator to a tuple, `a op (b, c)`.
+    pub const INFIX_TUPLE_APPLY: Attrs = Attrs(1 << 7);
+    /// A tuple of pattern variables that desugaring made.
+    pub const FOR_ARTIFACT: Attrs = Attrs(1 << 8);
+    /// A definition of a pattern variable.
+    pub const PATTERN_VAR: Attrs = Attrs(1 << 9);
+    /// The `map` of a `for` whose body is its pattern.
+    pub const TRAILING_FOR_MAP: Attrs = Attrs(1 << 10);
+    /// A `map` of a `for` over several aliases.
+    pub const TUPLING_FOR_MAP: Attrs = Attrs(1 << 11);
+    /// An operator selection whose operator starts a new line.
+    pub const MULTI_LINE_INFIX: Attrs = Attrs(1 << 12);
+    /// An `Apply` made of an infix operation.
+    pub const WAS_TYPED_INFIX: Attrs = Attrs(1 << 13);
+    /// A selector checked to match the pattern of a pattern definition.
+    pub const CHECK_PAT_DEF: Attrs = Attrs(1 << 14);
+    /// A selector checked to match the pattern of a generator.
+    pub const CHECK_GEN_FROM: Attrs = Attrs(1 << 15);
+
+    /// The attributes the tree printer shows, in its order.
+    pub const PRINTED: [(Attrs, &str); 14] = [
+        (Attrs::BACKQUOTED, " @backquoted"),
+        (Attrs::CAPTURE_VAR, " @capturevar"),
+        (Attrs::RETAINS_ANNOT, " @retains"),
+        (Attrs::SYNTHETIC_UNIT, " @syntheticunit"),
+        (Attrs::FOR_ARTIFACT, " @forartifact"),
+        (Attrs::PATTERN_VAR, " @patternvar"),
+        (Attrs::TRAILING_FOR_MAP, " @trailingmap"),
+        (Attrs::TUPLING_FOR_MAP, " @tuplingmap"),
+        (Attrs::MULTI_LINE_INFIX, " @multiline"),
+        (Attrs::WAS_TYPED_INFIX, " @infix"),
+        (Attrs::CHECK_PAT_DEF, " @check=IrrefutablePatDef"),
+        (Attrs::CHECK_GEN_FROM, " @check=IrrefutableGenFrom"),
+        (Attrs::USING_APPLY, " @apply=Using"),
+        (Attrs::INFIX_TUPLE_APPLY, " @apply=InfixTuple"),
+    ];
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0
+    }
+
+    pub fn union(self, a: Attrs) -> Attrs {
+        Attrs(self.0 | a.0)
     }
 }
 
@@ -101,6 +141,14 @@ impl Ast {
 
     pub fn add_attrs(&mut self, id: NodeId, a: Attrs) {
         self.get_mut(id).attrs.0 |= a.0;
+    }
+
+    pub fn remove_attrs(&mut self, id: NodeId, a: Attrs) {
+        self.get_mut(id).attrs.0 &= !a.0;
+    }
+
+    pub fn attrs(&self, id: NodeId) -> Attrs {
+        self.get(id).attrs
     }
 
     pub fn list(&mut self, items: &[NodeId]) -> List {
