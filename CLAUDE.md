@@ -2,8 +2,10 @@
 
 Research project: a fast Scala 3 (3.9) interpreter for scripting, in Rust.
 Research lives in `docs/research/`, throwaway experiments in `spikes/`, the
-plan in `ROADMAP.md`. Priorities in order: robustness > scalability >
-conciseness > performance.
+plan in `ROADMAP.md`. The four goals, in order of precedence when they
+conflict: robustness > extensibility (the code can be extended easily) >
+conciseness > performance. All four matter; performance comes last in a
+conflict but is still a main goal.
 
 Rust style follows `/Users/nos/working/rc/rcui` (its `CLAUDE.md` is the
 reference); the rules below are the ones that carry over.
