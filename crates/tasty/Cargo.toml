@@ -1,0 +1,13 @@
+[package]
+name = "tasty"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+
+[dev-dependencies]
+zip.workspace = true
+
+[lints]
+workspace = true

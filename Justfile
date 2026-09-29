@@ -139,14 +139,17 @@ sn-report timeout="300": release
 release:
     cargo build -q --release -p scalai
 
-# Copy the Scala Native library jars from the Coursier cache into ref/libs.
+# Copy the library jars (Scala Native's, the Scala standard library) from the Coursier cache
+# into ref/libs.
 libs:
     mkdir -p ref/libs
-    for j in $(find ~/Library/Caches/Coursier/v1 ~/.cache/coursier/v1 -path '*org/scala-native/*' \
-        \( -name '*_native0.5_3-0.5.12.jar' -o -name 'scalalib_native0.5_3-3.9.0%2B0.5.12.jar' \) \
+    for j in $(find ~/Library/Caches/Coursier/v1 ~/.cache/coursier/v1 \
+        \( -path '*org/scala-native/*' \( -name '*_native0.5_3-0.5.12.jar' \
+        -o -name 'scalalib_native0.5_3-3.9.0%2B0.5.12.jar' \) -o -name 'scala-library-3.9.0.jar' \) \
         ! -name '*-sources.jar' 2>/dev/null); do cp "$j" ref/libs/; done
 
-# Download the library jars the VM loads from Maven Central into ref/libs.
+# Download the library jars (Scala Native's, the Scala standard library) from Maven Central
+# into ref/libs.
 fetch-libs:
     scripts/fetch-libs.sh
 

@@ -115,8 +115,8 @@ Recommendation: **B**, with A as a fallback if building javalib's TASTy proves i
 6. javalib's symbols (§3 B) and the overlay.
 7. Bodies on demand, for `inline`, when the typer needs them.
 
-## 7. Open decisions
+## 7. Decisions
 
-1. The JDK API source (§3): B recommended.
+1. The JDK API source (§3): B, javalib's TASTy (user decision, 2026-09-29).
 2. The Scala standard library jar comes from the Coursier cache like the Scala Native jars;
    `just fetch-libs` fetches it too.
