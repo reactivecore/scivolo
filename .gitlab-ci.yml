@@ -60,10 +60,17 @@ build-image:
   - ref/libs
   - tmp/cache
 
+.not_scheduled: &not_scheduled
+  if: $CI_PIPELINE_SOURCE == "schedule"
+  when: never
+
 test:linux:
   image: ${CI_IMAGE}
   stage: test
   interruptible: true
+  rules:
+    - *not_scheduled
+    - when: on_success
   needs:
     - job: build-image
       artifacts: true
@@ -86,6 +93,7 @@ test:linux:
   interruptible: false
   timeout: 4h
   rules:
+    - *not_scheduled
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
       when: manual
       allow_failure: true
@@ -118,6 +126,41 @@ suite:linux:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
+# The test programs' committed NIR and .check files against a rebuild: in a merge request that
+# touches them, and in scheduled pipelines.
+programs-stale:
+  stage: test
+  interruptible: true
+  image: ${SUITE_IMAGE}
+  needs:
+    - job: build-image
+      artifacts: true
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
+  cache:
+    - key: scalai-cargo-linux
+      paths: *cargo_cache_paths
+      policy: pull
+    - key:
+        prefix: scalai-target-linux
+        files: [Cargo.lock, ci/Dockerfile]
+      paths: [target]
+      policy: pull
+    - key: scalai-suite-linux
+      paths: [.cache/coursier]
+      policy: pull
+  artifacts:
+    when: on_failure
+    paths: [tmp/programs/*/out/]
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes: [tests/programs/**/*, scripts/programs.py, ci/Dockerfile, Justfile]
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  script:
+    - scala-cli version --cli-version
+    - just programs-stale
+
 # The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
 suite:macos:
   extends: .suite
@@ -139,6 +182,9 @@ test:macos:
   interruptible: true
   tags: [ "macos" ]
   needs: []
+  rules:
+    - *not_scheduled
+    - when: on_success
   cache:
     - key: scalai-cargo-macos
       paths: *cargo_cache_paths
