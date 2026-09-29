@@ -44,13 +44,13 @@ pub enum Mode {
 pub enum Owner {
     Package,
     Class { is_trait: bool, is_package_object: bool },
-    Term,
+    Term { is_constructor: bool },
 }
 
 impl Owner {
     /// Whether the owner is a class or a package (dotty's `isClass`).
     pub fn is_class(self) -> bool {
-        self != Owner::Term
+        !matches!(self, Owner::Term { .. })
     }
 }
 

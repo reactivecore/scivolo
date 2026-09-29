@@ -67,7 +67,7 @@ impl Desugar<'_> {
         match *self.ast.tree(id) {
             Tree::TypeDef { rhs, .. } if flag == flags::OPAQUE => self.opaque_rhs_ok(rhs),
             Tree::ValDef { mods, .. } if flag == flags::TRACKED => {
-                self.owner != Owner::Term
+                self.owner != Owner::Term { is_constructor: false }
                     || self.ast.modifiers(mods).is_one_of(flags::PARAM.or(flags::PARAM_ACCESSOR))
             }
             _ => false,

@@ -64,14 +64,8 @@ impl Desugar<'_> {
         let leading =
             ext_paramss.iter().take_while(|&&l| self.is_type_clause(l) || self.is_using_clause(l)).count();
         let (left_leading, left_rest) = ext_paramss.split_at(leading);
-        let names: Vec<_> = own
-            .iter()
-            .flat_map(|&l| self.ast.items(l).to_vec())
-            .filter_map(|p| match *self.ast.tree(p) {
-                Tree::ValDef { name, .. } | Tree::TypeDef { name, .. } => Some(name),
-                _ => None,
-            })
-            .collect();
+        let names: Vec<_> =
+            own.iter().flat_map(|&l| self.ast.items(l).to_vec()).filter_map(|p| self.def_name(p)).collect();
         for &l in left_rest {
             for t in self.ast.items(l).to_vec() {
                 for r in self.ast.subtrees(

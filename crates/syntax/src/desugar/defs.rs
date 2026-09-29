@@ -9,17 +9,22 @@ impl Desugar<'_> {
     /// The value, method, type, class or object definition `id` transformed.
     pub fn transform_def(&mut self, id: NodeId) -> NodeId {
         match *self.ast.tree(id) {
-            Tree::ValDef { name, tpt, rhs, mods } => self.in_owner(Owner::Term, |d| {
-                let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
-                let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
-                d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
-            }),
-            Tree::DefDef { name, paramss, tpt, rhs, mods } => self.in_owner(Owner::Term, |d| {
-                let paramss = d.transform_clauses(paramss);
-                let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
-                let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
-                d.ast.derived(id, Tree::DefDef { name, paramss, tpt, rhs, mods })
-            }),
+            Tree::ValDef { name, tpt, rhs, mods } => {
+                self.in_owner(Owner::Term { is_constructor: false }, |d| {
+                    let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
+                    let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
+                    d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
+                })
+            }
+            Tree::DefDef { name, paramss, tpt, rhs, mods } => {
+                let owner = Owner::Term { is_constructor: self.text(name) == "<init>" };
+                self.in_owner(owner, |d| {
+                    let paramss = d.transform_clauses(paramss);
+                    let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
+                    let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
+                    d.ast.derived(id, Tree::DefDef { name, paramss, tpt, rhs, mods })
+                })
+            }
             Tree::TypeDef { name, rhs, mods } => {
                 let rhs = if matches!(self.ast.tree(rhs), Tree::Template { .. }) {
                     let is_trait = self.ast.modifiers(mods).is(flags::TRAIT);

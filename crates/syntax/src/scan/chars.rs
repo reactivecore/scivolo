@@ -42,7 +42,20 @@ pub fn is_unicode_identifier_part(c: char) -> bool {
 
 /// Java's `Character.isJavaIdentifierPart`.
 pub fn is_java_identifier_part(c: char) -> bool {
-    is_identifier_part(c) || !c.is_ascii() && get_general_category(c) == G::CurrencySymbol
+    matches!(
+        get_general_category(c),
+        G::UppercaseLetter
+            | G::LowercaseLetter
+            | G::TitlecaseLetter
+            | G::ModifierLetter
+            | G::OtherLetter
+            | G::CurrencySymbol
+            | G::ConnectorPunctuation
+            | G::DecimalNumber
+            | G::LetterNumber
+            | G::SpacingMark
+            | G::NonspacingMark
+    ) || is_identifier_ignorable(c)
 }
 
 /// Java's `Character.isIdentifierIgnorable`.

@@ -3,6 +3,7 @@
 use super::Desugar;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
+use crate::ast::tree::Clauses;
 use crate::ast::{List, NodeId, Tree};
 
 impl Desugar<'_> {
@@ -92,7 +93,7 @@ impl Desugar<'_> {
 
     /// The parameter clauses of the getter of the default of value parameter `n`: the type
     /// parameters and the whole value clauses before it.
-    fn getter_paramss(&mut self, clauses: &[List], n: usize) -> crate::ast::tree::Clauses {
+    fn getter_paramss(&mut self, clauses: &[List], n: usize) -> Clauses {
         let no_rhs = self.paramss_no_rhs(clauses);
         let mut left = n;
         let mut taken = Vec::new();

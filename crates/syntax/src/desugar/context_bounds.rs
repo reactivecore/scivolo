@@ -5,6 +5,7 @@ use super::Desugar;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::{Attrs, List, NodeId, TName, Tree};
 use crate::config::{Features, SourceVersion};
+use crate::names::to_utf16;
 
 pub const WITNESS_NAMES: &str = "scala.annotation.internal.WitnessNames";
 
@@ -54,7 +55,7 @@ impl Desugar<'_> {
                     let span = self.ast.span(bound);
                     let (name, point) = match *self.ast.tree(bound) {
                         Tree::ContextBoundTypeTree { own_name, .. } if !self.text(own_name).is_empty() => {
-                            let units = crate::names::to_utf16(self.text(own_name)).len();
+                            let units = to_utf16(self.text(own_name)).len();
                             (own_name, self.source.retreat_utf16(span.end(), units))
                         }
                         _ => {

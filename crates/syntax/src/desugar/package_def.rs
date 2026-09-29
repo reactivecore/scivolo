@@ -4,6 +4,8 @@ use super::Desugar;
 use crate::ast::flags;
 use crate::ast::span::Span;
 use crate::ast::{NodeId, TName, Tree};
+use crate::names::to_utf16;
+use crate::scan::chars::is_java_identifier_part;
 
 impl Desugar<'_> {
     /// Package `pdef` with the definitions that cannot be top-level moved into the package
@@ -14,9 +16,8 @@ impl Desugar<'_> {
         let stats = self.ast.items(stats).to_vec();
         let wrapped_types: Vec<TName> = stats
             .iter()
-            .filter(|&&s| matches!(self.ast.tree(s), Tree::TypeDef { .. }) && self.is_top_level_def(s))
             .filter_map(|&s| match *self.ast.tree(s) {
-                Tree::TypeDef { name, .. } => Some(name),
+                Tree::TypeDef { name, .. } if self.is_top_level_def(s) => Some(name),
                 _ => None,
             })
             .collect();
@@ -76,15 +77,12 @@ impl Desugar<'_> {
     fn check_package_name(&mut self, pid: NodeId) {
         let (name, span, qual) = match *self.ast.tree(pid) {
             Tree::Ident { name } => (name, self.ast.span(pid), None),
-            Tree::Select { qualifier, name } => {
-                let span = self.ast.span(pid);
-                let name_span =
-                    if span.exists() { Span::new(span.point(), span.end(), span.point()) } else { span };
-                (name, name_span, Some(qualifier))
-            }
+            Tree::Select { qualifier, name } => (name, self.select_name_span(pid, name), Some(qualifier)),
             _ => return,
         };
-        let encoded = self.text(name).chars().any(|c| !crate::scan::chars::is_java_identifier_part(c));
+        let encoded = to_utf16(self.text(name))
+            .into_iter()
+            .any(|u| char::from_u32(u.into()).is_none_or(|c| !is_java_identifier_part(c)));
         if !span.is_synthetic() && encoded {
             let msg = format!(
                 "The package name `{}` will be encoded on the classpath, and can lead to undefined behaviour.",
@@ -95,5 +93,20 @@ impl Desugar<'_> {
         if let Some(q) = qual {
             self.check_package_name(q);
         }
+    }
+
+    /// The span of the name of selection `sel` (dotty's `Select.nameSpan`).
+    fn select_name_span(&self, sel: NodeId, name: TName) -> Span {
+        let span = self.ast.span(sel);
+        if !span.exists() {
+            return span;
+        }
+        let point_may_be_incorrect = span.point() == span.start() && span.end() - span.start() >= 4095;
+        let point = if point_may_be_incorrect {
+            self.source.retreat_utf16(span.end(), to_utf16(self.text(name)).len())
+        } else {
+            span.point()
+        };
+        Span::new(point, span.end(), point)
     }
 }
