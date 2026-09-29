@@ -1,0 +1,4 @@
+# Members the overlay adds to library classes: top-level name, then signature.
+java.lang.Runtime D11totalMemoryjEO
+java.lang.Runtime D9maxMemoryjEO
+java.lang.Runtime D10freeMemoryjEO

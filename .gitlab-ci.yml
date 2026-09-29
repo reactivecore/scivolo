@@ -126,9 +126,9 @@ suite:linux:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
     - just ci-suite
 
-# The test programs' committed NIR and .check files against a rebuild: in a merge request that
-# touches them, and in scheduled pipelines.
-programs-stale:
+# The committed NIR of the test programs (and their .check files) and of the library overlay
+# against a rebuild: in a merge request that touches them, and in scheduled pipelines.
+nir-stale:
   stage: test
   interruptible: true
   image: ${SUITE_IMAGE}
@@ -151,15 +151,16 @@ programs-stale:
       policy: pull
   artifacts:
     when: on_failure
-    paths: [tmp/programs/*/out/]
+    paths: [tmp/programs/*/out/, tmp/overlay/out/]
     expire_in: 1 week
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-      changes: [tests/programs/**/*, scripts/programs.py, ci/Dockerfile, Justfile]
+      changes: [tests/programs/**/*, overlay/**/*, scripts/programs.py, scripts/overlay.py, ci/Dockerfile, Justfile]
     - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - scala-cli version --cli-version
     - just programs-stale
+    - just overlay-stale
 
 # The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
 suite:macos:

@@ -74,7 +74,7 @@ and its C runtime built from `native/`.
 - **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
   what their Scala Native builds print.
 - **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 11,335 of Scala Native's unit tests pass, 4 fail, 21 skip. Per package and the known
+- **M3:** 11,336 of Scala Native's unit tests pass, 3 fail, 21 skip. Per package and the known
   gaps: [docs/conformance.md](docs/conformance.md).
 - **Threads:** Java threads run as green threads on coroutines, with monitors, parking,
   timers and blocking C calls on helper OS threads ([ADR 0003](docs/adr/0003-green-threads-first.md));
@@ -101,6 +101,7 @@ just check                      # every test program against its .check file, wi
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 just program-update NAME        # compile tests/programs/NAME with Scala Native (NIR + .check)
 just programs-stale             # programs whose committed NIR or .check a rebuild changes
+just overlay                    # compile the library overlay (javalib fixes in Scala, ADR 0009)
 just ci-suite                   # Scala Native's unit tests in the VM (CI: on main)
 just sn-run Name -Other         # selected Scala Native test classes
 ```

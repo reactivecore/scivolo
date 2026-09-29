@@ -10,13 +10,11 @@ collector's figures. Scripts written against the JDK expect its behaviour.
 
 ## Decision
 - Where the VM can give JDK behaviour cheaply and a script would notice the difference, it
-  overrides the javalib method (`crates/vm/src/natives/jdk.rs`):
+  overrides or adds the javalib method, in the library overlay (ADR 0009):
   - `Thread.getStackTrace` of the current thread lists its frames as the JDK does, starting
     with `Thread.getStackTrace` itself; other threads keep javalib's empty array.
   - `Runtime.totalMemory` and `maxMemory` report the collector's heap size and limit;
     `freeMemory` reports 0, as the collector does not report live bytes.
-- A VM native may define a method javalib lacks: virtual dispatch falls back to a native for
-  the receiver's exact class when the class has no definition.
 - A Scala Native test that asserts the stub then fails; it is listed as a known difference.
 
 ## Consequences

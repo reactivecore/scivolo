@@ -1,6 +1,7 @@
 //! Every definition loaded so far, found by global name; files load on first use.
 
 mod files;
+mod overlay;
 
 use crate::classpath::Classpath;
 use files::File;
@@ -24,6 +25,8 @@ pub struct World {
 pub enum LoadError {
     Missing(String),
     Corrupt(String, nir::Error),
+    /// An overlay member the library does not match.
+    Overlay(String),
 }
 
 impl std::fmt::Display for LoadError {
@@ -31,6 +34,7 @@ impl std::fmt::Display for LoadError {
         match self {
             LoadError::Missing(name) => write!(f, "no definition of {name} on the classpath"),
             LoadError::Corrupt(name, e) => write!(f, "{name}: {e}"),
+            LoadError::Overlay(what) => write!(f, "overlay: {what}"),
         }
     }
 }

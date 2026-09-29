@@ -51,6 +51,15 @@ programs-stale *names:
     cargo build -q --release -p nir-dump
     python3 scripts/programs.py stale {{ names }}
 
+# Compile the library overlay (overlay/src) with Scala Native into its committed NIR (overlay/nir).
+overlay:
+    python3 scripts/overlay.py build
+
+# Whether the committed overlay NIR differs from a rebuild.
+overlay-stale:
+    cargo build -q --release -p nir-dump
+    python3 scripts/overlay.py stale
+
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
 sn-build *dirs:
     scripts/sn-tests.sh {{ dirs }}

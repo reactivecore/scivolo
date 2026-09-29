@@ -30,8 +30,6 @@ struct Collector {
     watch_weak_refs: extern "C" fn(),
     set_threads: extern "C" fn(*const ThreadRoots, i32),
     switch_stack: extern "C" fn(usize, usize),
-    heap_size: extern "C" fn() -> usize,
-    max_heap_size: extern "C" fn() -> usize,
     /// The `int` the collector sets when it has cleared weak references.
     weak_refs_collected: usize,
 }
@@ -79,8 +77,6 @@ impl Heap {
                 watch_weak_refs: c_fn(find("scalai_GC_watch_weak_refs")?),
                 set_threads: c_fn(find("scalai_GC_set_threads")?),
                 switch_stack: c_fn(find("scalai_GC_switch_stack")?),
-                heap_size: c_fn(find("scalanative_GC_get_used_heapsize")?),
-                max_heap_size: c_fn(find("scalanative_GC_get_max_heapsize")?),
                 weak_refs_collected: find("scalai_weak_refs_collected")?,
             }
         };
@@ -88,11 +84,6 @@ impl Heap {
         let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scalai_GC_init")?) };
         init(stack.0, stack.1);
         Ok(Self { cur: 0, end: 0, allocated: 0, gc })
-    }
-
-    /// The collector's current and maximum heap size in bytes.
-    pub fn sizes(&self) -> (usize, usize) {
-        ((self.gc.heap_size)(), (self.gc.max_heap_size)())
     }
 
     pub fn set_ids(&self, ids: &GcIds) {

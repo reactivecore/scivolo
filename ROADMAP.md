@@ -43,7 +43,7 @@ Evidence for every number below is in `docs/research/` and `spikes/*/README.md`
 
 Progress (2026-09-25): workspace and `crates/nir` done; `crates/vm` interprets lowered NIR
 with Scala Native's C runtime built from `native/` (`crates/snrt`). **M1, M2 and M3 pass**:
-11,335 of Scala Native's unit tests pass, 4 fail, 21 skip ([docs/conformance.md](docs/conformance.md)).
+11,336 of Scala Native's unit tests pass, 3 fail, 21 skip ([docs/conformance.md](docs/conformance.md)).
 Memory is collected by Scala Native's Immix ([ADR 0004](docs/adr/0004-immix-garbage-collector.md), done).
 Stack traces come from the interpreter's frames, and Java threads run as green threads
 ([ADR 0003](docs/adr/0003-green-threads-first.md), done 2026-09-27).

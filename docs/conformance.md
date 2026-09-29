@@ -19,7 +19,7 @@ through the externs in `crates/vm/src/natives/junit.rs`, because Scala Native's 
 lookup needs metadata that its linker generates. Tests run from the root of `ref/scala-native`,
 where their resource files are.
 
-## Results (2026-09-28, macOS arm64 and Linux x86-64 in CI)
+## Results (2026-09-29, macOS arm64 and Linux x86-64 in CI)
 
 | Group | Passed | Failed | Skipped |
 |---|---:|---:|---:|
@@ -31,11 +31,11 @@ where their resource files are.
 | java.math | 780 | 0 | 0 |
 | java.nio | 2634 | 0 | 1 |
 | java.util | 2651 | 1 | 2 |
-| java.util.concurrent | 2933 | 1 | 6 |
+| java.util.concurrent | 2934 | 0 | 6 |
 | niobuffer | 546 | 0 | 0 |
 | posixlib | 61 | 0 | 1 |
 | runtime | 2 | 0 | 0 |
-| **total** | **11335** | **4** | **21** |
+| **total** | **11336** | **3** | **21** |
 
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
 read-only-file cases, because the CI container runs as root.
@@ -51,17 +51,13 @@ instead of the run.
 - **Stack traces of threads.** `Thread.getStackTrace` of the current thread lists its frames as
   on the JDK; `ThreadTest.currentThreadGetStackTrace` expects Scala Native's empty array
   (ADR 0008).
-- **javalib bug.** `LinkedTransferQueue.remove` reads `p.next` after `p` became null when the
-  queue does not hold the element (`LinkedTransferQueueTest$Generic.testRemoveElement`); Scala
-  Native's optimizer drops that unused load, the VM executes it. The VM works around two other
-  javalib bugs: `ForkJoinPool.helpAsyncBlocker` matching only worker threads (a no-op on other
-  threads) and `HashSet.containsAll`'s lambda compiled to `throw o`.
 - **Object layout.** `IntrinsicsTest.sizeOfClassTest` expects the lock word multithreaded Scala
   Native adds to object headers; the VM keeps monitors outside objects (ADR 0003).
 
 ## Upstream bugs to report
 
 Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`ref/scala-native`).
+The VM fixes javalib bugs in its library overlay (`overlay/src`, ADR 0009).
 
 1. **`LinkedTransferQueue.remove` reads `null.next`** (javalib,
    `java/util/concurrent/LinkedTransferQueue.scala:1214`).
@@ -69,18 +65,18 @@ Found through the VM, not yet reported. Locations are in Scala Native v0.5.12 (`
      after the `break` that set `p = q = null`.
    - Removing an element the queue does not hold throws `NullPointerException` unless the
      optimizer drops the unused load; `LinkedTransferQueueTest$Generic.testRemoveElement`.
-   - Fix: update `q` only when the loop continues. VM: not worked around.
+   - Fix: update `q` only when the loop continues. VM: fixed in the overlay.
 2. **`ForkJoinPool.helpAsyncBlocker` fails on other threads** (javalib,
    `java/util/concurrent/ForkJoinPool.scala:2063`).
    - `Thread.currentThread() match { case wt: ForkJoinWorkerThread => … }` has no default
      case: `MatchError` where the JDK does nothing.
    - Reached from `SubmissionPublisher` when a producer blocks outside the pool, which green
      threads make likely; 5 `SubmissionPublisherTest` cases.
-   - Fix: `case _ => ()`. VM: overridden (`natives/runtime.rs`).
+   - Fix: `case _ => ()`. VM: fixed in the overlay.
 3. **`HashSet.containsAll`'s lambda throws** (javalib, `java/util/HashSet.scala:31`).
    - `c.iterator().scalaOps.forall(contains)` on a `Collection[_]` eta-expands `contains` with a
      `Nothing` parameter; the published javalib's lambda body is `throw o`.
-   - Fix: `forall(e => contains(e))`. VM: the lambda is replaced (`natives/runtime.rs`).
+   - Fix: `forall(e => contains(e))`. VM: `containsAll` is replaced in the overlay.
 4. **A SAM lambda crashes natively** (dotty `tests/run/i24573.scala`, Scala Native or the
    compiler): the lambda class lacks the bridge `apply(Object, Object)`; the Scala Native binary
    segfaults, the VM throws `InternalError`. Needs a minimal reproduction first (#20).
