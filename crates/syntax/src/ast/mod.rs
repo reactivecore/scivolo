@@ -3,6 +3,7 @@
 
 pub mod children;
 pub mod constant;
+mod copy;
 pub mod flags;
 mod kinds;
 pub mod modifiers;
@@ -52,6 +53,8 @@ impl Attrs {
     pub const CHECK_PAT_DEF: Attrs = Attrs(1 << 14);
     /// A selector checked to match the pattern of a generator.
     pub const CHECK_GEN_FROM: Attrs = Attrs(1 << 15);
+    /// An evidence parameter made of a context bound.
+    pub const EVIDENCE: Attrs = Attrs(1 << 16);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

@@ -61,10 +61,12 @@ pub const ERASED: FlagSet = both(42);
 pub const OPAQUE: FlagSet = both(43);
 pub const INFIX: FlagSet = both(44);
 pub const TRACKED: FlagSet = both(46);
+pub const MACRO: FlagSet = both(58);
 
 pub const ACCESS_FLAGS: FlagSet = LOCAL.or(PRIVATE).or(PROTECTED);
 pub const GIVEN_OR_IMPLICIT: FlagSet = GIVEN.or(IMPLICIT);
 pub const PRIVATE_LOCAL: FlagSet = LOCAL.or(PRIVATE);
+pub const DEFERRED_GIVEN_FLAGS: FlagSet = DEFERRED.or(GIVEN).or(HAS_DEFAULT);
 pub const ENUM_CASE: FlagSet = CASE.or(ENUM);
 pub const LOCAL_PARAM_ACCESSOR: FlagSet = LOCAL.or(PARAM_ACCESSOR).or(PRIVATE);
 pub const SYNTHETIC_TERM_PARAM: FlagSet = SYNTHETIC.or(TERM_PARAM);

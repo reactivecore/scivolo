@@ -2,12 +2,18 @@
 //! a compilation unit (a port of `ast/Desugar.scala`).
 
 mod case_lambda;
+mod context_bounds;
+mod defaults;
 mod defs;
+mod evidence;
 mod exprs;
+mod ext_methods;
 mod for_expr;
 mod generators;
 mod given_name;
 mod map;
+mod members;
+mod package_def;
 mod pat_def;
 mod pat_split;
 mod stats;

@@ -138,8 +138,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    (`just syntax-report tokens`). The parser's trees and diagnostics match on
    5891 of them (`just syntax-report trees`); open: `-Wconf`, and a warning
    that quotes code through dotty's tree printer. `Desugar` is ported in steps
-   ([research 07](docs/research/07-desugar-port.md)); expressions, `for` and
-   pattern definitions match dotty on the same 5891 files
+   ([research 07](docs/research/07-desugar-port.md)); expressions, `for`,
+   pattern definitions and definitions other than classes and objects match
+   dotty on the same 5891 files
    (`just syntax-report desugar`).
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of

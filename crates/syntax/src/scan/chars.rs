@@ -40,6 +40,11 @@ pub fn is_unicode_identifier_part(c: char) -> bool {
         || is_identifier_ignorable(c)
 }
 
+/// Java's `Character.isJavaIdentifierPart`.
+pub fn is_java_identifier_part(c: char) -> bool {
+    is_identifier_part(c) || !c.is_ascii() && get_general_category(c) == G::CurrencySymbol
+}
+
 /// Java's `Character.isIdentifierIgnorable`.
 fn is_identifier_ignorable(c: char) -> bool {
     matches!(c, '\u{0}'..='\u{8}' | '\u{E}'..='\u{1B}' | '\u{7F}'..='\u{9F}')

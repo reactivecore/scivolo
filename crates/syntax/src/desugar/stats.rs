@@ -24,6 +24,21 @@ impl Desugar<'_> {
             Tree::PatDef { mods, .. } if !self.ast.modifiers(mods).flags.is_all_of(flags::ENUM_CASE) => {
                 self.pat_def(stat)
             }
+            Tree::ValDef { .. } => {
+                let stat = self.check_modifiers(stat);
+                self.val_def(stat)
+            }
+            Tree::DefDef { name, .. } if self.text(name) != "<init>" => {
+                let stat = self.check_modifiers(stat);
+                self.def_def(stat)
+            }
+            Tree::DefDef { .. } => self.check_modifiers(stat),
+            Tree::TypeDef { rhs, .. } if !matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
+                let stat = self.check_modifiers(stat);
+                self.type_def(stat)
+            }
+            Tree::PackageDef { .. } => self.package_def(stat),
+            Tree::ExtMethods { .. } => self.ext_methods(stat),
             _ => stat,
         }
     }

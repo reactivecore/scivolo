@@ -59,7 +59,7 @@ object Oracle:
       val tree =
         if mode == "trees" then parsed
         else
-          val ectx = uctx.fresh.setOwner(defn.EmptyPackageClass).setMode(Mode.None)
+          val ectx = uctx.fresh.setOwner(defn.EmptyPackageClass).setMode(Mode.None).setPhase(uctx.base.typerPhase)
           new Expander().unit(parsed)(using ectx)
       Sexp(bytes, b).tree(tree)(using uctx)
       b += '\n'
