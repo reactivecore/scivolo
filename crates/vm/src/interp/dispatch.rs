@@ -67,7 +67,11 @@ impl Vm {
         if let Some(&f) = self.classes.vtables.get(&(cls, sig)) {
             return Ok(f);
         }
-        let Some(target) = self.resolve(cls, sig)? else {
+        let target = match self.resolve(cls, sig)? {
+            Some(target) => Some(target),
+            None => self.bridge(cls, sig)?,
+        };
+        let Some(target) = target else {
             let what = format!("{}::{}", self.class_name(cls), self.world.pool.str(sig));
             return Err(VmError::Unsupported(format!("no method {what}")).into());
         };
