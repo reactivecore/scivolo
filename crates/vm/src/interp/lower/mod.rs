@@ -141,7 +141,7 @@ fn lower_body<'p>(
     instrs.push(Instr::Unreachable);
     origin.push(u32::MAX);
     let (instrs, origin) = compact::compact(instrs, origin);
-    let shortcut = super::shortcut::detect(&instrs, &params);
+    let shortcut = super::shortcut::detect(&instrs, &params, &l.lazy);
     let code = Code {
         shortcut,
         slots: 0,

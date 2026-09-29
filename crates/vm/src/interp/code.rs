@@ -2,14 +2,15 @@
 //! instruction indices, numeric types to `Num`, and one cache cell per call site that
 //! resolves something at run time.
 
-use nir::{Bin, Comp, Conv, Defn, GlobalId, StrId, TypeId, ValId};
+use nir::{Bin, Conv, Defn, GlobalId, StrId, TypeId, ValId};
 use std::cell::Cell;
 use std::rc::Rc;
 
 #[derive(Clone, Copy, Debug)]
 pub enum Arg {
     Slot(u32),
-    Imm(u64),
+    /// A constant that fits 32 bits, zero-extended; larger ones are `Lazy`, materialized already.
+    Imm(u32),
     /// A value the VM materializes on first use (strings, globals, class objects, constants).
     Lazy(u32),
 }
@@ -81,9 +82,15 @@ pub enum Instr {
         r: Arg,
         unwind: Handler,
     },
+    /// A `Bin` on `Int` or `Long` that cannot throw, with operands whose reading cannot fail.
+    Int {
+        op: super::ops::int::IntBin,
+        dst: u32,
+        l: Arg,
+        r: Arg,
+    },
     Comp {
-        comp: Comp,
-        num: Num,
+        test: super::ops::int::Test,
         dst: u32,
         l: Arg,
         r: Arg,
@@ -251,8 +258,7 @@ pub enum Instr {
     },
     /// A comparison whose only use is the branch on it.
     CompIf {
-        comp: Comp,
-        num: Num,
+        test: super::ops::int::Test,
         l: Arg,
         r: Arg,
         then: Target,

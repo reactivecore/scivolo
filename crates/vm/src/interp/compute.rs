@@ -3,25 +3,12 @@
 use super::Flow;
 use super::code::{Code, Instr, Num};
 use super::memory::{load_mem, store_mem};
-use super::ops::arith;
 use crate::Vm;
 use crate::VmError;
 
 impl Vm {
     pub fn compute(&mut self, code: &Code, slots: &mut [u64], instr: &Instr) -> Flow<()> {
         let (dst, v) = match *instr {
-            Instr::Bin { bin, num, dst, l, r, .. } => {
-                let (l, r) = (self.arg(code, slots, l)?, self.arg(code, slots, r)?);
-                (dst, self.bin(bin, num, l, r)?)
-            }
-            Instr::Comp { comp, num, dst, l, r } => {
-                let (l, r) = (self.arg(code, slots, l)?, self.arg(code, slots, r)?);
-                (dst, arith::comp(comp, num, l, r) as u64)
-            }
-            Instr::Conv { conv, from, to, dst, v } => {
-                (dst, arith::conv(conv, from, to, self.arg(code, slots, v)?))
-            }
-            Instr::Copy { dst, v } => (dst, self.arg(code, slots, v)?),
             Instr::Nop => return Ok(()),
             Instr::Call { dst, ty, target, ref args, .. } => {
                 let target = self.arg(code, slots, target)?;
@@ -151,7 +138,7 @@ impl Vm {
                 }
                 (dst, self.op(op, slots)?)
             }
-            _ => unreachable!("control instructions run in `run`"),
+            _ => unreachable!("control and arithmetic instructions run in `run`"),
         };
         slots[dst as usize] = v;
         Ok(())

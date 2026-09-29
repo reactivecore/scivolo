@@ -1,6 +1,7 @@
 use super::Lowerer;
 use crate::interp::code::{Arg, Instr, Mem};
 use crate::interp::ops::boxing::is_boxed_equals;
+use crate::interp::ops::int::{IntBin, Test};
 use crate::layout;
 use nir::{Next, Op, Type, TypeId, Val, ValId};
 
@@ -11,10 +12,19 @@ impl Lowerer<'_> {
         let unwind = self.handler(unwind);
         match op {
             Op::Bin { bin, ty, l, r } => {
-                Instr::Bin { bin: *bin, num: self.num_of(*ty), dst, l: self.arg(*l), r: self.arg(*r), unwind }
+                let (num, l, r) = (self.num_of(*ty), self.arg(*l), self.arg(*r));
+                let divisor = match r {
+                    Arg::Imm(v) => Some(v as u64),
+                    _ => None,
+                };
+                let eager = self.is_known(l) && self.is_known(r);
+                match IntBin::of(*bin, num, divisor).filter(|_| eager) {
+                    Some(op) => Instr::Int { op, dst, l, r },
+                    None => Instr::Bin { bin: *bin, num, dst, l, r, unwind },
+                }
             }
             Op::Comp { comp, ty, l, r } => {
-                Instr::Comp { comp: *comp, num: self.num_of(*ty), dst, l: self.arg(*l), r: self.arg(*r) }
+                Instr::Comp { test: Test::of(*comp, self.num_of(*ty)), dst, l: self.arg(*l), r: self.arg(*r) }
             }
             Op::Conv { conv, ty, value } => Instr::Conv {
                 conv: *conv,
@@ -93,9 +103,9 @@ impl Lowerer<'_> {
                 _ => Instr::Op { dst, op: Box::new(op.clone()), unwind },
             },
             Op::SizeOf(ty) if !matches!(self.pool.ty(*ty), Type::Ref { .. }) => {
-                Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty) as u64) }
+                Instr::Copy { dst, v: Arg::Imm(layout::size_of(self.pool, *ty)) }
             }
-            Op::AlignmentOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::align_of(self.pool, *ty) as u64) },
+            Op::AlignmentOf(ty) => Instr::Copy { dst, v: Arg::Imm(layout::align_of(self.pool, *ty)) },
             Op::Elem { ty, ptr, indexes } => match self.elem(dst, *ty, *ptr, indexes) {
                 Some(instr) => instr,
                 None => Instr::Op { dst, op: Box::new(op.clone()), unwind },

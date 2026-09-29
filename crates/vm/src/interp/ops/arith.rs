@@ -67,36 +67,39 @@ fn float_bin(bin: Bin, num: Num, l: u64, r: u64) -> u64 {
 impl Vm {
     #[inline]
     pub fn bin(&mut self, bin: Bin, num: Num, l: u64, r: u64) -> Flow {
-        if matches!(num, Num::F32 | Num::F64) {
-            return Ok(float_bin(bin, num, l, r));
+        match bin_total(bin, num, l, r) {
+            Some(v) => Ok(v),
+            None => self.throw_runtime("D19throwDivisionByZeronEO", &[]),
         }
-        let n = bits(num);
-        let (ul, ur) = (mask(l, n), mask(r, n));
-        let v = match bin {
-            Bin::Iadd => ul.wrapping_add(ur),
-            Bin::Isub => ul.wrapping_sub(ur),
-            Bin::Imul => ul.wrapping_mul(ur),
-            Bin::And => ul & ur,
-            Bin::Or => ul | ur,
-            Bin::Xor => ul ^ ur,
-            Bin::Shl => ul << (r & (n as u64 - 1).max(1)),
-            Bin::Lshr => ul >> (r & (n as u64 - 1).max(1)),
-            Bin::Ashr => (signed(l, n) >> (r & (n as u64 - 1).max(1))) as u64,
-            Bin::Sdiv | Bin::Srem | Bin::Udiv | Bin::Urem => {
-                if ur == 0 {
-                    self.throw_runtime("D19throwDivisionByZeronEO", &[])?;
-                }
-                match bin {
-                    Bin::Sdiv => signed_div(signed(l, n), signed(r, n), n, false),
-                    Bin::Srem => signed_div(signed(l, n), signed(r, n), n, true),
-                    Bin::Udiv => ul / ur,
-                    _ => ul % ur,
-                }
-            }
-            _ => float_bin(bin, num, l, r),
-        };
-        Ok(mask(v, n))
     }
+}
+
+/// `l bin r`, or `None` for an integer division by zero.
+#[inline(always)]
+pub fn bin_total(bin: Bin, num: Num, l: u64, r: u64) -> Option<u64> {
+    if matches!(num, Num::F32 | Num::F64) {
+        return Some(float_bin(bin, num, l, r));
+    }
+    let n = bits(num);
+    let (ul, ur) = (mask(l, n), mask(r, n));
+    let v = match bin {
+        Bin::Iadd => ul.wrapping_add(ur),
+        Bin::Isub => ul.wrapping_sub(ur),
+        Bin::Imul => ul.wrapping_mul(ur),
+        Bin::And => ul & ur,
+        Bin::Or => ul | ur,
+        Bin::Xor => ul ^ ur,
+        Bin::Shl => ul << (r & (n as u64 - 1).max(1)),
+        Bin::Lshr => ul >> (r & (n as u64 - 1).max(1)),
+        Bin::Ashr => (signed(l, n) >> (r & (n as u64 - 1).max(1))) as u64,
+        Bin::Sdiv | Bin::Srem | Bin::Udiv | Bin::Urem if ur == 0 => return None,
+        Bin::Sdiv => signed_div(signed(l, n), signed(r, n), n, false),
+        Bin::Srem => signed_div(signed(l, n), signed(r, n), n, true),
+        Bin::Udiv => ul / ur,
+        Bin::Urem => ul % ur,
+        _ => float_bin(bin, num, l, r),
+    };
+    Some(mask(v, n))
 }
 
 fn signed_div(a: i64, b: i64, bits: u32, rem: bool) -> u64 {
@@ -109,7 +112,7 @@ fn signed_div(a: i64, b: i64, bits: u32, rem: bool) -> u64 {
     }
 }
 
-#[inline]
+#[inline(always)]
 pub fn comp(comp: Comp, num: Num, l: u64, r: u64) -> bool {
     let n = bits(num);
     match comp {

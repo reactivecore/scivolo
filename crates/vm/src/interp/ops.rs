@@ -7,6 +7,7 @@ use nir::{Op, Type, TypeId, Val};
 
 pub mod arith;
 pub(super) mod boxing;
+pub mod int;
 
 impl Vm {
     pub fn op(&mut self, op: &Op, slots: &[u64]) -> Flow {

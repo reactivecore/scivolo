@@ -1,10 +1,9 @@
 use super::code::{Arg, Code, Instr, Target};
+use super::memory::{array_elem, load_mem};
+use super::ops::arith;
 use super::{Flow, Unwind};
 use crate::{Vm, VmError};
 use nir::Inst;
-
-/// Block parameters assigned at once, kept on the stack when there are few.
-const INLINE_ARGS: usize = 12;
 
 impl Vm {
     pub fn exec(&mut self, code: &Code, args: &[u64]) -> Flow {
@@ -41,28 +40,87 @@ impl Vm {
         }
     }
 
-    fn trace_throw(&self, code: &Code, pc: usize) {
-        if let Some(Inst::Let { op, .. }) = body(code).0.get(code.origin[pc] as usize) {
-            eprintln!("  thrown by {}", nir::show::op(&self.world.pool, op));
-        }
-    }
-
     pub fn run(&mut self, code: &Code, slots: &mut [u64]) -> Flow {
         let mut pc = 0;
+        let profile = self.funcs.profile.on;
         loop {
             let instr = &code.instrs[pc];
-            if self.funcs.profile.on {
+            if profile {
                 self.funcs.profile.instr(instr);
             }
             let next: &Target = match instr {
+                Instr::Int { op, dst, l, r } => {
+                    let (l, r) = (self.arg(code, slots, *l)?, self.arg(code, slots, *r)?);
+                    slots[*dst as usize] = op.apply(l, r);
+                    pc += 1;
+                    continue;
+                }
+                Instr::Bin { bin, num, dst, l, r, .. } => {
+                    match self.binary(code, slots, pc, (*bin, *num), *l, *r) {
+                        Ok(v) => {
+                            slots[*dst as usize] = v;
+                            pc += 1;
+                            continue;
+                        }
+                        Err(u) => self.unwind_to(code, slots, pc, instr, u)?,
+                    }
+                }
+                Instr::Comp { test, dst, l, r } => match self.pair(code, slots, *l, *r) {
+                    Ok((l, r)) => {
+                        slots[*dst as usize] = test.apply(l, r) as u64;
+                        pc += 1;
+                        continue;
+                    }
+                    Err(u) => self.unwind_to(code, slots, pc, instr, u)?,
+                },
+                Instr::Conv { conv, from, to, dst, v } => match self.arg(code, slots, *v) {
+                    Ok(v) => {
+                        slots[*dst as usize] = arith::conv(*conv, *from, *to, v);
+                        pc += 1;
+                        continue;
+                    }
+                    Err(u) => self.unwind_to(code, slots, pc, instr, u)?,
+                },
+                Instr::Copy { dst, v } => match self.arg(code, slots, *v) {
+                    Ok(v) => {
+                        slots[*dst as usize] = v;
+                        pc += 1;
+                        continue;
+                    }
+                    Err(u) => self.unwind_to(code, slots, pc, instr, u)?,
+                },
+                Instr::FieldLoad { dst, mem, obj: Arg::Slot(o), site, .. }
+                    if slots[*o as usize] != 0 && code.sites[*site as usize].get() != 0 =>
+                {
+                    let at = slots[*o as usize] as usize + code.sites[*site as usize].get() as usize - 1;
+                    slots[*dst as usize] = load_mem(at, *mem);
+                    pc += 1;
+                    continue;
+                }
+                Instr::ArrayLoad { dst, mem, arr: Arg::Slot(a), idx: Arg::Slot(i), .. } => {
+                    match array_elem(slots[*a as usize], slots[*i as usize], mem.size()) {
+                        Some(at) => {
+                            slots[*dst as usize] = load_mem(at, *mem);
+                            pc += 1;
+                            continue;
+                        }
+                        None => match self.compute_at(code, slots, pc, instr)? {
+                            Some(t) => t,
+                            None => {
+                                pc += 1;
+                                continue;
+                            }
+                        },
+                    }
+                }
                 Instr::Jump(t) => t,
                 Instr::If { cond, then, other } => match self.arg(code, slots, *cond)? & 1 {
                     1 => then,
                     _ => other,
                 },
-                Instr::CompIf { comp, num, l, r, then, other } => {
+                Instr::CompIf { test, l, r, then, other } => {
                     let (l, r) = (self.arg(code, slots, *l)?, self.arg(code, slots, *r)?);
-                    match super::ops::arith::comp(*comp, *num, l, r) {
+                    match test.apply(l, r) {
                         true => then,
                         false => other,
                     }
@@ -108,72 +166,19 @@ impl Vm {
                     }
                 }
                 Instr::Unreachable => return Err(VmError::Unsupported("reached unreachable".into()).into()),
-                _ => {
-                    self.frames.set_pc(pc);
-                    match self.compute(code, slots, instr) {
-                        Ok(()) => {
-                            pc += 1;
-                            continue;
-                        }
-                        Err(u) => {
-                            let u = self.as_linkage_error(u);
-                            if self.funcs.trace && u.thrown().is_some() {
-                                self.trace_throw(code, pc);
-                            }
-                            let (Some(exc), Some(h)) = (u.thrown(), instr.unwind()) else { return Err(u) };
-                            slots[h.0 as usize] = exc as u64;
-                            &h.1
-                        }
+                _ => match self.compute_at(code, slots, pc, instr)? {
+                    Some(t) => t,
+                    None => {
+                        pc += 1;
+                        continue;
                     }
-                }
+                },
             };
             let target = self.jump(code, slots, next)?;
             if target <= pc {
                 self.tick();
             }
             pc = target;
-        }
-    }
-
-    /// Assigns the target block's parameters and returns its first instruction.
-    fn jump(&mut self, code: &Code, slots: &mut [u64], t: &Target) -> Flow<usize> {
-        match &*t.moves {
-            [] => {}
-            [(p, a)] => slots[*p as usize] = self.arg(code, slots, *a)?,
-            moves => {
-                let mut values = [0u64; INLINE_ARGS];
-                let mut spill = Vec::new();
-                for (i, (_, a)) in moves.iter().enumerate() {
-                    let v = self.arg(code, slots, *a)?;
-                    match i < INLINE_ARGS {
-                        true => values[i] = v,
-                        false => spill.push(v),
-                    }
-                }
-                for (i, (p, _)) in moves.iter().enumerate() {
-                    slots[*p as usize] = if i < INLINE_ARGS { values[i] } else { spill[i - INLINE_ARGS] };
-                }
-            }
-        }
-        Ok(t.pc as usize)
-    }
-
-    #[inline]
-    pub fn arg(&mut self, code: &Code, slots: &[u64], a: Arg) -> Flow {
-        match a {
-            Arg::Slot(i) => Ok(slots[i as usize]),
-            Arg::Imm(v) => Ok(v),
-            Arg::Lazy(i) => {
-                let (val, cell) = &code.lazy[i as usize];
-                match cell.get() {
-                    0 => {
-                        let v = self.val(*val, &[])?;
-                        cell.set(v);
-                        Ok(v)
-                    }
-                    v => Ok(v),
-                }
-            }
         }
     }
 }
