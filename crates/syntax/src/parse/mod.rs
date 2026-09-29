@@ -18,6 +18,7 @@ mod location;
 mod lookahead;
 mod migration;
 mod modifiers;
+mod new_trees;
 mod newlines;
 mod pattern;
 mod precedence;
@@ -67,6 +68,9 @@ pub struct Parser<'a> {
     new_syntax: bool,
     /// The nesting depth of `nested` calls.
     depth: u32,
+    /// Whether the parser gave up on the source after nesting too deep.
+    gave_up: bool,
+    xml: xml::XmlState,
 }
 
 impl<'a> Parser<'a> {
@@ -74,6 +78,8 @@ impl<'a> Parser<'a> {
         Parser {
             new_syntax: cfg.new_syntax || cfg.source_version.requires_new_syntax(),
             depth: 0,
+            gave_up: false,
+            xml: xml::XmlState::default(),
             s: Scanner::new(source, names, cfg),
             ast: Ast::for_source(source.text.len()),
             last_error_offset: None,

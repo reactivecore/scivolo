@@ -70,7 +70,7 @@ fn trees(source: &SourceFile, options: &[&str], b: &mut String) {
 fn diagnostics(diags: &Diagnostics, b: &mut String) {
     for d in diags.unique() {
         let level = if d.level == Level::Error { "E" } else { "W" };
-        let message: Vec<u16> = d.message.encode_utf16().collect();
+        let message = syntax::names::to_utf16(&d.message);
         writeln!(b, "== {level} {} {}", d.pos(), quote(&message)).unwrap();
     }
 }

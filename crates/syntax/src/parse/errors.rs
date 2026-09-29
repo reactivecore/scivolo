@@ -21,8 +21,11 @@ impl Parser<'_> {
         self.last_error_offset = Some(self.offset());
     }
 
-    /// Report an error at `span` unconditionally.
+    /// Report an error at `span`, unless the parser gave up on the source.
     pub fn syntax_error_span(&mut self, msg: impl Into<String>, span: Span) {
+        if self.gave_up {
+            return;
+        }
         if span.exists() {
             self.s.diags.error_at(span.start(), span.end(), span.point(), msg);
         } else {
@@ -35,7 +38,7 @@ impl Parser<'_> {
     }
 
     pub fn incomplete_input_error(&mut self, msg: impl Into<String>) {
-        if Some(self.offset()) != self.last_error_offset {
+        if !self.gave_up && Some(self.offset()) != self.last_error_offset {
             let o = self.offset();
             self.s.diags.error(o, msg);
         }

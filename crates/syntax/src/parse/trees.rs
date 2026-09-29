@@ -114,13 +114,6 @@ impl Parser<'_> {
         self.ast.node(Tree::Apply { fun: t, args })
     }
 
-    /// `Select(New(tpt), <init>)` (dotty's `wrapNew`).
-    pub fn wrap_new(&mut self, tpt: NodeId) -> NodeId {
-        let new = self.ast.node(Tree::New { tpt });
-        let init = self.term("<init>");
-        self.ast.node(Tree::Select { qualifier: new, name: init })
-    }
-
     /// The primary constructor `def <init>[tparams](vparamss)` (dotty's `makeConstructor`).
     pub fn make_constructor(&mut self, clauses: &[crate::ast::List], rhs: Option<NodeId>) -> NodeId {
         let name = self.term("<init>");

@@ -1,35 +1,12 @@
 //! The trees capture checking adds: `@retains` annotations, capability markers, `CapSet`.
 
-use crate::ast::{Attrs, NodeId, TName, Tree};
+use crate::ast::{Attrs, NodeId, Tree};
 use crate::parse::Parser;
 
 impl Parser<'_> {
-    /// `_root_.scala.<terms>.<last>`.
-    fn scala_path(&mut self, terms: &[&str], last: TName) -> NodeId {
-        let (first, rest) = terms.split_first().expect("a package");
-        let first = self.term(first);
-        let mut t = self.scala_dot(first);
-        for name in rest {
-            let name = self.term(name);
-            t = self.ast.node(Tree::Select { qualifier: t, name });
-        }
-        self.ast.node(Tree::Select { qualifier: t, name: last })
-    }
-
-    /// `new tpt()`, with `tpt`'s type arguments on the constructor (dotty's `New(tpt, Nil :: Nil)`).
+    /// `new tpt()`.
     fn new_annot(&mut self, tpt: NodeId) -> NodeId {
-        let (tycon, targs) = match *self.ast.tree(tpt) {
-            Tree::AppliedTypeTree { tpt, args } => (tpt, Some(args)),
-            _ => (tpt, None),
-        };
-        let new = self.ast.node(Tree::New { tpt: tycon });
-        let init = self.term("<init>");
-        let mut fun = self.ast.node(Tree::Select { qualifier: new, name: init });
-        if let Some(args) = targs {
-            fun = self.ast.node(Tree::TypeApply { fun, args });
-        }
-        let args = self.ast.list(&[]);
-        self.ast.node(Tree::Apply { fun, args })
+        self.make_new(tpt, &[])
     }
 
     /// `new scala.annotation.internal.<name>()`.

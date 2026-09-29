@@ -16,8 +16,9 @@ mod region;
 mod skip;
 mod string;
 mod token_data;
+mod xml;
 
-pub use chars::{is_identifier_part, is_identifier_start, is_operator_part};
+pub use chars::{is_identifier_part, is_identifier_start, is_operator_part, is_xml_name_start};
 pub use indent::IndentWidth;
 pub use region::{RegionId, RegionKind, Regions};
 pub use token_data::TokenData;

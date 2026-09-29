@@ -6,6 +6,17 @@ use crate::token::Token;
 use crate::token::sets::CLOSING_PARENS;
 
 impl Scanner<'_> {
+    /// Move to the end of the source without reading what lies before it: the current token
+    /// becomes `Eof`.
+    pub fn skip_to_end(&mut self) {
+        let end = self.source.len();
+        self.reader = super::reader::Reader::new(&self.source.text, end);
+        self.reader.next_char();
+        self.next.token = Token::Empty;
+        self.cur =
+            super::TokenData { token: Token::Eof, offset: end, last_offset: end, ..super::TokenData::EMPTY };
+    }
+
     pub fn drop_until(&mut self, matches: impl Fn(&RegionKind) -> bool) {
         while !matches(&self.regions.get(self.region).kind) && !self.regions.is_outermost(self.region) {
             self.region = self.regions.enclosing(self.region);

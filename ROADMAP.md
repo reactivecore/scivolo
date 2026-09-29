@@ -136,8 +136,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    ([research 06](docs/research/06-parser-port.md)). The scanner is done
    (`crates/syntax`, 2026-09-28): its tokens match dotty's on all 5893 files
    (`just syntax-report tokens`). The parser's trees and diagnostics match on
-   5890 of them (`just syntax-report trees`); open: XML literals, `-Wconf`,
-   and a warning that quotes code through dotty's tree printer.
+   5891 of them (`just syntax-report trees`); open: `-Wconf`, and a warning
+   that quotes code through dotty's tree printer.
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy.
