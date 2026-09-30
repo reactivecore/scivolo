@@ -11,7 +11,7 @@ use crate::names::{Names, to_utf16};
 use std::fmt::Write;
 
 /// The attributes the printer shows, in its order.
-const PRINTED: [(Attrs, &str); 16] = [
+const PRINTED: [(Attrs, &str); 18] = [
     (Attrs::BACKQUOTED, " @backquoted"),
     (Attrs::CAPTURE_VAR, " @capturevar"),
     (Attrs::RETAINS_ANNOT, " @retains"),
@@ -24,6 +24,8 @@ const PRINTED: [(Attrs, &str); 16] = [
     (Attrs::MULTI_LINE_INFIX, " @multiline"),
     (Attrs::WAS_TYPED_INFIX, " @infix"),
     (Attrs::DERIVING_COMPANION, " @deriving"),
+    (Attrs::ENUM_LOOKUPS, " @enumlookups"),
+    (Attrs::SINGLETON_MIRROR, " @singletonmirror"),
     (Attrs::CHECK_PAT_DEF, " @check=IrrefutablePatDef"),
     (Attrs::CHECK_GEN_FROM, " @check=IrrefutableGenFrom"),
     (Attrs::USING_APPLY, " @apply=Using"),

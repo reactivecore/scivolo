@@ -137,10 +137,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    (`crates/syntax`, 2026-09-28): its tokens match dotty's on all 5893 files
    (`just syntax-report tokens`). The parser's trees and diagnostics match on
    5891 of them (`just syntax-report trees`); open: `-Wconf`, and a warning
-   that quotes code through dotty's tree printer. `Desugar` is ported in steps
-   ([research 07](docs/research/07-desugar-port.md)); everything but enums
-   matches dotty on the same 5891 files
-   (`just syntax-report desugar`).
+   that quotes code through dotty's tree printer. The desugaring before
+   typing (`Desugar`, `DesugarEnums`, [research 07](docs/research/07-desugar-port.md))
+   matches dotty on the same 5891 files (`just syntax-report desugar`); the
+   parts that need types wait for the typer.
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy.

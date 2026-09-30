@@ -94,6 +94,11 @@ impl Desugar<'_> {
                 handler: self.transform_opt(handler),
                 finalizer: self.transform_opt(finalizer),
             },
+            Try { expr, cases, finalizer } => Try {
+                expr: self.transform(expr),
+                cases: self.transform_list(cases),
+                finalizer: self.transform_opt(finalizer),
+            },
             InterpolatedString { id: name, segments } => {
                 let items = self.ast.items(segments).to_vec();
                 let mapped: Vec<NodeId> = items.iter().map(|&t| self.transform(t)).collect();

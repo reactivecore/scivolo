@@ -4,15 +4,20 @@
 mod build;
 mod case_class;
 mod case_lambda;
+mod class_companions;
 mod class_def;
 mod class_params;
 mod class_parts;
+mod class_syms;
 mod companions;
 mod constructors;
 mod context_bounds;
 mod creator;
 mod defaults;
 mod defs;
+mod enum_cases;
+mod enum_lookups;
+mod enums;
 mod evidence;
 mod exprs;
 mod ext_methods;
@@ -36,6 +41,8 @@ use crate::config::Config;
 use crate::diag::Diagnostics;
 use crate::names::{FreshNames, Names};
 use crate::source::SourceFile;
+use class_syms::{ClassSym, Scope};
+use rustc_hash::FxHashMap;
 
 /// What the trees being desugared are (dotty's `Mode`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -70,6 +77,10 @@ pub struct Desugar<'a> {
     cfg: Config,
     mode: Mode,
     owner: Owner,
+    classes: Vec<ClassSym>,
+    /// The class of each class definition met.
+    class_ids: FxHashMap<NodeId, usize>,
+    scope: Scope,
 }
 
 impl<'a> Desugar<'a> {
@@ -81,7 +92,19 @@ impl<'a> Desugar<'a> {
         source: &'a SourceFile,
         cfg: Config,
     ) -> Self {
-        Desugar { ast, names, diags, fresh, source, cfg, mode: Mode::Expr, owner: Owner::Package }
+        Desugar {
+            ast,
+            names,
+            diags,
+            fresh,
+            source,
+            cfg,
+            mode: Mode::Expr,
+            owner: Owner::Package,
+            classes: Vec::new(),
+            class_ids: FxHashMap::default(),
+            scope: Scope::default(),
+        }
     }
 
     /// The desugared compilation unit `root`.

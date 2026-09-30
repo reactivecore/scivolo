@@ -22,12 +22,16 @@ pub struct ClassParts {
     pub constr: NodeId,
     pub default_getters: Vec<NodeId>,
     pub original_tparams: Vec<NodeId>,
+    /// The type parameters of an enum case taken over from its enum, then the original ones.
+    pub implied_tparams: Vec<NodeId>,
     pub original_vparamss: Vec<Vec<NodeId>>,
     pub constr_tparams: Vec<NodeId>,
     pub constr_vparamss: Vec<Vec<NodeId>>,
     pub derived_tparams: Vec<NodeId>,
     pub derived_vparamss: Vec<Vec<NodeId>>,
     pub body: Vec<NodeId>,
+    /// The cases of an enum class, moved to its companion.
+    pub enum_cases: Vec<NodeId>,
     pub class_tycon: NodeId,
     pub class_type_ref: NodeId,
     pub creator: Option<NodeId>,
@@ -76,6 +80,12 @@ impl Desugar<'_> {
         };
         let original_vparamss: Vec<Vec<NodeId>> =
             original_vparamss.iter().map(|&l| self.ast.items(l).to_vec()).collect();
+        let enum_tparams = if mods.flags.is_all_of(flags::ENUM_CASE) {
+            self.enum_case_tparams(&original_tparams, &original_vparamss, &parents)
+        } else {
+            Vec::new()
+        };
+        let implied_tparams = [&enum_tparams[..], &original_tparams].concat();
         if mods.is(flags::TRAIT) {
             for &vparam in original_vparamss.iter().flatten() {
                 if let Tree::ValDef { tpt, .. } = *self.ast.tree(vparam)
@@ -86,7 +96,7 @@ impl Desugar<'_> {
             }
         }
         let constr_tparams: Vec<NodeId> =
-            original_tparams.iter().map(|&t| self.meth_type_param(t, Keep::WitnessOnly)).collect();
+            implied_tparams.iter().map(|&t| self.meth_type_param(t, Keep::WitnessOnly)).collect();
         let is_case_class = mods.is(flags::CASE) && !mods.is(flags::MODULE);
         let implicit_first = original_vparamss.first().is_some_and(|ps| {
             ps.iter().any(|&p| {
@@ -112,7 +122,7 @@ impl Desugar<'_> {
         };
         let derived_tparams: Vec<NodeId> = constr_tparams
             .iter()
-            .zip(&original_tparams)
+            .zip(&implied_tparams)
             .map(|(&t, &implied)| {
                 let d = self.derived_type_param(t);
                 let annots =
@@ -137,6 +147,10 @@ impl Desugar<'_> {
         let constr_mods = self.ast.modifiers(self.ast.mods_of(constr1).expect("modifiers")).clone();
         let constr_mods = self.add_impl_use(constr_mods, &uses, true);
         let constr = self.ast.with_mods(constr, constr_mods);
+        if !enum_tparams.is_empty() {
+            default_getters =
+                default_getters.iter().map(|&g| self.with_enum_tparams(g, &enum_tparams)).collect();
+        }
         let mut body = Vec::new();
         for stat in self.ast.items(stats).to_vec() {
             body.push(match *self.ast.tree(stat) {
@@ -150,7 +164,10 @@ impl Desugar<'_> {
                 _ => stat,
             });
         }
-        let class_tycon = self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::TypeRef, watched: name });
+        let is_enum = mods.is(flags::ENUM) && !mods.is(flags::CASE) && !mods.is(flags::MODULE);
+        let (body, enum_cases) = if is_enum { self.enum_body(cdef, name, &body) } else { (body, Vec::new()) };
+        let class_tycon =
+            self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::TypeRef, watched: Some(name) });
         let class_type_ref = self.applied_ref(cdef, &constr_tparams, class_tycon);
         ClassParts {
             cdef,
@@ -164,12 +181,14 @@ impl Desugar<'_> {
             constr,
             default_getters,
             original_tparams,
+            implied_tparams,
             original_vparamss,
             constr_tparams,
             constr_vparamss,
             derived_tparams,
             derived_vparamss,
             body,
+            enum_cases,
             class_tycon,
             class_type_ref,
             creator: None,

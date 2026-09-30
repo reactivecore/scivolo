@@ -48,7 +48,9 @@ impl Desugar<'_> {
             Tree::New { tpt } => {
                 let tpt = if matches!(self.ast.tree(tpt), Tree::Template { .. }) {
                     let owner = Owner::Class { is_trait: false, is_package_object: false };
-                    self.in_owner(owner, |d| d.transform_template(tpt))
+                    let full_name = self.child_full_name("$anon");
+                    let class = self.new_class(full_name, Vec::new(), false, None);
+                    self.in_class(class, owner, |d| d.transform_template(tpt))
                 } else {
                     self.in_mode(Mode::Type, |d| d.transform(tpt))
                 };

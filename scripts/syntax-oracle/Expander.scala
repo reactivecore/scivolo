@@ -12,12 +12,6 @@ import dotty.tools.dotc.core.StdNames.{nme, tpnme}
 import dotty.tools.dotc.core.Symbols.*
 import dotty.tools.dotc.core.Types.*
 
-/** How much of the desugaring `Expander` replays: expressions and pattern definitions; then
- *  other definitions; then classes, objects and companions; then enums.
- */
-enum Stage:
-  case Exprs, Defs, Classes, All
-
 /** Replays dotty's pre-typing desugaring over a parsed compilation unit:
  *   - statement lists are expanded as `Namer.index(stats)` does (`desugar.defTree`, `packageDef`,
  *     `extMethods`, then the merge of synthetic and explicit companions), under an owner that is a
@@ -29,7 +23,7 @@ enum Stage:
  *     tuples, `desugar.block`, with `Mode.Type`/`Mode.Pattern` tracked like the typer does.
  *  Left alone (they need expected types): lambdas, `{ case ... }` blocks, named tuples, assignments.
  */
-class Expander(stage: Stage = Stage.Classes) extends untpd.UntypedTreeMap:
+class Expander extends untpd.UntypedTreeMap:
   import untpd.*
 
   private val classSyms = new java.util.IdentityHashMap[TypeDef, ClassSymbol]
@@ -127,25 +121,15 @@ class Expander(stage: Stage = Stage.Classes) extends untpd.UntypedTreeMap:
     cpy.Template(impl)(transformSub(impl.constr), impl.parents.mapConserve(parent),
       transform(impl.derived)(using typeCtx), self, transformStats(impl.body, NoSymbol))
 
-  /** Whether `Namer.index` expands `stat` at the current stage. */
-  private def expands(stat: Tree)(using Context): Boolean = stat match
-    case t: PatDef => !t.mods.isEnumCase || stage == Stage.All
-    case t: TypeDef if t.isClassDef =>
-      if t.mods.is(Enum) then stage == Stage.All else stage.ordinal >= Stage.Classes.ordinal
-    case t: ModuleDef => if t.mods.isEnumCase then stage == Stage.All else stage.ordinal >= Stage.Classes.ordinal
-    case _: DefTree | _: PackageDef | _: ExtMethods => stage.ordinal >= Stage.Defs.ordinal
-    case _ => false
-
   /** `Namer.index(stats)`: expand, merge companions, create class symbols, recurse into the expansions. */
   override def transformStats(stats: List[Tree], exprOwner: Symbol)(using Context): List[Tree] =
     val expanded = stats.map {
-      case t if !expands(t) => t
       case t: DefTree => desugar.defTree(t)
       case t: PackageDef => desugar.packageDef(t)
       case t: ExtMethods => desugar.extMethods(t)
       case t => t
     }
-    val flat = Trees.flatten(if stage.ordinal >= Stage.Classes.ordinal then mergeCompanions(expanded) else expanded)
+    val flat = Trees.flatten(mergeCompanions(expanded))
     val classes = flat.collect { case td: TypeDef if td.isClassDef => td }
     val byName = classes.groupBy(_.name)
     for td <- classes do classSym(td)

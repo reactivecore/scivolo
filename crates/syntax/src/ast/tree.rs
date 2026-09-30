@@ -398,10 +398,17 @@ pub enum Tree {
     TypedSplice {
         sym: TName,
     },
-    /// A type the typer derives from the definition named `watched` (dotty's `DerivedTypeTree`).
+    /// A type the typer derives from the definition named `watched`, or from a symbol without
+    /// one (dotty's `DerivedTypeTree`).
     DerivedTypeTree {
         kind: DerivedKind,
-        watched: TName,
+        watched: Option<TName>,
+    },
+    /// A `try` desugaring makes, with cases instead of a handler.
+    Try {
+        expr: NodeId,
+        cases: List,
+        finalizer: Option<NodeId>,
     },
     /// `EmptyTree` where a list or result holds it; never positioned.
     Empty,
@@ -416,6 +423,8 @@ pub enum DerivedKind {
     FromParam,
     /// A reference to the class of a class definition.
     TypeRef,
+    /// A reference to the value of an object.
+    TermRef,
 }
 
 impl DerivedKind {
@@ -425,6 +434,7 @@ impl DerivedKind {
             DerivedKind::SetterParam => "SetterParamTree",
             DerivedKind::FromParam => "DerivedFromParamTree",
             DerivedKind::TypeRef => "TypeRefTree",
+            DerivedKind::TermRef => "TermRefTree",
         }
     }
 }

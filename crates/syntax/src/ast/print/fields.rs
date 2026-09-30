@@ -81,10 +81,15 @@ impl Printer<'_> {
                 self.list(*body);
             }
             SymbolLit { value } => write!(self.out, " {}", quote(value)).unwrap(),
-            TypedSplice { sym } => self.name(*sym),
+            TypedSplice { sym } => {
+                let kind = if sym.is_type { "T" } else { "t" };
+                write!(self.out, " {kind}:{}", self.names.text(sym.name)).unwrap();
+            }
             DerivedTypeTree { watched, .. } => {
-                self.out.push_str(" ~");
-                self.bare_name(*watched);
+                if let Some(watched) = watched {
+                    self.out.push_str(" ~");
+                    self.bare_name(*watched);
+                }
             }
             InterpolatedString { id, segments } => {
                 self.name(*id);

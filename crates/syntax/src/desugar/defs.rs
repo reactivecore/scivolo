@@ -9,16 +9,14 @@ impl Desugar<'_> {
     /// The value, method, type, class or object definition `id` transformed.
     pub fn transform_def(&mut self, id: NodeId) -> NodeId {
         match *self.ast.tree(id) {
-            Tree::ValDef { name, tpt, rhs, mods } => {
-                self.in_owner(Owner::Term { is_constructor: false }, |d| {
-                    let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
-                    let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
-                    d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
-                })
-            }
+            Tree::ValDef { name, tpt, rhs, mods } => self.in_term(false, |d| {
+                let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
+                let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
+                d.ast.derived(id, Tree::ValDef { name, tpt, rhs, mods })
+            }),
             Tree::DefDef { name, paramss, tpt, rhs, mods } => {
-                let owner = Owner::Term { is_constructor: self.text(name) == "<init>" };
-                self.in_owner(owner, |d| {
+                let is_constructor = self.text(name) == "<init>";
+                self.in_term(is_constructor, |d| {
                     let paramss = d.transform_clauses(paramss);
                     let tpt = d.in_mode(Mode::Type, |d| d.transform(tpt));
                     let rhs = d.in_mode(Mode::Expr, |d| d.transform_opt(rhs));
@@ -34,7 +32,8 @@ impl Desugar<'_> {
                         && self.owner == Owner::Package
                         && (text == "package$" || text.ends_with("$package$"));
                     let owner = Owner::Class { is_trait, is_package_object };
-                    self.in_owner(owner, |d| d.transform_template(rhs))
+                    let class = self.class_sym(id);
+                    self.in_class(class, owner, |d| d.transform_template(rhs))
                 } else {
                     self.in_mode(Mode::Type, |d| d.transform(rhs))
                 };
@@ -44,7 +43,11 @@ impl Desugar<'_> {
                 let is_package_object = self.owner == Owner::Package
                     && (self.ast.modifiers(mods).is(flags::PACKAGE) || self.text(name).ends_with("$package"));
                 let owner = Owner::Class { is_trait: false, is_package_object };
-                let imp = self.in_owner(owner, |d| d.transform_template(imp));
+                let module_class =
+                    if self.ast.modifiers(mods).is(flags::PACKAGE) { "package" } else { self.text(name) };
+                let full_name = self.child_full_name(&format!("{module_class}$"));
+                let class = self.new_class(full_name, Vec::new(), true, None);
+                let imp = self.in_class(class, owner, |d| d.transform_template(imp));
                 self.ast.derived(id, Tree::ModuleDef { name, imp, mods })
             }
             _ => unreachable!("a definition"),

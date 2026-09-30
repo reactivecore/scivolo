@@ -61,7 +61,8 @@ impl Desugar<'_> {
     /// `tdef` with a type derived from it as its rhs (dotty's `derivedTypeParam`).
     pub fn derived_type_param(&mut self, tdef: NodeId) -> NodeId {
         let Tree::TypeDef { name, rhs, mods } = *self.ast.tree(tdef) else { return tdef };
-        let derived = self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::FromParam, watched: name });
+        let derived =
+            self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::FromParam, watched: Some(name) });
         let derived = self.ast.respan(derived, self.ast.span(rhs));
         self.ast.derived(tdef, Tree::TypeDef { name, rhs: derived, mods })
     }
@@ -69,7 +70,8 @@ impl Desugar<'_> {
     /// `vdef` with a type derived from it (dotty's `derivedTermParam`).
     pub fn derived_term_param(&mut self, vdef: NodeId) -> NodeId {
         let Tree::ValDef { name, tpt, rhs, mods } = *self.ast.tree(vdef) else { return vdef };
-        let derived = self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::FromParam, watched: name });
+        let derived =
+            self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::FromParam, watched: Some(name) });
         let derived = self.ast.respan(derived, self.ast.span(tpt));
         self.ast.derived(vdef, Tree::ValDef { name, tpt: derived, rhs, mods })
     }

@@ -138,6 +138,7 @@ impl Ast {
             Tree::Annotated { arg, annot } => c(&[N(*arg), N(*annot)]),
             Tree::ModuleDef { imp, .. } => c(&[N(*imp)]),
             Tree::ParsedTry { expr, handler, finalizer } => c(&[N(*expr), o(handler), o(finalizer)]),
+            Tree::Try { expr, cases, finalizer } => c(&[N(*expr), L(*cases), o(finalizer)]),
             Tree::InterpolatedString { segments, .. } => c(&[L(*segments)]),
             Tree::InfixOp { left, op, right } => c(&[N(*left), N(*op), N(*right)]),
             Tree::PostfixOp { od, op } => c(&[N(*od), N(*op)]),
