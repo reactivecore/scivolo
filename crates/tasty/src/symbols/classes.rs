@@ -1,9 +1,15 @@
 //! Classes' parents, linearization and inherited members.
 
 use super::{FileId, Kind, SymbolId, Universe};
-use crate::tags::*;
+use crate::tags::{
+    APPLY, BLOCK, DEFDEF, EMPTYCLAUSE, NEW, PARAM, PRIVATE, SELECT, SELECTin, SELFDEF, SPLITCLAUSE,
+    TYPEAPPLY, TYPEDEF, TYPEPARAM, VALDEF,
+};
 use crate::types::{Decoder, Type, TypeId};
 use crate::{Ast, NodeId};
+
+/// How many aliases and bounds `class_symbol` follows.
+const MAX_ALIASES: u32 = 64;
 
 impl Universe {
     /// The parent types of class `c`, in declaration order.
@@ -58,11 +64,21 @@ impl Universe {
         c == base || self.linearization(c).contains(&base)
     }
 
-    /// The members of class `c` named `name`: the declarations of the first class in its
-    /// linearization that declares the name.
-    pub fn member(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+    /// The members of class `c` named `name` that `keep` accepts: those of the first class in
+    /// its linearization that declares any, private ones of base classes left out.
+    pub fn member_where(
+        &mut self,
+        c: SymbolId,
+        name: &str,
+        keep: impl Fn(&Self, SymbolId) -> bool,
+    ) -> Vec<SymbolId> {
         for base in self.linearization(c) {
-            let found = self.decl(base, name).unwrap_or_default();
+            let found: Vec<SymbolId> = self
+                .decl(base, name)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|&m| (base == c || !self.symbol(m).flags.has(PRIVATE)) && keep(self, m))
+                .collect();
             if !found.is_empty() {
                 return found;
             }
@@ -70,18 +86,34 @@ impl Universe {
         Vec::new()
     }
 
-    /// The class type `t` refers to, if the universe has it.
+    /// The members of class `c` named `name`.
+    pub fn member(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+        self.member_where(c, name, |_, _| true)
+    }
+
+    /// The class type `t` refers to, through aliases and upper bounds, if the universe has it.
     pub fn class_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.types().get(t).clone() {
-            Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(s),
-            Type::TypeRef(p, n) => match self.resolve(p, &n, true)? {
-                s if self.symbol(s).kind == Kind::Class => Some(s),
-                s => {
-                    let info = self.info(s);
-                    self.class_symbol(info)
-                }
-            },
-            Type::Applied(tycon, _) | Type::Annotated(tycon) | Type::Alias(tycon) => self.class_symbol(tycon),
+        self.class_symbol_within(t, MAX_ALIASES)
+    }
+
+    fn class_symbol_within(&mut self, t: TypeId, depth: u32) -> Option<SymbolId> {
+        let depth = depth.checked_sub(1)?;
+        let s = match self.types().get(t).clone() {
+            Type::Sym(_, s) => s,
+            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::Applied(inner, _)
+            | Type::Annotated(inner)
+            | Type::Alias(inner)
+            | Type::Bounds(_, inner)
+            | Type::Lambda { result: inner, .. } => return self.class_symbol_within(inner, depth),
+            _ => return None,
+        };
+        match self.symbol(s).kind {
+            Kind::Class => Some(s),
+            Kind::Type | Kind::TypeParam => {
+                let info = self.info(s);
+                self.class_symbol_within(info, depth)
+            }
             _ => None,
         }
     }
@@ -93,7 +125,7 @@ fn parent_type(d: &mut Decoder, ast: &Ast, id: NodeId) -> TypeId {
     let id = ast.deref(id);
     let k = ast.kids(id);
     match ast.tag(id) {
-        APPLY | TYPEAPPLY | SELECT | SELECTin if !k.is_empty() => parent_type(d, ast, k[0]),
+        APPLY | TYPEAPPLY | SELECT | SELECTin | BLOCK if !k.is_empty() => parent_type(d, ast, k[0]),
         NEW if !k.is_empty() => d.ty(k[0]),
         _ => d.ty(id),
     }

@@ -25,7 +25,9 @@ fn parents_and_linearization() {
     let some = class(&mut u, "scala", "Some");
     let parents: Vec<String> = u.parents(some).into_iter().map(|t| u.show(t)).collect();
     assert_eq!(parents, ["scala.Option[scala.Some.this.A]", "scala.Product", "scala.Serializable"]);
-    assert_eq!(lin(&mut u, some), ["scala.Some", "scala.Option", "scala.Product", "scala.Equals"]);
+    let bases =
+        ["scala.Some", "scala.Option", "scala.Product", "scala.Equals", "scala.collection.IterableOnce"];
+    assert_eq!(lin(&mut u, some), bases);
 
     let list = class(&mut u, "scala.collection.immutable", "List");
     let l = lin(&mut u, list);

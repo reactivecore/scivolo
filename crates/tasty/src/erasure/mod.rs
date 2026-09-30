@@ -7,7 +7,7 @@ mod mangle;
 mod special;
 
 use crate::symbols::encode;
-use crate::tags::OBJECT as MODULE;
+use crate::tags::{OBJECT as MODULE, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 use special::special;
@@ -104,17 +104,19 @@ impl Universe {
         }
     }
 
-    /// The underlying value of value class `c` (a class, not a trait, deriving from `AnyVal`):
-    /// its class parameter.
+    /// The underlying value of value class `c` (a class, not a trait, extending `AnyVal`): its
+    /// class parameter, unless that has type `c` itself.
     fn underlying(&mut self, c: SymbolId) -> Option<SymbolId> {
-        if self.symbol(c).flags.has(crate::tags::TRAIT) {
+        if self.symbol(c).flags.has(TRAIT) {
             return None;
         }
         let any_val = self.package("scala").and_then(|p| self.decl(p, "AnyVal").ok()?.into_iter().next())?;
-        if c == any_val || !self.derives_from(c, any_val) {
+        if !self.parents(c).into_iter().any(|p| self.class_symbol(p) == Some(any_val)) {
             return None;
         }
-        self.symbol(c).decls.iter().copied().find(|&d| self.symbol(d).kind == Kind::Param)
+        let value = self.symbol(c).decls.iter().copied().find(|&d| self.symbol(d).kind == Kind::Param)?;
+        let info = self.info(value);
+        (self.class_symbol(info) != Some(c)).then_some(value)
     }
 
     /// The erasure of `t` where values are boxed: a value class as itself.

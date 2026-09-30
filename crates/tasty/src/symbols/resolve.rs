@@ -8,13 +8,14 @@ impl Universe {
     /// The symbol `prefix.name` refers to, a type symbol if `ty`, else a term symbol.
     pub fn resolve(&mut self, prefix: TypeId, name: &str, ty: bool) -> Option<SymbolId> {
         let owner = self.prefix_owner(prefix)?;
+        let wanted = move |u: &Self, s: SymbolId| {
+            matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam) == ty
+        };
         let found = match self.symbol(owner).kind {
-            Kind::Class => self.member(owner, name),
+            Kind::Class => self.member_where(owner, name, wanted),
             _ => self.decl(owner, name).ok()?,
         };
-        let is_type =
-            |u: &Self, s: SymbolId| matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam);
-        found.into_iter().find(|&s| is_type(self, s) == ty)
+        found.into_iter().find(|&s| wanted(self, s))
     }
 
     /// The package or class whose members a prefix selects.
