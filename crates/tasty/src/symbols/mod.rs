@@ -2,6 +2,7 @@
 //! entered when a name it defines is first looked up.
 
 mod classes;
+mod define;
 mod enter;
 mod info;
 mod jdk;
