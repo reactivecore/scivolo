@@ -32,11 +32,11 @@ impl Library {
     }
 
     /// The bytes of `path`, e.g. `scala/Option.tasty`.
-    pub fn read(&mut self, path: &str) -> Option<Vec<u8>> {
-        let &jar = self.files.get(path)?;
-        let mut file = self.jars[jar].by_name(path).ok()?;
+    pub fn read(&mut self, path: &str) -> io::Result<Vec<u8>> {
+        let Some(&jar) = self.files.get(path) else { return Err(io::ErrorKind::NotFound.into()) };
+        let mut file = self.jars[jar].by_name(path).map_err(io::Error::other)?;
         let mut bytes = Vec::with_capacity(file.size() as usize);
-        file.read_to_end(&mut bytes).ok()?;
-        Some(bytes)
+        file.read_to_end(&mut bytes)?;
+        Ok(bytes)
     }
 }

@@ -2,8 +2,10 @@
 //! entered when a name it defines is first looked up.
 
 mod enter;
+mod lookup;
 
 use crate::library::Library;
+use crate::tags::{PRIVATEqualified, PROTECTEDqualified};
 use crate::{Ast, NodeId, Tasty};
 use rustc_hash::FxHashMap;
 use std::io;
@@ -11,6 +13,9 @@ use std::path::PathBuf;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct SymbolId(pub u32);
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct FileId(pub u32);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Kind {
@@ -20,17 +25,34 @@ pub enum Kind {
     /// A type alias, abstract type or opaque type.
     Type,
     TypeParam,
+    /// A class parameter.
+    Param,
     Val,
     Def,
 }
 
-/// Modifiers, one bit per TASTy modifier tag (`tags::PRIVATE`… `tags::INTO`).
+/// Modifiers: one bit per TASTy modifier tag below 64, and bits 0 and 1 (no modifier's tag) for
+/// `PRIVATEqualified` and `PROTECTEDqualified`.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
 pub struct Flags(pub u64);
 
 impl Flags {
+    /// The bit of modifier tag `tag`, if it has one.
+    fn bit(tag: u8) -> Option<u32> {
+        match tag {
+            PRIVATEqualified => Some(0),
+            PROTECTEDqualified => Some(1),
+            2..64 => Some(tag as u32),
+            _ => None,
+        }
+    }
+
+    pub fn with(self, tag: u8) -> Flags {
+        Flags(self.0 | Self::bit(tag).map_or(0, |b| 1 << b))
+    }
+
     pub fn has(self, tag: u8) -> bool {
-        self.0 & (1 << tag) != 0
+        Self::bit(tag).is_some_and(|b| self.0 & 1 << b != 0)
     }
 }
 
@@ -42,13 +64,13 @@ pub struct Symbol {
     /// The symbols declared in a package or class, in file order.
     pub decls: Vec<SymbolId>,
     /// The file and tree that define it; `None` for packages.
-    pub tree: Option<(u32, NodeId)>,
+    pub tree: Option<(FileId, NodeId)>,
 }
 
-/// A decoded top-level file; its bytes stay for the life of the process.
-pub struct Loaded {
-    pub tasty: Tasty<'static>,
-    pub ast: Ast,
+/// A decoded top-level file.
+struct Loaded {
+    bytes: Box<[u8]>,
+    ast: Ast,
 }
 
 pub struct Universe {
@@ -57,44 +79,46 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
-    pub files: Vec<Loaded>,
+    files: Vec<Loaded>,
 }
 
 #[derive(Debug)]
 pub enum Error {
-    Io(io::Error),
+    Io(String, io::Error),
     Corrupt(String, crate::Error),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::Io(e) => write!(f, "{e}"),
+            Error::Io(path, e) => write!(f, "{path}: {e}"),
             Error::Corrupt(path, e) => write!(f, "{path}: {e}"),
         }
     }
 }
 
+impl std::error::Error for Error {}
+
 impl Universe {
     /// The packages of the TASTy files in `jars`, no file read yet.
     pub fn open(jars: &[PathBuf]) -> Result<Self, Error> {
-        let library = Library::open(jars).map_err(Error::Io)?;
-        let root = Symbol {
+        let library = Library::open(jars).map_err(|e| Error::Io(format!("{jars:?}"), e))?;
+        let mut u = Self {
+            library,
+            symbols: Vec::new(),
+            packages: FxHashMap::default(),
+            pending: FxHashMap::default(),
+            files: Vec::new(),
+        };
+        let root = u.add(Symbol {
             name: String::new(),
             kind: Kind::Package,
             owner: None,
             flags: Flags::default(),
             decls: Vec::new(),
             tree: None,
-        };
-        let mut u = Self {
-            library,
-            symbols: vec![root],
-            packages: FxHashMap::default(),
-            pending: FxHashMap::default(),
-            files: Vec::new(),
-        };
-        u.packages.insert(String::new(), SymbolId(0));
+        });
+        u.packages.insert(String::new(), root);
         let mut paths: Vec<String> = u.library.paths().map(str::to_owned).collect();
         paths.sort();
         for path in paths {
@@ -128,40 +152,21 @@ impl Universe {
         }
     }
 
-    /// The declarations of `owner` named `name`, loading the package's file that defines it.
-    pub fn decl(&mut self, owner: SymbolId, name: &str) -> Result<Vec<SymbolId>, Error> {
-        let found = |u: &Self| -> Vec<SymbolId> {
-            u.symbol(owner).decls.iter().copied().filter(|&d| u.symbol(d).name == name).collect()
-        };
-        if self.symbol(owner).kind == Kind::Package && found(self).is_empty() {
-            let stem = name.strip_suffix('$').unwrap_or(name);
-            self.load_pending(owner, |file| file == stem)?;
-            if found(self).is_empty() {
-                self.load_pending(owner, |file| file == "package" || file.ends_with("$package"))?;
-            }
-        }
-        Ok(found(self))
+    /// How many files are loaded.
+    pub fn loaded_files(&self) -> usize {
+        self.files.len()
     }
 
-    /// All declarations of `owner`, loading every file of a package.
-    pub fn decls(&mut self, owner: SymbolId) -> Result<Vec<SymbolId>, Error> {
-        self.load_pending(owner, |_| true)?;
-        Ok(self.symbol(owner).decls.clone())
+    /// The decoded header, names and sections of loaded file `file`, and its trees.
+    pub fn file(&self, file: FileId) -> (Tasty<'_>, &Ast) {
+        let f = &self.files[file.0 as usize];
+        (Tasty::parse(&f.bytes).expect("parsed when loaded"), &f.ast)
     }
 
-    fn load_pending(&mut self, pkg: SymbolId, wanted: impl Fn(&str) -> bool) -> Result<(), Error> {
-        let Some(files) = self.pending.get_mut(&pkg) else { return Ok(()) };
-        let (load, keep): (Vec<_>, Vec<_>) =
-            std::mem::take(files).into_iter().partition(|(stem, _)| wanted(stem));
-        *files = keep;
-        for (_, path) in load {
-            self.load(&path)?;
-        }
-        Ok(())
-    }
-
-    /// The package of qualified name `name`, entered with its enclosing packages if new.
+    /// The package of qualified name `name`, entered with its enclosing packages if new;
+    /// `<empty>`, the package of files at the root of a jar, is the root.
     fn package_entered(&mut self, name: &str) -> SymbolId {
+        let name = if name == "<empty>" { "" } else { name };
         if let Some(&p) = self.packages.get(name) {
             return p;
         }

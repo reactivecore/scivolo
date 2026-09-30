@@ -11,7 +11,7 @@ pub mod tags;
 mod tree;
 mod view;
 
-pub use symbols::{Error as LoadError, Flags, Kind, Symbol, SymbolId, Universe};
+pub use symbols::{Error as LoadError, FileId, Flags, Kind, Symbol, SymbolId, Universe};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};
