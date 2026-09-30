@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+libimage.workspace = true
 rustc-hash.workspace = true
 zip.workspace = true
 

@@ -1,12 +1,10 @@
 //! An interpreter for Scala Native NIR.
 
-pub mod cache;
 mod class;
 mod classpath;
 mod error;
 mod gcinfo;
 mod heap;
-mod image;
 mod interp;
 mod layout;
 mod linktime;
@@ -18,7 +16,7 @@ mod stack;
 mod threads;
 mod world;
 
-pub use classpath::Classpath;
+pub use classpath::{Classpath, nir_table};
 pub use error::VmError;
 pub use natives::exit_immediately;
 pub use world::World;

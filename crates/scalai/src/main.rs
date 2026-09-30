@@ -73,7 +73,7 @@ fn usage() -> ExitCode {
 
 fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<(), String> {
     let jars = libs::jars()?;
-    let classpath = match Classpath::with_image(&cp, &jars, &libs::cache_dir()) {
+    let classpath = match libs::image(&jars).and_then(|image| Classpath::with_image(&cp, image)) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("scalai: no library image ({e}); reading the jars");

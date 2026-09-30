@@ -1,0 +1,133 @@
+//! The library image: the files of a list of jars that a filter keeps, uncompressed in one file
+//! with a sorted index and an extra blob per file, built once per set of jar versions and
+//! mapped read-only afterwards.
+//!
+//! Layout, little-endian: `MAGIC`, `u32` entry count, then per entry `u64` offset and length of
+//! its name, its data and its extra blob (empty if none), sorted by name; then the contents.
+
+use crate::build::{build, key};
+use crate::cache;
+use std::fs::File;
+use std::io;
+use std::path::{Path, PathBuf};
+
+pub const MAGIC: &[u8; 8] = b"SCALAI03";
+pub const ENTRY: usize = 48;
+pub const HEADER: usize = 12;
+
+/// A jar the image takes files from.
+pub enum Source {
+    File(PathBuf),
+    /// A jar built into the program, by name and contents.
+    Bytes(&'static str, &'static [u8]),
+}
+
+/// What an image holds: the files of `sources` whose names `keep` accepts, the first of equal
+/// names winning, each with the blob `extra` computes. `tag` names the blobs' format.
+pub struct Spec<'a> {
+    pub sources: &'a [Source],
+    pub keep: fn(&str) -> bool,
+    pub extra: &'a dyn Fn(&str, &[u8]) -> Vec<u8>,
+    pub tag: &'a str,
+}
+
+pub struct Image {
+    map: *const u8,
+    len: usize,
+    count: usize,
+}
+
+impl Image {
+    /// The image of `spec` in directory `dir`, built there first if missing.
+    pub fn open(spec: &Spec, dir: &Path) -> io::Result<Self> {
+        let path = dir.join(format!("libs-{:016x}.img", key(spec)?));
+        if path.exists()
+            && let Ok(image) = Self::map(&path)
+        {
+            cache::touch(&path);
+            return Ok(image);
+        }
+        build(spec, dir, &path)?;
+        cache::prune(dir, cache::UNUSED, |n| {
+            n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(cache::is_key)
+        });
+        cache::prune(dir, cache::ABANDONED, |n| cache::is_staging(n, "libs-", ".tmp"));
+        Self::map(&path)
+    }
+
+    fn map(path: &Path) -> io::Result<Self> {
+        let file = File::open(path)?;
+        let len = file.metadata()?.len() as usize;
+        if len < HEADER {
+            return Err(io::Error::other("library image too short"));
+        }
+        use std::os::fd::AsRawFd;
+        // SAFETY: a read-only private mapping of a file this process only reads; the mapping
+        // stays valid after `file` is closed and is unmapped only in `drop`.
+        let map = unsafe {
+            libc::mmap(std::ptr::null_mut(), len, libc::PROT_READ, libc::MAP_PRIVATE, file.as_raw_fd(), 0)
+        };
+        if map == libc::MAP_FAILED {
+            return Err(io::Error::last_os_error());
+        }
+        let mut image = Self { map: map as *const u8, len, count: 0 };
+        let bytes = image.bytes();
+        if &bytes[..8] != MAGIC {
+            return Err(io::Error::other("not a library image"));
+        }
+        image.count = u32::from_le_bytes(bytes[8..12].try_into().expect("4 bytes")) as usize;
+        if HEADER + image.count * ENTRY > len {
+            return Err(io::Error::other("library image index truncated"));
+        }
+        Ok(image)
+    }
+
+    fn bytes(&self) -> &[u8] {
+        // SAFETY: `map` points to `len` mapped, readable bytes for as long as `self` lives.
+        unsafe { std::slice::from_raw_parts(self.map, self.len) }
+    }
+
+    fn word(&self, at: usize) -> usize {
+        u64::from_le_bytes(self.bytes()[at..at + 8].try_into().expect("8 bytes")) as usize
+    }
+
+    fn slice(&self, entry: usize, field: usize) -> &[u8] {
+        let at = HEADER + entry * ENTRY + field * 16;
+        let (start, len) = (self.word(at), self.word(at + 8));
+        self.bytes().get(start..start + len).unwrap_or(&[])
+    }
+
+    fn name(&self, entry: usize) -> &[u8] {
+        self.slice(entry, 0)
+    }
+
+    /// The bytes of file `rel`, e.g. `scala/Predef$.nir`, and its extra blob if not empty.
+    pub fn find(&self, rel: &str) -> Option<(&[u8], Option<&[u8]>)> {
+        let (mut low, mut high) = (0, self.count);
+        while low < high {
+            let mid = (low + high) / 2;
+            match self.name(mid).cmp(rel.as_bytes()) {
+                std::cmp::Ordering::Less => low = mid + 1,
+                std::cmp::Ordering::Greater => high = mid,
+                std::cmp::Ordering::Equal => {
+                    let extra = self.slice(mid, 2);
+                    return Some((self.slice(mid, 1), Some(extra).filter(|t| !t.is_empty())));
+                }
+            }
+        }
+        None
+    }
+
+    /// The names of all files, in order.
+    pub fn names(&self) -> impl Iterator<Item = &str> {
+        (0..self.count).filter_map(|i| std::str::from_utf8(self.name(i)).ok())
+    }
+}
+
+impl Drop for Image {
+    fn drop(&mut self) {
+        // SAFETY: `map` and `len` describe the mapping `map` created; nothing refers into it once
+        // the image is dropped, as `find` and `names` borrow `self`.
+        unsafe { libc::munmap(self.map as *mut libc::c_void, self.len) };
+    }
+}

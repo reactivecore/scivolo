@@ -1,0 +1,13 @@
+[package]
+name = "libimage"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rustc-hash.workspace = true
+zip.workspace = true
+libc = "0.2"
+
+[lints]
+workspace = true

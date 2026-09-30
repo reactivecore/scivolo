@@ -1,7 +1,7 @@
 //! Finds the `.nir` file of a top-level name in directories, jars and the library image.
 
-use crate::image::Image;
 use crate::member_table::Table;
+use libimage::Image;
 use std::borrow::Cow;
 use std::fs::File;
 use std::io::{self, Read};
@@ -31,10 +31,10 @@ impl Classpath {
         Ok(Self { roots })
     }
 
-    /// `paths`, then the library `jars` through their image in directory `cache`.
-    pub fn with_image(paths: &[PathBuf], jars: &[PathBuf], cache: &Path) -> io::Result<Self> {
+    /// `paths`, then the library files of `image`.
+    pub fn with_image(paths: &[PathBuf], image: &'static Image) -> io::Result<Self> {
         let mut classpath = Self::open(paths)?;
-        classpath.roots.push(Root::Image(Box::leak(Box::new(Image::open(jars, cache)?))));
+        classpath.roots.push(Root::Image(image));
         Ok(classpath)
     }
 
@@ -112,6 +112,13 @@ impl Classpath {
             })
         })
     }
+}
+
+/// The member table the library image keeps for NIR file `rel` with contents `data`; empty for
+/// other files and files without one.
+pub fn nir_table(rel: &str, data: &[u8]) -> Vec<u8> {
+    let Some(top) = rel.strip_suffix(".nir") else { return Vec::new() };
+    crate::member_table::build(data, &top.replace('/', ".")).unwrap_or_default()
 }
 
 /// `f`, leaving C's `errno` as it was.

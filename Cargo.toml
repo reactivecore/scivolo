@@ -9,6 +9,7 @@ edition = "2024"
 
 [workspace.dependencies]
 hashbrown = { version = "0.17", default-features = false }
+libimage = { path = "crates/libimage" }
 nir = { path = "crates/nir" }
 rustc-hash = "2"
 zip = { version = "2", default-features = false, features = ["deflate"] }

@@ -124,6 +124,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3eaf3ede3fee6db1a4c2ee091bf8a8b4dccdc6d17f656fb07896ee72867612f2"
 
 [[package]]
+name = "libimage"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "rustc-hash",
+ "zip",
+]
+
+[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -189,6 +198,7 @@ checksum = "6b1e7f9a428571be2dc5bc0505c13fb6bf936822b894ec87abf8a08a4e51742d"
 name = "scalai"
 version = "0.1.0"
 dependencies = [
+ "libimage",
  "nir",
  "vm",
 ]
@@ -244,6 +254,7 @@ dependencies = [
 name = "tasty"
 version = "0.1.0"
 dependencies = [
+ "libimage",
  "nir",
  "rustc-hash",
  "zip",
@@ -287,6 +298,7 @@ version = "0.1.0"
 dependencies = [
  "corosensei",
  "libc",
+ "libimage",
  "nir",
  "rustc-hash",
  "snrt",
