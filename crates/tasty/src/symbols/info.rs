@@ -1,8 +1,10 @@
-//! The declared types of symbols, decoded from their trees on first use.
+//! The declared types of symbols, decoded from their trees on first use, and the trees of their
+//! right-hand sides.
 
 use super::{FileId, Kind, SymbolId, Universe};
 use crate::tags::{OPAQUE, TEMPLATE};
 use crate::types::{Decoder, Type, TypeId};
+use crate::{NodeId, View, view};
 
 impl Universe {
     /// The declared type of `sym`: a method's type, a value's type, a type member's alias or
@@ -18,6 +20,19 @@ impl Universe {
         };
         self.infos.insert(sym, t);
         t
+    }
+
+    /// The right-hand side of method or value `sym`: its file and tree, for `inline` methods
+    /// the body to expand; `None` for abstract members and symbols without TASTy.
+    pub fn body(&self, sym: SymbolId) -> Option<(FileId, NodeId)> {
+        let (file, id) = self.symbol(sym).tree?;
+        let (ast, _) = self.file(file);
+        let rhs = match view(ast, id) {
+            View::DefDef { parts, .. } => parts.body.get(1).copied(),
+            View::ValDef { rhs, .. } => rhs,
+            _ => None,
+        };
+        rhs.map(|r| (file, r))
     }
 
     /// The lower and upper bound of opaque type `sym`, when its definition states them.
