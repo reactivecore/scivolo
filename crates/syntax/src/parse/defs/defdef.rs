@@ -3,6 +3,7 @@ use crate::ast::constant::Constant;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, List, NodeId, Tree};
+use crate::diag::rewrite_notice;
 use crate::parse::Parser;
 use crate::parse::migration::Migration;
 use crate::source::Offset;
@@ -126,7 +127,7 @@ impl Parser<'_> {
             if self.tok() == Token::LBrace { format!("{result_type} =") } else { ": Unit ".to_string() };
         let msg = format!(
             "Procedure syntax no longer supported; `{insert}` should be inserted here{}",
-            Self::rewrite_notice("This construct", "3.0-migration", "")
+            rewrite_notice("This construct", "3.0-migration", "")
         );
         self.migration_error(msg, self.offset(), Migration::Scala2to3);
         true

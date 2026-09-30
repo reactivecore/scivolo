@@ -1,6 +1,7 @@
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
+use crate::diag::rewrite_notice;
 use crate::parse::migration::Migration;
 use crate::parse::{Location, Parser};
 use crate::source::Offset;
@@ -115,7 +116,7 @@ impl Parser<'_> {
         }
         let msg = format!(
             "`= _` has been deprecated; use `= uninitialized` instead.\n`uninitialized` can be imported with `scala.compiletime.uninitialized`.{}",
-            Self::rewrite_notice("This construct", "3.4-migration", "")
+            rewrite_notice("This construct", "3.4-migration", "")
         );
         self.migration_error(msg, rhs_offset, Migration::UninitializedVars);
         self.placeholder_params.pop();

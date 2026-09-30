@@ -4,6 +4,7 @@ use crate::ast::Span;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::config::Features;
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 use crate::token::sets::{ACCESS_MODIFIER_TOKENS, LOCAL_MODIFIER_TOKENS, TokenSet};
 
@@ -140,7 +141,7 @@ impl Parser<'_> {
             let p = if mods.is(flags::PRIVATE) { "private" } else { "protected" };
             let msg = format!(
                 "Ignoring [this] qualifier.\nThe syntax `{p}[this]` will be deprecated in the future; just write `{p}` instead.\nSee: https://docs.scala-lang.org/scala3/reference/dropped-features/this-qualifier.html{}",
-                Self::rewrite_notice("This construct", "3.4-migration", "")
+                rewrite_notice("This construct", "3.4-migration", "")
             );
             let span = Span::synthetic(start, self.last_offset());
             self.error_or_migration_warning(msg, span, Migration::RemoveThisQualifier);

@@ -2,6 +2,17 @@
 
 use crate::source::Offset;
 
+/// dotty's `Message.rewriteNotice`, appended to messages about rewritable syntax.
+pub fn rewrite_notice(what: &str, version: &str, options: &str) -> String {
+    let source = if version.is_empty() { String::new() } else { format!("-source {version}") };
+    let opts = match (source.is_empty(), options.is_empty()) {
+        (_, true) => source,
+        (true, false) => options.to_string(),
+        (false, false) => format!("{source} {options}"),
+    };
+    format!("\n{what} can be rewritten automatically under -rewrite {opts}.")
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub enum Level {
     Warning,

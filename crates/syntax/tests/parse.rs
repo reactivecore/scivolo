@@ -209,3 +209,15 @@ fn language_imports_enable_features_for_their_scope() {
          73 expression expected but eof found"
     );
 }
+
+#[test]
+fn scala3_keywords_are_identifiers_when_migrating() {
+    assert_eq!(
+        parse_with("class A { val enum = 1 }\n", &["-source:3.0-migration"]),
+        "(PackageDef 0..24 (Ident 0..0 t:<empty>) [ (TypeDef 0..24@6 (Mods [] [] []) T:A (Template 10..22 \
+         (DefDef 10..10 (Mods [] [] []) t:<init> [] (TypeTree 10..10) _) [] _self [ (ValDef 10..22@14 (Mods [] [] \
+         []) t:enum (TypeTree 18..18) (Number 21..22@21 \"1\" Whole(10)))]))])\n\
+         14 enum is now a keyword, write `enum` instead of enum to keep it as an identifier\n\
+         This can be rewritten automatically under -rewrite -source 3.0-migration."
+    );
+}

@@ -4,6 +4,7 @@
 use super::Parser;
 use crate::ast::Span;
 use crate::config::SourceVersion as V;
+use crate::diag::rewrite_notice;
 
 /// A legacy construct and the source versions that warn about it and reject it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -61,20 +62,9 @@ impl Migration {
 }
 
 impl Parser<'_> {
-    /// dotty's `Message.rewriteNotice`, appended to messages about rewritable syntax.
-    pub fn rewrite_notice(what: &str, version: &str, options: &str) -> String {
-        let source = if version.is_empty() { String::new() } else { format!("-source {version}") };
-        let opts = match (source.is_empty(), options.is_empty()) {
-            (_, true) => source,
-            (true, false) => options.to_string(),
-            (false, false) => format!("{source} {options}"),
-        };
-        format!("\n{what} can be rewritten automatically under -rewrite {opts}.")
-    }
-
     /// An error for syntax that `option` disallows.
     pub fn syntax_version_error(&mut self, option: &str, span: Span) {
-        let notice = Self::rewrite_notice("This construct", "3.0-migration", option);
+        let notice = rewrite_notice("This construct", "3.0-migration", option);
         self.syntax_error_span(format!("This construct is not allowed under {option}.{notice}"), span);
     }
 
