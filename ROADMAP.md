@@ -144,7 +144,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy ([research 08](docs/research/08-tasty-symbols.md), #28).
-   `crates/tasty` (2026-09-30): packages, lazily loaded files, symbols, declared
+   Done: `crates/tasty` (2026-09-30): packages, lazily loaded files, symbols, declared
    types, parents, linearization, inherited members, base types, `asSeenFrom`,
    override matching, erasure, bridges; the JDK API from javalib's TASTy
    (`just javalib-tasty`). Of the method signatures and bridges of the whole
@@ -152,8 +152,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    mangled names in Scala Native's NIR. Subtyping with type variables behind
    the typer's constraint agrees with dotc on 13,456 pairs; `lub`/`glb`,
    member lookup on types, `NoInits` and `inline` bodies are there for the
-   typer. Open: the uncompressed cache (files are read from the jars; with the
-   library re-layout of #29).
+   typer. The TASTy is read from the library image (ADR 0005): opening it
+   takes about 1 ms.
 3. **Typer for the scripting subset.** Cover:
    - local type inference
    - overload resolution
