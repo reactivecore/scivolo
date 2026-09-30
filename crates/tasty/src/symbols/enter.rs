@@ -45,7 +45,7 @@ impl Universe {
             }
             View::TypeDef { name, rhs, is_class: true, mods } => (Kind::Class, name, mods, ast.kids(rhs)),
             View::TypeDef { name, mods, .. } => (Kind::Type, name, mods, &[]),
-            View::DefDef { name, parts } => (Kind::Def, name, parts.mods, &[]),
+            View::DefDef { name, parts } => (Kind::Def, name, parts.mods, parts.params),
             View::ValDef { name, mods, .. } => (Kind::Val, name, mods, &[]),
             View::Param { name, mods, .. } if ast.tag(id) == TYPEPARAM => (Kind::TypeParam, name, mods, &[]),
             View::Param { name, mods, .. } => (Kind::Param, name, mods, &[]),

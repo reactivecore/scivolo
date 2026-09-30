@@ -8,5 +8,8 @@ publish = false
 rustc-hash.workspace = true
 zip.workspace = true
 
+[dev-dependencies]
+nir.workspace = true
+
 [lints]
 workspace = true

@@ -2,70 +2,20 @@
 //! entered when a name it defines is first looked up.
 
 mod enter;
+mod info;
 mod lookup;
+mod resolve;
+mod symbol;
 
 use crate::library::Library;
-use crate::tags::{PRIVATEqualified, PROTECTEDqualified};
+use crate::types::{TypeId, Types};
 use crate::{Ast, NodeId, Tasty};
 use rustc_hash::FxHashMap;
 use std::io;
 use std::path::PathBuf;
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct SymbolId(pub u32);
-
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct FileId(pub u32);
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Kind {
-    Package,
-    /// A class, trait or module class, with its members.
-    Class,
-    /// A type alias, abstract type or opaque type.
-    Type,
-    TypeParam,
-    /// A class parameter.
-    Param,
-    Val,
-    Def,
-}
-
-/// Modifiers: one bit per TASTy modifier tag below 64, and bits 0 and 1 (no modifier's tag) for
-/// `PRIVATEqualified` and `PROTECTEDqualified`.
-#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
-pub struct Flags(pub u64);
-
-impl Flags {
-    /// The bit of modifier tag `tag`, if it has one.
-    fn bit(tag: u8) -> Option<u32> {
-        match tag {
-            PRIVATEqualified => Some(0),
-            PROTECTEDqualified => Some(1),
-            2..64 => Some(tag as u32),
-            _ => None,
-        }
-    }
-
-    pub fn with(self, tag: u8) -> Flags {
-        Flags(self.0 | Self::bit(tag).map_or(0, |b| 1 << b))
-    }
-
-    pub fn has(self, tag: u8) -> bool {
-        Self::bit(tag).is_some_and(|b| self.0 & 1 << b != 0)
-    }
-}
-
-pub struct Symbol {
-    pub name: String,
-    pub kind: Kind,
-    pub owner: Option<SymbolId>,
-    pub flags: Flags,
-    /// The symbols declared in a package or class, in file order.
-    pub decls: Vec<SymbolId>,
-    /// The file and tree that define it; `None` for packages.
-    pub tree: Option<(FileId, NodeId)>,
-}
+pub use lookup::encode;
+pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
 /// A decoded top-level file.
 struct Loaded {
@@ -80,6 +30,11 @@ pub struct Universe {
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
     files: Vec<Loaded>,
+    /// The symbol each definition tree defines.
+    by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
+    pub types: Types,
+    /// The declared type of each symbol whose type was asked for.
+    infos: FxHashMap<SymbolId, TypeId>,
 }
 
 #[derive(Debug)]
@@ -109,6 +64,9 @@ impl Universe {
             packages: FxHashMap::default(),
             pending: FxHashMap::default(),
             files: Vec::new(),
+            by_tree: FxHashMap::default(),
+            types: Types::default(),
+            infos: FxHashMap::default(),
         };
         let root = u.add(Symbol {
             name: String::new(),
@@ -188,6 +146,9 @@ impl Universe {
         let id = SymbolId(self.symbols.len() as u32);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
+        }
+        if let Some(tree) = s.tree {
+            self.by_tree.insert(tree, id);
         }
         self.symbols.push(s);
         id

@@ -144,7 +144,11 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    (`just syntax-report desugar`).
 2. **Symbols from TASTy.** Extend spike 01 into a model of symbols and types
    in the style of tasty-query, loaded lazily from an uncompressed cache of
-   library TASTy.
+   library TASTy ([research 08](docs/research/08-tasty-symbols.md), #28).
+   `crates/tasty` (2026-09-30): packages, lazily loaded files, symbols, declared
+   types, erasure; 98% of 4,849 public method signatures of `scala`,
+   `scala.collection(.immutable)` and `scala.util` match the mangled names in
+   Scala Native's NIR. Open: value classes (need parents, step 4).
 3. **Typer for the scripting subset.** Cover:
    - local type inference
    - overload resolution
