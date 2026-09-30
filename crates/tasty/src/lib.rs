@@ -3,11 +3,15 @@
 
 mod cursor;
 mod file;
+mod library;
 mod names;
 mod print;
+mod symbols;
 pub mod tags;
 mod tree;
 mod view;
+
+pub use symbols::{Error as LoadError, FileId, Flags, Kind, Symbol, SymbolId, Universe};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};

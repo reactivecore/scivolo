@@ -5,8 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-
-[dev-dependencies]
+rustc-hash.workspace = true
 zip.workspace = true
 
 [lints]
