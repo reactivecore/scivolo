@@ -69,20 +69,13 @@ impl Desugar<'_> {
                 _ => e,
             })
             .collect();
-        let context = self.scala_dot("StringContext");
+        let context = self.term("StringContext");
+        let context = self.scala_dot(context);
         let parts = self.apply(context, &strs);
         let select = self.select(parts, interpolator);
         let span = self.ast.span(id);
         let select = self.ast.respan(select, span);
         self.apply(select, &elems)
-    }
-
-    /// `_root_.scala.name`, a term.
-    fn scala_dot(&mut self, name: &str) -> NodeId {
-        let (root, scala, name) = (self.term("_root_"), self.term("scala"), self.term(name));
-        let root = self.ident(root);
-        let scala = self.select(root, scala);
-        self.select(scala, name)
     }
 
     fn postfix_op(&mut self, od: NodeId, op: NodeId) -> NodeId {

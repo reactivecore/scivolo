@@ -40,8 +40,8 @@ impl Ast {
     }
 
     /// `tree` as a copy of `orig` with other fields (dotty's `cpy`): `orig` itself if `tree` is
-    /// the same, else a new node with the span and attributes of `orig`. A copied XML block is
-    /// a block, a copied placeholder function a function.
+    /// the same, else a new node with the span and the sticky attributes of `orig`. A copied
+    /// XML block is a block, a copied placeholder function a function.
     pub fn derived(&mut self, orig: NodeId, mut tree: Tree) -> NodeId {
         if *self.tree(orig) == tree {
             return orig;
@@ -57,7 +57,7 @@ impl Ast {
         let node = self.get_mut(id);
         node.span = span;
         node.attrs = node.attrs.union(attrs);
-        self.remove_attrs(id, Attrs::XML_BLOCK);
+        self.remove_attrs(id, Attrs::XML_BLOCK.union(Attrs::DERIVING_COMPANION));
         id
     }
 

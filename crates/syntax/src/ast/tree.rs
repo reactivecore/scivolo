@@ -412,6 +412,10 @@ pub enum Tree {
 pub enum DerivedKind {
     /// The parameter type of a setter: the type of its variable.
     SetterParam,
+    /// The type of a parameter copied from a class parameter.
+    FromParam,
+    /// A reference to the class of a class definition.
+    TypeRef,
 }
 
 impl DerivedKind {
@@ -419,6 +423,8 @@ impl DerivedKind {
     pub fn class_name(self) -> &'static str {
         match self {
             DerivedKind::SetterParam => "SetterParamTree",
+            DerivedKind::FromParam => "DerivedFromParamTree",
+            DerivedKind::TypeRef => "TypeRefTree",
         }
     }
 }

@@ -29,7 +29,7 @@ enum Stage:
  *     tuples, `desugar.block`, with `Mode.Type`/`Mode.Pattern` tracked like the typer does.
  *  Left alone (they need expected types): lambdas, `{ case ... }` blocks, named tuples, assignments.
  */
-class Expander(stage: Stage = Stage.Defs) extends untpd.UntypedTreeMap:
+class Expander(stage: Stage = Stage.Classes) extends untpd.UntypedTreeMap:
   import untpd.*
 
   private val classSyms = new java.util.IdentityHashMap[TypeDef, ClassSymbol]
@@ -132,7 +132,7 @@ class Expander(stage: Stage = Stage.Defs) extends untpd.UntypedTreeMap:
     case t: PatDef => !t.mods.isEnumCase || stage == Stage.All
     case t: TypeDef if t.isClassDef =>
       if t.mods.is(Enum) then stage == Stage.All else stage.ordinal >= Stage.Classes.ordinal
-    case _: ModuleDef => stage.ordinal >= Stage.Classes.ordinal
+    case t: ModuleDef => if t.mods.isEnumCase then stage == Stage.All else stage.ordinal >= Stage.Classes.ordinal
     case _: DefTree | _: PackageDef | _: ExtMethods => stage.ordinal >= Stage.Defs.ordinal
     case _ => false
 

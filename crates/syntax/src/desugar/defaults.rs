@@ -1,6 +1,7 @@
 //! Default arguments as getter methods `f$default$N` (dotty's `addDefaultGetters`).
 
 use super::Desugar;
+use super::class_params::Keep;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::tree::Clauses;
@@ -8,9 +9,9 @@ use crate::ast::{List, NodeId, Tree};
 
 impl Desugar<'_> {
     /// Method `meth` (dotty's `defDef`): evidence for its context bounds, and a getter for each
-    /// default argument.
-    pub fn def_def(&mut self, meth: NodeId) -> NodeId {
-        let meth = self.elim_context_bounds(meth);
+    /// default argument; `primary` for the primary constructor of a class.
+    pub fn def_def(&mut self, meth: NodeId, primary: bool) -> NodeId {
+        let meth = self.elim_context_bounds(meth, primary);
         self.add_default_getters(meth)
     }
 
@@ -103,7 +104,7 @@ impl Desugar<'_> {
                 params.iter().map(|&t| self.type_param_of_getter(t)).collect::<Vec<_>>()
             } else if params.len() <= left {
                 left -= params.len();
-                params.iter().map(|&v| self.value_param_of_getter(v)).collect()
+                params.iter().map(|&v| self.meth_value_param(v, Keep::All, false)).collect()
             } else {
                 break;
             };
@@ -113,9 +114,7 @@ impl Desugar<'_> {
     }
 
     fn type_param_of_getter(&mut self, tparam: NodeId) -> NodeId {
-        let Some(mods) = self.ast.mods_of(tparam) else { return tparam };
-        let m = self.ast.modifiers(mods).clone();
-        let tparam = self.ast.with_mods(tparam, Modifiers { flags: flags::PARAM, ..m });
+        let tparam = self.meth_type_param(tparam, Keep::All);
         let Tree::TypeDef { name, rhs, mods } = *self.ast.tree(tparam) else { return tparam };
         let rhs = self.drop_context_bounds(rhs);
         self.ast.derived(tparam, Tree::TypeDef { name, rhs, mods })
@@ -130,18 +129,5 @@ impl Desugar<'_> {
             }
             _ => rhs,
         }
-    }
-
-    fn value_param_of_getter(&mut self, vparam: NodeId) -> NodeId {
-        let Tree::ValDef { name, tpt, rhs, mods } = *self.ast.tree(vparam) else { return vparam };
-        let m = self.ast.modifiers(mods).clone();
-        let kept = flags::GIVEN_OR_IMPLICIT.or(flags::ERASED).or(flags::TRACKED);
-        let m = Modifiers { flags: m.flags.and(kept).or(flags::PARAM), ..m };
-        let fresh_mods = self.ast.mods(m);
-        let param = self.ast.node(Tree::ValDef { name, tpt, rhs, mods: fresh_mods });
-        let span = self.ast.span(vparam);
-        let param = self.ast.respan(param, span);
-        self.ast.add_attrs(param, self.ast.attrs(vparam));
-        param
     }
 }
