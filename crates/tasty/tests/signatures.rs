@@ -9,18 +9,15 @@ use tasty::{Kind, SymbolId, Universe};
 
 type Zip = zip::ZipArchive<std::fs::File>;
 
-/// The jars of `ref/libs` named `names`, if all are there; in CI, all but javalib's TASTy must be.
+/// The jars named `names`, from `ref/libs` or the checked-in `libs`, if all are there.
 fn jars(names: &[&str]) -> Option<Vec<PathBuf>> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs");
-    let jars: Vec<PathBuf> = names.iter().map(|n| dir.join(n)).collect();
-    if let Some(missing) = jars.iter().find(|j| !j.exists()) {
-        let built = missing.ends_with(JAVALIB_TASTY);
-        let hint = "run `just fetch-libs` and `just javalib-tasty`";
-        assert!(built || std::env::var_os("CI").is_none(), "{} missing: {hint}", missing.display());
-        eprintln!("skipped: {} missing ({hint})", missing.display());
-        return None;
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let find = |n: &&str| ["ref/libs", "libs"].iter().map(|d| root.join(d).join(n)).find(|j| j.exists());
+    let jars: Option<Vec<PathBuf>> = names.iter().map(find).collect();
+    if jars.is_none() {
+        assert!(std::env::var_os("CI").is_none(), "a jar of {names:?} is missing: run `just fetch-libs`");
     }
-    Some(jars)
+    jars
 }
 
 const JAVALIB_TASTY: &str = "javalib-tasty-0.5.12.jar";

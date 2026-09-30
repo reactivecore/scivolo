@@ -1,25 +1,23 @@
 use std::path::Path;
 use tasty::{Kind, SymbolId, Universe};
 
-/// The standard library with the TASTy of javalib, nativelib, clib and posixlib, if `ref/libs`
-/// has them; in CI, all but javalib's must be there.
+/// The standard library with the TASTy of javalib (checked in), nativelib, clib and posixlib, if
+/// `ref/libs` has them.
 fn with_javalib() -> Option<Universe> {
-    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs");
-    let jars = [
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let fetched = [
         "scala-library-3.9.0.jar",
-        "javalib-tasty-0.5.12.jar",
         "nativelib_native0.5_3-0.5.12.jar",
         "clib_native0.5_3-0.5.12.jar",
         "posixlib_native0.5_3-0.5.12.jar",
     ]
-    .map(|j| dir.join(j));
-    if let Some(missing) = jars.iter().find(|j| !j.exists()) {
-        let built = missing.ends_with("javalib-tasty-0.5.12.jar");
-        let hint = "run `just fetch-libs` and `just javalib-tasty`";
-        assert!(built || std::env::var_os("CI").is_none(), "{} missing: {hint}", missing.display());
-        eprintln!("skipped: {} missing ({hint})", missing.display());
+    .map(|j| root.join("ref/libs").join(j));
+    if let Some(missing) = fetched.iter().find(|j| !j.exists()) {
+        assert!(std::env::var_os("CI").is_none(), "{} missing: run `just fetch-libs`", missing.display());
         return None;
     }
+    let mut jars = fetched.to_vec();
+    jars.push(root.join("libs/javalib-tasty-0.5.12.jar"));
     Some(Universe::open(&jars).unwrap())
 }
 
