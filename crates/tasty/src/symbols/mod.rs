@@ -1,6 +1,7 @@
 //! The symbols of a library: packages known up front, each top-level file's classes and members
 //! entered when a name it defines is first looked up.
 
+mod classes;
 mod enter;
 mod info;
 mod lookup;
@@ -35,6 +36,8 @@ pub struct Universe {
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
+    parents: FxHashMap<SymbolId, Vec<TypeId>>,
+    linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
 }
 
 #[derive(Debug)]
@@ -67,6 +70,8 @@ impl Universe {
             by_tree: FxHashMap::default(),
             types: Types::default(),
             infos: FxHashMap::default(),
+            parents: FxHashMap::default(),
+            linearizations: FxHashMap::default(),
         };
         let root = u.add(Symbol {
             name: String::new(),

@@ -119,9 +119,9 @@ Recommendation: **B**, with A as a fallback if building javalib's TASTy proves i
    flags, names), bodies skipped.
 3. Declared types of members (the type model without subtyping); signed names and erasure;
    oracle: NIR names of scalalib and nativelib.
-4. Parents, linearization, member lookup with inherited members, `asSeenFrom`; oracle:
-   tasty-query dumps.
-5. Subtyping on known types; oracle: tasty-query.
+4. Parents, linearization, member lookup with inherited members; value classes and
+   subclass-aware `&`/`|` erasure; oracle: NIR names.
+5. Subtyping on known types, `asSeenFrom`, overriding (bridges); oracle: tasty-query.
 6. javalib's symbols (§3 B) and the overlay.
 7. Bodies on demand, for `inline`, when the typer needs them.
 

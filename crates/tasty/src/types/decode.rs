@@ -60,7 +60,7 @@ impl<'a> Decoder<'a> {
             IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype | REFINEDtpt if !k.is_empty() => self.decode(k[0]),
             SUPERtype if k.len() > 1 => self.decode(k[1]),
             TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
-            TERMREF | SELECT | TERMREFin => Type::TermRef(self.kid(id, 0), self.name(id)),
+            TERMREF | SELECT | TERMREFin | SELECTin => Type::TermRef(self.kid(id, 0), self.name(id)),
             TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => {
                 let prefix = matches!(n.tag, TYPEREFsymbol | TERMREFsymbol).then(|| self.kid(id, 0));
                 let Some(def) = ast.at(n.a as u32) else { return Type::Other(n.tag) };
@@ -69,10 +69,14 @@ impl<'a> Decoder<'a> {
                     None => Type::Local(Binder(self.file, n.a as u32), self.name(def)),
                 }
             }
-            TYPEREFpkg | TERMREFpkg => match self.packages.get(&self.name(id)) {
-                Some(&p) => Type::Package(p),
-                None => Type::PackageName(self.name(id)),
-            },
+            TYPEREFpkg | TERMREFpkg => {
+                let name = self.name(id);
+                let name = name.strip_prefix("_root_").map_or(name.as_str(), |n| n.trim_start_matches('.'));
+                match self.packages.get(name) {
+                    Some(&p) => Type::Package(p),
+                    None => Type::PackageName(name.to_owned()),
+                }
+            }
             THIS | QUALTHIS => Type::This(self.kid(id, 0)),
             RECthis => Type::RecThis(Binder(self.file, n.a as u32)),
             RECtype => Type::Rec(self.binder(id), self.kid(id, 0)),
