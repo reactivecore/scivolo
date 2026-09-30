@@ -135,8 +135,13 @@ Oracle: 99.9% of javalib's 10,660 method signatures and all 529 bridges match it
 4. Parents, linearization, member lookup with inherited members; value classes and
    subclass-aware `&`/`|` erasure; oracle: NIR names.
 5. Base types, `asSeenFrom`, override matching, bridges (dotty's, and Scala Native's interface
-   bridges, which compare erased types); oracle: NIR names. Then subtyping on known types, with
-   the interface the typer proposes (research 09).
+   bridges, which compare erased types); oracle: NIR names. Then subtyping (5b) with the
+   interface of research 09 §2: `TypeComparer`'s tries, the classes without TASTy (`Any`,
+   `Nothing`, `Null`, `Matchable`, `Singleton`, `AnyRef`; `Object` and `java.io.Serializable`
+   patched as dotty does), variances of aliases and opaque types from their trees; oracle:
+   `just subtype-oracle`, dotc's bounds check `sub[A, B]` on 76 types (5,776 pairs, all agree).
+   Left for 5b-2: `member_of_type`, `lub`/`glb`, string constants; partial unification and the
+   joins of `|` on the left.
 6. javalib's symbols (§3 B); oracle: javalib's NIR. The overlay's follow with the frontend.
 7. Bodies on demand, for `inline`, when the typer needs them.
 

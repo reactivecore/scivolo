@@ -8,6 +8,7 @@ mod file;
 mod library;
 mod names;
 mod print;
+mod subtype;
 mod symbols;
 pub mod tags;
 mod tree;
@@ -15,8 +16,11 @@ mod types;
 mod view;
 
 pub use erasure::Erased;
-pub use symbols::{Error as LoadError, FileId, Flags, Kind, Symbol, SymbolId, Universe, encode};
-pub use types::{Binder, Type, TypeId, Types};
+pub use subtype::{Mark, NoVars, TypeVars};
+pub use symbols::{
+    ANY, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe, encode,
+};
+pub use types::{Binder, Type, TypeId, Types, VarId};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};

@@ -1,0 +1,76 @@
+scala.Any
+scala.AnyRef
+scala.AnyVal
+scala.Matchable
+scala.Nothing
+scala.Null
+scala.Singleton
+scala.Int
+scala.Long
+scala.Boolean
+scala.Unit
+java.lang.Object
+java.lang.String
+java.lang.CharSequence
+java.lang.Comparable[java.lang.String]
+java.io.Serializable
+scala.Product
+scala.Equals
+scala.None.type
+scala.Option[scala.Int]
+scala.Option[scala.Any]
+scala.Option[?]
+scala.Option[? <: scala.AnyVal]
+scala.Some[scala.Int]
+scala.Some[java.lang.String]
+scala.collection.immutable.List[scala.Int]
+scala.collection.immutable.List[scala.Any]
+scala.collection.immutable.List[java.lang.String]
+scala.collection.immutable.Nil.type
+scala.collection.immutable.::[scala.Int]
+scala.collection.Seq[scala.Int]
+scala.collection.immutable.Seq[scala.Any]
+scala.Seq[scala.Int]
+scala.collection.immutable.Vector[scala.Int]
+scala.collection.mutable.ArrayBuffer[scala.Int]
+scala.collection.IterableOnce[scala.Int]
+scala.collection.Iterable[? >: scala.Int]
+scala.collection.immutable.Map[java.lang.String, scala.Int]
+scala.collection.Map[java.lang.String, scala.Any]
+scala.Function1[scala.Any, scala.Int]
+scala.Function1[scala.Int, scala.Any]
+scala.PartialFunction[scala.Int, scala.Int]
+scala.Tuple2[scala.Int, java.lang.String]
+scala.Tuple2[scala.Any, scala.Any]
+scala.Array[scala.Int]
+scala.Array[java.lang.String]
+scala.Array[java.lang.Object]
+scala.math.Ordering[scala.Int]
+scala.math.PartialOrdering[scala.Int]
+scala.util.Either[java.lang.String, scala.Int]
+scala.util.Right[scala.Nothing, scala.Int]
+scala.util.Left[java.lang.String, scala.Nothing]
+java.util.List[java.lang.String]
+java.util.ArrayList[java.lang.String]
+java.util.Collection[?]
+scala.runtime.RichInt
+scala.Int | java.lang.String
+scala.Null | java.lang.String
+scala.Product & java.io.Serializable
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]
+scala.Option[scala.Int] & scala.Product
+1
+2
+java.lang.Integer
+scala.Function0[scala.Int]
+scala.Option[scala.Nothing]
+scala.Nothing | scala.Int
+scala.Array[? <: java.lang.Object]
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]
+scala.collection.immutable.IndexedSeq[scala.Int]
+scala.collection.immutable.Range
+scala.math.Numeric[scala.Int]
+scala.math.Integral[scala.Int]
+scala.IArray[scala.Int]
+scala.IArray[scala.Any]
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]

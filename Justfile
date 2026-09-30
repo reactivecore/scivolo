@@ -158,6 +158,10 @@ libs:
 fetch-libs:
     scripts/fetch-libs.sh
 
+# Let dotc decide the subtype pairs of crates/tasty's fixture (scala-cli).
+subtype-oracle:
+    scripts/subtype-oracle.py
+
 # Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
 javalib-tasty:
     scripts/javalib-tasty.sh

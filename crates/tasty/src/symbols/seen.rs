@@ -1,6 +1,7 @@
 //! Base types and member types as seen from a prefix (dotty's `baseType` and `asSeenFrom`).
 
 use super::{Kind, SymbolId, Universe};
+use crate::tags::OPAQUE;
 use crate::types::{Type, TypeId};
 
 /// How many aliases and parents `base_type` follows.
@@ -56,6 +57,9 @@ impl Universe {
             Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
             _ => return None,
         };
+        if self.symbol(s).flags.has(OPAQUE) {
+            return None;
+        }
         if self.symbol(s).kind != Kind::Class {
             let dealiased = match args.is_empty() {
                 true => self.info(s),

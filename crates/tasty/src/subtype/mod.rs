@@ -1,0 +1,145 @@
+//! Subtyping (dotty's `TypeComparer`): one comparison for ground types and for types with type
+//! variables, whose constraint the caller keeps behind `TypeVars`.
+
+mod applied;
+mod first;
+mod fourth;
+mod refs;
+mod third;
+
+use crate::types::{TypeId, VarId};
+use crate::{ANY, NOTHING, Universe};
+use rustc_hash::FxHashSet;
+
+/// A state of a constraint to roll back to.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Mark(pub usize);
+
+/// The constraint on type variables a comparison consults and extends.
+pub trait TypeVars {
+    /// The type `v` is instantiated to.
+    fn instance(&self, v: VarId) -> Option<TypeId>;
+    /// Adds `lo <: v`; `false` if that contradicts the constraint.
+    fn add_lower(&mut self, u: &mut Universe, v: VarId, lo: TypeId) -> bool;
+    /// Adds `v <: hi`; `false` if that contradicts the constraint.
+    fn add_upper(&mut self, u: &mut Universe, v: VarId, hi: TypeId) -> bool;
+    /// The lower and upper bound of `v`.
+    fn bounds(&self, v: VarId) -> (TypeId, TypeId);
+    /// Whether a comparison may only consult the constraint.
+    fn frozen(&self) -> bool;
+    fn mark(&self) -> Mark;
+    fn rollback(&mut self, m: Mark);
+}
+
+/// No constraint: a type variable is a subtype and a supertype of itself only.
+pub struct NoVars;
+
+impl TypeVars for NoVars {
+    fn instance(&self, _: VarId) -> Option<TypeId> {
+        None
+    }
+    fn add_lower(&mut self, _: &mut Universe, _: VarId, _: TypeId) -> bool {
+        false
+    }
+    fn add_upper(&mut self, _: &mut Universe, _: VarId, _: TypeId) -> bool {
+        false
+    }
+    fn bounds(&self, _: VarId) -> (TypeId, TypeId) {
+        (NOTHING, ANY)
+    }
+    fn frozen(&self) -> bool {
+        true
+    }
+    fn mark(&self) -> Mark {
+        Mark(0)
+    }
+    fn rollback(&mut self, _: Mark) {}
+}
+
+impl Universe {
+    /// Whether `a` is a subtype of `b`, type variables compared as themselves.
+    pub fn is_subtype(&mut self, a: TypeId, b: TypeId) -> bool {
+        self.is_subtype_in(a, b, &mut NoVars)
+    }
+
+    /// Whether `a` is a subtype of `b` under the constraint `vars`, which the comparison extends
+    /// unless it is frozen.
+    pub fn is_subtype_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        Cmp::new(self, vars).recur(a, b)
+    }
+
+    /// Whether `a` and `b` are subtypes of each other under the constraint `vars`.
+    pub fn is_same_type_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        let mut c = Cmp::new(self, vars);
+        c.recur(a, b) && c.recur(b, a)
+    }
+}
+
+/// How deep a comparison recurses before it watches for a pair it is already comparing, and
+/// at most.
+const WATCH_DEPTH: u32 = 32;
+const MAX_DEPTH: u32 = 256;
+
+/// A comparison in progress.
+pub struct Cmp<'a> {
+    pub u: &'a mut Universe,
+    pub vars: &'a mut dyn TypeVars,
+    frozen: bool,
+    depth: u32,
+    pending: FxHashSet<(TypeId, TypeId)>,
+}
+
+impl<'a> Cmp<'a> {
+    fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
+        Cmp { u, vars, frozen: false, depth: 0, pending: FxHashSet::default() }
+    }
+
+    /// Whether the constraint may only be consulted.
+    pub fn frozen(&self) -> bool {
+        self.frozen || self.vars.frozen()
+    }
+
+    /// `a <: b` (dotty's `recur`).
+    pub fn recur(&mut self, a: TypeId, b: TypeId) -> bool {
+        if a == b {
+            return true;
+        }
+        if self.depth >= MAX_DEPTH {
+            return false;
+        }
+        let watched = self.depth >= WATCH_DEPTH;
+        if watched && !self.pending.insert((a, b)) {
+            return false;
+        }
+        self.depth += 1;
+        let result = self.first_try(a, b);
+        self.depth -= 1;
+        if watched {
+            self.pending.remove(&(a, b));
+        }
+        result
+    }
+
+    /// `a <: b` without extending the constraint.
+    pub fn recur_frozen(&mut self, a: TypeId, b: TypeId) -> bool {
+        let frozen = std::mem::replace(&mut self.frozen, true);
+        let result = self.recur(a, b);
+        self.frozen = frozen;
+        result
+    }
+
+    /// Whether `first` holds, or else `second`, the constraint a failed `first` added rolled
+    /// back (dotty's `sufficientEither`, keeping the first success).
+    pub fn either(
+        &mut self,
+        first: impl FnOnce(&mut Self) -> bool,
+        second: impl FnOnce(&mut Self) -> bool,
+    ) -> bool {
+        let mark = self.vars.mark();
+        if first(self) {
+            return true;
+        }
+        self.vars.rollback(mark);
+        second(self)
+    }
+}
