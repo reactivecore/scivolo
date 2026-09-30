@@ -101,7 +101,7 @@ impl Universe {
     }
 
     /// The class `t` erases to: its class, a value class unwrapped to its underlying type's.
-    fn erased_class(&mut self, t: TypeId) -> Option<SymbolId> {
+    pub fn erased_class(&mut self, t: TypeId) -> Option<SymbolId> {
         let mut c = self.class_symbol(t)?;
         for _ in 0..MAX_UNWRAP {
             let Some(value) = self.underlying(c) else { return Some(c) };

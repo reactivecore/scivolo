@@ -5,7 +5,9 @@ mod classes;
 mod enter;
 mod info;
 mod lookup;
+mod overrides;
 mod resolve;
+mod seen;
 mod symbol;
 
 use crate::library::Library;
