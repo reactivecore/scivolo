@@ -121,7 +121,9 @@ Recommendation: **B**, with A as a fallback if building javalib's TASTy proves i
    oracle: NIR names of scalalib and nativelib.
 4. Parents, linearization, member lookup with inherited members; value classes and
    subclass-aware `&`/`|` erasure; oracle: NIR names.
-5. Subtyping on known types, `asSeenFrom`, overriding (bridges); oracle: tasty-query.
+5. Base types, `asSeenFrom`, override matching, bridges (dotty's, and Scala Native's interface
+   bridges, which compare erased types); oracle: NIR names. Then subtyping on known types, with
+   the interface the typer proposes (research 09).
 6. javalib's symbols (§3 B) and the overlay.
 7. Bodies on demand, for `inline`, when the typer needs them.
 

@@ -1,5 +1,6 @@
-//! Erased signatures computed from TASTy against the mangled names Scala Native's compiler gave
-//! the same members in the NIR of its `scalalib`, for every class of the standard library.
+//! Erased signatures computed from TASTy, bridges included, against the mangled names Scala
+//! Native's compiler gave the same members in the NIR of its `scalalib`, for every class of the
+//! standard library.
 
 use std::collections::HashSet;
 use std::io::Read;
@@ -60,6 +61,7 @@ fn signatures_match_scalalib_nir() {
     let Some((mut u, mut zip)) = libs() else { return };
     let (mut matched, mut total, mut misses, mut skipped) = (0, 0, Vec::new(), Vec::new());
     let (mut found, mut wanted) = (0, 0);
+    let (mut bridges, mut bridges_matched) = (0, 0);
     for class in all_classes(&mut u) {
         let binary = u.binary_name(class);
         let Some(nir) = nir_methods(&mut zip, &binary) else {
@@ -79,6 +81,15 @@ fn signatures_match_scalalib_nir() {
                 misses.push(format!("{binary}: {sig}"));
             }
             ours.insert(sig);
+            for bridge in u.bridge_signatures(m) {
+                bridges += 1;
+                if nir.contains(&bridge) {
+                    bridges_matched += 1;
+                } else {
+                    misses.push(format!("{binary}: bridge {bridge}"));
+                }
+                ours.insert(bridge);
+            }
         }
         for sig in nir.iter().filter(|s| names.iter().any(|n| s.starts_with(n.as_str()))) {
             wanted += 1;
@@ -86,11 +97,18 @@ fn signatures_match_scalalib_nir() {
         }
     }
     assert!(skipped.is_empty(), "classes without NIR: {skipped:?}");
-    let (precision, recall) = (matched as f64 / total as f64, found as f64 / wanted as f64);
-    eprintln!("precision {matched}/{total}, recall {found}/{wanted}");
+    let precision = matched as f64 / total as f64;
+    let (bridge_precision, recall) = (bridges_matched as f64 / bridges as f64, found as f64 / wanted as f64);
+    let numbers =
+        format!("precision {matched}/{total}, bridges {bridges_matched}/{bridges}, recall {found}/{wanted}");
+    eprintln!("{numbers}");
     assert!(
-        total > 13_000 && precision >= 0.997 && recall >= 0.875,
-        "precision {matched}/{total}, recall {found}/{wanted}; misses:\n{}",
+        total > 13_000
+            && bridges > 1_500
+            && precision >= 0.997
+            && bridge_precision >= 0.997
+            && recall >= 0.98,
+        "{numbers}; misses:\n{}",
         misses.join("\n")
     );
 }

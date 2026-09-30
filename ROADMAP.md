@@ -145,10 +145,11 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy ([research 08](docs/research/08-tasty-symbols.md), #28).
    `crates/tasty` (2026-09-30): packages, lazily loaded files, symbols, declared
-   types, parents, linearization, inherited members, erasure; of the 13,886
-   public method signatures of the whole standard library, 99.7% match the
-   mangled names in Scala Native's NIR. Open: subtyping, `asSeenFrom`,
-   bridges (step 5).
+   types, parents, linearization, inherited members, base types, `asSeenFrom`,
+   override matching, erasure, bridges; of the 13,886 public method signatures
+   and 1,640 bridges of the whole standard library, 99.7% match the mangled
+   names in Scala Native's NIR, which our members cover to 98.2%. Open:
+   subtyping (step 5b, with the typer's interface).
 3. **Typer for the scripting subset.** Cover:
    - local type inference
    - overload resolution

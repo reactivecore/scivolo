@@ -65,7 +65,7 @@ impl Universe {
     }
 
     /// `tycon[args]` with `tycon` an alias of a type lambda: its body, arguments substituted.
-    fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+    pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
         let alias = match self.types().get(tycon).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.resolve(p, &n, true),
@@ -81,27 +81,14 @@ impl Universe {
     }
 
     /// `t` with the parameters of lambda `binder`, named `names`, replaced by `args`.
-    fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[String], args: &[TypeId]) -> TypeId {
-        let s = |u: &mut Self, x| u.subst(x, binder, names, args);
-        let replaced = match self.types().get(t).clone() {
+    pub fn subst(&mut self, t: TypeId, binder: crate::Binder, names: &[String], args: &[TypeId]) -> TypeId {
+        self.map_type(t, &mut |u, x| match u.types().get(x) {
             Type::Local(b, n) if b.0 == binder.0 => {
-                return names.iter().position(|m| *m == n).map_or(t, |i| args[i]);
+                names.iter().position(|m| m == n).and_then(|i| args.get(i).copied())
             }
-            Type::Param(b, i) if b == binder => return args.get(i as usize).copied().unwrap_or(t),
-            Type::Applied(c, a) => {
-                let c = s(self, c);
-                Type::Applied(c, a.into_iter().map(|x| s(self, x)).collect())
-            }
-            Type::Bounds(lo, hi) => Type::Bounds(s(self, lo), s(self, hi)),
-            Type::Alias(a) => Type::Alias(s(self, a)),
-            Type::Annotated(a) => Type::Annotated(s(self, a)),
-            Type::ByName(a) => Type::ByName(s(self, a)),
-            Type::And(a, b) => Type::And(s(self, a), s(self, b)),
-            Type::Or(a, b) => Type::Or(s(self, a), s(self, b)),
-            Type::Refined(p, n, i) => Type::Refined(s(self, p), n, i),
-            _ => return t,
-        };
-        self.intern_type(replaced)
+            Type::Param(b, i) if *b == binder => args.get(*i as usize).copied(),
+            _ => None,
+        })
     }
 
     /// Whether an array of `t` erases to `Object`: no JVM array holds all its values.

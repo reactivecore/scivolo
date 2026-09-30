@@ -2,6 +2,7 @@
 //! method and lambda types.
 
 mod decode;
+mod map;
 mod show;
 
 use crate::{FileId, SymbolId};

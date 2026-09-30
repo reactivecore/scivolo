@@ -52,7 +52,7 @@ impl Universe {
     }
 
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type.
-    fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
+    pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
         let mut t = self.info(def);
         let mut params = Vec::new();
         loop {

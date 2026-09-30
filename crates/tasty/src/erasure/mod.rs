@@ -3,6 +3,7 @@
 
 mod applied;
 mod bounds;
+mod bridges;
 mod mangle;
 mod special;
 
