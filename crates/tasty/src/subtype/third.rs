@@ -2,7 +2,7 @@
 //! variables, refinements, lambdas, unions, method types, bounds.
 
 use super::Cmp;
-use crate::types::{Binder, Type, TypeId, VarId};
+use crate::types::{Type, TypeId, VarId};
 use crate::{ANY, NOTHING};
 
 impl Cmp<'_> {
@@ -17,11 +17,10 @@ impl Cmp<'_> {
             Type::Refined(parent, name, info) => {
                 self.recur(a, parent) && self.has_matching_member(a, &name, info) || self.fourth_try(a, b)
             }
-            Type::Rec(_, parent) => self.recur(a, parent),
+            Type::Rec(_, parent) => self.recur(a, parent) || self.fourth_try(a, b),
             Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.types().get(a).clone() {
-                Type::Lambda { binder: b1, params: p1, result: r1 } if p1.len() == p2.len() => {
-                    let (r1, r2) = (self.lambda_body(b1, &p1, r1), self.lambda_body(b2, &p2, r2));
-                    self.recur(r1, r2)
+                Type::Lambda { binder: b1, params: p1, result: r1 } => {
+                    self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
                 }
                 _ => self.fourth_try(a, b),
             },
@@ -34,16 +33,15 @@ impl Cmp<'_> {
                             && p1
                                 .iter()
                                 .zip(&p2)
-                                .all(|(&(_, x), &(_, y))| self.recur(x, y) && self.recur(y, x))
+                                .all(|(&(_, x), &(_, y))| self.recur_frozen(x, y) && self.recur_frozen(y, x))
                             && self.recur(r1, r2)
                     }
                     _ => false,
                 }
             }
             Type::Poly { binder: b2, params: p2, result: r2 } => match self.u.types().get(a).clone() {
-                Type::Poly { binder: b1, params: p1, result: r1 } if p1.len() == p2.len() => {
-                    let (r1, r2) = (self.lambda_body(b1, &p1, r1), self.lambda_body(b2, &p2, r2));
-                    self.recur(r1, r2)
+                Type::Poly { binder: b1, params: p1, result: r1 } => {
+                    self.compare_binders((b1, &p1, r1), (b2, &p2, r2))
                 }
                 _ => false,
             },
@@ -109,45 +107,5 @@ impl Cmp<'_> {
             }
         }
         self.either(|s| s.recur(a, x), |s| s.recur(a, y)) || self.fourth_try(a, b)
-    }
-
-    /// The body of a type lambda or polymorphic type with its parameters as parameter
-    /// references of a common binder, so that two bodies compare.
-    fn lambda_body(&mut self, binder: Binder, params: &[(String, TypeId)], body: TypeId) -> TypeId {
-        let common = Binder(crate::FileId(u32::MAX), u32::MAX);
-        let refs: Vec<TypeId> =
-            (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(common, i))).collect();
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        self.u.subst(body, binder, &names, &refs)
-    }
-
-    /// Whether `a` has a member `name` that conforms to refinement info `info`: a type member
-    /// within its bounds, a term member of its type.
-    fn has_matching_member(&mut self, a: TypeId, name: &str, info: TypeId) -> bool {
-        let widened = self.u.widen(a);
-        let Some(class) = self.u.class_symbol(widened) else { return false };
-        let members = self.u.member(class, name);
-        let bounds = |s: &mut Self, t: TypeId| match s.u.types().get(t).clone() {
-            Type::Bounds(lo, hi) => (lo, hi),
-            Type::Alias(x) => (x, x),
-            _ => (t, t),
-        };
-        members.into_iter().any(|m| {
-            let seen = self.u.member_info(widened, m);
-            match self.named_meaning_is_type(m) {
-                true => {
-                    let ((lo1, hi1), (lo2, hi2)) = (bounds(self, seen), bounds(self, info));
-                    self.recur(lo2, lo1) && self.recur(hi1, hi2)
-                }
-                false => {
-                    let result = self.u.result_type(seen);
-                    self.recur(result, info)
-                }
-            }
-        })
-    }
-
-    fn named_meaning_is_type(&mut self, m: crate::SymbolId) -> bool {
-        matches!(self.u.symbol(m).kind, crate::Kind::Type | crate::Kind::TypeParam | crate::Kind::Class)
     }
 }

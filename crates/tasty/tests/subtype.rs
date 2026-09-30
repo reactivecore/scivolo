@@ -1,5 +1,6 @@
 //! Subtyping against dotc 3.9.0 (`just subtype-oracle`): the pairs of types in
-//! `fixtures/subtype-types.txt`, decided by `summon[A <:< B]`.
+//! `fixtures/subtype-types.txt`, decided by a bounds check, with the definitions of
+//! `fixtures/subtype/Prelude.scala`.
 
 use std::path::Path;
 use tasty::{ANY, Kind, NOTHING, Type, TypeId, Universe};
@@ -19,6 +20,7 @@ fn universe() -> Option<Universe> {
     }
     let mut jars = fetched.to_vec();
     jars.push(root.join("libs/javalib-tasty-0.5.12.jar"));
+    jars.push(root.join("crates/tasty/tests/fixtures/subtype-prelude.jar"));
     Some(Universe::open(&jars).unwrap())
 }
 
@@ -75,9 +77,8 @@ impl Parser<'_> {
         }
         let tycon = match path.strip_suffix(".type") {
             Some(term) => {
-                let (pkg, name) = term.rsplit_once('.').unwrap();
-                let prefix = u.package(pkg).unwrap();
-                let prefix = u.intern_type(Type::Package(prefix));
+                let (prefix, name) = term.rsplit_once('.').unwrap();
+                let prefix = path_prefix(u, prefix);
                 u.intern_type(Type::TermRef(prefix, name.into()))
             }
             None => named_type(u, path),
@@ -94,11 +95,14 @@ impl Parser<'_> {
     }
 }
 
-/// The class or type alias of qualified name `path`, a reference by name if the universe
-/// lacks it.
+/// The type named by qualified name `path`: a class or type alias of a package, a reference by
+/// name if the universe lacks it; a type member of a value's path.
 fn named_type(u: &mut Universe, path: &str) -> TypeId {
-    let (pkg, name) = path.rsplit_once('.').unwrap();
-    let pkg = u.package(pkg).unwrap();
+    let (prefix, name) = path.rsplit_once('.').unwrap();
+    let Some(pkg) = u.package(prefix) else {
+        let prefix = path_prefix(u, prefix);
+        return u.intern_type(Type::TypeRef(prefix, name.into()));
+    };
     let found = u
         .decl(pkg, name)
         .unwrap()
@@ -108,6 +112,19 @@ fn named_type(u: &mut Universe, path: &str) -> TypeId {
         Some(s) => u.intern_type(Type::Sym(None, s)),
         None => u.class_ref(path),
     }
+}
+
+/// The path `path`: its longest package prefix, then values selected from it.
+fn path_prefix(u: &mut Universe, path: &str) -> TypeId {
+    let segments: Vec<&str> = path.split('.').collect();
+    let packages =
+        (0..=segments.len()).rev().find(|&i| u.package(&segments[..i].join(".")).is_some()).unwrap();
+    let pkg = u.package(&segments[..packages].join(".")).unwrap();
+    let mut t = u.intern_type(Type::Package(pkg));
+    for term in &segments[packages..] {
+        t = u.intern_type(Type::TermRef(t, (*term).into()));
+    }
+    t
 }
 
 fn parse(u: &mut Universe, s: &str) -> TypeId {

@@ -3,14 +3,16 @@
 
 use super::Cmp;
 use super::refs::Meaning;
+use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
+use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match self.u.types().get(a).clone() {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
                 Some(Meaning::Abstract(_, hi)) => self.recur(hi, b),
-                Some(Meaning::Class(c)) if c == self.u.builtins().nothing => true,
+                Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),
                 _ => false,
@@ -58,14 +60,29 @@ impl Cmp<'_> {
         widened != a && self.recur(widened, b)
     }
 
-    /// Whether paths `a` and `b` denote the same value: the same term, or an object and `this`
-    /// of its class.
+    /// Whether paths `a` and `b` denote the same value: the same term through related prefixes,
+    /// `this` of the same class, or a top-level object and `this` of its class.
     fn same_path(&mut self, a: TypeId, b: TypeId) -> bool {
-        let (Some(s1), Some(s2)) = (self.path_symbol(a), self.path_symbol(b)) else { return false };
-        let module_class = |s: &mut Self, m| match s.u.symbol(m).kind {
-            crate::Kind::Val => s.u.module_class(m),
-            _ => Some(m),
+        let this = |s: &mut Self, t| match s.u.types().get(t).clone() {
+            Type::This(c) => s.path_symbol(c),
+            _ => None,
         };
-        s1 == s2 || module_class(self, s1).is_some() && module_class(self, s1) == module_class(self, s2)
+        match (this(self, a), this(self, b)) {
+            (Some(c1), Some(c2)) => c1 == c2,
+            (Some(c), None) => self.object_of(b) == Some(c),
+            (None, Some(c)) => self.object_of(a) == Some(c),
+            (None, None) => {
+                let (Some(n1), Some(n2)) = (self.named(a), self.named(b)) else { return false };
+                n1.sym.is_some() && n1.sym == n2.sym && self.sub_prefix(n1.prefix, n2.prefix)
+            }
+        }
+    }
+
+    /// The class of the top-level object path `t` refers to.
+    fn object_of(&mut self, t: TypeId) -> Option<SymbolId> {
+        let s = self.named(t)?.sym?;
+        let owner = self.u.symbol(s).owner?;
+        let top_level = self.u.symbol(owner).kind == Kind::Package && self.u.symbol(s).flags.has(OBJECT);
+        top_level.then(|| self.u.module_class(s)).flatten()
     }
 }

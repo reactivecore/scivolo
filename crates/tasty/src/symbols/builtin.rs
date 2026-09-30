@@ -22,6 +22,8 @@ pub struct Builtins {
     pub singleton: SymbolId,
     pub any_ref: SymbolId,
     pub object: SymbolId,
+    /// `scala.AnyVal`, from the library's TASTy.
+    pub any_val: Option<SymbolId>,
 }
 
 impl Builtins {
@@ -37,6 +39,7 @@ impl Builtins {
             singleton: r,
             any_ref: r,
             object: r,
+            any_val: None,
         }
     };
 }
@@ -44,13 +47,12 @@ impl Builtins {
 /// A symbol of `kind` without TASTy, flagged with the modifier tags `flags`.
 fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8]) -> SymbolId {
     let flags = flags.iter().fold(Flags::default(), |f, &t| f.with(t));
-    let target = None;
     u.add(Symbol {
         name: name.into(),
         kind,
         owner: Some(owner),
         flags,
-        target,
+        target: None,
         is_extern: false,
         decls: Vec::new(),
         tree: None,
@@ -92,7 +94,9 @@ pub fn enter(u: &mut Universe) -> Builtins {
     let any_ref = synthetic(u, scala, "AnyRef", Kind::Type, &[]);
     let object_ref = u.types.intern(Type::Sym(None, object));
     u.infos.insert(any_ref, object_ref);
-    Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object }
+    let any_val =
+        u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
+    Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object, any_val }
 }
 
 impl Universe {

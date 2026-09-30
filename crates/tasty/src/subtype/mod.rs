@@ -2,8 +2,11 @@
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 
 mod applied;
+mod binders;
 mod first;
 mod fourth;
+mod null;
+mod refined;
 mod refs;
 mod third;
 
@@ -63,21 +66,32 @@ impl Universe {
     }
 
     /// Whether `a` is a subtype of `b` under the constraint `vars`, which the comparison extends
-    /// unless it is frozen.
+    /// unless it is frozen; a failed comparison leaves `vars` as it was.
     pub fn is_subtype_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
-        Cmp::new(self, vars).recur(a, b)
+        let mark = vars.mark();
+        let result = Cmp::new(self, vars).recur(a, b);
+        if !result {
+            vars.rollback(mark);
+        }
+        result
     }
 
-    /// Whether `a` and `b` are subtypes of each other under the constraint `vars`.
+    /// Whether `a` and `b` are subtypes of each other under the constraint `vars`; a failed
+    /// comparison leaves `vars` as it was.
     pub fn is_same_type_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        let mark = vars.mark();
         let mut c = Cmp::new(self, vars);
-        c.recur(a, b) && c.recur(b, a)
+        let result = c.recur(a, b) && c.recur(b, a);
+        if !result {
+            vars.rollback(mark);
+        }
+        result
     }
 }
 
-/// How deep a comparison recurses before it watches for a pair it is already comparing, and
-/// at most.
+/// How deep a comparison recurses before it watches for a pair it is already comparing.
 const WATCH_DEPTH: u32 = 32;
+/// How deep a comparison recurses at most; deeper comparisons fail.
 const MAX_DEPTH: u32 = 256;
 
 /// A comparison in progress.

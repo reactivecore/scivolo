@@ -83,7 +83,8 @@ impl Universe {
         })
     }
 
-    /// The right-hand side of type alias `s`; `None` for classes, abstract and opaque types.
+    /// The right-hand side of type alias `s`; `None` for classes, abstract types (higher-kinded
+    /// ones included) and opaque types.
     pub fn alias_of(&mut self, s: SymbolId) -> Option<TypeId> {
         if self.symbol(s).kind != Kind::Type || self.symbol(s).flags.has(OPAQUE) {
             return None;
@@ -93,6 +94,9 @@ impl Universe {
             Type::Alias(a) => Some(a),
             Type::Bounds(lo, hi) if lo == hi => Some(lo),
             Type::Bounds(..) | Type::Other(_) => None,
+            Type::Lambda { result, .. } if matches!(self.types().get(result), Type::Bounds(lo, hi) if lo != hi) => {
+                None
+            }
             _ => Some(info),
         }
     }

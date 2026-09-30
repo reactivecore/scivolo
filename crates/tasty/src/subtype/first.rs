@@ -4,6 +4,7 @@
 use super::Cmp;
 use super::refs::{Meaning, Named};
 use crate::types::{Type, TypeId, VarId};
+use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
     pub fn first_try(&mut self, a: TypeId, b: TypeId) -> bool {
@@ -49,18 +50,18 @@ impl Cmp<'_> {
         }
         match (n1.sym, n2.sym) {
             (Some(s1), Some(s2)) if s1 == s2 => {
-                self.static_owner(s1)
+                self.owned_by_package(s1)
                     || self.sub_prefix(n1.prefix, n2.prefix)
                     || self.third_try_named(a, b, n2)
             }
-            (None, None) if n1.meaning == n2.meaning => true,
+            (None, None) if n1.same_unresolved(&n2) => true,
             _ => self.third_try_named(a, b, n2),
         }
     }
 
     /// Whether `s` is owned by a package.
-    fn static_owner(&mut self, s: crate::SymbolId) -> bool {
-        self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind == crate::Kind::Package)
+    fn owned_by_package(&mut self, s: SymbolId) -> bool {
+        self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package)
     }
 
     pub fn second_try(&mut self, a: TypeId, b: TypeId) -> bool {
@@ -68,7 +69,9 @@ impl Cmp<'_> {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => {
                 match self.named(a).map(|n| n.meaning) {
                     Some(Meaning::Alias(alias)) if self.recur(alias, b) => return true,
-                    Some(Meaning::Class(c)) if c == self.u.builtins().nothing => return true,
+                    Some(Meaning::Class(c)) if c == self.u.builtins().nothing && self.is_value_type(b) => {
+                        return true;
+                    }
                     _ => {}
                 }
                 self.third_try(a, b)
@@ -123,7 +126,7 @@ impl Cmp<'_> {
     }
 
     /// `a <: b` through the instance of class `c`, `b`'s class, that `a` derives.
-    pub fn try_base_type(&mut self, a: TypeId, b: TypeId, c: crate::SymbolId) -> bool {
+    pub fn try_base_type(&mut self, a: TypeId, b: TypeId, c: SymbolId) -> bool {
         let widened = self.u.widen(a);
         match self.u.base_type(widened, c) {
             Some(base) if base != a => {

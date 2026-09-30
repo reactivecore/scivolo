@@ -150,7 +150,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    (`just javalib-tasty`). Of the method signatures and bridges of the whole
    standard library (15,587) and javalib (11,189), 99.8% and 99.9% match the
    mangled names in Scala Native's NIR. Subtyping with type variables behind
-   the typer's constraint agrees with dotc on 5,776 pairs. Open: `lub`/`glb`
+   the typer's constraint agrees with dotc on 12,544 pairs. Open: `lub`/`glb`
    and member lookup on types (step 5b-2).
 3. **Typer for the scripting subset.** Cover:
    - local type inference

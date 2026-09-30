@@ -3,6 +3,7 @@
 use super::Cmp;
 use super::refs::Meaning;
 use crate::types::{Type, TypeId};
+use crate::{ANY, NOTHING};
 
 impl Cmp<'_> {
     /// `a <: tycon[args]`.
@@ -72,7 +73,7 @@ impl Cmp<'_> {
                     let (Some(n1), Some(n2)) = (self.named(tycon1), self.named(tycon2)) else { return false };
                     let same = match (n1.sym, n2.sym) {
                         (Some(s1), Some(s2)) => s1 == s2 && self.sub_prefix(n1.prefix, n2.prefix),
-                        (None, None) => n1.meaning == n2.meaning,
+                        (None, None) => n1.same_unresolved(&n2),
                         _ => false,
                     };
                     return same && self.sub_args(&args1, args2, variances);
@@ -152,7 +153,7 @@ impl Cmp<'_> {
     fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match self.u.types().get(t).clone() {
             Type::Bounds(lo, hi) => Some((lo, hi)),
-            Type::Wildcard(None) => Some((crate::NOTHING, crate::ANY)),
+            Type::Wildcard(None) => Some((NOTHING, ANY)),
             Type::Wildcard(Some(b)) => self.arg_bounds(b),
             _ => None,
         }
@@ -176,7 +177,7 @@ impl Cmp<'_> {
                 let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                 self.u.subst(result, binder, &names, args)
             }
-            _ if args.is_empty() || t == crate::NOTHING || t == crate::ANY => t,
+            _ if args.is_empty() || t == NOTHING || t == ANY => t,
             _ => self.u.intern_type(Type::Applied(t, args.to_vec())),
         }
     }
