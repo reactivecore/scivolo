@@ -52,7 +52,7 @@ impl Cmp<'_> {
     /// Whether `t` is a path or a constant.
     pub fn is_stable(&mut self, t: TypeId) -> bool {
         match self.u.types().get(t).clone() {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::RecThis(_) => true,
+            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) => true,
             Type::Sym(_, s) => matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param),
             _ => false,
         }

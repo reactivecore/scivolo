@@ -61,6 +61,8 @@ scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[s
 scala.Option[scala.Int] & scala.Product
 1
 2
+"a"
+"b"
 java.lang.Integer
 scala.Function0[scala.Int]
 scala.Option[scala.Nothing]

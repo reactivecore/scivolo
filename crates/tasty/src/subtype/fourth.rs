@@ -16,7 +16,9 @@ impl Cmp<'_> {
                 _ => false,
             },
             Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),
-            Type::This(_) | Type::Constant(..) | Type::RecThis(_) => self.below_singleton(a, b),
+            Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) => {
+                self.below_singleton(a, b)
+            }
             Type::Refined(parent, ..)
             | Type::Rec(_, parent)
             | Type::Annotated(parent)

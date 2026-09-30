@@ -114,6 +114,7 @@ impl<'a> Decoder<'a> {
                 let params = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
                 Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
             }
+            STRINGconst => Type::Str(self.name(id)),
             tag if crate::constant(tag, n.a).is_some() => Type::Constant(tag, n.a),
             tag => Type::Other(tag),
         }

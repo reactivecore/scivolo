@@ -70,8 +70,10 @@ pub enum Type {
     Param(Binder, u32),
     /// A match type, by its upper bound.
     Match(TypeId),
-    /// A constant's tag and bits.
+    /// A constant's tag and bits; strings are `Str`.
     Constant(u8, i64),
+    /// A string constant.
+    Str(String),
     /// A type not represented yet, by its tag.
     Other(u8),
     /// A type variable, instantiated by the constraint the comparison runs in.

@@ -76,6 +76,7 @@ impl Universe {
             Type::And(a, b) => self.erase_and(a, b),
             Type::Or(a, b) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),
+            Type::Str(_) => Erased::Class("java.lang.String".into()),
             _ => object(),
         }
     }

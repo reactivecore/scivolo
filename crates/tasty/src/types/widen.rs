@@ -25,6 +25,7 @@ impl Universe {
                     self.term_type(p, s)
                 }
                 Type::Constant(tag, _) => self.constant_type(tag),
+                Type::Str(_) => self.constant_type(STRINGconst),
                 Type::ByName(r) => r,
                 Type::This(c) => match self.class_symbol(c) {
                     Some(c) => self.this_type(c),

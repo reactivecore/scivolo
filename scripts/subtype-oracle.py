@@ -24,7 +24,8 @@ def main():
     for n, chunk in enumerate(chunks):
         lines.append(f"def chunk{n}(): Unit =")
         for a, b in chunk:
-            lines.append(f'  println(typeChecks("sub[{a}, {b}]"))')
+            code = f"sub[{a}, {b}]".replace('"', '\\"')
+            lines.append(f'  println(typeChecks("{code}"))')
     lines += ["", "@main def oracle(): Unit ="] + [f"  chunk{n}()" for n in range(len(chunks))]
     WORK.mkdir(parents=True, exist_ok=True)
     (WORK / "Oracle.scala").write_text("\n".join(lines) + "\n")

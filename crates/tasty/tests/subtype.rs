@@ -23,7 +23,7 @@ fn universe() -> Option<Universe> {
 }
 
 /// Parses the fixtures' types: qualified names, `[…]` arguments, `?` wildcards with bounds,
-/// `p.type` singletons, integer literals, and `|`/`&` between them.
+/// `p.type` singletons, integer and string literals, and `|`/`&` between them.
 struct Parser<'a> {
     s: &'a str,
 }
@@ -61,6 +61,11 @@ impl Parser<'_> {
                 lo = self.simple(u);
             }
             return u.intern_type(Type::Bounds(lo, hi));
+        }
+        if let Some(rest) = self.s.strip_prefix('"') {
+            let (text, rest) = rest.split_once('"').unwrap();
+            self.s = rest;
+            return u.intern_type(Type::Str(text.into()));
         }
         let end = self.s.find(['[', ',', ']', ' ']).unwrap_or(self.s.len());
         let (path, rest) = self.s.split_at(end);

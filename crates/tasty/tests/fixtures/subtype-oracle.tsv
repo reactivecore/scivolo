@@ -61,6 +61,8 @@ scala.Any	scala.collection.immutable.List[scala.Int] | scala.collection.immutabl
 scala.Any	scala.Option[scala.Int] & scala.Product	false
 scala.Any	1	false
 scala.Any	2	false
+scala.Any	"a"	false
+scala.Any	"b"	false
 scala.Any	java.lang.Integer	false
 scala.Any	scala.Function0[scala.Int]	false
 scala.Any	scala.Option[scala.Nothing]	false
@@ -137,6 +139,8 @@ scala.AnyRef	scala.collection.immutable.List[scala.Int] | scala.collection.immut
 scala.AnyRef	scala.Option[scala.Int] & scala.Product	false
 scala.AnyRef	1	false
 scala.AnyRef	2	false
+scala.AnyRef	"a"	false
+scala.AnyRef	"b"	false
 scala.AnyRef	java.lang.Integer	false
 scala.AnyRef	scala.Function0[scala.Int]	false
 scala.AnyRef	scala.Option[scala.Nothing]	false
@@ -213,6 +217,8 @@ scala.AnyVal	scala.collection.immutable.List[scala.Int] | scala.collection.immut
 scala.AnyVal	scala.Option[scala.Int] & scala.Product	false
 scala.AnyVal	1	false
 scala.AnyVal	2	false
+scala.AnyVal	"a"	false
+scala.AnyVal	"b"	false
 scala.AnyVal	java.lang.Integer	false
 scala.AnyVal	scala.Function0[scala.Int]	false
 scala.AnyVal	scala.Option[scala.Nothing]	false
@@ -289,6 +295,8 @@ scala.Matchable	scala.collection.immutable.List[scala.Int] | scala.collection.im
 scala.Matchable	scala.Option[scala.Int] & scala.Product	false
 scala.Matchable	1	false
 scala.Matchable	2	false
+scala.Matchable	"a"	false
+scala.Matchable	"b"	false
 scala.Matchable	java.lang.Integer	false
 scala.Matchable	scala.Function0[scala.Int]	false
 scala.Matchable	scala.Option[scala.Nothing]	false
@@ -365,6 +373,8 @@ scala.Nothing	scala.collection.immutable.List[scala.Int] | scala.collection.immu
 scala.Nothing	scala.Option[scala.Int] & scala.Product	true
 scala.Nothing	1	true
 scala.Nothing	2	true
+scala.Nothing	"a"	true
+scala.Nothing	"b"	true
 scala.Nothing	java.lang.Integer	true
 scala.Nothing	scala.Function0[scala.Int]	true
 scala.Nothing	scala.Option[scala.Nothing]	true
@@ -441,6 +451,8 @@ scala.Null	scala.collection.immutable.List[scala.Int] | scala.collection.immutab
 scala.Null	scala.Option[scala.Int] & scala.Product	true
 scala.Null	1	false
 scala.Null	2	false
+scala.Null	"a"	false
+scala.Null	"b"	false
 scala.Null	java.lang.Integer	true
 scala.Null	scala.Function0[scala.Int]	true
 scala.Null	scala.Option[scala.Nothing]	true
@@ -517,6 +529,8 @@ scala.Singleton	scala.collection.immutable.List[scala.Int] | scala.collection.im
 scala.Singleton	scala.Option[scala.Int] & scala.Product	false
 scala.Singleton	1	false
 scala.Singleton	2	false
+scala.Singleton	"a"	false
+scala.Singleton	"b"	false
 scala.Singleton	java.lang.Integer	false
 scala.Singleton	scala.Function0[scala.Int]	false
 scala.Singleton	scala.Option[scala.Nothing]	false
@@ -593,6 +607,8 @@ scala.Int	scala.collection.immutable.List[scala.Int] | scala.collection.immutabl
 scala.Int	scala.Option[scala.Int] & scala.Product	false
 scala.Int	1	false
 scala.Int	2	false
+scala.Int	"a"	false
+scala.Int	"b"	false
 scala.Int	java.lang.Integer	false
 scala.Int	scala.Function0[scala.Int]	false
 scala.Int	scala.Option[scala.Nothing]	false
@@ -669,6 +685,8 @@ scala.Long	scala.collection.immutable.List[scala.Int] | scala.collection.immutab
 scala.Long	scala.Option[scala.Int] & scala.Product	false
 scala.Long	1	false
 scala.Long	2	false
+scala.Long	"a"	false
+scala.Long	"b"	false
 scala.Long	java.lang.Integer	false
 scala.Long	scala.Function0[scala.Int]	false
 scala.Long	scala.Option[scala.Nothing]	false
@@ -745,6 +763,8 @@ scala.Boolean	scala.collection.immutable.List[scala.Int] | scala.collection.immu
 scala.Boolean	scala.Option[scala.Int] & scala.Product	false
 scala.Boolean	1	false
 scala.Boolean	2	false
+scala.Boolean	"a"	false
+scala.Boolean	"b"	false
 scala.Boolean	java.lang.Integer	false
 scala.Boolean	scala.Function0[scala.Int]	false
 scala.Boolean	scala.Option[scala.Nothing]	false
@@ -821,6 +841,8 @@ scala.Unit	scala.collection.immutable.List[scala.Int] | scala.collection.immutab
 scala.Unit	scala.Option[scala.Int] & scala.Product	false
 scala.Unit	1	false
 scala.Unit	2	false
+scala.Unit	"a"	false
+scala.Unit	"b"	false
 scala.Unit	java.lang.Integer	false
 scala.Unit	scala.Function0[scala.Int]	false
 scala.Unit	scala.Option[scala.Nothing]	false
@@ -897,6 +919,8 @@ java.lang.Object	scala.collection.immutable.List[scala.Int] | scala.collection.i
 java.lang.Object	scala.Option[scala.Int] & scala.Product	false
 java.lang.Object	1	false
 java.lang.Object	2	false
+java.lang.Object	"a"	false
+java.lang.Object	"b"	false
 java.lang.Object	java.lang.Integer	false
 java.lang.Object	scala.Function0[scala.Int]	false
 java.lang.Object	scala.Option[scala.Nothing]	false
@@ -973,6 +997,8 @@ java.lang.String	scala.collection.immutable.List[scala.Int] | scala.collection.i
 java.lang.String	scala.Option[scala.Int] & scala.Product	false
 java.lang.String	1	false
 java.lang.String	2	false
+java.lang.String	"a"	false
+java.lang.String	"b"	false
 java.lang.String	java.lang.Integer	false
 java.lang.String	scala.Function0[scala.Int]	false
 java.lang.String	scala.Option[scala.Nothing]	false
@@ -1049,6 +1075,8 @@ java.lang.CharSequence	scala.collection.immutable.List[scala.Int] | scala.collec
 java.lang.CharSequence	scala.Option[scala.Int] & scala.Product	false
 java.lang.CharSequence	1	false
 java.lang.CharSequence	2	false
+java.lang.CharSequence	"a"	false
+java.lang.CharSequence	"b"	false
 java.lang.CharSequence	java.lang.Integer	false
 java.lang.CharSequence	scala.Function0[scala.Int]	false
 java.lang.CharSequence	scala.Option[scala.Nothing]	false
@@ -1125,6 +1153,8 @@ java.lang.Comparable[java.lang.String]	scala.collection.immutable.List[scala.Int
 java.lang.Comparable[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 java.lang.Comparable[java.lang.String]	1	false
 java.lang.Comparable[java.lang.String]	2	false
+java.lang.Comparable[java.lang.String]	"a"	false
+java.lang.Comparable[java.lang.String]	"b"	false
 java.lang.Comparable[java.lang.String]	java.lang.Integer	false
 java.lang.Comparable[java.lang.String]	scala.Function0[scala.Int]	false
 java.lang.Comparable[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -1201,6 +1231,8 @@ java.io.Serializable	scala.collection.immutable.List[scala.Int] | scala.collecti
 java.io.Serializable	scala.Option[scala.Int] & scala.Product	false
 java.io.Serializable	1	false
 java.io.Serializable	2	false
+java.io.Serializable	"a"	false
+java.io.Serializable	"b"	false
 java.io.Serializable	java.lang.Integer	false
 java.io.Serializable	scala.Function0[scala.Int]	false
 java.io.Serializable	scala.Option[scala.Nothing]	false
@@ -1277,6 +1309,8 @@ scala.Product	scala.collection.immutable.List[scala.Int] | scala.collection.immu
 scala.Product	scala.Option[scala.Int] & scala.Product	false
 scala.Product	1	false
 scala.Product	2	false
+scala.Product	"a"	false
+scala.Product	"b"	false
 scala.Product	java.lang.Integer	false
 scala.Product	scala.Function0[scala.Int]	false
 scala.Product	scala.Option[scala.Nothing]	false
@@ -1353,6 +1387,8 @@ scala.Equals	scala.collection.immutable.List[scala.Int] | scala.collection.immut
 scala.Equals	scala.Option[scala.Int] & scala.Product	false
 scala.Equals	1	false
 scala.Equals	2	false
+scala.Equals	"a"	false
+scala.Equals	"b"	false
 scala.Equals	java.lang.Integer	false
 scala.Equals	scala.Function0[scala.Int]	false
 scala.Equals	scala.Option[scala.Nothing]	false
@@ -1429,6 +1465,8 @@ scala.None.type	scala.collection.immutable.List[scala.Int] | scala.collection.im
 scala.None.type	scala.Option[scala.Int] & scala.Product	true
 scala.None.type	1	false
 scala.None.type	2	false
+scala.None.type	"a"	false
+scala.None.type	"b"	false
 scala.None.type	java.lang.Integer	false
 scala.None.type	scala.Function0[scala.Int]	false
 scala.None.type	scala.Option[scala.Nothing]	true
@@ -1505,6 +1543,8 @@ scala.Option[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.colle
 scala.Option[scala.Int]	scala.Option[scala.Int] & scala.Product	true
 scala.Option[scala.Int]	1	false
 scala.Option[scala.Int]	2	false
+scala.Option[scala.Int]	"a"	false
+scala.Option[scala.Int]	"b"	false
 scala.Option[scala.Int]	java.lang.Integer	false
 scala.Option[scala.Int]	scala.Function0[scala.Int]	false
 scala.Option[scala.Int]	scala.Option[scala.Nothing]	false
@@ -1581,6 +1621,8 @@ scala.Option[scala.Any]	scala.collection.immutable.List[scala.Int] | scala.colle
 scala.Option[scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.Option[scala.Any]	1	false
 scala.Option[scala.Any]	2	false
+scala.Option[scala.Any]	"a"	false
+scala.Option[scala.Any]	"b"	false
 scala.Option[scala.Any]	java.lang.Integer	false
 scala.Option[scala.Any]	scala.Function0[scala.Int]	false
 scala.Option[scala.Any]	scala.Option[scala.Nothing]	false
@@ -1657,6 +1699,8 @@ scala.Option[?]	scala.collection.immutable.List[scala.Int] | scala.collection.im
 scala.Option[?]	scala.Option[scala.Int] & scala.Product	false
 scala.Option[?]	1	false
 scala.Option[?]	2	false
+scala.Option[?]	"a"	false
+scala.Option[?]	"b"	false
 scala.Option[?]	java.lang.Integer	false
 scala.Option[?]	scala.Function0[scala.Int]	false
 scala.Option[?]	scala.Option[scala.Nothing]	false
@@ -1733,6 +1777,8 @@ scala.Option[? <: scala.AnyVal]	scala.collection.immutable.List[scala.Int] | sca
 scala.Option[? <: scala.AnyVal]	scala.Option[scala.Int] & scala.Product	false
 scala.Option[? <: scala.AnyVal]	1	false
 scala.Option[? <: scala.AnyVal]	2	false
+scala.Option[? <: scala.AnyVal]	"a"	false
+scala.Option[? <: scala.AnyVal]	"b"	false
 scala.Option[? <: scala.AnyVal]	java.lang.Integer	false
 scala.Option[? <: scala.AnyVal]	scala.Function0[scala.Int]	false
 scala.Option[? <: scala.AnyVal]	scala.Option[scala.Nothing]	false
@@ -1809,6 +1855,8 @@ scala.Some[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.collect
 scala.Some[scala.Int]	scala.Option[scala.Int] & scala.Product	true
 scala.Some[scala.Int]	1	false
 scala.Some[scala.Int]	2	false
+scala.Some[scala.Int]	"a"	false
+scala.Some[scala.Int]	"b"	false
 scala.Some[scala.Int]	java.lang.Integer	false
 scala.Some[scala.Int]	scala.Function0[scala.Int]	false
 scala.Some[scala.Int]	scala.Option[scala.Nothing]	false
@@ -1885,6 +1933,8 @@ scala.Some[java.lang.String]	scala.collection.immutable.List[scala.Int] | scala.
 scala.Some[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 scala.Some[java.lang.String]	1	false
 scala.Some[java.lang.String]	2	false
+scala.Some[java.lang.String]	"a"	false
+scala.Some[java.lang.String]	"b"	false
 scala.Some[java.lang.String]	java.lang.Integer	false
 scala.Some[java.lang.String]	scala.Function0[scala.Int]	false
 scala.Some[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -1961,6 +2011,8 @@ scala.collection.immutable.List[scala.Int]	scala.collection.immutable.List[scala
 scala.collection.immutable.List[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.List[scala.Int]	1	false
 scala.collection.immutable.List[scala.Int]	2	false
+scala.collection.immutable.List[scala.Int]	"a"	false
+scala.collection.immutable.List[scala.Int]	"b"	false
 scala.collection.immutable.List[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.List[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.List[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2037,6 +2089,8 @@ scala.collection.immutable.List[scala.Any]	scala.collection.immutable.List[scala
 scala.collection.immutable.List[scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.List[scala.Any]	1	false
 scala.collection.immutable.List[scala.Any]	2	false
+scala.collection.immutable.List[scala.Any]	"a"	false
+scala.collection.immutable.List[scala.Any]	"b"	false
 scala.collection.immutable.List[scala.Any]	java.lang.Integer	false
 scala.collection.immutable.List[scala.Any]	scala.Function0[scala.Int]	false
 scala.collection.immutable.List[scala.Any]	scala.Option[scala.Nothing]	false
@@ -2113,6 +2167,8 @@ scala.collection.immutable.List[java.lang.String]	scala.collection.immutable.Lis
 scala.collection.immutable.List[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.List[java.lang.String]	1	false
 scala.collection.immutable.List[java.lang.String]	2	false
+scala.collection.immutable.List[java.lang.String]	"a"	false
+scala.collection.immutable.List[java.lang.String]	"b"	false
 scala.collection.immutable.List[java.lang.String]	java.lang.Integer	false
 scala.collection.immutable.List[java.lang.String]	scala.Function0[scala.Int]	false
 scala.collection.immutable.List[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -2189,6 +2245,8 @@ scala.collection.immutable.Nil.type	scala.collection.immutable.List[scala.Int] |
 scala.collection.immutable.Nil.type	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Nil.type	1	false
 scala.collection.immutable.Nil.type	2	false
+scala.collection.immutable.Nil.type	"a"	false
+scala.collection.immutable.Nil.type	"b"	false
 scala.collection.immutable.Nil.type	java.lang.Integer	false
 scala.collection.immutable.Nil.type	scala.Function0[scala.Int]	false
 scala.collection.immutable.Nil.type	scala.Option[scala.Nothing]	false
@@ -2265,6 +2323,8 @@ scala.collection.immutable.::[scala.Int]	scala.collection.immutable.List[scala.I
 scala.collection.immutable.::[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.::[scala.Int]	1	false
 scala.collection.immutable.::[scala.Int]	2	false
+scala.collection.immutable.::[scala.Int]	"a"	false
+scala.collection.immutable.::[scala.Int]	"b"	false
 scala.collection.immutable.::[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.::[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.::[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2341,6 +2401,8 @@ scala.collection.Seq[scala.Int]	scala.collection.immutable.List[scala.Int] | sca
 scala.collection.Seq[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.Seq[scala.Int]	1	false
 scala.collection.Seq[scala.Int]	2	false
+scala.collection.Seq[scala.Int]	"a"	false
+scala.collection.Seq[scala.Int]	"b"	false
 scala.collection.Seq[scala.Int]	java.lang.Integer	false
 scala.collection.Seq[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.Seq[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2417,6 +2479,8 @@ scala.collection.immutable.Seq[scala.Any]	scala.collection.immutable.List[scala.
 scala.collection.immutable.Seq[scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Seq[scala.Any]	1	false
 scala.collection.immutable.Seq[scala.Any]	2	false
+scala.collection.immutable.Seq[scala.Any]	"a"	false
+scala.collection.immutable.Seq[scala.Any]	"b"	false
 scala.collection.immutable.Seq[scala.Any]	java.lang.Integer	false
 scala.collection.immutable.Seq[scala.Any]	scala.Function0[scala.Int]	false
 scala.collection.immutable.Seq[scala.Any]	scala.Option[scala.Nothing]	false
@@ -2493,6 +2557,8 @@ scala.Seq[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.collecti
 scala.Seq[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.Seq[scala.Int]	1	false
 scala.Seq[scala.Int]	2	false
+scala.Seq[scala.Int]	"a"	false
+scala.Seq[scala.Int]	"b"	false
 scala.Seq[scala.Int]	java.lang.Integer	false
 scala.Seq[scala.Int]	scala.Function0[scala.Int]	false
 scala.Seq[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2569,6 +2635,8 @@ scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.List[sca
 scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Vector[scala.Int]	1	false
 scala.collection.immutable.Vector[scala.Int]	2	false
+scala.collection.immutable.Vector[scala.Int]	"a"	false
+scala.collection.immutable.Vector[scala.Int]	"b"	false
 scala.collection.immutable.Vector[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.Vector[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2645,6 +2713,8 @@ scala.collection.mutable.ArrayBuffer[scala.Int]	scala.collection.immutable.List[
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	1	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	2	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	"a"	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	"b"	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	java.lang.Integer	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2721,6 +2791,8 @@ scala.collection.IterableOnce[scala.Int]	scala.collection.immutable.List[scala.I
 scala.collection.IterableOnce[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.IterableOnce[scala.Int]	1	false
 scala.collection.IterableOnce[scala.Int]	2	false
+scala.collection.IterableOnce[scala.Int]	"a"	false
+scala.collection.IterableOnce[scala.Int]	"b"	false
 scala.collection.IterableOnce[scala.Int]	java.lang.Integer	false
 scala.collection.IterableOnce[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.IterableOnce[scala.Int]	scala.Option[scala.Nothing]	false
@@ -2797,6 +2869,8 @@ scala.collection.Iterable[? >: scala.Int]	scala.collection.immutable.List[scala.
 scala.collection.Iterable[? >: scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.Iterable[? >: scala.Int]	1	false
 scala.collection.Iterable[? >: scala.Int]	2	false
+scala.collection.Iterable[? >: scala.Int]	"a"	false
+scala.collection.Iterable[? >: scala.Int]	"b"	false
 scala.collection.Iterable[? >: scala.Int]	java.lang.Integer	false
 scala.collection.Iterable[? >: scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.Iterable[? >: scala.Int]	scala.Option[scala.Nothing]	false
@@ -2873,6 +2947,8 @@ scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.collection.imm
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	1	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	2	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	"a"	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	"b"	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	java.lang.Integer	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.Option[scala.Nothing]	false
@@ -2949,6 +3025,8 @@ scala.collection.Map[java.lang.String, scala.Any]	scala.collection.immutable.Lis
 scala.collection.Map[java.lang.String, scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.Map[java.lang.String, scala.Any]	1	false
 scala.collection.Map[java.lang.String, scala.Any]	2	false
+scala.collection.Map[java.lang.String, scala.Any]	"a"	false
+scala.collection.Map[java.lang.String, scala.Any]	"b"	false
 scala.collection.Map[java.lang.String, scala.Any]	java.lang.Integer	false
 scala.collection.Map[java.lang.String, scala.Any]	scala.Function0[scala.Int]	false
 scala.collection.Map[java.lang.String, scala.Any]	scala.Option[scala.Nothing]	false
@@ -3025,6 +3103,8 @@ scala.Function1[scala.Any, scala.Int]	scala.collection.immutable.List[scala.Int]
 scala.Function1[scala.Any, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.Function1[scala.Any, scala.Int]	1	false
 scala.Function1[scala.Any, scala.Int]	2	false
+scala.Function1[scala.Any, scala.Int]	"a"	false
+scala.Function1[scala.Any, scala.Int]	"b"	false
 scala.Function1[scala.Any, scala.Int]	java.lang.Integer	false
 scala.Function1[scala.Any, scala.Int]	scala.Function0[scala.Int]	false
 scala.Function1[scala.Any, scala.Int]	scala.Option[scala.Nothing]	false
@@ -3101,6 +3181,8 @@ scala.Function1[scala.Int, scala.Any]	scala.collection.immutable.List[scala.Int]
 scala.Function1[scala.Int, scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.Function1[scala.Int, scala.Any]	1	false
 scala.Function1[scala.Int, scala.Any]	2	false
+scala.Function1[scala.Int, scala.Any]	"a"	false
+scala.Function1[scala.Int, scala.Any]	"b"	false
 scala.Function1[scala.Int, scala.Any]	java.lang.Integer	false
 scala.Function1[scala.Int, scala.Any]	scala.Function0[scala.Int]	false
 scala.Function1[scala.Int, scala.Any]	scala.Option[scala.Nothing]	false
@@ -3177,6 +3259,8 @@ scala.PartialFunction[scala.Int, scala.Int]	scala.collection.immutable.List[scal
 scala.PartialFunction[scala.Int, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.PartialFunction[scala.Int, scala.Int]	1	false
 scala.PartialFunction[scala.Int, scala.Int]	2	false
+scala.PartialFunction[scala.Int, scala.Int]	"a"	false
+scala.PartialFunction[scala.Int, scala.Int]	"b"	false
 scala.PartialFunction[scala.Int, scala.Int]	java.lang.Integer	false
 scala.PartialFunction[scala.Int, scala.Int]	scala.Function0[scala.Int]	false
 scala.PartialFunction[scala.Int, scala.Int]	scala.Option[scala.Nothing]	false
@@ -3253,6 +3337,8 @@ scala.Tuple2[scala.Int, java.lang.String]	scala.collection.immutable.List[scala.
 scala.Tuple2[scala.Int, java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 scala.Tuple2[scala.Int, java.lang.String]	1	false
 scala.Tuple2[scala.Int, java.lang.String]	2	false
+scala.Tuple2[scala.Int, java.lang.String]	"a"	false
+scala.Tuple2[scala.Int, java.lang.String]	"b"	false
 scala.Tuple2[scala.Int, java.lang.String]	java.lang.Integer	false
 scala.Tuple2[scala.Int, java.lang.String]	scala.Function0[scala.Int]	false
 scala.Tuple2[scala.Int, java.lang.String]	scala.Option[scala.Nothing]	false
@@ -3329,6 +3415,8 @@ scala.Tuple2[scala.Any, scala.Any]	scala.collection.immutable.List[scala.Int] | 
 scala.Tuple2[scala.Any, scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.Tuple2[scala.Any, scala.Any]	1	false
 scala.Tuple2[scala.Any, scala.Any]	2	false
+scala.Tuple2[scala.Any, scala.Any]	"a"	false
+scala.Tuple2[scala.Any, scala.Any]	"b"	false
 scala.Tuple2[scala.Any, scala.Any]	java.lang.Integer	false
 scala.Tuple2[scala.Any, scala.Any]	scala.Function0[scala.Int]	false
 scala.Tuple2[scala.Any, scala.Any]	scala.Option[scala.Nothing]	false
@@ -3405,6 +3493,8 @@ scala.Array[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.collec
 scala.Array[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.Array[scala.Int]	1	false
 scala.Array[scala.Int]	2	false
+scala.Array[scala.Int]	"a"	false
+scala.Array[scala.Int]	"b"	false
 scala.Array[scala.Int]	java.lang.Integer	false
 scala.Array[scala.Int]	scala.Function0[scala.Int]	false
 scala.Array[scala.Int]	scala.Option[scala.Nothing]	false
@@ -3481,6 +3571,8 @@ scala.Array[java.lang.String]	scala.collection.immutable.List[scala.Int] | scala
 scala.Array[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 scala.Array[java.lang.String]	1	false
 scala.Array[java.lang.String]	2	false
+scala.Array[java.lang.String]	"a"	false
+scala.Array[java.lang.String]	"b"	false
 scala.Array[java.lang.String]	java.lang.Integer	false
 scala.Array[java.lang.String]	scala.Function0[scala.Int]	false
 scala.Array[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -3557,6 +3649,8 @@ scala.Array[java.lang.Object]	scala.collection.immutable.List[scala.Int] | scala
 scala.Array[java.lang.Object]	scala.Option[scala.Int] & scala.Product	false
 scala.Array[java.lang.Object]	1	false
 scala.Array[java.lang.Object]	2	false
+scala.Array[java.lang.Object]	"a"	false
+scala.Array[java.lang.Object]	"b"	false
 scala.Array[java.lang.Object]	java.lang.Integer	false
 scala.Array[java.lang.Object]	scala.Function0[scala.Int]	false
 scala.Array[java.lang.Object]	scala.Option[scala.Nothing]	false
@@ -3633,6 +3727,8 @@ scala.math.Ordering[scala.Int]	scala.collection.immutable.List[scala.Int] | scal
 scala.math.Ordering[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.math.Ordering[scala.Int]	1	false
 scala.math.Ordering[scala.Int]	2	false
+scala.math.Ordering[scala.Int]	"a"	false
+scala.math.Ordering[scala.Int]	"b"	false
 scala.math.Ordering[scala.Int]	java.lang.Integer	false
 scala.math.Ordering[scala.Int]	scala.Function0[scala.Int]	false
 scala.math.Ordering[scala.Int]	scala.Option[scala.Nothing]	false
@@ -3709,6 +3805,8 @@ scala.math.PartialOrdering[scala.Int]	scala.collection.immutable.List[scala.Int]
 scala.math.PartialOrdering[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.math.PartialOrdering[scala.Int]	1	false
 scala.math.PartialOrdering[scala.Int]	2	false
+scala.math.PartialOrdering[scala.Int]	"a"	false
+scala.math.PartialOrdering[scala.Int]	"b"	false
 scala.math.PartialOrdering[scala.Int]	java.lang.Integer	false
 scala.math.PartialOrdering[scala.Int]	scala.Function0[scala.Int]	false
 scala.math.PartialOrdering[scala.Int]	scala.Option[scala.Nothing]	false
@@ -3785,6 +3883,8 @@ scala.util.Either[java.lang.String, scala.Int]	scala.collection.immutable.List[s
 scala.util.Either[java.lang.String, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.util.Either[java.lang.String, scala.Int]	1	false
 scala.util.Either[java.lang.String, scala.Int]	2	false
+scala.util.Either[java.lang.String, scala.Int]	"a"	false
+scala.util.Either[java.lang.String, scala.Int]	"b"	false
 scala.util.Either[java.lang.String, scala.Int]	java.lang.Integer	false
 scala.util.Either[java.lang.String, scala.Int]	scala.Function0[scala.Int]	false
 scala.util.Either[java.lang.String, scala.Int]	scala.Option[scala.Nothing]	false
@@ -3861,6 +3961,8 @@ scala.util.Right[scala.Nothing, scala.Int]	scala.collection.immutable.List[scala
 scala.util.Right[scala.Nothing, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.util.Right[scala.Nothing, scala.Int]	1	false
 scala.util.Right[scala.Nothing, scala.Int]	2	false
+scala.util.Right[scala.Nothing, scala.Int]	"a"	false
+scala.util.Right[scala.Nothing, scala.Int]	"b"	false
 scala.util.Right[scala.Nothing, scala.Int]	java.lang.Integer	false
 scala.util.Right[scala.Nothing, scala.Int]	scala.Function0[scala.Int]	false
 scala.util.Right[scala.Nothing, scala.Int]	scala.Option[scala.Nothing]	false
@@ -3937,6 +4039,8 @@ scala.util.Left[java.lang.String, scala.Nothing]	scala.collection.immutable.List
 scala.util.Left[java.lang.String, scala.Nothing]	scala.Option[scala.Int] & scala.Product	false
 scala.util.Left[java.lang.String, scala.Nothing]	1	false
 scala.util.Left[java.lang.String, scala.Nothing]	2	false
+scala.util.Left[java.lang.String, scala.Nothing]	"a"	false
+scala.util.Left[java.lang.String, scala.Nothing]	"b"	false
 scala.util.Left[java.lang.String, scala.Nothing]	java.lang.Integer	false
 scala.util.Left[java.lang.String, scala.Nothing]	scala.Function0[scala.Int]	false
 scala.util.Left[java.lang.String, scala.Nothing]	scala.Option[scala.Nothing]	false
@@ -4013,6 +4117,8 @@ java.util.List[java.lang.String]	scala.collection.immutable.List[scala.Int] | sc
 java.util.List[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 java.util.List[java.lang.String]	1	false
 java.util.List[java.lang.String]	2	false
+java.util.List[java.lang.String]	"a"	false
+java.util.List[java.lang.String]	"b"	false
 java.util.List[java.lang.String]	java.lang.Integer	false
 java.util.List[java.lang.String]	scala.Function0[scala.Int]	false
 java.util.List[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -4089,6 +4195,8 @@ java.util.ArrayList[java.lang.String]	scala.collection.immutable.List[scala.Int]
 java.util.ArrayList[java.lang.String]	scala.Option[scala.Int] & scala.Product	false
 java.util.ArrayList[java.lang.String]	1	false
 java.util.ArrayList[java.lang.String]	2	false
+java.util.ArrayList[java.lang.String]	"a"	false
+java.util.ArrayList[java.lang.String]	"b"	false
 java.util.ArrayList[java.lang.String]	java.lang.Integer	false
 java.util.ArrayList[java.lang.String]	scala.Function0[scala.Int]	false
 java.util.ArrayList[java.lang.String]	scala.Option[scala.Nothing]	false
@@ -4165,6 +4273,8 @@ java.util.Collection[?]	scala.collection.immutable.List[scala.Int] | scala.colle
 java.util.Collection[?]	scala.Option[scala.Int] & scala.Product	false
 java.util.Collection[?]	1	false
 java.util.Collection[?]	2	false
+java.util.Collection[?]	"a"	false
+java.util.Collection[?]	"b"	false
 java.util.Collection[?]	java.lang.Integer	false
 java.util.Collection[?]	scala.Function0[scala.Int]	false
 java.util.Collection[?]	scala.Option[scala.Nothing]	false
@@ -4241,6 +4351,8 @@ scala.runtime.RichInt	scala.collection.immutable.List[scala.Int] | scala.collect
 scala.runtime.RichInt	scala.Option[scala.Int] & scala.Product	false
 scala.runtime.RichInt	1	false
 scala.runtime.RichInt	2	false
+scala.runtime.RichInt	"a"	false
+scala.runtime.RichInt	"b"	false
 scala.runtime.RichInt	java.lang.Integer	false
 scala.runtime.RichInt	scala.Function0[scala.Int]	false
 scala.runtime.RichInt	scala.Option[scala.Nothing]	false
@@ -4317,6 +4429,8 @@ scala.Int | java.lang.String	scala.collection.immutable.List[scala.Int] | scala.
 scala.Int | java.lang.String	scala.Option[scala.Int] & scala.Product	false
 scala.Int | java.lang.String	1	false
 scala.Int | java.lang.String	2	false
+scala.Int | java.lang.String	"a"	false
+scala.Int | java.lang.String	"b"	false
 scala.Int | java.lang.String	java.lang.Integer	false
 scala.Int | java.lang.String	scala.Function0[scala.Int]	false
 scala.Int | java.lang.String	scala.Option[scala.Nothing]	false
@@ -4393,6 +4507,8 @@ scala.Null | java.lang.String	scala.collection.immutable.List[scala.Int] | scala
 scala.Null | java.lang.String	scala.Option[scala.Int] & scala.Product	false
 scala.Null | java.lang.String	1	false
 scala.Null | java.lang.String	2	false
+scala.Null | java.lang.String	"a"	false
+scala.Null | java.lang.String	"b"	false
 scala.Null | java.lang.String	java.lang.Integer	false
 scala.Null | java.lang.String	scala.Function0[scala.Int]	false
 scala.Null | java.lang.String	scala.Option[scala.Nothing]	false
@@ -4469,6 +4585,8 @@ scala.Product & java.io.Serializable	scala.collection.immutable.List[scala.Int] 
 scala.Product & java.io.Serializable	scala.Option[scala.Int] & scala.Product	false
 scala.Product & java.io.Serializable	1	false
 scala.Product & java.io.Serializable	2	false
+scala.Product & java.io.Serializable	"a"	false
+scala.Product & java.io.Serializable	"b"	false
 scala.Product & java.io.Serializable	java.lang.Integer	false
 scala.Product & java.io.Serializable	scala.Function0[scala.Int]	false
 scala.Product & java.io.Serializable	scala.Option[scala.Nothing]	false
@@ -4545,6 +4663,8 @@ scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[s
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	1	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	2	false
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	"a"	false
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	"b"	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Nothing]	false
@@ -4621,6 +4741,8 @@ scala.Option[scala.Int] & scala.Product	scala.collection.immutable.List[scala.In
 scala.Option[scala.Int] & scala.Product	scala.Option[scala.Int] & scala.Product	true
 scala.Option[scala.Int] & scala.Product	1	false
 scala.Option[scala.Int] & scala.Product	2	false
+scala.Option[scala.Int] & scala.Product	"a"	false
+scala.Option[scala.Int] & scala.Product	"b"	false
 scala.Option[scala.Int] & scala.Product	java.lang.Integer	false
 scala.Option[scala.Int] & scala.Product	scala.Function0[scala.Int]	false
 scala.Option[scala.Int] & scala.Product	scala.Option[scala.Nothing]	false
@@ -4697,6 +4819,8 @@ scala.Option[scala.Int] & scala.Product	scala.collection.immutable.List[scala.In
 1	scala.Option[scala.Int] & scala.Product	false
 1	1	true
 1	2	false
+1	"a"	false
+1	"b"	false
 1	java.lang.Integer	false
 1	scala.Function0[scala.Int]	false
 1	scala.Option[scala.Nothing]	false
@@ -4773,6 +4897,8 @@ scala.Option[scala.Int] & scala.Product	scala.collection.immutable.List[scala.In
 2	scala.Option[scala.Int] & scala.Product	false
 2	1	false
 2	2	true
+2	"a"	false
+2	"b"	false
 2	java.lang.Integer	false
 2	scala.Function0[scala.Int]	false
 2	scala.Option[scala.Nothing]	false
@@ -4786,6 +4912,162 @@ scala.Option[scala.Int] & scala.Product	scala.collection.immutable.List[scala.In
 2	scala.IArray[scala.Int]	false
 2	scala.IArray[scala.Any]	false
 2	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+"a"	scala.Any	true
+"a"	scala.AnyRef	true
+"a"	scala.AnyVal	false
+"a"	scala.Matchable	true
+"a"	scala.Nothing	false
+"a"	scala.Null	false
+"a"	scala.Singleton	true
+"a"	scala.Int	false
+"a"	scala.Long	false
+"a"	scala.Boolean	false
+"a"	scala.Unit	false
+"a"	java.lang.Object	true
+"a"	java.lang.String	true
+"a"	java.lang.CharSequence	true
+"a"	java.lang.Comparable[java.lang.String]	true
+"a"	java.io.Serializable	true
+"a"	scala.Product	false
+"a"	scala.Equals	false
+"a"	scala.None.type	false
+"a"	scala.Option[scala.Int]	false
+"a"	scala.Option[scala.Any]	false
+"a"	scala.Option[?]	false
+"a"	scala.Option[? <: scala.AnyVal]	false
+"a"	scala.Some[scala.Int]	false
+"a"	scala.Some[java.lang.String]	false
+"a"	scala.collection.immutable.List[scala.Int]	false
+"a"	scala.collection.immutable.List[scala.Any]	false
+"a"	scala.collection.immutable.List[java.lang.String]	false
+"a"	scala.collection.immutable.Nil.type	false
+"a"	scala.collection.immutable.::[scala.Int]	false
+"a"	scala.collection.Seq[scala.Int]	false
+"a"	scala.collection.immutable.Seq[scala.Any]	false
+"a"	scala.Seq[scala.Int]	false
+"a"	scala.collection.immutable.Vector[scala.Int]	false
+"a"	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+"a"	scala.collection.IterableOnce[scala.Int]	false
+"a"	scala.collection.Iterable[? >: scala.Int]	false
+"a"	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+"a"	scala.collection.Map[java.lang.String, scala.Any]	false
+"a"	scala.Function1[scala.Any, scala.Int]	false
+"a"	scala.Function1[scala.Int, scala.Any]	false
+"a"	scala.PartialFunction[scala.Int, scala.Int]	false
+"a"	scala.Tuple2[scala.Int, java.lang.String]	false
+"a"	scala.Tuple2[scala.Any, scala.Any]	false
+"a"	scala.Array[scala.Int]	false
+"a"	scala.Array[java.lang.String]	false
+"a"	scala.Array[java.lang.Object]	false
+"a"	scala.math.Ordering[scala.Int]	false
+"a"	scala.math.PartialOrdering[scala.Int]	false
+"a"	scala.util.Either[java.lang.String, scala.Int]	false
+"a"	scala.util.Right[scala.Nothing, scala.Int]	false
+"a"	scala.util.Left[java.lang.String, scala.Nothing]	false
+"a"	java.util.List[java.lang.String]	false
+"a"	java.util.ArrayList[java.lang.String]	false
+"a"	java.util.Collection[?]	false
+"a"	scala.runtime.RichInt	false
+"a"	scala.Int | java.lang.String	true
+"a"	scala.Null | java.lang.String	true
+"a"	scala.Product & java.io.Serializable	false
+"a"	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+"a"	scala.Option[scala.Int] & scala.Product	false
+"a"	1	false
+"a"	2	false
+"a"	"a"	true
+"a"	"b"	false
+"a"	java.lang.Integer	false
+"a"	scala.Function0[scala.Int]	false
+"a"	scala.Option[scala.Nothing]	false
+"a"	scala.Nothing | scala.Int	false
+"a"	scala.Array[? <: java.lang.Object]	false
+"a"	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+"a"	scala.collection.immutable.IndexedSeq[scala.Int]	false
+"a"	scala.collection.immutable.Range	false
+"a"	scala.math.Numeric[scala.Int]	false
+"a"	scala.math.Integral[scala.Int]	false
+"a"	scala.IArray[scala.Int]	false
+"a"	scala.IArray[scala.Any]	false
+"a"	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+"b"	scala.Any	true
+"b"	scala.AnyRef	true
+"b"	scala.AnyVal	false
+"b"	scala.Matchable	true
+"b"	scala.Nothing	false
+"b"	scala.Null	false
+"b"	scala.Singleton	true
+"b"	scala.Int	false
+"b"	scala.Long	false
+"b"	scala.Boolean	false
+"b"	scala.Unit	false
+"b"	java.lang.Object	true
+"b"	java.lang.String	true
+"b"	java.lang.CharSequence	true
+"b"	java.lang.Comparable[java.lang.String]	true
+"b"	java.io.Serializable	true
+"b"	scala.Product	false
+"b"	scala.Equals	false
+"b"	scala.None.type	false
+"b"	scala.Option[scala.Int]	false
+"b"	scala.Option[scala.Any]	false
+"b"	scala.Option[?]	false
+"b"	scala.Option[? <: scala.AnyVal]	false
+"b"	scala.Some[scala.Int]	false
+"b"	scala.Some[java.lang.String]	false
+"b"	scala.collection.immutable.List[scala.Int]	false
+"b"	scala.collection.immutable.List[scala.Any]	false
+"b"	scala.collection.immutable.List[java.lang.String]	false
+"b"	scala.collection.immutable.Nil.type	false
+"b"	scala.collection.immutable.::[scala.Int]	false
+"b"	scala.collection.Seq[scala.Int]	false
+"b"	scala.collection.immutable.Seq[scala.Any]	false
+"b"	scala.Seq[scala.Int]	false
+"b"	scala.collection.immutable.Vector[scala.Int]	false
+"b"	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+"b"	scala.collection.IterableOnce[scala.Int]	false
+"b"	scala.collection.Iterable[? >: scala.Int]	false
+"b"	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+"b"	scala.collection.Map[java.lang.String, scala.Any]	false
+"b"	scala.Function1[scala.Any, scala.Int]	false
+"b"	scala.Function1[scala.Int, scala.Any]	false
+"b"	scala.PartialFunction[scala.Int, scala.Int]	false
+"b"	scala.Tuple2[scala.Int, java.lang.String]	false
+"b"	scala.Tuple2[scala.Any, scala.Any]	false
+"b"	scala.Array[scala.Int]	false
+"b"	scala.Array[java.lang.String]	false
+"b"	scala.Array[java.lang.Object]	false
+"b"	scala.math.Ordering[scala.Int]	false
+"b"	scala.math.PartialOrdering[scala.Int]	false
+"b"	scala.util.Either[java.lang.String, scala.Int]	false
+"b"	scala.util.Right[scala.Nothing, scala.Int]	false
+"b"	scala.util.Left[java.lang.String, scala.Nothing]	false
+"b"	java.util.List[java.lang.String]	false
+"b"	java.util.ArrayList[java.lang.String]	false
+"b"	java.util.Collection[?]	false
+"b"	scala.runtime.RichInt	false
+"b"	scala.Int | java.lang.String	true
+"b"	scala.Null | java.lang.String	true
+"b"	scala.Product & java.io.Serializable	false
+"b"	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+"b"	scala.Option[scala.Int] & scala.Product	false
+"b"	1	false
+"b"	2	false
+"b"	"a"	false
+"b"	"b"	true
+"b"	java.lang.Integer	false
+"b"	scala.Function0[scala.Int]	false
+"b"	scala.Option[scala.Nothing]	false
+"b"	scala.Nothing | scala.Int	false
+"b"	scala.Array[? <: java.lang.Object]	false
+"b"	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+"b"	scala.collection.immutable.IndexedSeq[scala.Int]	false
+"b"	scala.collection.immutable.Range	false
+"b"	scala.math.Numeric[scala.Int]	false
+"b"	scala.math.Integral[scala.Int]	false
+"b"	scala.IArray[scala.Int]	false
+"b"	scala.IArray[scala.Any]	false
+"b"	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.Integer	scala.Any	true
 java.lang.Integer	scala.AnyRef	true
 java.lang.Integer	scala.AnyVal	false
@@ -4849,6 +5131,8 @@ java.lang.Integer	scala.collection.immutable.List[scala.Int] | scala.collection.
 java.lang.Integer	scala.Option[scala.Int] & scala.Product	false
 java.lang.Integer	1	false
 java.lang.Integer	2	false
+java.lang.Integer	"a"	false
+java.lang.Integer	"b"	false
 java.lang.Integer	java.lang.Integer	true
 java.lang.Integer	scala.Function0[scala.Int]	false
 java.lang.Integer	scala.Option[scala.Nothing]	false
@@ -4925,6 +5209,8 @@ scala.Function0[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.co
 scala.Function0[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.Function0[scala.Int]	1	false
 scala.Function0[scala.Int]	2	false
+scala.Function0[scala.Int]	"a"	false
+scala.Function0[scala.Int]	"b"	false
 scala.Function0[scala.Int]	java.lang.Integer	false
 scala.Function0[scala.Int]	scala.Function0[scala.Int]	true
 scala.Function0[scala.Int]	scala.Option[scala.Nothing]	false
@@ -5001,6 +5287,8 @@ scala.Option[scala.Nothing]	scala.collection.immutable.List[scala.Int] | scala.c
 scala.Option[scala.Nothing]	scala.Option[scala.Int] & scala.Product	true
 scala.Option[scala.Nothing]	1	false
 scala.Option[scala.Nothing]	2	false
+scala.Option[scala.Nothing]	"a"	false
+scala.Option[scala.Nothing]	"b"	false
 scala.Option[scala.Nothing]	java.lang.Integer	false
 scala.Option[scala.Nothing]	scala.Function0[scala.Int]	false
 scala.Option[scala.Nothing]	scala.Option[scala.Nothing]	true
@@ -5077,6 +5365,8 @@ scala.Nothing | scala.Int	scala.collection.immutable.List[scala.Int] | scala.col
 scala.Nothing | scala.Int	scala.Option[scala.Int] & scala.Product	false
 scala.Nothing | scala.Int	1	false
 scala.Nothing | scala.Int	2	false
+scala.Nothing | scala.Int	"a"	false
+scala.Nothing | scala.Int	"b"	false
 scala.Nothing | scala.Int	java.lang.Integer	false
 scala.Nothing | scala.Int	scala.Function0[scala.Int]	false
 scala.Nothing | scala.Int	scala.Option[scala.Nothing]	false
@@ -5153,6 +5443,8 @@ scala.Array[? <: java.lang.Object]	scala.collection.immutable.List[scala.Int] | 
 scala.Array[? <: java.lang.Object]	scala.Option[scala.Int] & scala.Product	false
 scala.Array[? <: java.lang.Object]	1	false
 scala.Array[? <: java.lang.Object]	2	false
+scala.Array[? <: java.lang.Object]	"a"	false
+scala.Array[? <: java.lang.Object]	"b"	false
 scala.Array[? <: java.lang.Object]	java.lang.Integer	false
 scala.Array[? <: java.lang.Object]	scala.Function0[scala.Int]	false
 scala.Array[? <: java.lang.Object]	scala.Option[scala.Nothing]	false
@@ -5229,6 +5521,8 @@ scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.collectio
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	1	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	2	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	"a"	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	"b"	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	java.lang.Integer	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.Option[scala.Nothing]	false
@@ -5305,6 +5599,8 @@ scala.collection.immutable.IndexedSeq[scala.Int]	scala.collection.immutable.List
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.IndexedSeq[scala.Int]	1	false
 scala.collection.immutable.IndexedSeq[scala.Int]	2	false
+scala.collection.immutable.IndexedSeq[scala.Int]	"a"	false
+scala.collection.immutable.IndexedSeq[scala.Int]	"b"	false
 scala.collection.immutable.IndexedSeq[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.Option[scala.Nothing]	false
@@ -5381,6 +5677,8 @@ scala.collection.immutable.Range	scala.collection.immutable.List[scala.Int] | sc
 scala.collection.immutable.Range	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.Range	1	false
 scala.collection.immutable.Range	2	false
+scala.collection.immutable.Range	"a"	false
+scala.collection.immutable.Range	"b"	false
 scala.collection.immutable.Range	java.lang.Integer	false
 scala.collection.immutable.Range	scala.Function0[scala.Int]	false
 scala.collection.immutable.Range	scala.Option[scala.Nothing]	false
@@ -5457,6 +5755,8 @@ scala.math.Numeric[scala.Int]	scala.collection.immutable.List[scala.Int] | scala
 scala.math.Numeric[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.math.Numeric[scala.Int]	1	false
 scala.math.Numeric[scala.Int]	2	false
+scala.math.Numeric[scala.Int]	"a"	false
+scala.math.Numeric[scala.Int]	"b"	false
 scala.math.Numeric[scala.Int]	java.lang.Integer	false
 scala.math.Numeric[scala.Int]	scala.Function0[scala.Int]	false
 scala.math.Numeric[scala.Int]	scala.Option[scala.Nothing]	false
@@ -5533,6 +5833,8 @@ scala.math.Integral[scala.Int]	scala.collection.immutable.List[scala.Int] | scal
 scala.math.Integral[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.math.Integral[scala.Int]	1	false
 scala.math.Integral[scala.Int]	2	false
+scala.math.Integral[scala.Int]	"a"	false
+scala.math.Integral[scala.Int]	"b"	false
 scala.math.Integral[scala.Int]	java.lang.Integer	false
 scala.math.Integral[scala.Int]	scala.Function0[scala.Int]	false
 scala.math.Integral[scala.Int]	scala.Option[scala.Nothing]	false
@@ -5609,6 +5911,8 @@ scala.IArray[scala.Int]	scala.collection.immutable.List[scala.Int] | scala.colle
 scala.IArray[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.IArray[scala.Int]	1	false
 scala.IArray[scala.Int]	2	false
+scala.IArray[scala.Int]	"a"	false
+scala.IArray[scala.Int]	"b"	false
 scala.IArray[scala.Int]	java.lang.Integer	false
 scala.IArray[scala.Int]	scala.Function0[scala.Int]	false
 scala.IArray[scala.Int]	scala.Option[scala.Nothing]	false
@@ -5685,6 +5989,8 @@ scala.IArray[scala.Any]	scala.collection.immutable.List[scala.Int] | scala.colle
 scala.IArray[scala.Any]	scala.Option[scala.Int] & scala.Product	false
 scala.IArray[scala.Any]	1	false
 scala.IArray[scala.Any]	2	false
+scala.IArray[scala.Any]	"a"	false
+scala.IArray[scala.Any]	"b"	false
 scala.IArray[scala.Any]	java.lang.Integer	false
 scala.IArray[scala.Any]	scala.Function0[scala.Int]	false
 scala.IArray[scala.Any]	scala.Option[scala.Nothing]	false
@@ -5761,6 +6067,8 @@ scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[s
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Int] & scala.Product	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	1	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	2	false
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	"a"	false
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	"b"	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	java.lang.Integer	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.Function0[scala.Int]	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.Option[scala.Nothing]	false
