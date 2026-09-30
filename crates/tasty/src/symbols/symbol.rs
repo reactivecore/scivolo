@@ -56,6 +56,8 @@ pub struct Symbol {
     pub flags: Flags,
     /// The name a `@targetName` annotation gives it at run time.
     pub target: Option<String>,
+    /// Whether Scala Native's `@extern` annotates it: its members are C functions and values.
+    pub is_extern: bool,
     /// The symbols declared in a package or class, or the parameters of a method, in file order.
     pub decls: Vec<SymbolId>,
     /// The file and tree that define it; `None` for packages.

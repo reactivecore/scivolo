@@ -4,6 +4,7 @@
 mod classes;
 mod enter;
 mod info;
+mod jdk;
 mod lookup;
 mod overrides;
 mod resolve;
@@ -17,6 +18,7 @@ use rustc_hash::FxHashMap;
 use std::io;
 use std::path::PathBuf;
 
+pub use jdk::defined_name;
 pub use lookup::encode;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
@@ -40,6 +42,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// How many `resolve` calls are in progress.
+    resolving: u32,
 }
 
 #[derive(Debug)]
@@ -74,6 +78,7 @@ impl Universe {
             infos: FxHashMap::default(),
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
+            resolving: 0,
         };
         let root = u.add(Symbol {
             name: String::new(),
@@ -81,6 +86,7 @@ impl Universe {
             owner: None,
             flags: Flags::default(),
             target: None,
+            is_extern: false,
             decls: Vec::new(),
             tree: None,
         });
@@ -89,8 +95,12 @@ impl Universe {
         paths.sort();
         for path in paths {
             let (dir, file) = path.rsplit_once('/').unwrap_or(("", path.as_str()));
-            let pkg = u.package_entered(&dir.replace('/', "."));
-            let stem = file.strip_suffix(".tasty").unwrap_or(file).to_owned();
+            let (dir, stem) = (dir.replace('/', "."), file.strip_suffix(".tasty").unwrap_or(file));
+            let (dir, stem) = match jdk::jdk_name(&dir, stem) {
+                Some((pkg, name)) => (pkg.to_owned(), name),
+                None => (dir, stem.to_owned()),
+            };
+            let pkg = u.package_entered(&dir);
             u.pending.entry(pkg).or_default().push((stem, path.clone()));
         }
         Ok(u)
@@ -153,6 +163,7 @@ impl Universe {
             owner: Some(owner),
             flags: Flags::default(),
             target: None,
+            is_extern: false,
             decls: Vec::new(),
             tree: None,
         });

@@ -87,6 +87,19 @@ Scripts call `java.*`. Two ways to know those types without a JVM:
 
 Recommendation: **B**, with A as a fallback if building javalib's TASTy proves impractical.
 
+Built (step 6): `just javalib-tasty` compiles javalib with sbt (about a minute) into the
+checked-in `libs/javalib-tasty-0.5.12.jar` (788 files, 3 MB, byte-identical on rebuild); it
+changes only with the Scala Native version. The frontend opens it with nativelib, clib and
+posixlib (javalib's types refer to all three). Beyond the renamed classes above:
+
+- `_Object`'s methods are `__hashCode` and so on; nscplugin strips the `__`.
+- Classes nested in a renamed class keep the defined name at run time (`java.lang._String$ASCII$`).
+- Members of `@extern` objects are C symbols, not methods.
+- `RawPtr` and `RawSize` are primitives (`R_`, `w`).
+- windowslib is not loaded: its types stay unresolved (backlog #31).
+
+Oracle: 99.9% of javalib's 10,660 method signatures and all 529 bridges match its NIR.
+
 ## 4. The model in Rust [I]
 
 - **Arenas and ids:** `SymbolId`, `TypeId` (hash-consed), `NameId` in arenas owned by a
@@ -124,7 +137,7 @@ Recommendation: **B**, with A as a fallback if building javalib's TASTy proves i
 5. Base types, `asSeenFrom`, override matching, bridges (dotty's, and Scala Native's interface
    bridges, which compare erased types); oracle: NIR names. Then subtyping on known types, with
    the interface the typer proposes (research 09).
-6. javalib's symbols (§3 B) and the overlay.
+6. javalib's symbols (§3 B); oracle: javalib's NIR. The overlay's follow with the frontend.
 7. Bodies on demand, for `inline`, when the typer needs them.
 
 ## 7. Decisions

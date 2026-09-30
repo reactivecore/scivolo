@@ -158,6 +158,10 @@ libs:
 fetch-libs:
     scripts/fetch-libs.sh
 
+# Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
+javalib-tasty:
+    scripts/javalib-tasty.sh
+
 # Check out Scala Native v0.5.12 into ref/scala-native.
 fetch-scala-native:
     scripts/fetch-scala-native.sh
