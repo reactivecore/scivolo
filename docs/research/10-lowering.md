@@ -24,10 +24,11 @@ delivers `@main` proxies, `Inlined` expansions, eta-expansion, SAM closures, def
 implicit arguments, `apply`/`unapply`; desugaring already made enums' `$values`, `fromOrdinal` and
 `$new` and the default getters (07 §5, `crates/syntax/src/desugar/defaults.rs`) [V]. Input: one `tpd`
 arena per unit, nodes with unwidened `tpe` and `sym`, synthetic spans, no `Type::Var` left; script
-symbols live in the `tasty::Universe` [A]. The typer also hands over the unit's fresh-name counters:
-they are per unit and per prefix (`D/core/NameKinds.scala:221`, `compilationUnit.freshNames`), the
-typer names closures `$anonfun`, and LambdaLift freshens them again (`T/LambdaLift.scala:66-71`), so
-the numbers depend on both [V]. Structural (`Selectable`) calls fall back (09 §5).
+symbols live in the `tasty::Universe` [A]. The unit's fresh-name counters go along: they are per unit
+and per prefix (`D/core/NameKinds.scala:221`, `compilationUnit.freshNames`), the typer names closures
+`$anonfun`, and LambdaLift freshens them again (`T/LambdaLift.scala:66-71`), so the numbers depend on
+both [V]; `typer::Typed` hands the unit's `syntax::names::FreshNames` (shared by the parser and
+desugaring) on beside the arena, and the lowering counts on from there [A]. Structural (`Selectable`) calls fall back (09 §5).
 
 ## 2. From typer to NIR: dotty's phases
 
