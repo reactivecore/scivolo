@@ -17,6 +17,9 @@ const RENAMED: [(&str, &str); 9] = [
 /// The JDK package and name of top-level `name` in package `pkg`, a module class's `$` kept,
 /// if Scala Native defines it under another name.
 pub fn jdk_name(pkg: &str, name: &str) -> Option<(&'static str, String)> {
+    if !name.starts_with('_') {
+        return None;
+    }
     let (simple, module) = name.strip_suffix('$').map_or((name, ""), |s| (s, "$"));
     let full = format!("{pkg}.{simple}");
     let (_, jdk) = RENAMED.iter().find(|(defined, _)| *defined == full)?;
@@ -37,7 +40,7 @@ pub fn jdk_member(owner: &str, name: &str) -> Option<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::jdk_name;
+    use super::{defined_name, jdk_member, jdk_name};
 
     #[test]
     fn maps_scala_native_names_to_the_jdk() {
@@ -45,7 +48,8 @@ mod tests {
         assert_eq!(jdk_name("java.lang", "_String$"), Some(("java.lang", "String$".into())));
         assert_eq!(jdk_name("scala.scalanative.runtime", "_Object"), Some(("java.lang", "Object".into())));
         assert_eq!(jdk_name("java.lang", "String"), None);
-        assert_eq!(super::jdk_member("java.lang.Object", "__hashCode").as_deref(), Some("hashCode"));
-        assert_eq!(super::jdk_member("java.lang.String", "__hashCode"), None);
+        assert_eq!(jdk_member("java.lang.Object", "__hashCode").as_deref(), Some("hashCode"));
+        assert_eq!(jdk_member("java.lang.String", "__hashCode"), None);
+        assert_eq!(defined_name("java.lang.String"), Some("java.lang._String"));
     }
 }

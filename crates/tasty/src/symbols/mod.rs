@@ -42,6 +42,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// How many `resolve` calls are in progress.
+    resolving: u32,
 }
 
 #[derive(Debug)]
@@ -76,6 +78,7 @@ impl Universe {
             infos: FxHashMap::default(),
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
+            resolving: 0,
         };
         let root = u.add(Symbol {
             name: String::new(),

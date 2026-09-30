@@ -60,7 +60,7 @@ impl Universe {
             owner: Some(owner),
             flags,
             target: target_name(ast, names, mods),
-            is_extern: annotations(ast, mods).any(|(ty, _)| mentions(ast, names, ty, "extern")),
+            is_extern: annotations(ast, mods).any(|(ty, _)| names_ref(ast, names, ty, "extern")),
             decls: Vec::new(),
             tree: Some((src.file, id)),
         });
@@ -68,12 +68,13 @@ impl Universe {
             self.enter_stat(src, m, sym);
         }
     }
-}
 
-impl Universe {
     /// The owner and name of a definition named `name` in `owner`: its JDK package and name if
     /// Scala Native defines it under another name.
     fn jdk_renamed(&mut self, owner: SymbolId, name: String) -> (SymbolId, String) {
+        if !name.starts_with('_') {
+            return (owner, name);
+        }
         if self.symbol(owner).kind != Kind::Package {
             let renamed = (self.symbol(owner).name == "Object")
                 .then(|| super::jdk::jdk_member(&self.full_name(owner), &name))
@@ -85,6 +86,13 @@ impl Universe {
             None => (owner, name),
         }
     }
+}
+
+/// Whether the tree at `id` is a reference named `name`.
+fn names_ref(ast: &Ast, names: &[String], id: NodeId, name: &str) -> bool {
+    let n = ast.node(id);
+    matches!(n.tag, TYPEREF | TYPEREFin | SELECTtpt | IDENTtpt)
+        && names.get(n.a as usize).is_some_and(|s| s == name)
 }
 
 /// The name a `@targetName("…")` annotation among modifiers `mods` gives.

@@ -45,12 +45,18 @@ fn is_package_object(name: &str) -> bool {
 impl Universe {
     /// The declarations of `owner` named `name`. In a package, the file defining `name` is
     /// loaded, names no file defines are looked up among the package objects' members, and the
-    /// names Scala Native gives JDK classes stand for the JDK names.
+    /// names Scala Native gives JDK classes and `Object`'s methods stand for the JDK names.
     pub fn decl(&mut self, owner: SymbolId, name: &str) -> Result<Vec<SymbolId>, Error> {
         let named = |u: &Self, owner: SymbolId| -> Vec<SymbolId> {
             u.symbol(owner).decls.iter().copied().filter(|&d| u.symbol(d).name == name).collect()
         };
         if self.symbol(owner).kind != Kind::Package {
+            if name.starts_with("__")
+                && self.symbol(owner).name == "Object"
+                && let Some(jdk) = super::jdk::jdk_member(&self.full_name(owner), name)
+            {
+                return self.decl(owner, &jdk);
+            }
             return Ok(named(self, owner));
         }
         if name.starts_with('_')

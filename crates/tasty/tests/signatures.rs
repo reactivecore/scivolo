@@ -79,11 +79,12 @@ struct Stats {
 }
 
 impl Stats {
-    fn of(u: &mut Universe, zip: &mut Zip, classes: Vec<SymbolId>) -> Stats {
+    /// The comparison of `classes` with their NIR in the first of `zips` that has it.
+    fn of(u: &mut Universe, zips: &mut [Zip], classes: Vec<SymbolId>) -> Stats {
         let mut s = Stats::default();
         for class in classes {
             let binary = u.binary_name(class);
-            let Some(nir) = nir_methods(zip, &binary) else {
+            let Some(nir) = zips.iter_mut().find_map(|z| nir_methods(z, &binary)) else {
                 s.skipped.push(binary);
                 continue;
             };
@@ -142,7 +143,7 @@ fn signatures_match_scalalib_nir() {
     let mut u = Universe::open(&jars[..1]).unwrap();
     let root = u.root();
     let classes = classes_in(&mut u, root);
-    let stats = Stats::of(&mut u, &mut open_zip(&jars[1]), classes);
+    let stats = Stats::of(&mut u, &mut [open_zip(&jars[1])], classes);
     assert!(stats.skipped.is_empty(), "classes without NIR: {:?}", stats.skipped);
     stats.check(13_000, 1_500, 0.997, 0.98);
 }
@@ -161,9 +162,7 @@ fn signatures_match_javalib_nir() {
     let mut u = Universe::open(&jars[1..]).unwrap();
     let java = u.package("java").unwrap();
     let classes = classes_in(&mut u, java);
-    let stats = Stats::of(&mut u, &mut open_zip(&jars[0]), classes);
-    let nir_elsewhere =
-        ["java.lang.Class", "java.lang.Class$", "java.lang.Object", "java.lang.process.WindowsUtils$"];
-    assert_eq!(stats.skipped, nir_elsewhere, "classes without NIR");
+    let stats = Stats::of(&mut u, &mut [open_zip(&jars[0]), open_zip(&jars[3])], classes);
+    assert!(stats.skipped.is_empty(), "classes without NIR: {:?}", stats.skipped);
     stats.check(10_000, 500, 0.999, 0.985);
 }

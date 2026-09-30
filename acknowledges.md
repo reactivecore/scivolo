@@ -46,8 +46,9 @@ was compared are in `docs/research/`; this list covers what we actually use or p
   `TastyFormat.scala`, `TastyReader.scala` and `TreeUnpickler.scala` for the TASTy reader
   (`crates/tasty`: its tag table and tree grammar); `Scanners`/`Parsers`/`Desugar` as the parser
   to port in phase 3; `TypeErasure.scala` and `transform/Bridges.scala` for erasure and bridges.
-- **Scala Native's compiler plugin** (`nscplugin`, `NirGenStat.genInterfaceMethodBridge`): the
-  bridges it adds for methods implementing a trait's abstract method.
+- **Scala Native's compiler plugin** (`nscplugin`): `NirGenStat.genInterfaceMethodBridge`, the
+  bridges it adds for methods implementing a trait's abstract method; `NirGenName`, the JDK
+  classes it renames and the `__` of `_Object`'s methods (the table in `crates/tasty`'s `jdk.rs`).
 
 - **Go's scheduler** hands a goroutine's blocking system call to another OS thread; our green
   threads do the same for `blocking` externs (ADR 0003). **corosensei**
