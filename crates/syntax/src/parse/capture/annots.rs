@@ -42,7 +42,10 @@ impl Parser<'_> {
             }
             Some(refs) => {
                 let trefs = match refs {
-                    [] => self.ast.node(Tree::TypedSplice { what: "Nothing" }),
+                    [] => {
+                        let sym = self.type_name("scala.Nothing");
+                        self.ast.node(Tree::TypedSplice { sym })
+                    }
                     _ => {
                         let singletons: Vec<NodeId> = refs
                             .iter()
@@ -65,7 +68,8 @@ impl Parser<'_> {
 
     /// `A | B` (dotty's `makeOrType`).
     fn make_or_type(&mut self, left: NodeId, right: NodeId) -> NodeId {
-        let or = self.ast.node(Tree::TypedSplice { what: "|" });
+        let sym = self.type_name("scala.|");
+        let or = self.ast.node(Tree::TypedSplice { sym });
         let args = self.ast.list(&[left, right]);
         self.ast.node(Tree::AppliedTypeTree { tpt: or, args })
     }

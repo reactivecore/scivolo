@@ -44,7 +44,7 @@ impl Parser<'_> {
             [only] if only.is_empty() => Vec::new(),
             _ => vparamss0,
         };
-        let parents_is_type = parents.len() == 1 && self.is_type(parents[0]);
+        let parents_is_type = parents.len() == 1 && self.ast.is_type(parents[0]);
         let at_end = self.s.cur.is_stat_sep() || self.is_stat_seq_end();
         let gdef = if self.tok() == Token::Equals && parents_is_type {
             self.accept(Token::Equals);

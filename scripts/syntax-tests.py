@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""The Rust scanner or parser against dotty 3.9.0 on tests/pos and tests/neg (docs/research/06-parser-port.md).
+"""The Rust scanner, parser or desugaring against dotty 3.9.0 on tests/pos and tests/neg
+(docs/research/06-parser-port.md, 07-desugar-port.md).
 
-Usage: scripts/syntax-tests.py tokens|trees oracle|report [FILTER] | tokens|trees diff PATH
+Usage: scripts/syntax-tests.py MODE oracle|report [FILTER] | MODE diff PATH, MODE = tokens|trees|desugar
 """
 import collections
 import difflib
@@ -122,7 +123,7 @@ def diff(path):
 
 if __name__ == "__main__":
     commands = {"oracle": oracle, "report": report, "diff": diff}
-    if len(sys.argv) < 3 or sys.argv[1] not in ("tokens", "trees") or sys.argv[2] not in commands:
+    if len(sys.argv) < 3 or sys.argv[1] not in ("tokens", "trees", "desugar") or sys.argv[2] not in commands:
         sys.exit(__doc__)
     MODE = sys.argv[1]
     WORK = WORK / MODE

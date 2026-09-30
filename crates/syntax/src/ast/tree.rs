@@ -393,10 +393,32 @@ pub enum Tree {
         digits: Box<str>,
         kind: NumberKind,
     },
-    /// A reference to a compiler-known type the parser inserts: `scala.&` for `A with B`.
+    /// A reference to a compiler-known symbol by its full name: `scala.&` for `A with B`,
+    /// `scala.Tuple2` for a pair.
     TypedSplice {
-        what: &'static str,
+        sym: TName,
+    },
+    /// A type the typer derives from the definition named `watched` (dotty's `DerivedTypeTree`).
+    DerivedTypeTree {
+        kind: DerivedKind,
+        watched: TName,
     },
     /// `EmptyTree` where a list or result holds it; never positioned.
     Empty,
+}
+
+/// What a `DerivedTypeTree` derives.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DerivedKind {
+    /// The parameter type of a setter: the type of its variable.
+    SetterParam,
+}
+
+impl DerivedKind {
+    /// dotty's class name of the tree.
+    pub fn class_name(self) -> &'static str {
+        match self {
+            DerivedKind::SetterParam => "SetterParamTree",
+        }
+    }
 }

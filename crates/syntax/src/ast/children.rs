@@ -37,6 +37,48 @@ impl std::ops::Deref for Children {
 }
 
 impl Ast {
+    /// The trees under `id` in the positioned children, `id` itself included.
+    fn for_each_tree(&self, id: NodeId, f: &mut dyn FnMut(NodeId) -> bool) {
+        if !f(id) {
+            return;
+        }
+        for &c in self.children(id).iter() {
+            match c {
+                Child::Node(n) => self.for_each_tree(n, f),
+                Child::List(l) => self.items(l).iter().for_each(|&n| self.for_each_tree(n, f)),
+                Child::Clauses(cs) => {
+                    for &l in self.clause_items(cs) {
+                        self.items(l).iter().for_each(|&n| self.for_each_tree(n, f));
+                    }
+                }
+                Child::Empty | Child::Mods(_) => {}
+            }
+        }
+    }
+
+    /// Whether `id` or a tree under it satisfies `p` (dotty's `existsSubTree`).
+    pub fn exists_subtree(&self, id: NodeId, p: &dyn Fn(&Ast, NodeId) -> bool) -> bool {
+        let mut found = false;
+        self.for_each_tree(id, &mut |n| {
+            found = found || p(self, n);
+            !found
+        });
+        found
+    }
+
+    /// The outermost trees at or under `id` that satisfy `p`, in order.
+    pub fn subtrees(&self, id: NodeId, p: &dyn Fn(&Ast, NodeId) -> bool) -> Vec<NodeId> {
+        let mut out = Vec::new();
+        self.for_each_tree(id, &mut |n| {
+            let hit = p(self, n);
+            if hit {
+                out.push(n);
+            }
+            !hit
+        });
+        out
+    }
+
     pub fn children(&self, id: NodeId) -> Children {
         self.children_of(self.tree(id))
     }
@@ -53,6 +95,7 @@ impl Ast {
             | Tree::SymbolLit { .. }
             | Tree::Number { .. }
             | Tree::TypedSplice { .. }
+            | Tree::DerivedTypeTree { .. }
             | Tree::Empty => c(&[]),
             Tree::Select { qualifier, .. } => c(&[N(*qualifier)]),
             Tree::This { qual } => c(&[o(qual)]),

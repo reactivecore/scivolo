@@ -81,7 +81,11 @@ impl Printer<'_> {
                 self.list(*body);
             }
             SymbolLit { value } => write!(self.out, " {}", quote(value)).unwrap(),
-            TypedSplice { .. } => self.out.push_str(" <typed>"),
+            TypedSplice { sym } => self.name(*sym),
+            DerivedTypeTree { watched, .. } => {
+                self.out.push_str(" ~");
+                self.bare_name(*watched);
+            }
             InterpolatedString { id, segments } => {
                 self.name(*id);
                 self.list(*segments);

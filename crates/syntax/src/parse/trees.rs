@@ -51,60 +51,6 @@ impl Parser<'_> {
         self.ast.node(Tree::Empty)
     }
 
-    /// Whether `t` is a definition (dotty's `isDef`).
-    pub fn is_def(&self, t: NodeId) -> bool {
-        matches!(
-            self.ast.tree(t),
-            Tree::ValDef { .. }
-                | Tree::DefDef { .. }
-                | Tree::TypeDef { .. }
-                | Tree::ModuleDef { .. }
-                | Tree::PatDef { .. }
-                | Tree::Bind { .. }
-        )
-    }
-
-    /// Whether `t` is a type tree (dotty's `isType`).
-    pub fn is_type(&self, t: NodeId) -> bool {
-        match self.ast.tree(t) {
-            Tree::Ident { name } | Tree::Select { name, .. } => name.is_type,
-            Tree::SingletonTypeTree { .. }
-            | Tree::RefinedTypeTree { .. }
-            | Tree::AppliedTypeTree { .. }
-            | Tree::LambdaTypeTree { .. }
-            | Tree::TermLambdaTypeTree { .. }
-            | Tree::MatchTypeTree { .. }
-            | Tree::ByNameTypeTree { .. }
-            | Tree::TypeBoundsTree { .. }
-            | Tree::TypeTree
-            | Tree::ContextBounds { .. }
-            | Tree::TypedSplice { .. } => true,
-            Tree::Function { body, .. } | Tree::PolyFunction { body, .. } => self.is_type(*body),
-            Tree::InfixOp { op, .. } | Tree::PostfixOp { op, .. } | Tree::PrefixOp { op, .. } => {
-                self.is_type(*op)
-            }
-            Tree::Parens { t } => self.is_type(*t),
-            Tree::Annotated { arg, .. } => self.is_type(*arg),
-            Tree::Tuple { trees } => self.ast.items(*trees).first().is_some_and(|&t| {
-                let t = match self.ast.tree(t) {
-                    Tree::NamedArg { arg, .. } => *arg,
-                    _ => t,
-                };
-                !self.is_term(t)
-            }),
-            _ => false,
-        }
-    }
-
-    /// Whether `t` is a term (dotty's `isTerm`).
-    pub fn is_term(&self, t: NodeId) -> bool {
-        match self.ast.tree(t) {
-            Tree::Ident { name } | Tree::Select { name, .. } => !name.is_type,
-            Tree::Tuple { trees } => self.ast.items(*trees).is_empty() || !self.is_type(t),
-            _ => !self.is_type(t) && !self.is_def(t),
-        }
-    }
-
     /// `Apply(t, Nil)` unless `t` is an application.
     pub fn ensure_applied(&mut self, t: NodeId) -> NodeId {
         if matches!(self.ast.tree(t), Tree::Apply { .. }) {
@@ -129,7 +75,8 @@ impl Parser<'_> {
 
     /// `A & B` for `A with B` (dotty's `makeAndType`).
     pub fn make_and_type(&mut self, left: NodeId, right: NodeId) -> NodeId {
-        let and = self.ast.node(Tree::TypedSplice { what: "&" });
+        let sym = self.type_name("scala.&");
+        let and = self.ast.node(Tree::TypedSplice { sym });
         let args = self.ast.list(&[left, right]);
         self.ast.node(Tree::AppliedTypeTree { tpt: and, args })
     }

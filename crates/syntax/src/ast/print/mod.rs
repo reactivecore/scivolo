@@ -10,6 +10,24 @@ use super::{Ast, Attrs};
 use crate::names::{Names, to_utf16};
 use std::fmt::Write;
 
+/// The attributes the printer shows, in its order.
+const PRINTED: [(Attrs, &str); 14] = [
+    (Attrs::BACKQUOTED, " @backquoted"),
+    (Attrs::CAPTURE_VAR, " @capturevar"),
+    (Attrs::RETAINS_ANNOT, " @retains"),
+    (Attrs::SYNTHETIC_UNIT, " @syntheticunit"),
+    (Attrs::FOR_ARTIFACT, " @forartifact"),
+    (Attrs::PATTERN_VAR, " @patternvar"),
+    (Attrs::TRAILING_FOR_MAP, " @trailingmap"),
+    (Attrs::TUPLING_FOR_MAP, " @tuplingmap"),
+    (Attrs::MULTI_LINE_INFIX, " @multiline"),
+    (Attrs::WAS_TYPED_INFIX, " @infix"),
+    (Attrs::CHECK_PAT_DEF, " @check=IrrefutablePatDef"),
+    (Attrs::CHECK_GEN_FROM, " @check=IrrefutableGenFrom"),
+    (Attrs::USING_APPLY, " @apply=Using"),
+    (Attrs::INFIX_TUPLE_APPLY, " @apply=InfixTuple"),
+];
+
 pub struct Printer<'a> {
     pub ast: &'a Ast,
     pub names: &'a Names,
@@ -117,14 +135,10 @@ impl Printer<'_> {
         let class =
             if node.attrs.contains(Attrs::XML_BLOCK) { "XMLBlock".into() } else { class_name(&node.tree) };
         write!(self.out, "({class} {}", span(self.ast.span(id))).unwrap();
-        if node.attrs.contains(Attrs::BACKQUOTED) {
-            self.out.push_str(" @backquoted");
-        }
-        if node.attrs.contains(Attrs::CAPTURE_VAR) {
-            self.out.push_str(" @capturevar");
-        }
-        if node.attrs.contains(Attrs::RETAINS_ANNOT) {
-            self.out.push_str(" @retains");
+        for (a, text) in PRINTED {
+            if node.attrs.contains(a) {
+                self.out.push_str(text);
+            }
         }
         self.fields(&node.tree);
         self.out.push(')');
@@ -140,6 +154,7 @@ fn class_name(tree: &Tree) -> String {
         Tree::Template { derived: Some(_), .. } => "DerivingTemplate".into(),
         Tree::Function { mods: Some(_), .. } => "FunctionWithMods".into(),
         Tree::Function { wildcard: true, .. } => "WildcardFunction".into(),
+        Tree::DerivedTypeTree { kind, .. } => kind.class_name().into(),
         t => {
             let s = format!("{t:?}");
             s[..s.find([' ', '{', '(']).unwrap_or(s.len())].to_string()

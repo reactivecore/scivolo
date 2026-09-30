@@ -38,6 +38,14 @@ pub fn to_utf16(text: &str) -> Vec<u16> {
     units
 }
 
+/// Whether `name` is the name of a variable pattern: it starts with a lower case letter or `_`.
+pub fn is_var_pattern_name(name: &str) -> bool {
+    use unicode_general_category::{GeneralCategory as G, get_general_category};
+    let Some(first) = name.chars().next() else { return false };
+    (first == '_' || get_general_category(first) == G::LowercaseLetter)
+        && !matches!(name, "false" | "true" | "null")
+}
+
 /// The interned names of a compilation unit, their texts one after another in one buffer; the
 /// keywords come first, in the order of `token::keyword_spellings`.
 pub struct Names {
@@ -110,6 +118,30 @@ impl Names {
 
     pub fn text(&self, name: Name) -> &str {
         text_of(&self.buf, &self.bounds, name.0)
+    }
+}
+
+/// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`).
+#[derive(Default)]
+pub struct FreshNames(rustc_hash::FxHashMap<&'static str, u32>);
+
+impl FreshNames {
+    /// `prefix` followed by the next number for it: `_$1`, `evidence$2`.
+    pub fn next(&mut self, names: &mut Names, prefix: &'static str) -> Name {
+        let n = self.count(prefix);
+        names.intern(&format!("{prefix}{n}"))
+    }
+
+    /// The next `$N$` (dotty's `UniqueName`).
+    pub fn unique(&mut self, names: &mut Names) -> Name {
+        let n = self.count("$");
+        names.intern(&format!("${n}$"))
+    }
+
+    fn count(&mut self, prefix: &'static str) -> u32 {
+        let n = self.0.entry(prefix).or_insert(0);
+        *n += 1;
+        *n
     }
 }
 

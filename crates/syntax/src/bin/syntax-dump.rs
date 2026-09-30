@@ -1,11 +1,12 @@
-//! Prints what the scanner or parser makes of Scala files, in the format of
+//! Prints what the scanner, parser or desugaring makes of Scala files, in the format of
 //! `scripts/syntax-oracle`.
-//! Usage: syntax-dump tokens|trees --list LIST, one `path<TAB>options` per line.
+//! Usage: syntax-dump tokens|trees|desugar --list LIST, one `path<TAB>options` per line.
 
 use std::fmt::Write as _;
 use std::io::Write as _;
 use syntax::ast::print::Printer;
 use syntax::config::Config;
+use syntax::desugar::Desugar;
 use syntax::diag::{Diagnostics, Level};
 use syntax::names::Names;
 use syntax::parse::Parser;
@@ -19,6 +20,7 @@ fn main() {
     let run: fn(&SourceFile, &[&str], &mut String) = match mode.as_str() {
         "tokens" => tokens,
         "trees" => trees,
+        "desugar" => desugared,
         _ => return usage(),
     };
     if flag != "--list" {
@@ -39,7 +41,7 @@ fn main() {
 }
 
 fn usage() {
-    eprintln!("usage: syntax-dump tokens|trees --list LIST");
+    eprintln!("usage: syntax-dump tokens|trees|desugar --list LIST");
     std::process::exit(2);
 }
 
@@ -57,9 +59,22 @@ fn tokens(source: &SourceFile, options: &[&str], b: &mut String) {
 }
 
 fn trees(source: &SourceFile, options: &[&str], b: &mut String) {
+    parse_and_print(source, options, false, b);
+}
+
+fn desugared(source: &SourceFile, options: &[&str], b: &mut String) {
+    parse_and_print(source, options, true, b);
+}
+
+fn parse_and_print(source: &SourceFile, options: &[&str], desugar: bool, b: &mut String) {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
-    let root = p.parse();
+    let mut root = p.parse();
+    if desugar {
+        let cfg = p.s.cfg;
+        let mut d = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, cfg);
+        root = d.unit(root);
+    }
     let mut printer = Printer { ast: &p.ast, names: p.s.names, out: String::new() };
     printer.tree(root);
     b.push_str(&printer.out);

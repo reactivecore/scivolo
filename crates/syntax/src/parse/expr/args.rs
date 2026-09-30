@@ -140,7 +140,8 @@ impl Parser<'_> {
     /// A block's statements; the tree has no span yet.
     pub fn block(&mut self, simplify: bool) -> NodeId {
         let stats = self.block_stat_seq();
-        let is_expr = |p: &Self, s: NodeId| !(p.is_def(s) || matches!(p.ast.tree(s), Tree::Import { .. }));
+        let is_expr =
+            |p: &Self, s: NodeId| !(p.ast.is_def(s) || matches!(p.ast.tree(s), Tree::Import { .. }));
         if let Some((&last, inits)) = stats.split_last()
             && is_expr(self, last)
         {
