@@ -62,6 +62,8 @@ pub enum Type {
         result: TypeId,
     },
     Param(Binder, u32),
+    /// A match type, by its upper bound.
+    Match(TypeId),
     /// A constant's tag and bits.
     Constant(u8, i64),
     /// A type not represented yet, by its tag.

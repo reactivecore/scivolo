@@ -9,7 +9,7 @@ mod symbol;
 
 use crate::library::Library;
 use crate::types::{TypeId, Types};
-use crate::{Ast, NodeId, Tasty};
+use crate::{Ast, NodeId};
 use rustc_hash::FxHashMap;
 use std::io;
 use std::path::PathBuf;
@@ -17,10 +17,10 @@ use std::path::PathBuf;
 pub use lookup::encode;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
-/// A decoded top-level file.
+/// A decoded top-level file: its trees, and its name table shown as text.
 struct Loaded {
-    bytes: Box<[u8]>,
     ast: Ast,
+    names: Vec<String>,
 }
 
 pub struct Universe {
@@ -32,7 +32,7 @@ pub struct Universe {
     files: Vec<Loaded>,
     /// The symbol each definition tree defines.
     by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
-    pub types: Types,
+    types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
 }
@@ -73,6 +73,7 @@ impl Universe {
             kind: Kind::Package,
             owner: None,
             flags: Flags::default(),
+            target: None,
             decls: Vec::new(),
             tree: None,
         });
@@ -115,10 +116,19 @@ impl Universe {
         self.files.len()
     }
 
-    /// The decoded header, names and sections of loaded file `file`, and its trees.
-    pub fn file(&self, file: FileId) -> (Tasty<'_>, &Ast) {
+    /// The trees and the names, shown as text, of loaded file `file`.
+    pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
         let f = &self.files[file.0 as usize];
-        (Tasty::parse(&f.bytes).expect("parsed when loaded"), &f.ast)
+        (&f.ast, &f.names)
+    }
+
+    /// The arena of the types decoded so far.
+    pub fn types(&self) -> &Types {
+        &self.types
+    }
+
+    pub fn intern_type(&mut self, t: crate::Type) -> TypeId {
+        self.types.intern(t)
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new;
@@ -135,6 +145,7 @@ impl Universe {
             kind: Kind::Package,
             owner: Some(owner),
             flags: Flags::default(),
+            target: None,
             decls: Vec::new(),
             tree: None,
         });

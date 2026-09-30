@@ -3,7 +3,7 @@
 use super::{FileId, Kind, SymbolId, Universe};
 use crate::tags::*;
 use crate::types::{Binder, Decoder, Type, TypeId};
-use crate::{NameRef, NodeId, Tasty, View, view};
+use crate::{NodeId, View, view};
 
 impl Universe {
     /// The declared type of `sym`: a method's type, a value's type, a type member's alias or
@@ -24,18 +24,20 @@ impl Universe {
     fn decode_info(&mut self, file: FileId, id: NodeId) -> TypeId {
         let Universe { files, by_tree, packages, types, .. } = self;
         let loaded = &files[file.0 as usize];
-        let tasty = Tasty::parse(&loaded.bytes).expect("parsed when loaded");
-        let mut d = Decoder { file, ast: &loaded.ast, names: &tasty.names, by_tree, packages, types };
         let ast = &loaded.ast;
+        let mut d = Decoder::new((file, ast, &loaded.names), by_tree, packages, types);
         match view(ast, id) {
             View::DefDef { parts, .. } => {
-                let result = d.ty(parts.body[0]);
+                let result = match parts.body.first() {
+                    Some(&tpt) => d.ty(tpt),
+                    None => d.intern(Type::Other(DEFDEF)),
+                };
                 clauses(ast, parts.params).into_iter().rev().fold(result, |result, clause| {
                     let binder = Binder(file, ast.node(clause[0]).addr);
                     let params = clause
                         .iter()
                         .filter(|&&p| matches!(ast.tag(p), PARAM | TYPEPARAM))
-                        .map(|&p| (d.names.show(NameRef(ast.node(p).a as u32)), d.ty(ast.kids(p)[0])))
+                        .map(|&p| (d.name(p), param_type(&mut d, ast, p)))
                         .collect();
                     let t = match ast.tag(clause[0]) {
                         TYPEPARAM => Type::Poly { binder, params, result },
@@ -46,11 +48,20 @@ impl Universe {
                             Type::Method { binder, params, result, implicit }
                         }
                     };
-                    d.types.intern(t)
+                    d.intern(t)
                 })
             }
-            _ => d.ty(ast.kids(id)[0]),
+            _ => param_type(&mut d, ast, id),
         }
+    }
+}
+
+/// The type of the first child of the definition at `id`: a value's or parameter's type tree,
+/// a type parameter's bounds, a type member's right-hand side.
+fn param_type(d: &mut Decoder, ast: &crate::Ast, id: NodeId) -> TypeId {
+    match ast.kids(id).first() {
+        Some(&t) => d.ty(t),
+        None => d.intern(Type::Other(ast.tag(id))),
     }
 }
 

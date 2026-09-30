@@ -146,9 +146,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    in the style of tasty-query, loaded lazily from an uncompressed cache of
    library TASTy ([research 08](docs/research/08-tasty-symbols.md), #28).
    `crates/tasty` (2026-09-30): packages, lazily loaded files, symbols, declared
-   types, erasure; 98% of 4,849 public method signatures of `scala`,
-   `scala.collection(.immutable)` and `scala.util` match the mangled names in
-   Scala Native's NIR. Open: value classes (need parents, step 4).
+   types, erasure; of the 13,886 public method signatures of the whole standard
+   library, 98.5% match the mangled names in Scala Native's NIR. Open (need
+   parents, step 4): value classes, bridges, subclass-aware `&`/`|` erasure.
 3. **Typer for the scripting subset.** Cover:
    - local type inference
    - overload resolution

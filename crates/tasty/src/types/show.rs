@@ -8,7 +8,7 @@ impl Universe {
         let params = |ps: &[(String, TypeId)]| {
             ps.iter().map(|(n, t)| format!("{n}: {}", self.show(*t))).collect::<Vec<_>>().join(", ")
         };
-        match self.types.get(t) {
+        match self.types().get(t) {
             Type::NoPrefix => String::new(),
             Type::TypeRef(p, n) | Type::TermRef(p, n) => match self.show(*p) {
                 prefix if prefix.is_empty() => n.clone(),
@@ -47,6 +47,7 @@ impl Universe {
             Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(ps), self.show(*result)),
             Type::Lambda { params: ps, result, .. } => format!("[{}] =>> {}", params(ps), self.show(*result)),
             Type::Param(_, i) => format!("<param {i}>"),
+            Type::Match(bound) => format!("<match <: {}>", self.show(*bound)),
             Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(*tag)),
             Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),
         }

@@ -54,6 +54,8 @@ pub struct Symbol {
     pub kind: Kind,
     pub owner: Option<SymbolId>,
     pub flags: Flags,
+    /// The name a `@targetName` annotation gives it at run time.
+    pub target: Option<String>,
     /// The symbols declared in a package or class, or the parameters of a method, in file order.
     pub decls: Vec<SymbolId>,
     /// The file and tree that define it; `None` for packages.

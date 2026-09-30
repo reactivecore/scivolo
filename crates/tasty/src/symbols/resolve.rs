@@ -31,7 +31,7 @@ impl Universe {
     }
 
     /// The class of object `module`: the class `name$` declared beside it.
-    fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
+    pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
         let (owner, name) = (self.symbol(module).owner?, format!("{}$", self.symbol(module).name));
         self.decl(owner, &name).ok()?.into_iter().find(|&c| self.symbol(c).kind == Kind::Class)
     }

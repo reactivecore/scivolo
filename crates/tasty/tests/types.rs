@@ -57,7 +57,7 @@ fn erasure_of_aliases_arrays_and_type_parameters() {
         let m = members(u, pkg, class, name)[0];
         let mut t = u.info(m);
         while let tasty::Type::Method { result, .. } | tasty::Type::Poly { result, .. } =
-            u.types.get(t).clone()
+            u.types().get(t).clone()
         {
             t = result;
         }

@@ -1,5 +1,5 @@
 //! Erased signatures computed from TASTy against the mangled names Scala Native's compiler gave
-//! the same members in the NIR of its `scalalib`.
+//! the same members in the NIR of its `scalalib`, for every class of the standard library.
 
 use std::collections::HashSet;
 use std::io::Read;
@@ -32,36 +32,64 @@ fn nir_methods(zip: &mut zip::ZipArchive<std::fs::File>, binary: &str) -> Option
     Some(sigs.map(str::to_owned).collect())
 }
 
-fn classes(u: &mut Universe, pkg: &str) -> Vec<SymbolId> {
-    let p = u.package(pkg).unwrap();
-    u.decls(p).unwrap().into_iter().filter(|&c| u.symbol(c).kind == Kind::Class).collect()
+/// Every class of the universe, nested ones included.
+fn all_classes(u: &mut Universe) -> Vec<SymbolId> {
+    let (mut out, mut stack) = (Vec::new(), vec![u.root()]);
+    while let Some(owner) = stack.pop() {
+        for d in u.decls(owner).unwrap() {
+            match u.symbol(d).kind {
+                Kind::Package => stack.push(d),
+                Kind::Class => {
+                    out.push(d);
+                    stack.push(d);
+                }
+                _ => {}
+            }
+        }
+    }
+    out
+}
+
+/// `D<length><name>`, the start of the signatures of methods named `name`.
+fn method_prefix(name: &str) -> String {
+    format!("D{}{name}", name.encode_utf16().count())
 }
 
 #[test]
 fn signatures_match_scalalib_nir() {
     let Some((mut u, mut zip)) = libs() else { return };
-    let (mut matched, mut total, mut misses) = (0, 0, Vec::new());
-    for pkg in ["scala", "scala.collection.immutable", "scala.collection", "scala.util"] {
-        for class in classes(&mut u, pkg) {
-            let binary = u.binary_name(class);
-            let Some(nir) = nir_methods(&mut zip, &binary) else { continue };
-            for m in u.symbol(class).decls.clone() {
-                let Some(sig) = u.method_signature(m) else { continue };
-                total += 1;
-                if nir.contains(&sig) {
-                    matched += 1;
-                } else {
-                    let name = format!(
-                        "D{}{}",
-                        tasty::encode(&u.symbol(m).name).encode_utf16().count(),
-                        tasty::encode(&u.symbol(m).name)
-                    );
-                    let near: Vec<&String> = nir.iter().filter(|s| s.starts_with(&name)).take(2).collect();
-                    misses.push(format!("{binary}: {sig}  nir: {near:?}"));
-                }
+    let (mut matched, mut total, mut misses, mut skipped) = (0, 0, Vec::new(), Vec::new());
+    let (mut found, mut wanted) = (0, 0);
+    for class in all_classes(&mut u) {
+        let binary = u.binary_name(class);
+        let Some(nir) = nir_methods(&mut zip, &binary) else {
+            skipped.push(binary);
+            continue;
+        };
+        let mut ours = HashSet::new();
+        let mut names = HashSet::new();
+        for m in u.symbol(class).decls.clone() {
+            let Some(sig) = u.method_signature(m) else { continue };
+            let s = u.symbol(m);
+            names.insert(method_prefix(&tasty::encode(s.target.as_deref().unwrap_or(&s.name))));
+            total += 1;
+            if nir.contains(&sig) {
+                matched += 1;
+            } else {
+                misses.push(format!("{binary}: {sig}"));
             }
+            ours.insert(sig);
+        }
+        for sig in nir.iter().filter(|s| names.iter().any(|n| s.starts_with(n.as_str()))) {
+            wanted += 1;
+            found += usize::from(ours.contains(sig));
         }
     }
-    let share = matched as f64 / total as f64;
-    assert!(total > 4000 && share >= 0.98, "matched {matched} of {total}:\n{}", misses.join("\n"));
+    assert!(skipped.is_empty(), "classes without NIR: {skipped:?}");
+    let (precision, recall) = (matched as f64 / total as f64, found as f64 / wanted as f64);
+    assert!(
+        total > 13_000 && precision >= 0.984 && recall >= 0.865,
+        "precision {matched}/{total}, recall {found}/{wanted}; misses:\n{}",
+        misses.join("\n")
+    );
 }

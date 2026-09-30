@@ -3,7 +3,7 @@
 
 use super::Erased;
 use crate::symbols::encode;
-use crate::tags::{INLINE, PRIVATE};
+use crate::tags::{ERASED, INLINE, PRIVATE};
 use crate::types::Type;
 use crate::{Kind, SymbolId, Universe};
 
@@ -27,17 +27,19 @@ fn mangle(e: &Erased) -> String {
 
 impl Universe {
     /// The mangled signature of public method `def`, e.g. `D3mapL15scala.Function1L12scala.OptionEO`,
-    /// if it is a public instance method that exists at run time (not `inline`).
+    /// under its `@targetName` if it has one; `None` unless it is a public instance method that
+    /// exists at run time (not `inline`, not erased, not a super accessor).
     pub fn method_signature(&mut self, def: SymbolId) -> Option<String> {
         let s = self.symbol(def);
-        if s.kind != Kind::Def || s.flags.has(PRIVATE) || s.flags.has(INLINE) || s.name == "<init>" {
+        let runtime = !s.flags.has(PRIVATE) && !s.flags.has(INLINE) && !s.flags.has(ERASED);
+        if s.kind != Kind::Def || !runtime || s.name == "<init>" || s.name.starts_with("super$") {
             return None;
         }
-        let name = encode(&s.name);
+        let name = encode(s.target.as_deref().unwrap_or(&s.name));
         let mut t = self.info(def);
         let mut params = Vec::new();
         loop {
-            match self.types.get(t).clone() {
+            match self.types().get(t).clone() {
                 Type::Poly { result, .. } => t = result,
                 Type::Method { params: ps, result, .. } => {
                     params.extend(ps.into_iter().map(|(_, p)| p));

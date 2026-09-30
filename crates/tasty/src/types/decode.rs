@@ -2,22 +2,36 @@
 
 use super::{Binder, Type, TypeId, Types};
 use crate::tags::*;
-use crate::{Ast, FileId, NameRef, Names, NodeId, SymbolId};
+use crate::{Ast, FileId, NodeId, SymbolId};
 use rustc_hash::FxHashMap;
 
 /// What decoding a type of one file reads, and the arena it adds to.
 pub struct Decoder<'a> {
-    pub file: FileId,
-    pub ast: &'a Ast,
-    pub names: &'a Names<'a>,
-    pub by_tree: &'a FxHashMap<(FileId, NodeId), SymbolId>,
-    pub packages: &'a FxHashMap<String, SymbolId>,
-    pub types: &'a mut Types,
+    file: FileId,
+    ast: &'a Ast,
+    names: &'a [String],
+    by_tree: &'a FxHashMap<(FileId, NodeId), SymbolId>,
+    packages: &'a FxHashMap<String, SymbolId>,
+    types: &'a mut Types,
 }
 
-impl Decoder<'_> {
-    fn name(&self, id: NodeId) -> String {
-        self.names.show(NameRef(self.ast.node(id).a as u32))
+impl<'a> Decoder<'a> {
+    pub fn new(
+        (file, ast, names): (FileId, &'a Ast, &'a [String]),
+        by_tree: &'a FxHashMap<(FileId, NodeId), SymbolId>,
+        packages: &'a FxHashMap<String, SymbolId>,
+        types: &'a mut Types,
+    ) -> Self {
+        Self { file, ast, names, by_tree, packages, types }
+    }
+
+    /// The name the node at `id` refers to.
+    pub fn name(&self, id: NodeId) -> String {
+        self.names.get(self.ast.node(id).a as usize).cloned().unwrap_or_default()
+    }
+
+    pub fn intern(&mut self, t: Type) -> TypeId {
+        self.types.intern(t)
     }
 
     fn binder(&self, id: NodeId) -> Binder {
@@ -30,17 +44,25 @@ impl Decoder<'_> {
         self.types.intern(t)
     }
 
+    /// The type of child `i` of `id`, `Other` if it has none.
+    fn kid(&mut self, id: NodeId, i: usize) -> TypeId {
+        match self.ast.kids(id).get(i) {
+            Some(&k) => self.ty(k),
+            None => self.types.intern(Type::Other(self.ast.tag(id))),
+        }
+    }
+
     fn decode(&mut self, id: NodeId) -> Type {
         let ast = self.ast;
         let (n, k) = (ast.node(id), ast.kids(id));
         match n.tag {
             SHAREDtype | SHAREDterm => self.decode(ast.deref(id)),
-            IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype | REFINEDtpt => self.decode(k[0]),
-            SUPERtype => self.decode(k[1]),
-            TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.ty(k[0]), self.name(id)),
-            TERMREF | SELECT | TERMREFin => Type::TermRef(self.ty(k[0]), self.name(id)),
+            IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype | REFINEDtpt if !k.is_empty() => self.decode(k[0]),
+            SUPERtype if k.len() > 1 => self.decode(k[1]),
+            TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
+            TERMREF | SELECT | TERMREFin => Type::TermRef(self.kid(id, 0), self.name(id)),
             TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => {
-                let prefix = matches!(n.tag, TYPEREFsymbol | TERMREFsymbol).then(|| self.ty(k[0]));
+                let prefix = matches!(n.tag, TYPEREFsymbol | TERMREFsymbol).then(|| self.kid(id, 0));
                 let Some(def) = ast.at(n.a as u32) else { return Type::Other(n.tag) };
                 match self.by_tree.get(&(self.file, def)) {
                     Some(&s) => Type::Sym(prefix, s),
@@ -51,10 +73,10 @@ impl Decoder<'_> {
                 Some(&p) => Type::Package(p),
                 None => Type::PackageName(self.name(id)),
             },
-            THIS | QUALTHIS => Type::This(self.ty(k[0])),
+            THIS | QUALTHIS => Type::This(self.kid(id, 0)),
             RECthis => Type::RecThis(Binder(self.file, n.a as u32)),
-            RECtype => Type::Rec(self.binder(id), self.ty(k[0])),
-            APPLIEDtype | APPLIEDtpt => {
+            RECtype => Type::Rec(self.binder(id), self.kid(id, 0)),
+            APPLIEDtype | APPLIEDtpt if !k.is_empty() => {
                 let args = k[1..].iter().map(|&a| self.ty(a)).collect();
                 Type::Applied(self.ty(k[0]), args)
             }
@@ -63,20 +85,29 @@ impl Decoder<'_> {
                 match types[..] {
                     [alias] if n.tag == TYPEBOUNDS => Type::Alias(self.ty(alias)),
                     [lo] => Type::Bounds(self.ty(lo), self.ty(lo)),
-                    [lo, hi, ..] => Type::Bounds(self.ty(lo), self.ty(hi)),
+                    [lo, hi] => Type::Bounds(self.ty(lo), self.ty(hi)),
+                    [_, _, alias, ..] => Type::Alias(self.ty(alias)),
                     [] => Type::Other(n.tag),
                 }
             }
-            ANNOTATEDtype | ANNOTATEDtpt => Type::Annotated(self.ty(k[0])),
-            ANDtype => Type::And(self.ty(k[0]), self.ty(k[1])),
-            ORtype => Type::Or(self.ty(k[0]), self.ty(k[1])),
-            BYNAMEtype | BYNAMEtpt => Type::ByName(self.ty(k[0])),
-            REFINEDtype => Type::Refined(self.ty(k[0]), self.name(id), self.ty(k[1])),
+            ANNOTATEDtype | ANNOTATEDtpt => Type::Annotated(self.kid(id, 0)),
+            ANDtype => Type::And(self.kid(id, 0), self.kid(id, 1)),
+            ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1)),
+            BYNAMEtype | BYNAMEtpt => Type::ByName(self.kid(id, 0)),
+            REFINEDtype => Type::Refined(self.kid(id, 0), self.name(id), self.kid(id, 1)),
+            MATCHtype => Type::Match(self.kid(id, 0)),
+            MATCHtpt => {
+                let heads: Vec<NodeId> = k.iter().copied().filter(|&c| ast.tag(c) != CASEDEF).collect();
+                match heads[..] {
+                    [bound, _] => Type::Match(self.ty(bound)),
+                    _ => Type::Match(self.types.intern(Type::Other(n.tag))),
+                }
+            }
             PARAMtype => Type::Param(Binder(self.file, n.a as u32), n.b as u32),
-            POLYtype | METHODtype | TYPELAMBDAtype => self.lambda_type(id),
-            LAMBDAtpt => {
+            POLYtype | METHODtype | TYPELAMBDAtype if !k.is_empty() => self.lambda_type(id),
+            LAMBDAtpt if !k.is_empty() => {
                 let (params, body) = k.split_at(k.len() - 1);
-                let params = params.iter().map(|&p| (self.name(p), self.ty(ast.kids(p)[0]))).collect();
+                let params = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
                 Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
             }
             tag if crate::constant(tag, n.a).is_some() => Type::Constant(tag, n.a),
