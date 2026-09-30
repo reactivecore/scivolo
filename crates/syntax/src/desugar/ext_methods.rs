@@ -17,7 +17,7 @@ impl Desugar<'_> {
                 Tree::Export { .. } => m,
                 Tree::DefDef { .. } => {
                     let m = self.ext_method(m, &ext_paramss);
-                    self.def_def(m)
+                    self.def_def(m, false)
                 }
                 _ => self.ast.node(Tree::Empty),
             })

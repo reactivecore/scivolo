@@ -27,8 +27,13 @@ impl Desugar<'_> {
             }
             Tree::TypeDef { name, rhs, mods } => {
                 let rhs = if matches!(self.ast.tree(rhs), Tree::Template { .. }) {
-                    let is_trait = self.ast.modifiers(mods).is(flags::TRAIT);
-                    let owner = Owner::Class { is_trait, is_package_object: false };
+                    let m = self.ast.modifiers(mods);
+                    let is_trait = m.is(flags::TRAIT);
+                    let text = self.text(name);
+                    let is_package_object = m.is(flags::MODULE.to_type_flags())
+                        && self.owner == Owner::Package
+                        && (text == "package$" || text.ends_with("$package$"));
+                    let owner = Owner::Class { is_trait, is_package_object };
                     self.in_owner(owner, |d| d.transform_template(rhs))
                 } else {
                     self.in_mode(Mode::Type, |d| d.transform(rhs))

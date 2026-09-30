@@ -2,7 +2,8 @@
 """The Rust scanner, parser or desugaring against dotty 3.9.0 on tests/pos and tests/neg
 (docs/research/06-parser-port.md, 07-desugar-port.md).
 
-Usage: scripts/syntax-tests.py MODE oracle|report [FILTER] | MODE diff PATH, MODE = tokens|trees|desugar
+Usage: scripts/syntax-tests.py MODE oracle|report [FILTER] | MODE diff PATH | MODE checks DIR,
+MODE = tokens|trees|desugar
 """
 import collections
 import difflib
@@ -110,6 +111,23 @@ def report(filter_):
     print(table)
 
 
+def checks(directory):
+    """Write dotty's output for each DIR/*.scala to DIR/*.check (golden tests)."""
+    files = sorted(Path(directory).resolve().glob("*.scala"))
+    lst = WORK / "checks.tsv"
+    lst.write_text("".join(f"{f}\t{' '.join(o for u in USING.findall(f.read_text()) for o in u.split())}\n"
+                           for f in files))
+    cmd = ["scala-cli", "--power", "run", "--server=false", "--quiet", "--workspace", str(WORK / "oracle-ws"),
+           str(ROOT / "scripts/syntax-oracle"), "--", MODE, "--list", str(lst)]
+    out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if out.returncode != 0:
+        sys.exit(out.stderr)
+    for chunk in out.stdout.split("== file ")[1:]:
+        path, _, body = chunk.partition("\n")
+        Path(path).with_suffix(".check").write_text(body, encoding="utf-8")
+    print(f"{len(files)} checks")
+
+
 def diff(path):
     rel = str(Path(path).resolve().relative_to(TESTS)) if Path(path).exists() else path
     lst = WORK / "one.tsv"
@@ -122,7 +140,7 @@ def diff(path):
 
 
 if __name__ == "__main__":
-    commands = {"oracle": oracle, "report": report, "diff": diff}
+    commands = {"oracle": oracle, "report": report, "diff": diff, "checks": checks}
     if len(sys.argv) < 3 or sys.argv[1] not in ("tokens", "trees", "desugar") or sys.argv[2] not in commands:
         sys.exit(__doc__)
     MODE = sys.argv[1]

@@ -13,7 +13,8 @@ impl Desugar<'_> {
         }
         let items = self.ast.items(l).to_vec();
         let expanded: Vec<NodeId> = items.iter().map(|&t| self.expand_stat(t)).collect();
-        let flat = self.flatten(&expanded);
+        let merged = self.merge_companions(&expanded);
+        let flat = self.flatten(&merged);
         let mapped: Vec<NodeId> = flat.iter().map(|&t| self.transform(t)).collect();
         self.list(&mapped)
     }
@@ -30,12 +31,20 @@ impl Desugar<'_> {
             }
             Tree::DefDef { name, .. } if self.text(name) != "<init>" => {
                 let stat = self.check_modifiers(stat);
-                self.def_def(stat)
+                self.def_def(stat, false)
             }
             Tree::DefDef { .. } => self.check_modifiers(stat),
             Tree::TypeDef { rhs, .. } if !matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
                 let stat = self.check_modifiers(stat);
                 self.type_def(stat)
+            }
+            Tree::TypeDef { mods, .. } if !self.ast.modifiers(mods).is(flags::ENUM) => {
+                let stat = self.check_modifiers(stat);
+                self.class_def(stat)
+            }
+            Tree::ModuleDef { mods, .. } if !self.ast.modifiers(mods).flags.is_all_of(flags::ENUM_CASE) => {
+                let stat = self.check_modifiers(stat);
+                self.module_def(stat)
             }
             Tree::PackageDef { .. } => self.package_def(stat),
             Tree::ExtMethods { .. } => self.ext_methods(stat),

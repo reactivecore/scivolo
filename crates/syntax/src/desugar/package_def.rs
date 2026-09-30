@@ -49,7 +49,7 @@ impl Desugar<'_> {
     }
 
     /// `def <init>()` with no parameters (dotty's `emptyConstructor`).
-    fn empty_constructor(&mut self) -> NodeId {
+    pub fn empty_constructor(&mut self) -> NodeId {
         let name = self.term("<init>");
         let paramss = self.ast.clauses(&[]);
         let tpt = self.type_tree();
@@ -80,6 +80,14 @@ impl Desugar<'_> {
             Tree::Select { qualifier, name } => (name, self.select_name_span(pid, name), Some(qualifier)),
             _ => return,
         };
+        self.check_package_part(name, span);
+        if let Some(q) = qual {
+            self.check_package_name(q);
+        }
+    }
+
+    /// A warning if the class path encodes package name `name` at `span`.
+    pub fn check_package_part(&mut self, name: TName, span: Span) {
         let encoded = to_utf16(self.text(name))
             .into_iter()
             .any(|u| char::from_u32(u.into()).is_none_or(|c| !is_java_identifier_part(c)));
@@ -89,9 +97,6 @@ impl Desugar<'_> {
                 self.text(name)
             );
             self.diags.warning_at(span.start(), span.end(), span.point(), msg);
-        }
-        if let Some(q) = qual {
-            self.check_package_name(q);
         }
     }
 

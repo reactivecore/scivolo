@@ -55,6 +55,8 @@ impl Attrs {
     pub const CHECK_GEN_FROM: Attrs = Attrs(1 << 15);
     /// An evidence parameter made of a context bound.
     pub const EVIDENCE: Attrs = Attrs(1 << 16);
+    /// A companion object that receives the `derives` clause of its class.
+    pub const DERIVING_COMPANION: Attrs = Attrs(1 << 17);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

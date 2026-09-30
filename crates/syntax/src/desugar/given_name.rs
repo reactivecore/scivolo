@@ -5,9 +5,25 @@ use crate::ast::children::Child;
 use crate::ast::{NodeId, TName, Tree};
 
 impl Desugar<'_> {
-    /// `given_` followed by the name of type `tpt`.
+    /// `given_` followed by the name of type `tpt`, or of the parents of template `tpt`.
     pub fn invent_given_name(&mut self, tpt: NodeId) -> TName {
-        let text = format!("given_{}", self.type_name_of(tpt, true));
+        let text = match *self.ast.tree(tpt) {
+            Tree::Template { parents_or_derived, derived, .. } => {
+                let items = self.ast.items(parents_or_derived);
+                let parents = &items[..items.len() - derived.unwrap_or(0) as usize];
+                if parents.is_empty() {
+                    self.error(
+                        tpt,
+                        "anonymous instance must implement a type or have at least one extension method",
+                    );
+                    "<error>".to_string()
+                } else {
+                    let names: Vec<String> = parents.iter().map(|&p| self.type_name_of(p, true)).collect();
+                    format!("given_{}", names.join("_"))
+                }
+            }
+            _ => format!("given_{}", self.type_name_of(tpt, true)),
+        };
         self.term(&text)
     }
 

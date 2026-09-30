@@ -49,24 +49,49 @@ pub const COVARIANT: FlagSet = ty(20);
 pub const CONTRAVARIANT: FlagSet = ty(21);
 pub const ABS_OVERRIDE: FlagSet = term(22);
 pub const ABSTRACT: FlagSet = both(23);
+pub const STABLE_REALIZABLE: FlagSet = term(24);
 pub const CASE_ACCESSOR: FlagSet = term(25);
 pub const HAS_DEFAULT: FlagSet = term(27);
 pub const IMPURE: FlagSet = ty(27);
 pub const EXTENSION_METHOD: FlagSet = term(28);
 pub const GIVEN: FlagSet = both(29);
+pub const JAVA_DEFINED: FlagSet = both(30);
 pub const JAVA_STATIC: FlagSet = both(31);
+pub const ARTIFACT: FlagSet = both(33);
 pub const TRANSPARENT: FlagSet = both(39);
 pub const ENUM: FlagSet = both(40);
 pub const ERASED: FlagSet = both(42);
 pub const OPAQUE: FlagSet = both(43);
 pub const INFIX: FlagSet = both(44);
 pub const TRACKED: FlagSet = both(46);
+pub const DEPENDENT: FlagSet = ty(46);
+pub const SELF_NAME: FlagSet = term(54);
 pub const MACRO: FlagSet = both(58);
 
 pub const ACCESS_FLAGS: FlagSet = LOCAL.or(PRIVATE).or(PROTECTED);
 pub const GIVEN_OR_IMPLICIT: FlagSet = GIVEN.or(IMPLICIT);
 pub const PRIVATE_LOCAL: FlagSet = LOCAL.or(PRIVATE);
 pub const DEFERRED_GIVEN_FLAGS: FlagSet = DEFERRED.or(GIVEN).or(HAS_DEFAULT);
+/// The flags of a module val and class that desugaring keeps (dotty's
+/// `RetainedModuleValAndClassFlags`, of the flags modifiers can set).
+const RETAINED_MODULE_FLAGS: FlagSet =
+    ACCESS_FLAGS.or(PACKAGE).or(CASE).or(SYNTHETIC).or(JAVA_DEFINED).or(JAVA_STATIC).or(ARTIFACT);
+pub const RETAINED_MODULE_VAL_FLAGS: FlagSet = RETAINED_MODULE_FLAGS
+    .or(OVERRIDE)
+    .or(FINAL)
+    .or(METHOD)
+    .or(IMPLICIT)
+    .or(GIVEN)
+    .or(LAZY)
+    .or(ERASED)
+    .or(ACCESSOR)
+    .or(ABS_OVERRIDE)
+    .or(STABLE_REALIZABLE)
+    .or(TRANSPARENT);
+pub const RETAINED_MODULE_CLASS_FLAGS: FlagSet = RETAINED_MODULE_FLAGS.or(ENUM);
+pub const MODULE_VAL_CREATION_FLAGS: FlagSet =
+    MODULE.to_term_flags().or(LAZY).or(FINAL).or(STABLE_REALIZABLE);
+pub const MODULE_CLASS_CREATION_FLAGS: FlagSet = MODULE.to_type_flags().or(FINAL);
 pub const ENUM_CASE: FlagSet = CASE.or(ENUM);
 pub const LOCAL_PARAM_ACCESSOR: FlagSet = LOCAL.or(PARAM_ACCESSOR).or(PRIVATE);
 pub const SYNTHETIC_TERM_PARAM: FlagSet = SYNTHETIC.or(TERM_PARAM);
@@ -197,6 +222,10 @@ impl FlagSet {
 
     pub const fn to_term_flags(self) -> FlagSet {
         if self.0 == 0 { self } else { FlagSet(self.0 & !KINDS | TERMS) }
+    }
+
+    pub const fn to_common_flags(self) -> FlagSet {
+        if self.0 == 0 { self } else { FlagSet(self.0 | KINDS) }
     }
 
     /// The names of the set flags, as dotty's `flagStrings("")`.

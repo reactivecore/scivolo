@@ -94,7 +94,7 @@ impl Desugar<'_> {
     }
 
     /// Method `meth` with its context bounds replaced by evidence parameters.
-    pub fn elim_context_bounds(&mut self, meth: NodeId) -> NodeId {
+    pub fn elim_context_bounds(&mut self, meth: NodeId, primary: bool) -> NodeId {
         let Tree::DefDef { name, paramss, tpt, rhs, mods } = *self.ast.tree(meth) else { return meth };
         let clauses = self.ast.clause_items(paramss).to_vec();
         let iflag = clauses
@@ -108,7 +108,7 @@ impl Desugar<'_> {
             } else {
                 flags::IMPLICIT
             });
-        let evidence_flags = iflag.or(flags::PARAM);
+        let evidence_flags = iflag.or(if primary { flags::LOCAL_PARAM_ACCESSOR } else { flags::PARAM });
         let mut evidence = Vec::new();
         let mut seen = 0;
         let mapped: Vec<List> = clauses

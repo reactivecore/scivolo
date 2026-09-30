@@ -1,8 +1,16 @@
 //! The desugaring dotty's Namer and Typer apply to untyped trees before typing, as one pass over
 //! a compilation unit (a port of `ast/Desugar.scala`).
 
+mod build;
+mod case_class;
 mod case_lambda;
+mod class_def;
+mod class_params;
+mod class_parts;
+mod companions;
+mod constructors;
 mod context_bounds;
+mod creator;
 mod defaults;
 mod defs;
 mod evidence;
@@ -13,6 +21,7 @@ mod generators;
 mod given_name;
 mod map;
 mod members;
+mod module_def;
 mod package_def;
 mod pat_def;
 mod pat_split;
@@ -21,11 +30,7 @@ mod val_def;
 mod variables;
 mod walk;
 
-use crate::ast::constant::Constant;
-use crate::ast::flags::FlagSet;
-use crate::ast::modifiers::Modifiers;
-use crate::ast::tree::ModsId;
-use crate::ast::{Ast, Attrs, List, NodeId, TName, Tree};
+use crate::ast::{Ast, NodeId, TName, Tree};
 use crate::config::Config;
 use crate::diag::Diagnostics;
 use crate::names::{FreshNames, Names};
@@ -112,78 +117,6 @@ impl<'a> Desugar<'a> {
 
     fn text(&self, name: TName) -> &str {
         self.names.text(name.name)
-    }
-
-    fn list(&mut self, items: &[NodeId]) -> List {
-        self.ast.list(items)
-    }
-
-    fn ident(&mut self, name: TName) -> NodeId {
-        self.ast.node(Tree::Ident { name })
-    }
-
-    fn select(&mut self, qualifier: NodeId, name: TName) -> NodeId {
-        self.ast.node(Tree::Select { qualifier, name })
-    }
-
-    fn apply(&mut self, fun: NodeId, args: &[NodeId]) -> NodeId {
-        let args = self.list(args);
-        self.ast.node(Tree::Apply { fun, args })
-    }
-
-    fn literal(&mut self, value: Constant) -> NodeId {
-        self.ast.node(Tree::Literal { value })
-    }
-
-    fn type_tree(&mut self) -> NodeId {
-        self.ast.node(Tree::TypeTree)
-    }
-
-    /// A reference to the compiler-known symbol `full_name` (dotty's `ref(defn.X)`).
-    fn sym_ref(&mut self, full_name: &str, is_type: bool) -> NodeId {
-        let sym = TName { name: self.names.intern(full_name), is_type };
-        self.ast.node(Tree::TypedSplice { sym })
-    }
-
-    fn synthetic_unit(&mut self) -> NodeId {
-        let unit = self.literal(Constant::Unit);
-        self.ast.add_attrs(unit, Attrs::SYNTHETIC_UNIT);
-        unit
-    }
-
-    /// `new tpt` as an annotation without arguments (dotty's `New(tpt)`).
-    fn new_annot(&mut self, class: &str) -> NodeId {
-        let tpt = self.sym_ref(class, true);
-        self.ast.node(Tree::New { tpt })
-    }
-
-    fn mods(&mut self, flags: FlagSet) -> ModsId {
-        self.ast.mods(Modifiers::with_flags(flags))
-    }
-
-    /// `trees` as one tree: the tree itself or a `Thicket` (dotty's `flatTree`).
-    fn flat_tree(&mut self, trees: &[NodeId]) -> NodeId {
-        let flat = self.flatten(trees);
-        match flat[..] {
-            [t] => t,
-            _ => {
-                let trees = self.list(&flat);
-                self.ast.node(Tree::Thicket { trees })
-            }
-        }
-    }
-
-    /// `trees` with thickets spliced in and empty trees dropped (dotty's `flatten`).
-    fn flatten(&self, trees: &[NodeId]) -> Vec<NodeId> {
-        let mut out = Vec::with_capacity(trees.len());
-        for &t in trees {
-            match self.ast.tree(t) {
-                Tree::Thicket { trees } => out.extend(self.flatten(self.ast.items(*trees))),
-                Tree::Empty => {}
-                _ => out.push(t),
-            }
-        }
-        out
     }
 
     fn error(&mut self, at: NodeId, message: &str) {

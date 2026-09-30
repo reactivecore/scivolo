@@ -129,6 +129,10 @@ syntax-diff mode path:
     cargo build -q --release -p syntax
     python3 scripts/syntax-tests.py {{ mode }} diff {{ path }}
 
+# Record dotty's desugared trees of the golden tests in crates/syntax/tests/desugar (JVM).
+desugar-checks:
+    python3 scripts/syntax-tests.py desugar checks crates/syntax/tests/desugar
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}
