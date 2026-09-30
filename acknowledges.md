@@ -43,8 +43,9 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 - **tasty-query** ([scalacenter/tasty-query](https://github.com/scalacenter/tasty-query)): the
   model of symbols and types loaded lazily from TASTy (phase 3).
 - **Scala 3 compiler (dotty)** ([scala/scala3](https://github.com/scala/scala3)):
-  `TastyFormat.scala` for the TASTy reader spike; `Scanners`/`Parsers`/`Desugar` as the parser to
-  port in phase 3.
+  `TastyFormat.scala`, `TastyReader.scala` and `TreeUnpickler.scala` for the TASTy reader
+  (`crates/tasty`: its tag table and tree grammar); `Scanners`/`Parsers`/`Desugar` as the parser
+  to port in phase 3.
 
 - **Go's scheduler** hands a goroutine's blocking system call to another OS thread; our green
   threads do the same for `blocking` externs (ADR 0003). **corosensei**

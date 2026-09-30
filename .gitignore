@@ -15,6 +15,7 @@ spikes/*/corpus/
 .claude/scheduled_tasks.lock
 .claude/settings.local.json
 !spikes/**/artifacts/*.tasty
+!crates/tasty/tests/fixtures/*.tasty
 ref/
 tmp/
 __pycache__/
