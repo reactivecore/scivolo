@@ -91,6 +91,16 @@ impl Modifiers {
         Modifiers { flags: self.flags.and_not(flags), ..self }
     }
 
+    /// These modifiers without `flags` and the written modifiers that set them (dotty's
+    /// `withoutFlags`).
+    pub fn without_flags(self, flags: FlagSet) -> Modifiers {
+        if !self.is_one_of(flags) {
+            return self;
+        }
+        let mods = self.mods.into_iter().filter(|m| !m.kind.flags().is_one_of(flags)).collect();
+        Modifiers { flags: self.flags.and_not(flags), mods, ..self }
+    }
+
     pub fn is(&self, flag: FlagSet) -> bool {
         self.flags.is(flag)
     }

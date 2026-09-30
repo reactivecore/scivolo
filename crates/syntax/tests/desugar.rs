@@ -64,7 +64,9 @@ fn operators_tuples_and_interpolations_become_calls() {
                 def t(xs: Int*): (Int, String) = ???\n";
     assert_eq!(
         desugar(text, &[]),
-        "(PackageDef 0..127 (Ident 0..0 t:<empty>) [ (DefDef 0..90@4 (Mods [<method>] [] []) t:m [] (TypeTree \
+        "(PackageDef 0..127 (Ident 0..0 t:<empty>) [ (ModuleDef 0..127 (Mods [<synthetic>] [] []) t:t$package \
+         (Template 0..127 (DefDef 0..0 (Mods [] [] []) t:<init> [] (TypeTree 0..0) _) [] _self [ \
+         (DefDef 0..90@4 (Mods [<method>] [] []) t:m [] (TypeTree \
          5..5) (Apply 8..90@8 (TypedSplice 9..9 t:scala.Tuple6) [ (Apply 9..22@9 (Select 9..22@9 (Apply \
          11..21 (Select 11..11 (Select 11..11 (Ident 11..11 t:_root_) t:scala) t:StringContext) [ (Literal \
          11..13@11 #String:\"a \") (Literal 15..16@15 #String:\" \") (Literal 20..21@20 #String:\"b\")]) t:s) \
@@ -81,7 +83,7 @@ fn operators_tuples_and_interpolations_become_calls() {
          T:scala.collection.immutable.Seq) [ (Ident 101..104@101 T:Int)]) (Apply 104..104 (Select 104..104 \
          (New 104..104 (TypedSplice 104..104 T:scala.annotation.internal.Repeated)) t:<init>) [])) _)]] \
          (AppliedTypeTree 108..121@108 (TypedSplice 109..109 T:scala.Tuple2) [ (Ident 109..112@109 T:Int) \
-         (Ident 114..120@114 T:String)]) (Ident 124..127@124 t:???))])"
+         (Ident 114..120@114 T:String)]) (Ident 124..127@124 t:???))]))])"
     );
 }
 
@@ -90,7 +92,9 @@ fn for_with_alias_and_guard_before_3_8_tuples_the_alias() {
     let text = "def m = for\n  x <- xs\n  y = x + 1\n  if y > 2\n  (a, b) <- ps\nyield a\n";
     assert_eq!(
         desugar(text, &["-source", "3.7"]),
-        "(PackageDef 0..67 (Ident 0..0 t:<empty>) [ (DefDef 0..67@4 (Mods [<method>] [] []) t:m [] (TypeTree \
+        "(PackageDef 0..67 (Ident 0..0 t:<empty>) [ (ModuleDef 0..67 (Mods [<synthetic>] [] []) t:t$package \
+         (Template 0..67 (DefDef 0..0 (Mods [] [] []) t:<init> [] (TypeTree 0..0) _) [] _self [ \
+         (DefDef 0..67@4 (Mods [<method>] [] []) t:m [] (TypeTree \
          5..5) (Apply 8..67@8 (Select 14..44 (Apply 14..44 (Select 14..33 (Apply 14..33 (Select 19..21 (Ident \
          19..21@19 t:xs) t:map) [ (Function 14..33 [ (ValDef 14..15@14 @patternvar (Mods [<param>] [] []) t:x \
          (TypeTree 14..14) _)] (Block 14..33 [ (ValDef 24..33@24 @patternvar (Mods [] [] []) t:y (TypeTree \
@@ -108,7 +112,7 @@ fn for_with_alias_and_guard_before_3_8_tuples_the_alias() {
          [ (Function 47..67 [ (ValDef 47..47 (Mods [<param> <synthetic>] [] []) t:x$1 (TypeTree 47..47) _)] \
          (Match 47..67 (Ident 47..47 @check=IrrefutableGenFrom t:x$1) [ (CaseDef 47..67 (Apply 47..53@47 \
          (TypedSplice 48..48 t:scala.Tuple2) [ (Ident 48..49@48 t:a) (Ident 51..52@51 t:b)]) _ (Ident \
-         66..67@66 t:a))]))]))]))]))])"
+         66..67@66 t:a))]))]))]))]))]))])"
     );
 }
 
@@ -127,5 +131,37 @@ fn type_quotes_hold_types_and_preview_enables_better_fors() {
          t:map) [ (Function 64..86 [ (ValDef 64..65@64 @patternvar (Mods [<param>] [] []) t:x (TypeTree \
          64..64) _)] (Block 73..86 [ (ValDef 73..78@73 @patternvar (Mods [] [] []) t:y (TypeTree 77..77) \
          (Ident 77..78@77 t:x))] (Ident 85..86@85 t:y)))]))]))])"
+    );
+}
+
+#[test]
+fn definitions_get_default_getters_evidence_and_a_package_object() {
+    let text = "package p\ndef f[T: Ordering](x: Int = 1)(y: String = \"a\"): Int = x\n\
+                extension [A](a: A) def +:(b: List[A]): List[A] = b\ntrait C:\n  type T: Ordering\nclass D\n";
+    assert_eq!(
+        desugar(text, &[]),
+        "(PackageDef 0..154@8 (Ident 8..9@8 t:p) [ (TypeDef 119..146@125 (Mods [<trait>] [] []) T:C (Template \
+         130..146 (DefDef 130..130 (Mods [] [] []) t:<init> [] (TypeTree 130..130) _) [] _self [ (TypeDef \
+         130..146@135 (Mods [] [] []) T:T (TypeBoundsTree 138..138 _ _ _)) (ValDef 138..146@146 @evidence \
+         (Mods [<deferred> lazy <hasdefault> given] [] []) t:given_Ordering_T (ContextBoundTypeTree \
+         138..146@146 (Ident 138..146@138 T:Ordering) T:T t:) _)])) (TypeDef 147..154@153 (Mods [] [] []) T:D \
+         (Template 147..147 (DefDef 147..147 (Mods [] [] []) t:<init> [] (TypeTree 147..147) _) [] _self [])) \
+         (ModuleDef 10..118 (Mods [<synthetic>] [] []) t:t$package (Template 10..118 (DefDef 10..10 (Mods [] \
+         [] []) t:<init> [] (TypeTree 10..10) _) [] _self [ (DefDef 10..66@14 (Mods [<method>] [] []) t:f [ [ \
+         (TypeDef 16..27@16 (Mods [<param>] [] []) T:T (TypeBoundsTree 19..19 _ _ _))] [ (ValDef 29..39@29 \
+         (Mods [<param> <hasdefault>] [] []) t:x (Ident 32..35@32 T:Int) _)] [ (ValDef 41..56@41 (Mods \
+         [<param> <hasdefault>] [] []) t:y (Ident 44..50@44 T:String) _)] [ (ValDef 19..27@27 @evidence (Mods \
+         [<param> given] [] []) t:evidence$1 (ContextBoundTypeTree 19..27@27 (Ident 19..27@19 T:Ordering) T:T \
+         t:) _)]] (Ident 59..62@59 T:Int) (Ident 65..66@65 t:x)) (DefDef 38..39@38 (Mods [] [] []) \
+         t:f$default$1 [ [ (TypeDef 16..27@16 (Mods [<param>] [] []) T:T (TypeBoundsTree 19..19 _ _ _))]] \
+         (TypeTree 27..27) (Number 38..39@38 \"1\" Whole(10))) (DefDef 53..56@53 (Mods [] [] []) \
+         t:f$default$2 [ [ (TypeDef 16..27@16 (Mods [<param>] [] []) T:T (TypeBoundsTree 19..19 _ _ _))] [ \
+         (ValDef 29..39@29 (Mods [<param>] [] []) t:x (Ident 32..35@32 T:Int) _)]] (TypeTree 39..39) (Literal \
+         53..56@53 #String:\"a\")) (DefDef 87..118@91 (Mods [<method> <extension>] [] []) t:+: [ [ (TypeDef \
+         78..79@78 (Mods [<param>] [] []) T:A (TypeBoundsTree 78..78 _ _ _))] [ (ValDef 94..104@94 (Mods \
+         [<param>] [] []) t:b (AppliedTypeTree 97..104@97 (Ident 97..101@97 T:List) [ (Ident 102..103@102 \
+         T:A)]) _)] [ (ValDef 81..85@81 (Mods [<param>] [] []) t:a (Ident 84..85@84 T:A) _)]] \
+         (AppliedTypeTree 107..114@107 (Ident 107..111@107 T:List) [ (Ident 112..113@112 T:A)]) (Ident \
+         117..118@117 t:b))]))])"
     );
 }

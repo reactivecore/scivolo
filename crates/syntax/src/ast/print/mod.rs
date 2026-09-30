@@ -11,13 +11,14 @@ use crate::names::{Names, to_utf16};
 use std::fmt::Write;
 
 /// The attributes the printer shows, in its order.
-const PRINTED: [(Attrs, &str); 14] = [
+const PRINTED: [(Attrs, &str); 15] = [
     (Attrs::BACKQUOTED, " @backquoted"),
     (Attrs::CAPTURE_VAR, " @capturevar"),
     (Attrs::RETAINS_ANNOT, " @retains"),
     (Attrs::SYNTHETIC_UNIT, " @syntheticunit"),
     (Attrs::FOR_ARTIFACT, " @forartifact"),
     (Attrs::PATTERN_VAR, " @patternvar"),
+    (Attrs::EVIDENCE, " @evidence"),
     (Attrs::TRAILING_FOR_MAP, " @trailingmap"),
     (Attrs::TUPLING_FOR_MAP, " @tuplingmap"),
     (Attrs::MULTI_LINE_INFIX, " @multiline"),

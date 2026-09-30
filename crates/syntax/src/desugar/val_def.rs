@@ -26,9 +26,11 @@ impl Desugar<'_> {
         self.val_def(vdef)
     }
 
-    /// `vdef` with a setter `v_=` where one is needed.
-    pub fn val_def(&mut self, vdef: NodeId) -> NodeId {
-        let Tree::ValDef { name, rhs, mods, .. } = *self.ast.tree(vdef) else { return vdef };
+    /// `vdef` named, with a setter `v_=` where one is needed.
+    pub fn val_def(&mut self, orig: NodeId) -> NodeId {
+        let Tree::ValDef { name, tpt, rhs, mods } = *self.ast.tree(orig) else { return orig };
+        let name = self.normalize_name(name, tpt);
+        let vdef = self.ast.derived(orig, Tree::ValDef { name, tpt, rhs, mods });
         let m = self.ast.modifiers(mods).clone();
         let needs_setter = m.is(flags::MUTABLE)
             && self.owner.is_class()
@@ -58,7 +60,7 @@ impl Desugar<'_> {
         let setter_mods = self.ast.mods(Modifiers { flags, ..m });
         let setter =
             Tree::DefDef { name: setter_name, paramss, tpt: unit, rhs: setter_rhs, mods: setter_mods };
-        let setter = self.ast.derived(vdef, setter);
+        let setter = self.ast.derived(orig, setter);
         self.ast.remove_attrs(setter, Attrs::HAS_END_MARKER);
         let trees = self.list(&[vdef, setter]);
         self.ast.node(Tree::Thicket { trees })

@@ -40,6 +40,24 @@ pub fn is_unicode_identifier_part(c: char) -> bool {
         || is_identifier_ignorable(c)
 }
 
+/// Java's `Character.isJavaIdentifierPart`.
+pub fn is_java_identifier_part(c: char) -> bool {
+    matches!(
+        get_general_category(c),
+        G::UppercaseLetter
+            | G::LowercaseLetter
+            | G::TitlecaseLetter
+            | G::ModifierLetter
+            | G::OtherLetter
+            | G::CurrencySymbol
+            | G::ConnectorPunctuation
+            | G::DecimalNumber
+            | G::LetterNumber
+            | G::SpacingMark
+            | G::NonspacingMark
+    ) || is_identifier_ignorable(c)
+}
+
 /// Java's `Character.isIdentifierIgnorable`.
 fn is_identifier_ignorable(c: char) -> bool {
     matches!(c, '\u{0}'..='\u{8}' | '\u{E}'..='\u{1B}' | '\u{7F}'..='\u{9F}')

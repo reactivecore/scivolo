@@ -62,6 +62,20 @@ impl SourceFile {
         from + bytes as Offset + (units.saturating_sub(n)) as Offset
     }
 
+    /// The offset `units` UTF-16 units before `from`.
+    pub fn retreat_utf16(&self, from: Offset, units: usize) -> Offset {
+        let before = self.text.get(..from as usize).unwrap_or("");
+        let (mut n, mut bytes) = (0, 0);
+        for c in before.chars().rev() {
+            if n >= units {
+                break;
+            }
+            n += c.len_utf16();
+            bytes += c.len_utf8();
+        }
+        from.saturating_sub(bytes as Offset + units.saturating_sub(n) as Offset)
+    }
+
     /// The offset of the start of the line containing `offset`.
     pub fn start_of_line(&self, offset: Offset) -> Offset {
         self.line_to_offset(self.offset_to_line(offset))
