@@ -141,8 +141,10 @@ Oracle: 99.9% of javalib's 10,660 method signatures and all 529 bridges match it
    patched as dotty does), variances and opaque bounds from the trees, structural refinements
    decoded; oracle: `just subtype-oracle`, dotc's bounds check `sub[A, B]` on 112 types, with a
    prelude of path-dependent, higher-kinded, opaque, lambda and refinement types (12,544 pairs,
-   all agree). Left for 5b-2: `member_of_type`, `lub`/`glb`; partial unification and
-   eta-expansion, the joins of `|` on the left, raw Java types, tuples as `*:`.
+   all agree). 5b-2: `member_of_type`, `lub`/`glb` (checked for being least and greatest
+   among the oracle's types), partial unification of constructor variables, eta-expansion,
+   `TupleN` as nested `*:` (13,456 pairs, all agree). Not done: the join of `|` on the left
+   (`orDominator`, the typer widens), raw Java types (javalib is Scala).
 6. javalib's symbols (§3 B); oracle: javalib's NIR. The overlay's follow with the frontend.
 7. Bodies on demand, for `inline`, when the typer needs them.
 

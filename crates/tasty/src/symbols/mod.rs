@@ -8,6 +8,7 @@ mod enter;
 mod info;
 mod jdk;
 mod lookup;
+mod members;
 mod overrides;
 mod resolve;
 mod seen;
@@ -49,6 +50,8 @@ pub struct Universe {
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
+    /// How many binders `fresh_binder` has made.
+    binders: u32,
 }
 
 #[derive(Debug)]
@@ -85,6 +88,7 @@ impl Universe {
             linearizations: FxHashMap::default(),
             resolving: 0,
             builtins: Builtins::PENDING,
+            binders: 0,
         };
         let root = u.add(Symbol {
             name: String::new(),

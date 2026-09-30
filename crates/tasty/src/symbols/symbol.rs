@@ -24,6 +24,13 @@ pub enum Kind {
     Def,
 }
 
+impl Kind {
+    /// Whether a symbol of this kind is a term: a value, parameter or method.
+    pub fn is_term(self) -> bool {
+        matches!(self, Kind::Val | Kind::Param | Kind::Def)
+    }
+}
+
 /// Modifiers: one bit per TASTy modifier tag below 64, and bits 0 and 1 (no modifier's tag) for
 /// `PRIVATEqualified` and `PROTECTEDqualified`.
 #[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
