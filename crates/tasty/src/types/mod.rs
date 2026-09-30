@@ -4,6 +4,7 @@
 mod decode;
 mod map;
 mod show;
+mod widen;
 
 use crate::{FileId, SymbolId};
 use rustc_hash::FxHashMap;
@@ -12,6 +13,10 @@ pub use decode::Decoder;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);
+
+/// A type variable of the typer's constraint.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct VarId(pub u32);
 
 /// The tree of a binding type (method, polymorphic, lambda or recursive type), which its
 /// parameter references name.
@@ -65,10 +70,18 @@ pub enum Type {
     Param(Binder, u32),
     /// A match type, by its upper bound.
     Match(TypeId),
-    /// A constant's tag and bits.
+    /// A constant's tag and bits; strings are `Str`.
     Constant(u8, i64),
+    /// A string constant.
+    Str(String),
     /// A type not represented yet, by its tag.
     Other(u8),
+    /// A type variable, instantiated by the constraint the comparison runs in.
+    Var(VarId),
+    /// A wildcard, with its bounds if it has any.
+    Wildcard(Option<TypeId>),
+    /// The type of an erroneous tree: a subtype and a supertype of every type.
+    Error,
 }
 
 #[derive(Default)]

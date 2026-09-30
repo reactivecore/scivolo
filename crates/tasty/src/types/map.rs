@@ -33,6 +33,7 @@ impl Universe {
             Type::Refined(p, n, i) => Type::Refined(m(self, p), n, m(self, i)),
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),
             Type::Match(a) => Type::Match(m(self, a)),
+            Type::Wildcard(Some(b)) => Type::Wildcard(Some(m(self, b))),
             Type::Method { binder, params: ps, result, implicit } => {
                 let params = params(self, ps, &mut m);
                 Type::Method { binder, params, result: m(self, result), implicit }

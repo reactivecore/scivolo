@@ -1,5 +1,7 @@
 //! Decoding the types of a file's type trees, types and paths.
 
+mod defs;
+
 use super::{Binder, Type, TypeId, Types};
 use crate::tags::*;
 use crate::{Ast, FileId, NodeId, SymbolId};
@@ -13,7 +15,14 @@ pub struct Decoder<'a> {
     by_tree: &'a FxHashMap<(FileId, NodeId), SymbolId>,
     packages: &'a FxHashMap<String, SymbolId>,
     types: &'a mut Types,
+    /// How many types are being decoded, one inside another.
+    depth: u32,
+    /// The refinements being decoded; a reference back to one decodes as `Other`.
+    refining: Vec<NodeId>,
 }
+
+/// How deep types nest at most; deeper ones decode as `Other`.
+const MAX_DEPTH: u32 = 512;
 
 impl<'a> Decoder<'a> {
     pub fn new(
@@ -22,7 +31,7 @@ impl<'a> Decoder<'a> {
         packages: &'a FxHashMap<String, SymbolId>,
         types: &'a mut Types,
     ) -> Self {
-        Self { file, ast, names, by_tree, packages, types }
+        Self { file, ast, names, by_tree, packages, types, depth: 0, refining: Vec::new() }
     }
 
     /// The name the node at `id` refers to.
@@ -40,7 +49,12 @@ impl<'a> Decoder<'a> {
 
     /// The type of the type, type tree or path at `id`.
     pub fn ty(&mut self, id: NodeId) -> TypeId {
+        if self.depth >= MAX_DEPTH {
+            return self.types.intern(Type::Other(self.ast.tag(id)));
+        }
+        self.depth += 1;
         let t = self.decode(id);
+        self.depth -= 1;
         self.types.intern(t)
     }
 
@@ -57,7 +71,14 @@ impl<'a> Decoder<'a> {
         let (n, k) = (ast.node(id), ast.kids(id));
         match n.tag {
             SHAREDtype | SHAREDterm => self.decode(ast.deref(id)),
-            IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype | REFINEDtpt if !k.is_empty() => self.decode(k[0]),
+            REFINEDtpt if self.refining.contains(&id) => Type::Other(n.tag),
+            REFINEDtpt if !k.is_empty() => {
+                self.refining.push(id);
+                let t = self.refined(k[0], &k[1..]);
+                self.refining.pop();
+                self.types.get(t).clone()
+            }
+            IDENTtpt | IDENT | SINGLETONtpt | FLEXIBLEtype if !k.is_empty() => self.decode(k[0]),
             SUPERtype if k.len() > 1 => self.decode(k[1]),
             TYPEREF | SELECTtpt | TYPEREFin => Type::TypeRef(self.kid(id, 0), self.name(id)),
             TERMREF | SELECT | TERMREFin | SELECTin => Type::TermRef(self.kid(id, 0), self.name(id)),
@@ -114,6 +135,7 @@ impl<'a> Decoder<'a> {
                 let params = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
                 Type::Lambda { binder: self.binder(id), params, result: self.ty(body[0]) }
             }
+            STRINGconst => Type::Str(self.name(id)),
             tag if crate::constant(tag, n.a).is_some() => Type::Constant(tag, n.a),
             tag => Type::Other(tag),
         }

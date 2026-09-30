@@ -24,16 +24,17 @@ fn one(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> SymbolId {
 fn a_lookup_loads_only_the_file_defining_the_name() {
     let Some(mut u) = stdlib() else { return };
     let immutable = u.package("scala.collection.immutable").unwrap();
-    assert_eq!(u.loaded_files(), 0);
+    let opened = u.loaded_files();
+    assert!(opened <= 1, "open loads only AnyVal's file");
     let list = one(&mut u, immutable, "List", Kind::Class);
-    assert_eq!(u.loaded_files(), 1);
+    assert_eq!(u.loaded_files(), opened + 1);
     assert_eq!(u.full_name(list), "scala.collection.immutable.List");
     let flags = u.symbol(list).flags;
     assert!(flags.has(SEALED) && flags.has(ABSTRACT));
     let module = one(&mut u, immutable, "List", Kind::Val);
     assert!(u.symbol(module).flags.has(OBJECT));
     one(&mut u, immutable, "List$", Kind::Class);
-    assert_eq!(u.loaded_files(), 1);
+    assert_eq!(u.loaded_files(), opened + 1);
 }
 
 #[test]

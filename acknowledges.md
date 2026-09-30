@@ -45,7 +45,9 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 - **Scala 3 compiler (dotty)** ([scala/scala3](https://github.com/scala/scala3)):
   `TastyFormat.scala`, `TastyReader.scala` and `TreeUnpickler.scala` for the TASTy reader
   (`crates/tasty`: its tag table and tree grammar); `Scanners`/`Parsers`/`Desugar` as the parser
-  to port in phase 3; `TypeErasure.scala` and `transform/Bridges.scala` for erasure and bridges.
+  to port in phase 3; `TypeErasure.scala` and `transform/Bridges.scala` for erasure and bridges;
+  `core/TypeComparer.scala` (`recur`, `firstTry`…`fourthTry`, `isSubArgs`, `either`) and the
+  classes `Definitions` makes without TASTy, for subtyping in `crates/tasty/src/subtype`.
 - **Scala Native's compiler plugin** (`nscplugin`): `NirGenStat.genInterfaceMethodBridge`, the
   bridges it adds for methods implementing a trait's abstract method; `NirGenName`, the JDK
   classes it renames and the `__` of `_Object`'s methods (the table in `crates/tasty`'s `jdk.rs`).

@@ -76,6 +76,7 @@ impl Universe {
             Type::And(a, b) => self.erase_and(a, b),
             Type::Or(a, b) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),
+            Type::Str(_) => Erased::Class("java.lang.String".into()),
             _ => object(),
         }
     }
@@ -135,7 +136,7 @@ impl Universe {
     /// The qualified name `prefix.name` stands for when no symbol defines it: a class of a
     /// package the universe lacks, a class nested in one (`Spliterator$OfInt`), or one the
     /// compiler defines.
-    fn unresolved_class(&self, prefix: TypeId, name: &str) -> Option<String> {
+    pub fn unresolved_class(&self, prefix: TypeId, name: &str) -> Option<String> {
         let (path, in_class) = self.path_name(prefix)?;
         Some(format!("{path}{}{name}", if in_class { '$' } else { '.' }))
     }

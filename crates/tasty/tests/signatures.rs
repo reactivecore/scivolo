@@ -40,14 +40,14 @@ fn nir_methods(zip: &mut Zip, binary: &str) -> Option<HashSet<String>> {
     Some(sigs.map(str::to_owned).collect())
 }
 
-/// Every class in `owner`, nested ones included.
+/// Every class from TASTy in `owner`, nested ones included.
 fn classes_in(u: &mut Universe, owner: SymbolId) -> Vec<SymbolId> {
     let (mut out, mut stack) = (Vec::new(), vec![owner]);
     while let Some(owner) = stack.pop() {
         for d in u.decls(owner).unwrap() {
             match u.symbol(d).kind {
                 Kind::Package => stack.push(d),
-                Kind::Class => {
+                Kind::Class if u.symbol(d).tree.is_some() => {
                     out.push(d);
                     stack.push(d);
                 }

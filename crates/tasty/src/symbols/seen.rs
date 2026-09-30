@@ -1,6 +1,7 @@
 //! Base types and member types as seen from a prefix (dotty's `baseType` and `asSeenFrom`).
 
 use super::{Kind, SymbolId, Universe};
+use crate::tags::OPAQUE;
 use crate::types::{Type, TypeId};
 
 /// How many aliases and parents `base_type` follows.
@@ -51,11 +52,14 @@ impl Universe {
             }
             _ => (t, Vec::new()),
         };
-        let s = match self.types().get(tycon).clone() {
-            Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+        let (prefix, s) = match self.types().get(tycon).clone() {
+            Type::Sym(p, s) => (p, s),
+            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)?),
             _ => return None,
         };
+        if self.symbol(s).flags.has(OPAQUE) {
+            return None;
+        }
         if self.symbol(s).kind != Kind::Class {
             let dealiased = match args.is_empty() {
                 true => self.info(s),
@@ -74,6 +78,10 @@ impl Universe {
                 continue;
             }
             let parent = self.subst_class_params(parent, s, &args);
+            let parent = match (prefix, self.symbol(s).owner) {
+                (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(parent, p, o),
+                _ => parent,
+            };
             if let Some(found) = self.base_type_within(parent, base, depth) {
                 return Some(found);
             }

@@ -1,6 +1,7 @@
 //! The symbols of a library: packages known up front, each top-level file's classes and members
 //! entered when a name it defines is first looked up.
 
+mod builtin;
 mod classes;
 mod define;
 mod enter;
@@ -11,6 +12,7 @@ mod overrides;
 mod resolve;
 mod seen;
 mod symbol;
+mod variance;
 
 use crate::library::Library;
 use crate::types::{TypeId, Types};
@@ -19,6 +21,7 @@ use rustc_hash::FxHashMap;
 use std::io;
 use std::path::PathBuf;
 
+pub use builtin::{ANY, Builtins, NOTHING};
 pub use jdk::defined_name;
 pub use lookup::encode;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
@@ -45,6 +48,7 @@ pub struct Universe {
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
+    builtins: Builtins,
 }
 
 #[derive(Debug)]
@@ -80,6 +84,7 @@ impl Universe {
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
             resolving: 0,
+            builtins: Builtins::PENDING,
         };
         let root = u.add(Symbol {
             name: String::new(),
@@ -104,6 +109,7 @@ impl Universe {
             let pkg = u.package_entered(&dir);
             u.pending.entry(pkg).or_default().push((stem, path.clone()));
         }
+        u.builtins = builtin::enter(&mut u);
         Ok(u)
     }
 

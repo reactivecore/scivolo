@@ -49,7 +49,12 @@ impl Universe {
             Type::Param(_, i) => format!("<param {i}>"),
             Type::Match(bound) => format!("<match <: {}>", self.show(*bound)),
             Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(*tag)),
+            Type::Str(s) => format!("{s:?}"),
             Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),
+            Type::Var(v) => format!("?{}", v.0),
+            Type::Wildcard(None) => "?".into(),
+            Type::Wildcard(Some(b)) => format!("? {}", self.show(*b)),
+            Type::Error => "<error>".into(),
         }
     }
 }
