@@ -244,6 +244,7 @@ dependencies = [
 name = "tasty"
 version = "0.1.0"
 dependencies = [
+ "rustc-hash",
  "zip",
 ]
 
