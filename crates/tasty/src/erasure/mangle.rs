@@ -28,13 +28,18 @@ fn mangle(e: &Erased) -> String {
 impl Universe {
     /// The mangled signature of public method `def`, e.g. `D3mapL15scala.Function1L12scala.OptionEO`,
     /// under its `@targetName` if it has one; `None` unless it is a public instance method that
-    /// exists at run time (not `inline`, not erased, not a super accessor).
+    /// exists at run time: not erased, not a super accessor, not `inline` unless it overrides a
+    /// method that is not.
     pub fn method_signature(&mut self, def: SymbolId) -> Option<String> {
         let s = self.symbol(def);
-        let runtime = !s.flags.has(PRIVATE) && !s.flags.has(INLINE) && !s.flags.has(ERASED);
+        let runtime = !s.flags.has(PRIVATE) && !s.flags.has(ERASED);
         if s.kind != Kind::Def || !runtime || s.name == "<init>" || s.name.starts_with("super$") {
             return None;
         }
+        if s.flags.has(INLINE) && !self.overrides_plain(def) {
+            return None;
+        }
+        let s = self.symbol(def);
         let name = encode(s.target.as_deref().unwrap_or(&s.name));
         let mut t = self.info(def);
         let mut params = Vec::new();
@@ -60,6 +65,23 @@ impl Universe {
         out.push_str(&mangle(&result));
         out.push_str("EO");
         Some(out)
+    }
+}
+
+impl Universe {
+    /// Whether `def` overrides a method of the same name that is not `inline` in a base class of
+    /// its owner.
+    fn overrides_plain(&mut self, def: SymbolId) -> bool {
+        let Some(owner) = self.symbol(def).owner.filter(|&o| self.symbol(o).kind == Kind::Class) else {
+            return false;
+        };
+        let name = self.symbol(def).name.clone();
+        self.linearization(owner).into_iter().skip(1).any(|base| {
+            self.decl(base, &name)
+                .unwrap_or_default()
+                .into_iter()
+                .any(|m| self.symbol(m).kind == Kind::Def && !self.symbol(m).flags.has(INLINE))
+        })
     }
 }
 

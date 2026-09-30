@@ -43,7 +43,7 @@ impl Universe {
         if self.is_generic(elem) {
             return object();
         }
-        Erased::Array(Box::new(match self.erase(elem) {
+        Erased::Array(Box::new(match self.erase_boxed(elem) {
             Erased::Unit if wildcard => return object(),
             Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
             Erased::Nothing | Erased::Null => object(),

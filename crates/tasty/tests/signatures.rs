@@ -88,7 +88,7 @@ fn signatures_match_scalalib_nir() {
     assert!(skipped.is_empty(), "classes without NIR: {skipped:?}");
     let (precision, recall) = (matched as f64 / total as f64, found as f64 / wanted as f64);
     assert!(
-        total > 13_000 && precision >= 0.984 && recall >= 0.865,
+        total > 13_000 && precision >= 0.997 && recall >= 0.875,
         "precision {matched}/{total}, recall {found}/{wanted}; misses:\n{}",
         misses.join("\n")
     );

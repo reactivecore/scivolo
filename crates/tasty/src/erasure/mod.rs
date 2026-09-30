@@ -81,7 +81,16 @@ impl Universe {
         match self.symbol(s).kind {
             Kind::Class => {
                 let full = self.full_name(s);
-                special(&full).unwrap_or_else(|| Erased::Class(self.binary_name(s)))
+                if let Some(e) = special(&full) {
+                    return e;
+                }
+                match self.underlying(s) {
+                    Some(value) => {
+                        let info = self.info(value);
+                        self.erase(info)
+                    }
+                    None => Erased::Class(self.binary_name(s)),
+                }
             }
             Kind::Val if self.symbol(s).flags.has(MODULE) => match self.module_class(s) {
                 Some(c) => Erased::Class(self.binary_name(c)),
@@ -92,6 +101,27 @@ impl Universe {
                 self.erase(info)
             }
             _ => object(),
+        }
+    }
+
+    /// The underlying value of value class `c` (a class, not a trait, deriving from `AnyVal`):
+    /// its class parameter.
+    fn underlying(&mut self, c: SymbolId) -> Option<SymbolId> {
+        if self.symbol(c).flags.has(crate::tags::TRAIT) {
+            return None;
+        }
+        let any_val = self.package("scala").and_then(|p| self.decl(p, "AnyVal").ok()?.into_iter().next())?;
+        if c == any_val || !self.derives_from(c, any_val) {
+            return None;
+        }
+        self.symbol(c).decls.iter().copied().find(|&d| self.symbol(d).kind == Kind::Param)
+    }
+
+    /// The erasure of `t` where values are boxed: a value class as itself.
+    fn erase_boxed(&mut self, t: TypeId) -> Erased {
+        match self.class_symbol(t) {
+            Some(c) if self.underlying(c).is_some() => Erased::Class(self.binary_name(c)),
+            _ => self.erase(t),
         }
     }
 
@@ -127,16 +157,6 @@ impl Universe {
                 Some(_) => None,
                 None => self.unresolved_class(p, &n),
             },
-            _ => None,
-        }
-    }
-
-    /// The class `t` refers to, if the universe has it.
-    fn class_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.types().get(t).clone() {
-            Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(s),
-            Type::TypeRef(p, n) => self.resolve(p, &n, true).filter(|&s| self.symbol(s).kind == Kind::Class),
-            Type::Applied(tycon, _) | Type::Annotated(tycon) => self.class_symbol(tycon),
             _ => None,
         }
     }
