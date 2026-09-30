@@ -13,6 +13,8 @@ pub fn special(full: &str) -> Option<Erased> {
         "scala.Long" => Erased::Prim('j'),
         "scala.Float" => Erased::Prim('f'),
         "scala.Double" => Erased::Prim('d'),
+        "scala.scalanative.runtime.RawPtr" => Erased::Prim('R'),
+        "scala.scalanative.runtime.RawSize" => Erased::Prim('w'),
         "scala.Unit" => Erased::Unit,
         "scala.Nothing" => Erased::Nothing,
         "scala.Null" => Erased::Null,

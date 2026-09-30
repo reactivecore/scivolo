@@ -16,6 +16,7 @@ fn ident(id: &str) -> String {
 
 fn mangle(e: &Erased) -> String {
     match e {
+        Erased::Prim('R') => "R_".into(),
         Erased::Prim(c) => c.to_string(),
         Erased::Unit => "u".into(),
         Erased::Nothing => "n".into(),
@@ -29,11 +30,14 @@ impl Universe {
     /// The mangled signature of public method `def`, e.g. `D3mapL15scala.Function1L12scala.OptionEO`,
     /// under its `@targetName` if it has one; `None` unless it is a public instance method that
     /// exists at run time: not erased, not a super accessor, not `inline` unless it overrides a
-    /// method that is not.
+    /// method that is not, not an extern.
     pub fn method_signature(&mut self, def: SymbolId) -> Option<String> {
         let s = self.symbol(def);
         let runtime = !s.flags.has(PRIVATE) && !s.flags.has(ERASED);
         if s.kind != Kind::Def || !runtime || s.name == "<init>" || s.name.starts_with("super$") {
+            return None;
+        }
+        if s.is_extern || s.owner.is_some_and(|o| self.symbol(o).is_extern) {
             return None;
         }
         if s.flags.has(INLINE) && !self.overrides_plain(def) {

@@ -2,6 +2,7 @@
 //! inherited members of classes and objects.
 
 use super::{Kind, SymbolId, Universe};
+use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
 
 impl Universe {
@@ -23,14 +24,29 @@ impl Universe {
         match self.types.get(prefix).clone() {
             Type::Package(p) => Some(p),
             Type::This(c) => self.prefix_owner(c),
-            Type::Sym(_, s) if matches!(self.symbol(s).kind, Kind::Class | Kind::Package) => Some(s),
-            Type::Sym(_, s) if self.symbol(s).kind == Kind::Val => self.module_class(s),
-            Type::TermRef(p, n) => match self.resolve(p, &n, false)? {
-                pkg if self.symbol(pkg).kind == Kind::Package => Some(pkg),
-                term => self.module_class(term),
-            },
-            Type::TypeRef(p, n) => self.resolve(p, &n, true),
-            _ => None,
+            Type::Sym(_, s) => self.symbol_owner(s),
+            Type::TermRef(p, n) => {
+                let term = self.resolve(p, &n, false)?;
+                self.symbol_owner(term)
+            }
+            _ => self.class_symbol(prefix),
+        }
+    }
+
+    /// The package or class whose members a path to `s` selects: `s` itself, an object's class,
+    /// the class of a value's type.
+    fn symbol_owner(&mut self, s: SymbolId) -> Option<SymbolId> {
+        match self.symbol(s).kind {
+            Kind::Class | Kind::Package => Some(s),
+            Kind::Val if self.symbol(s).flags.has(OBJECT) => self.module_class(s),
+            Kind::Val | Kind::Param | Kind::Def => {
+                let info = self.info(s);
+                self.class_symbol(info)
+            }
+            Kind::Type | Kind::TypeParam => {
+                let t = self.intern_type(Type::Sym(None, s));
+                self.class_symbol(t)
+            }
         }
     }
 

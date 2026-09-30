@@ -7,7 +7,7 @@ mod bridges;
 mod mangle;
 mod special;
 
-use crate::symbols::encode;
+use crate::symbols::{defined_name, encode};
 use crate::tags::{OBJECT as MODULE, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
@@ -16,7 +16,8 @@ use special::special;
 /// An erased type as Scala Native's backend sees it.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum Erased {
-    /// A primitive, by its mangled letter: `z c b s i j f d`.
+    /// A primitive, by its mangled letter: `z c b s i j f d`, and Scala Native's raw pointer `R`
+    /// and raw size `w`.
     Prim(char),
     Unit,
     Nothing,
@@ -33,13 +34,16 @@ fn object() -> Erased {
 }
 
 impl Universe {
-    /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; names encoded.
+    /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; names encoded,
+    /// a JDK class Scala Native renames under its defined name when outer.
     pub fn binary_name(&self, c: SymbolId) -> String {
         let s = self.symbol(c);
         let name = encode(&s.name);
         match s.owner {
             Some(o) if self.symbol(o).kind == Kind::Class => {
                 let outer = self.binary_name(o);
+                let (simple, module) = outer.strip_suffix('$').map_or((outer.as_str(), ""), |s| (s, "$"));
+                let outer = defined_name(simple).map_or_else(|| outer.clone(), |d| format!("{d}{module}"));
                 if outer.ends_with('$') { format!("{outer}{name}") } else { format!("{outer}${name}") }
             }
             Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),

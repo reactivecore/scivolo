@@ -53,12 +53,14 @@ impl Universe {
             _ => return,
         };
         let flags = mods.iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)));
+        let (owner, name) = self.jdk_renamed(owner, name_of(name));
         let sym = self.add(Symbol {
-            name: name_of(name),
+            name,
             kind,
             owner: Some(owner),
             flags,
             target: target_name(ast, names, mods),
+            is_extern: annotations(ast, mods).any(|(ty, _)| mentions(ast, names, ty, "extern")),
             decls: Vec::new(),
             tree: Some((src.file, id)),
         });
@@ -68,11 +70,35 @@ impl Universe {
     }
 }
 
+impl Universe {
+    /// The owner and name of a definition named `name` in `owner`: its JDK package and name if
+    /// Scala Native defines it under another name.
+    fn jdk_renamed(&mut self, owner: SymbolId, name: String) -> (SymbolId, String) {
+        if self.symbol(owner).kind != Kind::Package {
+            let renamed = (self.symbol(owner).name == "Object")
+                .then(|| super::jdk::jdk_member(&self.full_name(owner), &name))
+                .flatten();
+            return (owner, renamed.unwrap_or(name));
+        }
+        match super::jdk::jdk_name(&self.full_name(owner), &name) {
+            Some((pkg, jdk)) => (self.package_entered(pkg), jdk),
+            None => (owner, name),
+        }
+    }
+}
+
 /// The name a `@targetName("…")` annotation among modifiers `mods` gives.
 fn target_name(ast: &Ast, names: &[String], mods: &[NodeId]) -> Option<String> {
-    mods.iter().filter(|&&m| ast.tag(m) == ANNOTATION).find_map(|&m| {
-        let [ty, call, ..] = ast.kids(m) else { return None };
-        mentions(ast, names, *ty, "targetName").then(|| first_string(ast, names, *call)).flatten()
+    annotations(ast, mods).find_map(|(ty, call)| {
+        mentions(ast, names, ty, "targetName").then(|| first_string(ast, names, call)).flatten()
+    })
+}
+
+/// The annotations among modifiers `mods`: each one's type tree and constructor call.
+fn annotations<'a>(ast: &'a Ast, mods: &'a [NodeId]) -> impl Iterator<Item = (NodeId, NodeId)> + 'a {
+    mods.iter().filter(|&&m| ast.tag(m) == ANNOTATION).filter_map(|&m| match ast.kids(m) {
+        [ty, call, ..] => Some((ast.deref(*ty), *call)),
+        _ => None,
     })
 }
 

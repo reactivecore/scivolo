@@ -158,6 +158,10 @@ libs:
 fetch-libs:
     scripts/fetch-libs.sh
 
+# Build javalib's TASTy (sbt, JDK) into ref/libs/javalib-tasty-0.5.12.jar.
+javalib-tasty:
+    scripts/javalib-tasty.sh
+
 # Check out Scala Native v0.5.12 into ref/scala-native.
 fetch-scala-native:
     scripts/fetch-scala-native.sh
