@@ -1,12 +1,46 @@
-//! Locates the precompiled Scala Native libraries: in `$SCALAI_LIBS` if set, else in the
-//! Coursier cache.
+//! Locates the precompiled Scala Native libraries and the Scala standard library's TASTy: in
+//! `$SCALAI_LIBS` if set, else in the Coursier cache; and maps their library image.
 
+use libimage::{Image, Source, Spec};
+use std::io;
 use std::path::PathBuf;
 
 pub const SCALA: &str = "3.9.0";
 pub const NATIVE: &str = "0.5.12";
 
 const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "scalalib"];
+
+/// The TASTy of Scala Native's javalib (research 08 §3).
+const JAVALIB_TASTY: &[u8] = include_bytes!("../../../libs/javalib-tasty-0.5.12.jar");
+
+/// The library image of `jars`, the standard library's TASTy and javalib's: their NIR with
+/// member tables, and their TASTy.
+pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
+    let mut sources: Vec<Source> = jars.iter().cloned().map(Source::File).collect();
+    sources.extend(scala_library().map(Source::File));
+    sources.push(Source::Bytes("javalib-tasty-0.5.12.jar", JAVALIB_TASTY));
+    let keep = |name: &str| name.ends_with(".nir") || name.ends_with(".tasty");
+    let spec = Spec { sources: &sources, keep, extra: &vm::nir_table, tag: "nir member tables 1" };
+    Ok(Box::leak(Box::new(Image::open(&spec, &cache_dir())?)))
+}
+
+/// The Scala standard library's jar, with its TASTy, if it is there.
+fn scala_library() -> Option<PathBuf> {
+    let file = format!("scala-library-{SCALA}.jar");
+    let rel = format!("https/repo1.maven.org/maven2/org/scala-lang/scala-library/{SCALA}/{file}");
+    let libs = std::env::var_os("SCALAI_LIBS").map(|l| PathBuf::from(l).join(&file));
+    libs.into_iter().chain(coursier_roots().into_iter().map(|root| root.join(&rel))).find(|p| p.exists())
+}
+
+/// The roots of the Coursier caches to search.
+fn coursier_roots() -> Vec<PathBuf> {
+    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
+    std::env::var_os("COURSIER_CACHE")
+        .map(PathBuf::from)
+        .into_iter()
+        .chain([home.join("Library/Caches/Coursier/v1"), home.join(".cache/coursier/v1")])
+        .collect()
+}
 
 /// Where each library jar may be, relative to a search root.
 fn candidates(lib: &str) -> Vec<(PathBuf, String)> {
@@ -20,14 +54,8 @@ fn candidates(lib: &str) -> Vec<(PathBuf, String)> {
     if let Some(libs) = std::env::var_os("SCALAI_LIBS") {
         out.push((PathBuf::from(libs), file.clone()));
     }
-    let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
-    let coursier: Vec<PathBuf> = std::env::var_os("COURSIER_CACHE")
-        .map(PathBuf::from)
-        .into_iter()
-        .chain([home.join("Library/Caches/Coursier/v1"), home.join(".cache/coursier/v1")])
-        .collect();
     let rel = format!("https/repo1.maven.org/maven2/org/scala-native/{dir}/{version}/{file}");
-    out.extend(coursier.into_iter().map(|root| (root, rel.clone())));
+    out.extend(coursier_roots().into_iter().map(|root| (root, rel.clone())));
     out
 }
 

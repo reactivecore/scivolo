@@ -10,6 +10,7 @@ mod inits;
 mod jdk;
 mod lookup;
 mod members;
+mod open;
 mod overrides;
 mod resolve;
 mod seen;
@@ -21,7 +22,6 @@ use crate::types::{TypeId, Types};
 use crate::{Ast, NodeId};
 use rustc_hash::FxHashMap;
 use std::io;
-use std::path::PathBuf;
 
 pub use builtin::{ANY, Builtins, NOTHING};
 pub use jdk::defined_name;
@@ -73,51 +73,6 @@ impl std::fmt::Display for Error {
 impl std::error::Error for Error {}
 
 impl Universe {
-    /// The packages of the TASTy files in `jars`, no file read yet.
-    pub fn open(jars: &[PathBuf]) -> Result<Self, Error> {
-        let library = Library::open(jars).map_err(|e| Error::Io(format!("{jars:?}"), e))?;
-        let mut u = Self {
-            library,
-            symbols: Vec::new(),
-            packages: FxHashMap::default(),
-            pending: FxHashMap::default(),
-            files: Vec::new(),
-            by_tree: FxHashMap::default(),
-            types: Types::default(),
-            infos: FxHashMap::default(),
-            parents: FxHashMap::default(),
-            linearizations: FxHashMap::default(),
-            resolving: 0,
-            builtins: Builtins::PENDING,
-            binders: 0,
-        };
-        let root = u.add(Symbol {
-            name: String::new(),
-            kind: Kind::Package,
-            owner: None,
-            flags: Flags::default(),
-            target: None,
-            is_extern: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        u.packages.insert(String::new(), root);
-        let mut paths: Vec<String> = u.library.paths().map(str::to_owned).collect();
-        paths.sort();
-        for path in paths {
-            let (dir, file) = path.rsplit_once('/').unwrap_or(("", path.as_str()));
-            let (dir, stem) = (dir.replace('/', "."), file.strip_suffix(".tasty").unwrap_or(file));
-            let (dir, stem) = match jdk::jdk_name(&dir, stem) {
-                Some((pkg, name)) => (pkg.to_owned(), name),
-                None => (dir, stem.to_owned()),
-            };
-            let pkg = u.package_entered(&dir);
-            u.pending.entry(pkg).or_default().push((stem, path.clone()));
-        }
-        u.builtins = builtin::enter(&mut u);
-        Ok(u)
-    }
-
     pub fn root(&self) -> SymbolId {
         SymbolId(0)
     }

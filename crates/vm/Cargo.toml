@@ -6,6 +6,7 @@ publish = false
 
 [dependencies]
 nir.workspace = true
+libimage.workspace = true
 snrt = { path = "../snrt" }
 rustc-hash.workspace = true
 zip.workspace = true

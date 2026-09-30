@@ -2,6 +2,7 @@
 //! versions.
 
 use crate::libs::{NATIVE, SCALA, cache_dir};
+use libimage::cache;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -39,12 +40,12 @@ fn compile(source: &Path) -> Result<(PathBuf, Vec<String>), String> {
     (&source, &text, env!("CARGO_PKG_VERSION"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
-    vm::cache::touch(&dir);
+    cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
         return Ok(cached);
     }
-    vm::cache::prune(&scripts, vm::cache::UNUSED, vm::cache::is_key);
-    vm::cache::prune(&scripts, vm::cache::ABANDONED, |n| vm::cache::is_staging(n, "", "."));
+    cache::prune(&scripts, cache::UNUSED, cache::is_key);
+    cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
     let staging = dir.with_extension(std::process::id().to_string());
     let built = build(&source, &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
