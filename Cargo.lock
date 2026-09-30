@@ -270,6 +270,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "typer"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+ "syntax",
+ "tasty",
+]
+
+[[package]]
 name = "unicode-general-category"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
