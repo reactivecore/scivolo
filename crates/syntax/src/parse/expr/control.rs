@@ -4,6 +4,7 @@ use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::constant::Constant;
 use crate::ast::{Attrs, NodeId, Span, Tree};
+use crate::diag::rewrite_notice;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -62,7 +63,7 @@ impl Parser<'_> {
     fn do_while(&mut self) -> NodeId {
         let msg = format!(
             "`do <body> while <cond>` is no longer supported,\nuse `while <body> ; <cond> do ()` instead.{}",
-            Self::rewrite_notice("This construct", "3.0-migration", "")
+            rewrite_notice("This construct", "3.0-migration", "")
         );
         self.migration_error(msg, self.offset(), Migration::Scala2to3);
         let start = self.s.skip_token();

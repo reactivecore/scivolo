@@ -6,6 +6,7 @@ use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 
 const PARAM_MOD_ADVICE: &str = "It is a keyword only at the beginning of a parameter clause.";
@@ -16,7 +17,7 @@ impl Parser<'_> {
         if self.tok() == Token::Implicit {
             let msg = format!(
                 "`implicit` parameters are no longer supported, use a `using` clause instead{}",
-                Self::rewrite_notice("This construct", "future-migration", "")
+                rewrite_notice("This construct", "future-migration", "")
             );
             self.migration_error(msg, self.offset(), Migration::Scala2Implicits);
             self.add_param_mod(implied, ModKind::Implicit);

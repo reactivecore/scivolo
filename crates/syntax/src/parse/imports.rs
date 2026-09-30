@@ -3,6 +3,7 @@
 use super::Parser;
 use super::migration::Migration;
 use crate::ast::{NodeId, Span, Tree};
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 use crate::token::sets::CAN_START_INFIX_TYPE_TOKENS;
 
@@ -91,7 +92,7 @@ impl Parser<'_> {
             let what = if export { "export" } else { "import" };
             let msg = format!(
                 "`_` is no longer supported for a wildcard {what}; use `*` instead{}",
-                Self::rewrite_notice("This construct", "future-migration", "")
+                rewrite_notice("This construct", "future-migration", "")
             );
             self.migration_error(msg, self.offset(), Migration::ImportWildcard);
         }
@@ -126,7 +127,7 @@ impl Parser<'_> {
             let what = if export { "export" } else { "import" };
             let msg = format!(
                 "The {what} renaming `a => b` is no longer supported ; use `a as b` instead{}",
-                Self::rewrite_notice("This construct", "future-migration", "")
+                rewrite_notice("This construct", "future-migration", "")
             );
             self.migration_error(msg, self.offset(), Migration::ImportRename);
         }

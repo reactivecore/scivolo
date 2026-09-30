@@ -4,6 +4,7 @@ use super::migration::Migration;
 use super::precedence::{is_right_assoc, precedence};
 use super::{Location, ParseKind, Parser};
 use crate::ast::{NodeId, Tree};
+use crate::diag::rewrite_notice;
 use crate::names::Name;
 use crate::source::Offset;
 use crate::token::Token;
@@ -88,7 +89,7 @@ impl Parser<'_> {
         if named_args && !named_tuple_op {
             let msg = format!(
                 "Deprecated syntax: infix named arguments lists are deprecated; since 3.7 it is interpreted as a single named tuple argument.\nTo avoid this warning, either remove the argument names or use dotted selection.{}",
-                Self::rewrite_notice("This", "3.7-migration", "")
+                rewrite_notice("This", "3.7-migration", "")
             );
             let span = self.ast.span(right);
             self.error_or_migration_warning(msg, span, Migration::AmbiguousNamedTupleSyntax);

@@ -4,6 +4,7 @@ use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Span, TName, Tree};
+use crate::diag::rewrite_notice;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -26,7 +27,7 @@ impl Parser<'_> {
             {
                 let msg = format!(
                     "This syntax is no longer supported; parameter needs to be enclosed in (...){}",
-                    Self::rewrite_notice("This construct", "future-migration", "")
+                    rewrite_notice("This construct", "future-migration", "")
                 );
                 let span = Span::synthetic(start, self.last_offset());
                 self.error_or_migration_warning(msg, span, Migration::ParameterEnclosedByParenthesis);

@@ -4,6 +4,7 @@ use super::super::Parser;
 use super::super::migration::Migration;
 use crate::ast::{NodeId, Span, Tree};
 use crate::config::Features;
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -39,7 +40,7 @@ impl Parser<'_> {
         if matches!(self.tok(), Token::LBrace | Token::Indent) {
             return t;
         }
-        let notice = Self::rewrite_notice("This construct", "3.4-migration", "");
+        let notice = rewrite_notice("This construct", "3.4-migration", "");
         let msg = format!("with as a type operator has been deprecated; use & instead{notice}");
         self.error_or_migration_warning(
             msg,
@@ -87,7 +88,7 @@ impl Parser<'_> {
             if !self.in_match_pattern {
                 let msg = format!(
                     "`_` is deprecated for wildcard arguments of types: use `?` instead{}",
-                    Self::rewrite_notice("This construct", "3.4-migration", "")
+                    rewrite_notice("This construct", "3.4-migration", "")
                 );
                 self.migration_error(msg, self.offset(), Migration::WildcardType);
             }

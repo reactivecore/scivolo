@@ -3,6 +3,7 @@
 use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::{NodeId, Tree};
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -45,7 +46,7 @@ impl Parser<'_> {
                 if vararg {
                     let msg = format!(
                         "The syntax `x: _*` is no longer supported for vararg splices; use `x*` instead{}",
-                        Self::rewrite_notice("This construct", "3.4-migration", "")
+                        rewrite_notice("This construct", "3.4-migration", "")
                     );
                     self.migration_error(msg, uscore, Migration::VarargSpliceAscription);
                 } else if !self.op_stack.is_empty() {

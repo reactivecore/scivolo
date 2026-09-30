@@ -5,6 +5,7 @@ use super::super::migration::Migration;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -21,7 +22,7 @@ impl Parser<'_> {
             Tree::Typed { expr, .. } if matches!(self.ast.tree(expr), Tree::Ident { .. }) => {
                 let msg = format!(
                     "parentheses are required around the parameter of a lambda{}",
-                    Self::rewrite_notice("This construct", "3.0-migration", "")
+                    rewrite_notice("This construct", "3.0-migration", "")
                 );
                 self.migration_error(msg, self.offset(), Migration::Scala2to3);
                 vec![self.convert_to_param(t, mods)]

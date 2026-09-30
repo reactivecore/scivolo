@@ -4,6 +4,7 @@ use super::chars::{is_identifier_part, is_special, is_unicode_identifier_part};
 use super::reader::SU;
 use super::{Scanner, TokenData};
 use crate::config::Features;
+use crate::diag::rewrite_notice;
 use crate::names::Name;
 use crate::token::Token;
 use crate::token::sets::{MODIFIER_FOLLOWERS, SCALA3_KEYWORDS, SOFT_MODIFIER_NAMES};
@@ -97,7 +98,8 @@ impl Scanner<'_> {
             self.diags.warning(
                 self.cur.offset,
                 format!(
-                    "{text} is now a keyword, write `{text}` instead of {text} to keep it as an identifier"
+                    "{text} is now a keyword, write `{text}` instead of {text} to keep it as an identifier{}",
+                    rewrite_notice("This", "3.0-migration", "")
                 ),
             );
             return Token::Identifier;

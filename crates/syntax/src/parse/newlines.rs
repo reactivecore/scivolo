@@ -2,6 +2,7 @@
 
 use super::Parser;
 use crate::ast::{Attrs, NodeId, Span, Tree, flags};
+use crate::diag::rewrite_notice;
 use crate::token::Token;
 use crate::token::sets::LITERAL_TOKENS;
 
@@ -84,7 +85,7 @@ impl Parser<'_> {
             if self.s.indent_width(self.offset()) == self.s.regions.indent_width(self.s.region) {
                 let msg = format!(
                     "This opening brace will start a new statement in Scala 3.\nIt needs to be indented to the right to keep being treated as\nan argument to the previous expression.{}",
-                    Self::rewrite_notice("This construct", "3.0-migration", "")
+                    rewrite_notice("This construct", "3.0-migration", "")
                 );
                 self.migration_error(msg, self.offset(), super::migration::Migration::Scala2to3);
             }
