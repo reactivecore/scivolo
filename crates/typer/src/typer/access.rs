@@ -1,0 +1,29 @@
+//! Access to private and protected members (dotty's `isAccessibleFrom`, as far as the subset
+//! goes: a restricted member is accessible from inside its class).
+
+use super::Typer;
+use crate::ctx::Ctx;
+use tasty::SymbolId;
+use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
+
+impl Typer<'_> {
+    /// Whether `sym` may be referred to from `ctx`: it is unrestricted, or `ctx` is inside its
+    /// owner, or, if it is protected, inside a subclass of its owner.
+    pub fn is_accessible(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
+        let flags = self.u.symbol(sym).flags;
+        let private = flags.has(PRIVATE) || flags.has(PRIVATEqualified);
+        let protected = flags.has(PROTECTED) || flags.has(PROTECTEDqualified);
+        if !private && !protected {
+            return true;
+        }
+        let Some(owner) = self.u.symbol(sym).owner else { return true };
+        let mut encl = Some(ctx.owner);
+        while let Some(e) = encl {
+            if e == owner || protected && self.u.derives_from(e, owner) {
+                return true;
+            }
+            encl = self.u.symbol(e).owner;
+        }
+        false
+    }
+}

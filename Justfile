@@ -133,6 +133,25 @@ syntax-diff mode path:
 desugar-checks:
     python3 scripts/syntax-tests.py desugar checks crates/syntax/tests/desugar
 
+# Record dotty's typed trees of tests/programs and tests/pos under tmp/typer (JVM).
+typer-oracle filter="": syntax-fetch
+    python3 scripts/typer-tests.py oracle {{ filter }}
+
+# Compare the Rust typer with the recorded typed trees; report.md and results.tsv under
+# tmp/typer/3.9.0.
+typer-report filter="":
+    cargo build -q --release -p typer
+    python3 scripts/typer-tests.py report {{ filter }}
+
+# Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
+typer-checks:
+    python3 scripts/typer-tests.py checks crates/typer/tests/typed
+
+# The difference between dotty's and the Rust typed trees of one file.
+typer-diff path:
+    cargo build -q --release -p typer
+    python3 scripts/typer-tests.py diff {{ path }}
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}

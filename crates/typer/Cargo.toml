@@ -1,0 +1,13 @@
+[package]
+name = "typer"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+rustc-hash.workspace = true
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+
+[lints]
+workspace = true
