@@ -1,7 +1,7 @@
 //! Bridge methods: dotty's (`Bridges`), in classes, for a concrete method overriding a base
 //! class method whose erased signature differs; Scala Native's (`genInterfaceMethodBridge`), in
-//! classes and traits, for a method implementing the only method of its name in a directly
-//! inherited trait, abstract there with another signature.
+//! classes and traits, for a method implementing the only method of its name in a trait it
+//! inherits before its superclass, abstract there with another signature.
 
 use super::{Erased, OBJECT};
 use crate::tags::{PRIVATE, TRAIT};
@@ -42,16 +42,16 @@ impl Universe {
     }
 
     fn interface_bridges(&mut self, c: SymbolId, def: SymbolId, own: &str, out: &mut Vec<String>) {
-        if !self.has_body(def) {
-            return;
-        }
         let name = self.symbol(def).name.clone();
         let params = self.erased_method(def).0;
-        for parent in self.parents(c) {
-            let Some(t) = self.class_symbol(parent).filter(|&t| self.symbol(t).flags.has(TRAIT)) else {
-                continue;
-            };
-            let [other] = self.decl(t, &name).unwrap_or_default()[..] else { continue };
+        for t in self.inherited_traits(c) {
+            let terms: Vec<SymbolId> = self
+                .decl(t, &name)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|&m| !matches!(self.symbol(m).kind, Kind::Class | Kind::Type | Kind::TypeParam))
+                .collect();
+            let [other] = terms[..] else { continue };
             if self.symbol(other).kind != Kind::Def || self.has_body(other) {
                 continue;
             }
@@ -66,24 +66,37 @@ impl Universe {
         }
     }
 
-    /// Whether the erased result type of method `a` is a reference type deriving from that of
-    /// method `b`.
+    /// The traits among the base classes of `c` before its superclass (dotty's
+    /// `directlyInheritedTraits`).
+    fn inherited_traits(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        let parents: Vec<SymbolId> =
+            self.parents(c).into_iter().filter_map(|p| self.class_symbol(p)).collect();
+        let superclass = parents.into_iter().find(|&p| !self.symbol(p).flags.has(TRAIT));
+        let bases = self.linearization(c).into_iter().skip(1);
+        bases.take_while(|&b| Some(b) != superclass).filter(|&b| self.symbol(b).flags.has(TRAIT)).collect()
+    }
+
+    /// Whether the erased result type of method `a` conforms to that of method `b`.
     fn erased_result_conforms(&mut self, a: SymbolId, b: SymbolId) -> bool {
         let (ia, ib) = (self.info(a), self.info(b));
         let (ra, rb) = (self.result_type(ia), self.result_type(ib));
-        match (self.erase(ra), self.erase(rb)) {
+        let (ea, eb) = (self.erase(ra), self.erase(rb));
+        match (&ea, &eb) {
             (Erased::Class(_) | Erased::Array(_), Erased::Class(o)) if o == OBJECT => true,
+            (Erased::Array(x), Erased::Array(y)) => {
+                x == y || matches!(**y, Erased::Class(ref o) if o == OBJECT)
+            }
             (Erased::Class(_), Erased::Class(_)) => match (self.erased_class(ra), self.erased_class(rb)) {
                 (Some(x), Some(y)) => self.derives_from(x, y),
                 _ => false,
             },
-            (x, y) => x == y,
+            _ => ea == eb,
         }
     }
 
-    /// Whether method `def` has a right-hand side.
+    /// Whether method `def` has a right-hand side; true for a method without a tree.
     fn has_body(&self, def: SymbolId) -> bool {
-        let Some((file, id)) = self.symbol(def).tree else { return false };
+        let Some((file, id)) = self.symbol(def).tree else { return true };
         let (ast, _) = self.file(file);
         matches!(view(ast, id), View::DefDef { parts, .. } if parts.body.len() > 1)
     }

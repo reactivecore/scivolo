@@ -1,4 +1,4 @@
-//! Rebuilding a type bottom-up, parts replaced.
+//! Rebuilding a type with parts replaced.
 
 use super::{Type, TypeId};
 use crate::Universe;

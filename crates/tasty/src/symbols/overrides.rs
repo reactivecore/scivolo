@@ -59,28 +59,26 @@ impl Universe {
     /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type
     /// parameters and the same parameter types, `b`'s type parameters renamed to `a`'s.
     pub fn matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
-        let (ta, tb) = (self.type_params_of(a), self.type_params_of(b));
+        let (ta, tb) = (self.type_params(a), self.type_params(b));
         if ta.len() != tb.len() {
             return false;
         }
         let renamed: Vec<TypeId> = ta.iter().map(|&p| self.intern_type(Type::Sym(None, p))).collect();
         let (ia, ib) = (self.member_info(site, a), self.member_info(site, b));
-        let (pa, pb) = (self.param_types(ia), self.param_types(ib));
-        pa.len() == pb.len()
-            && pa.into_iter().zip(pb).all(|(x, y)| {
-                let (x, y) = (self.normalize(x), self.normalize(y));
-                let y = self.map_type(y, &mut |u, t| match u.types().get(t) {
-                    Type::Sym(_, s) => tb.iter().position(|p| p == s).map(|i| renamed[i]),
-                    _ => None,
-                });
-                x == y
-            })
-    }
-
-    /// The type parameters of method `m`.
-    pub fn type_params_of(&self, m: SymbolId) -> Vec<SymbolId> {
-        let decls = &self.symbol(m).decls;
-        decls.iter().copied().filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect()
+        let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
+        let shape = |c: &[(bool, Vec<TypeId>)]| c.iter().map(|(i, ps)| (*i, ps.len())).collect::<Vec<_>>();
+        if shape(&ca) != shape(&cb) {
+            return false;
+        }
+        let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
+        pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
+            let (x, y) = (self.normalize(x), self.normalize(y));
+            let y = self.map_type(y, &mut |u, t| match u.types().get(t) {
+                Type::Sym(_, s) => tb.iter().position(|p| p == s).map(|i| renamed[i]),
+                _ => None,
+            });
+            x == y
+        })
     }
 
     /// The result type of method type `t` after all its clauses.
@@ -91,14 +89,15 @@ impl Universe {
         t
     }
 
-    /// The types of the value parameters of method type `t`, all clauses.
-    pub fn param_types(&self, mut t: TypeId) -> Vec<TypeId> {
+    /// The value parameter clauses of method type `t`: whether each is implicit, and its
+    /// parameters' types.
+    pub fn param_clauses(&self, mut t: TypeId) -> Vec<(bool, Vec<TypeId>)> {
         let mut out = Vec::new();
         loop {
             match self.types().get(t) {
                 Type::Poly { result, .. } => t = *result,
-                Type::Method { params, result, .. } => {
-                    out.extend(params.iter().map(|(_, p)| *p));
+                Type::Method { params, result, implicit, .. } => {
+                    out.push((*implicit, params.iter().map(|(_, p)| *p).collect()));
                     t = *result;
                 }
                 _ => return out,

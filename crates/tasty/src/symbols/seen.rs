@@ -7,7 +7,7 @@ use crate::types::{Type, TypeId};
 const MAX_DEPTH: u32 = 64;
 
 impl Universe {
-    /// The type parameters of class `c`, in order.
+    /// The type parameters of class or method `c`, in order.
     pub fn type_params(&self, c: SymbolId) -> Vec<SymbolId> {
         let decls = &self.symbol(c).decls;
         decls.iter().copied().filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect()
@@ -66,7 +66,13 @@ impl Universe {
         if s == base {
             return Some(t);
         }
+        if !self.derives_from(s, base) {
+            return None;
+        }
         for parent in self.parents(s).into_iter().rev() {
+            if !self.class_symbol(parent).is_some_and(|p| self.derives_from(p, base)) {
+                continue;
+            }
             let parent = self.subst_class_params(parent, s, &args);
             if let Some(found) = self.base_type_within(parent, base, depth) {
                 return Some(found);
