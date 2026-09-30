@@ -1,164 +1,151 @@
 # 10 — Lowering typed trees to NIR
 
-Date: 2026-09-30. Claims are [V] verified by reading the code or running it, or [I] inferred.
-Paths: `D/` = `ref/scala3/compiler/src/dotty/tools/dotc/` (tag 3.9.0), `T/` = `D/transform/`,
-`N/` = `ref/scala-native/nscplugin/src/main/scala-3/scala/scalanative/nscplugin/` (v0.5.12).
-ROADMAP phase 3, step 4 (#33). Follows [research 09](09-typer.md), whose typed trees are the input.
+Date: 2026-09-30. Claims are [V] verified by reading the code or running it, [I] inferred, or [A]
+agreed with the typer's work (#32). Paths: `D/` = `ref/scala3/compiler/src/dotty/tools/dotc/` (tag
+3.9.0), `T/` = `D/transform/`, `N/` = `ref/scala-native/nscplugin/src/main/scala-3/scala/
+scalanative/nscplugin/` (v0.5.12). ROADMAP phase 3, step 4 (#33). Input: the typed trees of
+[research 09](09-typer.md).
 
-**Recommendation in one paragraph.** Port dotty's post-typer phases that the scripting subset
-needs as passes over the typer's `tpd` arena, in dotty's order, and nscplugin's NIR generation
-without its native-interop parts, into a new crate `crates/lower`; write the result as NIR bytes
-that the VM and the script cache read like any compiled NIR. A direct "typed tree to NIR" shortcut
-is not an option for the phases that name things: nscplugin names every class, method and field
-from the symbol as the phases left it (`N/NirGenName.scala:36,144`, `D/core/SymDenotations.scala:
-1851`), and the VM dispatches by exact signature (ADR 0001), so `$anonfun$1`, `$outer`, `x$lzy1`,
-`super$m`, bridges, mixin forwarders and `Owner$$x` must come out exactly as dotc makes them.
-Phases that only remove sugar may be merged or simplified as long as the NIR they lead to is
-the same. Test against the NIR dotc and nscplugin produce for the same sources, compared
-structurally [I].
+**Recommendation.** A new crate `crates/lower` ports the post-typer phases the scripting subset
+needs, faithfully and as sequential passes in dotty's order, and nscplugin's NIR generation without
+native interop; it writes NIR bytes. Both are proposals, to become ADRs once accepted. Why faithful:
+nscplugin names classes, methods and fields from the symbols as the phases left them
+(`N/NirGenName.scala:36,144`, `D/core/SymDenotations.scala:1851`), and even phases that only remove
+sugar add or drop closures (BetaReduce, EtaReduce, DropForMap, ExpandSAMs) and so renumber
+`$anonfun$N` and `$$Lambda$N` and change the set of `.nir` files [V]. dotty's miniphases give the
+same result run fused or one after another, so separate passes are sound [V]. Why bytes: one path
+into the VM, whose member lookup reads the file index (`World::define` adds a definition but not
+its owner's member list) [V], and the script cache stores files anyway (09 §5).
 
 ## 1. The contract with the typer
 
-Whatever `-Ystop-after:typer` shows is the typer's; everything later is the lowering's (agreed with
-the typer's work, #32) [V]. So the typer delivers `@main` proxies, `Inlined` expansions,
-eta-expansion, SAM closures, default-argument calls, implicit arguments and `apply`/`unapply`; the
-lowering does PostTyper's synthetic members, string interpolators, pattern matching, erasure and
-everything after. Input: one `tpd` arena per unit (`crates/typer/src/tpd`, dotty's node classes
-and field order), each node with `tpe` (unwidened) and `sym`; synthetic trees marked by synthetic
-spans; no `Type::Var` left (zonked). Script symbols and types live in the `tasty::Universe`, so a
-pass renames or adds symbols there (`define`, `set_info`, `set_parents`, 08 §6) [V].
+Whatever `-Ystop-after:typer` shows is the typer's; everything later is the lowering's [A]. The typer
+delivers `@main` proxies, `Inlined` expansions, eta-expansion, SAM closures, default-argument calls,
+implicit arguments, `apply`/`unapply`; desugaring already made enums' `$values`, `fromOrdinal` and
+`$new` and the default getters (07 §5, `crates/syntax/src/desugar/defaults.rs`) [V]. Input: one `tpd`
+arena per unit, nodes with unwidened `tpe` and `sym`, synthetic spans, no `Type::Var` left; script
+symbols live in the `tasty::Universe` [A]. The typer also hands over the unit's fresh-name counters:
+they are per unit and per prefix (`D/core/NameKinds.scala:221`, `compilationUnit.freshNames`), the
+typer names closures `$anonfun`, and LambdaLift freshens them again (`T/LambdaLift.scala:66-71`), so
+the numbers depend on both [V]. Structural (`Selectable`) calls fall back (09 §5).
 
 ## 2. From typer to NIR: dotty's phases
 
-nscplugin adds three phases: `PrepNativeInterop` (after PostTyper), `PostInlineNativeInterop` (after
-Inlining) and `GenNIR` after `MoveStatics`, before `GenBCode` (`N/ScalaNativePlugin.scala:56`,
-`N/GenNIR.scala:15`); it disables no dotty phase [V]. So GenNIR sees the trees after the whole
-transform pipeline (`D/Compiler.scala:42-146`). What the subset needs, by MegaPhase [V]:
+nscplugin adds `PrepNativeInterop` (after PostTyper), `PostInlineNativeInterop` (after Inlining) and
+`GenNIR` after MoveStatics, before GenBCode (`N/ScalaNativePlugin.scala:56`, `N/GenNIR.scala:15`),
+and disables no dotty phase; GenNIR sees the trees after the whole pipeline (`D/Compiler.scala:42-146`)
+[V]. What the subset needs, by `List(...)` group of `Compiler.scala` (lines; `L/` = `T/localopt/`):
 
-| group | phases (lines) | why |
+| group | phases | adds |
 |---|---|---|
-| PostTyper | PostTyper 864, SuperAccessors 229, SyntheticMembers 740 | case class and enum members, `super$m` |
-| 62-73 | FirstTransform 241, ElimPackagePrefixes 37, BetaReduce 184, ExpandSAMs 240, ElimRepeated 302, DropForMap 149 | canonical trees, `T*` as `Seq`, PartialFunction classes |
-| 75-84 | ElimByName 167, HoistSuperArgs 249, TryCatchPatterns 104, PatternMatcher 1,156 | by-name as `Function0`, `$superArg$N`, matches as labelled blocks |
-| 91-96 | ExplicitOuter 476, StringInterpolatorOpt 224 | `$outer`, `s""`/`f""` as concatenation |
-| 97-113 | SeqLiterals 44, InterceptedMethods 82, Getters 125, SpecializeFunctions 128, SpecializeTuples 52, CollectNullableFields 110, ElimOuterSelect 38, ResolveSuper 128, ParamForwarding 86, LetOverApply 37, ArrayConstructors 59 | getters, `apply$mcII$sp`, super bodies |
-| Erasure | Erasure 1,068 with Bridges 192, TypeTestsCasts 406 | erased types, bridges, `$adapted` |
-| 115-128 | PureStats 35, EtaReduce 77, ArrayApply 115, TailRec 524, Mixin 378 + MixinOps 130, LazyVals 706, Memoize 189, NonLocalReturns 106, CapturedVars 128 | `$init$`, forwarders, `x$lzy1`, loops for every eligible final method (`T/TailRec.scala:120`) |
-| 129-146 | Constructors 380, LambdaLift 351 + Dependencies 327, ElimStaticThis 43, CountOuterAccesses 57, DropOuterAccessors 87, Flatten 68, TransformWildcards 34, ExpandPrivate 127, SelectStatic 99 | ctor bodies, lifted `$anonfun$N`, `C$1`, `Outer$Inner`, `Owner$$x` |
+| 42 | PostTyper 864, SuperAccessors 229, SyntheticMembers 740 | case class and enum members, `super$m` |
+| 62-73 | FirstTransform 241, ElimPackagePrefixes 37, BetaReduce 184, ExpandSAMs 240, ElimRepeated 302, `L/`DropForMap 149 | PartialFunction classes, `T*` as `Seq` |
+| 75-84 | ExtensionMethods 219 + FullParameterization 269, UncacheGivenAliases 65, ElimByName 167, HoistSuperArgs 249, TryCatchPatterns 104, PatternMatcher 1,156 | `m$extension`, given aliases as `def`s, `Function0`, `B$superArg$1`, labelled blocks |
+| 91-96 | ElimOpaque 75, ExplicitOuter 476, `L/`StringInterpolatorOpt 224 + `L/`FormatChecker 323, DropBreaks 262 | `$outer`, `s""`/`f""`, local `boundary.break` |
+| 97-113 | InlinePatterns 74, VCInlineMethods 120, SeqLiterals 44, InterceptedMethods 82, Getters 125, SpecializeFunctions 128, SpecializeTuples 52, CollectNullableFields 110, ElimOuterSelect 38, ResolveSuper 128, ParamForwarding 86, LetOverApply 37, ArrayConstructors 59 | value-class calls as `$extension` calls, getters, `apply$mcII$sp` |
+| 114 | Erasure 1,068, Bridges 192, TypeTestsCasts 406 | erased types, bridges, `$adapted`; drops `Inlined` (`T/Erasure.scala:875`) |
+| 115-128 | ElimErasedValueType 143, PureStats 35, VCElideAllocations 55, EtaReduce 77, ArrayApply 115, TailRec 524, Mixin 378 + MixinOps 130, LazyVals 706, Memoize 189, NonLocalReturns 106, CapturedVars 128 | `$init$`, forwarders, `x$lzy1`, loops for every eligible final method (`T/TailRec.scala:120`) |
+| 129 | Constructors 380 | primary constructor bodies |
+| 132-135 | LambdaLift 351 + Dependencies 327, ElimStaticThis 43, CountOuterAccesses 57 | `owner$$anonfun$1`, `C$1` |
+| 136-146 | DropOuterAccessors 87, Flatten 68, TransformWildcards 34, ExpandPrivate 127, SelectStatic 99 | `Outer$Inner`, `Owner$$x` |
 
-About 11,900 Scala lines, 1,833 of them in PostTyper and its helpers; rarely needed ones
-(ProtectedAccessors, ExplicitSelf, TupleOptimizations, value-class ExtensionMethods, …) add 1,175
-[V]. Not needed: Pickler, Inlining (the typer expands inline calls), quotes, Scala.js, coverage,
-capture checking, the checks (RefChecks, init, `-W`), MoveStatics, CompleteJavaEnums [V].
+About 13,500 Scala lines [V]. Value classes are not rare: RichInt, StringOps, ArrayOps and
+ArrowAssoc are library value classes, so `1 to 10`, `f"…"` and `array.toList` go through them; the
+committed `moderate$package$.nir` calls `format$extension` [V]. Not needed: Pickler, Inlining (the
+typer expands inline calls), quotes, Scala.js, coverage, capture checking, the checks (RefChecks,
+init, `-W`), MoveStatics, CompleteJavaEnums [V]. `Inlined` nodes stay in the trees until Erasure;
+PostTyper, BetaReduce, DropForMap and DropBreaks see them (`T/PostTyper.scala:634`) [V].
 
-Phases that only remove sugar and leave no names (PatternMatcher's labels, TailRec's loops,
-TryCatchPatterns, SeqLiterals, LetOverApply, …) still decide which calls and branches the NIR
-has; they are ported as they are, so the oracle can compare bodies, not merely signatures [I].
+**Phase-versioned infos.** dotty's phases change symbol infos as they go (DenotTransformers), and
+later code reads the info as of an earlier phase: `atPhase` in Mixin (8 uses), ExplicitOuter (5),
+Erasure (5), CapturedVars (4), and GenNIR itself (`atPhase(flattenPhase)` for mirror classes)
+[V]. Setting infos in place in the `Universe` (`set_info`) loses the earlier view; the port needs
+an info per symbol and phase for the phases that read back, at least "before erasure" and "after
+erasure" [I].
 
 ## 3. NIR generation (nscplugin)
 
-GenNIR accepts 18 node kinds (Apply, Assign, Block, Closure, Labeled, Ident, If,
-JavaSeqLiteral, Literal, Match, Return, Select, This, Try, Typed, TypeApply, ValDef, WhileDo;
-`N/NirGenExpr.scala:57-89`) and writes one `.nir` file per top-level name
-(`N/NirCodeGen.scala:88-168`) [V]. 7,141 lines; the scripting subset leaves out `@extern`,
+GenNIR accepts 18 node kinds (`N/NirGenExpr.scala:57-89`) and writes one `.nir` file per top-level
+name (`N/NirCodeGen.scala:88-168`) [V]. Of its 7,141 lines, the subset leaves out `@extern`,
 `CFuncPtr`, raw pointers and unsigned ops, `@struct`, linktime conditions, native exports and
-reflective instantiation, about 2,600 lines, and the three interop phases (`PrepNativeInterop` 297,
-`PostInlineNativeInterop` 149) [V]. `AdaptLazyVals` (248) is no phase but a helper GenNIR calls: it
-retargets dotty's `LazyVals`/`VarHandle` calls to Scala Native's runtime; the port emits those calls
-directly [V].
+reflective instantiation, and the two interop phases (`PrepNativeInterop` 297,
+`PostInlineNativeInterop` 149); `AdaptLazyVals` (248) is a helper GenNIR calls to retarget dotty's
+`LazyVals`/`VarHandle` calls to Scala Native's runtime, and the port emits those calls directly [V].
 
-What it emits [V]:
-- **Classes.** `Class`, `Trait` or `Module`; parent `java.lang.Object` for none; traits = direct
-  trait parents; `Var` per field in declaration order (the VM's instance layout); `Define` per
-  method, `Declare` without a body; interface bridges when an override's erased signature differs
-  (`N/NirGenStat.scala:869`); static forwarders in a companion class, and a mirror class for a
-  top-level object without one (`:903-939`), which carries the `main` the VM starts from.
-- **Closures.** nscplugin makes the lambda classes itself, `Encl$$Lambda$N` with a counter per
-  class (`N/NirGenExpr.scala:247`): captures as fields, one method per SAM signature calling the
-  lifted `$anonfun` [V].
-- **Bodies.** An entry label with the parameters, `Var` slots for assigned locals, one fresh counter
-  for locals and labels, `Unwind` on every instruction inside a `try`, a fresh copy of the finally
-  block per exit, `Switch` for `Int` matches and `if`-chains otherwise, `StringBuilder` for
-  concatenation chains, `BoxesRunTime.equals` where both sides may be boxed [V].
+What it emits [V]: `Class`, `Trait` or `Module` with parent, trait parents, a `Var` per field in
+declaration order and a `Define` per method (`Declare` without a body); interface bridges where an
+override's erased signature differs (`N/NirGenStat.scala:869`); static forwarders in a companion
+class, and a mirror class for a top-level object without one (`:903-939`), which holds the `main`
+the VM starts from; one class per closure, `Encl$$Lambda$N` with a counter per class
+(`N/NirGenExpr.scala:249`), fields for the captures and one method per SAM signature calling the
+lifted `$anonfun`. Method bodies: an entry label with the parameters, `Var` slots for assigned
+locals, one fresh counter for locals and labels, `Unwind` on every instruction inside a `try`, a
+copy of the finally block per exit, `Switch` for `Int` matches, `StringBuilder` for concatenation
+chains, `BoxesRunTime.equals` where both sides may be boxed.
 
-Must be exact for the VM: global names and signatures (dispatch is by exact signature,
-`crates/vm/src/interp/dispatch.rs:65`), class shapes and trait order, field order, one file per
-top-level name, the `main` forwarder, the module and static initializers (`RE`, `IE`), the entry
-label, unique ids per method, correct `Unwind`s [V]. Free: local and label numbering, block
-order, `Var`/`Copy` choices (the VM aliases them away), debug names, positions, `InlineHint`,
-finally duplication, dead blocks [V]. The oracle compares the exact parts strictly and the free
-ones up to renumbering (§5).
+What the VM relies on [V]: global names and signatures, class shapes and trait order, field order,
+one file per top-level name, the `main` forwarder, `RE`/`IE` initializers, the entry label, unique
+ids per method, correct `Unwind`s. Dispatch looks a signature up exactly but falls back to bridges it
+builds on demand (`crates/vm/src/interp/bridge/mod.rs:46`, ADR 0008), so a missing bridge still runs;
+exactness is the oracle's demand, not the VM's. Local numbering, block order, `Var`/`Copy` choices,
+debug names, positions and finally duplication do not matter to the VM [I].
 
-## 4. Port strategy and representation
+## 4. Port
 
-- **Crate.** `crates/lower`: `phases/` (one module per dotty phase or MegaPhase group, sequential
-  passes over the arena), `gen/` (NIR generation: classes, expressions, names, types), `write.rs`
-  (NIR serialization, a port of Scala Native's `BinarySerializer`, 755 lines). Rust lines about
-  12–16k [I].
-- **Trees.** The passes rewrite the `tpd` arena in place or into a fresh arena per phase group
-  (dotty's `cpy` copies); a pass that needs types after erasure keeps erased types in the same
-  interner (`tasty::Erased` gives the classes; a `Type` form of erased types is still to add) [I].
-- **Faithful where names come from.** ExplicitOuter, Getters, Erasure (with Bridges),
-  Mixin, LazyVals, LambdaLift, Flatten, ExpandPrivate, HoistSuperArgs, SuperAccessors and
-  ResolveSuper, Specialize*, ElimByName and ElimRepeated are ported line by line; `crates/tasty`
-  already computes the erasure and bridges the VM checks against (08 §6, 99.9% of the standard
-  library's signatures) [V].
-- **Output.** NIR bytes, one file per top-level name, into the script's cache entry (09 §5 already
-  puts the own frontend's NIR there) and from there into the VM's classpath as today. Writing bytes
-  keeps one path into the VM (file index, member tables, lazy decoding) and makes the cache and the
-  oracle byte-comparable; handing decoded `Defn`s to the VM (`World::define` exists for synthesized
-  bridges) would need a second path for member lookup and could not be cached [I].
-- **Time.** The budget in 09 §5 gives the lowering about 5 ms for `moderate.scala` [I]; the passes
-  touch only the script's trees, not the library's.
+- **Crate.** `crates/lower`: `phases/` (a module per phase or group, sequential passes over the
+  arena, with dotty's tree copier and `TreeTypeMap` for LambdaLift, TailRec and Constructors),
+  `gen/` (classes, expressions, names, types), and a NIR writer in `crates/nir` (a port of Scala
+  Native's `BinarySerializer`, 755 lines; `crates/nir` only decodes today) [V].
+- **Erased types.** After Erasure dotty's trees carry erased types as ordinary types; `tasty::Erased`
+  is a separate value, so `Type` needs erased class and array forms, or the passes after Erasure
+  carry `Erased` beside `tpe` [I].
+- **Symbols.** Renames and new symbols (`$outer`, getters, lifted methods, lambda classes) go into the
+  `Universe` through `define`; infos per phase as in §2 [I].
+- **Faithful where it matters.** Everything in the table is ported line by line; `crates/tasty`
+  already computes erasure and bridges (99.9% of javalib's and 99.8% of the standard library's
+  signatures match NIR, ROADMAP phase 3 step 2) [V].
 
 ## 5. Oracle
 
 Reference: the NIR dotc and nscplugin make for the same sources (`scala-cli --power compile
---native`, as `scripts/programs.py` does), our NIR from the typer's trees for the same sources [V].
-Three levels:
+--native`, as `scripts/programs.py` does) [V]. Its bytes are not stable (positions, paths:
+`programs.py:98-99` compares decoded definitions), so the oracle compares decoded NIR at three
+levels [V]:
 
-1. **Files and headers, exact.** The same set of `.nir` files; per file the same definitions with
-   kind, name, signature, parents, attributes and field order. Catches every naming, signature,
-   bridge, forwarder and lambda-class difference.
-2. **Bodies, up to renumbering.** Locals and labels renumbered in order of first appearance from the
-   entry block in depth-first order, then compared. `programs.py` today sorts the lines of each
-   definition, which would miss a jump to the wrong block; the lowering needs the stronger form.
-   A relaxed mode drops debug names, `Copy`/`Var` differences and finally duplication where we
-   choose differently on purpose.
-3. **Behaviour.** Run our NIR in the VM and compare with the committed `.check` output.
+1. **Files and headers, exact.** The same `.nir` files; per file the same definitions with kind,
+   name, signature, parents, attributes and field order.
+2. **Bodies, up to renumbering.** Locals and labels renumbered by first appearance in depth-first
+   order from the entry block. `programs.py` sorts each definition's lines, which misses a jump to the
+   wrong block. A relaxed mode ignores debug names, `Copy`/`Var` and finally duplication.
+3. **Behaviour.** The VM runs our NIR; the output must equal the committed `.check`.
 
-Corpus: the 14 `tests/programs` (committed nscplugin NIR and `.check` files), then dotty's
-`tests/run` within the typer's subset (M4's harness compiles them to NIR already), then the typer's
-`tests/pos` pass set compiled to NIR [I].
+Corpus: the 14 `tests/programs` (committed NIR and `.check`), dotty's `tests/run` within the typer's
+subset (M4's harness already compiles them), the typer's `tests/pos` pass set [I].
 
 ## 6. Order of work and sizes
 
-Stacked MRs, each gated by the oracle (Rust lines, [I]):
-1. Skeleton (~2k): `crates/lower`, the NIR writer, class and method headers, names and types,
-   `main` forwarders; oracle levels 1 and 3 for `hello`.
-2. Expressions (~3k): calls, `new`, arithmetic, boxing, equality, strings, arrays, `if`/`while`,
-   `try`/`catch`/`finally`, labelled blocks; oracle level 2.
-3. Classes (~3k): Getters, Memoize, Constructors, ExplicitOuter, Mixin, ResolveSuper,
+About 18k Scala lines (13.5k phases, 4.5k GenNIR, 0.75k serializer) plus tree copiers and
+phase-versioned infos; 17–22k Rust lines, compared with 09's 24.8k Scala to 15–19k Rust [I].
+Stacked MRs, each gated by the oracle:
+1. Skeleton (~2.5k): writer, class and method headers, names, types, `main` forwarders, calls and
+   literals; `hello` at levels 1 and 3.
+2. Erasure and expressions (~4k): phase-versioned infos, erased types, Erasure with bridges and
+   casts, value-class phases, boxing, equality, strings, arrays, control flow, `try`; level 2.
+3. Classes (~3.5k): Getters, Memoize, Constructors, ExplicitOuter, Mixin, ResolveSuper,
    SuperAccessors, ParamForwarding, Flatten, ExpandPrivate, HoistSuperArgs.
-4. Erasure (~2k): erased types, casts and type tests, bridges, `$adapted`.
-5. Functions (~2k): ElimByName, ElimRepeated, closures and lambda classes, ExpandSAMs, LambdaLift,
-   CapturedVars, NonLocalReturns, TailRec, Specialize*.
-6. Patterns and data (~2.5k): PatternMatcher, TryCatchPatterns, SyntheticMembers, enums, LazyVals,
-   StringInterpolatorOpt.
-7. Hardening (~1k): `moderate.scala`, M4's subset, the relaxed oracle mode where justified.
+4. Functions (~3k): ElimByName, ElimRepeated, closures and lambda classes, ExpandSAMs, LambdaLift,
+   CapturedVars, NonLocalReturns, TailRec, DropBreaks, Specialize*.
+5. Patterns and data (~3.5k): PatternMatcher, TryCatchPatterns, SyntheticMembers, LazyVals,
+   UncacheGivenAliases, string interpolators with FormatChecker.
+6. Hardening (~1.5k): `moderate.scala`, M4's subset, the relaxed oracle mode where justified.
 
-## 7. Risks and open questions
+## 7. Risks
 
-- **Erased types in the arena.** dotty keeps erased types as ordinary types after Erasure; our
-  `Type` has no erased form yet (`Erased` is a separate value). Either passes after Erasure carry
-  `Erased` beside `tpe`, or `Type` gains erased class and array forms [I].
-- **Fresh names.** `$anonfun$N`, `C$N`, `x$lzyN` numbers depend on dotty's per-unit fresh-name
-  counters and traversal order; a different order renumbers them, and the oracle sees it [I].
-- **Phase boundaries.** MegaPhase fusion runs several phases per node in one traversal; porting
-  them as separate passes changes nothing observable as long as each phase's pre- and
-  postconditions hold, which dotty checks with `-Ycheck`; the port relies on the oracle instead [I].
-- **The library's inline bodies.** The typer expands them (09 §5 MR 7); the lowering then sees
-  their trees like the script's own, so `Inlined` nodes must survive until FirstTransform drops them
-  [I].
-- **Open:** whether SyntheticMembers belongs to the typer's side after all (PostTyper runs before
-  Pickler; `-Ystop-after:typer` does not show it) — the contract in §1 says lowering.
+- **PatternMatcher follows the typer.** Its plan depends on the scrutinee's type, the extractor form
+  (product, `get`, `unapplySeq`, name-based), irrefutability from `unapply` result types and type
+  tests elided when the static type conforms; any typer difference shows as different labels and
+  tests at oracle level 2 [I].
+- **Fresh names** depend on the counters the typer hands over and on the traversal order of every
+  phase that names things (§1) [I].
+- **Phase-versioned infos** (§2) are new design; getting them wrong shows as wrong erased signatures
+  or missing outer accessors [I].
