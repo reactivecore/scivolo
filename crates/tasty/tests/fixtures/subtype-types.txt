@@ -77,6 +77,10 @@ scala.IArray[scala.Int]
 scala.IArray[scala.Any]
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]
 scala.collection.immutable.Seq[scala.Int]
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]
+scala.EmptyTuple
+scala.Tuple
+scala.NonEmptyTuple
 oracle.Box
 oracle.a.T
 oracle.b.T

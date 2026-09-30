@@ -22,7 +22,10 @@ impl Cmp<'_> {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)
                 }
-                _ => self.fourth_try(a, b),
+                _ => match self.eta_expand(a) {
+                    Some(eta) => self.recur(eta, b) || self.fourth_try(a, b),
+                    None => self.fourth_try(a, b),
+                },
             },
             Type::Or(x, y) => self.below_union(a, b, x, y),
             Type::Method { params: p2, result: r2, implicit: i2, .. } => {

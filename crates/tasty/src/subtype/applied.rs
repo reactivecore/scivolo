@@ -19,6 +19,9 @@ impl Cmp<'_> {
                     self.recur(a, applied)
                 }
                 None => {
+                    if self.var_constructor_above(a, tycon, args) {
+                        return true;
+                    }
                     let (lo, hi) = self.vars.bounds(v);
                     let lower = self.apply(lo, args);
                     match lo == hi {
@@ -39,7 +42,10 @@ impl Cmp<'_> {
                         false => self.either(|s| s.fourth_try(a, b), |s| s.recur(a, lower)),
                     }
                 }
-                Some(Meaning::Class(c)) => self.try_base_type(a, b, c),
+                Some(Meaning::Class(c)) => match self.nested_pairs(c, args) {
+                    Some(pairs) => self.try_base_type(a, b, c) || self.recur(a, pairs),
+                    None => self.try_base_type(a, b, c),
+                },
                 _ => self.fourth_try(a, b),
             },
             Type::Annotated(inner) => {
@@ -89,6 +95,7 @@ impl Cmp<'_> {
             Type::Var(v) => {
                 let upper = match self.vars.instance(v) {
                     Some(t) => self.u.intern_type(Type::Applied(t, args.to_vec())),
+                    None if self.var_constructor_below(tycon, args, b) => return true,
                     None => {
                         let (_, hi) = self.vars.bounds(v);
                         self.apply(hi, args)
@@ -150,7 +157,7 @@ impl Cmp<'_> {
     }
 
     /// The bounds of a wildcard argument.
-    fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
+    pub fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match self.u.types().get(t).clone() {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Wildcard(None) => Some((NOTHING, ANY)),
@@ -160,7 +167,7 @@ impl Cmp<'_> {
     }
 
     /// The variances of the `n` type parameters of `tycon`, +1, -1 or 0; invariant where unknown.
-    fn variances(&mut self, tycon: TypeId, n: usize) -> Vec<i8> {
+    pub fn variances(&mut self, tycon: TypeId, n: usize) -> Vec<i8> {
         match self.named(tycon).and_then(|n| n.sym) {
             Some(s) => match self.u.variances(s) {
                 v if v.len() == n => v,
@@ -171,7 +178,7 @@ impl Cmp<'_> {
     }
 
     /// `t` applied to `args`: a type lambda's body, `t` itself if it takes no arguments.
-    fn apply(&mut self, t: TypeId, args: &[TypeId]) -> TypeId {
+    pub fn apply(&mut self, t: TypeId, args: &[TypeId]) -> TypeId {
         match self.u.types().get(t).clone() {
             Type::Lambda { binder, params, result } => {
                 let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();

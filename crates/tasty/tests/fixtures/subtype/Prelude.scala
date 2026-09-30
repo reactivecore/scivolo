@@ -24,6 +24,7 @@ type HasX = { val x: Int }
 type HasF = { def f(i: Int): Int }
 type HasFString = { def f(s: String): Int }
 type BoxInt = Box { type T = Int }
+type AB = Structural & Box
 
 trait Animal
 class Dog extends Animal

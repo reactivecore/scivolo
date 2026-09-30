@@ -58,6 +58,20 @@ impl<'a> Decoder<'a> {
         self.types.intern(t)
     }
 
+    /// Whether `tycon` is `scala.&` (`true`) or `scala.|` (`false`).
+    fn and_or(&self, tycon: TypeId) -> Option<bool> {
+        let Type::TypeRef(prefix, name) = self.types.get(tycon) else { return None };
+        let scala = self.packages.get("scala");
+        if !matches!(self.types.get(*prefix), Type::Package(p) if Some(p) == scala) {
+            return None;
+        }
+        match name.as_str() {
+            "&" => Some(true),
+            "|" => Some(false),
+            _ => None,
+        }
+    }
+
     /// The type of child `i` of `id`, `Other` if it has none.
     fn kid(&mut self, id: NodeId, i: usize) -> TypeId {
         match self.ast.kids(id).get(i) {
@@ -102,8 +116,13 @@ impl<'a> Decoder<'a> {
             RECthis => Type::RecThis(Binder(self.file, n.a as u32)),
             RECtype => Type::Rec(self.binder(id), self.kid(id, 0)),
             APPLIEDtype | APPLIEDtpt if !k.is_empty() => {
-                let args = k[1..].iter().map(|&a| self.ty(a)).collect();
-                Type::Applied(self.ty(k[0]), args)
+                let args: Vec<TypeId> = k[1..].iter().map(|&a| self.ty(a)).collect();
+                let tycon = self.ty(k[0]);
+                match (self.and_or(tycon), &args[..]) {
+                    (Some(true), &[a, b]) => Type::And(a, b),
+                    (Some(false), &[a, b]) => Type::Or(a, b),
+                    _ => Type::Applied(tycon, args),
+                }
             }
             TYPEBOUNDS | TYPEBOUNDStpt => {
                 let types: Vec<NodeId> = k.iter().copied().filter(|&c| !is_modifier(ast.tag(c))).collect();

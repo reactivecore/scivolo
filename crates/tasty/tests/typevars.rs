@@ -132,3 +132,58 @@ fn contradictions_fail_and_either_rolls_back() {
     assert!(u.is_subtype(NOTHING, tx));
     assert!(u.is_subtype(tx, ANY));
 }
+
+#[test]
+fn constructor_variables_take_constructors() {
+    let Some(mut u) = stdlib() else { return };
+    let (int, boolean) = (t(&mut u, "scala.Int", &[]), t(&mut u, "scala.Boolean", &[]));
+    let f = VarId(0);
+    let tf = u.intern_type(Type::Var(f));
+    let f_int = u.intern_type(Type::Applied(tf, vec![int]));
+    let f_bool = u.intern_type(Type::Applied(tf, vec![boolean]));
+
+    let list = t(&mut u, "scala.collection.immutable.List", &[]);
+    let list_int = t(&mut u, "scala.collection.immutable.List", &[int]);
+    let mut vars = Bounds::default();
+    assert!(u.is_subtype_in(list_int, f_int, &mut vars));
+    assert_eq!(vars.added, [(f, list, false)]);
+
+    let map_int_bool = t(&mut u, "scala.collection.immutable.Map", &[int, boolean]);
+    let mut vars = Bounds::default();
+    assert!(u.is_subtype_in(map_int_bool, f_bool, &mut vars));
+    let [(_, lambda, false)] = vars.added[..] else { panic!("{:?}", vars.added) };
+    assert_eq!(u.show(lambda), "[X0: >: Nothing <: Any] =>> Map[Int, <param 0>]");
+
+    let seq = t(&mut u, "scala.collection.Seq", &[]);
+    let seq_int = t(&mut u, "scala.collection.Seq", &[int]);
+    let mut vars = Bounds::default();
+    assert!(u.is_subtype_in(f_int, seq_int, &mut vars));
+    assert_eq!(vars.added, [(f, seq, true)]);
+
+    let option_int = t(&mut u, "scala.Option", &[int]);
+    assert!(!u.is_subtype_in(option_int, f_bool, &mut Bounds::default()));
+}
+
+#[test]
+fn class_constructors_compare_as_type_lambdas() {
+    let Some(mut u) = stdlib() else { return };
+    let (list, seq) =
+        (t(&mut u, "scala.collection.immutable.List", &[]), t(&mut u, "scala.collection.Seq", &[]));
+    let lambda = |u: &mut Universe, tycon: TypeId| {
+        let binder = u.fresh_binder();
+        let bounds = u.intern_type(Type::Bounds(NOTHING, ANY));
+        let x = u.intern_type(Type::Param(binder, 0));
+        let result = u.intern_type(Type::Applied(tycon, vec![x]));
+        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), bounds)], result })
+    };
+    let (to_seq, to_list) = (lambda(&mut u, seq), lambda(&mut u, list));
+    assert!(u.is_subtype(list, to_seq));
+    assert!(!u.is_subtype(seq, to_list));
+    assert!(u.is_subtype(to_list, seq));
+
+    let vector = t(&mut u, "scala.collection.immutable.Vector", &[]);
+    let joined = u.lub(list, vector);
+    assert!(matches!(u.types().get(joined), Type::Lambda { .. }), "{}", u.show(joined));
+    assert!(u.is_subtype(list, joined) && u.is_subtype(vector, joined));
+    assert_eq!(u.glb(ANY, list), list);
+}

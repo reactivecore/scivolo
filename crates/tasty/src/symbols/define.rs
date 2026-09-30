@@ -1,7 +1,8 @@
-//! Symbols defined outside TASTy (a script's), and what completes them: infos, parents, flags.
+//! Symbols defined outside TASTy (a script's), what completes them (infos, parents, flags),
+//! and binders for the types made with them.
 
-use super::{Flags, Symbol, SymbolId, Universe};
-use crate::types::TypeId;
+use super::{FileId, Flags, Symbol, SymbolId, Universe};
+use crate::types::{Binder, TypeId};
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
@@ -28,5 +29,11 @@ impl Universe {
 
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
         self.symbols[sym.0 as usize].flags = flags;
+    }
+
+    /// A binder no other type uses, for a type lambda or method type made outside TASTy.
+    pub fn fresh_binder(&mut self) -> Binder {
+        self.binders += 1;
+        Binder(FileId(u32::MAX - 1), self.binders)
     }
 }

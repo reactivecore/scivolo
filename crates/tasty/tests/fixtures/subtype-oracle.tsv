@@ -77,6 +77,10 @@ scala.Any	scala.IArray[scala.Int]	false
 scala.Any	scala.IArray[scala.Any]	false
 scala.Any	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Any	scala.collection.immutable.Seq[scala.Int]	false
+scala.Any	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Any	scala.EmptyTuple	false
+scala.Any	scala.Tuple	false
+scala.Any	scala.NonEmptyTuple	false
 scala.Any	oracle.Box	false
 scala.Any	oracle.a.T	false
 scala.Any	oracle.b.T	false
@@ -189,6 +193,10 @@ scala.AnyRef	scala.IArray[scala.Int]	false
 scala.AnyRef	scala.IArray[scala.Any]	false
 scala.AnyRef	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.AnyRef	scala.collection.immutable.Seq[scala.Int]	false
+scala.AnyRef	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.AnyRef	scala.EmptyTuple	false
+scala.AnyRef	scala.Tuple	false
+scala.AnyRef	scala.NonEmptyTuple	false
 scala.AnyRef	oracle.Box	false
 scala.AnyRef	oracle.a.T	false
 scala.AnyRef	oracle.b.T	false
@@ -301,6 +309,10 @@ scala.AnyVal	scala.IArray[scala.Int]	false
 scala.AnyVal	scala.IArray[scala.Any]	false
 scala.AnyVal	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.AnyVal	scala.collection.immutable.Seq[scala.Int]	false
+scala.AnyVal	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.AnyVal	scala.EmptyTuple	false
+scala.AnyVal	scala.Tuple	false
+scala.AnyVal	scala.NonEmptyTuple	false
 scala.AnyVal	oracle.Box	false
 scala.AnyVal	oracle.a.T	false
 scala.AnyVal	oracle.b.T	false
@@ -413,6 +425,10 @@ scala.Matchable	scala.IArray[scala.Int]	false
 scala.Matchable	scala.IArray[scala.Any]	false
 scala.Matchable	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Matchable	scala.collection.immutable.Seq[scala.Int]	false
+scala.Matchable	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Matchable	scala.EmptyTuple	false
+scala.Matchable	scala.Tuple	false
+scala.Matchable	scala.NonEmptyTuple	false
 scala.Matchable	oracle.Box	false
 scala.Matchable	oracle.a.T	false
 scala.Matchable	oracle.b.T	false
@@ -525,6 +541,10 @@ scala.Nothing	scala.IArray[scala.Int]	true
 scala.Nothing	scala.IArray[scala.Any]	true
 scala.Nothing	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	true
 scala.Nothing	scala.collection.immutable.Seq[scala.Int]	true
+scala.Nothing	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	true
+scala.Nothing	scala.EmptyTuple	true
+scala.Nothing	scala.Tuple	true
+scala.Nothing	scala.NonEmptyTuple	true
 scala.Nothing	oracle.Box	true
 scala.Nothing	oracle.a.T	true
 scala.Nothing	oracle.b.T	true
@@ -637,6 +657,10 @@ scala.Null	scala.IArray[scala.Int]	false
 scala.Null	scala.IArray[scala.Any]	false
 scala.Null	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	true
 scala.Null	scala.collection.immutable.Seq[scala.Int]	true
+scala.Null	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	true
+scala.Null	scala.EmptyTuple	false
+scala.Null	scala.Tuple	true
+scala.Null	scala.NonEmptyTuple	true
 scala.Null	oracle.Box	true
 scala.Null	oracle.a.T	false
 scala.Null	oracle.b.T	false
@@ -749,6 +773,10 @@ scala.Singleton	scala.IArray[scala.Int]	false
 scala.Singleton	scala.IArray[scala.Any]	false
 scala.Singleton	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Singleton	scala.collection.immutable.Seq[scala.Int]	false
+scala.Singleton	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Singleton	scala.EmptyTuple	false
+scala.Singleton	scala.Tuple	false
+scala.Singleton	scala.NonEmptyTuple	false
 scala.Singleton	oracle.Box	false
 scala.Singleton	oracle.a.T	false
 scala.Singleton	oracle.b.T	false
@@ -861,6 +889,10 @@ scala.Int	scala.IArray[scala.Int]	false
 scala.Int	scala.IArray[scala.Any]	false
 scala.Int	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Int	scala.collection.immutable.Seq[scala.Int]	false
+scala.Int	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Int	scala.EmptyTuple	false
+scala.Int	scala.Tuple	false
+scala.Int	scala.NonEmptyTuple	false
 scala.Int	oracle.Box	false
 scala.Int	oracle.a.T	false
 scala.Int	oracle.b.T	false
@@ -973,6 +1005,10 @@ scala.Long	scala.IArray[scala.Int]	false
 scala.Long	scala.IArray[scala.Any]	false
 scala.Long	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Long	scala.collection.immutable.Seq[scala.Int]	false
+scala.Long	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Long	scala.EmptyTuple	false
+scala.Long	scala.Tuple	false
+scala.Long	scala.NonEmptyTuple	false
 scala.Long	oracle.Box	false
 scala.Long	oracle.a.T	false
 scala.Long	oracle.b.T	false
@@ -1085,6 +1121,10 @@ scala.Boolean	scala.IArray[scala.Int]	false
 scala.Boolean	scala.IArray[scala.Any]	false
 scala.Boolean	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Boolean	scala.collection.immutable.Seq[scala.Int]	false
+scala.Boolean	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Boolean	scala.EmptyTuple	false
+scala.Boolean	scala.Tuple	false
+scala.Boolean	scala.NonEmptyTuple	false
 scala.Boolean	oracle.Box	false
 scala.Boolean	oracle.a.T	false
 scala.Boolean	oracle.b.T	false
@@ -1197,6 +1237,10 @@ scala.Unit	scala.IArray[scala.Int]	false
 scala.Unit	scala.IArray[scala.Any]	false
 scala.Unit	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Unit	scala.collection.immutable.Seq[scala.Int]	false
+scala.Unit	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Unit	scala.EmptyTuple	false
+scala.Unit	scala.Tuple	false
+scala.Unit	scala.NonEmptyTuple	false
 scala.Unit	oracle.Box	false
 scala.Unit	oracle.a.T	false
 scala.Unit	oracle.b.T	false
@@ -1309,6 +1353,10 @@ java.lang.Object	scala.IArray[scala.Int]	false
 java.lang.Object	scala.IArray[scala.Any]	false
 java.lang.Object	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.Object	scala.collection.immutable.Seq[scala.Int]	false
+java.lang.Object	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.lang.Object	scala.EmptyTuple	false
+java.lang.Object	scala.Tuple	false
+java.lang.Object	scala.NonEmptyTuple	false
 java.lang.Object	oracle.Box	false
 java.lang.Object	oracle.a.T	false
 java.lang.Object	oracle.b.T	false
@@ -1421,6 +1469,10 @@ java.lang.String	scala.IArray[scala.Int]	false
 java.lang.String	scala.IArray[scala.Any]	false
 java.lang.String	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.String	scala.collection.immutable.Seq[scala.Int]	false
+java.lang.String	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.lang.String	scala.EmptyTuple	false
+java.lang.String	scala.Tuple	false
+java.lang.String	scala.NonEmptyTuple	false
 java.lang.String	oracle.Box	false
 java.lang.String	oracle.a.T	false
 java.lang.String	oracle.b.T	false
@@ -1533,6 +1585,10 @@ java.lang.CharSequence	scala.IArray[scala.Int]	false
 java.lang.CharSequence	scala.IArray[scala.Any]	false
 java.lang.CharSequence	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.CharSequence	scala.collection.immutable.Seq[scala.Int]	false
+java.lang.CharSequence	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.lang.CharSequence	scala.EmptyTuple	false
+java.lang.CharSequence	scala.Tuple	false
+java.lang.CharSequence	scala.NonEmptyTuple	false
 java.lang.CharSequence	oracle.Box	false
 java.lang.CharSequence	oracle.a.T	false
 java.lang.CharSequence	oracle.b.T	false
@@ -1645,6 +1701,10 @@ java.lang.Comparable[java.lang.String]	scala.IArray[scala.Int]	false
 java.lang.Comparable[java.lang.String]	scala.IArray[scala.Any]	false
 java.lang.Comparable[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.Comparable[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+java.lang.Comparable[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.lang.Comparable[java.lang.String]	scala.EmptyTuple	false
+java.lang.Comparable[java.lang.String]	scala.Tuple	false
+java.lang.Comparable[java.lang.String]	scala.NonEmptyTuple	false
 java.lang.Comparable[java.lang.String]	oracle.Box	false
 java.lang.Comparable[java.lang.String]	oracle.a.T	false
 java.lang.Comparable[java.lang.String]	oracle.b.T	false
@@ -1757,6 +1817,10 @@ java.io.Serializable	scala.IArray[scala.Int]	false
 java.io.Serializable	scala.IArray[scala.Any]	false
 java.io.Serializable	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.io.Serializable	scala.collection.immutable.Seq[scala.Int]	false
+java.io.Serializable	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.io.Serializable	scala.EmptyTuple	false
+java.io.Serializable	scala.Tuple	false
+java.io.Serializable	scala.NonEmptyTuple	false
 java.io.Serializable	oracle.Box	false
 java.io.Serializable	oracle.a.T	false
 java.io.Serializable	oracle.b.T	false
@@ -1869,6 +1933,10 @@ scala.Product	scala.IArray[scala.Int]	false
 scala.Product	scala.IArray[scala.Any]	false
 scala.Product	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Product	scala.collection.immutable.Seq[scala.Int]	false
+scala.Product	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Product	scala.EmptyTuple	false
+scala.Product	scala.Tuple	false
+scala.Product	scala.NonEmptyTuple	false
 scala.Product	oracle.Box	false
 scala.Product	oracle.a.T	false
 scala.Product	oracle.b.T	false
@@ -1981,6 +2049,10 @@ scala.Equals	scala.IArray[scala.Int]	false
 scala.Equals	scala.IArray[scala.Any]	false
 scala.Equals	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Equals	scala.collection.immutable.Seq[scala.Int]	false
+scala.Equals	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Equals	scala.EmptyTuple	false
+scala.Equals	scala.Tuple	false
+scala.Equals	scala.NonEmptyTuple	false
 scala.Equals	oracle.Box	false
 scala.Equals	oracle.a.T	false
 scala.Equals	oracle.b.T	false
@@ -2093,6 +2165,10 @@ scala.None.type	scala.IArray[scala.Int]	false
 scala.None.type	scala.IArray[scala.Any]	false
 scala.None.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.None.type	scala.collection.immutable.Seq[scala.Int]	false
+scala.None.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.None.type	scala.EmptyTuple	false
+scala.None.type	scala.Tuple	false
+scala.None.type	scala.NonEmptyTuple	false
 scala.None.type	oracle.Box	false
 scala.None.type	oracle.a.T	false
 scala.None.type	oracle.b.T	false
@@ -2205,6 +2281,10 @@ scala.Option[scala.Int]	scala.IArray[scala.Int]	false
 scala.Option[scala.Int]	scala.IArray[scala.Any]	false
 scala.Option[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[scala.Int]	scala.EmptyTuple	false
+scala.Option[scala.Int]	scala.Tuple	false
+scala.Option[scala.Int]	scala.NonEmptyTuple	false
 scala.Option[scala.Int]	oracle.Box	false
 scala.Option[scala.Int]	oracle.a.T	false
 scala.Option[scala.Int]	oracle.b.T	false
@@ -2317,6 +2397,10 @@ scala.Option[scala.Any]	scala.IArray[scala.Int]	false
 scala.Option[scala.Any]	scala.IArray[scala.Any]	false
 scala.Option[scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[scala.Any]	scala.EmptyTuple	false
+scala.Option[scala.Any]	scala.Tuple	false
+scala.Option[scala.Any]	scala.NonEmptyTuple	false
 scala.Option[scala.Any]	oracle.Box	false
 scala.Option[scala.Any]	oracle.a.T	false
 scala.Option[scala.Any]	oracle.b.T	false
@@ -2429,6 +2513,10 @@ scala.Option[?]	scala.IArray[scala.Int]	false
 scala.Option[?]	scala.IArray[scala.Any]	false
 scala.Option[?]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[?]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[?]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[?]	scala.EmptyTuple	false
+scala.Option[?]	scala.Tuple	false
+scala.Option[?]	scala.NonEmptyTuple	false
 scala.Option[?]	oracle.Box	false
 scala.Option[?]	oracle.a.T	false
 scala.Option[?]	oracle.b.T	false
@@ -2541,6 +2629,10 @@ scala.Option[? <: scala.AnyVal]	scala.IArray[scala.Int]	false
 scala.Option[? <: scala.AnyVal]	scala.IArray[scala.Any]	false
 scala.Option[? <: scala.AnyVal]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[? <: scala.AnyVal]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[? <: scala.AnyVal]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[? <: scala.AnyVal]	scala.EmptyTuple	false
+scala.Option[? <: scala.AnyVal]	scala.Tuple	false
+scala.Option[? <: scala.AnyVal]	scala.NonEmptyTuple	false
 scala.Option[? <: scala.AnyVal]	oracle.Box	false
 scala.Option[? <: scala.AnyVal]	oracle.a.T	false
 scala.Option[? <: scala.AnyVal]	oracle.b.T	false
@@ -2653,6 +2745,10 @@ scala.Some[scala.Int]	scala.IArray[scala.Int]	false
 scala.Some[scala.Int]	scala.IArray[scala.Any]	false
 scala.Some[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Some[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Some[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Some[scala.Int]	scala.EmptyTuple	false
+scala.Some[scala.Int]	scala.Tuple	false
+scala.Some[scala.Int]	scala.NonEmptyTuple	false
 scala.Some[scala.Int]	oracle.Box	false
 scala.Some[scala.Int]	oracle.a.T	false
 scala.Some[scala.Int]	oracle.b.T	false
@@ -2765,6 +2861,10 @@ scala.Some[java.lang.String]	scala.IArray[scala.Int]	false
 scala.Some[java.lang.String]	scala.IArray[scala.Any]	false
 scala.Some[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Some[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Some[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Some[java.lang.String]	scala.EmptyTuple	false
+scala.Some[java.lang.String]	scala.Tuple	false
+scala.Some[java.lang.String]	scala.NonEmptyTuple	false
 scala.Some[java.lang.String]	oracle.Box	false
 scala.Some[java.lang.String]	oracle.a.T	false
 scala.Some[java.lang.String]	oracle.b.T	false
@@ -2877,6 +2977,10 @@ scala.collection.immutable.List[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.immutable.List[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.List[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.List[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.List[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.List[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.List[scala.Int]	scala.Tuple	false
+scala.collection.immutable.List[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.List[scala.Int]	oracle.Box	false
 scala.collection.immutable.List[scala.Int]	oracle.a.T	false
 scala.collection.immutable.List[scala.Int]	oracle.b.T	false
@@ -2989,6 +3093,10 @@ scala.collection.immutable.List[scala.Any]	scala.IArray[scala.Int]	false
 scala.collection.immutable.List[scala.Any]	scala.IArray[scala.Any]	false
 scala.collection.immutable.List[scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.List[scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.immutable.List[scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.List[scala.Any]	scala.EmptyTuple	false
+scala.collection.immutable.List[scala.Any]	scala.Tuple	false
+scala.collection.immutable.List[scala.Any]	scala.NonEmptyTuple	false
 scala.collection.immutable.List[scala.Any]	oracle.Box	false
 scala.collection.immutable.List[scala.Any]	oracle.a.T	false
 scala.collection.immutable.List[scala.Any]	oracle.b.T	false
@@ -3101,6 +3209,10 @@ scala.collection.immutable.List[java.lang.String]	scala.IArray[scala.Int]	false
 scala.collection.immutable.List[java.lang.String]	scala.IArray[scala.Any]	false
 scala.collection.immutable.List[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.List[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.immutable.List[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.List[java.lang.String]	scala.EmptyTuple	false
+scala.collection.immutable.List[java.lang.String]	scala.Tuple	false
+scala.collection.immutable.List[java.lang.String]	scala.NonEmptyTuple	false
 scala.collection.immutable.List[java.lang.String]	oracle.Box	false
 scala.collection.immutable.List[java.lang.String]	oracle.a.T	false
 scala.collection.immutable.List[java.lang.String]	oracle.b.T	false
@@ -3213,6 +3325,10 @@ scala.collection.immutable.Nil.type	scala.IArray[scala.Int]	false
 scala.collection.immutable.Nil.type	scala.IArray[scala.Any]	false
 scala.collection.immutable.Nil.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Nil.type	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.Nil.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Nil.type	scala.EmptyTuple	false
+scala.collection.immutable.Nil.type	scala.Tuple	false
+scala.collection.immutable.Nil.type	scala.NonEmptyTuple	false
 scala.collection.immutable.Nil.type	oracle.Box	false
 scala.collection.immutable.Nil.type	oracle.a.T	false
 scala.collection.immutable.Nil.type	oracle.b.T	false
@@ -3325,6 +3441,10 @@ scala.collection.immutable.::[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.immutable.::[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.::[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.::[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.::[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.::[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.::[scala.Int]	scala.Tuple	false
+scala.collection.immutable.::[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.::[scala.Int]	oracle.Box	false
 scala.collection.immutable.::[scala.Int]	oracle.a.T	false
 scala.collection.immutable.::[scala.Int]	oracle.b.T	false
@@ -3437,6 +3557,10 @@ scala.collection.Seq[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.Seq[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.Seq[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.Seq[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.Seq[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.Seq[scala.Int]	scala.EmptyTuple	false
+scala.collection.Seq[scala.Int]	scala.Tuple	false
+scala.collection.Seq[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.Seq[scala.Int]	oracle.Box	false
 scala.collection.Seq[scala.Int]	oracle.a.T	false
 scala.collection.Seq[scala.Int]	oracle.b.T	false
@@ -3549,6 +3673,10 @@ scala.collection.immutable.Seq[scala.Any]	scala.IArray[scala.Int]	false
 scala.collection.immutable.Seq[scala.Any]	scala.IArray[scala.Any]	false
 scala.collection.immutable.Seq[scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Seq[scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.immutable.Seq[scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Seq[scala.Any]	scala.EmptyTuple	false
+scala.collection.immutable.Seq[scala.Any]	scala.Tuple	false
+scala.collection.immutable.Seq[scala.Any]	scala.NonEmptyTuple	false
 scala.collection.immutable.Seq[scala.Any]	oracle.Box	false
 scala.collection.immutable.Seq[scala.Any]	oracle.a.T	false
 scala.collection.immutable.Seq[scala.Any]	oracle.b.T	false
@@ -3661,6 +3789,10 @@ scala.Seq[scala.Int]	scala.IArray[scala.Int]	false
 scala.Seq[scala.Int]	scala.IArray[scala.Any]	false
 scala.Seq[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Seq[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.Seq[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Seq[scala.Int]	scala.EmptyTuple	false
+scala.Seq[scala.Int]	scala.Tuple	false
+scala.Seq[scala.Int]	scala.NonEmptyTuple	false
 scala.Seq[scala.Int]	oracle.Box	false
 scala.Seq[scala.Int]	oracle.a.T	false
 scala.Seq[scala.Int]	oracle.b.T	false
@@ -3773,6 +3905,10 @@ scala.collection.immutable.Vector[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.immutable.Vector[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.Vector[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Vector[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.Vector[scala.Int]	scala.Tuple	false
+scala.collection.immutable.Vector[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.Vector[scala.Int]	oracle.Box	false
 scala.collection.immutable.Vector[scala.Int]	oracle.a.T	false
 scala.collection.immutable.Vector[scala.Int]	oracle.b.T	false
@@ -3885,6 +4021,10 @@ scala.collection.mutable.ArrayBuffer[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	scala.EmptyTuple	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	scala.Tuple	false
+scala.collection.mutable.ArrayBuffer[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	oracle.Box	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	oracle.a.T	false
 scala.collection.mutable.ArrayBuffer[scala.Int]	oracle.b.T	false
@@ -3997,6 +4137,10 @@ scala.collection.IterableOnce[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.IterableOnce[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.IterableOnce[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.IterableOnce[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.IterableOnce[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.IterableOnce[scala.Int]	scala.EmptyTuple	false
+scala.collection.IterableOnce[scala.Int]	scala.Tuple	false
+scala.collection.IterableOnce[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.IterableOnce[scala.Int]	oracle.Box	false
 scala.collection.IterableOnce[scala.Int]	oracle.a.T	false
 scala.collection.IterableOnce[scala.Int]	oracle.b.T	false
@@ -4109,6 +4253,10 @@ scala.collection.Iterable[? >: scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.Iterable[? >: scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.Iterable[? >: scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.Iterable[? >: scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.Iterable[? >: scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.Iterable[? >: scala.Int]	scala.EmptyTuple	false
+scala.collection.Iterable[? >: scala.Int]	scala.Tuple	false
+scala.collection.Iterable[? >: scala.Int]	scala.NonEmptyTuple	false
 scala.collection.Iterable[? >: scala.Int]	oracle.Box	false
 scala.collection.Iterable[? >: scala.Int]	oracle.a.T	false
 scala.collection.Iterable[? >: scala.Int]	oracle.b.T	false
@@ -4221,6 +4369,10 @@ scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.IArray[scala.I
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.Tuple	false
+scala.collection.immutable.Map[java.lang.String, scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	oracle.Box	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	oracle.a.T	false
 scala.collection.immutable.Map[java.lang.String, scala.Int]	oracle.b.T	false
@@ -4333,6 +4485,10 @@ scala.collection.Map[java.lang.String, scala.Any]	scala.IArray[scala.Int]	false
 scala.collection.Map[java.lang.String, scala.Any]	scala.IArray[scala.Any]	false
 scala.collection.Map[java.lang.String, scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.Map[java.lang.String, scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.Map[java.lang.String, scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.Map[java.lang.String, scala.Any]	scala.EmptyTuple	false
+scala.collection.Map[java.lang.String, scala.Any]	scala.Tuple	false
+scala.collection.Map[java.lang.String, scala.Any]	scala.NonEmptyTuple	false
 scala.collection.Map[java.lang.String, scala.Any]	oracle.Box	false
 scala.collection.Map[java.lang.String, scala.Any]	oracle.a.T	false
 scala.collection.Map[java.lang.String, scala.Any]	oracle.b.T	false
@@ -4445,6 +4601,10 @@ scala.Function1[scala.Any, scala.Int]	scala.IArray[scala.Int]	false
 scala.Function1[scala.Any, scala.Int]	scala.IArray[scala.Any]	false
 scala.Function1[scala.Any, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Function1[scala.Any, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Function1[scala.Any, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Function1[scala.Any, scala.Int]	scala.EmptyTuple	false
+scala.Function1[scala.Any, scala.Int]	scala.Tuple	false
+scala.Function1[scala.Any, scala.Int]	scala.NonEmptyTuple	false
 scala.Function1[scala.Any, scala.Int]	oracle.Box	false
 scala.Function1[scala.Any, scala.Int]	oracle.a.T	false
 scala.Function1[scala.Any, scala.Int]	oracle.b.T	false
@@ -4557,6 +4717,10 @@ scala.Function1[scala.Int, scala.Any]	scala.IArray[scala.Int]	false
 scala.Function1[scala.Int, scala.Any]	scala.IArray[scala.Any]	false
 scala.Function1[scala.Int, scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Function1[scala.Int, scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Function1[scala.Int, scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Function1[scala.Int, scala.Any]	scala.EmptyTuple	false
+scala.Function1[scala.Int, scala.Any]	scala.Tuple	false
+scala.Function1[scala.Int, scala.Any]	scala.NonEmptyTuple	false
 scala.Function1[scala.Int, scala.Any]	oracle.Box	false
 scala.Function1[scala.Int, scala.Any]	oracle.a.T	false
 scala.Function1[scala.Int, scala.Any]	oracle.b.T	false
@@ -4669,6 +4833,10 @@ scala.PartialFunction[scala.Int, scala.Int]	scala.IArray[scala.Int]	false
 scala.PartialFunction[scala.Int, scala.Int]	scala.IArray[scala.Any]	false
 scala.PartialFunction[scala.Int, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.PartialFunction[scala.Int, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.PartialFunction[scala.Int, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.PartialFunction[scala.Int, scala.Int]	scala.EmptyTuple	false
+scala.PartialFunction[scala.Int, scala.Int]	scala.Tuple	false
+scala.PartialFunction[scala.Int, scala.Int]	scala.NonEmptyTuple	false
 scala.PartialFunction[scala.Int, scala.Int]	oracle.Box	false
 scala.PartialFunction[scala.Int, scala.Int]	oracle.a.T	false
 scala.PartialFunction[scala.Int, scala.Int]	oracle.b.T	false
@@ -4781,6 +4949,10 @@ scala.Tuple2[scala.Int, java.lang.String]	scala.IArray[scala.Int]	false
 scala.Tuple2[scala.Int, java.lang.String]	scala.IArray[scala.Any]	false
 scala.Tuple2[scala.Int, java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Tuple2[scala.Int, java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Tuple2[scala.Int, java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	true
+scala.Tuple2[scala.Int, java.lang.String]	scala.EmptyTuple	false
+scala.Tuple2[scala.Int, java.lang.String]	scala.Tuple	true
+scala.Tuple2[scala.Int, java.lang.String]	scala.NonEmptyTuple	true
 scala.Tuple2[scala.Int, java.lang.String]	oracle.Box	false
 scala.Tuple2[scala.Int, java.lang.String]	oracle.a.T	false
 scala.Tuple2[scala.Int, java.lang.String]	oracle.b.T	false
@@ -4893,6 +5065,10 @@ scala.Tuple2[scala.Any, scala.Any]	scala.IArray[scala.Int]	false
 scala.Tuple2[scala.Any, scala.Any]	scala.IArray[scala.Any]	false
 scala.Tuple2[scala.Any, scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Tuple2[scala.Any, scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Tuple2[scala.Any, scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Tuple2[scala.Any, scala.Any]	scala.EmptyTuple	false
+scala.Tuple2[scala.Any, scala.Any]	scala.Tuple	true
+scala.Tuple2[scala.Any, scala.Any]	scala.NonEmptyTuple	true
 scala.Tuple2[scala.Any, scala.Any]	oracle.Box	false
 scala.Tuple2[scala.Any, scala.Any]	oracle.a.T	false
 scala.Tuple2[scala.Any, scala.Any]	oracle.b.T	false
@@ -5005,6 +5181,10 @@ scala.Array[scala.Int]	scala.IArray[scala.Int]	false
 scala.Array[scala.Int]	scala.IArray[scala.Any]	false
 scala.Array[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Array[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Array[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Array[scala.Int]	scala.EmptyTuple	false
+scala.Array[scala.Int]	scala.Tuple	false
+scala.Array[scala.Int]	scala.NonEmptyTuple	false
 scala.Array[scala.Int]	oracle.Box	false
 scala.Array[scala.Int]	oracle.a.T	false
 scala.Array[scala.Int]	oracle.b.T	false
@@ -5117,6 +5297,10 @@ scala.Array[java.lang.String]	scala.IArray[scala.Int]	false
 scala.Array[java.lang.String]	scala.IArray[scala.Any]	false
 scala.Array[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Array[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Array[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Array[java.lang.String]	scala.EmptyTuple	false
+scala.Array[java.lang.String]	scala.Tuple	false
+scala.Array[java.lang.String]	scala.NonEmptyTuple	false
 scala.Array[java.lang.String]	oracle.Box	false
 scala.Array[java.lang.String]	oracle.a.T	false
 scala.Array[java.lang.String]	oracle.b.T	false
@@ -5229,6 +5413,10 @@ scala.Array[java.lang.Object]	scala.IArray[scala.Int]	false
 scala.Array[java.lang.Object]	scala.IArray[scala.Any]	false
 scala.Array[java.lang.Object]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Array[java.lang.Object]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Array[java.lang.Object]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Array[java.lang.Object]	scala.EmptyTuple	false
+scala.Array[java.lang.Object]	scala.Tuple	false
+scala.Array[java.lang.Object]	scala.NonEmptyTuple	false
 scala.Array[java.lang.Object]	oracle.Box	false
 scala.Array[java.lang.Object]	oracle.a.T	false
 scala.Array[java.lang.Object]	oracle.b.T	false
@@ -5341,6 +5529,10 @@ scala.math.Ordering[scala.Int]	scala.IArray[scala.Int]	false
 scala.math.Ordering[scala.Int]	scala.IArray[scala.Any]	false
 scala.math.Ordering[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.math.Ordering[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.math.Ordering[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.math.Ordering[scala.Int]	scala.EmptyTuple	false
+scala.math.Ordering[scala.Int]	scala.Tuple	false
+scala.math.Ordering[scala.Int]	scala.NonEmptyTuple	false
 scala.math.Ordering[scala.Int]	oracle.Box	false
 scala.math.Ordering[scala.Int]	oracle.a.T	false
 scala.math.Ordering[scala.Int]	oracle.b.T	false
@@ -5453,6 +5645,10 @@ scala.math.PartialOrdering[scala.Int]	scala.IArray[scala.Int]	false
 scala.math.PartialOrdering[scala.Int]	scala.IArray[scala.Any]	false
 scala.math.PartialOrdering[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.math.PartialOrdering[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.math.PartialOrdering[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.math.PartialOrdering[scala.Int]	scala.EmptyTuple	false
+scala.math.PartialOrdering[scala.Int]	scala.Tuple	false
+scala.math.PartialOrdering[scala.Int]	scala.NonEmptyTuple	false
 scala.math.PartialOrdering[scala.Int]	oracle.Box	false
 scala.math.PartialOrdering[scala.Int]	oracle.a.T	false
 scala.math.PartialOrdering[scala.Int]	oracle.b.T	false
@@ -5565,6 +5761,10 @@ scala.util.Either[java.lang.String, scala.Int]	scala.IArray[scala.Int]	false
 scala.util.Either[java.lang.String, scala.Int]	scala.IArray[scala.Any]	false
 scala.util.Either[java.lang.String, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.util.Either[java.lang.String, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.util.Either[java.lang.String, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.util.Either[java.lang.String, scala.Int]	scala.EmptyTuple	false
+scala.util.Either[java.lang.String, scala.Int]	scala.Tuple	false
+scala.util.Either[java.lang.String, scala.Int]	scala.NonEmptyTuple	false
 scala.util.Either[java.lang.String, scala.Int]	oracle.Box	false
 scala.util.Either[java.lang.String, scala.Int]	oracle.a.T	false
 scala.util.Either[java.lang.String, scala.Int]	oracle.b.T	false
@@ -5677,6 +5877,10 @@ scala.util.Right[scala.Nothing, scala.Int]	scala.IArray[scala.Int]	false
 scala.util.Right[scala.Nothing, scala.Int]	scala.IArray[scala.Any]	false
 scala.util.Right[scala.Nothing, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.util.Right[scala.Nothing, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.util.Right[scala.Nothing, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.util.Right[scala.Nothing, scala.Int]	scala.EmptyTuple	false
+scala.util.Right[scala.Nothing, scala.Int]	scala.Tuple	false
+scala.util.Right[scala.Nothing, scala.Int]	scala.NonEmptyTuple	false
 scala.util.Right[scala.Nothing, scala.Int]	oracle.Box	false
 scala.util.Right[scala.Nothing, scala.Int]	oracle.a.T	false
 scala.util.Right[scala.Nothing, scala.Int]	oracle.b.T	false
@@ -5789,6 +5993,10 @@ scala.util.Left[java.lang.String, scala.Nothing]	scala.IArray[scala.Int]	false
 scala.util.Left[java.lang.String, scala.Nothing]	scala.IArray[scala.Any]	false
 scala.util.Left[java.lang.String, scala.Nothing]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.util.Left[java.lang.String, scala.Nothing]	scala.collection.immutable.Seq[scala.Int]	false
+scala.util.Left[java.lang.String, scala.Nothing]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.util.Left[java.lang.String, scala.Nothing]	scala.EmptyTuple	false
+scala.util.Left[java.lang.String, scala.Nothing]	scala.Tuple	false
+scala.util.Left[java.lang.String, scala.Nothing]	scala.NonEmptyTuple	false
 scala.util.Left[java.lang.String, scala.Nothing]	oracle.Box	false
 scala.util.Left[java.lang.String, scala.Nothing]	oracle.a.T	false
 scala.util.Left[java.lang.String, scala.Nothing]	oracle.b.T	false
@@ -5901,6 +6109,10 @@ java.util.List[java.lang.String]	scala.IArray[scala.Int]	false
 java.util.List[java.lang.String]	scala.IArray[scala.Any]	false
 java.util.List[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.util.List[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+java.util.List[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.util.List[java.lang.String]	scala.EmptyTuple	false
+java.util.List[java.lang.String]	scala.Tuple	false
+java.util.List[java.lang.String]	scala.NonEmptyTuple	false
 java.util.List[java.lang.String]	oracle.Box	false
 java.util.List[java.lang.String]	oracle.a.T	false
 java.util.List[java.lang.String]	oracle.b.T	false
@@ -6013,6 +6225,10 @@ java.util.ArrayList[java.lang.String]	scala.IArray[scala.Int]	false
 java.util.ArrayList[java.lang.String]	scala.IArray[scala.Any]	false
 java.util.ArrayList[java.lang.String]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.util.ArrayList[java.lang.String]	scala.collection.immutable.Seq[scala.Int]	false
+java.util.ArrayList[java.lang.String]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.util.ArrayList[java.lang.String]	scala.EmptyTuple	false
+java.util.ArrayList[java.lang.String]	scala.Tuple	false
+java.util.ArrayList[java.lang.String]	scala.NonEmptyTuple	false
 java.util.ArrayList[java.lang.String]	oracle.Box	false
 java.util.ArrayList[java.lang.String]	oracle.a.T	false
 java.util.ArrayList[java.lang.String]	oracle.b.T	false
@@ -6125,6 +6341,10 @@ java.util.Collection[?]	scala.IArray[scala.Int]	false
 java.util.Collection[?]	scala.IArray[scala.Any]	false
 java.util.Collection[?]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.util.Collection[?]	scala.collection.immutable.Seq[scala.Int]	false
+java.util.Collection[?]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.util.Collection[?]	scala.EmptyTuple	false
+java.util.Collection[?]	scala.Tuple	false
+java.util.Collection[?]	scala.NonEmptyTuple	false
 java.util.Collection[?]	oracle.Box	false
 java.util.Collection[?]	oracle.a.T	false
 java.util.Collection[?]	oracle.b.T	false
@@ -6237,6 +6457,10 @@ scala.runtime.RichInt	scala.IArray[scala.Int]	false
 scala.runtime.RichInt	scala.IArray[scala.Any]	false
 scala.runtime.RichInt	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.runtime.RichInt	scala.collection.immutable.Seq[scala.Int]	false
+scala.runtime.RichInt	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.runtime.RichInt	scala.EmptyTuple	false
+scala.runtime.RichInt	scala.Tuple	false
+scala.runtime.RichInt	scala.NonEmptyTuple	false
 scala.runtime.RichInt	oracle.Box	false
 scala.runtime.RichInt	oracle.a.T	false
 scala.runtime.RichInt	oracle.b.T	false
@@ -6349,6 +6573,10 @@ scala.Int | java.lang.String	scala.IArray[scala.Int]	false
 scala.Int | java.lang.String	scala.IArray[scala.Any]	false
 scala.Int | java.lang.String	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Int | java.lang.String	scala.collection.immutable.Seq[scala.Int]	false
+scala.Int | java.lang.String	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Int | java.lang.String	scala.EmptyTuple	false
+scala.Int | java.lang.String	scala.Tuple	false
+scala.Int | java.lang.String	scala.NonEmptyTuple	false
 scala.Int | java.lang.String	oracle.Box	false
 scala.Int | java.lang.String	oracle.a.T	false
 scala.Int | java.lang.String	oracle.b.T	false
@@ -6461,6 +6689,10 @@ scala.Null | java.lang.String	scala.IArray[scala.Int]	false
 scala.Null | java.lang.String	scala.IArray[scala.Any]	false
 scala.Null | java.lang.String	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Null | java.lang.String	scala.collection.immutable.Seq[scala.Int]	false
+scala.Null | java.lang.String	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Null | java.lang.String	scala.EmptyTuple	false
+scala.Null | java.lang.String	scala.Tuple	false
+scala.Null | java.lang.String	scala.NonEmptyTuple	false
 scala.Null | java.lang.String	oracle.Box	false
 scala.Null | java.lang.String	oracle.a.T	false
 scala.Null | java.lang.String	oracle.b.T	false
@@ -6573,6 +6805,10 @@ scala.Product & java.io.Serializable	scala.IArray[scala.Int]	false
 scala.Product & java.io.Serializable	scala.IArray[scala.Any]	false
 scala.Product & java.io.Serializable	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Product & java.io.Serializable	scala.collection.immutable.Seq[scala.Int]	false
+scala.Product & java.io.Serializable	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Product & java.io.Serializable	scala.EmptyTuple	false
+scala.Product & java.io.Serializable	scala.Tuple	false
+scala.Product & java.io.Serializable	scala.NonEmptyTuple	false
 scala.Product & java.io.Serializable	oracle.Box	false
 scala.Product & java.io.Serializable	oracle.a.T	false
 scala.Product & java.io.Serializable	oracle.b.T	false
@@ -6685,6 +6921,10 @@ scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[s
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.Tuple	false
+scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	oracle.Box	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	oracle.a.T	false
 scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	oracle.b.T	false
@@ -6797,6 +7037,10 @@ scala.Option[scala.Int] & scala.Product	scala.IArray[scala.Int]	false
 scala.Option[scala.Int] & scala.Product	scala.IArray[scala.Any]	false
 scala.Option[scala.Int] & scala.Product	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[scala.Int] & scala.Product	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[scala.Int] & scala.Product	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[scala.Int] & scala.Product	scala.EmptyTuple	false
+scala.Option[scala.Int] & scala.Product	scala.Tuple	false
+scala.Option[scala.Int] & scala.Product	scala.NonEmptyTuple	false
 scala.Option[scala.Int] & scala.Product	oracle.Box	false
 scala.Option[scala.Int] & scala.Product	oracle.a.T	false
 scala.Option[scala.Int] & scala.Product	oracle.b.T	false
@@ -6909,6 +7153,10 @@ scala.Option[scala.Int] & scala.Product	oracle.Inv[? <: oracle.Animal]	false
 1	scala.IArray[scala.Any]	false
 1	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 1	scala.collection.immutable.Seq[scala.Int]	false
+1	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+1	scala.EmptyTuple	false
+1	scala.Tuple	false
+1	scala.NonEmptyTuple	false
 1	oracle.Box	false
 1	oracle.a.T	false
 1	oracle.b.T	false
@@ -7021,6 +7269,10 @@ scala.Option[scala.Int] & scala.Product	oracle.Inv[? <: oracle.Animal]	false
 2	scala.IArray[scala.Any]	false
 2	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 2	scala.collection.immutable.Seq[scala.Int]	false
+2	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+2	scala.EmptyTuple	false
+2	scala.Tuple	false
+2	scala.NonEmptyTuple	false
 2	oracle.Box	false
 2	oracle.a.T	false
 2	oracle.b.T	false
@@ -7133,6 +7385,10 @@ scala.Option[scala.Int] & scala.Product	oracle.Inv[? <: oracle.Animal]	false
 "a"	scala.IArray[scala.Any]	false
 "a"	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 "a"	scala.collection.immutable.Seq[scala.Int]	false
+"a"	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+"a"	scala.EmptyTuple	false
+"a"	scala.Tuple	false
+"a"	scala.NonEmptyTuple	false
 "a"	oracle.Box	false
 "a"	oracle.a.T	false
 "a"	oracle.b.T	false
@@ -7245,6 +7501,10 @@ scala.Option[scala.Int] & scala.Product	oracle.Inv[? <: oracle.Animal]	false
 "b"	scala.IArray[scala.Any]	false
 "b"	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 "b"	scala.collection.immutable.Seq[scala.Int]	false
+"b"	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+"b"	scala.EmptyTuple	false
+"b"	scala.Tuple	false
+"b"	scala.NonEmptyTuple	false
 "b"	oracle.Box	false
 "b"	oracle.a.T	false
 "b"	oracle.b.T	false
@@ -7357,6 +7617,10 @@ java.lang.Integer	scala.IArray[scala.Int]	false
 java.lang.Integer	scala.IArray[scala.Any]	false
 java.lang.Integer	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 java.lang.Integer	scala.collection.immutable.Seq[scala.Int]	false
+java.lang.Integer	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+java.lang.Integer	scala.EmptyTuple	false
+java.lang.Integer	scala.Tuple	false
+java.lang.Integer	scala.NonEmptyTuple	false
 java.lang.Integer	oracle.Box	false
 java.lang.Integer	oracle.a.T	false
 java.lang.Integer	oracle.b.T	false
@@ -7469,6 +7733,10 @@ scala.Function0[scala.Int]	scala.IArray[scala.Int]	false
 scala.Function0[scala.Int]	scala.IArray[scala.Any]	false
 scala.Function0[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Function0[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Function0[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Function0[scala.Int]	scala.EmptyTuple	false
+scala.Function0[scala.Int]	scala.Tuple	false
+scala.Function0[scala.Int]	scala.NonEmptyTuple	false
 scala.Function0[scala.Int]	oracle.Box	false
 scala.Function0[scala.Int]	oracle.a.T	false
 scala.Function0[scala.Int]	oracle.b.T	false
@@ -7581,6 +7849,10 @@ scala.Option[scala.Nothing]	scala.IArray[scala.Int]	false
 scala.Option[scala.Nothing]	scala.IArray[scala.Any]	false
 scala.Option[scala.Nothing]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Option[scala.Nothing]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Option[scala.Nothing]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Option[scala.Nothing]	scala.EmptyTuple	false
+scala.Option[scala.Nothing]	scala.Tuple	false
+scala.Option[scala.Nothing]	scala.NonEmptyTuple	false
 scala.Option[scala.Nothing]	oracle.Box	false
 scala.Option[scala.Nothing]	oracle.a.T	false
 scala.Option[scala.Nothing]	oracle.b.T	false
@@ -7693,6 +7965,10 @@ scala.Nothing | scala.Int	scala.IArray[scala.Int]	false
 scala.Nothing | scala.Int	scala.IArray[scala.Any]	false
 scala.Nothing | scala.Int	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Nothing | scala.Int	scala.collection.immutable.Seq[scala.Int]	false
+scala.Nothing | scala.Int	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Nothing | scala.Int	scala.EmptyTuple	false
+scala.Nothing | scala.Int	scala.Tuple	false
+scala.Nothing | scala.Int	scala.NonEmptyTuple	false
 scala.Nothing | scala.Int	oracle.Box	false
 scala.Nothing | scala.Int	oracle.a.T	false
 scala.Nothing | scala.Int	oracle.b.T	false
@@ -7805,6 +8081,10 @@ scala.Array[? <: java.lang.Object]	scala.IArray[scala.Int]	false
 scala.Array[? <: java.lang.Object]	scala.IArray[scala.Any]	false
 scala.Array[? <: java.lang.Object]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.Array[? <: java.lang.Object]	scala.collection.immutable.Seq[scala.Int]	false
+scala.Array[? <: java.lang.Object]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Array[? <: java.lang.Object]	scala.EmptyTuple	false
+scala.Array[? <: java.lang.Object]	scala.Tuple	false
+scala.Array[? <: java.lang.Object]	scala.NonEmptyTuple	false
 scala.Array[? <: java.lang.Object]	oracle.Box	false
 scala.Array[? <: java.lang.Object]	oracle.a.T	false
 scala.Array[? <: java.lang.Object]	oracle.b.T	false
@@ -7917,6 +8197,10 @@ scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.IArray[sc
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.Tuple	false
+scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	oracle.Box	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	oracle.a.T	false
 scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	oracle.b.T	false
@@ -8029,6 +8313,10 @@ scala.collection.immutable.IndexedSeq[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.IndexedSeq[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.IndexedSeq[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.IndexedSeq[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.IndexedSeq[scala.Int]	scala.Tuple	false
+scala.collection.immutable.IndexedSeq[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.IndexedSeq[scala.Int]	oracle.Box	false
 scala.collection.immutable.IndexedSeq[scala.Int]	oracle.a.T	false
 scala.collection.immutable.IndexedSeq[scala.Int]	oracle.b.T	false
@@ -8141,6 +8429,10 @@ scala.collection.immutable.Range	scala.IArray[scala.Int]	false
 scala.collection.immutable.Range	scala.IArray[scala.Any]	false
 scala.collection.immutable.Range	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Range	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.Range	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Range	scala.EmptyTuple	false
+scala.collection.immutable.Range	scala.Tuple	false
+scala.collection.immutable.Range	scala.NonEmptyTuple	false
 scala.collection.immutable.Range	oracle.Box	false
 scala.collection.immutable.Range	oracle.a.T	false
 scala.collection.immutable.Range	oracle.b.T	false
@@ -8253,6 +8545,10 @@ scala.math.Numeric[scala.Int]	scala.IArray[scala.Int]	false
 scala.math.Numeric[scala.Int]	scala.IArray[scala.Any]	false
 scala.math.Numeric[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.math.Numeric[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.math.Numeric[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.math.Numeric[scala.Int]	scala.EmptyTuple	false
+scala.math.Numeric[scala.Int]	scala.Tuple	false
+scala.math.Numeric[scala.Int]	scala.NonEmptyTuple	false
 scala.math.Numeric[scala.Int]	oracle.Box	false
 scala.math.Numeric[scala.Int]	oracle.a.T	false
 scala.math.Numeric[scala.Int]	oracle.b.T	false
@@ -8365,6 +8661,10 @@ scala.math.Integral[scala.Int]	scala.IArray[scala.Int]	false
 scala.math.Integral[scala.Int]	scala.IArray[scala.Any]	false
 scala.math.Integral[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.math.Integral[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.math.Integral[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.math.Integral[scala.Int]	scala.EmptyTuple	false
+scala.math.Integral[scala.Int]	scala.Tuple	false
+scala.math.Integral[scala.Int]	scala.NonEmptyTuple	false
 scala.math.Integral[scala.Int]	oracle.Box	false
 scala.math.Integral[scala.Int]	oracle.a.T	false
 scala.math.Integral[scala.Int]	oracle.b.T	false
@@ -8477,6 +8777,10 @@ scala.IArray[scala.Int]	scala.IArray[scala.Int]	true
 scala.IArray[scala.Int]	scala.IArray[scala.Any]	true
 scala.IArray[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.IArray[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+scala.IArray[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.IArray[scala.Int]	scala.EmptyTuple	false
+scala.IArray[scala.Int]	scala.Tuple	false
+scala.IArray[scala.Int]	scala.NonEmptyTuple	false
 scala.IArray[scala.Int]	oracle.Box	false
 scala.IArray[scala.Int]	oracle.a.T	false
 scala.IArray[scala.Int]	oracle.b.T	false
@@ -8589,6 +8893,10 @@ scala.IArray[scala.Any]	scala.IArray[scala.Int]	false
 scala.IArray[scala.Any]	scala.IArray[scala.Any]	true
 scala.IArray[scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.IArray[scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+scala.IArray[scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.IArray[scala.Any]	scala.EmptyTuple	false
+scala.IArray[scala.Any]	scala.Tuple	false
+scala.IArray[scala.Any]	scala.NonEmptyTuple	false
 scala.IArray[scala.Any]	oracle.Box	false
 scala.IArray[scala.Any]	oracle.a.T	false
 scala.IArray[scala.Any]	oracle.b.T	false
@@ -8701,6 +9009,10 @@ scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[s
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	true
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.Tuple	false
+scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	oracle.Box	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	oracle.a.T	false
 scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	oracle.b.T	false
@@ -8813,6 +9125,10 @@ scala.collection.immutable.Seq[scala.Int]	scala.IArray[scala.Int]	false
 scala.collection.immutable.Seq[scala.Int]	scala.IArray[scala.Any]	false
 scala.collection.immutable.Seq[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 scala.collection.immutable.Seq[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+scala.collection.immutable.Seq[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.collection.immutable.Seq[scala.Int]	scala.EmptyTuple	false
+scala.collection.immutable.Seq[scala.Int]	scala.Tuple	false
+scala.collection.immutable.Seq[scala.Int]	scala.NonEmptyTuple	false
 scala.collection.immutable.Seq[scala.Int]	oracle.Box	false
 scala.collection.immutable.Seq[scala.Int]	oracle.a.T	false
 scala.collection.immutable.Seq[scala.Int]	oracle.b.T	false
@@ -8846,6 +9162,470 @@ scala.collection.immutable.Seq[scala.Int]	oracle.Contra[oracle.Dog]	false
 scala.collection.immutable.Seq[scala.Int]	oracle.Contra[oracle.Animal]	false
 scala.collection.immutable.Seq[scala.Int]	oracle.Inv[oracle.Dog]	false
 scala.collection.immutable.Seq[scala.Int]	oracle.Inv[? <: oracle.Animal]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Any	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.AnyRef	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.AnyVal	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Matchable	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Nothing	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Null	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Singleton	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Int	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Long	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Boolean	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Unit	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.lang.Object	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.lang.String	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.lang.CharSequence	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.lang.Comparable[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.io.Serializable	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Product	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Equals	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.None.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[?]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[? <: scala.AnyVal]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Some[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Some[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.List[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.List[scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.List[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Nil.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.::[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.Seq[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Seq[scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Seq[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Vector[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.IterableOnce[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.Iterable[? >: scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.Map[java.lang.String, scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Function1[scala.Any, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Function1[scala.Int, scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.PartialFunction[scala.Int, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Tuple2[scala.Int, java.lang.String]	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Tuple2[scala.Any, scala.Any]	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Array[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Array[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Array[java.lang.Object]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.math.Ordering[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.math.PartialOrdering[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.util.Either[java.lang.String, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.util.Right[scala.Nothing, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.util.Left[java.lang.String, scala.Nothing]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.util.List[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.util.ArrayList[java.lang.String]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.util.Collection[?]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.runtime.RichInt	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Int | java.lang.String	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Null | java.lang.String	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Product & java.io.Serializable	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[scala.Int] & scala.Product	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	1	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	2	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	"a"	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	"b"	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	java.lang.Integer	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Function0[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Option[scala.Nothing]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Nothing | scala.Int	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Array[? <: java.lang.Object]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.IndexedSeq[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Range	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.math.Numeric[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.math.Integral[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.IArray[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.IArray[scala.Any]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.collection.immutable.Seq[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.EmptyTuple	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.Tuple	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	scala.NonEmptyTuple	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Box	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.a.T	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.b.T	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.a.U	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.O.T	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.a.v.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.b.v.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.a.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.O.type	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.outer1.Inner	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.outer2.Inner	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.outer1.Sub	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.hk.F[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.hk.G[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Pos	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.L1[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.L2[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Pair[scala.Int]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Pair[scala.Any]	true
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Structural	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Impl	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.HasX	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.HasF	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.HasFString	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.BoxInt	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Dog	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Animal	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Cov[oracle.Dog]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Cov[oracle.Animal]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Contra[oracle.Dog]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Contra[oracle.Animal]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Inv[oracle.Dog]	false
+scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	oracle.Inv[? <: oracle.Animal]	false
+scala.EmptyTuple	scala.Any	true
+scala.EmptyTuple	scala.AnyRef	true
+scala.EmptyTuple	scala.AnyVal	false
+scala.EmptyTuple	scala.Matchable	true
+scala.EmptyTuple	scala.Nothing	false
+scala.EmptyTuple	scala.Null	false
+scala.EmptyTuple	scala.Singleton	true
+scala.EmptyTuple	scala.Int	false
+scala.EmptyTuple	scala.Long	false
+scala.EmptyTuple	scala.Boolean	false
+scala.EmptyTuple	scala.Unit	false
+scala.EmptyTuple	java.lang.Object	true
+scala.EmptyTuple	java.lang.String	false
+scala.EmptyTuple	java.lang.CharSequence	false
+scala.EmptyTuple	java.lang.Comparable[java.lang.String]	false
+scala.EmptyTuple	java.io.Serializable	true
+scala.EmptyTuple	scala.Product	true
+scala.EmptyTuple	scala.Equals	true
+scala.EmptyTuple	scala.None.type	false
+scala.EmptyTuple	scala.Option[scala.Int]	false
+scala.EmptyTuple	scala.Option[scala.Any]	false
+scala.EmptyTuple	scala.Option[?]	false
+scala.EmptyTuple	scala.Option[? <: scala.AnyVal]	false
+scala.EmptyTuple	scala.Some[scala.Int]	false
+scala.EmptyTuple	scala.Some[java.lang.String]	false
+scala.EmptyTuple	scala.collection.immutable.List[scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.List[scala.Any]	false
+scala.EmptyTuple	scala.collection.immutable.List[java.lang.String]	false
+scala.EmptyTuple	scala.collection.immutable.Nil.type	false
+scala.EmptyTuple	scala.collection.immutable.::[scala.Int]	false
+scala.EmptyTuple	scala.collection.Seq[scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.Seq[scala.Any]	false
+scala.EmptyTuple	scala.Seq[scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.Vector[scala.Int]	false
+scala.EmptyTuple	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+scala.EmptyTuple	scala.collection.IterableOnce[scala.Int]	false
+scala.EmptyTuple	scala.collection.Iterable[? >: scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+scala.EmptyTuple	scala.collection.Map[java.lang.String, scala.Any]	false
+scala.EmptyTuple	scala.Function1[scala.Any, scala.Int]	false
+scala.EmptyTuple	scala.Function1[scala.Int, scala.Any]	false
+scala.EmptyTuple	scala.PartialFunction[scala.Int, scala.Int]	false
+scala.EmptyTuple	scala.Tuple2[scala.Int, java.lang.String]	false
+scala.EmptyTuple	scala.Tuple2[scala.Any, scala.Any]	false
+scala.EmptyTuple	scala.Array[scala.Int]	false
+scala.EmptyTuple	scala.Array[java.lang.String]	false
+scala.EmptyTuple	scala.Array[java.lang.Object]	false
+scala.EmptyTuple	scala.math.Ordering[scala.Int]	false
+scala.EmptyTuple	scala.math.PartialOrdering[scala.Int]	false
+scala.EmptyTuple	scala.util.Either[java.lang.String, scala.Int]	false
+scala.EmptyTuple	scala.util.Right[scala.Nothing, scala.Int]	false
+scala.EmptyTuple	scala.util.Left[java.lang.String, scala.Nothing]	false
+scala.EmptyTuple	java.util.List[java.lang.String]	false
+scala.EmptyTuple	java.util.ArrayList[java.lang.String]	false
+scala.EmptyTuple	java.util.Collection[?]	false
+scala.EmptyTuple	scala.runtime.RichInt	false
+scala.EmptyTuple	scala.Int | java.lang.String	false
+scala.EmptyTuple	scala.Null | java.lang.String	false
+scala.EmptyTuple	scala.Product & java.io.Serializable	true
+scala.EmptyTuple	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+scala.EmptyTuple	scala.Option[scala.Int] & scala.Product	false
+scala.EmptyTuple	1	false
+scala.EmptyTuple	2	false
+scala.EmptyTuple	"a"	false
+scala.EmptyTuple	"b"	false
+scala.EmptyTuple	java.lang.Integer	false
+scala.EmptyTuple	scala.Function0[scala.Int]	false
+scala.EmptyTuple	scala.Option[scala.Nothing]	false
+scala.EmptyTuple	scala.Nothing | scala.Int	false
+scala.EmptyTuple	scala.Array[? <: java.lang.Object]	false
+scala.EmptyTuple	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.IndexedSeq[scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.Range	false
+scala.EmptyTuple	scala.math.Numeric[scala.Int]	false
+scala.EmptyTuple	scala.math.Integral[scala.Int]	false
+scala.EmptyTuple	scala.IArray[scala.Int]	false
+scala.EmptyTuple	scala.IArray[scala.Any]	false
+scala.EmptyTuple	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+scala.EmptyTuple	scala.collection.immutable.Seq[scala.Int]	false
+scala.EmptyTuple	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.EmptyTuple	scala.EmptyTuple	true
+scala.EmptyTuple	scala.Tuple	true
+scala.EmptyTuple	scala.NonEmptyTuple	false
+scala.EmptyTuple	oracle.Box	false
+scala.EmptyTuple	oracle.a.T	false
+scala.EmptyTuple	oracle.b.T	false
+scala.EmptyTuple	oracle.a.U	false
+scala.EmptyTuple	oracle.O.T	false
+scala.EmptyTuple	oracle.a.v.type	false
+scala.EmptyTuple	oracle.b.v.type	false
+scala.EmptyTuple	oracle.a.type	false
+scala.EmptyTuple	oracle.O.type	false
+scala.EmptyTuple	oracle.outer1.Inner	false
+scala.EmptyTuple	oracle.outer2.Inner	false
+scala.EmptyTuple	oracle.outer1.Sub	false
+scala.EmptyTuple	oracle.hk.F[scala.Int]	false
+scala.EmptyTuple	oracle.hk.G[scala.Int]	false
+scala.EmptyTuple	oracle.Pos	false
+scala.EmptyTuple	oracle.L1[scala.Int]	false
+scala.EmptyTuple	oracle.L2[scala.Int]	false
+scala.EmptyTuple	oracle.Pair[scala.Int]	false
+scala.EmptyTuple	oracle.Pair[scala.Any]	false
+scala.EmptyTuple	oracle.Structural	false
+scala.EmptyTuple	oracle.Impl	false
+scala.EmptyTuple	oracle.HasX	false
+scala.EmptyTuple	oracle.HasF	false
+scala.EmptyTuple	oracle.HasFString	false
+scala.EmptyTuple	oracle.BoxInt	false
+scala.EmptyTuple	oracle.Dog	false
+scala.EmptyTuple	oracle.Animal	false
+scala.EmptyTuple	oracle.Cov[oracle.Dog]	false
+scala.EmptyTuple	oracle.Cov[oracle.Animal]	false
+scala.EmptyTuple	oracle.Contra[oracle.Dog]	false
+scala.EmptyTuple	oracle.Contra[oracle.Animal]	false
+scala.EmptyTuple	oracle.Inv[oracle.Dog]	false
+scala.EmptyTuple	oracle.Inv[? <: oracle.Animal]	false
+scala.Tuple	scala.Any	true
+scala.Tuple	scala.AnyRef	true
+scala.Tuple	scala.AnyVal	false
+scala.Tuple	scala.Matchable	true
+scala.Tuple	scala.Nothing	false
+scala.Tuple	scala.Null	false
+scala.Tuple	scala.Singleton	false
+scala.Tuple	scala.Int	false
+scala.Tuple	scala.Long	false
+scala.Tuple	scala.Boolean	false
+scala.Tuple	scala.Unit	false
+scala.Tuple	java.lang.Object	true
+scala.Tuple	java.lang.String	false
+scala.Tuple	java.lang.CharSequence	false
+scala.Tuple	java.lang.Comparable[java.lang.String]	false
+scala.Tuple	java.io.Serializable	false
+scala.Tuple	scala.Product	true
+scala.Tuple	scala.Equals	true
+scala.Tuple	scala.None.type	false
+scala.Tuple	scala.Option[scala.Int]	false
+scala.Tuple	scala.Option[scala.Any]	false
+scala.Tuple	scala.Option[?]	false
+scala.Tuple	scala.Option[? <: scala.AnyVal]	false
+scala.Tuple	scala.Some[scala.Int]	false
+scala.Tuple	scala.Some[java.lang.String]	false
+scala.Tuple	scala.collection.immutable.List[scala.Int]	false
+scala.Tuple	scala.collection.immutable.List[scala.Any]	false
+scala.Tuple	scala.collection.immutable.List[java.lang.String]	false
+scala.Tuple	scala.collection.immutable.Nil.type	false
+scala.Tuple	scala.collection.immutable.::[scala.Int]	false
+scala.Tuple	scala.collection.Seq[scala.Int]	false
+scala.Tuple	scala.collection.immutable.Seq[scala.Any]	false
+scala.Tuple	scala.Seq[scala.Int]	false
+scala.Tuple	scala.collection.immutable.Vector[scala.Int]	false
+scala.Tuple	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+scala.Tuple	scala.collection.IterableOnce[scala.Int]	false
+scala.Tuple	scala.collection.Iterable[? >: scala.Int]	false
+scala.Tuple	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+scala.Tuple	scala.collection.Map[java.lang.String, scala.Any]	false
+scala.Tuple	scala.Function1[scala.Any, scala.Int]	false
+scala.Tuple	scala.Function1[scala.Int, scala.Any]	false
+scala.Tuple	scala.PartialFunction[scala.Int, scala.Int]	false
+scala.Tuple	scala.Tuple2[scala.Int, java.lang.String]	false
+scala.Tuple	scala.Tuple2[scala.Any, scala.Any]	false
+scala.Tuple	scala.Array[scala.Int]	false
+scala.Tuple	scala.Array[java.lang.String]	false
+scala.Tuple	scala.Array[java.lang.Object]	false
+scala.Tuple	scala.math.Ordering[scala.Int]	false
+scala.Tuple	scala.math.PartialOrdering[scala.Int]	false
+scala.Tuple	scala.util.Either[java.lang.String, scala.Int]	false
+scala.Tuple	scala.util.Right[scala.Nothing, scala.Int]	false
+scala.Tuple	scala.util.Left[java.lang.String, scala.Nothing]	false
+scala.Tuple	java.util.List[java.lang.String]	false
+scala.Tuple	java.util.ArrayList[java.lang.String]	false
+scala.Tuple	java.util.Collection[?]	false
+scala.Tuple	scala.runtime.RichInt	false
+scala.Tuple	scala.Int | java.lang.String	false
+scala.Tuple	scala.Null | java.lang.String	false
+scala.Tuple	scala.Product & java.io.Serializable	false
+scala.Tuple	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+scala.Tuple	scala.Option[scala.Int] & scala.Product	false
+scala.Tuple	1	false
+scala.Tuple	2	false
+scala.Tuple	"a"	false
+scala.Tuple	"b"	false
+scala.Tuple	java.lang.Integer	false
+scala.Tuple	scala.Function0[scala.Int]	false
+scala.Tuple	scala.Option[scala.Nothing]	false
+scala.Tuple	scala.Nothing | scala.Int	false
+scala.Tuple	scala.Array[? <: java.lang.Object]	false
+scala.Tuple	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+scala.Tuple	scala.collection.immutable.IndexedSeq[scala.Int]	false
+scala.Tuple	scala.collection.immutable.Range	false
+scala.Tuple	scala.math.Numeric[scala.Int]	false
+scala.Tuple	scala.math.Integral[scala.Int]	false
+scala.Tuple	scala.IArray[scala.Int]	false
+scala.Tuple	scala.IArray[scala.Any]	false
+scala.Tuple	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+scala.Tuple	scala.collection.immutable.Seq[scala.Int]	false
+scala.Tuple	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.Tuple	scala.EmptyTuple	false
+scala.Tuple	scala.Tuple	true
+scala.Tuple	scala.NonEmptyTuple	false
+scala.Tuple	oracle.Box	false
+scala.Tuple	oracle.a.T	false
+scala.Tuple	oracle.b.T	false
+scala.Tuple	oracle.a.U	false
+scala.Tuple	oracle.O.T	false
+scala.Tuple	oracle.a.v.type	false
+scala.Tuple	oracle.b.v.type	false
+scala.Tuple	oracle.a.type	false
+scala.Tuple	oracle.O.type	false
+scala.Tuple	oracle.outer1.Inner	false
+scala.Tuple	oracle.outer2.Inner	false
+scala.Tuple	oracle.outer1.Sub	false
+scala.Tuple	oracle.hk.F[scala.Int]	false
+scala.Tuple	oracle.hk.G[scala.Int]	false
+scala.Tuple	oracle.Pos	false
+scala.Tuple	oracle.L1[scala.Int]	false
+scala.Tuple	oracle.L2[scala.Int]	false
+scala.Tuple	oracle.Pair[scala.Int]	false
+scala.Tuple	oracle.Pair[scala.Any]	false
+scala.Tuple	oracle.Structural	false
+scala.Tuple	oracle.Impl	false
+scala.Tuple	oracle.HasX	false
+scala.Tuple	oracle.HasF	false
+scala.Tuple	oracle.HasFString	false
+scala.Tuple	oracle.BoxInt	false
+scala.Tuple	oracle.Dog	false
+scala.Tuple	oracle.Animal	false
+scala.Tuple	oracle.Cov[oracle.Dog]	false
+scala.Tuple	oracle.Cov[oracle.Animal]	false
+scala.Tuple	oracle.Contra[oracle.Dog]	false
+scala.Tuple	oracle.Contra[oracle.Animal]	false
+scala.Tuple	oracle.Inv[oracle.Dog]	false
+scala.Tuple	oracle.Inv[? <: oracle.Animal]	false
+scala.NonEmptyTuple	scala.Any	true
+scala.NonEmptyTuple	scala.AnyRef	true
+scala.NonEmptyTuple	scala.AnyVal	false
+scala.NonEmptyTuple	scala.Matchable	true
+scala.NonEmptyTuple	scala.Nothing	false
+scala.NonEmptyTuple	scala.Null	false
+scala.NonEmptyTuple	scala.Singleton	false
+scala.NonEmptyTuple	scala.Int	false
+scala.NonEmptyTuple	scala.Long	false
+scala.NonEmptyTuple	scala.Boolean	false
+scala.NonEmptyTuple	scala.Unit	false
+scala.NonEmptyTuple	java.lang.Object	true
+scala.NonEmptyTuple	java.lang.String	false
+scala.NonEmptyTuple	java.lang.CharSequence	false
+scala.NonEmptyTuple	java.lang.Comparable[java.lang.String]	false
+scala.NonEmptyTuple	java.io.Serializable	false
+scala.NonEmptyTuple	scala.Product	true
+scala.NonEmptyTuple	scala.Equals	true
+scala.NonEmptyTuple	scala.None.type	false
+scala.NonEmptyTuple	scala.Option[scala.Int]	false
+scala.NonEmptyTuple	scala.Option[scala.Any]	false
+scala.NonEmptyTuple	scala.Option[?]	false
+scala.NonEmptyTuple	scala.Option[? <: scala.AnyVal]	false
+scala.NonEmptyTuple	scala.Some[scala.Int]	false
+scala.NonEmptyTuple	scala.Some[java.lang.String]	false
+scala.NonEmptyTuple	scala.collection.immutable.List[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.List[scala.Any]	false
+scala.NonEmptyTuple	scala.collection.immutable.List[java.lang.String]	false
+scala.NonEmptyTuple	scala.collection.immutable.Nil.type	false
+scala.NonEmptyTuple	scala.collection.immutable.::[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.Seq[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.Seq[scala.Any]	false
+scala.NonEmptyTuple	scala.Seq[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.Vector[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.mutable.ArrayBuffer[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.IterableOnce[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.Iterable[? >: scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.Map[java.lang.String, scala.Int]	false
+scala.NonEmptyTuple	scala.collection.Map[java.lang.String, scala.Any]	false
+scala.NonEmptyTuple	scala.Function1[scala.Any, scala.Int]	false
+scala.NonEmptyTuple	scala.Function1[scala.Int, scala.Any]	false
+scala.NonEmptyTuple	scala.PartialFunction[scala.Int, scala.Int]	false
+scala.NonEmptyTuple	scala.Tuple2[scala.Int, java.lang.String]	false
+scala.NonEmptyTuple	scala.Tuple2[scala.Any, scala.Any]	false
+scala.NonEmptyTuple	scala.Array[scala.Int]	false
+scala.NonEmptyTuple	scala.Array[java.lang.String]	false
+scala.NonEmptyTuple	scala.Array[java.lang.Object]	false
+scala.NonEmptyTuple	scala.math.Ordering[scala.Int]	false
+scala.NonEmptyTuple	scala.math.PartialOrdering[scala.Int]	false
+scala.NonEmptyTuple	scala.util.Either[java.lang.String, scala.Int]	false
+scala.NonEmptyTuple	scala.util.Right[scala.Nothing, scala.Int]	false
+scala.NonEmptyTuple	scala.util.Left[java.lang.String, scala.Nothing]	false
+scala.NonEmptyTuple	java.util.List[java.lang.String]	false
+scala.NonEmptyTuple	java.util.ArrayList[java.lang.String]	false
+scala.NonEmptyTuple	java.util.Collection[?]	false
+scala.NonEmptyTuple	scala.runtime.RichInt	false
+scala.NonEmptyTuple	scala.Int | java.lang.String	false
+scala.NonEmptyTuple	scala.Null | java.lang.String	false
+scala.NonEmptyTuple	scala.Product & java.io.Serializable	false
+scala.NonEmptyTuple	scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]	false
+scala.NonEmptyTuple	scala.Option[scala.Int] & scala.Product	false
+scala.NonEmptyTuple	1	false
+scala.NonEmptyTuple	2	false
+scala.NonEmptyTuple	"a"	false
+scala.NonEmptyTuple	"b"	false
+scala.NonEmptyTuple	java.lang.Integer	false
+scala.NonEmptyTuple	scala.Function0[scala.Int]	false
+scala.NonEmptyTuple	scala.Option[scala.Nothing]	false
+scala.NonEmptyTuple	scala.Nothing | scala.Int	false
+scala.NonEmptyTuple	scala.Array[? <: java.lang.Object]	false
+scala.NonEmptyTuple	scala.collection.immutable.Map[? <: java.lang.String, scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.IndexedSeq[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.Range	false
+scala.NonEmptyTuple	scala.math.Numeric[scala.Int]	false
+scala.NonEmptyTuple	scala.math.Integral[scala.Int]	false
+scala.NonEmptyTuple	scala.IArray[scala.Int]	false
+scala.NonEmptyTuple	scala.IArray[scala.Any]	false
+scala.NonEmptyTuple	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
+scala.NonEmptyTuple	scala.collection.immutable.Seq[scala.Int]	false
+scala.NonEmptyTuple	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+scala.NonEmptyTuple	scala.EmptyTuple	false
+scala.NonEmptyTuple	scala.Tuple	true
+scala.NonEmptyTuple	scala.NonEmptyTuple	true
+scala.NonEmptyTuple	oracle.Box	false
+scala.NonEmptyTuple	oracle.a.T	false
+scala.NonEmptyTuple	oracle.b.T	false
+scala.NonEmptyTuple	oracle.a.U	false
+scala.NonEmptyTuple	oracle.O.T	false
+scala.NonEmptyTuple	oracle.a.v.type	false
+scala.NonEmptyTuple	oracle.b.v.type	false
+scala.NonEmptyTuple	oracle.a.type	false
+scala.NonEmptyTuple	oracle.O.type	false
+scala.NonEmptyTuple	oracle.outer1.Inner	false
+scala.NonEmptyTuple	oracle.outer2.Inner	false
+scala.NonEmptyTuple	oracle.outer1.Sub	false
+scala.NonEmptyTuple	oracle.hk.F[scala.Int]	false
+scala.NonEmptyTuple	oracle.hk.G[scala.Int]	false
+scala.NonEmptyTuple	oracle.Pos	false
+scala.NonEmptyTuple	oracle.L1[scala.Int]	false
+scala.NonEmptyTuple	oracle.L2[scala.Int]	false
+scala.NonEmptyTuple	oracle.Pair[scala.Int]	false
+scala.NonEmptyTuple	oracle.Pair[scala.Any]	false
+scala.NonEmptyTuple	oracle.Structural	false
+scala.NonEmptyTuple	oracle.Impl	false
+scala.NonEmptyTuple	oracle.HasX	false
+scala.NonEmptyTuple	oracle.HasF	false
+scala.NonEmptyTuple	oracle.HasFString	false
+scala.NonEmptyTuple	oracle.BoxInt	false
+scala.NonEmptyTuple	oracle.Dog	false
+scala.NonEmptyTuple	oracle.Animal	false
+scala.NonEmptyTuple	oracle.Cov[oracle.Dog]	false
+scala.NonEmptyTuple	oracle.Cov[oracle.Animal]	false
+scala.NonEmptyTuple	oracle.Contra[oracle.Dog]	false
+scala.NonEmptyTuple	oracle.Contra[oracle.Animal]	false
+scala.NonEmptyTuple	oracle.Inv[oracle.Dog]	false
+scala.NonEmptyTuple	oracle.Inv[? <: oracle.Animal]	false
 oracle.Box	scala.Any	true
 oracle.Box	scala.AnyRef	true
 oracle.Box	scala.AnyVal	false
@@ -8925,6 +9705,10 @@ oracle.Box	scala.IArray[scala.Int]	false
 oracle.Box	scala.IArray[scala.Any]	false
 oracle.Box	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Box	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Box	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Box	scala.EmptyTuple	false
+oracle.Box	scala.Tuple	false
+oracle.Box	scala.NonEmptyTuple	false
 oracle.Box	oracle.Box	true
 oracle.Box	oracle.a.T	false
 oracle.Box	oracle.b.T	false
@@ -9037,6 +9821,10 @@ oracle.a.T	scala.IArray[scala.Int]	false
 oracle.a.T	scala.IArray[scala.Any]	false
 oracle.a.T	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.a.T	scala.collection.immutable.Seq[scala.Int]	false
+oracle.a.T	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.a.T	scala.EmptyTuple	false
+oracle.a.T	scala.Tuple	false
+oracle.a.T	scala.NonEmptyTuple	false
 oracle.a.T	oracle.Box	false
 oracle.a.T	oracle.a.T	true
 oracle.a.T	oracle.b.T	false
@@ -9149,6 +9937,10 @@ oracle.b.T	scala.IArray[scala.Int]	false
 oracle.b.T	scala.IArray[scala.Any]	false
 oracle.b.T	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.b.T	scala.collection.immutable.Seq[scala.Int]	false
+oracle.b.T	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.b.T	scala.EmptyTuple	false
+oracle.b.T	scala.Tuple	false
+oracle.b.T	scala.NonEmptyTuple	false
 oracle.b.T	oracle.Box	false
 oracle.b.T	oracle.a.T	false
 oracle.b.T	oracle.b.T	true
@@ -9261,6 +10053,10 @@ oracle.a.U	scala.IArray[scala.Int]	false
 oracle.a.U	scala.IArray[scala.Any]	false
 oracle.a.U	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.a.U	scala.collection.immutable.Seq[scala.Int]	false
+oracle.a.U	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.a.U	scala.EmptyTuple	false
+oracle.a.U	scala.Tuple	false
+oracle.a.U	scala.NonEmptyTuple	false
 oracle.a.U	oracle.Box	false
 oracle.a.U	oracle.a.T	false
 oracle.a.U	oracle.b.T	false
@@ -9373,6 +10169,10 @@ oracle.O.T	scala.IArray[scala.Int]	false
 oracle.O.T	scala.IArray[scala.Any]	false
 oracle.O.T	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.O.T	scala.collection.immutable.Seq[scala.Int]	false
+oracle.O.T	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.O.T	scala.EmptyTuple	false
+oracle.O.T	scala.Tuple	false
+oracle.O.T	scala.NonEmptyTuple	false
 oracle.O.T	oracle.Box	false
 oracle.O.T	oracle.a.T	false
 oracle.O.T	oracle.b.T	false
@@ -9485,6 +10285,10 @@ oracle.a.v.type	scala.IArray[scala.Int]	false
 oracle.a.v.type	scala.IArray[scala.Any]	false
 oracle.a.v.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.a.v.type	scala.collection.immutable.Seq[scala.Int]	false
+oracle.a.v.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.a.v.type	scala.EmptyTuple	false
+oracle.a.v.type	scala.Tuple	false
+oracle.a.v.type	scala.NonEmptyTuple	false
 oracle.a.v.type	oracle.Box	false
 oracle.a.v.type	oracle.a.T	false
 oracle.a.v.type	oracle.b.T	false
@@ -9597,6 +10401,10 @@ oracle.b.v.type	scala.IArray[scala.Int]	false
 oracle.b.v.type	scala.IArray[scala.Any]	false
 oracle.b.v.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.b.v.type	scala.collection.immutable.Seq[scala.Int]	false
+oracle.b.v.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.b.v.type	scala.EmptyTuple	false
+oracle.b.v.type	scala.Tuple	false
+oracle.b.v.type	scala.NonEmptyTuple	false
 oracle.b.v.type	oracle.Box	false
 oracle.b.v.type	oracle.a.T	false
 oracle.b.v.type	oracle.b.T	false
@@ -9709,6 +10517,10 @@ oracle.a.type	scala.IArray[scala.Int]	false
 oracle.a.type	scala.IArray[scala.Any]	false
 oracle.a.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.a.type	scala.collection.immutable.Seq[scala.Int]	false
+oracle.a.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.a.type	scala.EmptyTuple	false
+oracle.a.type	scala.Tuple	false
+oracle.a.type	scala.NonEmptyTuple	false
 oracle.a.type	oracle.Box	true
 oracle.a.type	oracle.a.T	false
 oracle.a.type	oracle.b.T	false
@@ -9821,6 +10633,10 @@ oracle.O.type	scala.IArray[scala.Int]	false
 oracle.O.type	scala.IArray[scala.Any]	false
 oracle.O.type	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.O.type	scala.collection.immutable.Seq[scala.Int]	false
+oracle.O.type	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.O.type	scala.EmptyTuple	false
+oracle.O.type	scala.Tuple	false
+oracle.O.type	scala.NonEmptyTuple	false
 oracle.O.type	oracle.Box	true
 oracle.O.type	oracle.a.T	false
 oracle.O.type	oracle.b.T	false
@@ -9933,6 +10749,10 @@ oracle.outer1.Inner	scala.IArray[scala.Int]	false
 oracle.outer1.Inner	scala.IArray[scala.Any]	false
 oracle.outer1.Inner	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.outer1.Inner	scala.collection.immutable.Seq[scala.Int]	false
+oracle.outer1.Inner	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.outer1.Inner	scala.EmptyTuple	false
+oracle.outer1.Inner	scala.Tuple	false
+oracle.outer1.Inner	scala.NonEmptyTuple	false
 oracle.outer1.Inner	oracle.Box	false
 oracle.outer1.Inner	oracle.a.T	false
 oracle.outer1.Inner	oracle.b.T	false
@@ -10045,6 +10865,10 @@ oracle.outer2.Inner	scala.IArray[scala.Int]	false
 oracle.outer2.Inner	scala.IArray[scala.Any]	false
 oracle.outer2.Inner	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.outer2.Inner	scala.collection.immutable.Seq[scala.Int]	false
+oracle.outer2.Inner	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.outer2.Inner	scala.EmptyTuple	false
+oracle.outer2.Inner	scala.Tuple	false
+oracle.outer2.Inner	scala.NonEmptyTuple	false
 oracle.outer2.Inner	oracle.Box	false
 oracle.outer2.Inner	oracle.a.T	false
 oracle.outer2.Inner	oracle.b.T	false
@@ -10157,6 +10981,10 @@ oracle.outer1.Sub	scala.IArray[scala.Int]	false
 oracle.outer1.Sub	scala.IArray[scala.Any]	false
 oracle.outer1.Sub	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.outer1.Sub	scala.collection.immutable.Seq[scala.Int]	false
+oracle.outer1.Sub	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.outer1.Sub	scala.EmptyTuple	false
+oracle.outer1.Sub	scala.Tuple	false
+oracle.outer1.Sub	scala.NonEmptyTuple	false
 oracle.outer1.Sub	oracle.Box	false
 oracle.outer1.Sub	oracle.a.T	false
 oracle.outer1.Sub	oracle.b.T	false
@@ -10269,6 +11097,10 @@ oracle.hk.F[scala.Int]	scala.IArray[scala.Int]	false
 oracle.hk.F[scala.Int]	scala.IArray[scala.Any]	false
 oracle.hk.F[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.hk.F[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+oracle.hk.F[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.hk.F[scala.Int]	scala.EmptyTuple	false
+oracle.hk.F[scala.Int]	scala.Tuple	false
+oracle.hk.F[scala.Int]	scala.NonEmptyTuple	false
 oracle.hk.F[scala.Int]	oracle.Box	false
 oracle.hk.F[scala.Int]	oracle.a.T	false
 oracle.hk.F[scala.Int]	oracle.b.T	false
@@ -10381,6 +11213,10 @@ oracle.hk.G[scala.Int]	scala.IArray[scala.Int]	false
 oracle.hk.G[scala.Int]	scala.IArray[scala.Any]	false
 oracle.hk.G[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.hk.G[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.hk.G[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.hk.G[scala.Int]	scala.EmptyTuple	false
+oracle.hk.G[scala.Int]	scala.Tuple	false
+oracle.hk.G[scala.Int]	scala.NonEmptyTuple	false
 oracle.hk.G[scala.Int]	oracle.Box	false
 oracle.hk.G[scala.Int]	oracle.a.T	false
 oracle.hk.G[scala.Int]	oracle.b.T	false
@@ -10493,6 +11329,10 @@ oracle.Pos	scala.IArray[scala.Int]	false
 oracle.Pos	scala.IArray[scala.Any]	false
 oracle.Pos	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Pos	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Pos	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Pos	scala.EmptyTuple	false
+oracle.Pos	scala.Tuple	false
+oracle.Pos	scala.NonEmptyTuple	false
 oracle.Pos	oracle.Box	false
 oracle.Pos	oracle.a.T	false
 oracle.Pos	oracle.b.T	false
@@ -10605,6 +11445,10 @@ oracle.L1[scala.Int]	scala.IArray[scala.Int]	false
 oracle.L1[scala.Int]	scala.IArray[scala.Any]	false
 oracle.L1[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.L1[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+oracle.L1[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.L1[scala.Int]	scala.EmptyTuple	false
+oracle.L1[scala.Int]	scala.Tuple	false
+oracle.L1[scala.Int]	scala.NonEmptyTuple	false
 oracle.L1[scala.Int]	oracle.Box	false
 oracle.L1[scala.Int]	oracle.a.T	false
 oracle.L1[scala.Int]	oracle.b.T	false
@@ -10717,6 +11561,10 @@ oracle.L2[scala.Int]	scala.IArray[scala.Int]	false
 oracle.L2[scala.Int]	scala.IArray[scala.Any]	false
 oracle.L2[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.L2[scala.Int]	scala.collection.immutable.Seq[scala.Int]	true
+oracle.L2[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.L2[scala.Int]	scala.EmptyTuple	false
+oracle.L2[scala.Int]	scala.Tuple	false
+oracle.L2[scala.Int]	scala.NonEmptyTuple	false
 oracle.L2[scala.Int]	oracle.Box	false
 oracle.L2[scala.Int]	oracle.a.T	false
 oracle.L2[scala.Int]	oracle.b.T	false
@@ -10829,6 +11677,10 @@ oracle.Pair[scala.Int]	scala.IArray[scala.Int]	false
 oracle.Pair[scala.Int]	scala.IArray[scala.Any]	false
 oracle.Pair[scala.Int]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Pair[scala.Int]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Pair[scala.Int]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Pair[scala.Int]	scala.EmptyTuple	false
+oracle.Pair[scala.Int]	scala.Tuple	true
+oracle.Pair[scala.Int]	scala.NonEmptyTuple	true
 oracle.Pair[scala.Int]	oracle.Box	false
 oracle.Pair[scala.Int]	oracle.a.T	false
 oracle.Pair[scala.Int]	oracle.b.T	false
@@ -10941,6 +11793,10 @@ oracle.Pair[scala.Any]	scala.IArray[scala.Int]	false
 oracle.Pair[scala.Any]	scala.IArray[scala.Any]	false
 oracle.Pair[scala.Any]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Pair[scala.Any]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Pair[scala.Any]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Pair[scala.Any]	scala.EmptyTuple	false
+oracle.Pair[scala.Any]	scala.Tuple	true
+oracle.Pair[scala.Any]	scala.NonEmptyTuple	true
 oracle.Pair[scala.Any]	oracle.Box	false
 oracle.Pair[scala.Any]	oracle.a.T	false
 oracle.Pair[scala.Any]	oracle.b.T	false
@@ -11053,6 +11909,10 @@ oracle.Structural	scala.IArray[scala.Int]	false
 oracle.Structural	scala.IArray[scala.Any]	false
 oracle.Structural	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Structural	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Structural	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Structural	scala.EmptyTuple	false
+oracle.Structural	scala.Tuple	false
+oracle.Structural	scala.NonEmptyTuple	false
 oracle.Structural	oracle.Box	false
 oracle.Structural	oracle.a.T	false
 oracle.Structural	oracle.b.T	false
@@ -11165,6 +12025,10 @@ oracle.Impl	scala.IArray[scala.Int]	false
 oracle.Impl	scala.IArray[scala.Any]	false
 oracle.Impl	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Impl	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Impl	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Impl	scala.EmptyTuple	false
+oracle.Impl	scala.Tuple	false
+oracle.Impl	scala.NonEmptyTuple	false
 oracle.Impl	oracle.Box	false
 oracle.Impl	oracle.a.T	false
 oracle.Impl	oracle.b.T	false
@@ -11277,6 +12141,10 @@ oracle.HasX	scala.IArray[scala.Int]	false
 oracle.HasX	scala.IArray[scala.Any]	false
 oracle.HasX	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.HasX	scala.collection.immutable.Seq[scala.Int]	false
+oracle.HasX	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.HasX	scala.EmptyTuple	false
+oracle.HasX	scala.Tuple	false
+oracle.HasX	scala.NonEmptyTuple	false
 oracle.HasX	oracle.Box	false
 oracle.HasX	oracle.a.T	false
 oracle.HasX	oracle.b.T	false
@@ -11389,6 +12257,10 @@ oracle.HasF	scala.IArray[scala.Int]	false
 oracle.HasF	scala.IArray[scala.Any]	false
 oracle.HasF	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.HasF	scala.collection.immutable.Seq[scala.Int]	false
+oracle.HasF	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.HasF	scala.EmptyTuple	false
+oracle.HasF	scala.Tuple	false
+oracle.HasF	scala.NonEmptyTuple	false
 oracle.HasF	oracle.Box	false
 oracle.HasF	oracle.a.T	false
 oracle.HasF	oracle.b.T	false
@@ -11501,6 +12373,10 @@ oracle.HasFString	scala.IArray[scala.Int]	false
 oracle.HasFString	scala.IArray[scala.Any]	false
 oracle.HasFString	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.HasFString	scala.collection.immutable.Seq[scala.Int]	false
+oracle.HasFString	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.HasFString	scala.EmptyTuple	false
+oracle.HasFString	scala.Tuple	false
+oracle.HasFString	scala.NonEmptyTuple	false
 oracle.HasFString	oracle.Box	false
 oracle.HasFString	oracle.a.T	false
 oracle.HasFString	oracle.b.T	false
@@ -11613,6 +12489,10 @@ oracle.BoxInt	scala.IArray[scala.Int]	false
 oracle.BoxInt	scala.IArray[scala.Any]	false
 oracle.BoxInt	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.BoxInt	scala.collection.immutable.Seq[scala.Int]	false
+oracle.BoxInt	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.BoxInt	scala.EmptyTuple	false
+oracle.BoxInt	scala.Tuple	false
+oracle.BoxInt	scala.NonEmptyTuple	false
 oracle.BoxInt	oracle.Box	true
 oracle.BoxInt	oracle.a.T	false
 oracle.BoxInt	oracle.b.T	false
@@ -11725,6 +12605,10 @@ oracle.Dog	scala.IArray[scala.Int]	false
 oracle.Dog	scala.IArray[scala.Any]	false
 oracle.Dog	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Dog	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Dog	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Dog	scala.EmptyTuple	false
+oracle.Dog	scala.Tuple	false
+oracle.Dog	scala.NonEmptyTuple	false
 oracle.Dog	oracle.Box	false
 oracle.Dog	oracle.a.T	false
 oracle.Dog	oracle.b.T	false
@@ -11837,6 +12721,10 @@ oracle.Animal	scala.IArray[scala.Int]	false
 oracle.Animal	scala.IArray[scala.Any]	false
 oracle.Animal	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Animal	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Animal	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Animal	scala.EmptyTuple	false
+oracle.Animal	scala.Tuple	false
+oracle.Animal	scala.NonEmptyTuple	false
 oracle.Animal	oracle.Box	false
 oracle.Animal	oracle.a.T	false
 oracle.Animal	oracle.b.T	false
@@ -11949,6 +12837,10 @@ oracle.Cov[oracle.Dog]	scala.IArray[scala.Int]	false
 oracle.Cov[oracle.Dog]	scala.IArray[scala.Any]	false
 oracle.Cov[oracle.Dog]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Cov[oracle.Dog]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Cov[oracle.Dog]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Cov[oracle.Dog]	scala.EmptyTuple	false
+oracle.Cov[oracle.Dog]	scala.Tuple	false
+oracle.Cov[oracle.Dog]	scala.NonEmptyTuple	false
 oracle.Cov[oracle.Dog]	oracle.Box	false
 oracle.Cov[oracle.Dog]	oracle.a.T	false
 oracle.Cov[oracle.Dog]	oracle.b.T	false
@@ -12061,6 +12953,10 @@ oracle.Cov[oracle.Animal]	scala.IArray[scala.Int]	false
 oracle.Cov[oracle.Animal]	scala.IArray[scala.Any]	false
 oracle.Cov[oracle.Animal]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Cov[oracle.Animal]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Cov[oracle.Animal]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Cov[oracle.Animal]	scala.EmptyTuple	false
+oracle.Cov[oracle.Animal]	scala.Tuple	false
+oracle.Cov[oracle.Animal]	scala.NonEmptyTuple	false
 oracle.Cov[oracle.Animal]	oracle.Box	false
 oracle.Cov[oracle.Animal]	oracle.a.T	false
 oracle.Cov[oracle.Animal]	oracle.b.T	false
@@ -12173,6 +13069,10 @@ oracle.Contra[oracle.Dog]	scala.IArray[scala.Int]	false
 oracle.Contra[oracle.Dog]	scala.IArray[scala.Any]	false
 oracle.Contra[oracle.Dog]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Contra[oracle.Dog]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Contra[oracle.Dog]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Contra[oracle.Dog]	scala.EmptyTuple	false
+oracle.Contra[oracle.Dog]	scala.Tuple	false
+oracle.Contra[oracle.Dog]	scala.NonEmptyTuple	false
 oracle.Contra[oracle.Dog]	oracle.Box	false
 oracle.Contra[oracle.Dog]	oracle.a.T	false
 oracle.Contra[oracle.Dog]	oracle.b.T	false
@@ -12285,6 +13185,10 @@ oracle.Contra[oracle.Animal]	scala.IArray[scala.Int]	false
 oracle.Contra[oracle.Animal]	scala.IArray[scala.Any]	false
 oracle.Contra[oracle.Animal]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Contra[oracle.Animal]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Contra[oracle.Animal]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Contra[oracle.Animal]	scala.EmptyTuple	false
+oracle.Contra[oracle.Animal]	scala.Tuple	false
+oracle.Contra[oracle.Animal]	scala.NonEmptyTuple	false
 oracle.Contra[oracle.Animal]	oracle.Box	false
 oracle.Contra[oracle.Animal]	oracle.a.T	false
 oracle.Contra[oracle.Animal]	oracle.b.T	false
@@ -12397,6 +13301,10 @@ oracle.Inv[oracle.Dog]	scala.IArray[scala.Int]	false
 oracle.Inv[oracle.Dog]	scala.IArray[scala.Any]	false
 oracle.Inv[oracle.Dog]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Inv[oracle.Dog]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Inv[oracle.Dog]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Inv[oracle.Dog]	scala.EmptyTuple	false
+oracle.Inv[oracle.Dog]	scala.Tuple	false
+oracle.Inv[oracle.Dog]	scala.NonEmptyTuple	false
 oracle.Inv[oracle.Dog]	oracle.Box	false
 oracle.Inv[oracle.Dog]	oracle.a.T	false
 oracle.Inv[oracle.Dog]	oracle.b.T	false
@@ -12509,6 +13417,10 @@ oracle.Inv[? <: oracle.Animal]	scala.IArray[scala.Int]	false
 oracle.Inv[? <: oracle.Animal]	scala.IArray[scala.Any]	false
 oracle.Inv[? <: oracle.Animal]	scala.collection.immutable.List[scala.Int] & scala.collection.immutable.Vector[scala.Int]	false
 oracle.Inv[? <: oracle.Animal]	scala.collection.immutable.Seq[scala.Int]	false
+oracle.Inv[? <: oracle.Animal]	scala.*:[scala.Int, scala.*:[java.lang.String, scala.EmptyTuple]]	false
+oracle.Inv[? <: oracle.Animal]	scala.EmptyTuple	false
+oracle.Inv[? <: oracle.Animal]	scala.Tuple	false
+oracle.Inv[? <: oracle.Animal]	scala.NonEmptyTuple	false
 oracle.Inv[? <: oracle.Animal]	oracle.Box	false
 oracle.Inv[? <: oracle.Animal]	oracle.a.T	false
 oracle.Inv[? <: oracle.Animal]	oracle.b.T	false

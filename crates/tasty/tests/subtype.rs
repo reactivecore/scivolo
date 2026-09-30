@@ -151,3 +151,61 @@ fn subtyping_matches_dotc() {
     eprintln!("{} of {total} pairs differ\n{}", wrong.len(), wrong.join("\n"));
     assert!(wrong.is_empty(), "{} of {total} pairs differ", wrong.len());
 }
+
+#[test]
+fn members_of_types() {
+    let Some(mut u) = universe() else { return };
+    let has = |u: &mut Universe, t: &str, name: &str| {
+        let t = parse(u, t);
+        !u.member_of_type(t, name).is_empty()
+    };
+    assert!(has(&mut u, "oracle.a.v.type", "hashCode"));
+    assert!(has(&mut u, "\"a\"", "length"));
+    assert!(has(&mut u, "1", "+"));
+    assert!(has(&mut u, "scala.Option[scala.Int] & scala.Product", "isEmpty"));
+    assert!(has(&mut u, "scala.Option[scala.Int] & scala.Product", "productArity"));
+    let union = "scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]";
+    assert!(has(&mut u, union, "head"));
+    assert!(!has(&mut u, union, "::"));
+    let nested = format!("{union} | scala.collection.immutable.Nil.type");
+    assert!(has(&mut u, &nested, "head"));
+    assert!(has(&mut u, "oracle.AB", "f"));
+    assert!(has(&mut u, "oracle.AB", "v"));
+    assert!(has(&mut u, "oracle.Impl", "f"));
+    assert!(!has(&mut u, "oracle.Impl", "g"));
+}
+
+#[test]
+fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
+    let Some(mut u) = universe() else { return };
+    let names: Vec<&str> =
+        include_str!("fixtures/subtype-types.txt").lines().filter(|l| !l.is_empty()).collect();
+    let types: Vec<TypeId> = names.iter().map(|n| parse(&mut u, n)).collect();
+    let n = types.len();
+    let sub: Vec<Vec<bool>> =
+        (0..n).map(|i| (0..n).map(|j| u.is_subtype(types[i], types[j])).collect()).collect();
+    let mut wrong = Vec::new();
+    for i in 0..n {
+        for j in 0..n {
+            let (a, b) = (types[i], types[j]);
+            let (lub, glb) = (u.lub(a, b), u.glb(a, b));
+            let pair = format!("{} and {}", names[i], names[j]);
+            if !u.is_subtype(a, lub) || !u.is_subtype(b, lub) {
+                wrong.push(format!("lub of {pair}, {}, is not above both", u.show(lub)));
+            }
+            if !u.is_subtype(glb, a) || !u.is_subtype(glb, b) {
+                wrong.push(format!("glb of {pair}, {}, is not below both", u.show(glb)));
+            }
+            for k in 0..n {
+                if sub[i][k] && sub[j][k] && !u.is_subtype(lub, types[k]) {
+                    wrong.push(format!("lub of {pair}, {}, is not below {}", u.show(lub), names[k]));
+                }
+                if sub[k][i] && sub[k][j] && !u.is_subtype(types[k], glb) {
+                    wrong.push(format!("glb of {pair}, {}, is not above {}", u.show(glb), names[k]));
+                }
+            }
+        }
+    }
+    let shown: Vec<&String> = wrong.iter().take(40).collect();
+    assert!(wrong.is_empty(), "{} failures:\n{shown:#?}", wrong.len());
+}

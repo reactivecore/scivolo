@@ -121,6 +121,13 @@ impl Cmp<'_> {
                 }
                 self.try_base_type(a, b, c)
             }
+            Meaning::Class(_) => {
+                let constructor = self.constructor_arity(a).is_some();
+                match constructor.then(|| self.eta_expand(b)).flatten() {
+                    Some(eta) => self.recur(a, eta),
+                    None => self.fourth_try(a, b),
+                }
+            }
             _ => self.fourth_try(a, b),
         }
     }
