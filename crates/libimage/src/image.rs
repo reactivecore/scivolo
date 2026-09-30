@@ -23,7 +23,8 @@ pub enum Source {
 }
 
 /// What an image holds: the files of `sources` whose names `keep` accepts, the first of equal
-/// names winning, each with the blob `extra` computes. `tag` names the blobs' format.
+/// names winning, each with the blob `extra` computes. `tag` names what `keep` and `extra` do,
+/// and changes when they do.
 pub struct Spec<'a> {
     pub sources: &'a [Source],
     pub keep: fn(&str) -> bool,
@@ -37,6 +38,12 @@ pub struct Image {
     count: usize,
 }
 
+// SAFETY: the mapping is read-only, image files are never written after they are renamed into
+// place, and it is unmapped only when the image is dropped; any thread may read it.
+unsafe impl Send for Image {}
+// SAFETY: as for `Send`: shared references only read the mapping.
+unsafe impl Sync for Image {}
+
 impl Image {
     /// The image of `spec` in directory `dir`, built there first if missing.
     pub fn open(spec: &Spec, dir: &Path) -> io::Result<Self> {
@@ -47,11 +54,11 @@ impl Image {
             cache::touch(&path);
             return Ok(image);
         }
+        cache::prune(dir, cache::ABANDONED, |n| cache::is_staging(n, "libs-", ".tmp"));
         build(spec, dir, &path)?;
         cache::prune(dir, cache::UNUSED, |n| {
             n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(cache::is_key)
         });
-        cache::prune(dir, cache::ABANDONED, |n| cache::is_staging(n, "libs-", ".tmp"));
         Self::map(&path)
     }
 
@@ -62,8 +69,9 @@ impl Image {
             return Err(io::Error::other("library image too short"));
         }
         use std::os::fd::AsRawFd;
-        // SAFETY: a read-only private mapping of a file this process only reads; the mapping
-        // stays valid after `file` is closed and is unmapped only in `drop`.
+        // SAFETY: a read-only private mapping of an image file, which is never written after it
+        // is renamed into place; the mapping stays valid after `file` is closed and is unmapped
+        // only in `drop`.
         let map = unsafe {
             libc::mmap(std::ptr::null_mut(), len, libc::PROT_READ, libc::MAP_PRIVATE, file.as_raw_fd(), 0)
         };
@@ -78,6 +86,16 @@ impl Image {
         image.count = u32::from_le_bytes(bytes[8..12].try_into().expect("4 bytes")) as usize;
         if HEADER + image.count * ENTRY > len {
             return Err(io::Error::other("library image index truncated"));
+        }
+        let end = match image.count.checked_sub(1) {
+            Some(last) => {
+                let at = HEADER + last * ENTRY + 2 * 16;
+                image.word(at).checked_add(image.word(at + 8))
+            }
+            None => Some(HEADER),
+        };
+        if end != Some(len) {
+            return Err(io::Error::other("library image contents truncated"));
         }
         Ok(image)
     }
@@ -94,7 +112,7 @@ impl Image {
     fn slice(&self, entry: usize, field: usize) -> &[u8] {
         let at = HEADER + entry * ENTRY + field * 16;
         let (start, len) = (self.word(at), self.word(at + 8));
-        self.bytes().get(start..start + len).unwrap_or(&[])
+        start.checked_add(len).and_then(|end| self.bytes().get(start..end)).unwrap_or(&[])
     }
 
     fn name(&self, entry: usize) -> &[u8] {

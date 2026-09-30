@@ -10,7 +10,7 @@ pub const NATIVE: &str = "0.5.12";
 
 const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "scalalib"];
 
-/// The TASTy of Scala Native's javalib, which no published jar has (research 08 §3).
+/// The TASTy of Scala Native's javalib (research 08 §3).
 const JAVALIB_TASTY: &[u8] = include_bytes!("../../../libs/javalib-tasty-0.5.12.jar");
 
 /// The library image of `jars`, the standard library's TASTy and javalib's: their NIR with

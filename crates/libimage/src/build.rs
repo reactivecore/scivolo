@@ -8,29 +8,41 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 use zip::ZipArchive;
 
-/// Identifies what `spec` puts in an image: the jars by path, size and modification time,
-/// built-in jars by name, size and the ends of their contents, and the blobs' format.
+/// Identifies what `spec` puts in an image: the program's version, the tag, the jars by path,
+/// size and modification time, and built-in jars by name and contents.
 pub fn key(spec: &Spec) -> io::Result<u64> {
     let mut h = FxHasher::default();
-    (MAGIC, spec.tag).hash(&mut h);
+    (MAGIC, env!("CARGO_PKG_VERSION"), spec.tag).hash(&mut h);
     for source in spec.sources {
         match source {
             Source::File(jar) => {
                 let meta = std::fs::metadata(jar)?;
                 (std::fs::canonicalize(jar)?, meta.len(), meta.modified()?).hash(&mut h);
             }
-            Source::Bytes(name, bytes) => {
-                let ends = (&bytes[..bytes.len().min(4096)], &bytes[bytes.len().saturating_sub(4096)..]);
-                (name, bytes.len(), ends).hash(&mut h);
-            }
+            Source::Bytes(name, bytes) => (name, bytes).hash(&mut h),
         }
     }
     Ok(h.finish())
 }
 
-/// Writes the image of `spec` to `path`, in directory `dir`, through a file only this thread
-/// writes.
+/// Writes the image of `spec` to `path`, in directory `dir`, through a staging file only this
+/// thread writes and that is removed if the build fails.
 pub fn build(spec: &Spec, dir: &Path, path: &Path) -> io::Result<()> {
+    std::fs::create_dir_all(dir)?;
+    let mut thread = FxHasher::default();
+    std::thread::current().id().hash(&mut thread);
+    let tmp = path.with_extension(format!("tmp{}{:06}", std::process::id(), thread.finish() % 1_000_000));
+    let file = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+    let written = write(spec, file);
+    let result = written.and_then(|()| std::fs::rename(&tmp, path));
+    if result.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    result
+}
+
+/// Writes the image of `spec` to `out_file`.
+fn write(spec: &Spec, mut out_file: File) -> io::Result<()> {
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
     let mut seen = FxHashSet::default();
     for source in spec.sources {
@@ -58,15 +70,9 @@ pub fn build(spec: &Spec, dir: &Path, path: &Path) -> io::Result<()> {
             blobs.push(part);
         }
     }
-    std::fs::create_dir_all(dir)?;
-    let mut thread = FxHasher::default();
-    std::thread::current().id().hash(&mut thread);
-    let tmp = path.with_extension(format!("tmp{}{}", std::process::id(), thread.finish() % 1_000_000));
-    let mut f = File::create(&tmp)?;
-    f.write_all(&out)?;
-    blobs.iter().try_for_each(|b| f.write_all(b))?;
-    drop(f);
-    std::fs::rename(&tmp, path)
+    out_file.write_all(&out)?;
+    blobs.iter().try_for_each(|b| out_file.write_all(b))?;
+    out_file.sync_all()
 }
 
 /// Adds the files of `zip` that `keep` accepts and `seen` does not hold yet to `files`.

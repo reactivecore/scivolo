@@ -47,7 +47,9 @@ impl Classpath {
                 match root {
                     Root::Dir(dir) => walk(dir, dir, &mut files),
                     Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
-                    Root::Image(image) => files.extend(image.names().map(str::to_owned)),
+                    Root::Image(image) => {
+                        files.extend(image.names().filter(|n| n.ends_with(&file_suffix)).map(str::to_owned))
+                    }
                 }
             }
         });

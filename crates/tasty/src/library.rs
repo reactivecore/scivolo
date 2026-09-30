@@ -15,7 +15,7 @@ pub enum Library {
         /// Each `.tasty` path, e.g. `scala/Option.tasty`, and the first jar that has it.
         files: FxHashMap<String, usize>,
     },
-    /// Mapped for the rest of the process, so its files are borrowed without copying.
+    /// Mapped for the rest of the process; its files are borrowed.
     Image(&'static Image),
 }
 
