@@ -21,6 +21,26 @@ fn one(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> SymbolId {
 }
 
 #[test]
+fn bodies_of_inline_and_concrete_methods() {
+    let Some(mut u) = stdlib() else { return };
+    let scala = u.package("scala").unwrap();
+    let predef = one(&mut u, scala, "Predef$", Kind::Class);
+    let summon = one(&mut u, predef, "summon", Kind::Def);
+    assert!(u.symbol(summon).flags.has(INLINE));
+    let (file, body) = u.body(summon).expect("an inline method has a body");
+    let (ast, _) = u.file(file);
+    assert_ne!(ast.tag(body), TEMPLATE);
+
+    let option = one(&mut u, scala, "Option", Kind::Class);
+    let is_empty = one(&mut u, option, "isEmpty", Kind::Def);
+    assert!(u.body(is_empty).is_some());
+    let collection = u.package("scala.collection").unwrap();
+    let iterable_once = one(&mut u, collection, "IterableOnce", Kind::Class);
+    let iterator = one(&mut u, iterable_once, "iterator", Kind::Def);
+    assert!(u.body(iterator).is_none());
+}
+
+#[test]
 fn a_lookup_loads_only_the_file_defining_the_name() {
     let Some(mut u) = stdlib() else { return };
     let immutable = u.package("scala.collection.immutable").unwrap();

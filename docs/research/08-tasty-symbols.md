@@ -146,7 +146,8 @@ Oracle: 99.9% of javalib's 10,660 method signatures and all 529 bridges match it
    `TupleN` as nested `*:` (13,456 pairs, all agree). Not done: the join of `|` on the left
    (`orDominator`, the typer widens), raw Java types (javalib is Scala).
 6. javalib's symbols (§3 B); oracle: javalib's NIR. The overlay's follow with the frontend.
-7. Bodies on demand, for `inline`, when the typer needs them.
+7. Bodies on demand, for `inline`: `body(sym)` gives the right-hand side's tree; the typer
+   decodes it into typed trees.
 
 ## 7. Decisions
 
