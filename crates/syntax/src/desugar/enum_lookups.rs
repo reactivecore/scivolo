@@ -72,26 +72,6 @@ impl Desugar<'_> {
         vec![private_values, values_def, value_of]
     }
 
-    /// `Array[tpt](values)(using ClassTag[tpt](classOf[tpt]))`.
-    fn array_literal(&mut self, values: &[NodeId], tpt: NodeId) -> NodeId {
-        let class_of = self.sym_ref("scala.Predef$.classOf", false);
-        let args = self.list(&[tpt]);
-        let class_of = self.ast.node(Tree::TypeApply { fun: class_of, args });
-        let class_tag = self.sym_ref("scala.reflect.ClassTag$.apply", false);
-        let args = self.list(&[tpt]);
-        let class_tag = self.ast.node(Tree::TypeApply { fun: class_tag, args });
-        let class_tag = self.apply(class_tag, &[class_of]);
-        let array = self.sym_ref("scala.Array", false);
-        let apply = self.term("apply");
-        let apply = self.select(array, apply);
-        let args = self.list(&[tpt]);
-        let apply = self.ast.node(Tree::TypeApply { fun: apply, args });
-        let apply = self.apply(apply, values);
-        let apply = self.apply(apply, &[class_tag]);
-        self.ast.add_attrs(apply, Attrs::USING_APPLY);
-        apply
-    }
-
     /// `private def $new(_$ordinal: Int, $name: String) = new E with scala.runtime.EnumValue`.
     fn enum_value_creator(&mut self) -> NodeId {
         let constr = self.empty_constructor();

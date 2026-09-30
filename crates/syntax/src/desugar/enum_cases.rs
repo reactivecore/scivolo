@@ -188,15 +188,6 @@ impl Desugar<'_> {
         self.with_clauses(getter, &joined)
     }
 
-    /// The parents of template `imp`, without its derived classes.
-    pub fn parents_of(&self, imp: NodeId) -> Vec<NodeId> {
-        let Tree::Template { parents_or_derived, derived, .. } = *self.ast.tree(imp) else {
-            return Vec::new();
-        };
-        let items = self.ast.items(parents_or_derived);
-        items[..items.len() - derived.unwrap_or(0) as usize].to_vec()
-    }
-
     /// Whether `def` was marked to define the enum's lookups; the mark is removed.
     pub fn defines_enum_lookups(&mut self, def: NodeId) -> bool {
         let marked = self.ast.attrs(def).contains(Attrs::ENUM_LOOKUPS);

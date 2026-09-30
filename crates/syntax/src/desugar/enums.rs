@@ -118,7 +118,8 @@ impl Desugar<'_> {
     /// with the oracle's empty bounds).
     fn interpolated_enum_parent(&mut self, enum_class: usize, span: Span) -> NodeId {
         let class = &self.classes[enum_class];
-        let simple = class.full_name.rsplit('.').next().unwrap_or(&class.full_name).to_string();
+        let simple =
+            class.full_name.rsplit_once('.').map_or(class.full_name.as_str(), |(_, s)| s).to_string();
         let (full, tparams) = (class.full_name.clone(), class.tparams.clone());
         let mut args = Vec::new();
         for (tparam, variance) in tparams {
