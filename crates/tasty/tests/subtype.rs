@@ -167,6 +167,10 @@ fn members_of_types() {
     let union = "scala.collection.immutable.List[scala.Int] | scala.collection.immutable.Vector[scala.Int]";
     assert!(has(&mut u, union, "head"));
     assert!(!has(&mut u, union, "::"));
+    let nested = format!("{union} | scala.collection.immutable.Nil.type");
+    assert!(has(&mut u, &nested, "head"));
+    assert!(has(&mut u, "oracle.AB", "f"));
+    assert!(has(&mut u, "oracle.AB", "v"));
     assert!(has(&mut u, "oracle.Impl", "f"));
     assert!(!has(&mut u, "oracle.Impl", "g"));
 }

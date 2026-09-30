@@ -180,4 +180,10 @@ fn class_constructors_compare_as_type_lambdas() {
     assert!(u.is_subtype(list, to_seq));
     assert!(!u.is_subtype(seq, to_list));
     assert!(u.is_subtype(to_list, seq));
+
+    let vector = t(&mut u, "scala.collection.immutable.Vector", &[]);
+    let joined = u.lub(list, vector);
+    assert!(matches!(u.types().get(joined), Type::Lambda { .. }), "{}", u.show(joined));
+    assert!(u.is_subtype(list, joined) && u.is_subtype(vector, joined));
+    assert_eq!(u.glb(ANY, list), list);
 }

@@ -1,13 +1,40 @@
-//! Higher-kinded comparisons: a type variable applied to arguments, constrained to a
-//! constructor of the other side (dotty's `compareAppliedTypeParamRef`), class constructors as
-//! type lambdas (`etaExpand`), and tuple classes as nested pairs.
+//! Higher-kinded types: a type variable applied to arguments, constrained to a constructor of
+//! the other side (dotty's `compareAppliedTypeParamRef`), class constructors as type lambdas
+//! (`etaExpand`), constructors combined under a lambda (`liftIfHK`), and tuple classes as
+//! nested pairs.
 
 use super::Cmp;
 use super::refs::Meaning;
-use crate::types::{Type, TypeId};
-use crate::{ANY, Kind, NOTHING};
+use crate::types::{Binder, Type, TypeId};
+use crate::{ANY, FileId, Kind, NOTHING, SymbolId};
+
+/// The files of the binders of eta-expansions (numbered by their constructor), of adapted
+/// constructors (numbered by the constructor they apply) and of combined constructors.
+const ETA: u32 = u32::MAX - 2;
+const ADAPTED: u32 = u32::MAX - 3;
+const LIFTED: u32 = u32::MAX - 4;
 
 impl Cmp<'_> {
+    /// `a & b`, or `a | b` unless `and`; for two constructors of as many parameters, a type
+    /// lambda of that of their applications (dotty's `liftIfHK`).
+    pub fn lift_if_constructors(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
+        let combined = match (self.constructor_arity(a), self.constructor_arity(b)) {
+            (Some(n), Some(m)) if n == m => n,
+            _ => {
+                let t = if and { Type::And(a, b) } else { Type::Or(a, b) };
+                return self.u.intern_type(t);
+            }
+        };
+        let binder = Binder(FileId(LIFTED), a.0.wrapping_mul(0x9e37_79b9) ^ b.0);
+        let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+        let params: Vec<(String, TypeId)> = (0..combined).map(|i| (format!("X{i}"), bounds)).collect();
+        let refs: Vec<TypeId> =
+            (0..combined as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
+        let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
+        let result = if and { self.glb(applied_a, applied_b) } else { self.lub(applied_a, applied_b) };
+        self.u.intern_type(Type::Lambda { binder, params, result })
+    }
+
     /// `a <: v[args]` for variable constructor `v` without instance: `v` above the constructor
     /// of `a`, or of a base type of `a`, applied to the arguments `args` leave over.
     pub fn var_constructor_above(&mut self, a: TypeId, var: TypeId, args: &[TypeId]) -> bool {
@@ -41,10 +68,13 @@ impl Cmp<'_> {
     fn unify_constructor(&mut self, var: TypeId, args: &[TypeId], other: TypeId, from_below: bool) -> bool {
         let Type::Applied(tycon, other_args) = self.u.types().get(other).clone() else { return false };
         let Some(fixed) = other_args.len().checked_sub(args.len()) else { return false };
+        if tycon == var {
+            return false;
+        }
         let adapted = match fixed {
             0 => tycon,
             _ => {
-                let binder = self.u.fresh_binder();
+                let binder = Binder(FileId(ADAPTED), tycon.0);
                 let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
                 let params: Vec<(String, TypeId)> =
                     (0..args.len()).map(|i| (format!("X{i}"), bounds)).collect();
@@ -71,25 +101,44 @@ impl Cmp<'_> {
         unified
     }
 
+    /// How many type parameters type constructor `t` takes: a type lambda's, or those of a class
+    /// referred to without arguments.
+    pub fn constructor_arity(&mut self, t: TypeId) -> Option<usize> {
+        if let Type::Lambda { params, .. } = self.u.types().get(t) {
+            return Some(params.len());
+        }
+        let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
+        let n = self.u.type_params(c).len();
+        (n > 0).then_some(n)
+    }
+
     /// Class constructor `t`, which takes type parameters, as a type lambda applying it to
-    /// them (dotty's `etaExpand`).
+    /// them, their bounds referring to the lambda's parameters (dotty's `etaExpand`).
     pub fn eta_expand(&mut self, t: TypeId) -> Option<TypeId> {
+        self.constructor_arity(t)?;
         let Some(Meaning::Class(c)) = self.named(t).map(|n| n.meaning) else { return None };
         let params = self.u.type_params(c);
-        if params.is_empty() {
-            return None;
-        }
-        let binder = self.u.fresh_binder();
-        let lambda_params: Vec<(String, TypeId)> =
-            params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
+        let binder = Binder(FileId(ETA), t.0);
         let refs: Vec<TypeId> =
             (0..params.len() as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
+        let mut lambda_params = Vec::new();
+        for &p in &params {
+            let info = self.u.info(p);
+            let bounds = self.u.map_type(info, &mut |u, x| match u.class_param(x) {
+                Some((owner, i)) if owner == c => refs.get(i).copied(),
+                _ => None,
+            });
+            lambda_params.push((self.u.symbol(p).name.clone(), bounds));
+        }
         let result = self.u.intern_type(Type::Applied(t, refs));
         Some(self.u.intern_type(Type::Lambda { binder, params: lambda_params, result }))
     }
 
     /// `(A, B, …)` for tuple class `c` applied to `args` as `A *: B *: … *: EmptyTuple`.
-    pub fn nested_pairs(&mut self, c: crate::SymbolId, args: &[TypeId]) -> Option<TypeId> {
+    pub fn nested_pairs(&mut self, c: SymbolId, args: &[TypeId]) -> Option<TypeId> {
+        if !self.u.symbol(c).name.starts_with("Tuple") {
+            return None;
+        }
         let full = self.u.full_name(c);
         let arity: usize = full.strip_prefix("scala.Tuple")?.parse().ok()?;
         if arity != args.len() {

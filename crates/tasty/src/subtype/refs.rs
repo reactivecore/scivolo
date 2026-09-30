@@ -54,8 +54,9 @@ impl Cmp<'_> {
         })
     }
 
-    /// Whether `t` is `Nothing` or erroneous.
+    /// Whether `t`, widened, is `Nothing` or erroneous.
     pub fn is_bottom(&mut self, t: TypeId) -> bool {
+        let t = self.u.widen(t);
         t == NOTHING || matches!(self.u.types().get(t), Type::Error)
     }
 

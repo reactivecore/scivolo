@@ -76,11 +76,10 @@ impl Cmp<'_> {
         }
     }
 
-    /// Whether `top` is `Any` for a value type `other`, or `AnyKind`.
+    /// Whether `top` is `Any` for a type `other` that is not a constructor, or `AnyKind`.
     fn is_top(&mut self, top: TypeId, other: TypeId) -> bool {
-        let lambda = matches!(self.u.types().get(other), Type::Lambda { .. });
         let any_kind = self.u.intern_type(Type::Sym(None, self.u.builtins().any_kind));
-        top == ANY && !lambda || top == any_kind
+        top == ANY && self.constructor_arity(other).is_none() || top == any_kind
     }
 
     /// `t` without its `&`-parts that are supertypes of `sub`; `None` if none remains.
@@ -128,13 +127,13 @@ impl Cmp<'_> {
             }
         }
         match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (Type::Annotated(x), _) => self.and_type(x, b),
-            (_, Type::Annotated(y)) => self.and_type(a, y),
+            (Type::Annotated(x), _) => self.glb(x, b),
+            (_, Type::Annotated(y)) => self.glb(a, y),
             (Type::ByName(x), Type::ByName(y)) => {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))
             }
-            _ => self.u.intern_type(Type::And(a, b)),
+            _ => self.lift_if_constructors(a, b, true),
         }
     }
 
@@ -147,7 +146,7 @@ impl Cmp<'_> {
                 let either = self.lub(x, y);
                 self.u.intern_type(Type::ByName(either))
             }
-            _ => self.u.intern_type(Type::Or(a, b)),
+            _ => self.lift_if_constructors(a, b, false),
         }
     }
 

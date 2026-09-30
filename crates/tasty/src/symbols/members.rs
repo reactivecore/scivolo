@@ -1,9 +1,9 @@
-//! Members of types (dotty's `Type.member`): through `this` and paths, of a class type, an
-//! alias's or abstract type's bound, both sides of an intersection, the first base class common
-//! to both sides of a union that declares the name. Refinements carry no symbols, so a
-//! refinement's parent answers for it.
+//! Members of types (dotty's `Type.member`): through `this` and paths, of a class type, through
+//! aliases and upper bounds, both sides of an intersection, the first base class common to all
+//! parts of a union that declares the name. Refinements carry no symbols, so a refinement's
+//! parent answers for it.
 
-use super::{SymbolId, Universe};
+use super::{Kind, SymbolId, Universe};
 use crate::tags::PRIVATE;
 use crate::types::{Type, TypeId};
 
@@ -28,35 +28,78 @@ impl Universe {
                 }
                 found
             }
-            Type::Or(a, b) => self.union_member(a, b, name),
-            Type::TermRef(..) | Type::Constant(..) | Type::Str(_) | Type::ByName(_) | Type::This(_) => {
-                let widened = self.widen(t);
-                match widened != t {
-                    true => self.member_of_type_within(widened, name, steps),
+            Type::Or(..) => {
+                let mut classes = Vec::new();
+                match self.union_classes(t, &mut classes, steps) {
+                    true => self.common_member(&classes, name),
                     false => Vec::new(),
                 }
-            }
-            Type::Sym(_, s) if self.symbol(s).kind.is_term() => {
-                let widened = self.widen(t);
-                self.member_of_type_within(widened, name, steps)
             }
             Type::Refined(p, ..) | Type::Annotated(p) | Type::Rec(_, p) => {
                 self.member_of_type_within(p, name, steps)
             }
+            _ => {
+                if let Some(c) = self.class_symbol(t) {
+                    return self.member(c, name);
+                }
+                match self.bound_of(t) {
+                    Some(u) => self.member_of_type_within(u, name, steps),
+                    None => Vec::new(),
+                }
+            }
+        }
+    }
+
+    /// The type `t` stands for when it has no class of its own: a path's or constant's
+    /// widened type, an alias's right-hand side, an abstract type's upper bound.
+    fn bound_of(&mut self, t: TypeId) -> Option<TypeId> {
+        let widened = self.widen(t);
+        if widened != t {
+            return Some(widened);
+        }
+        let dealiased = self.dealias(t);
+        if dealiased != t {
+            return Some(dealiased);
+        }
+        let s = match self.types().get(t).clone() {
+            Type::Sym(_, s) => s,
+            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::Bounds(_, hi) => return Some(hi),
+            _ => return None,
+        };
+        if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
+            return None;
+        }
+        let info = self.info(s);
+        match self.types().get(info).clone() {
+            Type::Bounds(_, hi) => Some(hi),
+            _ => None,
+        }
+    }
+
+    /// Adds the class of each part of union `t` to `classes`; `false` if a part has none.
+    fn union_classes(&mut self, t: TypeId, classes: &mut Vec<SymbolId>, steps: u32) -> bool {
+        let Some(steps) = steps.checked_sub(1) else { return false };
+        match self.types().get(t).clone() {
+            Type::Or(a, b) => self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps),
+            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a) | Type::Rec(_, a) => {
+                self.union_classes(a, classes, steps)
+            }
             _ => match self.class_symbol(t) {
-                Some(c) => self.member(c, name),
-                None => Vec::new(),
+                Some(c) => {
+                    classes.push(c);
+                    true
+                }
+                None => self.bound_of(t).is_some_and(|u| self.union_classes(u, classes, steps)),
             },
         }
     }
 
-    /// The members named `name` of the first base class common to the classes of `a` and `b`
-    /// that declares any.
-    fn union_member(&mut self, a: TypeId, b: TypeId, name: &str) -> Vec<SymbolId> {
-        let (wa, wb) = (self.widen(a), self.widen(b));
-        let (Some(ca), Some(cb)) = (self.class_symbol(wa), self.class_symbol(wb)) else { return Vec::new() };
-        for base in self.linearization(ca) {
-            if !self.derives_from(cb, base) {
+    /// The members named `name` of the first base class common to `classes` that declares any.
+    fn common_member(&mut self, classes: &[SymbolId], name: &str) -> Vec<SymbolId> {
+        let Some(&first) = classes.first() else { return Vec::new() };
+        for base in self.linearization(first) {
+            if !classes.iter().all(|&c| self.derives_from(c, base)) {
                 continue;
             }
             let found = self.member_where(base, name, |u, m| !u.symbol(m).flags.has(PRIVATE));
