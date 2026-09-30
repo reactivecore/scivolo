@@ -26,6 +26,7 @@ mod package_def;
 mod pat_def;
 mod pat_split;
 mod stats;
+mod uses;
 mod val_def;
 mod variables;
 mod walk;

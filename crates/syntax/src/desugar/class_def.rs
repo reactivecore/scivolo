@@ -96,6 +96,7 @@ impl Desugar<'_> {
         let rhs = self.ast.derived(c.template, template);
         let Tree::TypeDef { mods: old, .. } = *self.ast.tree(c.cdef) else { unreachable!("a class") };
         let cdef = self.ast.derived(c.cdef, Tree::TypeDef { name: c.name, rhs, mods: old });
+        let mods = self.add_impl_use(mods, &c.uses, false);
         self.ast.with_mods(cdef, mods)
     }
 
@@ -132,7 +133,7 @@ impl Desugar<'_> {
         let mods = self.ast.mods(m);
         let name = TName { is_type: false, ..c.name };
         let mdef = self.ast.node(Tree::ModuleDef { name, imp, mods });
-        let expanded = self.module_def(mdef);
+        let expanded = self.module_def(mdef, c.is(flags::MODULE));
         let expanded = self.ast.respan(expanded, self.ast.span(c.cdef));
         let mdefs = self.flatten(&[expanded]);
         if n > 0 {
@@ -169,7 +170,7 @@ impl Desugar<'_> {
         if paramss.first().is_some_and(Vec::is_empty) {
             paramss.remove(0);
         }
-        let clauses = self.join_params(&c.constr_tparams.clone(), &paramss);
+        let clauses = self.join_params(&c.constr_tparams, &paramss);
         let creator = self.creator_expr(c);
         let kept = c.mods.flags.to_term_flags().and(flags::GIVEN_OR_IMPLICIT.or(flags::INLINE));
         let m = self.companion_mods(c).or(kept.or(flags::FINAL));

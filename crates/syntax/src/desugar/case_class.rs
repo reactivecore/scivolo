@@ -6,7 +6,9 @@ use super::class_parts::ClassParts;
 use crate::ast::constant::Constant;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::Modifiers;
-use crate::ast::{NodeId, TName, Tree};
+use crate::ast::tree::ModsId;
+use crate::ast::{List, NodeId, TName, Tree};
+use crate::names::to_utf16;
 
 impl Desugar<'_> {
     /// `copy` and the `_N` selectors of case class `c`.
@@ -36,7 +38,7 @@ impl Desugar<'_> {
                         .collect(),
                 );
             }
-            let joined = self.join_params(&c.derived_tparams.clone(), &clauses);
+            let joined = self.join_params(&c.derived_tparams, &clauses);
             let mods = self.synthetic_access_mods(c);
             let creator = self.creator_expr(c);
             let name = self.term("copy");
@@ -52,7 +54,7 @@ impl Desugar<'_> {
             })
             .filter(|&n| is_selector_name(self.text(n)))
             .collect();
-        for (i, &param) in c.derived_vparamss[0].clone().iter().enumerate() {
+        for (i, &param) in c.derived_vparamss[0].iter().enumerate() {
             let sel = self.term(&format!("_{}", i + 1));
             let Tree::ValDef { name, tpt, .. } = *self.ast.tree(param) else { continue };
             if sel == name || names_in_body.contains(&sel) {
@@ -73,13 +75,12 @@ impl Desugar<'_> {
             let mods = self.synthetic_access_mods(c);
             let paramss: Vec<Vec<NodeId>> = c
                 .derived_vparamss
-                .clone()
                 .iter()
-                .zip(c.constr_vparamss.clone())
+                .zip(&c.constr_vparamss)
                 .map(|(aps, cps)| {
                     aps.iter()
                         .zip(cps)
-                        .map(|(&ap, cp)| {
+                        .map(|(&ap, &cp)| {
                             let default = self.flags_of_def(cp).and(flags::HAS_DEFAULT);
                             let Some(m) = self.ast.mods_of(ap) else { return ap };
                             let m = self.ast.modifiers(m).clone().or(default);
@@ -88,7 +89,7 @@ impl Desugar<'_> {
                         .collect()
                 })
                 .collect();
-            let joined = self.join_params(&c.derived_tparams.clone(), &paramss);
+            let joined = self.join_params(&c.derived_tparams, &paramss);
             let creator = self.creator_expr(c);
             let name = self.term("apply");
             meths.push(self.method(name, &joined, None, creator, mods));
@@ -111,10 +112,10 @@ impl Desugar<'_> {
         } else {
             (self.ident(param_name), None)
         };
-        let joined = self.join_params(&c.derived_tparams.clone(), &[vec![param]]);
+        let joined = self.join_params(&c.derived_tparams, &[vec![param]]);
         let mods = self.mods(flags::SYNTHETIC);
         meths.push(self.method(name, &joined, res, rhs, mods));
-        let text: Vec<u16> = crate::names::to_utf16(self.text(c.name));
+        let text: Vec<u16> = to_utf16(self.text(c.name));
         let lit = self.literal(Constant::String(text.into()));
         let mods = self.mods(flags::OVERRIDE.or(flags::SYNTHETIC));
         let name = self.term("toString");
@@ -123,7 +124,7 @@ impl Desugar<'_> {
     }
 
     /// `Synthetic` with the access of the primary constructor.
-    fn synthetic_access_mods(&mut self, c: &ClassParts) -> crate::ast::tree::ModsId {
+    fn synthetic_access_mods(&mut self, c: &ClassParts) -> ModsId {
         let constr = self.ast.modifiers(self.ast.mods_of(c.constr1).expect("modifiers")).clone();
         let access = if self.cfg.source_version.migrate_to_3() { flags::EMPTY } else { flags::ACCESS_FLAGS };
         let flags = flags::SYNTHETIC.or(constr.flags.and(access));
@@ -138,10 +139,10 @@ impl Desugar<'_> {
     pub fn method(
         &mut self,
         name: TName,
-        paramss: &[crate::ast::List],
+        paramss: &[List],
         tpt: Option<NodeId>,
         rhs: NodeId,
-        mods: crate::ast::tree::ModsId,
+        mods: ModsId,
     ) -> NodeId {
         let paramss = self.ast.clauses(paramss);
         let tpt = tpt.unwrap_or_else(|| self.type_tree());

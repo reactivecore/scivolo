@@ -3,7 +3,6 @@
 
 use super::Desugar;
 use super::class_params::Keep;
-use super::class_parts::ClassParts;
 use crate::ast::flags;
 use crate::ast::span::Span;
 use crate::ast::{List, NodeId, TName, Tree};
@@ -63,9 +62,8 @@ impl Desugar<'_> {
 
     /// `tycon` applied to the class's type parameters, at the start of the class (dotty's
     /// `appliedRef`).
-    pub fn applied_ref(&mut self, c: &ClassParts, tycon: NodeId) -> NodeId {
-        let args: Vec<NodeId> = c
-            .constr_tparams
+    pub fn applied_ref(&mut self, cdef: NodeId, tparams: &[NodeId], tycon: NodeId) -> NodeId {
+        let args: Vec<NodeId> = tparams
             .iter()
             .filter_map(|&t| match *self.ast.tree(t) {
                 Tree::TypeDef { name, .. } => Some(self.ident(name)),
@@ -78,7 +76,7 @@ impl Desugar<'_> {
             let args = self.list(&args);
             self.ast.node(Tree::AppliedTypeTree { tpt: tycon, args })
         };
-        let start = self.ast.span(c.cdef).start_pos();
+        let start = self.ast.span(cdef).start_pos();
         self.ast.respan(t, start)
     }
 

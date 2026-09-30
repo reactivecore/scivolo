@@ -8,8 +8,9 @@ use crate::ast::{Attrs, NodeId, TName, Tree};
 
 impl Desugar<'_> {
     /// The expansion of object definition `mdef`: `<module> val m: m$ = new m$` and
-    /// `<module> final class m$ { this: m.type => ... }`.
-    pub fn module_def(&mut self, mdef: NodeId) -> NodeId {
+    /// `<module> final class m$ { this: m.type => ... }`; the class keeps the name `m` if it
+    /// already names a module class.
+    pub fn module_def(&mut self, mdef: NodeId, module_class_name: bool) -> NodeId {
         let Tree::ModuleDef { name, imp, mods } = *self.ast.tree(mdef) else { return mdef };
         let name = self.normalize_name(name, imp);
         let m = self.ast.modifiers(mods).clone();
@@ -20,7 +21,8 @@ impl Desugar<'_> {
         if m.flags.is_all_of(flags::ENUM_CASE) {
             return mdef;
         }
-        let cls_name = self.type_name(&format!("{}$", self.text(name)));
+        let suffix = if module_class_name { "" } else { "$" };
+        let cls_name = self.type_name(&format!("{}{suffix}", self.text(name)));
         let cls_ref = self.ident(cls_name);
         let nu = self.make_new(cls_ref);
         let nu = self.apply(nu, &[]);
@@ -85,26 +87,23 @@ impl Desugar<'_> {
 
     /// Errors for modifiers an object cannot have (dotty's `checkWellFormedModule`).
     fn check_well_formed_module(&mut self, mdef: NodeId, m: &Modifiers) {
-        let checks: [(FlagSet, FlagSet, &str); 5] = [
-            (flags::OPEN, flags::OPEN, "open"),
-            (flags::INTO, flags::OPEN, "into"),
-            (flags::ABSTRACT, flags::ABSTRACT, "abstract"),
-            (flags::SEALED, flags::SEALED, "sealed"),
-            (flags::INFIX, flags::INFIX, "infix"),
+        let not_allowed = |text: &str| format!("Modifier {text} is not allowed for this definition");
+        let checks: [(bool, FlagSet, String, bool); 6] = [
+            (m.is(flags::OPEN), flags::OPEN, not_allowed("open"), true),
+            (m.is(flags::INTO), flags::OPEN, not_allowed("into"), true),
+            (m.is(flags::ABSTRACT), flags::ABSTRACT, not_allowed("abstract"), true),
+            (m.is(flags::SEALED), flags::SEALED, not_allowed("sealed"), true),
+            (
+                m.is(flags::FINAL) && !m.is(flags::SYNTHETIC),
+                flags::FINAL,
+                "Modifier final is redundant for this definition".into(),
+                false,
+            ),
+            (m.is(flags::INFIX), flags::INFIX, not_allowed("infix"), true),
         ];
-        for (i, (flag, at, text)) in checks.into_iter().enumerate() {
-            if i == 4 && m.is(flags::FINAL) && !m.is(flags::SYNTHETIC) {
-                self.flag_diagnostic(
-                    mdef,
-                    m,
-                    flags::FINAL,
-                    "Modifier final is redundant for this definition",
-                    false,
-                );
-            }
-            if m.is(flag) {
-                let msg = format!("Modifier {text} is not allowed for this definition");
-                self.flag_diagnostic(mdef, m, at, &msg, true);
+        for (applies, at, msg, error) in checks {
+            if applies {
+                self.flag_diagnostic(mdef, m, at, &msg, error);
             }
         }
     }

@@ -16,6 +16,8 @@ pub struct ClassParts {
     pub template: NodeId,
     pub parents: Vec<NodeId>,
     pub derived: Vec<NodeId>,
+    /// The `uses` clause, after the derived classes.
+    pub uses: Vec<NodeId>,
     pub constr1: NodeId,
     pub constr: NodeId,
     pub default_getters: Vec<NodeId>,
@@ -61,11 +63,8 @@ impl Desugar<'_> {
         let items = self.ast.items(parents_or_derived).to_vec();
         let (parents, derived) = items.split_at(items.len() - derived.unwrap_or(0) as usize);
         let parents = parents.to_vec();
-        let derived: Vec<NodeId> = derived
-            .iter()
-            .copied()
-            .take_while(|&d| !matches!(self.ast.tree(d), Tree::UseRef { .. }))
-            .collect();
+        let own = derived.iter().take_while(|&&d| !matches!(self.ast.tree(d), Tree::UseRef { .. })).count();
+        let (derived, uses) = (derived[..own].to_vec(), derived[own..].to_vec());
         let expanded = self.def_def(constr, true);
         let (constr1, mut default_getters) = self.decompose(expanded);
         let clauses = self.clauses_of(constr1);
@@ -135,6 +134,9 @@ impl Desugar<'_> {
             .collect();
         let joined = self.join_params(&constr_tparams, &constr_vparamss);
         let constr = self.with_clauses(constr1, &joined);
+        let constr_mods = self.ast.modifiers(self.ast.mods_of(constr1).expect("modifiers")).clone();
+        let constr_mods = self.add_impl_use(constr_mods, &uses, true);
+        let constr = self.ast.with_mods(constr, constr_mods);
         let mut body = Vec::new();
         for stat in self.ast.items(stats).to_vec() {
             body.push(match *self.ast.tree(stat) {
@@ -149,13 +151,15 @@ impl Desugar<'_> {
             });
         }
         let class_tycon = self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::TypeRef, watched: name });
-        let mut parts = ClassParts {
+        let class_type_ref = self.applied_ref(cdef, &constr_tparams, class_tycon);
+        ClassParts {
             cdef,
             name,
             mods,
             template,
             parents,
             derived,
+            uses,
             constr1,
             constr,
             default_getters,
@@ -167,10 +171,8 @@ impl Desugar<'_> {
             derived_vparamss,
             body,
             class_tycon,
-            class_type_ref: class_tycon,
+            class_type_ref,
             creator: None,
-        };
-        parts.class_type_ref = self.applied_ref(&parts, class_tycon);
-        parts
+        }
     }
 }

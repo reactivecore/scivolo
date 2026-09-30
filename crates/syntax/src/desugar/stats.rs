@@ -44,7 +44,7 @@ impl Desugar<'_> {
             }
             Tree::ModuleDef { mods, .. } if !self.ast.modifiers(mods).flags.is_all_of(flags::ENUM_CASE) => {
                 let stat = self.check_modifiers(stat);
-                self.module_def(stat)
+                self.module_def(stat, false)
             }
             Tree::PackageDef { .. } => self.package_def(stat),
             Tree::ExtMethods { .. } => self.ext_methods(stat),

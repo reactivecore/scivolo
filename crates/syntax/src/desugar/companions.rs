@@ -3,7 +3,7 @@
 
 use super::Desugar;
 use crate::ast::flags;
-use crate::ast::{Attrs, NodeId, TName, Tree};
+use crate::ast::{Attrs, List, NodeId, TName, Tree};
 
 impl Desugar<'_> {
     /// The expansions of a statement list with each synthetic module class folded into the
@@ -112,7 +112,7 @@ impl Desugar<'_> {
         merged
     }
 
-    fn derived_of(&self, parents_or_derived: crate::ast::List, derived: Option<u32>) -> Vec<NodeId> {
+    fn derived_of(&self, parents_or_derived: List, derived: Option<u32>) -> Vec<NodeId> {
         let items = self.ast.items(parents_or_derived);
         items[items.len() - derived.unwrap_or(0) as usize..].to_vec()
     }
