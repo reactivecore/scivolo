@@ -42,6 +42,15 @@ impl Desugar<'_> {
         }
     }
 
+    /// The parents of template `imp`, without its derived classes.
+    pub fn parents_of(&self, imp: NodeId) -> Vec<NodeId> {
+        let Tree::Template { parents_or_derived, derived, .. } = *self.ast.tree(imp) else {
+            return Vec::new();
+        };
+        let items = self.ast.items(parents_or_derived);
+        items[..items.len() - derived.unwrap_or(0) as usize].to_vec()
+    }
+
     pub fn clauses_of(&self, ddef: NodeId) -> Vec<List> {
         match *self.ast.tree(ddef) {
             Tree::DefDef { paramss, .. } => self.ast.clause_items(paramss).to_vec(),

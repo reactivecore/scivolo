@@ -88,7 +88,10 @@ impl Desugar<'_> {
 
     pub fn def_name(&self, t: NodeId) -> Option<TName> {
         match *self.ast.tree(t) {
-            Tree::ValDef { name, .. } | Tree::TypeDef { name, .. } | Tree::DefDef { name, .. } => Some(name),
+            Tree::ValDef { name, .. }
+            | Tree::TypeDef { name, .. }
+            | Tree::DefDef { name, .. }
+            | Tree::ModuleDef { name, .. } => Some(name),
             _ => None,
         }
     }

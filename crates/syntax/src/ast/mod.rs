@@ -57,6 +57,10 @@ impl Attrs {
     pub const EVIDENCE: Attrs = Attrs(1 << 16);
     /// A companion object that receives the `derives` clause of its class.
     pub const DERIVING_COMPANION: Attrs = Attrs(1 << 17);
+    /// The last case of an enum, whose expansion adds the enum's lookup methods.
+    pub const ENUM_LOOKUPS: Attrs = Attrs(1 << 18);
+    /// A template of an enum value, which gets a singleton mirror.
+    pub const SINGLETON_MIRROR: Attrs = Attrs(1 << 19);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

@@ -1,7 +1,6 @@
 //! Statement lists, blocks and templates: definitions expanded as dotty's Namer enters them.
 
 use super::{Desugar, Mode};
-use crate::ast::flags;
 use crate::ast::{List, NodeId, Tree};
 
 impl Desugar<'_> {
@@ -15,6 +14,7 @@ impl Desugar<'_> {
         let expanded: Vec<NodeId> = items.iter().map(|&t| self.expand_stat(t)).collect();
         let merged = self.merge_companions(&expanded);
         let flat = self.flatten(&merged);
+        self.register_classes(&flat);
         let mapped: Vec<NodeId> = flat.iter().map(|&t| self.transform(t)).collect();
         self.list(&mapped)
     }
@@ -22,9 +22,7 @@ impl Desugar<'_> {
     /// `stat` as Namer expands it before entering it.
     fn expand_stat(&mut self, stat: NodeId) -> NodeId {
         match *self.ast.tree(stat) {
-            Tree::PatDef { mods, .. } if !self.ast.modifiers(mods).flags.is_all_of(flags::ENUM_CASE) => {
-                self.pat_def(stat)
-            }
+            Tree::PatDef { .. } => self.pat_def(stat),
             Tree::ValDef { .. } => {
                 let stat = self.check_modifiers(stat);
                 self.val_def(stat)
@@ -38,11 +36,11 @@ impl Desugar<'_> {
                 let stat = self.check_modifiers(stat);
                 self.type_def(stat)
             }
-            Tree::TypeDef { mods, .. } if !self.ast.modifiers(mods).is(flags::ENUM) => {
+            Tree::TypeDef { .. } => {
                 let stat = self.check_modifiers(stat);
                 self.class_def(stat)
             }
-            Tree::ModuleDef { mods, .. } if !self.ast.modifiers(mods).flags.is_all_of(flags::ENUM_CASE) => {
+            Tree::ModuleDef { .. } => {
                 let stat = self.check_modifiers(stat);
                 self.module_def(stat, false)
             }

@@ -57,7 +57,7 @@ impl Ast {
         let node = self.get_mut(id);
         node.span = span;
         node.attrs = node.attrs.union(attrs);
-        self.remove_attrs(id, Attrs::XML_BLOCK.union(Attrs::DERIVING_COMPANION));
+        self.remove_attrs(id, Attrs::XML_BLOCK.union(Attrs::DERIVING_COMPANION).union(Attrs::ENUM_LOOKUPS));
         id
     }
 

@@ -53,6 +53,26 @@ impl Desugar<'_> {
         unit
     }
 
+    /// `Array[tpt](values)(using ClassTag[tpt](classOf[tpt]))` (dotty's `ArrayLiteral`).
+    pub fn array_literal(&mut self, values: &[NodeId], tpt: NodeId) -> NodeId {
+        let class_of = self.sym_ref("scala.Predef$.classOf", false);
+        let args = self.list(&[tpt]);
+        let class_of = self.ast.node(Tree::TypeApply { fun: class_of, args });
+        let class_tag = self.sym_ref("scala.reflect.ClassTag$.apply", false);
+        let args = self.list(&[tpt]);
+        let class_tag = self.ast.node(Tree::TypeApply { fun: class_tag, args });
+        let class_tag = self.apply(class_tag, &[class_of]);
+        let array = self.sym_ref("scala.Array", false);
+        let apply = self.term("apply");
+        let apply = self.select(array, apply);
+        let args = self.list(&[tpt]);
+        let apply = self.ast.node(Tree::TypeApply { fun: apply, args });
+        let apply = self.apply(apply, values);
+        let apply = self.apply(apply, &[class_tag]);
+        self.ast.add_attrs(apply, Attrs::USING_APPLY);
+        apply
+    }
+
     /// `new tpt` as an annotation without arguments (dotty's `New(tpt)`).
     pub fn new_annot(&mut self, class: &str) -> NodeId {
         let tpt = self.sym_ref(class, true);

@@ -3,6 +3,7 @@
 
 use super::Desugar;
 use crate::ast::flags;
+use crate::ast::span::Span;
 use crate::ast::{Attrs, NodeId, TName, Tree};
 
 /// How the right-hand side of a pattern definition is taken apart.
@@ -21,10 +22,26 @@ const GIVEN_IN_VAL: &str = "given patterns are not allowed in a val definition,\
 impl Desugar<'_> {
     /// `val p1, ..., pN: T = E` as the definitions of `makePatDef` for each pattern.
     pub fn pat_def(&mut self, id: NodeId) -> NodeId {
-        let Tree::PatDef { pats, tpt, rhs, .. } = *self.ast.tree(id) else {
+        let Tree::PatDef { pats, tpt, rhs, mods } = *self.ast.tree(id) else {
             unreachable!("a pattern definition")
         };
         let mut pats = self.ast.items(pats).to_vec();
+        if self.is_enum_case(id) {
+            let lookups = self.defines_enum_lookups(id);
+            let m = self.ast.modifiers(mods).clone();
+            let last = pats.len().saturating_sub(1);
+            let cases: Vec<NodeId> = pats
+                .iter()
+                .enumerate()
+                .map(|(i, &p)| {
+                    let Tree::Ident { name } = *self.ast.tree(p) else { return p };
+                    let s = self.ast.span(p);
+                    let span = Span::new(s.start(), s.end(), s.start());
+                    self.expand_simple_enum_case(name, m.clone(), lookups && i == last, span)
+                })
+                .collect();
+            return self.flat_tree(&cases);
+        }
         if !matches!(self.ast.tree(tpt), Tree::TypeTree | Tree::Empty) {
             for p in &mut pats {
                 *p = self.ast.node(Tree::Typed { expr: *p, tpt });

@@ -71,6 +71,7 @@ pub const MACRO: FlagSet = both(58);
 pub const ACCESS_FLAGS: FlagSet = LOCAL.or(PRIVATE).or(PROTECTED);
 pub const GIVEN_OR_IMPLICIT: FlagSet = GIVEN.or(IMPLICIT);
 pub const PRIVATE_LOCAL: FlagSet = LOCAL.or(PRIVATE);
+pub const ENUM_VALUE: FlagSet = ENUM.or(STABLE_REALIZABLE);
 pub const DEFERRED_GIVEN_FLAGS: FlagSet = DEFERRED.or(GIVEN).or(HAS_DEFAULT);
 /// The flags of a module val and class that desugaring keeps (dotty's
 /// `RetainedModuleValAndClassFlags`, of the flags modifiers can set).

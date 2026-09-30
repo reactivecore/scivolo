@@ -19,7 +19,15 @@ impl Desugar<'_> {
             return self.package_module_def(mdef, name, imp, m);
         }
         if m.flags.is_all_of(flags::ENUM_CASE) {
-            return mdef;
+            let enum_tparams: Vec<TName> = self
+                .enum_class()
+                .map(|c| self.classes[c].tparams.iter().map(|&(n, _)| n).collect())
+                .unwrap_or_default();
+            let parents = self.parents_of(imp);
+            self.type_param_is_referenced(&enum_tparams, &[], &[], &parents);
+            let lookups = self.defines_enum_lookups(mdef);
+            let span = self.ast.span(mdef);
+            return self.expand_enum_module(name, imp, m, lookups, span);
         }
         let suffix = if module_class_name { "" } else { "$" };
         let cls_name = self.type_name(&format!("{}{suffix}", self.text(name)));

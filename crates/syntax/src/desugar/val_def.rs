@@ -44,7 +44,7 @@ impl Desugar<'_> {
         }
         let setter_name = self.term(&format!("{}_=", self.text(name)));
         let param_tpt =
-            self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::SetterParam, watched: name });
+            self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::SetterParam, watched: Some(name) });
         let param_name = self.term("x$1");
         let param_mods = self.mods(flags::SYNTHETIC_TERM_PARAM);
         let param =

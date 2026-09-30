@@ -3,6 +3,7 @@
 
 use super::Desugar;
 use super::class_parts::ClassParts;
+use super::class_syms::CaseKind;
 use crate::ast::constant::Constant;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::Modifiers;
@@ -11,8 +12,20 @@ use crate::ast::{List, NodeId, TName, Tree};
 use crate::names::to_utf16;
 
 impl Desugar<'_> {
-    /// `copy` and the `_N` selectors of case class `c`.
-    pub fn case_class_meths(&mut self, c: &mut ClassParts) -> Vec<NodeId> {
+    /// `copy`, an enum case's `ordinal` and the `_N` selectors of case class `c`; and the lookup
+    /// methods of the enum if `c` is its last case.
+    pub fn case_class_meths(&mut self, c: &mut ClassParts) -> (Vec<NodeId>, Vec<NodeId>) {
+        let (enum_meths, scaffolding) = if c.mods.flags.is_all_of(flags::ENUM_CASE) {
+            let lookups = self.defines_enum_lookups(c.cdef);
+            let (ordinal, scaffolding) = self.next_ordinal(c.name, CaseKind::Class, lookups);
+            let int = self.sym_ref("scala.Int", true);
+            let lit = self.literal(Constant::Int(ordinal as i32));
+            let mods = self.mods(flags::SYNTHETIC);
+            let name = self.term("ordinal");
+            (vec![self.method(name, &[], Some(int), lit, mods)], scaffolding)
+        } else {
+            (Vec::new(), Vec::new())
+        };
         let mut meths = Vec::new();
         let repeated = c.constr_vparamss.iter().flatten().any(|&p| match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => self.is_repeated(tpt),
@@ -44,6 +57,7 @@ impl Desugar<'_> {
             let name = self.term("copy");
             meths.push(self.method(name, &joined, None, creator, mods));
         }
+        meths.extend(enum_meths);
         let names_in_body: Vec<TName> = c
             .body
             .iter()
@@ -65,7 +79,7 @@ impl Desugar<'_> {
             let mods = self.mods(flags::SYNTHETIC);
             meths.push(self.method(sel, &[], Some(tpt), rhs, mods));
         }
-        meths
+        (meths, scaffolding)
     }
 
     /// `apply`, `unapply` and `toString` of the companion of case class `c`.
