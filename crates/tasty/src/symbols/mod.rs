@@ -6,6 +6,7 @@ mod classes;
 mod define;
 mod enter;
 mod info;
+mod inits;
 mod jdk;
 mod lookup;
 mod members;

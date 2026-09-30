@@ -47,6 +47,23 @@ fn parents_and_linearization() {
 }
 
 #[test]
+fn classes_without_initialization_code() {
+    let Some(mut u) = stdlib() else { return };
+    for (pkg, name, expected) in [
+        ("scala", "Product", true),
+        ("scala", "Option", true),
+        ("scala", "Some", true),
+        ("scala.collection.immutable", "Range", false),
+        ("scala.collection.mutable", "ArrayBuffer", false),
+    ] {
+        let c = class(&mut u, pkg, name);
+        assert_eq!(u.no_inits(c), expected, "{pkg}.{name}");
+    }
+    let builtins = u.builtins();
+    assert!(u.no_inits(builtins.any) && u.no_inits(builtins.object));
+}
+
+#[test]
 fn derivation_and_inherited_members() {
     let Some(mut u) = stdlib() else { return };
     let list = class(&mut u, "scala.collection.immutable", "List");
