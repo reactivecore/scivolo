@@ -15,7 +15,8 @@ fn main() {
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let mut u = Universe::open(&typer::dump::library_jars(&libs)).expect("opening the library");
     let text = std::fs::read_to_string(file).expect("reading the source");
-    let name = std::path::Path::new(file).file_name().map_or(file.clone(), |n| n.to_string_lossy().into_owned());
+    let name =
+        std::path::Path::new(file).file_name().map_or(file.clone(), |n| n.to_string_lossy().into_owned());
     match lower::compile(&mut u, &SourceFile::new(name, text), &[]) {
         Ok(files) => {
             let out = PathBuf::from(out);
