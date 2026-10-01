@@ -45,7 +45,7 @@ impl Builtins {
 }
 
 /// A symbol of `kind` without TASTy, flagged with the modifier tags `flags`.
-fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8]) -> SymbolId {
+pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8]) -> SymbolId {
     let flags = flags.iter().fold(Flags::default(), |f, &t| f.with(t));
     u.add(Symbol {
         name: name.into(),
@@ -96,6 +96,7 @@ pub fn enter(u: &mut Universe) -> Builtins {
     u.infos.insert(any_ref, object_ref);
     let any_val =
         u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
+    super::any_members::enter(u, any, object);
     Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object, any_val }
 }
 

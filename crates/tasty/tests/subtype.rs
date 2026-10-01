@@ -168,6 +168,20 @@ fn outer_this_types_are_seen_from_the_prefix() {
 }
 
 #[test]
+fn any_declares_the_universal_members_and_object_adds_eq() {
+    let Some(mut u) = universe() else { return };
+    let object = parse(&mut u, "java.lang.Object");
+    let owners = |u: &mut Universe, name: &str| -> Vec<String> {
+        let members = u.member_of_type(object, name);
+        members.into_iter().map(|m| u.full_name(u.symbol(m).owner.unwrap())).collect()
+    };
+    assert_eq!(owners(&mut u, "toString"), ["scala.Any"]);
+    assert_eq!(owners(&mut u, "=="), ["scala.Any"]);
+    assert_eq!(owners(&mut u, "eq"), ["java.lang.Object"]);
+    assert_eq!(owners(&mut u, "synchronized"), ["java.lang.Object"]);
+}
+
+#[test]
 fn members_of_types() {
     let Some(mut u) = universe() else { return };
     let has = |u: &mut Universe, t: &str, name: &str| {

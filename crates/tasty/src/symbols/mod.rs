@@ -1,6 +1,7 @@
 //! The symbols of a library: packages known up front, each top-level file's classes and members
 //! entered when a name it defines is first looked up.
 
+mod any_members;
 mod builtin;
 mod classes;
 mod define;

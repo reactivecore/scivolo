@@ -1,7 +1,7 @@
 //! Base types and member types as seen from a prefix (dotty's `baseType` and `asSeenFrom`).
 
 use super::{Kind, SymbolId, Universe};
-use crate::tags::OPAQUE;
+use crate::tags::{OBJECT, OPAQUE};
 use crate::types::{Type, TypeId};
 
 /// How many aliases and parents `base_type` follows.
@@ -105,6 +105,7 @@ impl Universe {
     /// them, the type parameters of `owner` by the arguments `prefix` gives them.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
+            Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)
@@ -121,6 +122,19 @@ impl Universe {
                 }
             }
         })
+    }
+
+    /// Whether `s` is reached through static paths only: its owner is a package or an object
+    /// that is itself static.
+    pub fn is_static_symbol(&self, s: SymbolId) -> bool {
+        match self.symbol(s).owner {
+            None => true,
+            Some(o) => {
+                let owner = self.symbol(o);
+                owner.kind == Kind::Package
+                    || (owner.kind == Kind::Class && owner.flags.has(OBJECT) && self.is_static_symbol(o))
+            }
+        }
     }
 
     /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of
