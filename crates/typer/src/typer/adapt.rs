@@ -12,11 +12,15 @@ impl Typer<'_> {
     /// than the subset has is outside it.
     pub fn adapt(&mut self, tree: TNodeId, pt: Pt) -> TNodeId {
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Args(_)) {
+        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_)) {
             return tree;
         }
         let span = self.tpd.span(tree);
-        let method = self.method_info(tpe).map(|i| self.u.types().get(i).clone());
+        if let Type::Method { implicit: true, .. } = self.u.types().get(tpe) {
+            self.unsupported_at(span, "implicit arguments");
+            return tree;
+        }
+        let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
             return tree;
@@ -44,10 +48,10 @@ impl Typer<'_> {
         self.tpd.node(T::Block { stats, expr: literal }, span.to_synthetic(), Some(unit), None)
     }
 
-    /// Literal `tree` converted to the primitive class of `pt` (dotty's `Constant.convertTo`).
+    /// The constant of `tree` converted to the primitive class of `pt` (dotty's
+    /// `Constant.convertTo`, `adaptConstant`).
     fn converted_constant(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
-        let T::Literal { ref value } = *self.tpd.tree(tree) else { return None };
-        let value = value.clone();
+        let value = self.constant_of(tree)?;
         let target = self.u.class_symbol(pt).map(|c| self.u.full_name(c))?;
         let (converted, lossy) = match (&value, target.as_str()) {
             (Constant::Char(c), "scala.Int") => (Constant::Int(*c as i32), false),
@@ -74,7 +78,23 @@ impl Typer<'_> {
             );
             self.diags.warning(span.point(), msg);
         }
-        let tpe = self.literal_type(&converted);
-        Some(self.tpd.node(T::Literal { value: converted }, span, Some(tpe), None))
+        Some(self.with_constant(tree, converted))
+    }
+
+    /// `tree` evaluated for constant `value`: the literal alone if `tree` is pure.
+    fn with_constant(&mut self, tree: TNodeId, value: Constant) -> TNodeId {
+        let span = self.tpd.span(tree);
+        let tpe = self.literal_type(&value);
+        if let T::Block { stats, expr } = *self.tpd.tree(tree) {
+            let expr = self.with_constant(expr, value);
+            return self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None);
+        }
+        let pure = matches!(self.tpd.tree(tree), T::Literal { .. }) || self.is_pure_expr(tree);
+        let literal = self.tpd.node(T::Literal { value }, span, Some(tpe), None);
+        if pure {
+            return literal;
+        }
+        let stats = self.tpd.list(&[tree]);
+        self.tpd.node(T::Block { stats, expr: literal }, span.to_synthetic(), Some(tpe), None)
     }
 }

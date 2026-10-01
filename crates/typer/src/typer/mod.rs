@@ -4,6 +4,8 @@ mod access;
 mod adapt;
 mod apply;
 mod classes;
+mod const_fold;
+mod const_ops;
 mod control;
 mod defs;
 mod derived;
@@ -13,6 +15,7 @@ mod import_tree;
 mod imports;
 mod literals;
 mod no_inits;
+mod overloads;
 mod overrides;
 mod parents;
 mod patterns;
@@ -23,6 +26,7 @@ mod stats;
 mod this;
 mod type_defs;
 mod type_trees;
+mod views;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
@@ -39,8 +43,8 @@ use tasty::{Type, TypeId, Universe};
 pub enum Pt {
     Any,
     Type(TypeId),
-    /// A function applied to this many arguments (dotty's `FunProto`).
-    Args(usize),
+    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
+    Fun(usize),
 }
 
 pub struct Typer<'a> {
@@ -60,6 +64,8 @@ pub struct Typer<'a> {
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
+    /// The argument lists of the applications being typed.
+    pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many `typed` calls are in progress, one inside another.
@@ -85,6 +91,7 @@ impl<'a> Typer<'a> {
             splices: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
+            protos: Vec::new(),
             unsupported: None,
             depth: 0,
         })

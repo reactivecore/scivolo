@@ -27,7 +27,7 @@ mod given_name;
 mod map;
 mod members;
 mod module_def;
-mod package_def;
+pub mod package_def;
 mod pat_def;
 mod pat_split;
 mod stats;

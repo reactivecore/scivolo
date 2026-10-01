@@ -72,6 +72,13 @@ impl Syms {
         s
     }
 
+    /// Gives script symbol `s` dotty flags `flags`.
+    pub fn set_flags(&mut self, u: &mut Universe, s: SymbolId, flags: FlagSet) {
+        let is_term = !is_type_symbol(u, s);
+        u.set_flags(s, pickled(flags, is_term));
+        self.flags.insert(s, flags);
+    }
+
     /// A binder no other method or type lambda has.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;

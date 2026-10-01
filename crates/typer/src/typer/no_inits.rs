@@ -7,12 +7,12 @@ use syntax::ast::{NodeId, Tree};
 use tasty::SymbolId;
 
 impl Typer<'_> {
-    /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`).
-    /// A companion object desugaring synthesized counts as part of its class, which dotty sees
-    /// before desugaring.
+    /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`):
+    /// a synthetic companion object counts as part of its class, an extension method does not.
     fn is_no_init_member(&self, s: NodeId) -> bool {
         match *self.ast.tree(s) {
-            Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } | Tree::DefDef { .. } => true,
+            Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } => true,
+            Tree::DefDef { mods, .. } => !self.ast.modifiers(mods).flags.is(f::EXTENSION_METHOD),
             Tree::ValDef { rhs, mods, .. } => {
                 let flags = self.ast.modifiers(mods).flags;
                 rhs.is_none()

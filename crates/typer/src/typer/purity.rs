@@ -24,27 +24,35 @@ impl Typer<'_> {
     pub fn is_pure_expr(&mut self, tree: TNodeId) -> bool {
         match *self.tpd.tree(tree) {
             T::Literal { .. } | T::This { .. } | T::New { .. } => true,
-            T::Ident { .. } => self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree)),
-            T::Select { qualifier, .. } => {
-                self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree))
-                    && self.is_pure_expr(qualifier)
-            }
+            T::Ident { .. } => self.is_pure_ref(tree),
+            T::Select { qualifier, .. } => self.is_pure_ref(tree) && self.is_pure_expr(qualifier),
             T::Apply { fun, args } => {
                 let callee = self.callee(fun);
                 let stable_ctor = callee.is_some_and(|s| {
                     self.u.symbol(s).name == "<init>" && self.u.symbol(s).flags.has(tasty::tags::STABLE)
                 });
                 let pure_op = stable_ctor
-                    || callee.and_then(|s| self.u.symbol(s).owner).is_some_and(|o| {
-                        let name = self.u.full_name(o);
-                        PURE_OP_OWNERS.contains(&name.as_str())
-                    });
+                    || self.has_constant_type(tree)
+                        && callee.and_then(|s| self.u.symbol(s).owner).is_some_and(|o| {
+                            let name = self.u.full_name(o);
+                            PURE_OP_OWNERS.contains(&name.as_str())
+                        });
                 let args = self.tpd.items(args).to_vec();
                 pure_op && self.is_pure_expr(fun) && args.into_iter().all(|a| self.is_pure_expr(a))
             }
             T::Block { stats, expr } => self.tpd.items(stats).is_empty() && self.is_pure_expr(expr),
             _ => false,
         }
+    }
+
+    fn has_constant_type(&self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.get(tree).tpe;
+        tpe.is_some_and(|t| matches!(self.u.types().get(t), tasty::Type::Constant(..) | tasty::Type::Str(_)))
+    }
+
+    /// Whether reference `tree` has a constant type or refers to a stable symbol.
+    fn is_pure_ref(&mut self, tree: TNodeId) -> bool {
+        self.has_constant_type(tree) || self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree))
     }
 
     /// Whether reference `tree` to `s` evaluates nothing: a stable value, an object, a package,

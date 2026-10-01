@@ -1,0 +1,118 @@
+//! Whether an implicit conversion might turn one type into another (dotty's `viewExists`),
+//! decided without implicit search: by the result and parameter classes of the implicit methods
+//! the imports and the companions of both types offer.
+
+use super::Typer;
+use super::imports::ImportInfo;
+use crate::ctx::{Ctx, Level};
+use syntax::ast::flags as f;
+use tasty::tags::{GIVEN, IMPLICIT, OBJECT};
+use tasty::{Kind, SymbolId, Type, TypeId};
+
+impl Typer<'_> {
+    /// Whether a view from `arg` to `param` may be visible in `ctx`: `false` only when none is.
+    pub fn view_may_exist(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> bool {
+        if self.syms.flags.values().any(|fl| fl.is(f::IMPLICIT) || fl.is(f::GIVEN)) {
+            return true;
+        }
+        let widened = self.u.widen(arg);
+        let (Some(from), Some(to)) = (self.u.class_symbol(widened), self.u.class_symbol(param)) else {
+            return true;
+        };
+        let mut candidates = Vec::new();
+        for c in [from, to] {
+            for base in self.u.linearization(c) {
+                if let Some(companion) = self.companion_class(base) {
+                    candidates.extend(self.all_members(companion));
+                }
+            }
+        }
+        let mut level = Some(ctx.level);
+        while let Some(l) = level {
+            if let Level::Import(i) = *self.levels.get(l) {
+                match self.imported_candidates(i) {
+                    Some(syms) => candidates.extend(syms),
+                    None => return true,
+                }
+            }
+            level = self.levels.outer(l);
+        }
+        candidates.into_iter().any(|m| self.may_convert(m, from, to))
+    }
+
+    /// Whether `m` is a given, or an implicit method from a subclass of `from` to one of `to`.
+    fn may_convert(&mut self, m: SymbolId, from: SymbolId, to: SymbolId) -> bool {
+        let flags = self.u.symbol(m).flags;
+        if flags.has(GIVEN) {
+            return true;
+        }
+        if !flags.has(IMPLICIT) || self.u.symbol(m).kind != Kind::Def {
+            return false;
+        }
+        let mut info = self.u.info(m);
+        if let Type::Poly { result, .. } = self.u.types().get(info) {
+            info = *result;
+        }
+        let Type::Method { params, mut result, implicit: false, .. } = self.u.types().get(info).clone()
+        else {
+            return false;
+        };
+        let [(_, view_param)] = params[..] else { return false };
+        while let Type::Method { result: r, implicit: true, .. } = self.u.types().get(result) {
+            result = *r;
+        }
+        let fits = |t: &mut Self, ty: TypeId, c: SymbolId, sub: bool| match t.u.class_symbol(ty) {
+            Some(k) if sub => t.u.derives_from(c, k),
+            Some(k) => t.u.derives_from(k, c),
+            None => true,
+        };
+        fits(self, view_param, from, true) && fits(self, result, to, false)
+    }
+
+    /// The members import `i` makes visible, `None` if unknown.
+    fn imported_candidates(&mut self, i: usize) -> Option<Vec<SymbolId>> {
+        let ImportInfo { qual, selectors, .. } = self.import_info(i)?;
+        let (qual, names) = (*qual, selectors.iter().map(|s| s.name.clone()).collect::<Vec<_>>());
+        let site = self.import_site(qual)?;
+        let classes = match self.u.symbol(site).kind {
+            Kind::Package => self.package_objects(site),
+            _ => vec![self.u.module_class(site)?],
+        };
+        let mut out = Vec::new();
+        for c in classes {
+            let members = self.all_members(c);
+            let wildcard = names.iter().any(|n| n == "_" || n.is_empty());
+            out.extend(members.into_iter().filter(|&m| wildcard || names.contains(&self.u.symbol(m).name)));
+        }
+        Some(out)
+    }
+
+    /// The classes of the package objects of `pkg`.
+    fn package_objects(&mut self, pkg: SymbolId) -> Vec<SymbolId> {
+        let decls = self.u.decls(pkg).unwrap_or_default();
+        decls
+            .into_iter()
+            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_package_object(d))
+            .collect()
+    }
+
+    /// The class of the companion object of class `c`.
+    fn companion_class(&mut self, c: SymbolId) -> Option<SymbolId> {
+        let owner = self.u.symbol(c).owner?;
+        let name = self.u.symbol(c).name.clone();
+        let decls = self.u.decl(owner, &name).ok()?;
+        let module = decls
+            .into_iter()
+            .find(|&d| self.u.symbol(d).flags.has(OBJECT) && self.u.symbol(d).kind == Kind::Val)?;
+        self.u.module_class(module)
+    }
+
+    /// The declarations of class `c` and its base classes.
+    fn all_members(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        let mut out = Vec::new();
+        for base in self.u.linearization(c) {
+            out.extend(self.u.decls(base).unwrap_or_default());
+        }
+        out
+    }
+}

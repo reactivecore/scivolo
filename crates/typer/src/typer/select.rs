@@ -45,9 +45,36 @@ impl Typer<'_> {
         self.u.member(c, name)
     }
 
+    /// Whether term `s` denotes the same value each time: not a variable, not a method unless a
+    /// stable one (dotty's `isStableMember`).
+    fn is_stable_member(&self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        match sym.kind {
+            Kind::Val | Kind::Param => !sym.flags.has(tasty::tags::MUTABLE),
+            Kind::Def => sym.flags.has(tasty::tags::STABLE),
+            _ => true,
+        }
+    }
+
+    /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
+    /// `widenIfUnstable`).
+    fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
+        match self.u.types().get(t).clone() {
+            Type::ByName(r) => self.widen_if_unstable(r),
+            Type::Sym(_, s) if !self.is_type_symbol(s) && !self.is_stable_member(s) => {
+                match self.method_info(t) {
+                    Some(info) if info != t => self.widen_if_unstable(info),
+                    _ => t,
+                }
+            }
+            _ => t,
+        }
+    }
+
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let qual = self.typed(qualifier, Pt::Any, ctx);
         let qual_tpe = self.tpd.tpe(qual);
+        let qual_tpe = self.widen_if_unstable(qual_tpe);
         let text = self.text(name.name).to_owned();
         let syms: Vec<SymbolId> = self
             .type_members(qual_tpe, &text)
@@ -57,11 +84,11 @@ impl Typer<'_> {
         if syms.is_empty() {
             return self.unsupported(id, "member not found: extension or conversion");
         }
-        let sym = match self.choose(&syms, pt) {
+        let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => sym,
             Err(what) => return self.unsupported(id, what),
         };
-        if let Err(what) = self.check_reference(sym, ctx) {
+        if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);
         }
         let flags = self.u.symbol(sym).flags;
@@ -69,8 +96,18 @@ impl Typer<'_> {
         if protected && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
             return self.unsupported(id, "protected member through a path");
         }
+        let projection = self.tpd.sym(qual).is_some_and(|q| self.is_type_symbol(q));
+        if projection && self.u.symbol(sym).kind == Kind::Type {
+            self.complete(sym);
+            let info = self.u.info(sym);
+            if matches!(self.u.types().get(info), Type::Alias(_)) {
+                return self.unsupported(id, "projection of a type alias");
+            }
+        }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);
-        self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym))
+        let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
+        self.fold_select(select, &text);
+        select
     }
 }

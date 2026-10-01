@@ -22,7 +22,30 @@ impl Typer<'_> {
         typed.extend(proxies);
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
+        if pkg != self.u.root() {
+            self.check_package_object_name(&stat_ids, span);
+        }
         self.tpd.node(T::PackageDef { pid: typed_pid, stats }, span, Some(tpe), None)
+    }
+
+    /// Warns at `span` if the class path encodes the name of the package object among `stats`
+    /// that declares something not synthetic.
+    fn check_package_object_name(&mut self, stats: &[NodeId], span: syntax::ast::Span) {
+        let objects = stats.iter().filter_map(|s| self.syms.by_tree.get(s).copied());
+        let Some(c) = objects.into_iter().find(|&c| {
+            self.u.symbol(c).kind == tasty::Kind::Class && self.u.symbol(c).name.ends_with("$package$")
+        }) else {
+            return;
+        };
+        let declares = self.u.symbol(c).decls.iter().any(|&d| {
+            self.u.symbol(d).name != "<init>"
+                && !self.syms.flags.get(&d).is_some_and(|fl| fl.is(syntax::ast::flags::SYNTHETIC))
+        });
+        let name = self.u.symbol(c).name.trim_end_matches('$').to_owned();
+        if declares && syntax::desugar::package_def::will_be_encoded(&name) {
+            let msg = syntax::desugar::package_def::encoded_package_name(&name);
+            self.diags.warning(span.point(), msg);
+        }
     }
 
     /// The package that package clause `pid`, `p` or `p.q`, inside package `owner` names, entered

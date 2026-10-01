@@ -43,7 +43,8 @@ impl Typer<'_> {
             return self.tpd.node(T::If { cond, thenp, elsep }, span, Some(unit), None);
         };
         let branch_pt = match pt {
-            Pt::Args(_) => Pt::Any,
+            _ if self.is_incomplete(elsep) => Pt::Type(self.unit_type()),
+            Pt::Fun(_) => Pt::Any,
             pt => pt,
         };
         let thenp = self.typed(thenp, branch_pt, ctx);
@@ -54,6 +55,15 @@ impl Typer<'_> {
         }
         let tpe = self.u.lub(a, b);
         self.tpd.node(T::If { cond, thenp, elsep }, span, Some(tpe), None)
+    }
+
+    /// Whether else-branch `elsep` ends in an `if` without `else`.
+    fn is_incomplete(&self, elsep: NodeId) -> bool {
+        match *self.ast.tree(elsep) {
+            syntax::ast::Tree::If { elsep: None, .. } => true,
+            syntax::ast::Tree::If { elsep: Some(e), .. } => self.is_incomplete(e),
+            _ => false,
+        }
     }
 
     /// Whether types `a` and `b` are different numeric classes, which dotty's `harmonize` widens.
@@ -111,7 +121,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let expr = match expr {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
-            None => self.unit_literal(span.end_pos()),
+            None => self.unit_literal(span),
         };
         let name = TName { name: self.name(&self.u.symbol(method).name.clone()), is_type: false };
         let from_tpe = self.u.intern_type(Type::Sym(None, method));

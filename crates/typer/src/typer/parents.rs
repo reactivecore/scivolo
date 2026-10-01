@@ -87,6 +87,9 @@ impl Typer<'_> {
             return sym;
         }
         self.complete(sym);
+        if let Some(&crate::symbols::Completion::Completing(tree)) = self.syms.completions.get(&sym) {
+            self.unsupported(tree, "parents of a class whose parents are being completed");
+        }
         let first = self.u.parents(sym).first().copied();
         let parent = first.and_then(|p| self.u.class_symbol(p));
         match parent {

@@ -55,16 +55,19 @@ impl Typer<'_> {
             Ok(None) => return self.unsupported(id, &format!("unresolved name {text}")),
             Err(what) => return self.unsupported(id, what),
         };
-        let sym = match self.choose(&found.syms, pt) {
+        let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
             Err(what) => return self.unsupported(id, what),
         };
-        if let Err(what) = self.check_reference(sym, ctx) {
+        if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
         }
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
         if !self.prefix_is_elidable(tpe, ctx) {
+            if let Some(this) = self.module_this(sym, span, ctx) {
+                return this;
+            }
             return self.this_select(span, name, tpe, sym);
         }
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
@@ -141,13 +144,19 @@ impl Typer<'_> {
         Some(crate::defn::type_ref(self.u, module))
     }
 
-    /// The alternative of `syms` that `pt` selects: the only one, or the only method taking as
-    /// many arguments as `pt` supplies.
-    pub fn choose(&mut self, syms: &[SymbolId], pt: Pt) -> Result<SymbolId, &'static str> {
+    /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
+    /// method taking as many arguments as `pt` supplies, or the one overload resolution picks.
+    pub fn choose(
+        &mut self,
+        syms: &[SymbolId],
+        prefix: Option<TypeId>,
+        pt: Pt,
+    ) -> Result<SymbolId, &'static str> {
         if let [s] = syms {
             return Ok(*s);
         }
-        let Pt::Args(n) = pt else { return Err("overloaded reference") };
+        let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
+        let n = self.protos[proto].args.len();
         let fitting: Vec<SymbolId> = syms
             .iter()
             .copied()
@@ -159,7 +168,8 @@ impl Typer<'_> {
             .collect();
         match fitting.as_slice() {
             [s] => Ok(*s),
-            _ => Err("overload resolution"),
+            [] => Err("no alternative with that many arguments"),
+            _ => self.resolve_overloaded(&fitting, prefix, proto),
         }
     }
 }

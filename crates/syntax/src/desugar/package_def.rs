@@ -88,14 +88,8 @@ impl Desugar<'_> {
 
     /// A warning if the class path encodes package name `name` at `span`.
     pub fn check_package_part(&mut self, name: TName, span: Span) {
-        let encoded = to_utf16(self.text(name))
-            .into_iter()
-            .any(|u| char::from_u32(u.into()).is_none_or(|c| !is_java_identifier_part(c)));
-        if !span.is_synthetic() && encoded {
-            let msg = format!(
-                "The package name `{}` will be encoded on the classpath, and can lead to undefined behaviour.",
-                self.text(name)
-            );
+        if !span.is_synthetic() && will_be_encoded(self.text(name)) {
+            let msg = encoded_package_name(self.text(name));
             self.diags.warning_at(span.start(), span.end(), span.point(), msg);
         }
     }
@@ -114,4 +108,16 @@ impl Desugar<'_> {
         };
         Span::new(point, span.end(), point)
     }
+}
+
+/// Whether the class path encodes package name `name` (dotty's `Chars.willBeEncoded`).
+pub fn will_be_encoded(name: &str) -> bool {
+    to_utf16(name).into_iter().any(|u| char::from_u32(u.into()).is_none_or(|c| !is_java_identifier_part(c)))
+}
+
+/// The warning that the class path encodes package name `name` (dotty's `EncodedPackageName`).
+pub fn encoded_package_name(name: &str) -> String {
+    format!(
+        "The package name `{name}` will be encoded on the classpath, and can lead to undefined behaviour."
+    )
 }
