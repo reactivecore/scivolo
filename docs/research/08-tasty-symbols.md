@@ -116,9 +116,9 @@ Oracle: 99.9% of javalib's 10,660 method signatures and all 529 bridges match it
 
 - **Erased signatures and names:** every public member of scalalib, nativelib and javalib has
   its mangled NIR name in the jars (`nir-dump --index --mangled`). Computing the same name
-  from TASTy checks erasure and signature naming end to end, with no JVM. Compiler-generated
-  members (`$extension`, `$default$N`, bridges, forwarders) come from lowering, not from TASTy,
-  and are excluded.
+  from TASTy checks erasure and signature naming end to end, with no JVM. Members the phases
+  after the typer add (`$extension`, bridges, forwarders; research 10 §2) are not in TASTy and
+  are excluded.
 - **Members, types, linearization, subtyping:** golden dumps from tasty-query run by scala-cli
   (a JVM for the oracle only, as the parser's oracle uses dotty); its test suites (~10k lines)
   also give test cases.
