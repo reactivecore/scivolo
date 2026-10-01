@@ -4,18 +4,18 @@
 use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::FIELDaccessor;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 impl Lower<'_> {
-    /// A method of class `class` named, flagged and typed as `like` but with type `info`, whose
-    /// body `call` makes from references to its parameters, with the result type of `info`; its
-    /// symbol and definition.
+    /// A method of class `class` with the name and target name of `like`, flags `flags` and type
+    /// `info`, whose body `call` makes from references to its parameters, with the result type
+    /// of `info`; its symbol and definition.
     pub fn method_like(
         &mut self,
         class: SymbolId,
         like: SymbolId,
+        flags: Flags,
         info: tasty::TypeId,
         span: Span,
         call: impl FnOnce(&mut Self, &[TNodeId], tasty::TypeId) -> TNodeId,
@@ -32,7 +32,6 @@ impl Lower<'_> {
             _ => Vec::new(),
         };
         let name = self.u.symbol(like).name.clone();
-        let flags = self.u.symbol(like).flags.without(FIELDaccessor);
         let mut s = symbol(&name, Kind::Def, class, flags);
         s.target = self.u.symbol(like).target.clone();
         let sym = self.u.define(s);

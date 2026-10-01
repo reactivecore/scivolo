@@ -63,6 +63,10 @@ impl Gen<'_, '_> {
                 Tree::DefDef { .. } => {
                     let defn = self.gen_method(stat)?;
                     self.defns.push(defn);
+                    for bridge in self.interface_bridges(stat)? {
+                        let defn = self.gen_method(bridge)?;
+                        self.defns.push(defn);
+                    }
                 }
                 Tree::TypeDef { .. } => return unsupported(self.l.tpd.span(stat), "nested classes"),
                 Tree::ValDef { .. } => {}

@@ -6,7 +6,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Each source and what the refusal names.
-const CASES: [(&str, &str); 12] = [
+const CASES: [(&str, &str); 14] = [
     ("object O { var x = \"a\" }", "mutable fields"),
     ("object O { private val x = \"a\" }", "private fields"),
     ("object O { final val k = 3 }", "constant final values"),
@@ -20,6 +20,14 @@ const CASES: [(&str, &str); 12] = [
     (
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",
+    ),
+    (
+        "class B; class S extends B; class P { def f: S = new S() }; trait T { def f: B }; class C extends P with T",
+        "bridges for inherited members",
+    ),
+    (
+        "class B; class S extends B; trait T { def f: B }; trait U { def f: S = new S() }; class C extends T with U",
+        "bridges for inherited members",
     ),
     (
         "class C extends Product { def canEqual(o: Any) = true; def productArity = 0; \

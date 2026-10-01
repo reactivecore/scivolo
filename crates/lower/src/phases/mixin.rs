@@ -116,7 +116,8 @@ fn forwarder(
     span: syntax::ast::Span,
 ) -> Result<TNodeId> {
     let info = l.u.info(meth);
-    let (_, def) = l.method_like(class, meth, info, span, |l, args, result| {
+    let flags = l.u.symbol(meth).flags;
+    let (_, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
         let sup = l.super_mix(class, mixin, span);
         let fun = l.select(sup, meth, span);
         l.apply(fun, args, result, span)
