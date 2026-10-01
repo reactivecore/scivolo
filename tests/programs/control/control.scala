@@ -6,6 +6,10 @@ object Flow:
 
   def side(c: Boolean): Unit = if c then println("side")
 
+  def unitAny(c: Boolean): Any = if c then 5
+
+  def strAny(c: Boolean): Any = if c then "a" else "b"
+
   var going = true
   var total = 0
 
@@ -27,6 +31,8 @@ object Flow:
   println(Flow.pick(true))
   println(Flow.pick(false))
   Flow.side(true)
+  println(Flow.unitAny(true))
+  println(Flow.strAny(false))
   println(Flow.count(4))
   println(Flow.early(true))
   println(Flow.early(false))

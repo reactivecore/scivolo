@@ -29,7 +29,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased
 /// declared type, an ascription's erasure, else the erasure of its type.
-fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
+pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     let sym = l.tpd.sym(t);
     match *l.tpd.tree(t) {
         Tree::Apply { fun, .. } => match l.tpd.sym(fun) {

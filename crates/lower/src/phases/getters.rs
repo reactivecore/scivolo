@@ -1,5 +1,6 @@
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
-//! value's right-hand side, none for a class parameter's; a private local value stays a field.
+//! value's right-hand side, none for a class parameter's; a private local value stays a field;
+//! an assignment to a variable becomes a call of its setter.
 
 use super::walk::references;
 use crate::symbols::{has, is_class, is_module, is_trait};
