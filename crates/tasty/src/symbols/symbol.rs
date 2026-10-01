@@ -51,6 +51,10 @@ impl Flags {
         Flags(self.0 | Self::bit(tag).map_or(0, |b| 1 << b))
     }
 
+    pub fn without(self, tag: u8) -> Flags {
+        Flags(self.0 & !Self::bit(tag).map_or(0, |b| 1 << b))
+    }
+
     pub fn has(self, tag: u8) -> bool {
         Self::bit(tag).is_some_and(|b| self.0 & 1 << b != 0)
     }

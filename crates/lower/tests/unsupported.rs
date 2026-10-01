@@ -18,8 +18,8 @@ const CASES: [(&str, &str); 12] = [
     ("object O { def f(): String = { var x = \"a\"; x } }", "local variables"),
     ("trait T { val x = \"a\" }", "traits with initialization"),
     (
-        "class B; class S extends B; trait T { def f: B = new B() }; class C extends T { override def f: S = new S() }",
-        "bridges",
+        "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
+        "bridges in traits",
     ),
     (
         "class C extends Product { def canEqual(o: Any) = true; def productArity = 0; \

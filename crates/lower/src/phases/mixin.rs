@@ -2,12 +2,11 @@
 //! becomes `$init$` without a body; a class gets, for each concrete trait method it inherits, a
 //! forwarder calling that method on `super`.
 
-use crate::definitions::symbol;
 use crate::symbols::{has, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, PRIVATE};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The trait methods of the unit that have a body.
@@ -117,44 +116,10 @@ fn forwarder(
     span: syntax::ast::Span,
 ) -> Result<TNodeId> {
     let info = l.u.info(meth);
-    let params = match l.u.types().get(info).clone() {
-        Type::Method { params, result, .. } if !matches!(l.u.types().get(result), Type::Method { .. }) => {
-            params
-        }
-        Type::Method { .. } | Type::Poly { .. } => {
-            return unsupported(
-                span,
-                "forwarders to methods with type parameters or several parameter lists",
-            );
-        }
-        _ => Vec::new(),
-    };
-    let name = l.u.symbol(meth).name.clone();
-    let mut s = symbol(&name, Kind::Def, class, l.u.symbol(meth).flags);
-    s.target = l.u.symbol(meth).target.clone();
-    let sym = l.u.define(s);
-    l.u.set_info(sym, info);
-    let mut param_defs = Vec::new();
-    let mut args = Vec::new();
-    for (pname, ptype) in params {
-        let p = l.u.define(symbol(&pname, Kind::Param, sym, Default::default()));
-        l.u.set_info(p, ptype);
-        let tpt = l.type_tree(ptype, span);
-        let pname = l.term_name(&pname);
-        param_defs.push(l.tpd.node(Tree::ValDef { name: pname, tpt, rhs: None }, span, None, Some(p)));
-        args.push(l.ident(p, span));
-    }
-    let sup = l.super_mix(class, mixin, span);
-    let fun = l.select(sup, meth, span);
-    let result = l.u.result_type(info);
-    let rhs = l.apply(fun, &args, result, span);
-    let clause = l.tpd.list(&param_defs);
-    let paramss = if param_defs.is_empty() && !matches!(l.u.types().get(info), Type::Method { .. }) {
-        l.tpd.clauses(&[])
-    } else {
-        l.tpd.clauses(&[clause])
-    };
-    let tpt = l.type_tree(result, span);
-    let name = l.term_name(&name);
-    Ok(l.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, None, Some(sym)))
+    let (_, def) = l.method_like(class, meth, info, span, |l, args, result| {
+        let sup = l.super_mix(class, mixin, span);
+        let fun = l.select(sup, meth, span);
+        l.apply(fun, args, result, span)
+    })?;
+    Ok(def)
 }
