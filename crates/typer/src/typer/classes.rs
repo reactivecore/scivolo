@@ -41,7 +41,7 @@ impl Typer<'_> {
         }
         let super_ctx = self.super_call_ctx(t.constr, ctx);
         let parents = self.parent_types(&t.parents, super_ctx);
-        self.check_parents(rhs, &parents);
+        self.check_parents(cls, rhs, &parents);
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }

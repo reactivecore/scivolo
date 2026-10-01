@@ -15,7 +15,7 @@ impl Typer<'_> {
         let owner = self.u.symbol(getter).owner?;
         let mut candidates: Vec<SymbolId> = self.u.symbol(owner).decls.clone();
         candidates.retain(|&d| self.u.symbol(d).kind == Kind::Def && self.u.symbol(d).name == method);
-        candidates.extend(self.companion_constructor(owner, method));
+        candidates.extend(self.constructor_of_companion(owner, method));
         for m in candidates {
             self.complete(m);
             let params: Vec<SymbolId> = self
@@ -38,18 +38,11 @@ impl Typer<'_> {
 
     /// The primary constructor of the class `owner`, an object, accompanies, for `<init>`'s
     /// default getters, which live in the companion.
-    fn companion_constructor(&mut self, owner: SymbolId, method: &str) -> Option<SymbolId> {
+    fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Option<SymbolId> {
         if method != "<init>" {
             return None;
         }
-        let name = self.u.symbol(owner).name.strip_suffix('$')?.to_owned();
-        let outer = self.u.symbol(owner).owner?;
-        let decls = self.u.symbol(outer).decls.clone();
-        let class = decls
-            .into_iter()
-            .find(|&d| self.u.symbol(d).kind == Kind::Class && self.u.symbol(d).name == name)?;
-        self.complete(class);
-        self.syms.primary_ctors.get(&class).copied()
+        self.companion_constructor(owner)
     }
 
     /// `t` with references to the type parameters of `method` made references to the same-named

@@ -64,6 +64,11 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, ctx) {
             return self.unsupported(id, what);
         }
+        let flags = self.u.symbol(sym).flags;
+        let protected = flags.has(tasty::tags::PROTECTED) || flags.has(tasty::tags::PROTECTEDqualified);
+        if protected && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
+            return self.unsupported(id, "protected member through a path");
+        }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);
         self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym))

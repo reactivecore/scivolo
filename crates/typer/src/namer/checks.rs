@@ -60,7 +60,17 @@ impl Typer<'_> {
             "value name ending in _="
         } else if flags.is_all_of(f::GIVEN.or(f::DEFERRED)) {
             "deferred given"
-        } else if (kind != Kind::Def || name.contains("$default$")) && self.defines(owner, name, is_type) {
+        } else if !is_type && flags.is(f::DEFERRED) && !self.is_class_owner(owner) {
+            "abstract member outside a class"
+        } else if !is_type && flags.is(f::DEFERRED) && flags.is(f::PRIVATE) {
+            "private abstract member"
+        } else if kind == Kind::Def && flags.is(f::LAZY) {
+            "lazy method"
+        } else if !is_type && flags.is(f::TRANSPARENT) && !flags.is(f::INLINE) {
+            "transparent without inline"
+        } else if kind == Kind::Def && self.defines_value(owner, name)
+            || (kind != Kind::Def || name.contains("$default$")) && self.defines(owner, name, is_type)
+        {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
             "definition named like a package"
@@ -113,6 +123,22 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether `owner` is a class that may declare abstract members: not an object.
+    fn is_class_owner(&self, owner: SymbolId) -> bool {
+        let s = self.u.symbol(owner);
+        s.kind == Kind::Class && !s.flags.has(tasty::tags::OBJECT)
+    }
+
+    /// Whether this unit defined a value named `name` in `owner` already.
+    fn defines_value(&self, owner: SymbolId, name: &str) -> bool {
+        let decls = &self.u.symbol(owner).decls;
+        decls.iter().any(|&d| {
+            self.syms.flags.contains_key(&d)
+                && self.u.symbol(d).kind == Kind::Val
+                && self.u.symbol(d).name == name
+        })
+    }
+
     /// Whether package `owner` has a subpackage named `name`.
     fn has_package(&mut self, owner: SymbolId, name: &str) -> bool {
         let decls = self.u.decl(owner, name).unwrap_or_default();
@@ -138,14 +164,16 @@ impl Typer<'_> {
         })
     }
 
-    /// Checks the parent types of the class with template `rhs`: no value class, no `Dynamic`, no
-    /// final class, no sealed class of the library.
-    pub fn check_parents(&mut self, rhs: NodeId, parents: &[tasty::TypeId]) {
+    /// Checks the parent types of class `cls` with template `rhs`: no value class, no `Dynamic`,
+    /// no final class, no sealed class of the library, no cycle.
+    pub fn check_parents(&mut self, cls: SymbolId, rhs: NodeId, parents: &[tasty::TypeId]) {
         let any_val = self.u.builtins().any_val;
         for &p in parents {
             let Some(c) = self.u.class_symbol(p) else { continue };
             let flags = self.u.symbol(c).flags;
-            let what = if Some(c) == any_val {
+            let what = if c == cls || self.u.derives_from(c, cls) {
+                "cyclic inheritance"
+            } else if Some(c) == any_val {
                 "value class"
             } else if self.u.full_name(c) == "scala.Dynamic" {
                 "Dynamic"

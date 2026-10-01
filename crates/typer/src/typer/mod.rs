@@ -1,18 +1,21 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod adapt;
 mod apply;
 mod classes;
 mod defs;
 mod derived;
 mod find_ref;
 mod idents;
+mod import_tree;
 mod imports;
 mod literals;
 mod no_inits;
 mod overrides;
 mod parents;
 mod patterns;
+mod qualifies;
 mod select;
 mod stats;
 mod this;
@@ -107,25 +110,6 @@ impl<'a> Typer<'a> {
         self.adapt(tree, pt);
         self.depth -= 1;
         tree
-    }
-
-    /// Checks that `tree` fits `pt` as it is: a method is applied, a value conforms; a tree that
-    /// needs dotty's `adapt` to fit is outside the subset.
-    fn adapt(&mut self, tree: TNodeId, pt: Pt) {
-        let Some(tpe) = self.tpd.get(tree).tpe else { return };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Args(_)) {
-            return;
-        }
-        let span = self.tpd.span(tree);
-        let method = self.method_info(tpe).map(|i| self.u.types().get(i).clone());
-        if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
-            return self.unsupported_at(span, "method value");
-        }
-        if let Pt::Type(pt) = pt
-            && !self.u.is_subtype(tpe, pt)
-        {
-            self.unsupported_at(span, "adaptation");
-        }
     }
 
     fn typed_unadapted(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {

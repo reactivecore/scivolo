@@ -31,9 +31,9 @@ struct Hit {
 
 /// The name looked up, as a term or a type.
 #[derive(Clone, Copy)]
-struct Name<'a> {
-    text: &'a str,
-    is_type: bool,
+pub struct Name<'a> {
+    pub text: &'a str,
+    pub is_type: bool,
 }
 
 impl Typer<'_> {
@@ -51,7 +51,7 @@ impl Typer<'_> {
             };
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
-                    let Some(found) = self.defined(l, name) else {
+                    let Some(found) = self.defined(l, name).and_then(|f| self.qualifying(f, l, ctx)) else {
                         level = self.levels.outer(l);
                         continue;
                     };
@@ -121,30 +121,6 @@ impl Typer<'_> {
         Err("ambiguous reference")
     }
 
-    /// Whether `found` at class members level `l` refers only to members the class inherits.
-    fn is_inherited(&self, l: LevelId, found: &Found) -> bool {
-        let Level::Members(cls) = *self.levels.get(l) else { return false };
-        self.u.symbol(cls).kind == Kind::Class && found.syms.iter().all(|&s| self.u.symbol(s).owner != Some(cls))
-    }
-
-    /// Checks that no scope or class outside level `l`, up to the first package, defines `name`
-    /// differently from the inherited `found` (dotty's `checkNoOuterDefs`).
-    fn check_no_outer_defs(&mut self, l: LevelId, found: &Found, name: Name) -> Result<(), &'static str> {
-        let mut level = self.levels.outer(l);
-        while let Some(o) = level {
-            if matches!(*self.levels.get(o), Level::Members(p) if self.u.symbol(p).kind == Kind::Package) {
-                return Ok(());
-            }
-            if let Some(outer) = self.defined(o, name)
-                && outer.syms.iter().any(|s| !found.syms.contains(s))
-            {
-                return Err("ambiguous reference: inherited and defined outside");
-            }
-            level = self.levels.outer(o);
-        }
-        Ok(())
-    }
-
     /// Whether an import at `l` or outward imports `name` by name.
     fn outer_named_import(&mut self, l: LevelId, name: Name) -> bool {
         let mut level = Some(l);
@@ -175,7 +151,7 @@ impl Typer<'_> {
     }
 
     /// The symbols named `name` that scope or members level `l` defines.
-    fn defined(&mut self, l: LevelId, name: Name) -> Option<Found> {
+    pub fn defined(&mut self, l: LevelId, name: Name) -> Option<Found> {
         match self.levels.get(l) {
             Level::Scope(entries) => {
                 let found = entries

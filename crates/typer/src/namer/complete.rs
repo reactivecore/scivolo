@@ -1,10 +1,9 @@
 //! Completing script symbols: their infos from their signatures, typed ahead where a result type
 //! is inferred (dotty's `Completer`, `ClassCompleter`, `typedAhead`).
 
-use crate::ctx::{Ctx, Level};
+use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{Pt, Typer};
-use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -50,19 +49,41 @@ impl Typer<'_> {
     /// The type of definition `sym`: its type tree's, else its right-hand side's, widened.
     fn result_type(&mut self, sym: SymbolId, tpt: NodeId, rhs: Option<NodeId>, ctx: Ctx) -> TypeId {
         if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
-            let typed = self.typed_type(tpt, ctx);
-            self.ahead.insert(tpt, typed);
-            return self.tpd.tpe(typed);
+            return self.value_type_ahead(tpt, ctx);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
-        let default = self.default_param_type(sym);
-        let typed = self.typed(rhs, default.map_or(Pt::Any, Pt::Type), ctx);
+        let inherited = self.inherited_result(sym);
+        let default = self.default_param_type(sym).filter(|&d| !self.mentions_own_type_params(d, sym));
+        let pt = inherited.or(default).map_or(Pt::Any, Pt::Type);
+        let typed = self.typed(rhs, pt, ctx);
         self.ahead.insert(rhs, typed);
         let tpe = self.tpd.tpe(typed);
-        match default {
-            Some(d) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
+        match (inherited, default) {
+            (Some(i), _) if !self.keeps_rhs_type(sym) => i,
+            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
             _ => self.widen_rhs(sym, tpe),
         }
+    }
+
+    /// The type of value type tree `tpt`, typed ahead in `ctx`.
+    pub fn value_type_ahead(&mut self, tpt: NodeId, ctx: Ctx) -> TypeId {
+        let typed = self.typed_type(tpt, ctx);
+        self.ahead.insert(tpt, typed);
+        let tpe = self.tpd.tpe(typed);
+        self.check_simple_kinded(tpe, tpt);
+        tpe
+    }
+
+    /// Whether `t` refers to a type parameter of method `sym`.
+    fn mentions_own_type_params(&mut self, t: TypeId, sym: SymbolId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, x| {
+            if let Type::Sym(None, s) = *u.types().get(x) {
+                found |= u.symbol(s).owner == Some(sym) && u.symbol(s).kind == Kind::TypeParam;
+            }
+            None
+        });
+        found
     }
 
     /// `t @uncheckedVariance`.
@@ -76,78 +97,13 @@ impl Typer<'_> {
         }
     }
 
-    /// The context of the parameters and body of method `sym`, defined in `ctx`.
-    pub fn method_ctx(&mut self, sym: SymbolId, ctx: Ctx) -> Ctx {
-        let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        Ctx { owner: sym, level, ..ctx }
-    }
-
-    /// The parameter symbols of method definition `tree`, entered in `ctx`, by clause.
-    pub fn enter_params(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> Vec<Vec<SymbolId>> {
-        let mut out = Vec::new();
-        for clause in self.def_clauses(tree) {
-            let mut syms = Vec::new();
-            let mut fresh = Vec::new();
-            for &p in &clause {
-                let param = match self.syms.by_tree.get(&p) {
-                    Some(&s) => s,
-                    None => {
-                        let s = self.define_param(sym, p);
-                        fresh.push((s, p));
-                        s
-                    }
-                };
-                let name = self.u.symbol(param).name.clone();
-                self.levels.enter(ctx.level, &name, param);
-                syms.push(param);
-            }
-            for (s, p) in fresh {
-                self.param_info(s, p, ctx);
-            }
-            out.push(syms);
-        }
-        out
-    }
-
-    /// The symbol of parameter `p` of `method`.
-    fn define_param(&mut self, method: SymbolId, p: NodeId) -> SymbolId {
-        let (name, mods, kind, extra) = match *self.ast.tree(p) {
-            Tree::ValDef { name, mods, .. } => (name, mods, Kind::Param, f::TERM_PARAM),
-            Tree::TypeDef { name, mods, .. } => (name, mods, Kind::TypeParam, f::TYPE_PARAM),
-            _ => {
-                self.unsupported(p, "parameter");
-                return self.syms.define(self.u, "?", Kind::Param, method, f::EMPTY);
-            }
-        };
-        let flags = self.ast.modifiers(mods).flags.or(extra);
-        let flags = if kind == Kind::Param { flags.to_term_flags() } else { flags.to_type_flags() };
-        let text = self.text(name.name).to_owned();
-        let s = self.syms.define(self.u, &text, kind, method, flags);
-        self.syms.by_tree.insert(p, s);
-        s
-    }
-
-    /// Sets the info of parameter `s` from its type or bounds in `p`, typed in `ctx`.
-    fn param_info(&mut self, s: SymbolId, p: NodeId, ctx: Ctx) {
-        let info = match *self.ast.tree(p) {
-            Tree::ValDef { tpt, .. } => {
-                let typed = self.typed_type(tpt, ctx);
-                self.ahead.insert(tpt, typed);
-                self.tpd.tpe(typed)
-            }
-            Tree::TypeDef { rhs, .. } => self.type_def_info(rhs, ctx),
-            _ => self.u.intern_type(Type::Error),
-        };
-        self.u.set_info(s, info);
-        if self.is_type_symbol(s) {
-            self.check_non_cyclic(s, info, p);
-        }
-    }
-
     fn method_type(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> TypeId {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
         let clauses = self.enter_params(sym, tree, mctx);
+        let value_clauses =
+            clauses.iter().filter(|c| c.first().is_some_and(|&p| !self.is_type_symbol(p))).cloned().collect();
+        self.syms.param_clauses.insert(sym, value_clauses);
         let result = if self.u.symbol(sym).name == "<init>" {
             let class = self.u.symbol(sym).owner.expect("a constructor's class");
             let class_ref = crate::defn::type_ref(self.u, class);
@@ -193,8 +149,7 @@ impl Typer<'_> {
     /// The type inferred for definition `sym` from its right-hand side's type `t` (dotty's
     /// `widenRhs`): a constant for a final value, a singleton for an object, else `t` widened.
     fn widen_rhs(&mut self, sym: SymbolId, t: TypeId) -> TypeId {
-        let flags = self.syms.flags.get(&sym).copied().unwrap_or_default();
-        let inline_val = flags.is(f::FINAL.or(f::INLINE)) && !flags.is(f::MUTABLE) && !flags.is(f::METHOD);
+        let inline_val = self.keeps_rhs_type(sym);
         match self.u.types().get(t).clone() {
             Type::Constant(..) | Type::Str(_) if inline_val => t,
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),

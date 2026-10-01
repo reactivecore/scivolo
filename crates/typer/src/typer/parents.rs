@@ -34,12 +34,16 @@ impl Typer<'_> {
             let tpt = self.parent_tpt(p);
             let typed = self.typed_type(tpt, ctx);
             let tpe = self.tpd.tpe(typed);
+            self.check_simple_kinded(tpe, tpt);
             if let Some(c) = self.u.class_symbol(tpe) {
                 self.complete(c);
                 if self.ast.span(p).is_source_derived()
                     && types.iter().any(|&t| self.u.class_symbol(t) == Some(c))
                 {
                     self.unsupported(p, "class extended twice");
+                }
+                if !types.is_empty() && !self.is_trait(c) {
+                    self.unsupported(p, "class used as a mixin");
                 }
             }
             types.push(tpe);

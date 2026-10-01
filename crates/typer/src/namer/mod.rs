@@ -3,6 +3,8 @@
 mod checks;
 mod complete;
 mod defaults;
+mod inherited;
+mod params;
 
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
@@ -83,10 +85,20 @@ impl Typer<'_> {
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
-        if flags.is(f::PRIVATE) && self.is_package_level(ctx.owner) {
+        let package_private = flags.is(f::PRIVATE) && self.is_package_level(ctx.owner);
+        if package_private {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if package_private {
+            let owner = ctx.owner;
+            let package = if self.u.symbol(owner).kind == Kind::Package {
+                Some(owner)
+            } else {
+                self.u.symbol(owner).owner
+            };
+            self.syms.private_within.extend(package.map(|p| (sym, p)));
+        }
         let completion_ctx = match self.levels.outer(ctx.level) {
             Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
             _ => ctx,

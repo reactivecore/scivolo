@@ -25,10 +25,11 @@ impl Typer<'_> {
         let flags = self.u.symbol(sym).flags;
         let private = flags.has(PRIVATE) || flags.has(PRIVATEqualified);
         let protected = flags.has(PROTECTED) || flags.has(PROTECTEDqualified);
-        if !private && !protected {
+        let within = self.syms.private_within.get(&sym).copied();
+        if !private && !protected && within.is_none() {
             return true;
         }
-        let Some(owner) = self.u.symbol(sym).owner else { return true };
+        let Some(owner) = within.or(self.u.symbol(sym).owner) else { return true };
         let mut encl = Some(ctx.owner);
         while let Some(e) = encl {
             if e == owner || protected && self.u.derives_from(e, owner) {

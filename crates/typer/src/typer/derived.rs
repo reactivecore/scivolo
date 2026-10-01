@@ -44,8 +44,13 @@ impl Typer<'_> {
         {
             return Some(ctor);
         }
-        let name = self.u.symbol(cls).name.strip_suffix('$')?.to_owned();
-        let owner = self.u.symbol(cls).owner?;
+        self.companion_constructor(cls)
+    }
+
+    /// The primary constructor of the companion class of object class `module`.
+    pub fn companion_constructor(&mut self, module: SymbolId) -> Option<SymbolId> {
+        let name = self.u.symbol(module).name.strip_suffix('$')?.to_owned();
+        let owner = self.u.symbol(module).owner?;
         let decls = self.u.symbol(owner).decls.clone();
         let companion = decls
             .into_iter()

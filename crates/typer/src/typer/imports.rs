@@ -4,8 +4,8 @@
 use super::idents::Found;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
-use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, TName, Tree};
+use crate::tpd::TNodeId;
+use syntax::ast::{List, NodeId, Tree};
 use tasty::{SymbolId, TypeId};
 
 /// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport.
@@ -156,63 +156,5 @@ impl Typer<'_> {
             return None;
         }
         self.selection(i, name, is_type, true)
-    }
-
-    /// The typed import `id`, its path typed when its level was first searched or now.
-    pub fn typed_import(&mut self, id: NodeId, selectors: List) -> TNodeId {
-        let level = self.import_levels[&id];
-        let Level::Import(i) = *self.levels.get(level) else { unreachable!() };
-        self.import_info(i);
-        let ImportEntry::Done(ImportInfo { expr: Some(expr), .. }) = &self.imports[i] else {
-            return self.unsupported(id, "cyclic import");
-        };
-        let expr = *expr;
-        if let Err(what) = self.check_selectors(i) {
-            return self.unsupported(id, what);
-        }
-        let items = self.ast.items(selectors).to_vec();
-        let typed: Vec<TNodeId> = items.into_iter().map(|s| self.untyped_selector(s)).collect();
-        let selectors = self.tpd.list(&typed);
-        let span = self.ast.span(id);
-        self.tpd.node(T::Import { expr, selectors }, span, None, None)
-    }
-
-    /// Checks that the named selectors of import `i` name members of its path, each once (dotty's
-    /// `checkImportSelectors`).
-    fn check_selectors(&mut self, i: usize) -> Result<(), &'static str> {
-        let ImportEntry::Done(info) = &self.imports[i] else { return Ok(()) };
-        let qual = info.qual;
-        let names: Vec<String> =
-            info.selectors.iter().map(|s| s.name.clone()).filter(|n| n != "_" && !n.is_empty()).collect();
-        for (k, name) in names.iter().enumerate() {
-            if names[..k].contains(name) {
-                return Err("import selector repeated");
-            }
-            if self.type_members(qual, name).is_empty() {
-                return Err("import of a missing member");
-            }
-        }
-        Ok(())
-    }
-
-    /// An import selector as dotty keeps it: untyped identifiers.
-    fn untyped_selector(&mut self, s: NodeId) -> TNodeId {
-        let Tree::ImportSelector { imported, renamed, bound } = *self.ast.tree(s) else {
-            return self.unsupported(s, "import selector");
-        };
-        if let Some(b) = bound {
-            return self.unsupported(b, "import bound");
-        }
-        let ident = |t: &mut Self, id: NodeId| match *t.ast.tree(id) {
-            Tree::Ident { name } => {
-                let span = t.ast.span(id);
-                t.tpd.node(T::Ident { name: TName { name: name.name, is_type: false } }, span, None, None)
-            }
-            _ => t.unsupported(id, "import selector"),
-        };
-        let imported = ident(self, imported);
-        let renamed = renamed.map(|r| ident(self, r));
-        let span = self.ast.span(s);
-        self.tpd.node(T::ImportSelector { imported, renamed, bound: None }, span, None, None)
     }
 }

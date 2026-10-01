@@ -6,7 +6,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::{Span, TName};
-use tasty::tags::{FIELDaccessor, PARAMsetter, STATIC, TRAIT};
+use tasty::tags::{PARAMsetter, STATIC, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -25,8 +25,8 @@ impl Typer<'_> {
     fn is_param_or_accessor(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match self.syms.flags.get(&s) {
-            Some(flags) => flags.is(f::PARAM) || flags.is(f::PARAM_ACCESSOR) || flags.is(f::ACCESSOR),
-            None => sym.kind == Kind::Param || sym.flags.has(PARAMsetter) || sym.flags.has(FIELDaccessor),
+            Some(flags) => flags.is(f::PARAM) || flags.is(f::PARAM_ACCESSOR),
+            None => sym.kind == Kind::Param || sym.flags.has(PARAMsetter),
         }
     }
 
@@ -87,7 +87,8 @@ impl Typer<'_> {
             let text = self.text(n.name).to_owned();
             let named = |u: &tasty::Universe, c: SymbolId| {
                 let s = u.symbol(c);
-                s.name == text || s.flags.has(tasty::tags::OBJECT) && s.name.strip_suffix('$') == Some(text.as_str())
+                s.name == text
+                    || s.flags.has(tasty::tags::OBJECT) && s.name.strip_suffix('$') == Some(text.as_str())
             };
             while let Some(c) = cls.filter(|&c| !named(self.u, c)) {
                 cls = self.u.symbol(c).owner.and_then(|o| self.enclosing_class(o));

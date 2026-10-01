@@ -31,6 +31,10 @@ pub struct Syms {
     pub by_tree: FxHashMap<NodeId, SymbolId>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
     pub no_inits: FxHashMap<SymbolId, bool>,
+    /// The package a package-level `private` definition is private to (dotty's `privateWithin`).
+    pub private_within: FxHashMap<SymbolId, SymbolId>,
+    /// The value parameters of each script method, by clause.
+    pub param_clauses: FxHashMap<SymbolId, Vec<Vec<SymbolId>>>,
     /// The primary constructor of each script class.
     pub primary_ctors: FxHashMap<SymbolId, SymbolId>,
     /// The result type of each script method as its definition states it, before its type
