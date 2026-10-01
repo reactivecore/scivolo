@@ -1,5 +1,5 @@
 use std::path::Path;
-use tasty::{Erased, Kind, SymbolId, Universe};
+use tasty::{Erased, Kind, SymbolId, Type, Universe};
 
 fn stdlib() -> Option<Universe> {
     let jar = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs/scala-library-3.9.0.jar");
@@ -48,6 +48,35 @@ fn declared_types_of_methods_values_and_types() {
     );
     assert_eq!(infos(&mut u, "scala", "Predef$", "String"), ["java.lang.String"]);
     assert_eq!(infos(&mut u, "scala.collection.immutable", "List", "A"), [">: scala.Nothing <: scala.Any"]);
+}
+
+#[test]
+fn annotated_types_keep_the_annotation_class() {
+    let Some(mut u) = stdlib() else { return };
+    let [m] = members(&mut u, "scala.collection", "IterableOps", "fromSpecific")[..] else {
+        panic!("one fromSpecific")
+    };
+    let info = u.info(m);
+    let shown = u.show(info);
+    let Type::Method { params, .. } = u.types().get(info).clone() else { panic!("{shown}") };
+    let (mut todo, mut annotations) = (vec![params[0].1], Vec::new());
+    while let Some(t) = todo.pop() {
+        match u.types().get(t).clone() {
+            Type::Annotated(inner, a) => {
+                todo.push(inner);
+                annotations.push(a);
+            }
+            Type::Applied(tycon, args) => {
+                todo.push(tycon);
+                todo.extend(args);
+            }
+            _ => {}
+        }
+    }
+    let classes: Vec<_> = annotations.into_iter().filter_map(|a| u.class_symbol(a)).collect();
+    let classes: Vec<String> = classes.into_iter().map(|c| u.full_name(c)).collect();
+    let unchecked = "scala.annotation.unchecked.uncheckedVariance".to_string();
+    assert!(classes.contains(&unchecked), "{shown}: {classes:?}");
 }
 
 #[test]

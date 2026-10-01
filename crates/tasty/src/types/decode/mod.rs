@@ -72,6 +72,16 @@ impl<'a> Decoder<'a> {
         }
     }
 
+    /// The class tree of the annotation term at `id`: what its constructor call instantiates.
+    fn annotation_class(&self, id: NodeId) -> Option<NodeId> {
+        let ast = self.ast;
+        let id = ast.deref(id);
+        match ast.tag(id) {
+            NEW => ast.kids(id).first().copied(),
+            _ => ast.kids(id).iter().find_map(|&k| self.annotation_class(k)),
+        }
+    }
+
     /// The type of child `i` of `id`, `Other` if it has none.
     fn kid(&mut self, id: NodeId, i: usize) -> TypeId {
         match self.ast.kids(id).get(i) {
@@ -134,7 +144,13 @@ impl<'a> Decoder<'a> {
                     [] => Type::Other(n.tag),
                 }
             }
-            ANNOTATEDtype | ANNOTATEDtpt => Type::Annotated(self.kid(id, 0)),
+            ANNOTATEDtype | ANNOTATEDtpt => {
+                let annotation = match k.get(1).and_then(|&a| self.annotation_class(a)) {
+                    Some(class) => self.ty(class),
+                    None => self.intern(Type::Other(n.tag)),
+                };
+                Type::Annotated(self.kid(id, 0), annotation)
+            }
             ANDtype => Type::And(self.kid(id, 0), self.kid(id, 1)),
             ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1)),
             BYNAMEtype | BYNAMEtpt => Type::ByName(self.kid(id, 0)),

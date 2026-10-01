@@ -127,8 +127,8 @@ impl Cmp<'_> {
             }
         }
         match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (Type::Annotated(x), _) => self.glb(x, b),
-            (_, Type::Annotated(y)) => self.glb(a, y),
+            (Type::Annotated(x, _), _) => self.glb(x, b),
+            (_, Type::Annotated(y, _)) => self.glb(a, y),
             (Type::ByName(x), Type::ByName(y)) => {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))
@@ -140,8 +140,8 @@ impl Cmp<'_> {
     /// `a | b`, by-name results joined.
     fn or_type(&mut self, a: TypeId, b: TypeId) -> TypeId {
         match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (Type::Annotated(x), _) => self.lub(x, b),
-            (_, Type::Annotated(y)) => self.lub(a, y),
+            (Type::Annotated(x, _), _) => self.lub(x, b),
+            (_, Type::Annotated(y, _)) => self.lub(a, y),
             (Type::ByName(x), Type::ByName(y)) => {
                 let either = self.lub(x, y);
                 self.u.intern_type(Type::ByName(either))

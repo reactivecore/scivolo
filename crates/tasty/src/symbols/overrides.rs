@@ -18,7 +18,7 @@ impl Universe {
     fn normalize_within(&mut self, t: TypeId, depth: u32) -> TypeId {
         let Some(depth) = depth.checked_sub(1) else { return t };
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
-            Type::Annotated(inner) => Some(u.normalize_within(inner, depth)),
+            Type::Annotated(inner, _) => Some(u.normalize_within(inner, depth)),
             Type::Applied(tycon, args) => {
                 let expanded = match u.types().get(tycon).clone() {
                     Type::Lambda { binder, params, result } => {

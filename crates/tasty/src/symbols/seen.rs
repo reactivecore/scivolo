@@ -44,7 +44,7 @@ impl Universe {
                     .or_else(|| self.base_type_within(b, base, depth));
             }
             Type::This(u)
-            | Type::Annotated(u)
+            | Type::Annotated(u, _)
             | Type::Refined(u, _, _)
             | Type::Alias(u)
             | Type::Bounds(_, u) => {
@@ -100,13 +100,14 @@ impl Universe {
         })
     }
 
-    /// `t`, a type in class `owner`, as seen from `prefix`: `this` of `owner` and its base
-    /// classes replaced by `prefix`, their type parameters by the arguments `prefix` gives them.
+    /// `t`, a type in class `owner`, as seen from `prefix`: the `this` of `owner`, of its base
+    /// classes and of its enclosing classes replaced by `prefix` or the prefix `prefix` gives
+    /// them, the type parameters of `owner` by the arguments `prefix` gives them.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
-                u.derives_from(owner, c).then_some(prefix)
+                u.this_seen_from(prefix, owner, c, MAX_DEPTH)
             }
             _ => {
                 let (c, i) = u.class_param(x)?;
@@ -120,6 +121,44 @@ impl Universe {
                 }
             }
         })
+    }
+
+    /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of
+    /// `this_cls`, else what it is as seen from the prefix of `pre`'s base type `cls`, in the
+    /// class enclosing `cls`; `None` to keep it.
+    fn this_seen_from(
+        &mut self,
+        pre: TypeId,
+        cls: SymbolId,
+        this_cls: SymbolId,
+        depth: u32,
+    ) -> Option<TypeId> {
+        let depth = depth.checked_sub(1)?;
+        let pre_kind = self.types().get(pre).clone();
+        if self.symbol(cls).kind == Kind::Package || matches!(pre_kind, Type::NoPrefix) {
+            return None;
+        }
+        let widened = self.widen(pre);
+        if self.derives_from(this_cls, cls) && self.base_type(widened, this_cls).is_some() {
+            return Some(pre);
+        }
+        if matches!(pre_kind, Type::Package(_) | Type::PackageName(_)) {
+            return None;
+        }
+        let base = self.base_type(widened, cls)?;
+        let outer = self.normalized_prefix(base)?;
+        let owner = self.symbol(cls).owner?;
+        self.this_seen_from(outer, owner, this_cls, depth)
+    }
+
+    /// The prefix of class type `t`, through applications.
+    fn normalized_prefix(&mut self, t: TypeId) -> Option<TypeId> {
+        match self.types().get(t).clone() {
+            Type::Sym(p, _) => p,
+            Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
+            Type::Applied(tycon, _) => self.normalized_prefix(tycon),
+            _ => None,
+        }
     }
 
     /// The type of member `m` of `prefix`.

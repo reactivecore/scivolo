@@ -43,7 +43,7 @@ impl Universe {
     pub fn dealias(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
             let next = match self.types().get(t).clone() {
-                Type::Annotated(u) => u,
+                Type::Annotated(u, _) => u,
                 Type::Applied(tycon, args) => match self.types().get(tycon).clone() {
                     Type::Lambda { binder, params, result } => {
                         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
