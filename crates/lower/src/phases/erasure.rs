@@ -34,7 +34,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 
 /// `t` with its subtrees typed against their erased expected types, then adapted to `pt`.
 fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> TNodeId {
-    super::first_transform::const_to_literal(l, t);
     let tree = l.tpd.tree(t).clone();
     let new = match tree {
         Tree::Apply { fun, args } => {

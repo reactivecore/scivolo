@@ -9,14 +9,16 @@ use tasty::tags::{FIELDaccessor, PRIVATE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-/// The trait methods of the unit that have a body.
-pub fn concrete_trait_methods(l: &Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
+/// The methods of the unit's classes that have a body if `with_body`, else those without.
+pub fn methods_with_body(l: &Lower, classes: &[TNodeId], with_body: bool) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     for &td in classes {
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
         let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
         for &stat in l.tpd.items(body) {
-            if let (Tree::DefDef { rhs: Some(_), .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat)) {
+            if let (Tree::DefDef { rhs, .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat))
+                && rhs.is_some() == with_body
+            {
                 out.insert(s);
             }
         }

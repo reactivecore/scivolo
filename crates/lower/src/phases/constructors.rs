@@ -1,8 +1,9 @@
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
-//! `Constructors`: the class parameters stored in their fields, that call, then the fields
-//! initialized in order, for classes whose templates hold only methods and fields.
+//! `Constructors`: the class parameters stored in their fields, that call, then the field
+//! initializers and statements of the class body in order.
 
-use super::getters::is_param_accessor;
+use super::first_transform::literal_of;
+use super::getters::{is_const_final, is_param_accessor};
 use super::walk::references;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
@@ -29,8 +30,21 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
     }
     for stat in stats {
+        let sym = l.tpd.sym(stat);
+        let const_getter = sym.filter(|&s| is_const_final(l, s));
         match *l.tpd.tree(stat) {
             Tree::Import { .. } => {}
+            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
+                if const_getter.is_some() && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+            {
+                let getter = const_getter.expect("a getter's symbol");
+                let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);
+                if literal != rhs {
+                    inits.push(rhs);
+                }
+                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(literal) };
+                class_stats.push(stat);
+            }
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {
                 class_stats.push(stat)
             }

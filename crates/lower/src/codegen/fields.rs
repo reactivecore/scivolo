@@ -12,7 +12,7 @@ use tasty::tags::{MUTABLE, PRIVATE};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Whether `s` is a field `Memoize` made.
+    /// Whether `s` is a field: one `Memoize` made, or a private local value.
     pub fn is_field(&self, s: SymbolId) -> bool {
         self.l.fields.contains_key(&s)
     }

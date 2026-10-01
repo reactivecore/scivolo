@@ -37,8 +37,8 @@ fn programs_lower_as_scala_native_compiles_them() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let mut u = Universe::open(&jars).unwrap();
     for program in PROGRAMS {
+        let mut u = Universe::open(&jars).unwrap();
         let dir = root().join("tests/programs").join(program);
         let file = format!("{program}.scala");
         let text = std::fs::read_to_string(dir.join(&file)).unwrap();

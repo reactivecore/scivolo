@@ -19,6 +19,18 @@ object Counter:
 class Holder(x: String, val y: String):
   def both: String = x
 
+class Mk:
+  final val k = 4
+
+object Maker:
+  def mk: Mk =
+    println("mk")
+    new Mk()
+
+object Eager:
+  final val e = { println("side"); 7 }
+  def id: Eager.type = this
+
 @main def bodies(): Unit =
   println(Init.a)
   println(Secrets.reveal)
@@ -27,3 +39,6 @@ class Holder(x: String, val y: String):
   println(Counter.count)
   println(Counter.name)
   println(new Holder("x", "y").both)
+  println(Maker.mk.k)
+  println(Eager.id.e)
+  println(Eager.id.e)

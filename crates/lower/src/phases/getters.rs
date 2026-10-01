@@ -60,7 +60,7 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
 }
 
-/// Whether `s` is a `final` value of a constant type, which needs no field.
+/// Whether `s` is a `final` value of a constant type.
 pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
     if !has(l.u, s, FINAL) {
         return false;

@@ -19,16 +19,18 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
     for &td in &classes {
         synthetic::add_synthetic_members(l, td)?;
+        first_transform::transform(l, td);
     }
+    let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
         getters::transform(l, td)?;
     }
     for &td in &classes {
         erasure::transform(l, td)?;
-        bridges::transform(l, td)?;
+        bridges::transform(l, td, &deferred)?;
     }
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
-    let concrete = mixin::concrete_trait_methods(l, &classes);
+    let concrete = mixin::methods_with_body(l, &classes, true);
     for &td in &classes {
         mixin::transform(l, td, &unit_classes, &concrete)?;
     }
