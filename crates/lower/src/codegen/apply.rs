@@ -28,6 +28,8 @@ impl Gen<'_, '_> {
             _ if self.l.defs.is_box(sym) => {
                 let [arg] = args[..] else { unreachable!("one argument to `box`") };
                 let value = self.gen_expr(arg)?;
+                let [primitive] = self.param_types(sym)[..] else { unreachable!("one parameter of `box`") };
+                self.check_conforms(value, primitive, span)?;
                 let ty = self.result_type(sym);
                 self.emit(Op::Box { ty, obj: value })
             }
@@ -107,8 +109,7 @@ impl Gen<'_, '_> {
         };
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let owner_ty = self.class_ref(owner);
-        let receiver_ty = self.val_ty(receiver);
-        self.check_conforms(receiver_ty, owner_ty, span)?;
+        self.check_conforms(receiver, owner_ty, span)?;
         let args = self.gen_args(sym, args, span)?;
         Ok(self.call_method(sym, statically, receiver, args))
     }
@@ -142,8 +143,7 @@ impl Gen<'_, '_> {
         let mut out = Vec::new();
         for (&a, param) in args.iter().zip(params) {
             let v = self.gen_expr(a)?;
-            let ty = self.val_ty(v);
-            self.check_conforms(ty, param, self.l.tpd.span(a))?;
+            self.check_conforms(v, param, self.l.tpd.span(a))?;
             out.push(v);
         }
         Ok(out)

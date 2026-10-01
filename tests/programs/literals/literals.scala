@@ -11,3 +11,4 @@
   println(n)
   val s = "s"
   println(s)
+  println(5: Int)

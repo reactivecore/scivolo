@@ -2,7 +2,7 @@
 //! expected there, a primitive value where a reference is expected boxed by its object's `box`,
 //! `()` there replaced by `BoxedUnit.UNIT`.
 
-use crate::symbols::{has, is_constructor};
+use crate::symbols::{has, is_class, is_constructor, is_module};
 use crate::{Lower, Result};
 use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
@@ -44,7 +44,10 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> TNodeId {
             let stats: Vec<TNodeId> = stats.into_iter().map(|s| typed(l, s, None)).collect();
             Some(Tree::Block { stats: l.tpd.list(&stats), expr: typed(l, expr, pt) })
         }
-        Tree::Typed { expr, tpt } => Some(Tree::Typed { expr: typed(l, expr, pt), tpt }),
+        Tree::Typed { expr, tpt } => {
+            let ascribed = l.u.erase(l.tpd.tpe(tpt));
+            Some(Tree::Typed { expr: typed(l, expr, Some(&ascribed)), tpt })
+        }
         Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
@@ -76,16 +79,48 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> TNodeId {
     }
 }
 
-/// Whether `t` refers to a method without parameter lists: a getter or a parameterless `def`.
+/// Whether `t` refers to a method without parameter lists: a getter, a value of a class other
+/// than a field, or a parameterless `def`.
 fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
     let (Tree::Select { .. } | Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
         return false;
     };
-    let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor);
+    let in_class = l.u.symbol(s).owner.is_some_and(|o| is_class(l.u, o));
+    let class_value = l.u.symbol(s).kind == Kind::Val
+        && in_class
+        && !is_module(l.u, s)
+        && !l.fields.contains(&s)
+        && s != l.defs.boxed_unit_unit;
+    let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;
     let info = l.u.info(s);
     method
         && !is_constructor(l.u, s)
         && !matches!(l.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+}
+
+/// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased
+/// declared type, an ascription's erasure, else the erasure of its type.
+fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
+    let sym = l.tpd.sym(t);
+    match *l.tpd.tree(t) {
+        Tree::Apply { fun, .. } => match l.tpd.sym(fun) {
+            Some(m) if !is_constructor(l.u, m) => l.u.erased_method(m).1,
+            _ => l.u.erase(l.tpd.tpe(t)),
+        },
+        Tree::Block { expr, .. } => erased_type(l, expr),
+        Tree::Typed { tpt, .. } => l.u.erase(l.tpd.tpe(tpt)),
+        Tree::Ident { .. } | Tree::Select { .. } if sym == Some(l.defs.boxed_unit_unit) => {
+            Erased::Class("scala.runtime.BoxedUnit".into())
+        }
+        Tree::Ident { .. } | Tree::Select { .. } => match sym {
+            Some(s) if !is_module(l.u, s) && l.u.symbol(s).kind.is_term() => {
+                let info = l.u.info(s);
+                l.u.erase(info)
+            }
+            _ => l.u.erase(l.tpd.tpe(t)),
+        },
+        _ => l.u.erase(l.tpd.tpe(t)),
+    }
 }
 
 /// `t()`, spanning `t` with its start as point.
@@ -102,8 +137,7 @@ fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
     if !matches!(pt, Erased::Class(_) | Erased::Array(_)) {
         return t;
     }
-    let tpe = l.tpd.tpe(t);
-    match l.u.erase(tpe) {
+    match erased_type(l, t) {
         Erased::Prim(c) => match l.defs.primitive(c) {
             Some(p) => {
                 let (module, box_method) = (p.module, p.box_method);

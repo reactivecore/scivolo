@@ -85,7 +85,8 @@ fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> Result<SymbolId, Stri
     Ok(unit)
 }
 
-fn symbol(name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> Symbol {
+/// A symbol defined outside TASTy.
+pub fn symbol(name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> Symbol {
     Symbol {
         name: name.into(),
         kind,

@@ -2,22 +2,18 @@
 //! `genFieldName`, and the field cases of `genSelect` and `genAssign`).
 
 use super::Gen;
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
-use tasty::tags::{FIELDaccessor, MUTABLE, PRIVATE};
-use tasty::{Kind, SymbolId};
+use tasty::SymbolId;
+use tasty::tags::{MUTABLE, PRIVATE};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Whether `s` is a field: a value of a class that is neither an object nor a getter.
+    /// Whether `s` is a field `Memoize` made.
     pub fn is_field(&self, s: SymbolId) -> bool {
-        let u = &*self.l.u;
-        u.symbol(s).kind == Kind::Val
-            && !is_module(u, s)
-            && !has(u, s, FIELDaccessor)
-            && u.symbol(s).owner.is_some_and(|o| u.symbol(o).kind == Kind::Class)
+        self.l.fields.contains(&s)
     }
 
     /// A `var` for each field of class `c`, in declaration order.
@@ -71,8 +67,7 @@ impl Gen<'_, '_> {
         let obj = self.gen_expr(qualifier)?;
         let ty = self.gen_type(self.l.tpd.tpe(lhs));
         let value = self.gen_expr(rhs)?;
-        let value_ty = self.val_ty(value);
-        self.check_conforms(value_ty, ty, span)?;
+        self.check_conforms(value, ty, span)?;
         let name = self.field_name(f);
         let v = self.emit(Op::Fieldstore { ty, obj, name, value });
         self.m.pos = saved;

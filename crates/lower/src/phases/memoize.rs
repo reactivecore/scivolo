@@ -1,10 +1,11 @@
 //! dotty's `Memoize`: each getter of a class gets a private field that its right-hand side
 //! initializes and that the getter returns.
 
+use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
-use tasty::{Flags, Kind, Symbol};
+use tasty::{Flags, Kind};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -24,16 +25,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             stats.push(stat);
             continue;
         }
-        let field = l.u.define(Symbol {
-            name: l.u.symbol(getter).name.clone(),
-            kind: Kind::Val,
-            owner: Some(class),
-            flags: Flags::default().with(PRIVATE).with(LOCAL),
-            target: None,
-            is_extern: false,
-            decls: Vec::new(),
-            tree: None,
-        });
+        let name_text = l.u.symbol(getter).name.clone();
+        let flags = Flags::default().with(PRIVATE).with(LOCAL);
+        let field = l.u.define(symbol(&name_text, Kind::Val, class, flags));
+        l.fields.insert(field);
         let info = l.u.info(getter);
         l.u.set_info(field, info);
         let span = l.tpd.span(stat);

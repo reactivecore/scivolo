@@ -6,8 +6,11 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Each source and what the refusal names.
-const CASES: [(&str, &str); 7] = [
+const CASES: [(&str, &str); 10] = [
     ("object O { var x = \"a\" }", "mutable fields"),
+    ("object O { private val x = \"a\" }", "private fields"),
+    ("object O { final val k = 3 }", "constant final values"),
+    ("object O { val u = () }", "fields of type Unit"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(a: String)(b: String): String = a }", "several parameter lists"),

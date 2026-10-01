@@ -96,7 +96,7 @@ impl Gen<'_, '_> {
         };
         let ty = self.val_ty(value);
         if self.m.buf.labeled() && *self.pool.ty(result) != Type::Unit {
-            self.check_conforms(ty, result, span)?;
+            self.check_conforms(value, result, span)?;
         }
         let value = if *self.pool.ty(ty) == Type::Unit { self.val(Val::Unit) } else { value };
         self.ret(value);

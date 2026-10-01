@@ -3,7 +3,8 @@
 
 use crate::symbols::{has, is_class, is_module};
 use crate::{Lower, Result, unsupported};
-use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, FINAL, LAZY, MUTABLE, PRIVATE};
+use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -24,6 +25,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         if rhs.is_none() {
             return unsupported(l.tpd.span(stat), "abstract values and constructor parameter fields");
+        }
+        if has(l.u, sym, PRIVATE) {
+            return unsupported(l.tpd.span(stat), "private fields");
+        }
+        let info = l.u.info(sym);
+        if has(l.u, sym, FINAL) && matches!(l.u.types().get(info), Type::Constant(..) | Type::Str(_)) {
+            return unsupported(l.tpd.span(stat), "constant final values");
+        }
+        if matches!(l.u.erase(info), Erased::Unit | Erased::Null | Erased::Nothing) {
+            return unsupported(l.tpd.span(stat), "fields of type Unit, Null or Nothing");
         }
         let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
         l.u.set_flags(sym, flags);
