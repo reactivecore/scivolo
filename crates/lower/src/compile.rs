@@ -24,6 +24,13 @@ pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Resul
         Err(Fallback::Unsupported { what, .. }) => return Err(format!("the typer does not support {what}")),
         Err(Fallback::Errors(_)) => return Err("type errors".into()),
     };
-    crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source)
-        .map_err(|e| format!("the lowering does not support {}", e.what))
+    crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source).map_err(|e| {
+        let at = if e.at.exists() {
+            let line = source.offset_to_line(e.at.point());
+            format!(" at {}:{}", line + 1, source.column(e.at.point()) + 1)
+        } else {
+            String::new()
+        };
+        format!("the lowering does not support {}{at}", e.what)
+    })
 }

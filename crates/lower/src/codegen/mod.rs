@@ -15,7 +15,9 @@ mod interface_bridges;
 mod literal;
 mod method;
 mod names;
+mod numeric;
 mod ops;
+mod primitives;
 mod statics;
 mod tries;
 

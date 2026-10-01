@@ -24,6 +24,10 @@ impl Gen<'_, '_> {
         let Some(sym) = self.l.tpd.sym(fun) else {
             return unsupported(span, "a call without a method symbol");
         };
+        if let Some(v) = self.gen_primitive(t, sym, fun, &args)? {
+            self.m.pos = saved;
+            return Ok(v);
+        }
         let v = match *self.l.tpd.tree(fun) {
             _ if self.l.defs.is_box(sym) => {
                 let [arg] = args[..] else { unreachable!("one argument to `box`") };
