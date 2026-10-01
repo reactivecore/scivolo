@@ -1,8 +1,9 @@
-//! Reader for Scala Native 0.5 NIR (compat 6, revision 11).
+//! Reader and writer for Scala Native 0.5 NIR (compat 6, revision 11).
 
 pub mod cursor;
 pub mod decode;
 pub mod demangle;
+pub mod encode;
 pub mod nir;
 mod operands;
 pub mod pool;
