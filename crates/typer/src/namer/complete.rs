@@ -36,6 +36,7 @@ impl Typer<'_> {
             Tree::TypeDef { rhs, .. } => {
                 let info = self.type_def_info(rhs, ctx);
                 self.u.set_info(sym, info);
+                self.check_non_cyclic(sym, info, tree);
             }
             _ => {}
         }
@@ -86,22 +87,30 @@ impl Typer<'_> {
         let mut out = Vec::new();
         for clause in self.def_clauses(tree) {
             let mut syms = Vec::new();
-            for p in clause {
+            let mut fresh = Vec::new();
+            for &p in &clause {
                 let param = match self.syms.by_tree.get(&p) {
                     Some(&s) => s,
-                    None => self.define_param(sym, p, ctx),
+                    None => {
+                        let s = self.define_param(sym, p);
+                        fresh.push((s, p));
+                        s
+                    }
                 };
                 let name = self.u.symbol(param).name.clone();
                 self.levels.enter(ctx.level, &name, param);
                 syms.push(param);
+            }
+            for (s, p) in fresh {
+                self.param_info(s, p, ctx);
             }
             out.push(syms);
         }
         out
     }
 
-    /// The symbol of parameter `p` of `method`, its info from its type or bounds typed in `ctx`.
-    fn define_param(&mut self, method: SymbolId, p: NodeId, ctx: Ctx) -> SymbolId {
+    /// The symbol of parameter `p` of `method`.
+    fn define_param(&mut self, method: SymbolId, p: NodeId) -> SymbolId {
         let (name, mods, kind, extra) = match *self.ast.tree(p) {
             Tree::ValDef { name, mods, .. } => (name, mods, Kind::Param, f::TERM_PARAM),
             Tree::TypeDef { name, mods, .. } => (name, mods, Kind::TypeParam, f::TYPE_PARAM),
@@ -115,6 +124,11 @@ impl Typer<'_> {
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);
         self.syms.by_tree.insert(p, s);
+        s
+    }
+
+    /// Sets the info of parameter `s` from its type or bounds in `p`, typed in `ctx`.
+    fn param_info(&mut self, s: SymbolId, p: NodeId, ctx: Ctx) {
         let info = match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => {
                 let typed = self.typed_type(tpt, ctx);
@@ -122,10 +136,12 @@ impl Typer<'_> {
                 self.tpd.tpe(typed)
             }
             Tree::TypeDef { rhs, .. } => self.type_def_info(rhs, ctx),
-            _ => unreachable!(),
+            _ => self.u.intern_type(Type::Error),
         };
         self.u.set_info(s, info);
-        s
+        if self.is_type_symbol(s) {
+            self.check_non_cyclic(s, info, p);
+        }
     }
 
     fn method_type(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> TypeId {

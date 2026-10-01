@@ -41,6 +41,7 @@ impl Typer<'_> {
     pub fn find_ref(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Result<Option<Found>, &'static str> {
         let name = Name { text: name, is_type };
         let mut prev: Option<Hit> = None;
+        let mut unimported = Vec::new();
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             let scope = self.levels.def_scope(l);
@@ -56,6 +57,9 @@ impl Typer<'_> {
                     };
                     let package = matches!(*self.levels.get(l), Level::Members(o) if self.u.symbol(o).kind == Kind::Package);
                     if !package || self.in_unit(&found) {
+                        if self.is_inherited(l, &found) {
+                            self.check_no_outer_defs(l, &found, name)?;
+                        }
                         let hit = Hit { found, prec: Prec::Definition, scope };
                         return self.new_or_shadowed(prev, hit, l, name).map(Some);
                     }
@@ -69,6 +73,10 @@ impl Typer<'_> {
                 Level::Import(i) => {
                     if prev.is_some() && self.is_root_import(i) {
                         return Ok(prev.map(|h| h.found));
+                    }
+                    if self.is_root_import(i) && self.root_site(i).is_some_and(|s| unimported.contains(&s)) {
+                        level = self.levels.outer(l);
+                        continue;
                     }
                     let hit = if possible(&prev, Prec::NamedImport)
                         && let Some(found) = self.named_import_ref(i, name.text, name.is_type)
@@ -84,6 +92,8 @@ impl Typer<'_> {
                         let (prec, scope) = (hit.prec, hit.scope);
                         let found = self.new_or_shadowed(prev, hit, l, name)?;
                         prev = Some(Hit { found, prec, scope });
+                    } else {
+                        unimported.extend(self.unimported(i));
                     }
                 }
             }
@@ -109,6 +119,30 @@ impl Typer<'_> {
             return Ok(hit.found);
         }
         Err("ambiguous reference")
+    }
+
+    /// Whether `found` at class members level `l` refers only to members the class inherits.
+    fn is_inherited(&self, l: LevelId, found: &Found) -> bool {
+        let Level::Members(cls) = *self.levels.get(l) else { return false };
+        self.u.symbol(cls).kind == Kind::Class && found.syms.iter().all(|&s| self.u.symbol(s).owner != Some(cls))
+    }
+
+    /// Checks that no scope or class outside level `l`, up to the first package, defines `name`
+    /// differently from the inherited `found` (dotty's `checkNoOuterDefs`).
+    fn check_no_outer_defs(&mut self, l: LevelId, found: &Found, name: Name) -> Result<(), &'static str> {
+        let mut level = self.levels.outer(l);
+        while let Some(o) = level {
+            if matches!(*self.levels.get(o), Level::Members(p) if self.u.symbol(p).kind == Kind::Package) {
+                return Ok(());
+            }
+            if let Some(outer) = self.defined(o, name)
+                && outer.syms.iter().any(|s| !found.syms.contains(s))
+            {
+                return Err("ambiguous reference: inherited and defined outside");
+            }
+            level = self.levels.outer(o);
+        }
+        Ok(())
     }
 
     /// Whether an import at `l` or outward imports `name` by name.

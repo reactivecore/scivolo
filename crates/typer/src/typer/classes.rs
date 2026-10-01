@@ -32,7 +32,15 @@ impl Typer<'_> {
     /// Sets the parents of class `cls` and enters its constructor and members.
     pub fn complete_class(&mut self, cls: SymbolId, rhs: NodeId, ctx: Ctx) {
         let t = self.template(rhs);
-        let parents = self.parent_types(&t.parents, ctx);
+        let cctx = self.class_ctx(cls, ctx);
+        let mut members = vec![t.constr];
+        members.extend(&t.body);
+        self.index(&members, cctx);
+        if let Some(&ctor) = self.syms.by_tree.get(&t.constr) {
+            self.syms.primary_ctors.insert(cls, ctor);
+        }
+        let super_ctx = self.super_call_ctx(t.constr, ctx);
+        let parents = self.parent_types(&t.parents, super_ctx);
         self.check_parents(rhs, &parents);
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
@@ -43,15 +51,9 @@ impl Typer<'_> {
             self.unsupported(s, "self type");
         }
         self.u.set_parents(cls, parents);
+        self.check_member_classes(cls, rhs);
         let no_inits = self.has_no_inits(&t.parents, &t.body);
         self.syms.no_inits.insert(cls, no_inits);
-        let cctx = self.class_ctx(cls, ctx);
-        let mut members = vec![t.constr];
-        members.extend(&t.body);
-        self.index(&members, cctx);
-        if let Some(&ctor) = self.syms.by_tree.get(&t.constr) {
-            self.syms.primary_ctors.insert(cls, ctor);
-        }
         self.set_stable_constructor(cls, t.constr);
     }
 

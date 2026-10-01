@@ -131,7 +131,7 @@ impl Typer<'_> {
     /// The context of a class's parent calls, defined in `ctx`: owned by its primary constructor
     /// `constr`, seeing the class's type parameters and parameter accessors (dotty's
     /// `superCallContext`).
-    fn super_call_ctx(&mut self, constr: NodeId, ctx: Ctx) -> Ctx {
+    pub fn super_call_ctx(&mut self, constr: NodeId, ctx: Ctx) -> Ctx {
         let Some(&ctor) = self.syms.by_tree.get(&constr) else { return ctx };
         let Some(cls) = self.u.symbol(ctor).owner else { return ctx };
         use syntax::ast::flags::{PARAM_ACCESSOR, TYPE_PARAM};

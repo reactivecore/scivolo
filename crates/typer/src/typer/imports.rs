@@ -53,9 +53,39 @@ impl Typer<'_> {
 
     /// A root import of all members of `qual`.
     pub fn root_import(&mut self, outer: Option<LevelId>, qual: TypeId) -> LevelId {
-        let selectors = vec![Selector { name: "_".into(), rename: "_".into() }];
+        let selector = |name: &str, rename: &str| Selector { name: name.into(), rename: rename.into() };
+        let mut selectors = vec![selector("_", "_"), selector("", "")];
+        if self.import_site(qual) == Some(self.defn.predef) {
+            selectors.insert(0, selector("any2stringadd", "_"));
+        }
         self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None }));
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
+    }
+
+    /// The term symbol an import's path of type `qual` refers to.
+    pub fn import_site(&self, qual: TypeId) -> Option<SymbolId> {
+        match *self.u.types().get(qual) {
+            tasty::Type::Sym(_, s) | tasty::Type::Package(s) => Some(s),
+            _ => None,
+        }
+    }
+
+    /// The root import that import `i` hides when it does not supply a name: `Predef`'s, if `i`
+    /// imports from `Predef` (dotty's `ImportInfo.unimported`).
+    pub fn unimported(&mut self, i: usize) -> Option<SymbolId> {
+        if self.is_root_import(i) {
+            return None;
+        }
+        let qual = self.import_info(i)?.qual;
+        self.import_site(qual).filter(|&s| s == self.defn.predef)
+    }
+
+    /// The term symbol root import `i` imports from.
+    pub fn root_site(&self, i: usize) -> Option<SymbolId> {
+        match &self.imports[i] {
+            ImportEntry::Done(info) => self.import_site(info.qual),
+            _ => None,
+        }
     }
 
     /// Whether import `i` is one of the imports every unit starts with.
