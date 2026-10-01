@@ -11,7 +11,7 @@ impl Cmp<'_> {
         loop {
             match self.u.types().get(t).clone() {
                 Type::Refined(_, n, have) if n == name => return self.info_conforms(have, info),
-                Type::Refined(parent, ..) | Type::Annotated(parent) | Type::Rec(_, parent) => t = parent,
+                Type::Refined(parent, ..) | Type::Annotated(parent, _) | Type::Rec(_, parent) => t = parent,
                 _ => break,
             }
         }

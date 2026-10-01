@@ -44,7 +44,8 @@ pub enum Type {
     Bounds(TypeId, TypeId),
     And(TypeId, TypeId),
     Or(TypeId, TypeId),
-    Annotated(TypeId),
+    /// A type and the class type of its annotation.
+    Annotated(TypeId, TypeId),
     ByName(TypeId),
     Refined(TypeId, String, TypeId),
     Rec(Binder, TypeId),

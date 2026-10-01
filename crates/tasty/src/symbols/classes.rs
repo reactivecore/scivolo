@@ -102,7 +102,7 @@ impl Universe {
             Type::Sym(_, s) => s,
             Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
             Type::Applied(inner, _)
-            | Type::Annotated(inner)
+            | Type::Annotated(inner, _)
             | Type::Alias(inner)
             | Type::Bounds(_, inner)
             | Type::Lambda { result: inner, .. } => return self.class_symbol_within(inner, depth),

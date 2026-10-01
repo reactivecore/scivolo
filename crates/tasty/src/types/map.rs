@@ -28,7 +28,7 @@ impl Universe {
             Type::Bounds(lo, hi) => Type::Bounds(m(self, lo), m(self, hi)),
             Type::And(a, b) => Type::And(m(self, a), m(self, b)),
             Type::Or(a, b) => Type::Or(m(self, a), m(self, b)),
-            Type::Annotated(a) => Type::Annotated(m(self, a)),
+            Type::Annotated(a, annot) => Type::Annotated(m(self, a), annot),
             Type::ByName(a) => Type::ByName(m(self, a)),
             Type::Refined(p, n, i) => Type::Refined(m(self, p), n, m(self, i)),
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),

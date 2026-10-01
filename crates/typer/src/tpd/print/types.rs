@@ -76,7 +76,7 @@ fn tpe_at(u: &mut Universe, t: TypeId, d: u32) -> String {
         Type::Bounds(lo, hi) => format!(">: {} <: {}", tpe_at(u, lo, n), tpe_at(u, hi, n)),
         Type::And(a, b) => format!("({} & {})", tpe_at(u, a, n), tpe_at(u, b, n)),
         Type::Or(a, b) => format!("({} | {})", tpe_at(u, a, n), tpe_at(u, b, n)),
-        Type::Annotated(a) => tpe_at(u, a, n),
+        Type::Annotated(a, _) => tpe_at(u, a, n),
         Type::ByName(r) => format!("=> {}", tpe_at(u, r, n)),
         Type::Refined(p, name, info) => format!("{}{{{name} {}}}", tpe_at(u, p, n), tpe_at(u, info, n)),
         Type::Rec(_, p) => format!("rec{{{}}}", tpe_at(u, p, n)),

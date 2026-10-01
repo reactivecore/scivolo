@@ -153,6 +153,21 @@ fn subtyping_matches_dotc() {
 }
 
 #[test]
+fn outer_this_types_are_seen_from_the_prefix() {
+    let Some(mut u) = universe() else { return };
+    let outer = named_type(&mut u, "oracle.Outer");
+    let outer_class = u.class_symbol(outer).unwrap();
+    let decls = u.decl(outer_class, "Inner").unwrap();
+    let inner = decls.into_iter().find(|&s| u.symbol(s).kind == Kind::Class).unwrap();
+    let this = u.intern_type(Type::This(outer));
+    let in_outer = u.intern_type(Type::Sym(Some(this), inner));
+    let outer1_inner = parse(&mut u, "oracle.outer1.Inner");
+    let seen = u.as_seen_from(in_outer, outer1_inner, inner);
+    let outer1 = path_prefix(&mut u, "oracle.outer1");
+    assert_eq!(u.types().get(seen), &Type::Sym(Some(outer1), inner));
+}
+
+#[test]
 fn members_of_types() {
     let Some(mut u) = universe() else { return };
     let has = |u: &mut Universe, t: &str, name: &str| {

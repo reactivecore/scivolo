@@ -21,7 +21,7 @@ impl Cmp<'_> {
                 Some(Type::Bounds(_, hi)) => self.recur(a, hi),
                 _ => true,
             },
-            Type::Annotated(p) => self.recur(a, p),
+            Type::Annotated(p, _) => self.recur(a, p),
             Type::This(c2) => match self.u.types().get(a).clone() {
                 Type::This(c1) => {
                     self.path_symbol(c1).is_some() && self.path_symbol(c1) == self.path_symbol(c2)
@@ -86,7 +86,7 @@ impl Cmp<'_> {
             },
             Type::And(x, y) if x == y => self.recur(x, b),
             Type::Or(x, y) => self.recur(x, b) && self.recur(y, b),
-            Type::Annotated(p) => self.recur(p, b),
+            Type::Annotated(p, _) => self.recur(p, b),
             _ => self.third_try(a, b),
         }
     }

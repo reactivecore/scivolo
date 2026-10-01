@@ -29,7 +29,7 @@ impl Cmp<'_> {
                 _ => false,
             },
             Type::This(_) => widened(self),
-            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p) | Type::Applied(p, _) => {
+            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) | Type::Applied(p, _) => {
                 self.nullable_within(p, depth)
             }
             Type::And(a, b) => self.nullable_within(a, depth) && self.nullable_within(b, depth),

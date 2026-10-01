@@ -35,7 +35,7 @@ impl Universe {
                     false => Vec::new(),
                 }
             }
-            Type::Refined(p, ..) | Type::Annotated(p) | Type::Rec(_, p) => {
+            Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) => {
                 self.member_of_type_within(p, name, steps)
             }
             _ => {
@@ -82,7 +82,7 @@ impl Universe {
         let Some(steps) = steps.checked_sub(1) else { return false };
         match self.types().get(t).clone() {
             Type::Or(a, b) => self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps),
-            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a) | Type::Rec(_, a) => {
+            Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a, _) | Type::Rec(_, a) => {
                 self.union_classes(a, classes, steps)
             }
             _ => match self.class_symbol(t) {

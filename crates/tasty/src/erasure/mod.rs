@@ -67,7 +67,7 @@ impl Universe {
                 None => object(),
             },
             Type::Applied(tycon, args) => self.erase_applied(tycon, &args),
-            Type::This(c) | Type::Alias(c) | Type::Bounds(_, c) | Type::Annotated(c) | Type::Rec(_, c) => {
+            Type::This(c) | Type::Alias(c) | Type::Bounds(_, c) | Type::Annotated(c, _) | Type::Rec(_, c) => {
                 self.erase(c)
             }
             Type::Refined(p, _, _) | Type::Match(p) => self.erase(p),

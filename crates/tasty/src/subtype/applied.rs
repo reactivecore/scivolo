@@ -48,7 +48,7 @@ impl Cmp<'_> {
                 },
                 _ => self.fourth_try(a, b),
             },
-            Type::Annotated(inner) => {
+            Type::Annotated(inner, _) => {
                 let applied = self.u.intern_type(Type::Applied(inner, args.to_vec()));
                 self.recur(a, applied)
             }
@@ -74,7 +74,7 @@ impl Cmp<'_> {
                         return same && self.sub_args(&args1, args2, variances);
                     }
                 },
-                Type::Annotated(inner) => tycon1 = inner,
+                Type::Annotated(inner, _) => tycon1 = inner,
                 Type::TypeRef(..) | Type::Sym(..) => {
                     let (Some(n1), Some(n2)) = (self.named(tycon1), self.named(tycon2)) else { return false };
                     let same = match (n1.sym, n2.sym) {
@@ -114,7 +114,7 @@ impl Cmp<'_> {
                 }
                 _ => false,
             },
-            Type::Annotated(inner) => {
+            Type::Annotated(inner, _) => {
                 let applied = self.u.intern_type(Type::Applied(inner, args.to_vec()));
                 self.recur(applied, b)
             }
