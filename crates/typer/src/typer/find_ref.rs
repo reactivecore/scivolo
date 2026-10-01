@@ -94,7 +94,13 @@ impl Typer<'_> {
 
     /// The new binding `hit` at level `l` if no inner binding `prev` conflicts with it, `prev`
     /// if it shadows it (dotty's `checkNewOrShadowed`).
-    fn new_or_shadowed(&mut self, prev: Option<Hit>, hit: Hit, l: LevelId, name: Name) -> Result<crate::typer::idents::Found, &'static str> {
+    fn new_or_shadowed(
+        &mut self,
+        prev: Option<Hit>,
+        hit: Hit,
+        l: LevelId,
+        name: Name,
+    ) -> Result<crate::typer::idents::Found, &'static str> {
         let Some(prev) = prev else { return Ok(hit.found) };
         if self.same_ref(&prev.found, &hit.found) || prev.scope == hit.scope && hit.prec.beats(prev.prec) {
             return Ok(hit.found);
@@ -138,7 +144,10 @@ impl Typer<'_> {
     fn defined(&mut self, l: LevelId, name: Name) -> Option<Found> {
         match self.levels.get(l) {
             Level::Scope(entries) => {
-                let found = entries.iter().rev().find(|(n, s)| n == name.text && self.is_type_symbol(*s) == name.is_type);
+                let found = entries
+                    .iter()
+                    .rev()
+                    .find(|(n, s)| n == name.text && self.is_type_symbol(*s) == name.is_type);
                 let sym = found?.1;
                 let owner = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class);
                 let prefix = owner.map(|o| crate::defn::owner_prefix(self.u, o));

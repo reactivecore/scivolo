@@ -15,9 +15,16 @@ impl Typer<'_> {
     /// each import opens a level the statements after it are completed in.
     pub fn index(&mut self, stats: &[NodeId], mut ctx: Ctx) {
         for &stat in stats {
-            if matches!(self.ast.tree(stat), Tree::Import { .. }) {
-                ctx.level = self.import_level(stat, ctx);
-                continue;
+            match *self.ast.tree(stat) {
+                Tree::Import { .. } => {
+                    ctx.level = self.import_level(stat, ctx);
+                    continue;
+                }
+                Tree::PackageDef { pid, .. } => {
+                    self.typed_pid(pid, ctx.owner);
+                    continue;
+                }
+                _ => {}
             }
             if let Some(sym) = self.create_symbol(stat, ctx)
                 && let Some(scope) = self.levels.def_scope(ctx.level)
@@ -68,7 +75,7 @@ impl Typer<'_> {
             self.unsupported(tree, "qualified private or protected");
         }
         let mut flags = if kind.is_term() { written.to_term_flags() } else { written.to_type_flags() };
-        if flags.is(f::PRIVATE) && text != "<init>" && !flags.is_one_of(f::PARAM.or(f::PARAM_ACCESSOR)) {
+        if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
         if flags.is(f::PRIVATE) && self.is_package_level(ctx.owner) {

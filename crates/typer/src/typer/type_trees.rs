@@ -13,7 +13,9 @@ impl Typer<'_> {
         }
         let span = self.ast.span(id);
         match self.ast.tree(id).clone() {
-            Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. } => self.typed(id, Pt::Any, ctx),
+            Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. } => {
+                self.typed(id, Pt::Any, ctx)
+            }
             Tree::AppliedTypeTree { tpt, args } => {
                 let tpt = self.typed_type(tpt, ctx);
                 let arg_ids = self.ast.items(args).to_vec();

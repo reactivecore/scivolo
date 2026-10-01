@@ -34,6 +34,9 @@ impl Typer<'_> {
         let t = self.template(rhs);
         let parents = self.parent_types(&t.parents, ctx);
         self.check_parents(rhs, &parents);
+        if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
+            self.unsupported(rhs, "derives clause");
+        }
         if let Some(s) = t.self_
             && !self.is_module_self(s)
         {
@@ -101,5 +104,4 @@ impl Typer<'_> {
         matches!(*self.ast.tree(s), Tree::ValDef { name, tpt, .. }
             if self.text(name.name) == "_" && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
     }
-
 }

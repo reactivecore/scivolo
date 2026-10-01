@@ -8,18 +8,11 @@ use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_package_def(&mut self, id: NodeId, pid: NodeId, stats: List, ctx: Ctx) -> TNodeId {
-        let Tree::Ident { name: pid_name } = *self.ast.tree(pid) else {
-            return self.unsupported(pid, "qualified package name");
+        let Some(typed_pid) = self.typed_pid(pid, ctx.owner) else {
+            return self.unsupported(pid, "package name");
         };
-        let simple = self.text(pid_name.name).to_owned();
-        let name = match ctx.owner {
-            o if o == self.u.root() => simple,
-            o => format!("{}.{simple}", self.u.full_name(o)),
-        };
-        let pkg = self.u.enter_package(&name);
-        let tpe = self.u.intern_type(Type::Package(pkg));
-        let pid_span = self.ast.span(pid);
-        let typed_pid = self.tpd.node(T::Ident { name: pid_name }, pid_span, Some(tpe), Some(pkg));
+        let pkg = self.tpd.sym(typed_pid).expect("a package");
+        let tpe = self.tpd.tpe(typed_pid);
         let level = self.levels.push(Some(ctx.level), Level::Members(pkg));
         let pctx = Ctx { owner: pkg, level, ..ctx };
         let stat_ids = self.ast.items(stats).to_vec();
@@ -30,6 +23,36 @@ impl Typer<'_> {
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::PackageDef { pid: typed_pid, stats }, span, Some(tpe), None)
+    }
+
+    /// The package that package clause `pid`, `p` or `p.q`, inside package `owner` names, entered
+    /// with the packages on its path; `_root_` is the root.
+    pub fn typed_pid(&mut self, pid: NodeId, owner: SymbolId) -> Option<TNodeId> {
+        let (outer, name) = match *self.ast.tree(pid) {
+            Tree::Ident { name } => (None, name),
+            Tree::Select { qualifier, name } => (Some(self.typed_pid(qualifier, owner)?), name),
+            _ => return None,
+        };
+        let text = self.text(name.name).to_owned();
+        let prefix = match outer {
+            Some(q) => self.tpd.sym(q)?,
+            None => owner,
+        };
+        let pkg = if outer.is_none() && text == "_root_" {
+            self.u.root()
+        } else if prefix == self.u.root() {
+            self.u.enter_package(&text)
+        } else {
+            let full = format!("{}.{text}", self.u.full_name(prefix));
+            self.u.enter_package(&full)
+        };
+        let tpe = self.u.intern_type(Type::Package(pkg));
+        let span = self.ast.span(pid);
+        let tree = match outer {
+            Some(qualifier) => T::Select { qualifier, name },
+            None => T::Ident { name },
+        };
+        Some(self.tpd.node(tree, span, Some(tpe), Some(pkg)))
     }
 
     /// Whether type `t` refers to one of `syms`.

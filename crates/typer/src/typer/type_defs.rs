@@ -40,7 +40,14 @@ impl Typer<'_> {
     /// `>: lo <: hi`, a missing bound `Nothing` or `Any` placed as dotty's `envelope` places a
     /// child without a span: at the end of the children before it, else at the start of those
     /// after it, else at the bounds' start.
-    pub fn typed_type_bounds(&mut self, id: NodeId, lo: Option<NodeId>, hi: Option<NodeId>, alias: Option<NodeId>, ctx: Ctx) -> TNodeId {
+    pub fn typed_type_bounds(
+        &mut self,
+        id: NodeId,
+        lo: Option<NodeId>,
+        hi: Option<NodeId>,
+        alias: Option<NodeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let span = self.ast.span(id);
         let typed_lo = lo.map(|l| self.typed_type(l, ctx));
         let typed_hi = hi.map(|h| self.typed_type(h, ctx));
@@ -58,7 +65,8 @@ impl Typer<'_> {
             None => {
                 let any = type_ref(self.u, self.u.builtins().any);
                 let lo_span = self.tpd.span(lo);
-                let at = if typed_lo.is_some() && lo_span.exists() { lo_span.end_pos() } else { span.start_pos() };
+                let at =
+                    if typed_lo.is_some() && lo_span.exists() { lo_span.end_pos() } else { span.start_pos() };
                 self.type_tree(any, at, false)
             }
         };

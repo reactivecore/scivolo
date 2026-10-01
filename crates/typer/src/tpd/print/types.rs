@@ -16,7 +16,9 @@ fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
     match u.types().get(p).clone() {
         Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
         Type::Sym(_, s) => u.symbol(s).kind == Kind::Package,
-        Type::TermRef(q, name) => u.resolve(q, &name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package),
+        Type::TermRef(q, name) => {
+            u.resolve(q, &name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
+        }
         Type::This(c) => match u.types().get(c) {
             Type::Sym(_, c) => {
                 let c = u.symbol(*c);

@@ -120,7 +120,8 @@ impl Typer<'_> {
         let result = if self.u.symbol(sym).name == "<init>" {
             let class = self.u.symbol(sym).owner.expect("a constructor's class");
             let class_ref = crate::defn::type_ref(self.u, class);
-            let tparams: Vec<SymbolId> = clauses.iter().flatten().copied().filter(|&p| self.is_type_symbol(p)).collect();
+            let tparams: Vec<SymbolId> =
+                clauses.iter().flatten().copied().filter(|&p| self.is_type_symbol(p)).collect();
             if tparams.is_empty() {
                 class_ref
             } else {
@@ -136,7 +137,8 @@ impl Typer<'_> {
             let params: Vec<(String, TypeId)> =
                 clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
             if clause.first().is_some_and(|&p| self.is_type_symbol(p)) {
-                let params = params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
+                let params =
+                    params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
                 let result = self.param_refs(result, &clause, binder);
                 self.u.intern_type(Type::Poly { binder, params, result })
             } else {

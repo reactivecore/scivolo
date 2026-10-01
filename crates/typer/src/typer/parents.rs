@@ -14,7 +14,9 @@ impl Typer<'_> {
     fn parent_tpt(&self, parent: NodeId) -> NodeId {
         match *self.ast.tree(parent) {
             Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } => self.parent_tpt(fun),
-            Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => self.parent_tpt(qualifier),
+            Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
+                self.parent_tpt(qualifier)
+            }
             Tree::New { tpt } => tpt,
             _ => parent,
         }
@@ -34,6 +36,11 @@ impl Typer<'_> {
             let tpe = self.tpd.tpe(typed);
             if let Some(c) = self.u.class_symbol(tpe) {
                 self.complete(c);
+                if self.ast.span(p).is_source_derived()
+                    && types.iter().any(|&t| self.u.class_symbol(t) == Some(c))
+                {
+                    self.unsupported(p, "class extended twice");
+                }
             }
             types.push(tpe);
         }
@@ -69,7 +76,9 @@ impl Typer<'_> {
 
     /// The class `sym` is or, for a trait, the class its first parent leads to.
     fn real_class_parent(&mut self, sym: Option<SymbolId>) -> SymbolId {
-        let Some(sym) = sym.filter(|&s| self.u.symbol(s).kind == Kind::Class) else { return self.defn.object };
+        let Some(sym) = sym.filter(|&s| self.u.symbol(s).kind == Kind::Class) else {
+            return self.defn.object;
+        };
         if !self.is_trait(sym) {
             return sym;
         }
@@ -125,13 +134,13 @@ impl Typer<'_> {
     fn super_call_ctx(&mut self, constr: NodeId, ctx: Ctx) -> Ctx {
         let Some(&ctor) = self.syms.by_tree.get(&constr) else { return ctx };
         let Some(cls) = self.u.symbol(ctor).owner else { return ctx };
-        let params = syntax::ast::flags::TYPE_PARAM.or(syntax::ast::flags::PARAM_ACCESSOR);
+        use syntax::ast::flags::{PARAM_ACCESSOR, TYPE_PARAM};
         let locals: Vec<(String, SymbolId)> = self
             .u
             .symbol(cls)
             .decls
             .iter()
-            .filter(|d| self.syms.flags.get(d).is_some_and(|f| f.is_one_of(params)))
+            .filter(|d| self.syms.flags.get(d).is_some_and(|f| f.is(TYPE_PARAM) || f.is(PARAM_ACCESSOR)))
             .map(|&d| (self.u.symbol(d).name.clone(), d))
             .collect();
         let level = self.levels.push(Some(ctx.level), crate::ctx::Level::Scope(locals));

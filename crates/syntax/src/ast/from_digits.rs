@@ -44,7 +44,8 @@ fn is_zero(digits: &str) -> bool {
 }
 
 pub fn float(digits: &str) -> Result<f32, &'static str> {
-    let x: f32 = digits.trim_end_matches(['f', 'F', 'd', 'D']).parse().map_err(|_| "malformed number literal")?;
+    let x: f32 =
+        digits.trim_end_matches(['f', 'F', 'd', 'D']).parse().map_err(|_| "malformed number literal")?;
     if x.is_infinite() {
         return Err("number too large");
     }
@@ -52,7 +53,8 @@ pub fn float(digits: &str) -> Result<f32, &'static str> {
 }
 
 pub fn double(digits: &str) -> Result<f64, &'static str> {
-    let x: f64 = digits.trim_end_matches(['f', 'F', 'd', 'D']).parse().map_err(|_| "malformed number literal")?;
+    let x: f64 =
+        digits.trim_end_matches(['f', 'F', 'd', 'D']).parse().map_err(|_| "malformed number literal")?;
     if x.is_infinite() {
         return Err("number too large");
     }

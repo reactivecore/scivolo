@@ -44,7 +44,9 @@ impl Typer<'_> {
                 let owner = self.u.symbol(s).owner;
                 match owner {
                     _ if self.u.class_symbol(result) == owner => result,
-                    Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => crate::defn::type_ref(self.u, o),
+                    Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
+                        crate::defn::type_ref(self.u, o)
+                    }
                     _ => class,
                 }
             }

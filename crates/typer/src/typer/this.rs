@@ -25,7 +25,7 @@ impl Typer<'_> {
     fn is_param_or_accessor(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match self.syms.flags.get(&s) {
-            Some(flags) => flags.is_one_of(f::PARAM.or(f::PARAM_ACCESSOR).or(f::ACCESSOR)),
+            Some(flags) => flags.is(f::PARAM) || flags.is(f::PARAM_ACCESSOR) || flags.is(f::ACCESSOR),
             None => sym.kind == Kind::Param || sym.flags.has(PARAMsetter) || sym.flags.has(FIELDaccessor),
         }
     }
@@ -40,7 +40,8 @@ impl Typer<'_> {
         match *self.u.types().get(prefix) {
             Type::This(c) => {
                 let Some(cls) = self.u.class_symbol(c) else { return true };
-                let owner_is_trait = self.u.symbol(sym).owner.is_some_and(|o| self.u.symbol(o).flags.has(TRAIT));
+                let owner_is_trait =
+                    self.u.symbol(sym).owner.is_some_and(|o| self.u.symbol(o).flags.has(TRAIT));
                 self.is_static_owner(cls)
                     || self.is_param_or_accessor(sym)
                         && !self.u.symbol(cls).flags.has(TRAIT)
@@ -70,7 +71,12 @@ impl Typer<'_> {
 
     /// `this` or `C.this` as written (dotty's `typedThis`): the innermost enclosing class, or
     /// the one named `C`.
-    pub fn typed_this(&mut self, id: syntax::ast::NodeId, qual: Option<syntax::ast::NodeId>, ctx: Ctx) -> TNodeId {
+    pub fn typed_this(
+        &mut self,
+        id: syntax::ast::NodeId,
+        qual: Option<syntax::ast::NodeId>,
+        ctx: Ctx,
+    ) -> TNodeId {
         let name = match qual.map(|q| self.ast.tree(q).clone()) {
             Some(syntax::ast::Tree::Ident { name }) => Some(name),
             Some(_) => return self.unsupported(id, "this qualifier"),

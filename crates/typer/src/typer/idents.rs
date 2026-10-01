@@ -93,7 +93,8 @@ impl Typer<'_> {
         let mut owner = self.u.root();
         for seg in outer.split('.') {
             let decls = self.u.decl(owner, seg).ok()?;
-            owner = decls.into_iter().find(|&d| matches!(self.u.symbol(d).kind, Kind::Package | Kind::Class))?;
+            owner =
+                decls.into_iter().find(|&d| matches!(self.u.symbol(d).kind, Kind::Package | Kind::Class))?;
         }
         let decls = match self.u.symbol(owner).kind {
             Kind::Class => self.class_members(owner, last),

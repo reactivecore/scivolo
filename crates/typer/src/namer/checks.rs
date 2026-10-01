@@ -9,13 +9,26 @@ use tasty::{Kind, SymbolId};
 impl Typer<'_> {
     /// Checks definition `tree` of `name` with the dotty flags `flags` of its modifiers in
     /// `owner`, before its symbol is entered.
-    pub fn check_definition(&mut self, tree: NodeId, name: &str, kind: Kind, owner: SymbolId, flags: FlagSet) {
+    pub fn check_definition(
+        &mut self,
+        tree: NodeId,
+        name: &str,
+        kind: Kind,
+        owner: SymbolId,
+        flags: FlagSet,
+    ) {
         if let Some(what) = self.definition_problem(name, kind, owner, flags) {
             self.unsupported(tree, what);
         }
     }
 
-    fn definition_problem(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: FlagSet) -> Option<&'static str> {
+    fn definition_problem(
+        &mut self,
+        name: &str,
+        kind: Kind,
+        owner: SymbolId,
+        flags: FlagSet,
+    ) -> Option<&'static str> {
         let is_type = !kind.is_term();
         let applicable = if is_type { flags.is_type_flags() } else { flags.is_term_flags() };
         let combinations = [
@@ -45,11 +58,16 @@ impl Typer<'_> {
             "abstract non-class"
         } else if kind == Kind::Val && !flags.is(f::TERM_PARAM) && name.ends_with("_=") {
             "value name ending in _="
-        } else if kind != Kind::Def && self.defines(owner, name, is_type) {
+        } else if flags.is_all_of(f::GIVEN.or(f::DEFERRED)) {
+            "deferred given"
+        } else if (kind != Kind::Def || name.contains("$default$")) && self.defines(owner, name, is_type) {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
             "definition named like a package"
-        } else if kind == Kind::Class && self.u.symbol(owner).kind == Kind::Class && self.inherits_class(owner, name) {
+        } else if kind == Kind::Class
+            && self.u.symbol(owner).kind == Kind::Class
+            && self.inherits_class(owner, name)
+        {
             "class shadowing an inherited class"
         } else {
             return None;
