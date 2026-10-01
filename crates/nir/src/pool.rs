@@ -1,6 +1,7 @@
 //! Interning arenas shared by every file read into one `Pool`.
 
 use crate::nir::{Global, GlobalId, Pos, PosId, StrId, Type, TypeId, Val, ValId};
+use crate::sig::ident as push_ident;
 use rustc_hash::FxHashMap;
 use std::hash::Hash;
 
@@ -123,12 +124,4 @@ impl Pool {
         }
         out
     }
-}
-
-fn push_ident(out: &mut String, id: &str) {
-    out.push_str(&id.encode_utf16().count().to_string());
-    if id.starts_with(|c: char| c.is_ascii_digit() || c == '-') {
-        out.push('-');
-    }
-    out.push_str(id);
 }

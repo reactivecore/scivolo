@@ -9,6 +9,7 @@ mod operands;
 pub mod pool;
 pub mod prelude;
 pub mod show;
+pub mod sig;
 mod successors;
 mod tags;
 

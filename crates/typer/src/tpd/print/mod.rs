@@ -94,11 +94,19 @@ impl Printer<'_> {
                 self.name(name);
             }
             Tree::This { qual } => self.node(qual),
+            Tree::Super { qual, mix } => {
+                self.node(qual);
+                match mix {
+                    Some(m) => self.name(m),
+                    None => self.out.push_str(" _"),
+                }
+            }
             Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
                 self.node(fun);
                 self.list(args);
             }
             Tree::Literal { ref value } => self.constant(value),
+            Tree::ClassLiteral { tpe } => write!(self.out, " #Class:{}", types::tpe(self.u, tpe)).unwrap(),
             Tree::New { tpt } => self.node(tpt),
             Tree::Typed { expr: a, tpt: b } | Tree::Assign { lhs: a, rhs: b } => {
                 self.node(a);
@@ -179,6 +187,7 @@ fn flag_names(flags: tasty::Flags) -> String {
 fn class_name(tree: &Tree) -> String {
     match tree {
         Tree::TypeTree { inferred: true } => "InferredTypeTree".into(),
+        Tree::ClassLiteral { .. } => "Literal".into(),
         t => {
             let s = format!("{t:?}");
             s[..s.find([' ', '{', '(']).unwrap_or(s.len())].to_string()

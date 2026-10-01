@@ -9,5 +9,11 @@ libimage.workspace = true
 nir.workspace = true
 vm = { path = "../vm" }
 
+[dev-dependencies]
+lower = { path = "../lower" }
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+typer = { path = "../typer" }
+
 [lints]
 workspace = true

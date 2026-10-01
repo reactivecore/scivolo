@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 use std::ops::Range;
 use syntax::ast::TName;
 use syntax::ast::constant::Constant;
+use tasty::TypeId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TNodeId(NonZeroU32);
@@ -81,6 +82,11 @@ pub enum Tree {
     This {
         qual: TNodeId,
     },
+    /// `mix` is `None` for dotty's empty identifier.
+    Super {
+        qual: TNodeId,
+        mix: Option<TName>,
+    },
     Apply {
         fun: TNodeId,
         args: List,
@@ -91,6 +97,10 @@ pub enum Tree {
     },
     Literal {
         value: Constant,
+    },
+    /// dotty's `Literal(Constant(tpe))` with a class tag: `classOf[tpe]`.
+    ClassLiteral {
+        tpe: TypeId,
     },
     New {
         tpt: TNodeId,
