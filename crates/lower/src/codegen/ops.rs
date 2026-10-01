@@ -41,7 +41,11 @@ impl Gen<'_, '_> {
             Op::As { ty, .. } | Op::Fieldload { ty, .. } | Op::Load { ty, .. } | Op::Arrayload { ty, .. } => {
                 ty
             }
-            Op::Box { ty, .. } | Op::Bin { ty, .. } | Op::Conv { ty, .. } => ty,
+            Op::Box { ty, .. } => match *self.pool.ty(ty) {
+                Type::Ref { name, .. } => self.ty(Type::Ref { name, exact: true, nullable: false }),
+                ref t => unreachable!("a box of type {t:?}"),
+            },
+            Op::Bin { ty, .. } | Op::Conv { ty, .. } => ty,
             Op::Is { .. } | Op::Comp { .. } => self.ty(Type::Bool),
             Op::Copy(v) => self.val_ty(v),
             Op::Var(ty) => self.ty(Type::Var(ty)),

@@ -16,6 +16,14 @@ impl Lower<'_> {
         self.tpd.node(Tree::TypeTree { inferred: false }, span, Some(tpe), None)
     }
 
+    /// A reference to `s` by its name.
+    pub fn ident(&mut self, s: SymbolId, span: Span) -> TNodeId {
+        let name = self.u.symbol(s).name.clone();
+        let name = self.term_name(&name);
+        let tpe = type_ref(self.u, s);
+        self.tpd.node(Tree::Ident { name }, span, Some(tpe), Some(s))
+    }
+
     /// `new C`, of class `c`.
     pub fn new_(&mut self, c: SymbolId, span: Span) -> TNodeId {
         let tpe = type_ref(self.u, c);

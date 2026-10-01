@@ -1,7 +1,15 @@
 //! The library symbols the lowering refers to by name (dotty's `Definitions`, nscplugin's
 //! `NirDefinitions`).
 
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::tags::STATIC;
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+
+/// A primitive value class: its erased letter, its object and that object's `box` method.
+pub struct Primitive {
+    pub letter: char,
+    pub module: SymbolId,
+    pub box_method: SymbolId,
+}
 
 pub struct Definitions {
     pub object: SymbolId,
@@ -10,13 +18,36 @@ pub struct Definitions {
     pub class: SymbolId,
     pub module_serialization_proxy: SymbolId,
     pub module_serialization_proxy_ctor: SymbolId,
+    pub primitives: Vec<Primitive>,
+    /// `scala.runtime.BoxedUnit.UNIT`, a Java static field.
+    pub boxed_unit_unit: SymbolId,
 }
+
+/// The primitive value classes of package `scala` and their erased letters.
+const PRIMITIVES: [(&str, char); 8] = [
+    ("Boolean", 'z'),
+    ("Char", 'c'),
+    ("Byte", 'b'),
+    ("Short", 's'),
+    ("Int", 'i'),
+    ("Long", 'j'),
+    ("Float", 'f'),
+    ("Double", 'd'),
+];
 
 impl Definitions {
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
         let java_lang = package(u, "java.lang")?;
+        let scala = package(u, "scala")?;
         let runtime = package(u, "scala.runtime")?;
         let proxy = member(u, runtime, "ModuleSerializationProxy", Kind::Class)?;
+        let mut primitives = Vec::new();
+        for (name, letter) in PRIMITIVES {
+            let module = member(u, scala, name, Kind::Val)?;
+            let class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
+            let box_method = member(u, class, "box", Kind::Def)?;
+            primitives.push(Primitive { letter, module, box_method });
+        }
         let b = u.builtins();
         Ok(Definitions {
             object: b.object,
@@ -25,7 +56,45 @@ impl Definitions {
             class: member(u, java_lang, "Class", Kind::Class)?,
             module_serialization_proxy: proxy,
             module_serialization_proxy_ctor: member(u, proxy, "<init>", Kind::Def)?,
+            primitives,
+            boxed_unit_unit: boxed_unit_unit(u, runtime)?,
         })
+    }
+
+    pub fn primitive(&self, letter: char) -> Option<&Primitive> {
+        self.primitives.iter().find(|p| p.letter == letter)
+    }
+
+    pub fn is_box(&self, m: SymbolId) -> bool {
+        self.primitives.iter().any(|p| p.box_method == m)
+    }
+}
+
+/// `BoxedUnit.UNIT`, defined with its class if the library has no TASTy for them.
+fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> Result<SymbolId, String> {
+    let class = match member(u, runtime, "BoxedUnit", Kind::Class) {
+        Ok(c) => c,
+        Err(_) => u.define(symbol("BoxedUnit", Kind::Class, runtime, Flags::default())),
+    };
+    if let Ok(unit) = member(u, class, "UNIT", Kind::Val) {
+        return Ok(unit);
+    }
+    let unit = u.define(symbol("UNIT", Kind::Val, class, Flags::default().with(STATIC)));
+    let info = type_ref(u, class);
+    u.set_info(unit, info);
+    Ok(unit)
+}
+
+fn symbol(name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> Symbol {
+    Symbol {
+        name: name.into(),
+        kind,
+        owner: Some(owner),
+        flags,
+        target: None,
+        is_extern: false,
+        decls: Vec::new(),
+        tree: None,
     }
 }
 

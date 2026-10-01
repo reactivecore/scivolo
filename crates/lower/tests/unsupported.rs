@@ -7,13 +7,13 @@ use tasty::Universe;
 
 /// Each source and what the refusal names.
 const CASES: [(&str, &str); 7] = [
-    ("@main def m(): Unit = println(42)", "boxing"),
+    ("object O { val x = \"a\" }", "fields"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(a: String)(b: String): String = a }", "several parameter lists"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
     ("object O { def f(): String = { var x = \"a\"; x } }", "local variables"),
-    ("object O { def f(): Any = 1 }", "boxing"),
+    ("trait T { def f(): String = \"a\" }", "traits"),
 ];
 
 #[test]

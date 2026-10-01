@@ -41,7 +41,9 @@ impl Gen<'_, '_> {
     pub fn check_conforms(&mut self, from: TypeId, to: TypeId, span: Span) -> Result<()> {
         let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, t) = (self.pool.ty(from), self.pool.ty(to));
-        let ok = f == t || *f == Type::Nothing || (is_ref(t) && (is_ref(f) || *f == Type::Null));
+        let ok = f == t
+            || *f == Type::Nothing
+            || (is_ref(t) && (is_ref(f) || matches!(f, Type::Null | Type::Unit)));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
 
