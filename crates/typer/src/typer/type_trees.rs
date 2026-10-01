@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::Type;
+use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_type(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
@@ -20,7 +20,7 @@ impl Typer<'_> {
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 let tycon = self.tpd.tpe(tpt);
-                let tpe = self.u.intern_type(Type::Applied(tycon, arg_types));
+                let tpe = self.applied_to(tycon, arg_types);
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }
@@ -34,6 +34,34 @@ impl Typer<'_> {
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
         }
+    }
+
+    /// `tycon[args]`; an alias that eta-expands a type constructor, `type F[X] = G[X]`, applied
+    /// as that constructor (dotty's `appliedTo`).
+    pub fn applied_to(&mut self, tycon: TypeId, args: Vec<TypeId>) -> TypeId {
+        if let Type::Sym(_, s) = *self.u.types().get(tycon)
+            && self.u.symbol(s).kind == Kind::Type
+        {
+            self.complete(s);
+            let info = self.u.info(s);
+            let alias = match *self.u.types().get(info) {
+                Type::Alias(a) => a,
+                _ => info,
+            };
+            if let Type::Lambda { binder, ref params, result } = *self.u.types().get(alias)
+                && let Type::Applied(inner, ref inner_args) = *self.u.types().get(result)
+                && inner_args.len() == params.len()
+                && args.len() == params.len()
+                && inner_args.iter().enumerate().all(|(i, &a)| match self.u.types().get(a) {
+                    Type::Param(b, k) => *b == binder && *k == i as u32,
+                    Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
+                    _ => false,
+                })
+            {
+                return self.u.intern_type(Type::Applied(inner, args));
+            }
+        }
+        self.u.intern_type(Type::Applied(tycon, args))
     }
 
     /// A type tree of type `tpe` that no source tree gave (dotty's `TypeTree(tpe)`).

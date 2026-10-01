@@ -2,10 +2,9 @@
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
-use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use syntax::ast::{NodeId, Span, Tree};
+use tasty::{Kind, SymbolId};
 
 /// The parts of a template.
 struct Template {
@@ -30,41 +29,11 @@ impl Typer<'_> {
         Ctx { owner: cls, level, ..ctx }
     }
 
-    /// The type tree of a parent: the class of a constructor call, or the parent itself.
-    fn parent_tpt(&self, parent: NodeId) -> NodeId {
-        match *self.ast.tree(parent) {
-            Tree::Apply { fun, .. } => self.parent_tpt(fun),
-            Tree::Select { qualifier, .. } => self.parent_tpt(qualifier),
-            Tree::New { tpt } => tpt,
-            _ => parent,
-        }
-    }
-
     /// Sets the parents of class `cls` and enters its constructor and members.
     pub fn complete_class(&mut self, cls: SymbolId, rhs: NodeId, ctx: Ctx) {
         let t = self.template(rhs);
-        let mut parents: Vec<TypeId> = Vec::new();
-        for &p in &t.parents {
-            let tpt = self.parent_tpt(p);
-            let typed = self.typed_type(tpt, ctx);
-            parents.push(self.tpd.tpe(typed));
-        }
-        if parents.is_empty() {
-            parents.push(type_ref(self.u, self.defn.object));
-        }
-        for &p in &parents {
-            if let Some(c) = self.u.class_symbol(p) {
-                self.complete(c);
-            }
-        }
-        let any_val = self.u.builtins().any_val;
-        if any_val.is_some() && parents.iter().any(|&p| self.u.class_symbol(p) == any_val) {
-            self.unsupported(rhs, "value class");
-        }
-        let first = self.u.class_symbol(parents[0]);
-        if !self.is_trait(cls) && first.is_none_or(|c| self.is_trait(c)) {
-            self.unsupported(rhs, "a trait as first parent");
-        }
+        let parents = self.parent_types(&t.parents, ctx);
+        self.check_parents(rhs, &parents);
         if let Some(s) = t.self_
             && !self.is_module_self(s)
         {
@@ -90,14 +59,8 @@ impl Typer<'_> {
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
         let constr = self.typed(t.constr, Pt::Any, cctx);
-        let parents: Vec<TNodeId> = if t.parents.is_empty() {
-            let object = type_ref(self.u, self.defn.object);
-            let name_span = Span::at(self.ast.span(id).point());
-            let tpt = self.type_tree(object, name_span, false);
-            vec![self.ensure_constr_call(cls, tpt)]
-        } else {
-            t.parents.iter().map(|&p| self.typed_parent(cls, p, ctx)).collect()
-        };
+        let name_span = Span::at(self.ast.span(id).point());
+        let parents = self.parent_trees(cls, &t.parents, ctx, name_span);
         let self_ = t.self_.map(|s| self.typed(s, Pt::Any, cctx));
         let body = self.typed_template_stats(cls, &t.body, cctx);
         let parents = self.tpd.list(&parents);
@@ -130,54 +93,10 @@ impl Typer<'_> {
         out
     }
 
-    /// A parent: a constructor call, or a type made one if it is a class's parent class.
-    fn typed_parent(&mut self, cls: SymbolId, parent: NodeId, ctx: Ctx) -> TNodeId {
-        if matches!(self.ast.tree(parent), Tree::Apply { .. }) {
-            return self.typed(parent, Pt::Any, ctx);
-        }
-        let tpt = self.typed_type(parent, ctx);
-        self.ensure_constr_call(cls, tpt)
-    }
-
-    fn is_trait(&self, c: SymbolId) -> bool {
-        self.u.symbol(c).flags.has(tasty::tags::TRAIT)
-    }
-
     /// Whether self definition `s` is the `_: O.type` desugaring gives an object's class.
     fn is_module_self(&self, s: NodeId) -> bool {
         matches!(*self.ast.tree(s), Tree::ValDef { name, tpt, .. }
             if self.text(name.name) == "_" && matches!(self.ast.tree(tpt), Tree::SingletonTypeTree { .. }))
     }
 
-    /// The constructor of class `c` that takes one empty parameter list, if it has one.
-    fn nullary_constructor(&mut self, c: SymbolId) -> Option<SymbolId> {
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
-        ctors.into_iter().find(|&ctor| {
-            self.complete(ctor);
-            let info = self.u.info(ctor);
-            matches!(self.u.types().get(info), Type::Method { params, result, .. }
-                if params.is_empty() && !matches!(self.u.types().get(*result), Type::Method { .. } | Type::Poly { .. }))
-        })
-    }
-
-    /// `new P()` for parent type tree `parent` of class `cls` if `P` is a class and `cls` is not
-    /// a trait (dotty's `ensureConstrCall`).
-    fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId) -> TNodeId {
-        let tpe = self.tpd.tpe(parent);
-        let Some(psym) = self.u.class_symbol(tpe) else { return parent };
-        if self.is_trait(cls) || self.is_trait(psym) {
-            return parent;
-        }
-        let span = self.tpd.span(parent).to_synthetic();
-        let Some(ctor) = self.nullary_constructor(psym) else {
-            self.unsupported_at(span, "parent constructor with arguments");
-            return parent;
-        };
-        let new = self.tpd.node(T::New { tpt: parent }, span, Some(tpe), None);
-        let sel_tpe = self.u.intern_type(Type::Sym(Some(tpe), ctor));
-        let name = TName { name: self.name("<init>"), is_type: false };
-        let sel = self.tpd.node(T::Select { qualifier: new, name }, span, Some(sel_tpe), Some(ctor));
-        let args = self.tpd.list(&[]);
-        self.tpd.node(T::Apply { fun: sel, args }, span, Some(tpe), None)
-    }
 }

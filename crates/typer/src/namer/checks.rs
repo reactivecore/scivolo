@@ -52,6 +52,28 @@ impl Typer<'_> {
         })
     }
 
+    /// Checks the parent types of the class with template `rhs`: no value class, no `Dynamic`, no
+    /// final class, no sealed class of the library.
+    pub fn check_parents(&mut self, rhs: NodeId, parents: &[tasty::TypeId]) {
+        let any_val = self.u.builtins().any_val;
+        for &p in parents {
+            let Some(c) = self.u.class_symbol(p) else { continue };
+            let flags = self.u.symbol(c).flags;
+            let what = if Some(c) == any_val {
+                "value class"
+            } else if self.u.full_name(c) == "scala.Dynamic" {
+                "Dynamic"
+            } else if flags.has(tasty::tags::FINAL) || flags.has(tasty::tags::OBJECT) {
+                "extending a final class"
+            } else if flags.has(tasty::tags::SEALED) && !self.syms.flags.contains_key(&c) {
+                "extending a sealed class of the library"
+            } else {
+                continue;
+            };
+            self.unsupported(rhs, what);
+        }
+    }
+
     /// Checks that annotation class `annot` is one the typer handles: `@main`.
     pub fn check_annotation(&mut self, annot: NodeId, class: Option<SymbolId>) {
         if class != Some(self.defn.main_annot) {

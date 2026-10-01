@@ -9,6 +9,7 @@ mod idents;
 mod imports;
 mod literals;
 mod no_inits;
+mod parents;
 mod patterns;
 mod select;
 mod stats;
