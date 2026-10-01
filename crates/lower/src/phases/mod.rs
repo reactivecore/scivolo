@@ -3,6 +3,8 @@
 mod build;
 mod constructors;
 mod erasure;
+mod getters;
+mod memoize;
 mod synthetic;
 
 use crate::{Lower, Result};
@@ -14,7 +16,13 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         synthetic::add_synthetic_members(l, td)?;
     }
     for &td in &classes {
+        getters::transform(l, td)?;
+    }
+    for &td in &classes {
         erasure::transform(l, td)?;
+    }
+    for &td in &classes {
+        memoize::transform(l, td)?;
     }
     for &td in &classes {
         constructors::transform(l, td)?;

@@ -2,9 +2,10 @@
 //! expected there, a primitive value where a reference is expected boxed by its object's `box`,
 //! `()` there replaced by `BoxedUnit.UNIT`.
 
-use crate::symbols::is_constructor;
+use crate::symbols::{has, is_constructor};
 use crate::{Lower, Result};
-use tasty::{Erased, SymbolId};
+use tasty::tags::FIELDaccessor;
+use tasty::{Erased, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Types the methods of class definition `td` against their erased result types.
@@ -27,7 +28,10 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> TNodeId {
     let tree = l.tpd.tree(t).clone();
     let new = match tree {
         Tree::Apply { fun, args } => {
-            let fun = typed(l, fun, None);
+            if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
+                let qualifier = typed(l, qualifier, None);
+                l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
+            }
             let params = l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default();
             let args: Vec<TNodeId> = l.tpd.items(args).to_vec();
             let args: Vec<TNodeId> =
@@ -65,10 +69,31 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> TNodeId {
     if let Some(new) = new {
         l.tpd.get_mut(t).tree = new;
     }
+    let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
     match pt {
         Some(pt) => adapt(l, t, pt),
         None => t,
     }
+}
+
+/// Whether `t` refers to a method without parameter lists: a getter or a parameterless `def`.
+fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
+    let (Tree::Select { .. } | Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+        return false;
+    };
+    let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor);
+    let info = l.u.info(s);
+    method
+        && !is_constructor(l.u, s)
+        && !matches!(l.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+}
+
+/// `t()`, spanning `t` with its start as point.
+fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
+    let span = l.tpd.span(t);
+    let span = if span.exists() { span.with_point(span.start()) } else { span };
+    let tpe = l.tpd.tpe(t);
+    l.apply(t, &[], tpe, span)
 }
 
 /// `t` adapted to erased type `pt`: boxed if a primitive value or `()` where a reference is

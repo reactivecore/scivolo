@@ -2,6 +2,7 @@
 
 use crate::Lower;
 use crate::definitions::type_ref;
+use crate::symbols::{is_static_module, source_module};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::{SymbolId, Type, TypeId};
@@ -22,6 +23,18 @@ impl Lower<'_> {
         let name = self.term_name(&name);
         let tpe = type_ref(self.u, s);
         self.tpd.node(Tree::Ident { name }, span, Some(tpe), Some(s))
+    }
+
+    /// A reference to field `f` of its class: through the object if the class is a static
+    /// object's, else through `this`.
+    pub fn field_ref(&mut self, f: SymbolId, span: Span) -> TNodeId {
+        let class = self.u.symbol(f).owner.expect("a field's class");
+        let module = is_static_module(self.u, class).then(|| source_module(self.u, class)).flatten();
+        let qual = match module {
+            Some(m) => self.ident(m, span),
+            None => self.this(class, span),
+        };
+        self.select(qual, f, span)
     }
 
     /// `new C`, of class `c`.

@@ -10,6 +10,7 @@ mod class;
 mod dead;
 mod erased;
 mod expr;
+mod fields;
 mod literal;
 mod method;
 mod names;

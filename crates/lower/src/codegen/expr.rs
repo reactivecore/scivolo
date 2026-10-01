@@ -6,7 +6,7 @@ use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::{LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use typer::tpd::print::class_name;
 use typer::tpd::{TNodeId, Tree};
 
@@ -40,6 +40,7 @@ impl Gen<'_, '_> {
                 _ => self.gen_expr(expr),
             },
             Tree::ValDef { rhs, .. } => self.gen_val_def(t, rhs),
+            Tree::Assign { lhs, rhs } => self.gen_assign(t, lhs, rhs),
             ref tree => unsupported(span, format!("{} in an expression", class_name(tree))),
         }
     }
@@ -80,10 +81,12 @@ impl Gen<'_, '_> {
         let saved = self.at_span(span);
         let v = if is_module(self.l.u, sym) {
             self.gen_module(sym)
-        } else if self.l.u.symbol(sym).kind == tasty::Kind::Def {
+        } else if self.is_field(sym) {
+            self.gen_field_load(t, sym, qual)?
+        } else if self.l.u.symbol(sym).kind == tasty::Kind::Def || has(self.l.u, sym, FIELDaccessor) {
             self.gen_apply_method(sym, false, super::apply::Receiver::Tree(qual), &[], span)?
         } else {
-            return unsupported(span, "fields");
+            return unsupported(span, "a selection of a value that is not a field");
         };
         self.m.pos = saved;
         Ok(v)

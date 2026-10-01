@@ -1,5 +1,6 @@
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
-//! `Constructors`, for classes whose templates hold only methods.
+//! `Constructors`: that call, then the fields initialized in order, for classes whose templates
+//! hold only methods and fields.
 
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
@@ -15,9 +16,19 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     if is_trait(l.u, class) {
         return unsupported(span, "traits");
     }
-    for &stat in l.tpd.items(body) {
-        if !matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::TypeDef { .. }) {
-            return unsupported(l.tpd.span(stat), "fields and statements in a class body");
+    let mut inits = Vec::new();
+    for stat in l.tpd.items(body).to_vec() {
+        match *l.tpd.tree(stat) {
+            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {}
+            Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
+                let field = l.tpd.sym(stat).expect("a field's symbol");
+                let at = l.tpd.span(rhs);
+                let lhs = l.field_ref(field, at);
+                let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
+                inits.push(l.tpd.node(Tree::Assign { lhs, rhs }, at, Some(unit), None));
+                l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
+            }
+            _ => return unsupported(l.tpd.span(stat), "statements in a class body"),
         }
     }
     let parents = l.tpd.items(parents).to_vec();
@@ -32,7 +43,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         return unsupported(l.tpd.span(constr), "a constructor with a body");
     };
     let unit = l.unit_literal(span);
-    let rhs = l.block(&[super_call], unit, span);
+    let stats: Vec<TNodeId> = std::iter::once(super_call).chain(inits).collect();
+    let rhs = l.block(&stats, unit, span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
     Ok(())
 }

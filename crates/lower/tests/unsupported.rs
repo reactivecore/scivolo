@@ -7,7 +7,7 @@ use tasty::Universe;
 
 /// Each source and what the refusal names.
 const CASES: [(&str, &str); 7] = [
-    ("object O { val x = \"a\" }", "fields"),
+    ("object O { var x = \"a\" }", "mutable fields"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(a: String)(b: String): String = a }", "several parameter lists"),
