@@ -51,7 +51,9 @@ impl Typer<'_> {
         let target = self.u.class_symbol(pt).map(|c| self.u.full_name(c))?;
         let (converted, lossy) = match (&value, target.as_str()) {
             (Constant::Char(c), "scala.Int") => (Constant::Int(*c as i32), false),
-            (Constant::Int(i), "scala.Char") if (0..=0xFFFF).contains(i) => (Constant::Char(*i as u16), false),
+            (Constant::Int(i), "scala.Char") if (0..=0xFFFF).contains(i) => {
+                (Constant::Char(*i as u16), false)
+            }
             (Constant::Int(i), "scala.Long") => (Constant::Long(*i as i64), false),
             (Constant::Char(c), "scala.Long") => (Constant::Long(*c as i64), false),
             (Constant::Int(i), "scala.Float") => (Constant::Float(*i as f32), (*i as f32) as i32 != *i),

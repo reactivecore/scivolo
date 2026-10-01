@@ -33,6 +33,10 @@ pub struct Syms {
     pub no_inits: FxHashMap<SymbolId, bool>,
     /// The package a package-level `private` definition is private to (dotty's `privateWithin`).
     pub private_within: FxHashMap<SymbolId, SymbolId>,
+    /// The script methods whose definitions state their result types.
+    pub declared_results: rustc_hash::FxHashSet<SymbolId>,
+    /// dotty's `<special-ops>.throw`, once defined.
+    pub throw_method: Option<SymbolId>,
     /// The value parameters of each script method, by clause.
     pub param_clauses: FxHashMap<SymbolId, Vec<Vec<SymbolId>>>,
     /// The primary constructor of each script class.

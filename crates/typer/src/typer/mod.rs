@@ -4,6 +4,7 @@ mod access;
 mod adapt;
 mod apply;
 mod classes;
+mod control;
 mod defs;
 mod derived;
 mod find_ref;
@@ -126,6 +127,11 @@ impl<'a> Typer<'a> {
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
             Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
+            Tree::If { cond, thenp, elsep, inline: false } => self.typed_if(id, cond, thenp, elsep, pt, ctx),
+            Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
+            Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
+            Tree::Return { expr } => self.typed_return(id, expr, ctx),
+            Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
             Tree::TypeTree
             | Tree::AppliedTypeTree { .. }

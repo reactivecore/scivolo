@@ -86,7 +86,11 @@ impl Typer<'_> {
         let typed = self.typed(s, Pt::Any, ctx);
         let definition = matches!(
             self.ast.tree(s),
-            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } | Tree::PackageDef { .. }
+            Tree::ValDef { .. }
+                | Tree::DefDef { .. }
+                | Tree::TypeDef { .. }
+                | Tree::Import { .. }
+                | Tree::PackageDef { .. }
         );
         if !definition {
             self.check_statement_purity(typed);

@@ -116,6 +116,9 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Applied(class_ref, args))
             }
         } else {
+            if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+                self.syms.declared_results.insert(sym);
+            }
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);

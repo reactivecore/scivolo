@@ -26,7 +26,8 @@ impl Typer<'_> {
             T::Literal { .. } | T::This { .. } | T::New { .. } => true,
             T::Ident { .. } => self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree)),
             T::Select { qualifier, .. } => {
-                self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree)) && self.is_pure_expr(qualifier)
+                self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree))
+                    && self.is_pure_expr(qualifier)
             }
             T::Apply { fun, args } => {
                 let callee = self.callee(fun);

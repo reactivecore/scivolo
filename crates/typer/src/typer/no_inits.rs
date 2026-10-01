@@ -8,10 +8,16 @@ use tasty::SymbolId;
 
 impl Typer<'_> {
     /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`).
+    /// A companion object desugaring synthesized counts as part of its class, which dotty sees
+    /// before desugaring.
     fn is_no_init_member(&self, s: NodeId) -> bool {
-        match self.ast.tree(s) {
+        match *self.ast.tree(s) {
             Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } | Tree::DefDef { .. } => true,
-            Tree::ValDef { rhs, .. } => rhs.is_none(),
+            Tree::ValDef { rhs, mods, .. } => {
+                let flags = self.ast.modifiers(mods).flags;
+                rhs.is_none()
+                    || flags.is(syntax::ast::flags::MODULE) && flags.is(syntax::ast::flags::SYNTHETIC)
+            }
             _ => false,
         }
     }

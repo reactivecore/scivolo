@@ -127,6 +127,11 @@ pub enum Tree {
         guard: Option<TNodeId>,
         body: TNodeId,
     },
+    /// `from` is an identifier of the method returned from.
+    Return {
+        expr: TNodeId,
+        from: TNodeId,
+    },
     WhileDo {
         cond: TNodeId,
         body: TNodeId,
