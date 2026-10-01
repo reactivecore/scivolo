@@ -71,8 +71,9 @@ impl Typer<'_> {
         let stat_ids = self.ast.items(stats).to_vec();
         self.index(&stat_ids, bctx);
         let typed = self.typed_stats(&stat_ids, bctx);
+        let expr_ctx = stat_ids.iter().fold(bctx, |c, &s| self.after_stat(s, c));
         let expr = match expr {
-            Some(e) => self.typed(e, pt, bctx),
+            Some(e) => self.typed(e, pt, expr_ctx),
             None => return self.unsupported(id, "block without result"),
         };
         let tpe = self.tpd.tpe(expr);

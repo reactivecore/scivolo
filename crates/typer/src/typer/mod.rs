@@ -118,6 +118,8 @@ impl<'a> Typer<'a> {
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
             Tree::Apply { fun, args } => self.typed_apply(id, fun, args, ctx),
             Tree::Literal { value } => self.typed_literal(id, value),
+            Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
+            Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),

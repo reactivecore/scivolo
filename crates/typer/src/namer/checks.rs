@@ -19,6 +19,8 @@ impl Typer<'_> {
     ) {
         if flags.is(f::INLINE) {
             self.unsupported(tree, "inline definition");
+        } else if flags.is(f::PRIVATE) && flags.is_one_of(f::OVERRIDE.or(f::ABS_OVERRIDE)) {
+            self.unsupported(tree, "private and override");
         } else if flags.is(f::PRIVATE) && self.u.symbol(owner).kind == Kind::Package {
             self.unsupported(tree, "private top-level definition");
         } else if kind != Kind::Def && self.defines(owner, name, kind == Kind::Class) {

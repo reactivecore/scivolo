@@ -73,6 +73,37 @@ impl Typer<'_> {
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
     }
 
+    /// A reference desugaring made to the library symbol of full name `sym` (dotty's
+    /// `TypedSplice(ref(sym))`): an identifier of its simple name.
+    pub fn typed_full_ref(&mut self, id: NodeId, sym: TName) -> TNodeId {
+        let full = self.text(sym.name).to_owned();
+        let Some(s) = self.resolve_full_name(&full, sym.is_type) else {
+            return self.unsupported(id, &format!("reference to {full}"));
+        };
+        let simple = self.u.symbol(s).name.clone();
+        let name = TName { name: self.name(&simple), is_type: sym.is_type };
+        let tpe = crate::defn::type_ref(self.u, s);
+        let span = self.ast.span(id);
+        self.tpd.node(T::Ident { name }, span, Some(tpe), Some(s))
+    }
+
+    /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.
+    fn resolve_full_name(&mut self, full: &str, is_type: bool) -> Option<SymbolId> {
+        let (outer, last) = full.rsplit_once('.')?;
+        let mut owner = self.u.root();
+        for seg in outer.split('.') {
+            let decls = self.u.decl(owner, seg).ok()?;
+            owner = decls.into_iter().find(|&d| matches!(self.u.symbol(d).kind, Kind::Package | Kind::Class))?;
+        }
+        let decls = match self.u.symbol(owner).kind {
+            Kind::Class => self.class_members(owner, last),
+            _ => self.u.decl(owner, last).ok()?,
+        };
+        let mut found = decls.into_iter().filter(|&d| self.is_type_symbol(d) == is_type);
+        let s = found.next()?;
+        found.next().is_none().then_some(s)
+    }
+
     /// The type of a reference to `sym` through `prefix` (dotty's `TermRef`/`TypeRef`), a
     /// member of a package object through the object (`makePackageObjPrefixExplicit`).
     pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {

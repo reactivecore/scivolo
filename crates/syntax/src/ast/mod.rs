@@ -5,6 +5,7 @@ pub mod children;
 pub mod constant;
 mod copy;
 pub mod flags;
+pub mod from_digits;
 mod kinds;
 pub mod modifiers;
 mod positions;
