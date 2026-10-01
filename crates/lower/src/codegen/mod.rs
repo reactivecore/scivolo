@@ -11,6 +11,7 @@ mod dead;
 mod erased;
 mod expr;
 mod fields;
+mod interface_bridges;
 mod literal;
 mod method;
 mod names;
@@ -22,7 +23,7 @@ use crate::{Lower, NirFile, Result};
 use method::Method;
 use nir::encode::Writer;
 use nir::{Attr, Defn, DefnKind, Global, GlobalId, Pool, Pos, PosId, StrId, Type, TypeId, Val, ValId};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
@@ -40,6 +41,8 @@ pub struct Gen<'l, 'a> {
     no_pos: PosId,
     /// The spans of the unit's classes and methods.
     spans: FxHashMap<SymbolId, Span>,
+    /// The unit's abstract methods.
+    deferred: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
@@ -51,7 +54,19 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
     let m = Method::new(None, 0, no_pos);
     let type_defs = type_defs(l, root);
     let spans = definition_spans(l, &type_defs);
-    let mut g = Gen { l, pool, defns: Vec::new(), mirrors: Vec::new(), class: None, m, file, no_pos, spans };
+    let deferred = interface_bridges::deferred_methods(l.tpd, &type_defs);
+    let mut g = Gen {
+        l,
+        pool,
+        defns: Vec::new(),
+        mirrors: Vec::new(),
+        class: None,
+        m,
+        file,
+        no_pos,
+        spans,
+        deferred,
+    };
     for td in type_defs {
         g.gen_class(td)?;
     }

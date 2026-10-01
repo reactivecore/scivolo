@@ -152,6 +152,24 @@ typer-diff path:
     cargo build -q --release -p typer
     python3 scripts/typer-tests.py diff {{ path }}
 
+# The Rust typer's typed trees of Scala files, or why they fall back.
+typer-dump +files:
+    cargo build -q --release -p typer
+    mkdir -p tmp
+    printf '%s\n' {{ files }} > tmp/typer-dump.list
+    target/release/typer-dump --list tmp/typer-dump.list
+
+# Lower a Scala file through the Rust frontend into NIR files in tmp/lowered/<file name>.
+lower file:
+    cargo build -q --release -p lower
+    target/release/lower {{ file }} tmp/lowered/$(basename {{ file }} .scala)
+
+# Lower a Scala file through the Rust frontend and run its `main` (default: the file name) in
+# the release VM, stopped after `SCALAI_TIMEOUT` seconds (default 60).
+lower-run file main="": release (lower file)
+    m="{{ main }}"; [ -z "$m" ] && m=$(basename {{ file }} .scala); \
+    SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tmp/lowered/$(basename {{ file }} .scala) $m
+
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
     scripts/sn-run.sh {{ filters }}

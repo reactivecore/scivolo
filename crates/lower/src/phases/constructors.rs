@@ -60,8 +60,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     };
     stats.push(super_call(l, class, first)?);
     stats.extend(inits);
-    let unit = l.unit_literal(span);
-    let rhs = l.block(&stats, unit, span);
+    let block_span = stats.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
+    let block_span = block_span.map_or(span, |s| s.with_point(s.start()));
+    let unit = l.unit_literal(block_span);
+    let rhs = l.block(&stats, unit, block_span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
     Ok(())
 }
