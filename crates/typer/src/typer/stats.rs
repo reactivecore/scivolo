@@ -74,11 +74,24 @@ impl Typer<'_> {
         let mut out = Vec::new();
         for &s in stats {
             if !matches!(self.ast.tree(s), Tree::Empty) {
-                out.push(self.typed(s, Pt::Any, ctx));
+                out.push(self.typed_stat(s, ctx));
                 ctx = self.after_stat(s, ctx);
             }
         }
         out
+    }
+
+    /// Statement `s`, an expression checked for purity.
+    pub fn typed_stat(&mut self, s: NodeId, ctx: Ctx) -> TNodeId {
+        let typed = self.typed(s, Pt::Any, ctx);
+        let definition = matches!(
+            self.ast.tree(s),
+            Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } | Tree::PackageDef { .. }
+        );
+        if !definition {
+            self.check_statement_purity(typed);
+        }
+        typed
     }
 
     pub fn typed_block(

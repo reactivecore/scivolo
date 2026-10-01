@@ -15,6 +15,7 @@ mod no_inits;
 mod overrides;
 mod parents;
 mod patterns;
+mod purity;
 mod qualifies;
 mod select;
 mod stats;
@@ -107,7 +108,7 @@ impl<'a> Typer<'a> {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
-        self.adapt(tree, pt);
+        let tree = self.adapt(tree, pt);
         self.depth -= 1;
         tree
     }

@@ -96,7 +96,7 @@ impl Typer<'_> {
                     ctx.with_owner(d)
                 }
             };
-            out.push(self.typed(s, Pt::Any, stat_ctx));
+            out.push(self.typed_stat(s, stat_ctx));
             ctx = self.after_stat(s, ctx);
         }
         out
