@@ -4,7 +4,7 @@ use super::Gen;
 use super::names::mapped;
 use crate::symbols::{is_constructor, is_java_static};
 use crate::{Result, unsupported};
-use nir::{Type, TypeId};
+use nir::{Type, TypeId, Val, ValId};
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
 
@@ -36,12 +36,14 @@ impl Gen<'_, '_> {
         self.ty(t)
     }
 
-    /// Fails unless a value of type `from` passes where `to` is expected without boxing,
-    /// unboxing or a conversion.
-    pub fn check_conforms(&mut self, from: TypeId, to: TypeId, span: Span) -> Result<()> {
+    /// Fails unless value `v` passes where type `to` is expected without boxing, unboxing or a
+    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`.
+    pub fn check_conforms(&mut self, v: ValId, to: TypeId, span: Span) -> Result<()> {
+        let from = self.val_ty(v);
         let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
+        let unit = *self.pool.val(v) == Val::Unit;
         let (f, t) = (self.pool.ty(from), self.pool.ty(to));
-        let ok = f == t || *f == Type::Nothing || (is_ref(t) && (is_ref(f) || *f == Type::Null));
+        let ok = f == t || *f == Type::Nothing || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
 

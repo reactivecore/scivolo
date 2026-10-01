@@ -27,6 +27,7 @@ impl Gen<'_, '_> {
             DefnKind::Class { parent: Some(self.class_parent(sym)), traits }
         };
         self.defns.push(Defn { name, attrs, pos, kind });
+        self.gen_class_fields(sym, pos);
         self.gen_methods(td)?;
         self.gen_mirror_class(sym, pos)
     }
@@ -64,7 +65,8 @@ impl Gen<'_, '_> {
                     self.defns.push(defn);
                 }
                 Tree::TypeDef { .. } => return unsupported(self.l.tpd.span(stat), "nested classes"),
-                _ => return unsupported(self.l.tpd.span(stat), "fields"),
+                Tree::ValDef { .. } => {}
+                _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }
         let existing: Vec<nir::GlobalId> = self.defns[first..].iter().map(|d| d.name).collect();
