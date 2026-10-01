@@ -7,7 +7,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// The programs the lowering covers.
-const PROGRAMS: [&str; 5] = ["hello", "literals", "objects", "classes", "overrides"];
+const PROGRAMS: [&str; 6] = ["hello", "literals", "objects", "classes", "overrides", "bodies"];
 
 #[test]
 fn lowered_programs_print_what_scala_native_prints() {

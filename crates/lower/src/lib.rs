@@ -1,5 +1,6 @@
 //! Lowering typed trees to NIR: ports of dotty's post-typer phases and of Scala Native's NIR
 //! generation (docs/research/10-lowering.md, ADRs 0010 and 0011).
+#![allow(non_upper_case_globals)]
 
 mod codegen;
 mod compile;

@@ -55,6 +55,8 @@ impl Gen<'_, '_> {
             self.gen_module(sym)
         } else if let Some(&v) = self.m.env.get(&sym) {
             v
+        } else if self.is_field(sym) {
+            self.gen_field_load(t, sym, None)?
         } else {
             return unsupported(span, format!("a reference to {}", self.l.u.symbol(sym).name));
         };
@@ -82,7 +84,7 @@ impl Gen<'_, '_> {
         let v = if is_module(self.l.u, sym) {
             self.gen_module(sym)
         } else if self.is_field(sym) {
-            self.gen_field_load(t, sym, qual)?
+            self.gen_field_load(t, sym, Some(qual))?
         } else if self.l.u.symbol(sym).kind == tasty::Kind::Def || has(self.l.u, sym, FIELDaccessor) {
             self.gen_apply_method(sym, false, super::apply::Receiver::Tree(qual), &[], span)?
         } else {

@@ -2,10 +2,11 @@
 //! `genFieldName`, and the field cases of `genSelect` and `genAssign`).
 
 use super::Gen;
-use crate::symbols::has;
+use crate::symbols::{has, is_static_module};
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
+use syntax::ast::Span;
 use tasty::SymbolId;
 use tasty::tags::{MUTABLE, PRIVATE};
 use typer::tpd::{TNodeId, Tree};
@@ -45,26 +46,39 @@ impl Gen<'_, '_> {
         self.pool.member(owner, &Sig::Field(id, scope))
     }
 
-    /// The value of field `f` of `qual`.
-    pub fn gen_field_load(&mut self, t: TNodeId, f: SymbolId, qual: TNodeId) -> Result<ValId> {
+    /// The value of field `f` of `qual`, or of `this` for an identifier.
+    pub fn gen_field_load(&mut self, t: TNodeId, f: SymbolId, qual: Option<TNodeId>) -> Result<ValId> {
         let ty = self.gen_type(self.l.tpd.tpe(t));
-        let obj = self.gen_expr(qual)?;
+        let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
         let name = self.field_name(f);
         Ok(self.emit(Op::Fieldload { ty, obj, name }))
+    }
+
+    /// The object holding field `f`: a static object's instance, else `qual` or `this`.
+    fn field_owner(&mut self, f: SymbolId, qual: Option<TNodeId>, span: Span) -> Result<ValId> {
+        let owner = self.l.u.symbol(f).owner.expect("a field's class");
+        match qual {
+            _ if is_static_module(self.l.u, owner) => Ok(self.gen_module(owner)),
+            Some(q) => self.gen_expr(q),
+            None => self.this_of(owner, span),
+        }
     }
 
     /// `lhs = rhs` for a field `lhs`.
     pub fn gen_assign(&mut self, t: TNodeId, lhs: TNodeId, rhs: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
-        let (Tree::Select { qualifier, .. }, Some(f)) = (self.l.tpd.tree(lhs).clone(), self.l.tpd.sym(lhs))
-        else {
-            return unsupported(span, "assignments to local variables");
+        let (qualifier, Some(f)) = (self.l.tpd.tree(lhs).clone(), self.l.tpd.sym(lhs)) else {
+            return unsupported(span, "an assignment without a symbol");
+        };
+        let qualifier = match qualifier {
+            Tree::Select { qualifier, .. } => Some(qualifier),
+            _ => None,
         };
         if !self.is_field(f) {
-            return unsupported(span, "assignments through setters");
+            return unsupported(span, "assignments to local variables or through setters");
         }
         let saved = self.at_span(span);
-        let obj = self.gen_expr(qualifier)?;
+        let obj = self.field_owner(f, qualifier, span)?;
         let ty = self.gen_type(self.l.tpd.tpe(lhs));
         let value = self.gen_expr(rhs)?;
         self.check_conforms(value, ty, span)?;

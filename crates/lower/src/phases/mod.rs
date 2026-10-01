@@ -4,11 +4,13 @@ mod bridges;
 mod build;
 mod constructors;
 mod erasure;
+mod first_transform;
 mod getters;
 mod memoize;
 mod methods;
 mod mixin;
 mod synthetic;
+mod walk;
 
 use crate::{Lower, Result};
 use typer::tpd::{TNodeId, Tpd, Tree};
