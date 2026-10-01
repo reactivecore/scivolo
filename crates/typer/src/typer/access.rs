@@ -7,6 +7,18 @@ use tasty::SymbolId;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 impl Typer<'_> {
+    /// Checks a reference to `sym` from `ctx`: accessible, and not to an inline method, whose
+    /// calls are expanded (a later step).
+    pub fn check_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
+        if !self.is_accessible(sym, ctx) {
+            return Err("inaccessible member");
+        }
+        if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
+            return Err("inline method call");
+        }
+        Ok(())
+    }
+
     /// Whether `sym` may be referred to from `ctx`: it is unrestricted, or `ctx` is inside its
     /// owner, or, if it is protected, inside a subclass of its owner.
     pub fn is_accessible(&mut self, sym: SymbolId, ctx: Ctx) -> bool {

@@ -173,6 +173,16 @@ pub enum Tree {
         self_: Option<TNodeId>,
         body: List,
     },
+    Import {
+        expr: TNodeId,
+        selectors: List,
+    },
+    /// Its identifiers are untyped, as in dotty.
+    ImportSelector {
+        imported: TNodeId,
+        renamed: Option<TNodeId>,
+        bound: Option<TNodeId>,
+    },
     PackageDef {
         pid: TNodeId,
         stats: List,

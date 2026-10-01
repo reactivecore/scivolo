@@ -64,6 +64,15 @@ impl Printer<'_> {
         let node = self.tpd.get(id);
         let tree = node.tree.clone();
         write!(self.out, "({} {}", class_name(&tree), span(node.span)).unwrap();
+        if let Tree::Ident { name } = tree
+            && node.sym == Some(self.u.root())
+            && self.names.text(name.name) == "_root_"
+        {
+            self.out.push_str(" sym=\"_root_\" :t:_root_");
+            self.fields(&tree);
+            self.out.push(')');
+            return;
+        }
         if let Some(s) = node.sym {
             match tree {
                 Tree::Template { .. } => {
@@ -168,6 +177,15 @@ impl Printer<'_> {
                     None => self.out.push_str(" _self"),
                 }
                 self.list(body);
+            }
+            Tree::Import { expr, selectors } => {
+                self.node(expr);
+                self.list(selectors);
+            }
+            Tree::ImportSelector { imported, renamed, bound } => {
+                self.node(imported);
+                self.opt(renamed);
+                self.opt(bound);
             }
             Tree::PackageDef { pid, stats } => {
                 self.node(pid);

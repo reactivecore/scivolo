@@ -1,7 +1,7 @@
-//! Identifiers: finding what a name refers to in the context chain (dotty's `findRef`).
+//! Identifiers (dotty's `typedIdent`) and the references they make.
 
 use super::{Pt, Typer};
-use crate::ctx::{Ctx, Level, Mode};
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -30,46 +30,7 @@ impl Typer<'_> {
         }
     }
 
-    /// The symbols named `name` visible in `ctx`, innermost level first; a package's members that
-    /// this unit does not define rank below the imports outside it.
-    pub fn find_ref(&mut self, name: &str, is_type: bool, ctx: Ctx) -> Option<Found> {
-        let mut deferred = None;
-        let mut level = Some(ctx.level);
-        while let Some(l) = level {
-            let found = match self.levels.get(l) {
-                Level::Scope(entries) => {
-                    let syms: Vec<SymbolId> = entries
-                        .iter()
-                        .rev()
-                        .filter(|(n, s)| n == name && self.is_type_symbol(*s) == is_type)
-                        .map(|&(_, s)| s)
-                        .take(1)
-                        .collect();
-                    (!syms.is_empty()).then_some(Found { prefix: None, syms })
-                }
-                &Level::Members(owner) => {
-                    let prefix = crate::defn::owner_prefix(self.u, owner);
-                    let found = self.members_found(prefix, name, is_type);
-                    let in_unit = |f: &Found| f.syms.iter().any(|s| self.syms.flags.contains_key(s));
-                    match found {
-                        Some(f) if self.u.symbol(owner).kind == tasty::Kind::Package && !in_unit(&f) => {
-                            deferred = deferred.or(Some(f));
-                            None
-                        }
-                        found => found,
-                    }
-                }
-                &Level::Wildcard { qual } => self.members_found(qual, name, is_type),
-            };
-            if found.is_some() {
-                return found;
-            }
-            level = self.levels.outer(l);
-        }
-        deferred
-    }
-
-    fn members_found(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Option<Found> {
+    pub fn members_found(&mut self, prefix: TypeId, name: &str, is_type: bool) -> Option<Found> {
         let syms: Vec<SymbolId> = self
             .type_members(prefix, name)
             .into_iter()
@@ -83,15 +44,23 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) && text == "_" {
             return self.wildcard_pattern(id, name, pt);
         }
-        let Some(found) = self.find_ref(&text, name.is_type, ctx) else {
-            return self.unsupported(id, "unresolved name");
+        if text == "_root_" && !name.is_type {
+            let root = self.u.root();
+            let tpe = self.u.intern_type(Type::Package(root));
+            let span = self.ast.span(id);
+            return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(root));
+        }
+        let found = match self.find_ref(&text, name.is_type, ctx) {
+            Ok(Some(found)) => found,
+            Ok(None) => return self.unsupported(id, &format!("unresolved name {text}")),
+            Err(what) => return self.unsupported(id, what),
         };
         let sym = match self.choose(&found.syms, pt) {
             Ok(sym) => sym,
             Err(what) => return self.unsupported(id, what),
         };
-        if !self.is_accessible(sym, ctx) {
-            return self.unsupported(id, "inaccessible member");
+        if let Err(what) = self.check_reference(sym, ctx) {
+            return self.unsupported(id, what);
         }
         if let Some(p) = found.prefix
             && let Type::This(c) = self.u.types().get(p).clone()

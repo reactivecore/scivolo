@@ -109,7 +109,7 @@ impl Typer<'_> {
     }
 
     /// The statements of class `cls`'s body; expressions owned by the class's local dummy.
-    fn typed_template_stats(&mut self, cls: SymbolId, stats: &[NodeId], ctx: Ctx) -> Vec<TNodeId> {
+    fn typed_template_stats(&mut self, cls: SymbolId, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
         let mut dummy = None;
         let mut out = Vec::new();
         for &s in stats {
@@ -125,6 +125,7 @@ impl Typer<'_> {
                 }
             };
             out.push(self.typed(s, Pt::Any, stat_ctx));
+            ctx = self.after_stat(s, ctx);
         }
         out
     }

@@ -4,7 +4,9 @@ mod access;
 mod apply;
 mod classes;
 mod defs;
+mod find_ref;
 mod idents;
+mod imports;
 mod literals;
 mod no_inits;
 mod patterns;
@@ -12,7 +14,7 @@ mod select;
 mod stats;
 mod type_trees;
 
-use crate::ctx::{Ctx, Levels};
+use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
@@ -44,6 +46,10 @@ pub struct Typer<'a> {
     pub ahead: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
+    /// The imports of the unit, root imports first, by `Level::Import` index.
+    pub imports: Vec<imports::ImportEntry>,
+    /// The level each import tree opens.
+    pub import_levels: FxHashMap<NodeId, LevelId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
 }
@@ -62,6 +68,8 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
+            imports: Vec::new(),
+            import_levels: FxHashMap::default(),
             unsupported: None,
         })
     }
@@ -122,6 +130,9 @@ impl<'a> Typer<'a> {
             Tree::DefDef { .. } => self.typed_def_def(id, ctx),
             Tree::TypeDef { .. } => self.typed_class_def(id, ctx),
             Tree::PackageDef { pid, stats } => self.typed_package_def(id, pid, stats, ctx),
+            Tree::Import { selectors, .. } if self.import_levels.contains_key(&id) => {
+                self.typed_import(id, selectors)
+            }
             t => {
                 let what = format!("{t:?}");
                 self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))

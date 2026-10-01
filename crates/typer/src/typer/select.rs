@@ -57,8 +57,8 @@ impl Typer<'_> {
             Ok(sym) => sym,
             Err(what) => return self.unsupported(id, what),
         };
-        if !self.is_accessible(sym, ctx) {
-            return self.unsupported(id, "inaccessible member");
+        if let Err(what) = self.check_reference(sym, ctx) {
+            return self.unsupported(id, what);
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);

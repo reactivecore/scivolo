@@ -29,7 +29,10 @@ impl Typer<'_> {
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
             }
-            _ => self.unsupported(id, "type tree"),
+            t => {
+                let what = format!("type tree {t:?}");
+                self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
+            }
         }
     }
 

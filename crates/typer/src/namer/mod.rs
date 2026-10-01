@@ -11,15 +11,29 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level.
-    pub fn index(&mut self, stats: &[NodeId], ctx: Ctx) {
+    /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level;
+    /// each import opens a level the statements after it are completed in.
+    pub fn index(&mut self, stats: &[NodeId], mut ctx: Ctx) {
         for &stat in stats {
+            if matches!(self.ast.tree(stat), Tree::Import { .. }) {
+                ctx.level = self.import_level(stat, ctx);
+                continue;
+            }
             if let Some(sym) = self.create_symbol(stat, ctx)
-                && matches!(self.levels.get(ctx.level), Level::Scope(_))
+                && let Some(scope) = self.levels.def_scope(ctx.level)
+                && matches!(self.levels.get(scope), Level::Scope(_))
             {
                 let name = self.u.symbol(sym).name.clone();
-                self.levels.enter(ctx.level, &name, sym);
+                self.levels.enter(scope, &name, sym);
             }
+        }
+    }
+
+    /// The context of the statements after `stat`: the level of an import, else `ctx`.
+    pub fn after_stat(&self, stat: NodeId, ctx: Ctx) -> Ctx {
+        match self.import_levels.get(&stat) {
+            Some(&level) => Ctx { level, ..ctx },
+            None => ctx,
         }
     }
 

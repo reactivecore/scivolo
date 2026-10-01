@@ -63,8 +63,8 @@ fn root_context(t: &mut Typer) -> Ctx {
     let scala = t.u.intern_type(tasty::Type::Package(t.defn.scala));
     let predef = defn::type_ref(t.u, t.defn.predef);
     let level = t.levels.push(None, Level::Members(root));
-    let level = t.levels.push(Some(level), Level::Wildcard { qual: java_lang });
-    let level = t.levels.push(Some(level), Level::Wildcard { qual: scala });
-    let level = t.levels.push(Some(level), Level::Wildcard { qual: predef });
+    let level = t.root_import(Some(level), java_lang);
+    let level = t.root_import(Some(level), scala);
+    let level = t.root_import(Some(level), predef);
     Ctx { owner: root, level, mode: Mode::NONE }
 }

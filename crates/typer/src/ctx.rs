@@ -1,7 +1,7 @@
 //! Typing contexts (dotty's `Context` as far as typing reads it): the owner, the mode, and a
 //! chain of scopes and imports that `find_ref` walks outward.
 
-use tasty::{SymbolId, TypeId};
+use tasty::SymbolId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct LevelId(u32);
@@ -29,8 +29,8 @@ pub enum Level {
     Scope(Vec<(String, SymbolId)>),
     /// The members of a class or package, `owner`.
     Members(SymbolId),
-    /// The members of `qual`'s type, a wildcard import of path `qual` (dotty's `ImportInfo`).
-    Wildcard { qual: TypeId },
+    /// An import (dotty's `ImportInfo`), by its index in the typer's imports.
+    Import(usize),
 }
 
 struct Entry {
@@ -56,6 +56,19 @@ impl Levels {
 
     pub fn outer(&self, id: LevelId) -> Option<LevelId> {
         self.all[id.0 as usize].outer
+    }
+
+    /// The level whose definitions an import at `id` shares a scope with: `id` itself or the next
+    /// scope or members level outward (dotty's `ctx.scope`).
+    pub fn def_scope(&self, id: LevelId) -> Option<LevelId> {
+        let mut l = Some(id);
+        while let Some(i) = l {
+            if !matches!(self.get(i), Level::Import(_)) {
+                return Some(i);
+            }
+            l = self.outer(i);
+        }
+        None
     }
 
     /// The symbols entered in scope level `id`.
