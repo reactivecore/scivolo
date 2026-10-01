@@ -21,26 +21,14 @@ fn nir_files() -> Vec<PathBuf> {
     out
 }
 
-/// Each definition of `data` as text, with the positions of its instructions.
+/// Each definition of `data` as text with its debug information, and whether `data` has entry
+/// points.
 fn decoded(data: &[u8]) -> (Vec<String>, bool) {
     let (mut caches, mut pool) = (Caches::default(), Pool::default());
     let mut reader = Reader::new(data, &mut caches, &mut pool).unwrap();
     let entry_points = reader.prelude.has_entry_points;
     let defns = reader.all().unwrap();
-    let text = defns
-        .iter()
-        .map(|d| {
-            let mut s = show::defn(&pool, d, true);
-            if let nir::DefnKind::Define { body, .. } = &d.kind {
-                for &p in &body.positions {
-                    let pos = pool.pos(p);
-                    s.push_str(&format!("\n@{}:{}:{}", pool.str(pos.file), pos.line, pos.column));
-                }
-            }
-            s
-        })
-        .collect();
-    (text, entry_points)
+    (defns.iter().map(|d| show::defn_with_debug_info(&pool, d)).collect(), entry_points)
 }
 
 #[test]

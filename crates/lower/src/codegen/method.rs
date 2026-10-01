@@ -73,7 +73,10 @@ impl Gen<'_, '_> {
         self.m.fresh_scope += 1;
         let id = self.m.fresh_scope as u32;
         let parent = if id == 0 { id } else { self.m.scope };
-        self.m.scopes.push(LexicalScope { id, parent, pos });
+        let scope = LexicalScope { id, parent, pos };
+        if !self.m.scopes.iter().any(|s| s.id == id && s.parent == parent && s.pos == pos) {
+            self.m.scopes.push(scope);
+        }
         std::mem::replace(&mut self.m.scope, id)
     }
 

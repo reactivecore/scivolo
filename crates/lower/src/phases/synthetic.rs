@@ -1,7 +1,7 @@
 //! dotty's `SyntheticMembers` as PostTyper runs it on each template: `writeReplace` of static
 //! objects.
 
-use crate::defn::type_ref;
+use crate::definitions::{applied, type_ref};
 use crate::symbols::{is_module_class, is_static, source_module};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
@@ -35,7 +35,7 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     let Some(module) = source_module(l.u, class) else {
         return unsupported(span, "an object without its value");
     };
-    let any_ref = type_ref(l.u, l.defn.any_ref);
+    let any_ref = type_ref(l.u, l.defs.any_ref);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method { binder, params: Vec::new(), result: any_ref, implicit: false });
     let sym = l.u.define(Symbol {
@@ -50,11 +50,11 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     });
     l.u.set_info(sym, info);
 
-    let proxy = l.defn.module_serialization_proxy;
+    let proxy = l.defs.module_serialization_proxy;
     let new = l.new_(proxy, span);
-    let ctor = l.select(new, l.defn.module_serialization_proxy_ctor, span);
+    let ctor = l.select(new, l.defs.module_serialization_proxy_ctor, span);
     let module_ref = type_ref(l.u, module);
-    let class_of = crate::defn::applied(l.u, l.defn.class, vec![module_ref]);
+    let class_of = applied(l.u, l.defs.class, vec![module_ref]);
     let lit = l.tpd.node(Tree::ClassLiteral { tpe: module_ref }, span, Some(class_of), None);
     let proxy_type = l.tpd.tpe(new);
     let rhs = l.apply(ctor, &[lit], proxy_type, span);

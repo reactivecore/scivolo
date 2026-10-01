@@ -43,14 +43,14 @@ impl<'l, 'a> Gen<'l, 'a> {
             let scope = g.enter_scope(pos);
             g.label(normal, Vec::new());
             let v = g.gen_expr(expr)?;
-            g.jump_exclude_unit(retty, merge, v);
+            g.jump_exclude_unit(retty, merge, v)?;
             g.m.scope = scope;
             g.m.unwind_handler = outer;
             let scope = g.enter_scope(pos);
             g.label(handler, vec![Param { id: exc, ty: throwable }]);
             let exc = g.val(Val::Local(exc, throwable));
             let v = g.catches(retty, exc, merge, &cases)?;
-            g.jump_exclude_unit(retty, merge, v);
+            g.jump_exclude_unit(retty, merge, v)?;
             g.m.scope = scope;
             Ok(())
         });
@@ -94,30 +94,32 @@ impl<'l, 'a> Gen<'l, 'a> {
             self.raise(exc);
             return Ok(self.val(Val::Unit));
         };
-        let saved = self.at(case.pos);
         let cond = self.emit(Op::Is { ty: case.ty, obj: exc });
-        let v = self.gen_if_with(
+        let span = self.l.tpd.span(case.body);
+        self.gen_if_with(
             retty,
-            Box::new(move |_: &mut Gen<'l, 'a>| Ok(cond)),
-            Box::new(move |g: &mut Gen<'l, 'a>| g.catch_body(retty, exc, merge, case)),
-            Box::new(move |g: &mut Gen<'l, 'a>| g.catches(retty, exc, merge, rest)),
-        );
-        self.m.pos = saved;
-        v
+            [
+                (span, Box::new(move |_: &mut Gen<'l, 'a>| Ok(cond))),
+                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catch_body(retty, exc, merge, case))),
+                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catches(retty, exc, merge, rest))),
+            ],
+        )
     }
 
     fn catch_body(&mut self, retty: TypeId, exc: ValId, merge: Local, case: &Case) -> Result<ValId> {
-        let pos = self.pos_or(self.l.tpd.span(case.body), case.pos);
-        let scope = self.enter_scope(pos);
+        let body_pos = self.m.pos;
+        let scope = self.enter_scope(body_pos);
         if let Some(sym) = case.bind {
+            let saved = self.at(case.pos);
             let cast = self.emit(Op::As { ty: case.ty, obj: exc });
+            self.m.pos = saved;
             let Val::Local(id, _) = *self.pool.val(cast) else { unreachable!("a local") };
             let name = self.local_name(sym);
             self.name_local(id, &name);
             self.m.env.insert(sym, cast);
         }
         let v = self.gen_expr(case.body)?;
-        self.jump_exclude_unit(retty, merge, v);
+        self.jump_exclude_unit(retty, merge, v)?;
         self.m.scope = scope;
         Ok(self.val(Val::Unit))
     }

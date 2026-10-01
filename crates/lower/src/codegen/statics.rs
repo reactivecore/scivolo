@@ -4,12 +4,13 @@
 use super::Gen;
 use super::method::Method;
 use crate::symbols::{
-    companion_class, companion_module, has, is_constructor, is_module_class, is_static, is_static_module,
+    companion_class, companion_module, has, is_constructor, is_extern, is_module_class, is_static,
+    is_static_module,
 };
 use crate::{Result, unsupported};
-use nir::{Attr, Body, Defn, DefnKind, GlobalId, Param, PosId, Type, Val};
+use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Param, PosId, Type, Val};
 use syntax::ast::Span;
-use tasty::tags::{MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};
+use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};
 use tasty::{Kind, SymbolId};
 
 impl Gen<'_, '_> {
@@ -27,8 +28,7 @@ impl Gen<'_, '_> {
         }
         let Some(module) = companion_module(self.l.u, c) else { return Ok(Vec::new()) };
         let Some(module_class) = self.l.u.module_class(module) else { return Ok(Vec::new()) };
-        let pos = self.m.pos;
-        self.forwarders_from_module_class(existing, module_class, pos)
+        self.forwarders_from_module_class(existing, module_class)
     }
 
     /// A class `C` of forwarders for a top-level object `C` without a companion class.
@@ -50,7 +50,7 @@ impl Gen<'_, '_> {
             kind: DefnKind::Class { parent: Some(parent), traits: Vec::new() },
         };
         let mut defns = vec![class];
-        defns.extend(self.forwarders_from_module_class(&[], c, pos)?);
+        defns.extend(self.forwarders_from_module_class(&[], c)?);
         self.mirrors.push(defns);
         Ok(())
     }
@@ -59,9 +59,8 @@ impl Gen<'_, '_> {
         &mut self,
         existing: &[GlobalId],
         module_class: SymbolId,
-        pos: PosId,
     ) -> Result<Vec<Defn>> {
-        let d = &self.l.defn;
+        let d = &self.l.defs;
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
         if bases.iter().skip(1).any(|b| !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable") {
@@ -70,9 +69,10 @@ impl Gen<'_, '_> {
         let decls = self.l.u.decls(module_class).unwrap_or_default();
         let mut out = Vec::new();
         for m in decls {
-            let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, PRIVATEqualified, PROTECTEDqualified];
+            let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PRIVATEqualified, PROTECTEDqualified];
             if self.l.u.symbol(m).kind != Kind::Def
                 || is_constructor(self.l.u, m)
+                || is_extern(self.l.u, m)
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
             {
                 continue;
@@ -81,6 +81,7 @@ impl Gen<'_, '_> {
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
             }
+            let pos = self.sym_pos(m, module_class);
             out.push(self.forwarder(m, module_class, name, pos));
         }
         Ok(out)
@@ -103,7 +104,7 @@ impl Gen<'_, '_> {
             insts: m.buf.insts,
             positions: m.buf.positions,
             local_names: Vec::new(),
-            scopes: Vec::new(),
+            scopes: vec![LexicalScope { id: 0, parent: 0, pos: self.no_pos }],
         };
         let ty = self.ty(Type::Function(args[1..].to_vec(), ret));
         Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty, body } }

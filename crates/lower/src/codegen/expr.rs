@@ -2,12 +2,14 @@
 
 use super::Gen;
 use super::apply::is_primitive;
-use crate::symbols::{has, is_module, is_module_class};
+use crate::symbols::{has, is_module, is_module_class, is_package_object};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
+use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use tasty::tags::MUTABLE;
+use tasty::tags::{LAZY, MUTABLE};
+use typer::tpd::print::class_name;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -40,13 +42,14 @@ impl Gen<'_, '_> {
                 _ => self.gen_expr(expr),
             },
             Tree::ValDef { rhs, .. } => self.gen_val_def(t, rhs),
-            ref tree => unsupported(span, format!("{} in an expression", variant(tree))),
+            ref tree => unsupported(span, format!("{} in an expression", class_name(tree))),
         }
     }
 
     fn gen_ident(&mut self, t: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "an identifier without a symbol") };
+        let saved = self.at_span(span);
         let value = if is_module(self.l.u, sym) {
             self.gen_module(sym)
         } else if let Some(&v) = self.m.env.get(&sym) {
@@ -60,6 +63,7 @@ impl Gen<'_, '_> {
             let unwind = self.unwind();
             self.emit_inst(nir::Inst::Unreachable(unwind));
         }
+        self.m.pos = saved;
         Ok(value)
     }
 
@@ -73,25 +77,37 @@ impl Gen<'_, '_> {
     fn gen_select(&mut self, t: TNodeId, qual: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "a selection without a symbol") };
-        if is_module(self.l.u, sym) {
-            return Ok(self.gen_module(sym));
-        }
-        if self.l.u.symbol(sym).kind == tasty::Kind::Def {
-            return self.gen_apply_method(sym, false, super::apply::Receiver::Tree(qual), &[]);
-        }
-        unsupported(span, "fields")
+        let saved = self.at_span(span);
+        let v = if is_module(self.l.u, sym) {
+            self.gen_module(sym)
+        } else if self.l.u.symbol(sym).kind == tasty::Kind::Def {
+            self.gen_apply_method(sym, false, super::apply::Receiver::Tree(qual), &[], span)?
+        } else {
+            return unsupported(span, "fields");
+        };
+        self.m.pos = saved;
+        Ok(v)
     }
 
     fn gen_this(&mut self, t: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "`this` without a class") };
+        let saved = self.at_span(span);
+        let v = self.this_of(sym, span)?;
+        self.m.pos = saved;
+        Ok(v)
+    }
+
+    /// `C.this` for class `c`: an object's instance, or the method's `this`.
+    pub fn this_of(&mut self, c: SymbolId, span: Span) -> Result<ValId> {
         let class = self.class.expect("a class");
-        if sym != class && is_module_class(self.l.u, sym) {
-            return Ok(self.gen_module(sym));
+        let package_object = is_package_object(self.l.u, c);
+        if (c != class && is_module_class(self.l.u, c)) || package_object {
+            return Ok(self.gen_module(c));
         }
         let method_owner = self.m.sym.and_then(|m| self.l.u.symbol(m).owner);
         match self.m.this {
-            Some(this) if sym == class || method_owner == Some(class) => Ok(this),
+            Some(this) if c == class || method_owner == Some(class) => Ok(this),
             _ => unsupported(span, "`this` of an enclosing class"),
         }
     }
@@ -141,6 +157,9 @@ impl Gen<'_, '_> {
         if has(self.l.u, sym, MUTABLE) {
             return unsupported(span, "local variables");
         }
+        if has(self.l.u, sym, LAZY) {
+            return unsupported(span, "local lazy values");
+        }
         let saved = self.at_span(span);
         let name = self.local_name(sym);
         let value = match rhs {
@@ -152,6 +171,9 @@ impl Gen<'_, '_> {
                 if !self.m.local_names.iter().any(|(l, _)| *l == id) {
                     self.name_local(id, &name);
                 }
+                if rhs.is_some_and(|r| self.ends_in_block(r)) {
+                    self.set_let_scope(id);
+                }
                 value
             }
             Val::Unit => value,
@@ -161,10 +183,18 @@ impl Gen<'_, '_> {
         self.m.pos = saved;
         Ok(self.val(Val::Unit))
     }
-}
 
-/// The name of `tree`'s class.
-fn variant(tree: &Tree) -> String {
-    let s = format!("{tree:?}");
-    s[..s.find([' ', '{', '(']).unwrap_or(s.len())].to_owned()
+    /// Whether `t` is a block, possibly typed or inside a `try`.
+    fn ends_in_block(&self, t: TNodeId) -> bool {
+        match *self.l.tpd.tree(t) {
+            Tree::Block { .. } => true,
+            Tree::Typed { expr, .. } => matches!(self.l.tpd.tree(expr), Tree::Block { .. }),
+            Tree::Try { expr, .. } => match *self.l.tpd.tree(expr) {
+                Tree::Block { .. } => true,
+                Tree::Typed { expr, .. } => matches!(self.l.tpd.tree(expr), Tree::Block { .. }),
+                _ => false,
+            },
+            _ => false,
+        }
+    }
 }

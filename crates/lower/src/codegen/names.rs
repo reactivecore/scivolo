@@ -1,9 +1,10 @@
 //! NIR names of classes, modules and methods (nscplugin's `NirGenName`).
 
 use super::Gen;
-use crate::symbols::{is_constructor, is_java_static, is_module_class, is_private};
+use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_private};
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
+use tasty::tags::{MACRO, PRIVATE, PROTECTED, STATIC};
 use tasty::{SymbolId, encode};
 
 /// Classes Scala Native defines under another name, and `Nothing` and `Null`.
@@ -36,7 +37,7 @@ pub fn mapped(name: &str) -> String {
 
 impl Gen<'_, '_> {
     pub fn type_name(&mut self, c: SymbolId) -> GlobalId {
-        let d = &self.l.defn;
+        let d = &self.l.defs;
         if [d.object, d.any, d.any_ref].contains(&c) {
             return self.pool.top("java.lang.Object");
         }
@@ -81,7 +82,7 @@ impl Gen<'_, '_> {
         let owner =
             explicit_owner.filter(|&e| e == owner || self.l.u.derives_from(e, owner)).unwrap_or(owner);
         let type_name = self.type_name(owner);
-        let no_forwarders = is_private(self.l.u, m) || is_java_static(self.l.u, m);
+        let no_forwarders = [PRIVATE, STATIC, PROTECTED, MACRO].iter().any(|&f| has(self.l.u, m, f));
         let owner_name = if is_module_class(self.l.u, owner) && no_forwarders {
             type_name
         } else {

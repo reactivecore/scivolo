@@ -3,7 +3,7 @@
 
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
-pub struct Defn {
+pub struct Definitions {
     pub object: SymbolId,
     pub any: SymbolId,
     pub any_ref: SymbolId,
@@ -12,13 +12,13 @@ pub struct Defn {
     pub module_serialization_proxy_ctor: SymbolId,
 }
 
-impl Defn {
-    pub fn new(u: &mut Universe) -> Result<Defn, String> {
+impl Definitions {
+    pub fn new(u: &mut Universe) -> Result<Definitions, String> {
         let java_lang = package(u, "java.lang")?;
         let runtime = package(u, "scala.runtime")?;
         let proxy = member(u, runtime, "ModuleSerializationProxy", Kind::Class)?;
         let b = u.builtins();
-        Ok(Defn {
+        Ok(Definitions {
             object: b.object,
             any: b.any,
             any_ref: b.any_ref,

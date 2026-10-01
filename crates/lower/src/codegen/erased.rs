@@ -3,7 +3,9 @@
 use super::Gen;
 use super::names::mapped;
 use crate::symbols::{is_constructor, is_java_static};
+use crate::{Result, unsupported};
 use nir::{Type, TypeId};
+use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
 
 impl Gen<'_, '_> {
@@ -32,6 +34,15 @@ impl Gen<'_, '_> {
             Erased::Array(elem) => Type::Array { elem: self.erased(elem), nullable: true },
         };
         self.ty(t)
+    }
+
+    /// Fails unless a value of type `from` passes where `to` is expected without boxing,
+    /// unboxing or a conversion.
+    pub fn check_conforms(&mut self, from: TypeId, to: TypeId, span: Span) -> Result<()> {
+        let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
+        let (f, t) = (self.pool.ty(from), self.pool.ty(to));
+        let ok = f == t || *f == Type::Nothing || (is_ref(t) && (is_ref(f) || *f == Type::Null));
+        if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
 
     /// The NIR type of the erasure of `t`.

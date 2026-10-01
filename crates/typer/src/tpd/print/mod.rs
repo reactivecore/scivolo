@@ -184,7 +184,8 @@ fn flag_names(flags: tasty::Flags) -> String {
 }
 
 /// dotty's class name of `tree`.
-fn class_name(tree: &Tree) -> String {
+/// The name of `tree`'s class in dotty.
+pub fn class_name(tree: &Tree) -> String {
     match tree {
         Tree::TypeTree { inferred: true } => "InferredTypeTree".into(),
         Tree::ClassLiteral { .. } => "Literal".into(),

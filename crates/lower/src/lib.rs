@@ -3,12 +3,12 @@
 
 mod codegen;
 mod compile;
-mod defn;
+mod definitions;
 mod phases;
 mod symbols;
 
 pub use compile::compile;
-use defn::Defn;
+use definitions::Definitions;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
@@ -41,7 +41,7 @@ pub struct Lower<'a> {
     pub names: &'a mut Names,
     pub fresh: &'a mut FreshNames,
     pub source: &'a SourceFile,
-    defn: Defn,
+    defs: Definitions,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -53,8 +53,8 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
-    let defn = Defn::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
-    let mut l = Lower { u, tpd, names, fresh, source, defn };
+    let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
+    let mut l = Lower { u, tpd, names, fresh, source, defs };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
 }

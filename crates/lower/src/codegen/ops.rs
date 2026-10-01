@@ -12,10 +12,10 @@ impl Gen<'_, '_> {
         self.bind(id, op, unwind)
     }
 
-    /// `let %n = op` with `%n` named `name`.
+    /// `let %n = op` with `%n` named `name`, drawn before the unwind edge.
     pub fn emit_named(&mut self, op: Op, name: &str) -> ValId {
-        let unwind = self.unwind();
         let id = self.fresh_named(name);
+        let unwind = self.unwind();
         self.bind(id, op, unwind)
     }
 

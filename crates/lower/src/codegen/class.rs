@@ -11,7 +11,10 @@ impl Gen<'_, '_> {
     pub fn gen_class(&mut self, td: TNodeId) -> Result<()> {
         let sym = self.l.tpd.sym(td).expect("a class definition's symbol");
         self.class = Some(sym);
-        let pos = self.pos_or(self.l.tpd.span(td), self.m.pos);
+        if crate::symbols::is_extern(self.l.u, sym) {
+            return unsupported(self.l.tpd.span(td), "native interop");
+        }
+        let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
         let attrs =
             if crate::symbols::has(self.l.u, sym, ABSTRACT) { vec![Attr::Abstract] } else { Vec::new() };
         let name = self.type_name(sym);
@@ -35,7 +38,7 @@ impl Gen<'_, '_> {
             .first()
             .and_then(|&p| self.l.u.class_symbol(p))
             .filter(|&s| !is_trait(self.l.u, s))
-            .unwrap_or(self.l.defn.object);
+            .unwrap_or(self.l.defs.object);
         self.type_name(superclass)
     }
 

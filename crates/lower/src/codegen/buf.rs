@@ -2,13 +2,22 @@
 //! before code that follows control flow, `unreachable` after a `Nothing` value.
 
 use super::Gen;
+use crate::Result;
 use nir::{Inst, Local, Next, Param, PosId, Type, TypeId, Val, ValId};
+use syntax::ast::Span;
 
 #[derive(Default)]
 pub struct Buf {
     pub insts: Vec<Inst>,
     pub positions: Vec<PosId>,
     labeled: bool,
+}
+
+impl Buf {
+    /// Whether the last instruction is in a block that does not end yet.
+    pub fn labeled(&self) -> bool {
+        self.labeled
+    }
 }
 
 fn is_control_flow(inst: &Inst) -> bool {
@@ -73,9 +82,18 @@ impl Gen<'_, '_> {
     }
 
     /// A jump to merge label `to`, passing `value` unless the merged type is `Unit`.
-    pub fn jump_exclude_unit(&mut self, merge_ty: TypeId, to: Local, value: ValId) {
-        let args = if *self.pool.ty(merge_ty) == Type::Unit { Vec::new() } else { vec![value] };
+    pub fn jump_exclude_unit(&mut self, merge_ty: TypeId, to: Local, value: ValId) -> Result<()> {
+        let args = if *self.pool.ty(merge_ty) == Type::Unit {
+            Vec::new()
+        } else {
+            if self.m.buf.labeled() {
+                let ty = self.val_ty(value);
+                self.check_conforms(ty, merge_ty, Span::NONE)?;
+            }
+            vec![value]
+        };
         self.jump(to, args);
+        Ok(())
     }
 
     /// Merge label `id` with parameter `value` of type `ty`, without it for `Unit`; the merged
@@ -87,6 +105,18 @@ impl Gen<'_, '_> {
         } else {
             self.label(id, vec![Param { id: value, ty }]);
             self.val(Val::Local(value, ty))
+        }
+    }
+
+    /// Moves the `let` of `id` into the current scope.
+    pub fn set_let_scope(&mut self, id: Local) {
+        let current = self.m.scope;
+        for inst in &mut self.m.buf.insts {
+            if let Inst::Let { id: i, scope, .. } = inst
+                && *i == id
+            {
+                *scope = current;
+            }
         }
     }
 

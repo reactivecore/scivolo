@@ -1,7 +1,7 @@
 //! Typed trees made by the phases (dotty's `tpd` constructors).
 
 use crate::Lower;
-use crate::defn::type_ref;
+use crate::definitions::type_ref;
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::{SymbolId, Type, TypeId};
