@@ -7,30 +7,60 @@ use syntax::ast::flags::{self as f, FlagSet};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Checks definition `tree` of `name` with dotty flags `flags` in `owner`, before its symbol
-    /// is entered.
-    pub fn check_definition(
-        &mut self,
-        tree: NodeId,
-        name: &str,
-        kind: Kind,
-        owner: SymbolId,
-        flags: FlagSet,
-    ) {
-        if flags.is(f::INLINE) {
-            self.unsupported(tree, "inline definition");
-        } else if flags.is(f::PRIVATE) && flags.is_one_of(f::OVERRIDE.or(f::ABS_OVERRIDE)) {
-            self.unsupported(tree, "private and override");
-        } else if flags.is(f::PRIVATE) && self.u.symbol(owner).kind == Kind::Package {
-            self.unsupported(tree, "private top-level definition");
-        } else if kind != Kind::Def && self.defines(owner, name, kind == Kind::Class) {
-            self.unsupported(tree, "double definition");
-        } else if kind == Kind::Class
-            && self.u.symbol(owner).kind == Kind::Class
-            && self.inherits_class(owner, name)
-        {
-            self.unsupported(tree, "class shadowing an inherited class");
+    /// Checks definition `tree` of `name` with the dotty flags `flags` of its modifiers in
+    /// `owner`, before its symbol is entered.
+    pub fn check_definition(&mut self, tree: NodeId, name: &str, kind: Kind, owner: SymbolId, flags: FlagSet) {
+        if let Some(what) = self.definition_problem(name, kind, owner, flags) {
+            self.unsupported(tree, what);
         }
+    }
+
+    fn definition_problem(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: FlagSet) -> Option<&'static str> {
+        let is_type = !kind.is_term();
+        let applicable = if is_type { flags.is_type_flags() } else { flags.is_term_flags() };
+        let combinations = [
+            (f::FINAL, f::OPEN),
+            (f::SEALED, f::OPEN),
+            (f::FINAL, f::SEALED),
+            (f::PRIVATE, f::PROTECTED),
+            (f::ABSTRACT, f::OVERRIDE),
+            (f::PRIVATE, f::OVERRIDE),
+            (f::LAZY, f::INLINE),
+            (f::ERASED, f::INLINE),
+            (f::TRACKED, f::MUTABLE),
+            (f::LAZY, f::PARAM_ACCESSOR),
+        ];
+        let flags = if is_type { flags.to_type_flags() } else { flags.to_term_flags() };
+        let problem = if !applicable && !flags.is_empty() {
+            "modifier incompatible with the definition"
+        } else if combinations.iter().any(|&(a, b)| flags.is_all_of(a.or(b))) {
+            "illegal combination of modifiers"
+        } else if flags.is(f::INLINE) || flags.is(f::MACRO) {
+            "inline definition"
+        } else if flags.is(f::OPAQUE) {
+            "opaque type"
+        } else if flags.is(f::TRAIT) && flags.is_one_of(f::FINAL.or(f::OPEN)) {
+            "final or open trait"
+        } else if kind != Kind::Class && flags.is(f::ABSTRACT) {
+            "abstract non-class"
+        } else if kind == Kind::Val && !flags.is(f::TERM_PARAM) && name.ends_with("_=") {
+            "value name ending in _="
+        } else if kind != Kind::Def && self.defines(owner, name, is_type) {
+            "double definition"
+        } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
+            "definition named like a package"
+        } else if kind == Kind::Class && self.u.symbol(owner).kind == Kind::Class && self.inherits_class(owner, name) {
+            "class shadowing an inherited class"
+        } else {
+            return None;
+        };
+        Some(problem)
+    }
+
+    /// Whether package `owner` has a subpackage named `name`.
+    fn has_package(&mut self, owner: SymbolId, name: &str) -> bool {
+        let decls = self.u.decl(owner, name).unwrap_or_default();
+        decls.into_iter().any(|d| self.u.symbol(d).kind == Kind::Package)
     }
 
     /// Whether this unit defined a term (or type) named `name` in `owner` already.

@@ -70,17 +70,20 @@ impl Typer<'_> {
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
     }
 
-    /// A reference desugaring made to the library symbol of full name `sym` (dotty's
-    /// `TypedSplice(ref(sym))`): an identifier of its simple name.
+    /// A reference desugaring made to the library symbol of full name `sym`: a type tree for a
+    /// type (dotty's `TypeTree(sym.typeRef)`), else an identifier of its simple name (`ref(sym)`).
     pub fn typed_full_ref(&mut self, id: NodeId, sym: TName) -> TNodeId {
         let full = self.text(sym.name).to_owned();
         let Some(s) = self.resolve_full_name(&full, sym.is_type) else {
             return self.unsupported(id, &format!("reference to {full}"));
         };
-        let simple = self.u.symbol(s).name.clone();
-        let name = TName { name: self.name(&simple), is_type: sym.is_type };
         let tpe = crate::defn::type_ref(self.u, s);
         let span = self.ast.span(id);
+        if sym.is_type {
+            return self.type_tree(tpe, span, false);
+        }
+        let simple = self.u.symbol(s).name.clone();
+        let name = TName { name: self.name(&simple), is_type: false };
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(s))
     }
 
@@ -117,7 +120,8 @@ impl Typer<'_> {
         self.u.intern_type(Type::Sym(prefix, sym))
     }
 
-    fn is_package_object(&self, c: SymbolId) -> bool {
+    /// Whether class `c` is a package object: `package$`, or a file's `<name>$package$`.
+    pub fn is_package_object(&self, c: SymbolId) -> bool {
         let s = self.u.symbol(c);
         s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package)
             && (s.name == "package$" || s.name.ends_with("$package$"))

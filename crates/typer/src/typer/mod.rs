@@ -4,6 +4,7 @@ mod access;
 mod apply;
 mod classes;
 mod defs;
+mod derived;
 mod find_ref;
 mod idents;
 mod imports;
@@ -14,6 +15,7 @@ mod patterns;
 mod select;
 mod stats;
 mod this;
+mod type_defs;
 mod type_trees;
 
 use crate::ctx::{Ctx, LevelId, Levels};
@@ -54,7 +56,12 @@ pub struct Typer<'a> {
     pub import_levels: FxHashMap<NodeId, LevelId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// How many `typed` calls are in progress, one inside another.
+    depth: u32,
 }
+
+/// How many `typed` calls may be in progress at once.
+const MAX_DEPTH: u32 = 400;
 
 impl<'a> Typer<'a> {
     pub fn new(u: &'a mut Universe, ast: &'a mut Ast, names: &'a mut Names) -> Result<Self, String> {
@@ -73,6 +80,7 @@ impl<'a> Typer<'a> {
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             unsupported: None,
+            depth: 0,
         })
     }
 
@@ -87,11 +95,16 @@ impl<'a> Typer<'a> {
     }
 
     pub fn typed(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        if self.depth >= MAX_DEPTH {
+            return self.unsupported(id, "nesting too deep");
+        }
+        self.depth += 1;
         let tree = match self.ready(id) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
         self.adapt(tree, pt);
+        self.depth -= 1;
         tree
     }
 
@@ -128,12 +141,17 @@ impl<'a> Typer<'a> {
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
             Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
-            Tree::TypeTree | Tree::AppliedTypeTree { .. } | Tree::SingletonTypeTree { .. } => {
-                self.typed_type(id, ctx)
-            }
+            Tree::TypeTree
+            | Tree::AppliedTypeTree { .. }
+            | Tree::SingletonTypeTree { .. }
+            | Tree::TypeBoundsTree { .. }
+            | Tree::DerivedTypeTree { .. } => self.typed_type(id, ctx),
             Tree::ValDef { .. } => self.typed_val_def(id, ctx),
             Tree::DefDef { .. } => self.typed_def_def(id, ctx),
-            Tree::TypeDef { .. } => self.typed_class_def(id, ctx),
+            Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
+                self.typed_class_def(id, ctx)
+            }
+            Tree::TypeDef { .. } => self.typed_type_def(id, ctx),
             Tree::PackageDef { pid, stats } => self.typed_package_def(id, pid, stats, ctx),
             Tree::Import { selectors, .. } if self.import_levels.contains_key(&id) => {
                 self.typed_import(id, selectors)

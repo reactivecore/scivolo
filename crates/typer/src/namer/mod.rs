@@ -53,14 +53,26 @@ impl Typer<'_> {
             Tree::TypeDef { name, mods, rhs } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
                 (name, mods, Kind::Class, f::EMPTY)
             }
+            Tree::TypeDef { name, mods, rhs } => {
+                let param = self.ast.modifiers(mods).flags.is(f::TYPE_PARAM);
+                let abstract_ = matches!(self.ast.tree(rhs), Tree::TypeBoundsTree { .. });
+                let kind = if param { Kind::TypeParam } else { Kind::Type };
+                (name, mods, kind, if abstract_ && !param { f::DEFERRED } else { f::EMPTY })
+            }
             _ => return None,
         };
-        let mut flags: FlagSet = self.ast.modifiers(mods).flags.or(extra);
-        flags = if kind == Kind::Class { flags.to_type_flags() } else { flags.to_term_flags() };
+        let written: FlagSet = self.ast.modifiers(mods).flags.or(extra);
         let text = self.text(name.name).to_owned();
-        self.check_definition(tree, &text, kind, ctx.owner, flags);
+        self.check_definition(tree, &text, kind, ctx.owner, written);
+        if self.ast.modifiers(mods).private_within.is_some() {
+            self.unsupported(tree, "qualified private or protected");
+        }
+        let mut flags = if kind.is_term() { written.to_term_flags() } else { written.to_type_flags() };
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is_one_of(f::PARAM.or(f::PARAM_ACCESSOR)) {
             flags = flags.or(f::LOCAL);
+        }
+        if flags.is(f::PRIVATE) && self.is_package_level(ctx.owner) {
+            flags = flags.and_not(f::PRIVATE_LOCAL);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
         let completion_ctx = match self.levels.outer(ctx.level) {
@@ -71,6 +83,12 @@ impl Typer<'_> {
         self.syms.by_tree.insert(tree, sym);
         self.index_annotations(sym, mods, ctx);
         Some(sym)
+    }
+
+    /// Whether `owner` is a package or a package object, whose private members are private to the
+    /// package (dotty's `skipWeakOwner`).
+    fn is_package_level(&self, owner: SymbolId) -> bool {
+        self.u.symbol(owner).kind == Kind::Package || self.is_package_object(owner)
     }
 
     /// Records the classes of the annotations in `mods` on `sym`.

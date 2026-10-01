@@ -139,7 +139,10 @@ impl Typer<'_> {
         match self.levels.get(l) {
             Level::Scope(entries) => {
                 let found = entries.iter().rev().find(|(n, s)| n == name.text && self.is_type_symbol(*s) == name.is_type);
-                Some(Found { prefix: None, syms: vec![found?.1] })
+                let sym = found?.1;
+                let owner = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class);
+                let prefix = owner.map(|o| crate::defn::owner_prefix(self.u, o));
+                Some(Found { prefix, syms: vec![sym] })
             }
             &Level::Members(owner) => {
                 let prefix = crate::defn::owner_prefix(self.u, owner);

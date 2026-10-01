@@ -7,11 +7,11 @@ use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId};
 
 /// The parts of a template.
-struct Template {
-    constr: NodeId,
-    parents: Vec<NodeId>,
-    self_: Option<NodeId>,
-    body: Vec<NodeId>,
+pub struct Template {
+    pub constr: NodeId,
+    pub parents: Vec<NodeId>,
+    pub self_: Option<NodeId>,
+    pub body: Vec<NodeId>,
 }
 
 impl Typer<'_> {
@@ -46,6 +46,9 @@ impl Typer<'_> {
         let mut members = vec![t.constr];
         members.extend(&t.body);
         self.index(&members, cctx);
+        if let Some(&ctor) = self.syms.by_tree.get(&t.constr) {
+            self.syms.primary_ctors.insert(cls, ctor);
+        }
         self.set_stable_constructor(cls, t.constr);
     }
 
@@ -60,7 +63,7 @@ impl Typer<'_> {
         let cctx = self.class_ctx(cls, ctx);
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
-        let parents = self.parent_trees(cls, &t.parents, ctx, name_span);
+        let parents = self.parent_trees(cls, &t, ctx, name_span);
         let self_ = t.self_.map(|s| self.typed(s, Pt::Any, cctx));
         let body = self.typed_template_stats(cls, &t.body, cctx);
         let parents = self.tpd.list(&parents);

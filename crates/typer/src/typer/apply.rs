@@ -42,7 +42,11 @@ impl Typer<'_> {
                     return self.unsupported(id, "secondary constructor call");
                 }
                 let owner = self.u.symbol(s).owner;
-                if self.u.class_symbol(result) == owner { result } else { class }
+                match owner {
+                    _ if self.u.class_symbol(result) == owner => result,
+                    Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => crate::defn::type_ref(self.u, o),
+                    _ => class,
+                }
             }
             _ => result,
         };

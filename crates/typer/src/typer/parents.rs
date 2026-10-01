@@ -1,6 +1,7 @@
 //! The parents of a class: their types when it is completed (dotty's `ensureFirstIsClass`) and
 //! their trees when it is typed (`parentTrees`, `ensureConstrCall`).
 
+use super::classes::Template;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
@@ -72,6 +73,7 @@ impl Typer<'_> {
         if !self.is_trait(sym) {
             return sym;
         }
+        self.complete(sym);
         let first = self.u.parents(sym).first().copied();
         let parent = first.and_then(|p| self.u.class_symbol(p));
         match parent {
@@ -82,8 +84,9 @@ impl Typer<'_> {
 
     /// The parent trees of class `cls`: those of `parents` typed in `ctx`, and calls for the parent
     /// types the completer added, at the class name `name_span` (dotty's `parentTrees`).
-    pub fn parent_trees(&mut self, cls: SymbolId, parents: &[NodeId], ctx: Ctx, name_span: Span) -> Vec<TNodeId> {
-        let trees: Vec<TNodeId> = parents.iter().map(|&p| self.typed_parent(cls, p, ctx)).collect();
+    pub fn parent_trees(&mut self, cls: SymbolId, t: &Template, ctx: Ctx, name_span: Span) -> Vec<TNodeId> {
+        let (parents, super_ctx) = (&t.parents, self.super_call_ctx(t.constr, ctx));
+        let trees: Vec<TNodeId> = parents.iter().map(|&p| self.typed_parent(cls, p, super_ctx)).collect();
         let types = self.u.parents(cls);
         let mut out = Vec::new();
         let mut rest = trees.as_slice();
@@ -114,6 +117,25 @@ impl Typer<'_> {
                 self.u.class_symbol(tpe)
             }
         }
+    }
+
+    /// The context of a class's parent calls, defined in `ctx`: owned by its primary constructor
+    /// `constr`, seeing the class's type parameters and parameter accessors (dotty's
+    /// `superCallContext`).
+    fn super_call_ctx(&mut self, constr: NodeId, ctx: Ctx) -> Ctx {
+        let Some(&ctor) = self.syms.by_tree.get(&constr) else { return ctx };
+        let Some(cls) = self.u.symbol(ctor).owner else { return ctx };
+        let params = syntax::ast::flags::TYPE_PARAM.or(syntax::ast::flags::PARAM_ACCESSOR);
+        let locals: Vec<(String, SymbolId)> = self
+            .u
+            .symbol(cls)
+            .decls
+            .iter()
+            .filter(|d| self.syms.flags.get(d).is_some_and(|f| f.is_one_of(params)))
+            .map(|&d| (self.u.symbol(d).name.clone(), d))
+            .collect();
+        let level = self.levels.push(Some(ctx.level), crate::ctx::Level::Scope(locals));
+        Ctx { owner: ctor, level, ..ctx }
     }
 
     /// A parent: a constructor call, or a type made one if it is a class's parent class.

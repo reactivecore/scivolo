@@ -31,6 +31,11 @@ pub struct Syms {
     pub by_tree: FxHashMap<NodeId, SymbolId>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
     pub no_inits: FxHashMap<SymbolId, bool>,
+    /// The primary constructor of each script class.
+    pub primary_ctors: FxHashMap<SymbolId, SymbolId>,
+    /// The result type of each script method as its definition states it, before its type
+    /// parameters become parameter references of its info.
+    pub def_results: FxHashMap<SymbolId, tasty::TypeId>,
     binders: u32,
 }
 

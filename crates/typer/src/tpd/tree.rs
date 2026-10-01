@@ -147,6 +147,11 @@ pub enum Tree {
         tpt: TNodeId,
         args: List,
     },
+    TypeBoundsTree {
+        lo: TNodeId,
+        hi: TNodeId,
+        alias: Option<TNodeId>,
+    },
     Bind {
         name: TName,
         body: TNodeId,

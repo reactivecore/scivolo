@@ -185,6 +185,11 @@ impl Printer<'_> {
                 }
                 self.list(body);
             }
+            Tree::TypeBoundsTree { lo, hi, alias } => {
+                self.node(lo);
+                self.node(hi);
+                self.opt(alias);
+            }
             Tree::Import { expr, selectors } => {
                 self.node(expr);
                 self.list(selectors);
