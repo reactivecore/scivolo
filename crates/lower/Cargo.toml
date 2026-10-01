@@ -1,0 +1,15 @@
+[package]
+name = "lower"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+nir.workspace = true
+rustc-hash.workspace = true
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+typer = { path = "../typer" }
+
+[lints]
+workspace = true

@@ -1,0 +1,60 @@
+//! Lowering typed trees to NIR: ports of dotty's post-typer phases and of Scala Native's NIR
+//! generation (docs/research/10-lowering.md, ADRs 0010 and 0011).
+
+mod codegen;
+mod compile;
+mod definitions;
+mod phases;
+mod symbols;
+
+pub use compile::compile;
+use definitions::Definitions;
+use syntax::ast::Span;
+use syntax::names::{FreshNames, Names};
+use syntax::source::SourceFile;
+use tasty::Universe;
+use typer::tpd::{TNodeId, Tpd};
+
+/// A construct the lowering does not support yet.
+#[derive(Debug)]
+pub struct Unsupported {
+    pub at: Span,
+    pub what: String,
+}
+
+pub type Result<T> = std::result::Result<T, Unsupported>;
+
+fn unsupported<T>(at: Span, what: impl Into<String>) -> Result<T> {
+    Err(Unsupported { at, what: what.into() })
+}
+
+/// A `.nir` file: the top-level name it defines and its bytes.
+pub struct NirFile {
+    pub name: String,
+    pub bytes: Vec<u8>,
+}
+
+/// What every phase works on: the unit's trees and names, and the symbols in `u`.
+pub struct Lower<'a> {
+    pub u: &'a mut Universe,
+    pub tpd: &'a mut Tpd,
+    pub names: &'a mut Names,
+    pub fresh: &'a mut FreshNames,
+    pub source: &'a SourceFile,
+    defs: Definitions,
+}
+
+/// The NIR files of typed unit `root`, one per top-level name.
+pub fn lower(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    root: TNodeId,
+    names: &mut Names,
+    fresh: &mut FreshNames,
+    source: &SourceFile,
+) -> Result<Vec<NirFile>> {
+    let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
+    let mut l = Lower { u, tpd, names, fresh, source, defs };
+    phases::run(&mut l, root)?;
+    codegen::unit(&mut l, root)
+}

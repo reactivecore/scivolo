@@ -26,6 +26,31 @@ pub fn defn(pool: &Pool, d: &Defn, readable: bool) -> String {
     p.out
 }
 
+/// `defn` followed by what it does not show: the positions of the definition and of each
+/// instruction, the local names and the lexical scopes.
+pub fn defn_with_debug_info(pool: &Pool, d: &Defn) -> String {
+    let pos = |p| {
+        let p = pool.pos(p);
+        format!("{}:{}:{}", pool.str(p.file), p.line, p.column)
+    };
+    let mut out = defn(pool, d, true);
+    write!(out, "\n@ {}", pos(d.pos)).unwrap();
+    if let DefnKind::Define { body, .. } = &d.kind {
+        for &p in &body.positions {
+            write!(out, "\n@ {}", pos(p)).unwrap();
+        }
+        let mut names: Vec<_> = body.local_names.iter().map(|(l, n)| (l.0, pool.str(*n))).collect();
+        names.sort_unstable();
+        write!(out, "\nnames {names:?}").unwrap();
+        let mut scopes: Vec<_> = body.scopes.iter().map(|s| (s.id, s.parent, pos(s.pos))).collect();
+        scopes.sort_unstable();
+        for (id, parent, at) in scopes {
+            write!(out, "\nscope {id} in {parent} @ {at}").unwrap();
+        }
+    }
+    out
+}
+
 pub fn global(pool: &Pool, g: GlobalId, readable: bool) -> String {
     let mut p = Printer::new(pool, readable);
     p.global(g);

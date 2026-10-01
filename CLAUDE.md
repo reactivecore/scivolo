@@ -52,8 +52,11 @@ Rationale goes in `docs/adr/`, one decision per file.
 Create and change files with the Write/Edit tools, never with shell
 redirection, heredocs or `sed -i`; read them with the Read tool, never with
 `cat`, `head`, `tail` or `sed -n`. Those tools are pre-approved, the shell
-forms are not. The shell already starts in the repository root: run
-commands directly, without a `cd` prefix. Scratch files, dumps and experiments go to the gitignored `tmp/`
+forms are not. The shell already starts in the repository root:
+never `cd`, not even as the first part of a compound command (`cd dir; grep …`
+needs approval). Name files by their path from the root instead, e.g.
+`grep -n "def genMethodSig" ref/scala-native/nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenType.scala`.
+This applies to subagents too. Scratch files, dumps and experiments go to the gitignored `tmp/`
 in this repo, reference checkouts to `ref/`; never `/tmp` or other
 directories outside the repo.
 
