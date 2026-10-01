@@ -185,6 +185,8 @@ impl Typer<'_> {
         let name = TName { name: self.name("<init>"), is_type: false };
         let sel = self.tpd.node(T::Select { qualifier: new, name }, span, Some(sel_tpe), Some(ctor));
         let args = self.tpd.list(&[]);
-        self.tpd.node(T::Apply { fun: sel, args }, span, Some(tpe), None)
+        let result = self.method_info(sel_tpe).map_or(tpe, |i| self.u.result_type(i));
+        let apply_tpe = self.constructor_result(ctor, tpe, result);
+        self.tpd.node(T::Apply { fun: sel, args }, span, Some(apply_tpe), None)
     }
 }

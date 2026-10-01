@@ -2,6 +2,7 @@
 
 mod checks;
 mod complete;
+mod defaults;
 
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
@@ -70,6 +71,10 @@ impl Typer<'_> {
         };
         let written: FlagSet = self.ast.modifiers(mods).flags.or(extra);
         let text = self.text(name.name).to_owned();
+        let text = match text.strip_prefix("$lessinit$greater$default$") {
+            Some(n) => format!("<init>$default${n}"),
+            None => text,
+        };
         self.check_definition(tree, &text, kind, ctx.owner, written);
         if self.ast.modifiers(mods).private_within.is_some() {
             self.unsupported(tree, "qualified private or protected");

@@ -88,7 +88,7 @@ impl Typer<'_> {
     }
 
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.
-    fn resolve_full_name(&mut self, full: &str, is_type: bool) -> Option<SymbolId> {
+    pub fn resolve_full_name(&mut self, full: &str, is_type: bool) -> Option<SymbolId> {
         let (outer, last) = full.rsplit_once('.')?;
         let mut owner = self.u.root();
         for seg in outer.split('.') {

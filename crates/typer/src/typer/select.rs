@@ -12,6 +12,10 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
             Type::This(c) => self.type_members(c, name),
+            Type::Constant(..) | Type::Str(_) => {
+                let widened = self.u.widen(t);
+                self.type_members(widened, name)
+            }
             Type::Sym(_, s) => match self.u.symbol(s).kind {
                 Kind::Package => self.u.decl(s, name).unwrap_or_default(),
                 Kind::Class => self.class_members(s, name),

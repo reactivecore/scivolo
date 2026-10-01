@@ -54,10 +54,25 @@ impl Typer<'_> {
             return self.tpd.tpe(typed);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
-        let typed = self.typed(rhs, Pt::Any, ctx);
+        let default = self.default_param_type(sym);
+        let typed = self.typed(rhs, default.map_or(Pt::Any, Pt::Type), ctx);
         self.ahead.insert(rhs, typed);
         let tpe = self.tpd.tpe(typed);
-        self.widen_rhs(sym, tpe)
+        match default {
+            Some(d) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
+            _ => self.widen_rhs(sym, tpe),
+        }
+    }
+
+    /// `t @uncheckedVariance`.
+    fn unchecked_variance(&mut self, t: TypeId) -> TypeId {
+        match self.resolve_full_name("scala.annotation.unchecked.uncheckedVariance", true) {
+            Some(c) => {
+                let annot = crate::defn::type_ref(self.u, c);
+                self.u.intern_type(Type::Annotated(t, annot))
+            }
+            None => t,
+        }
     }
 
     /// The context of the parameters and body of method `sym`, defined in `ctx`.

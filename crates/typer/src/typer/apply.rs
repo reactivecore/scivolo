@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The type of the method `fun_tpe` refers to, as seen from its prefix.
@@ -41,20 +41,32 @@ impl Typer<'_> {
                 if matches!(self.u.types().get(class), Type::This(_)) {
                     return self.unsupported(id, "secondary constructor call");
                 }
-                let owner = self.u.symbol(s).owner;
-                match owner {
-                    _ if self.u.class_symbol(result) == owner => result,
-                    Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
-                        crate::defn::type_ref(self.u, o)
-                    }
-                    _ => class,
-                }
+                self.constructor_result(s, class, result)
             }
             _ => result,
         };
         let args = self.tpd.list(&typed_args);
         let span = self.ast.span(id);
         self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None)
+    }
+
+    /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
+    /// `result`: `result` if it names the constructor's class, else the class itself unless
+    /// `class` applies it to arguments.
+    pub fn constructor_result(&mut self, ctor: SymbolId, class: TypeId, result: TypeId) -> TypeId {
+        let owner = self.u.symbol(ctor).owner;
+        let names_owner = |u: &tasty::Universe, t| match *u.types().get(t) {
+            Type::Sym(_, c) => Some(c) == owner,
+            Type::Applied(c, _) => matches!(*u.types().get(c), Type::Sym(_, c) if Some(c) == owner),
+            _ => false,
+        };
+        match owner {
+            _ if names_owner(self.u, result) => result,
+            Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
+                crate::defn::type_ref(self.u, o)
+            }
+            _ => class,
+        }
     }
 
     /// Whether parameter type `p` is by-name, repeated, or refers to a parameter.
