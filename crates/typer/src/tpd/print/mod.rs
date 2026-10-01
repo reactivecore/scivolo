@@ -63,6 +63,13 @@ impl Printer<'_> {
     pub fn tree(&mut self, id: TNodeId) {
         let node = self.tpd.get(id);
         let tree = node.tree.clone();
+        if let Tree::Ident { name } = tree
+            && self.names.text(name.name).is_empty()
+            && name.is_type
+        {
+            self.out.push_str("(EmptyTypeIdent$ - T:)");
+            return;
+        }
         write!(self.out, "({} {}", class_name(&tree), span(node.span)).unwrap();
         if let Tree::Ident { name } = tree
             && node.sym == Some(self.u.root())

@@ -13,6 +13,7 @@ mod parents;
 mod patterns;
 mod select;
 mod stats;
+mod this;
 mod type_trees;
 
 use crate::ctx::{Ctx, LevelId, Levels};
@@ -121,6 +122,7 @@ impl<'a> Typer<'a> {
             Tree::Literal { value } => self.typed_literal(id, value),
             Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
+            Tree::This { qual } => self.typed_this(id, qual, ctx),
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),

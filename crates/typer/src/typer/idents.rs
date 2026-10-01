@@ -62,14 +62,11 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, ctx) {
             return self.unsupported(id, what);
         }
-        if let Some(p) = found.prefix
-            && let Type::This(c) = self.u.types().get(p).clone()
-            && self.u.class_symbol(c).is_some_and(|c| !self.is_static_owner(c))
-        {
-            return self.unsupported(id, "member of an enclosing class");
-        }
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
+        if !self.prefix_is_elidable(tpe, ctx) {
+            return self.this_select(span, name, tpe, sym);
+        }
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
     }
 

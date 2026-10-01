@@ -42,11 +42,7 @@ impl Typer<'_> {
                     return self.unsupported(id, "secondary constructor call");
                 }
                 let owner = self.u.symbol(s).owner;
-                if self.u.class_symbol(result) == owner && self.syms.flags.contains_key(&s) {
-                    result
-                } else {
-                    class
-                }
+                if self.u.class_symbol(result) == owner { result } else { class }
             }
             _ => result,
         };
