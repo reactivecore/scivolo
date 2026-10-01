@@ -1,7 +1,7 @@
 //! NIR names of classes, modules and methods (nscplugin's `NirGenName`).
 
 use super::Gen;
-use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_private};
+use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_private, is_trait};
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
 use tasty::tags::{MACRO, PRIVATE, PROTECTED, STATIC};
@@ -63,6 +63,9 @@ impl Gen<'_, '_> {
         };
         let params = self.param_types(m);
         let sig = match self.l.u.symbol(m).name.as_str() {
+            _ if is_constructor(self.l.u, m) && is_trait(self.l.u, owner_sym) => {
+                Sig::Method("$init$".into(), vec![self.ty(nir::Type::Unit)], scope)
+            }
             _ if is_constructor(self.l.u, m) => Sig::Ctor(params),
             "<clinit>" => Sig::Clinit,
             "$init$" => Sig::Method(self.native_id(m), vec![self.ty(nir::Type::Unit)], scope),

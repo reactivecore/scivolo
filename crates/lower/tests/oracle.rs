@@ -8,7 +8,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// The programs of `tests/programs` the lowering covers.
-const PROGRAMS: [&str; 3] = ["hello", "literals", "objects"];
+const PROGRAMS: [&str; 4] = ["hello", "literals", "objects", "classes"];
 
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")

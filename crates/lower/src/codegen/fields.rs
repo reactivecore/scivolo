@@ -13,7 +13,7 @@ use typer::tpd::{TNodeId, Tree};
 impl Gen<'_, '_> {
     /// Whether `s` is a field `Memoize` made.
     pub fn is_field(&self, s: SymbolId) -> bool {
-        self.l.fields.contains(&s)
+        self.l.fields.contains_key(&s)
     }
 
     /// A `var` for each field of class `c`, in declaration order.

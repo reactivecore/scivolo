@@ -9,7 +9,7 @@ mod symbols;
 
 pub use compile::compile;
 use definitions::Definitions;
-use rustc_hash::FxHashSet;
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
@@ -43,8 +43,8 @@ pub struct Lower<'a> {
     pub fresh: &'a mut FreshNames,
     pub source: &'a SourceFile,
     defs: Definitions,
-    /// The fields `Memoize` made.
-    fields: FxHashSet<SymbolId>,
+    /// The fields `Memoize` made, each with its getter.
+    fields: FxHashMap<SymbolId, SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -57,7 +57,7 @@ pub fn lower(
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
     let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
-    let mut l = Lower { u, tpd, names, fresh, source, defs, fields: FxHashSet::default() };
+    let mut l = Lower { u, tpd, names, fresh, source, defs, fields: FxHashMap::default() };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
 }
