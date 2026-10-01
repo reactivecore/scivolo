@@ -48,6 +48,11 @@ impl Typer<'_> {
                 arg_ids.iter().zip(&params).map(|(&a, &(_, p))| self.typed(a, Pt::Type(p), ctx)).collect()
             }
         };
+        if let [arg] = typed_args[..]
+            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg), ctx)
+        {
+            return self.unsupported(id, what);
+        }
         let tpe = match self.u.types().get(fun_tpe).clone() {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>

@@ -139,7 +139,11 @@ impl Typer<'_> {
         if a.syms != b.syms {
             return false;
         }
+        let methods = a.syms.iter().all(|&s| self.u.symbol(s).kind == tasty::Kind::Def);
         match (a.prefix, b.prefix) {
+            (Some(p), Some(q)) if methods && p != q => {
+                a.syms.iter().all(|&s| self.u.member_info(p, s) == self.u.member_info(q, s))
+            }
             (Some(p), Some(q)) => p == q || self.u.is_subtype(p, q) && self.u.is_subtype(q, p),
             (p, q) => p == q,
         }

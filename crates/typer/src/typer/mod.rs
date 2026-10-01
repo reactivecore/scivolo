@@ -9,6 +9,7 @@ mod const_ops;
 mod control;
 mod defs;
 mod derived;
+mod equality;
 mod find_ref;
 mod idents;
 mod import_tree;
