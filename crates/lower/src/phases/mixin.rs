@@ -35,6 +35,9 @@ pub fn transform(
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
+    if l.tpd.items(body).iter().any(|&s| matches!(l.tpd.tree(s), Tree::TypeDef { .. })) {
+        return unsupported(span, "type parameters and members");
+    }
     if is_trait(l.u, class) {
         if !l.u.no_inits(class)
             || l.tpd.items(body).iter().any(|&s| !matches!(l.tpd.tree(s), Tree::DefDef { .. }))
@@ -80,8 +83,8 @@ fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     out
 }
 
-/// Whether `meth` is a method `class` inherits as it is: the first of its name and erased
-/// parameters in the linearization of `class`.
+/// Whether `meth` is a method `class` inherits as it is: the first non-private method or value
+/// of its name and erased parameters in the linearization of `class`.
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
@@ -95,7 +98,9 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let params = l.u.erased_method(meth).0;
     for base in l.u.linearization(class) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
-            if l.u.symbol(other).kind == Kind::Def && l.u.erased_method(other).0 == params {
+            let s = l.u.symbol(other);
+            let member = matches!(s.kind, Kind::Def | Kind::Val) && !has(l.u, other, PRIVATE);
+            if member && l.u.erased_method(other).0 == params {
                 return other == meth;
             }
         }
@@ -125,8 +130,9 @@ fn forwarder(
         _ => Vec::new(),
     };
     let name = l.u.symbol(meth).name.clone();
-    let flags = l.u.symbol(meth).flags;
-    let sym = l.u.define(symbol(&name, Kind::Def, class, flags));
+    let mut s = symbol(&name, Kind::Def, class, l.u.symbol(meth).flags);
+    s.target = l.u.symbol(meth).target.clone();
+    let sym = l.u.define(s);
     l.u.set_info(sym, info);
     let mut param_defs = Vec::new();
     let mut args = Vec::new();
