@@ -69,6 +69,7 @@ impl Typer<'_> {
         let parents = self.parent_trees(cls, &t, ctx, name_span);
         let self_ = t.self_.map(|s| self.typed(s, Pt::Any, cctx));
         let body = self.typed_template_stats(cls, &t.body, cctx);
+        self.check_overrides(cls, self.ast.span(id));
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };

@@ -10,6 +10,7 @@ mod idents;
 mod imports;
 mod literals;
 mod no_inits;
+mod overrides;
 mod parents;
 mod patterns;
 mod select;
