@@ -55,6 +55,30 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
+/// Makes each assignment to a variable in class definition `td` a call of its setter.
+pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
+    let mut todo = vec![td];
+    while let Some(t) = todo.pop() {
+        todo.extend(super::walk::children(l.tpd, t));
+        let Tree::Assign { lhs, rhs } = *l.tpd.tree(t) else { continue };
+        let Some(var) = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor)) else { continue };
+        let owner = l.u.symbol(var).owner.expect("a variable's class");
+        let setter_name = format!("{}_=", l.u.symbol(var).name);
+        let setter = l.u.decl(owner, &setter_name).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
+        let span = l.tpd.span(t);
+        let Some(setter) = setter else {
+            return unsupported(span, "an assignment to a value without a setter");
+        };
+        let fun = match *l.tpd.tree(lhs) {
+            Tree::Select { qualifier, .. } => l.select(qualifier, setter, l.tpd.span(lhs)),
+            _ => l.ident(setter, l.tpd.span(lhs)),
+        };
+        let args = l.tpd.list(&[rhs]);
+        l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
+    }
+    Ok(())
+}
+
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).
 pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)

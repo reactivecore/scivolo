@@ -1,4 +1,5 @@
-//! Conditionals: then, else and merge blocks (nscplugin's `genIf`).
+//! Conditionals and loops: then, else and merge blocks (nscplugin's `genIf`), condition, body
+//! and exit blocks (`genWhileDo`).
 
 use super::Gen;
 use crate::Result;
@@ -38,5 +39,26 @@ impl<'l, 'a> Gen<'l, 'a> {
             self.m.pos = saved;
         }
         Ok(self.label_exclude_unit(merge, merge_v, retty))
+    }
+
+    /// `while cond do body`: a condition block, a body block jumping back, an exit block.
+    pub fn gen_while(&mut self, t: TNodeId, cond: TNodeId, body: TNodeId) -> Result<ValId> {
+        let span = self.l.tpd.span(t);
+        let (cond_l, body_l, exit_l) = (self.fresh(), self.fresh(), self.fresh());
+        let saved = self.at_span(span);
+        self.jump(cond_l, Vec::new());
+        self.at_span(self.l.tpd.span(cond));
+        self.label(cond_l, Vec::new());
+        let c = self.gen_expr(cond)?;
+        self.branch(c, body_l, exit_l);
+        self.at_span(self.l.tpd.span(body));
+        self.label(body_l, Vec::new());
+        self.gen_expr(body)?;
+        self.jump(cond_l, Vec::new());
+        self.m.pos = saved;
+        self.at_span(span.end_pos());
+        self.label(exit_l, Vec::new());
+        self.m.pos = saved;
+        Ok(self.val(nir::Val::Unit))
     }
 }

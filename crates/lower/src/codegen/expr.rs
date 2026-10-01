@@ -35,6 +35,17 @@ impl Gen<'_, '_> {
             Tree::Select { qualifier, .. } => self.gen_select(t, qualifier),
             Tree::This { .. } => self.gen_this(t),
             Tree::Try { expr, cases, finalizer } => self.gen_try(t, expr, cases, finalizer),
+            Tree::WhileDo { cond, body } => self.gen_while(t, cond, body),
+            Tree::Return { expr, from } => {
+                let Some(method) = self.l.tpd.sym(from).filter(|&m| Some(m) == self.m.sym) else {
+                    return unsupported(span, "returns from enclosing methods or labels");
+                };
+                let saved = self.at_span(span);
+                let value = self.gen_expr(expr)?;
+                self.gen_return(method, value, span)?;
+                self.m.pos = saved;
+                Ok(self.val(Val::Unit))
+            }
             Tree::Typed { expr, .. } => match self.l.tpd.tree(expr) {
                 Tree::Super { .. } => Ok(self.m.this.expect("`this` of a method")),
                 _ => self.gen_expr(expr),

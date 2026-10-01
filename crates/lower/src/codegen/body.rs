@@ -88,7 +88,7 @@ impl Gen<'_, '_> {
     }
 
     /// `ret value`, `ret unit` for a `Unit` value.
-    fn gen_return(&mut self, sym: SymbolId, value: ValId, span: Span) -> Result<()> {
+    pub fn gen_return(&mut self, sym: SymbolId, value: ValId, span: Span) -> Result<()> {
         let sig = self.method_sig(sym, false);
         let Type::Function(_, result) = *self.pool.ty(sig) else { unreachable!("a method type") };
         let value = match *self.pool.val(value) {

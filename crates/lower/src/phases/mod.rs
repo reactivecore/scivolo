@@ -1,5 +1,6 @@
 //! dotty's phases between the typer and NIR generation, each a pass over the unit.
 
+mod adapt;
 mod bridges;
 mod build;
 mod constructors;
@@ -24,6 +25,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
         getters::transform(l, td)?;
+    }
+    for &td in &classes {
+        getters::setter_calls(l, td)?;
     }
     for &td in &classes {
         erasure::transform(l, td)?;
