@@ -5,6 +5,7 @@ mod constructors;
 mod erasure;
 mod getters;
 mod memoize;
+mod mixin;
 mod synthetic;
 
 use crate::{Lower, Result};
@@ -20,6 +21,11 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     for &td in &classes {
         erasure::transform(l, td)?;
+    }
+    let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
+    let concrete = mixin::concrete_trait_methods(l, &classes);
+    for &td in &classes {
+        mixin::transform(l, td, &unit_classes, &concrete)?;
     }
     for &td in &classes {
         memoize::transform(l, td)?;

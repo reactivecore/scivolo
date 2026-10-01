@@ -89,7 +89,7 @@ fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
     let class_value = l.u.symbol(s).kind == Kind::Val
         && in_class
         && !is_module(l.u, s)
-        && !l.fields.contains(&s)
+        && !l.fields.contains_key(&s)
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;
     let info = l.u.info(s);

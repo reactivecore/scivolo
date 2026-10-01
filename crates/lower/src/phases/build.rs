@@ -73,6 +73,15 @@ impl Lower<'_> {
         self.tpd.node(Tree::Super { qual, mix: None }, span, Some(parent), None)
     }
 
+    /// `C.super[T]`, of class `c` and its trait `t`.
+    pub fn super_mix(&mut self, c: SymbolId, t: SymbolId, span: Span) -> TNodeId {
+        let qual = self.this(c, span);
+        let name = self.u.symbol(t).name.clone();
+        let mix = TName { name: self.names.intern(&name), is_type: true };
+        let tpe = type_ref(self.u, t);
+        self.tpd.node(Tree::Super { qual, mix: Some(mix) }, span, Some(tpe), None)
+    }
+
     pub fn unit_literal(&mut self, span: Span) -> TNodeId {
         let tpe = self.u.intern_type(Type::Constant(tasty::tags::UNITconst, 0));
         self.tpd.node(Tree::Literal { value: Constant::Unit }, span, Some(tpe), None)

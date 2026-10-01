@@ -1,56 +1,78 @@
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
-//! `Constructors`: that call, then the fields initialized in order, for classes whose templates
-//! hold only methods and fields.
+//! `Constructors`: the class parameters stored in their fields, that call, then the fields
+//! initialized in order, for classes whose templates hold only methods and fields.
 
+use super::getters::is_param_accessor;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
+use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
+    if is_trait(l.u, class) {
+        return Ok(());
+    }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
         unreachable!("a template")
     };
     let span = l.tpd.span(td);
-    if is_trait(l.u, class) {
-        return unsupported(span, "traits");
-    }
     let mut inits = Vec::new();
+    let mut accessors = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
         match *l.tpd.tree(stat) {
-            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {}
+            Tree::DefDef { .. } => accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s))),
+            Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {}
             Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
                 let field = l.tpd.sym(stat).expect("a field's symbol");
                 let at = l.tpd.span(rhs);
                 let lhs = l.field_ref(field, at);
-                let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
-                inits.push(l.tpd.node(Tree::Assign { lhs, rhs }, at, Some(unit), None));
+                inits.push(assign(l, lhs, rhs, at));
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
             }
             _ => return unsupported(l.tpd.span(stat), "statements in a class body"),
         }
     }
-    let parents = l.tpd.items(parents).to_vec();
-    let Some((&first, mixins)) = parents.split_first() else {
-        return unsupported(span, "a class without a superclass");
-    };
-    if !mixins.is_empty() {
-        return unsupported(l.tpd.span(mixins[0]), "trait parents");
-    }
-    let super_call = super_call(l, class, first)?;
     let Tree::DefDef { name, paramss, tpt, rhs: None } = *l.tpd.tree(constr) else {
         return unsupported(l.tpd.span(constr), "a constructor with a body");
     };
+    let params: Vec<SymbolId> = match l.tpd.clause_items(paramss) {
+        [] => Vec::new(),
+        [first] => l.tpd.items(*first).iter().filter_map(|&p| l.tpd.sym(p)).collect(),
+        _ => return unsupported(l.tpd.span(constr), "a constructor with several parameter lists"),
+    };
+    if accessors.len() != params.len() {
+        return unsupported(l.tpd.span(constr), "class parameters without fields");
+    }
+    let template_span = l.tpd.span(template);
+    let mut stats = Vec::new();
+    for (accessor, param) in accessors.into_iter().zip(params) {
+        let field = l.fields.iter().find(|&(_, &g)| g == accessor).map(|(&f, _)| f);
+        let field = field.expect("a class parameter's field");
+        let lhs = l.field_ref(field, template_span);
+        let value = l.ident(param, template_span);
+        stats.push(assign(l, lhs, value, template_span));
+    }
+    let parents = l.tpd.items(parents).to_vec();
+    let Some(&first) = parents.first() else {
+        return unsupported(span, "a class without a superclass");
+    };
+    stats.push(super_call(l, class, first)?);
+    stats.extend(inits);
     let unit = l.unit_literal(span);
-    let stats: Vec<TNodeId> = std::iter::once(super_call).chain(inits).collect();
     let rhs = l.block(&stats, unit, span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
     Ok(())
 }
 
+fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId, span: syntax::ast::Span) -> TNodeId {
+    let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
+    l.tpd.node(Tree::Assign { lhs, rhs }, span, Some(unit), None)
+}
+
 /// `super.<init>(args)` for parent `new P(args)`.
-fn super_call(l: &mut Lower, class: tasty::SymbolId, parent: TNodeId) -> Result<TNodeId> {
+fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId> {
     let span = l.tpd.span(parent);
     let Tree::Apply { fun, args } = *l.tpd.tree(parent) else {
         return unsupported(span, "a superclass without a constructor call");

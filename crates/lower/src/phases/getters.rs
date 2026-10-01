@@ -1,10 +1,10 @@
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
-//! value's right-hand side.
+//! value's right-hand side, none for a class parameter's.
 
-use crate::symbols::{has, is_class, is_module};
+use crate::symbols::{has, is_class, is_module, is_trait};
 use crate::{Lower, Result, unsupported};
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, MUTABLE, PRIVATE};
-use tasty::{Erased, Type};
+use tasty::tags::{FIELDaccessor, FINAL, LAZY, MUTABLE, PARAMsetter, PRIVATE};
+use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -17,14 +17,17 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if is_module(l.u, sym) || !owner.is_some_and(|o| is_class(l.u, o)) {
             continue;
         }
+        if owner.is_some_and(|o| is_trait(l.u, o)) {
+            return unsupported(l.tpd.span(stat), "traits with initialization");
+        }
         if has(l.u, sym, MUTABLE) {
             return unsupported(l.tpd.span(stat), "mutable fields");
         }
         if has(l.u, sym, LAZY) {
             return unsupported(l.tpd.span(stat), "lazy values");
         }
-        if rhs.is_none() {
-            return unsupported(l.tpd.span(stat), "abstract values and constructor parameter fields");
+        if rhs.is_none() && !is_param_accessor(l, sym) {
+            return unsupported(l.tpd.span(stat), "abstract values");
         }
         if has(l.u, sym, PRIVATE) {
             return unsupported(l.tpd.span(stat), "private fields");
@@ -42,4 +45,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
     }
     Ok(())
+}
+
+/// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).
+pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
+    has(l.u, s, PARAMsetter)
 }
