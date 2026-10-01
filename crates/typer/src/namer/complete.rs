@@ -1,10 +1,9 @@
 //! Completing script symbols: their infos from their signatures, typed ahead where a result type
 //! is inferred (dotty's `Completer`, `ClassCompleter`, `typedAhead`).
 
-use crate::ctx::{Ctx, Level};
+use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{Pt, Typer};
-use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -13,7 +12,7 @@ impl Typer<'_> {
     pub fn complete(&mut self, sym: SymbolId) {
         let (tree, ctx) = match self.syms.completions.get(&sym) {
             Some(&Completion::Pending { tree, ctx }) => (tree, ctx),
-            Some(&Completion::Completing(tree)) if !matches!(self.ast.tree(tree), Tree::TypeDef { .. }) => {
+            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) => {
                 self.unsupported(tree, "cyclic reference");
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
@@ -30,90 +29,127 @@ impl Typer<'_> {
                 let info = self.method_type(sym, tree, ctx);
                 self.u.set_info(sym, info);
             }
-            Tree::TypeDef { rhs, .. } => self.complete_class(sym, rhs, ctx),
+            Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
+                self.complete_class(sym, rhs, ctx)
+            }
+            Tree::TypeDef { rhs, .. } => {
+                let info = self.type_def_info(rhs, ctx);
+                self.u.set_info(sym, info);
+                self.check_non_cyclic(sym, info, tree);
+            }
             _ => {}
         }
         self.syms.completions.insert(sym, Completion::Done);
     }
 
+    fn is_class_def(&self, tree: NodeId) -> bool {
+        matches!(*self.ast.tree(tree), Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }))
+    }
+
     /// The type of definition `sym`: its type tree's, else its right-hand side's, widened.
     fn result_type(&mut self, sym: SymbolId, tpt: NodeId, rhs: Option<NodeId>, ctx: Ctx) -> TypeId {
         if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
-            let typed = self.typed_type(tpt, ctx);
-            self.ahead.insert(tpt, typed);
-            return self.tpd.tpe(typed);
+            return self.value_type_ahead(tpt, ctx);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
-        let typed = self.typed(rhs, Pt::Any, ctx);
+        let inherited = self.inherited_result(sym);
+        let default = self.default_param_type(sym).filter(|&d| !self.mentions_own_type_params(d, sym));
+        let pt = inherited.or(default).map_or(Pt::Any, Pt::Type);
+        let typed = self.typed(rhs, pt, ctx);
         self.ahead.insert(rhs, typed);
         let tpe = self.tpd.tpe(typed);
-        self.widen_rhs(sym, tpe)
-    }
-
-    /// The context of the parameters and body of method `sym`, defined in `ctx`.
-    pub fn method_ctx(&mut self, sym: SymbolId, ctx: Ctx) -> Ctx {
-        let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        Ctx { owner: sym, level, ..ctx }
-    }
-
-    /// The parameter symbols of method definition `tree`, entered in `ctx`, by clause.
-    pub fn enter_params(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> Vec<Vec<SymbolId>> {
-        let mut out = Vec::new();
-        for clause in self.def_clauses(tree) {
-            let mut syms = Vec::new();
-            for p in clause {
-                let param = match self.syms.by_tree.get(&p) {
-                    Some(&s) => s,
-                    None => self.define_param(sym, p, ctx),
-                };
-                let name = self.u.symbol(param).name.clone();
-                self.levels.enter(ctx.level, &name, param);
-                syms.push(param);
-            }
-            out.push(syms);
+        match (inherited, default) {
+            (Some(i), _) if !self.keeps_rhs_type(sym) => i,
+            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
+            _ => self.widen_rhs(sym, tpe),
         }
-        out
     }
 
-    fn define_param(&mut self, method: SymbolId, p: NodeId, ctx: Ctx) -> SymbolId {
-        let Tree::ValDef { name, mods, tpt, .. } = *self.ast.tree(p) else {
-            let s = self.syms.define(self.u, "?", Kind::Param, method, syntax::ast::flags::EMPTY);
-            self.unsupported(p, "type parameter");
-            return s;
-        };
-        let flags = self.ast.modifiers(mods).flags.or(syntax::ast::flags::TERM_PARAM).to_term_flags();
-        let text = self.text(name.name).to_owned();
-        let s = self.syms.define(self.u, &text, Kind::Param, method, flags);
-        self.syms.by_tree.insert(p, s);
+    /// The type of value type tree `tpt`, typed ahead in `ctx`.
+    pub fn value_type_ahead(&mut self, tpt: NodeId, ctx: Ctx) -> TypeId {
         let typed = self.typed_type(tpt, ctx);
         self.ahead.insert(tpt, typed);
         let tpe = self.tpd.tpe(typed);
-        self.u.set_info(s, tpe);
-        s
+        self.check_simple_kinded(tpe, tpt);
+        tpe
+    }
+
+    /// Whether `t` refers to a type parameter of method `sym`.
+    fn mentions_own_type_params(&mut self, t: TypeId, sym: SymbolId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, x| {
+            if let Type::Sym(None, s) = *u.types().get(x) {
+                found |= u.symbol(s).owner == Some(sym) && u.symbol(s).kind == Kind::TypeParam;
+            }
+            None
+        });
+        found
+    }
+
+    /// `t @uncheckedVariance`.
+    fn unchecked_variance(&mut self, t: TypeId) -> TypeId {
+        match self.resolve_full_name("scala.annotation.unchecked.uncheckedVariance", true) {
+            Some(c) => {
+                let annot = crate::defn::type_ref(self.u, c);
+                self.u.intern_type(Type::Annotated(t, annot))
+            }
+            None => t,
+        }
     }
 
     fn method_type(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> TypeId {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
         let clauses = self.enter_params(sym, tree, mctx);
+        let value_clauses =
+            clauses.iter().filter(|c| c.first().is_some_and(|&p| !self.is_type_symbol(p))).cloned().collect();
+        self.syms.param_clauses.insert(sym, value_clauses);
         let result = if self.u.symbol(sym).name == "<init>" {
             let class = self.u.symbol(sym).owner.expect("a constructor's class");
-            crate::defn::type_ref(self.u, class)
+            let class_ref = crate::defn::type_ref(self.u, class);
+            let tparams: Vec<SymbolId> =
+                clauses.iter().flatten().copied().filter(|&p| self.is_type_symbol(p)).collect();
+            if tparams.is_empty() {
+                class_ref
+            } else {
+                let args = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+                self.u.intern_type(Type::Applied(class_ref, args))
+            }
         } else {
             self.result_type(sym, tpt, rhs, mctx)
         };
+        self.syms.def_results.insert(sym, result);
         clauses.into_iter().rev().fold(result, |result, clause| {
-            let params = clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
             let binder = self.syms.fresh_binder();
-            self.u.intern_type(Type::Method { binder, params, result, implicit: false })
+            let params: Vec<(String, TypeId)> =
+                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
+            if clause.first().is_some_and(|&p| self.is_type_symbol(p)) {
+                let params =
+                    params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
+                let result = self.param_refs(result, &clause, binder);
+                self.u.intern_type(Type::Poly { binder, params, result })
+            } else {
+                self.u.intern_type(Type::Method { binder, params, result, implicit: false })
+            }
+        })
+    }
+
+    /// `t` with references to type parameters `tparams` made references to the parameters of
+    /// polymorphic type `binder`.
+    fn param_refs(&mut self, t: TypeId, tparams: &[SymbolId], binder: tasty::Binder) -> TypeId {
+        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
+            Type::Sym(None, s) => {
+                let i = tparams.iter().position(|&p| p == s)?;
+                Some(u.intern_type(Type::Param(binder, i as u32)))
+            }
+            _ => None,
         })
     }
 
     /// The type inferred for definition `sym` from its right-hand side's type `t` (dotty's
     /// `widenRhs`): a constant for a final value, a singleton for an object, else `t` widened.
     fn widen_rhs(&mut self, sym: SymbolId, t: TypeId) -> TypeId {
-        let flags = self.syms.flags.get(&sym).copied().unwrap_or_default();
-        let inline_val = flags.is(f::FINAL.or(f::INLINE)) && !flags.is(f::MUTABLE) && !flags.is(f::METHOD);
+        let inline_val = self.keeps_rhs_type(sym);
         match self.u.types().get(t).clone() {
             Type::Constant(..) | Type::Str(_) if inline_val => t,
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),

@@ -34,17 +34,19 @@ impl Typer<'_> {
 
     pub fn typed_def_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
         let Tree::DefDef { name, tpt, rhs, .. } = *self.ast.tree(id) else { unreachable!() };
-        if self.def_clauses(id).iter().flatten().any(|&p| !matches!(self.ast.tree(p), Tree::ValDef { .. })) {
-            return self.unsupported(id, "type parameters");
-        }
         let sym = self.syms.by_tree[&id];
         self.complete(sym);
         let mctx = self.method_ctx(sym, ctx);
-        let clauses = self.enter_params(sym, id, mctx);
+        self.enter_params(sym, id, mctx);
         let mut typed_clauses = Vec::new();
-        for (clause, syms) in self.def_clauses(id).into_iter().zip(clauses) {
-            let params: Vec<TNodeId> = clause.iter().map(|&p| self.typed_val_def(p, mctx)).collect();
-            debug_assert_eq!(params.len(), syms.len());
+        for clause in self.def_clauses(id) {
+            let params: Vec<TNodeId> = clause
+                .iter()
+                .map(|&p| match self.ast.tree(p) {
+                    Tree::TypeDef { .. } => self.typed_type_def(p, mctx),
+                    _ => self.typed_val_def(p, mctx),
+                })
+                .collect();
             typed_clauses.push(self.tpd.list(&params));
         }
         let paramss = self.tpd.clauses(&typed_clauses);
@@ -66,10 +68,9 @@ impl Typer<'_> {
         if self.u.symbol(sym).name == "<init>" {
             return crate::defn::type_ref(self.u, self.defn.unit);
         }
-        let mut t = self.u.info(sym);
-        while let Type::Method { result, .. } | Type::Poly { result, .. } = self.u.types().get(t) {
-            t = *result;
+        match self.syms.def_results.get(&sym) {
+            Some(&t) => t,
+            None => self.u.intern_type(Type::Error),
         }
-        t
     }
 }

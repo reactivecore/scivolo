@@ -1,5 +1,6 @@
 //! Typed trees as S-expressions, in the format of `scripts/typer-oracle`.
 
+mod fields;
 pub mod symbols;
 pub mod types;
 
@@ -63,7 +64,23 @@ impl Printer<'_> {
     pub fn tree(&mut self, id: TNodeId) {
         let node = self.tpd.get(id);
         let tree = node.tree.clone();
+        if let Tree::Ident { name } = tree
+            && self.names.text(name.name).is_empty()
+            && name.is_type
+        {
+            self.out.push_str("(EmptyTypeIdent$ - T:)");
+            return;
+        }
         write!(self.out, "({} {}", class_name(&tree), span(node.span)).unwrap();
+        if let Tree::Ident { name } = tree
+            && node.sym == Some(self.u.root())
+            && self.names.text(name.name) == "_root_"
+        {
+            self.out.push_str(" sym=\"_root_\" :t:_root_");
+            self.fields(&tree);
+            self.out.push(')');
+            return;
+        }
         if let Some(s) = node.sym {
             match tree {
                 Tree::Template { .. } => {
@@ -85,96 +102,6 @@ impl Printer<'_> {
         self.fields(&tree);
         self.out.push(')');
     }
-
-    fn fields(&mut self, tree: &Tree) {
-        match *tree {
-            Tree::Ident { name } => self.name(name),
-            Tree::Select { qualifier, name } => {
-                self.node(qualifier);
-                self.name(name);
-            }
-            Tree::This { qual } => self.node(qual),
-            Tree::Super { qual, mix } => {
-                self.node(qual);
-                match mix {
-                    Some(m) => self.name(m),
-                    None => self.out.push_str(" _"),
-                }
-            }
-            Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
-                self.node(fun);
-                self.list(args);
-            }
-            Tree::Literal { ref value } => self.constant(value),
-            Tree::ClassLiteral { tpe } => write!(self.out, " #Class:{}", types::tpe(self.u, tpe)).unwrap(),
-            Tree::New { tpt } => self.node(tpt),
-            Tree::Typed { expr: a, tpt: b } | Tree::Assign { lhs: a, rhs: b } => {
-                self.node(a);
-                self.node(b);
-            }
-            Tree::Block { stats, expr } => {
-                self.list(stats);
-                self.node(expr);
-            }
-            Tree::If { cond, thenp, elsep } => {
-                self.node(cond);
-                self.node(thenp);
-                self.node(elsep);
-            }
-            Tree::CaseDef { pat, guard, body } => {
-                self.node(pat);
-                self.opt(guard);
-                self.node(body);
-            }
-            Tree::WhileDo { cond, body } => {
-                self.node(cond);
-                self.node(body);
-            }
-            Tree::Try { expr, cases, finalizer } => {
-                self.node(expr);
-                self.list(cases);
-                self.opt(finalizer);
-            }
-            Tree::TypeTree { .. } => {}
-            Tree::SingletonTypeTree { reference } => self.node(reference),
-            Tree::AppliedTypeTree { tpt, args } => {
-                self.node(tpt);
-                self.list(args);
-            }
-            Tree::Bind { name, body } => {
-                self.name(name);
-                self.node(body);
-            }
-            Tree::ValDef { name, tpt, rhs } => {
-                self.name(name);
-                self.node(tpt);
-                self.opt(rhs);
-            }
-            Tree::DefDef { name, paramss, tpt, rhs } => {
-                self.name(name);
-                self.clauses(paramss);
-                self.node(tpt);
-                self.opt(rhs);
-            }
-            Tree::TypeDef { name, rhs } => {
-                self.name(name);
-                self.node(rhs);
-            }
-            Tree::Template { constr, parents, self_, body } => {
-                self.node(constr);
-                self.list(parents);
-                match self_ {
-                    Some(s) => self.node(s),
-                    None => self.out.push_str(" _self"),
-                }
-                self.list(body);
-            }
-            Tree::PackageDef { pid, stats } => {
-                self.node(pid);
-                self.list(stats);
-            }
-        }
-    }
 }
 
 /// The TASTy modifier names of `flags`, by tag number.
@@ -183,7 +110,6 @@ fn flag_names(flags: tasty::Flags) -> String {
     tags.map(tasty::tags::name).collect::<Vec<_>>().join(" ")
 }
 
-/// dotty's class name of `tree`.
 /// The name of `tree`'s class in dotty.
 pub fn class_name(tree: &Tree) -> String {
     match tree {

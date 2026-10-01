@@ -1,18 +1,28 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod adapt;
 mod apply;
 mod classes;
 mod defs;
+mod derived;
+mod find_ref;
 mod idents;
+mod import_tree;
+mod imports;
 mod literals;
 mod no_inits;
+mod overrides;
+mod parents;
 mod patterns;
+mod qualifies;
 mod select;
 mod stats;
+mod this;
+mod type_defs;
 mod type_trees;
 
-use crate::ctx::{Ctx, Levels};
+use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
@@ -44,9 +54,18 @@ pub struct Typer<'a> {
     pub ahead: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
+    /// The imports of the unit, root imports first, by `Level::Import` index.
+    pub imports: Vec<imports::ImportEntry>,
+    /// The level each import tree opens.
+    pub import_levels: FxHashMap<NodeId, LevelId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// How many `typed` calls are in progress, one inside another.
+    depth: u32,
 }
+
+/// How many `typed` calls may be in progress at once.
+const MAX_DEPTH: u32 = 400;
 
 impl<'a> Typer<'a> {
     pub fn new(u: &'a mut Universe, ast: &'a mut Ast, names: &'a mut Names) -> Result<Self, String> {
@@ -62,7 +81,10 @@ impl<'a> Typer<'a> {
             diags: Diagnostics::default(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
+            imports: Vec::new(),
+            import_levels: FxHashMap::default(),
             unsupported: None,
+            depth: 0,
         })
     }
 
@@ -77,31 +99,17 @@ impl<'a> Typer<'a> {
     }
 
     pub fn typed(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        if self.depth >= MAX_DEPTH {
+            return self.unsupported(id, "nesting too deep");
+        }
+        self.depth += 1;
         let tree = match self.ready(id) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
         self.adapt(tree, pt);
+        self.depth -= 1;
         tree
-    }
-
-    /// Checks that `tree` fits `pt` as it is: a method is applied, a value conforms; a tree that
-    /// needs dotty's `adapt` to fit is outside the subset.
-    fn adapt(&mut self, tree: TNodeId, pt: Pt) {
-        let Some(tpe) = self.tpd.get(tree).tpe else { return };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Args(_)) {
-            return;
-        }
-        let span = self.tpd.span(tree);
-        let method = self.method_info(tpe).map(|i| self.u.types().get(i).clone());
-        if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
-            return self.unsupported_at(span, "method value");
-        }
-        if let Pt::Type(pt) = pt
-            && !self.u.is_subtype(tpe, pt)
-        {
-            self.unsupported_at(span, "adaptation");
-        }
     }
 
     fn typed_unadapted(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -110,18 +118,29 @@ impl<'a> Typer<'a> {
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
             Tree::Apply { fun, args } => self.typed_apply(id, fun, args, ctx),
             Tree::Literal { value } => self.typed_literal(id, value),
+            Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
+            Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
+            Tree::This { qual } => self.typed_this(id, qual, ctx),
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
             Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
-            Tree::TypeTree | Tree::AppliedTypeTree { .. } | Tree::SingletonTypeTree { .. } => {
-                self.typed_type(id, ctx)
-            }
+            Tree::TypeTree
+            | Tree::AppliedTypeTree { .. }
+            | Tree::SingletonTypeTree { .. }
+            | Tree::TypeBoundsTree { .. }
+            | Tree::DerivedTypeTree { .. } => self.typed_type(id, ctx),
             Tree::ValDef { .. } => self.typed_val_def(id, ctx),
             Tree::DefDef { .. } => self.typed_def_def(id, ctx),
-            Tree::TypeDef { .. } => self.typed_class_def(id, ctx),
+            Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
+                self.typed_class_def(id, ctx)
+            }
+            Tree::TypeDef { .. } => self.typed_type_def(id, ctx),
             Tree::PackageDef { pid, stats } => self.typed_package_def(id, pid, stats, ctx),
+            Tree::Import { selectors, .. } if self.import_levels.contains_key(&id) => {
+                self.typed_import(id, selectors)
+            }
             t => {
                 let what = format!("{t:?}");
                 self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))

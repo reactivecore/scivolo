@@ -2,6 +2,9 @@
 
 mod checks;
 mod complete;
+mod defaults;
+mod inherited;
+mod params;
 
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
@@ -11,15 +14,36 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level.
-    pub fn index(&mut self, stats: &[NodeId], ctx: Ctx) {
+    /// Enters the symbols `stats` define in `ctx`'s owner and, if it is a scope, in its level;
+    /// each import opens a level the statements after it are completed in.
+    pub fn index(&mut self, stats: &[NodeId], mut ctx: Ctx) {
         for &stat in stats {
+            match *self.ast.tree(stat) {
+                Tree::Import { .. } => {
+                    ctx.level = self.import_level(stat, ctx);
+                    continue;
+                }
+                Tree::PackageDef { pid, .. } => {
+                    self.typed_pid(pid, ctx.owner);
+                    continue;
+                }
+                _ => {}
+            }
             if let Some(sym) = self.create_symbol(stat, ctx)
-                && matches!(self.levels.get(ctx.level), Level::Scope(_))
+                && let Some(scope) = self.levels.def_scope(ctx.level)
+                && matches!(self.levels.get(scope), Level::Scope(_))
             {
                 let name = self.u.symbol(sym).name.clone();
-                self.levels.enter(ctx.level, &name, sym);
+                self.levels.enter(scope, &name, sym);
             }
+        }
+    }
+
+    /// The context of the statements after `stat`: the level of an import, else `ctx`.
+    pub fn after_stat(&self, stat: NodeId, ctx: Ctx) -> Ctx {
+        match self.import_levels.get(&stat) {
+            Some(&level) => Ctx { level, ..ctx },
+            None => ctx,
         }
     }
 
@@ -39,16 +63,42 @@ impl Typer<'_> {
             Tree::TypeDef { name, mods, rhs } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
                 (name, mods, Kind::Class, f::EMPTY)
             }
+            Tree::TypeDef { name, mods, rhs } => {
+                let param = self.ast.modifiers(mods).flags.is(f::TYPE_PARAM);
+                let abstract_ = matches!(self.ast.tree(rhs), Tree::TypeBoundsTree { .. });
+                let kind = if param { Kind::TypeParam } else { Kind::Type };
+                (name, mods, kind, if abstract_ && !param { f::DEFERRED } else { f::EMPTY })
+            }
             _ => return None,
         };
-        let mut flags: FlagSet = self.ast.modifiers(mods).flags.or(extra);
-        flags = if kind == Kind::Class { flags.to_type_flags() } else { flags.to_term_flags() };
+        let written: FlagSet = self.ast.modifiers(mods).flags.or(extra);
         let text = self.text(name.name).to_owned();
-        self.check_definition(tree, &text, kind, ctx.owner, flags);
-        if flags.is(f::PRIVATE) && text != "<init>" && !flags.is_one_of(f::PARAM.or(f::PARAM_ACCESSOR)) {
+        let text = match text.strip_prefix("$lessinit$greater$default$") {
+            Some(n) => format!("<init>$default${n}"),
+            None => text,
+        };
+        self.check_definition(tree, &text, kind, ctx.owner, written);
+        if self.ast.modifiers(mods).private_within.is_some() {
+            self.unsupported(tree, "qualified private or protected");
+        }
+        let mut flags = if kind.is_term() { written.to_term_flags() } else { written.to_type_flags() };
+        if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
+        let package_private = flags.is(f::PRIVATE) && self.is_package_level(ctx.owner);
+        if package_private {
+            flags = flags.and_not(f::PRIVATE_LOCAL);
+        }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if package_private {
+            let owner = ctx.owner;
+            let package = if self.u.symbol(owner).kind == Kind::Package {
+                Some(owner)
+            } else {
+                self.u.symbol(owner).owner
+            };
+            self.syms.private_within.extend(package.map(|p| (sym, p)));
+        }
         let completion_ctx = match self.levels.outer(ctx.level) {
             Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
             _ => ctx,
@@ -57,6 +107,12 @@ impl Typer<'_> {
         self.syms.by_tree.insert(tree, sym);
         self.index_annotations(sym, mods, ctx);
         Some(sym)
+    }
+
+    /// Whether `owner` is a package or a package object, whose private members are private to the
+    /// package (dotty's `skipWeakOwner`).
+    fn is_package_level(&self, owner: SymbolId) -> bool {
+        self.u.symbol(owner).kind == Kind::Package || self.is_package_object(owner)
     }
 
     /// Records the classes of the annotations in `mods` on `sym`.

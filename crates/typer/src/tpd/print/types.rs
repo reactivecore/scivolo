@@ -9,12 +9,17 @@ use tasty::{Kind, Type, TypeId, Universe};
 /// The deepest type nesting printed.
 const MAX_DEPTH: u32 = 14;
 
-/// Whether a reference with prefix `p` prints as its symbol's full name.
-fn is_static_prefix(u: &Universe, p: Option<TypeId>) -> bool {
+/// Whether a reference with prefix `p` prints as its symbol's full name: no prefix, a package,
+/// or the `this` of a package or object.
+fn is_static_prefix(u: &mut Universe, p: Option<TypeId>) -> bool {
     let Some(p) = p else { return true };
-    match u.types().get(p) {
+    match u.types().get(p).clone() {
         Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => true,
-        Type::This(c) => match u.types().get(*c) {
+        Type::Sym(_, s) => u.symbol(s).kind == Kind::Package,
+        Type::TermRef(q, name) => {
+            u.resolve(q, &name, false).is_some_and(|s| u.symbol(s).kind == Kind::Package)
+        }
+        Type::This(c) => match u.types().get(c) {
             Type::Sym(_, c) => {
                 let c = u.symbol(*c);
                 c.kind == Kind::Package || c.flags.has(tasty::tags::OBJECT)
@@ -76,7 +81,10 @@ fn tpe_at(u: &mut Universe, t: TypeId, d: u32) -> String {
         Type::Bounds(lo, hi) => format!(">: {} <: {}", tpe_at(u, lo, n), tpe_at(u, hi, n)),
         Type::And(a, b) => format!("({} & {})", tpe_at(u, a, n), tpe_at(u, b, n)),
         Type::Or(a, b) => format!("({} | {})", tpe_at(u, a, n), tpe_at(u, b, n)),
-        Type::Annotated(a, _) => tpe_at(u, a, n),
+        Type::Annotated(a, annot) => match u.class_symbol(annot) {
+            Some(c) => format!("{} @{}", tpe_at(u, a, n), full_name(u, c)),
+            None => tpe_at(u, a, n),
+        },
         Type::ByName(r) => format!("=> {}", tpe_at(u, r, n)),
         Type::Refined(p, name, info) => format!("{}{{{name} {}}}", tpe_at(u, p, n), tpe_at(u, info, n)),
         Type::Rec(_, p) => format!("rec{{{}}}", tpe_at(u, p, n)),

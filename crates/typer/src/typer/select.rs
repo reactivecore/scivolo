@@ -12,6 +12,10 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
             Type::This(c) => self.type_members(c, name),
+            Type::Constant(..) | Type::Str(_) => {
+                let widened = self.u.widen(t);
+                self.type_members(widened, name)
+            }
             Type::Sym(_, s) => match self.u.symbol(s).kind {
                 Kind::Package => self.u.decl(s, name).unwrap_or_default(),
                 Kind::Class => self.class_members(s, name),
@@ -57,8 +61,13 @@ impl Typer<'_> {
             Ok(sym) => sym,
             Err(what) => return self.unsupported(id, what),
         };
-        if !self.is_accessible(sym, ctx) {
-            return self.unsupported(id, "inaccessible member");
+        if let Err(what) = self.check_reference(sym, ctx) {
+            return self.unsupported(id, what);
+        }
+        let flags = self.u.symbol(sym).flags;
+        let protected = flags.has(tasty::tags::PROTECTED) || flags.has(tasty::tags::PROTECTEDqualified);
+        if protected && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
+            return self.unsupported(id, "protected member through a path");
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);

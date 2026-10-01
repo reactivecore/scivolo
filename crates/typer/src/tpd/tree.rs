@@ -147,6 +147,11 @@ pub enum Tree {
         tpt: TNodeId,
         args: List,
     },
+    TypeBoundsTree {
+        lo: TNodeId,
+        hi: TNodeId,
+        alias: Option<TNodeId>,
+    },
     Bind {
         name: TName,
         body: TNodeId,
@@ -172,6 +177,16 @@ pub enum Tree {
         parents: List,
         self_: Option<TNodeId>,
         body: List,
+    },
+    Import {
+        expr: TNodeId,
+        selectors: List,
+    },
+    /// Its identifiers are untyped, as in dotty.
+    ImportSelector {
+        imported: TNodeId,
+        renamed: Option<TNodeId>,
+        bound: Option<TNodeId>,
     },
     PackageDef {
         pid: TNodeId,

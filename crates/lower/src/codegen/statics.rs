@@ -10,7 +10,9 @@ use crate::symbols::{
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Param, PosId, Type, Val};
 use syntax::ast::Span;
-use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC};
+use tasty::tags::{
+    FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
+};
 use tasty::{Kind, SymbolId};
 
 impl Gen<'_, '_> {
@@ -70,7 +72,8 @@ impl Gen<'_, '_> {
         let mut out = Vec::new();
         for m in decls {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PRIVATEqualified, PROTECTEDqualified];
-            if self.l.u.symbol(m).kind != Kind::Def
+            let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
+            if !method
                 || is_constructor(self.l.u, m)
                 || is_extern(self.l.u, m)
                 || excluded.iter().any(|&f| has(self.l.u, m, f))

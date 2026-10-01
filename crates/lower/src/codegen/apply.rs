@@ -1,19 +1,12 @@
 //! Calls: of methods, constructors and static methods (nscplugin's `genApply`).
 
 use super::Gen;
-use crate::symbols::{has, has_by_name_params, is_constructor, is_extern, is_java_static, is_module};
+use crate::symbols::{is_constructor, is_java_static, is_module};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::INLINE;
 use typer::tpd::{List, TNodeId, Tree};
-
-/// Whether binary class name `name` is a primitive value class.
-pub fn is_primitive(name: &str) -> bool {
-    let prims = ["Boolean", "Char", "Byte", "Short", "Int", "Long", "Float", "Double", "Unit"];
-    name.strip_prefix("scala.").is_some_and(|n| prims.contains(&n))
-}
 
 /// The receiver of a call: a tree, or the prefix of an identifier's type at the identifier's
 /// span.
@@ -32,6 +25,14 @@ impl Gen<'_, '_> {
             return unsupported(span, "a call without a method symbol");
         };
         let v = match *self.l.tpd.tree(fun) {
+            _ if self.l.defs.is_box(sym) => {
+                let [arg] = args[..] else { unreachable!("one argument to `box`") };
+                let value = self.gen_expr(arg)?;
+                let [primitive] = self.param_types(sym)[..] else { unreachable!("one parameter of `box`") };
+                self.check_conforms(value, primitive, span)?;
+                let ty = self.result_type(sym);
+                self.emit(Op::Box { ty, obj: value })
+            }
             Tree::TypeApply { .. } => return unsupported(span, "calls with type arguments"),
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
                 Tree::Super { .. } => {
@@ -63,23 +64,6 @@ impl Gen<'_, '_> {
         };
         self.m.pos = saved;
         Ok(v)
-    }
-
-    /// Fails for a method the lowering cannot call yet.
-    fn check_callee(&mut self, sym: SymbolId, span: Span) -> Result<()> {
-        if self.is_primitive_op(sym) {
-            return unsupported(span, "primitive operations");
-        }
-        if has(self.l.u, sym, INLINE) {
-            return unsupported(span, "a call of an inline method");
-        }
-        if is_extern(self.l.u, sym) {
-            return unsupported(span, "native interop");
-        }
-        if has_by_name_params(self.l.u, sym) {
-            return unsupported(span, "by-name parameters");
-        }
-        Ok(())
     }
 
     fn gen_apply_new(&mut self, tpt: TNodeId, ctor: SymbolId, args: &[TNodeId], span: Span) -> Result<ValId> {
@@ -125,8 +109,7 @@ impl Gen<'_, '_> {
         };
         let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let owner_ty = self.class_ref(owner);
-        let receiver_ty = self.val_ty(receiver);
-        self.check_conforms(receiver_ty, owner_ty, span)?;
+        self.check_conforms(receiver, owner_ty, span)?;
         let args = self.gen_args(sym, args, span)?;
         Ok(self.call_method(sym, statically, receiver, args))
     }
@@ -151,19 +134,6 @@ impl Gen<'_, '_> {
         self.emit(Op::Call { ty, ptr, args })
     }
 
-    /// Whether `sym` is an operation nscplugin generates inline: of `Any`, of a primitive class,
-    /// reference equality, `synchronized`, string concatenation.
-    fn is_primitive_op(&mut self, sym: SymbolId) -> bool {
-        let Some(owner) = self.l.u.symbol(sym).owner else { return false };
-        let name = self.l.u.symbol(sym).name.as_str();
-        let owner_name = self.l.u.binary_name(owner);
-        let object_ops = ["eq", "ne", "synchronized", "==", "!=", "##"];
-        owner == self.l.defs.any
-            || is_primitive(&owner_name)
-            || (owner == self.l.defs.object && object_ops.contains(&name))
-            || (owner_name == "java.lang.String" && name == "+")
-    }
-
     /// The arguments of a call of `sym`, each of its parameter's type.
     fn gen_args(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Vec<ValId>> {
         let params = self.param_types(sym);
@@ -173,8 +143,7 @@ impl Gen<'_, '_> {
         let mut out = Vec::new();
         for (&a, param) in args.iter().zip(params) {
             let v = self.gen_expr(a)?;
-            let ty = self.val_ty(v);
-            self.check_conforms(ty, param, self.l.tpd.span(a))?;
+            self.check_conforms(v, param, self.l.tpd.span(a))?;
             out.push(v);
         }
         Ok(out)

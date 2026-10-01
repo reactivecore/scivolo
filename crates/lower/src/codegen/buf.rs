@@ -87,8 +87,7 @@ impl Gen<'_, '_> {
             Vec::new()
         } else {
             if self.m.buf.labeled() {
-                let ty = self.val_ty(value);
-                self.check_conforms(ty, merge_ty, Span::NONE)?;
+                self.check_conforms(value, merge_ty, Span::NONE)?;
             }
             vec![value]
         };

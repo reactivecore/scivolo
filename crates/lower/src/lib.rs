@@ -9,10 +9,11 @@ mod symbols;
 
 pub use compile::compile;
 use definitions::Definitions;
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
-use tasty::Universe;
+use tasty::{SymbolId, Universe};
 use typer::tpd::{TNodeId, Tpd};
 
 /// A construct the lowering does not support yet.
@@ -42,6 +43,8 @@ pub struct Lower<'a> {
     pub fresh: &'a mut FreshNames,
     pub source: &'a SourceFile,
     defs: Definitions,
+    /// The fields `Memoize` made.
+    fields: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -54,7 +57,7 @@ pub fn lower(
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
     let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
-    let mut l = Lower { u, tpd, names, fresh, source, defs };
+    let mut l = Lower { u, tpd, names, fresh, source, defs, fields: FxHashSet::default() };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
 }

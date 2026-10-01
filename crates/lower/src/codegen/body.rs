@@ -6,10 +6,10 @@ use super::dead::remove_dead_blocks;
 use super::method::Method;
 use crate::symbols::{has, has_by_name_params, is_extern, is_java_static};
 use crate::{Result, unsupported};
-use nir::{Body, Defn, DefnKind, LexicalScope, Param, Type, Val, ValId};
+use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Param, Type, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::INLINE;
+use tasty::tags::{FIELDaccessor, INLINE};
 use typer::tpd::{Clauses, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -20,8 +20,9 @@ impl Gen<'_, '_> {
         let pos = self.pos_or(self.l.tpd.span(dd), self.no_pos);
         let name = self.method_name(sym);
         let ty = self.method_sig(sym, false);
+        let attrs = if has(self.l.u, sym, FIELDaccessor) { vec![Attr::AlwaysInline] } else { Vec::new() };
         let Some(rhs) = rhs else {
-            return Ok(Defn { name, attrs: Vec::new(), pos, kind: DefnKind::Declare { ty } });
+            return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
         let first_scope = if matches!(self.l.tpd.tree(rhs), Tree::Block { .. }) { -1 } else { 0 };
         self.m = Method::new(Some(sym), first_scope, pos);
@@ -29,7 +30,7 @@ impl Gen<'_, '_> {
         self.m.scopes.push(LexicalScope { id: 0, parent: 0, pos: rhs_pos });
         self.m.pos = rhs_pos;
         let body = self.gen_method_body(sym, paramss, rhs)?;
-        Ok(Defn { name, attrs: Vec::new(), pos, kind: DefnKind::Define { ty, body } })
+        Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
     }
 
     /// Fails for a method the lowering cannot define yet.
@@ -95,7 +96,7 @@ impl Gen<'_, '_> {
         };
         let ty = self.val_ty(value);
         if self.m.buf.labeled() && *self.pool.ty(result) != Type::Unit {
-            self.check_conforms(ty, result, span)?;
+            self.check_conforms(value, result, span)?;
         }
         let value = if *self.pool.ty(ty) == Type::Unit { self.val(Val::Unit) } else { value };
         self.ret(value);
