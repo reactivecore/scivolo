@@ -2,11 +2,12 @@
 //! `genStringConcat`, `genStringBuilderAppend`).
 
 use super::Gen;
+use crate::phases::adapt::erased_type;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::SymbolId;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -20,15 +21,12 @@ impl Gen<'_, '_> {
         let parts = self.lift_string_concat(app);
         let (string, value_of) = (self.l.defs.strings.string, self.l.defs.strings.value_of);
         if let [first, arg] = parts[..]
-            && self.literal(first) == Some(Constant::String(Box::new([])))
+            && self.is_empty_string(first)
         {
             return self.gen_apply_static(value_of, Some(string), &[arg], span);
         }
-        let parts: Vec<TNodeId> = parts
-            .into_iter()
-            .filter(|&p| self.literal(p) != Some(Constant::String(Box::new([]))))
-            .map(|p| self.unboxed(p))
-            .collect();
+        let parts: Vec<TNodeId> =
+            parts.into_iter().filter(|&p| !self.is_empty_string(p)).map(|p| self.unboxed(p)).collect();
         let size = parts.iter().map(|&p| self.literal_length(p)).sum::<usize>();
         let (builder, ctor) = (self.l.defs.strings.builder, self.l.defs.strings.builder_ctor);
         let name = self.type_name(builder);
@@ -45,20 +43,23 @@ impl Gen<'_, '_> {
     fn gen_string_builder_append(&mut self, sb: ValId, t: TNodeId) -> Result<()> {
         let span = self.l.tpd.span(t);
         let saved = self.at_span(span);
-        let tpe = self.l.u.widen(self.l.tpd.tpe(t));
-        let class = self.l.u.class_symbol(tpe);
+        let erased = erased_type(self.l, t);
+        let class = match &erased {
+            Erased::Class(name) => self.class_named(t, name),
+            _ => None,
+        };
         let s = &self.l.defs.strings;
         let as_class = [s.string, s.string_buffer, s.char_sequence]
             .into_iter()
             .find(|&c| class.is_some_and(|k| self.l.u.derives_from(k, c)));
-        let erased = self.gen_type(tpe);
-        let mut arg_ty = match (as_class, self.pool.ty(erased)) {
-            (_, Type::Null) => self.class_ref(self.l.defs.strings.string),
+        let mut arg_ty = match (as_class, &erased) {
+            (_, Erased::Null | Erased::Nothing) => self.class_ref(self.l.defs.strings.string),
             (Some(c), _) => self.class_ref(c),
-            (None, Type::Ref { .. } | Type::Array { .. }) => self.class_ref(self.l.defs.object),
-            (None, _) => erased,
+            (None, Erased::Class(_) | Erased::Array(_)) => self.class_ref(self.l.defs.object),
+            (None, e) => self.erased(e),
         };
         let mut value = self.gen_expr(t)?;
+        self.check_conforms(value, arg_ty, span)?;
         if matches!(self.pool.ty(arg_ty), Type::Byte | Type::Short) {
             let int = self.ty(Type::Int);
             value = self.coerce(value, arg_ty, int);
@@ -71,6 +72,19 @@ impl Gen<'_, '_> {
         self.call_method(append, true, sb, vec![value]);
         self.m.pos = saved;
         Ok(())
+    }
+
+    /// The class of binary name `name`: that of `t`'s type if it has that name, else the
+    /// top-level class of that name.
+    fn class_named(&mut self, t: TNodeId, name: &str) -> Option<SymbolId> {
+        let tpe = self.l.u.widen(self.l.tpd.tpe(t));
+        if let Some(c) = self.l.u.class_symbol(tpe)
+            && self.l.u.binary_name(c) == name
+        {
+            return Some(c);
+        }
+        let named = self.l.u.class_ref(name);
+        self.l.u.class_symbol(named)
     }
 
     /// The operands of the concatenations `t` is a chain of, from left to right.
@@ -97,18 +111,17 @@ impl Gen<'_, '_> {
         t
     }
 
-    fn literal(&self, t: TNodeId) -> Option<Constant> {
-        match self.l.tpd.tree(t) {
-            Tree::Literal { value } => Some(value.clone()),
-            _ => None,
-        }
+    fn is_empty_string(&self, t: TNodeId) -> bool {
+        matches!(self.l.tpd.tree(t), Tree::Literal { value: Constant::String(s) } if s.is_empty())
     }
 
     /// The length of literal `t` as a string; 0 for another tree or `null`.
     fn literal_length(&self, t: TNodeId) -> usize {
-        match self.literal(t) {
-            Some(Constant::Null) | None => 0,
-            Some(c) => c.string_value().len(),
+        match self.l.tpd.tree(t) {
+            Tree::Literal { value: Constant::String(s) } => s.len(),
+            Tree::Literal { value: Constant::Null } => 0,
+            Tree::Literal { value } => value.string_value().len(),
+            _ => 0,
         }
     }
 }

@@ -12,6 +12,9 @@ object Cat:
   def objects(p: P, q: Any): String = "p=" + p + ", q=" + q
   def nulls(s: String): String = s + null
   def sequence(a: String, cs: CharSequence): String = a + cs
+  def block(i: Int): String = "a" + { val j = i; j }
+  def effect(): String = "a" + { println("r"); 1 }
+  def nothing(): String = "a" + ???
 
 @main def strings(): Unit =
   println(Cat.two("a", "b"))
@@ -23,3 +26,5 @@ object Cat:
   println(Cat.objects(new P(4), "q"))
   println(Cat.nulls("s"))
   println(Cat.sequence("a", "cs"))
+  println(Cat.block(5))
+  println(Cat.effect())

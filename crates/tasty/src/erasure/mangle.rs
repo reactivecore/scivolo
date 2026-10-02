@@ -45,7 +45,7 @@ impl Universe {
         let primitive = match s.owner {
             Some(o) if o == builtins.any => true,
             Some(o) if o == builtins.object => matches!(s.name.as_str(), "eq" | "ne" | "synchronized"),
-            Some(o) => s.name == "+" && self.full_name(o) == "java.lang.String",
+            Some(o) if s.name == "+" => self.full_name(o) == "java.lang.String",
             _ => false,
         };
         if primitive {
