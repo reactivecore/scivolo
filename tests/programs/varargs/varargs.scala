@@ -6,6 +6,7 @@ object V:
   def counted(): Int = count("a", "b", "c")
   def none(): Int = count()
   def sum(xs: Int*): Int = xs.length
+  def anys(xs: Any*): Int = xs.length
 
 @main def varargs(): Unit =
   println(V.hashed("a", "b"))
@@ -13,3 +14,4 @@ object V:
   println(V.counted())
   println(V.none())
   println(V.sum(1, 2))
+  println(V.anys("a", "b"))
