@@ -31,8 +31,26 @@ impl Typer<'_> {
             }
             Tree::SingletonTypeTree { reference } => {
                 let reference = self.typed(reference, Pt::Any, ctx);
+                if !self.is_stable_path(reference) {
+                    return self.unsupported(id, "singleton type of an unstable reference");
+                }
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
+            }
+            Tree::ByNameTypeTree { result } => {
+                let result = self.typed_type(result, ctx);
+                let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));
+                self.tpd.node(T::ByNameTypeTree { result }, span, Some(tpe), None)
+            }
+            Tree::Annotated { arg, annot } => {
+                let arg = self.typed_type(arg, ctx);
+                let annot = self.typed(annot, Pt::Any, ctx);
+                let annot_tpe = self.tpd.tpe(annot);
+                if !self.is_repeated_annot(annot_tpe) {
+                    return self.unsupported(id, "annotated type");
+                }
+                let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
+                self.tpd.node(T::Annotated { arg, annot }, span, Some(tpe), None)
             }
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
@@ -40,6 +58,17 @@ impl Typer<'_> {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
+        }
+    }
+
+    /// Whether `tree` is a literal, `this`, or a path of stable members.
+    fn is_stable_path(&mut self, tree: TNodeId) -> bool {
+        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        match *self.tpd.tree(tree) {
+            T::Literal { .. } | T::This { .. } => true,
+            T::Ident { .. } => stable(self, tree),
+            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
+            _ => false,
         }
     }
 

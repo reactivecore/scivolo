@@ -69,7 +69,10 @@ impl Typer<'_> {
         let original = decls
             .into_iter()
             .find(|&p| self.u.symbol(p).name == name && self.is_type_symbol(p) == is_type)?;
-        let info = self.u.info(original);
+        let info = match self.syms.repeated_params.get(&original) {
+            Some(&written) => written,
+            None => self.u.info(original),
+        };
         let mut siblings = Vec::new();
         self.u.map_type(info, &mut |u, t| {
             if let Type::Sym(_, s) = *u.types().get(t)

@@ -30,7 +30,13 @@ impl Printer<'_> {
                 self.out.push_str(&shown);
             }
             Tree::New { tpt } => self.node(tpt),
-            Tree::Typed { expr: a, tpt: b } | Tree::Assign { lhs: a, rhs: b } => {
+            Tree::SeqLiteral { elems, elemtpt } => {
+                self.list(elems);
+                self.node(elemtpt);
+            }
+            Tree::Typed { expr: a, tpt: b }
+            | Tree::Assign { lhs: a, rhs: b }
+            | Tree::Annotated { arg: a, annot: b } => {
                 self.node(a);
                 self.node(b);
             }
@@ -62,7 +68,7 @@ impl Printer<'_> {
                 self.opt(finalizer);
             }
             Tree::TypeTree { .. } => {}
-            Tree::SingletonTypeTree { reference } => self.node(reference),
+            Tree::SingletonTypeTree { reference: a } | Tree::ByNameTypeTree { result: a } => self.node(a),
             Tree::AppliedTypeTree { tpt, args } => {
                 self.node(tpt);
                 self.list(args);

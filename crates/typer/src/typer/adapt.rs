@@ -12,7 +12,7 @@ impl Typer<'_> {
     /// than the subset has is outside it.
     pub fn adapt(&mut self, tree: TNodeId, pt: Pt) -> TNodeId {
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_)) {
+        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun) {
             return tree;
         }
         let span = self.tpd.span(tree);

@@ -15,6 +15,7 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         | Tree::Super { qual: a, .. }
         | Tree::New { tpt: a }
         | Tree::SingletonTypeTree { reference: a }
+        | Tree::ByNameTypeTree { result: a }
         | Tree::Bind { body: a, .. }
         | Tree::TypeDef { rhs: a, .. } => out.push(a),
         Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
@@ -28,12 +29,17 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         Tree::Typed { expr: a, tpt: b }
         | Tree::Assign { lhs: a, rhs: b }
         | Tree::Return { expr: a, from: b }
+        | Tree::Annotated { arg: a, annot: b }
         | Tree::WhileDo { cond: a, body: b } => {
             out.extend([a, b]);
         }
         Tree::Block { stats, expr } => {
             list(&mut out, stats);
             out.push(expr);
+        }
+        Tree::SeqLiteral { elems, elemtpt } => {
+            list(&mut out, elems);
+            out.push(elemtpt);
         }
         Tree::If { cond, thenp, elsep } => out.extend([cond, thenp, elsep]),
         Tree::CaseDef { pat, guard, body } => {

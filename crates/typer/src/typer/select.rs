@@ -12,7 +12,7 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
             Type::This(c) => self.type_members(c, name),
-            Type::Constant(..) | Type::Str(_) => {
+            Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
                 self.type_members(widened, name)
             }
@@ -45,12 +45,16 @@ impl Typer<'_> {
         self.u.member(c, name)
     }
 
-    /// Whether term `s` denotes the same value each time: not a variable, not a method unless a
-    /// stable one (dotty's `isStableMember`).
-    pub fn is_stable_member(&self, s: SymbolId) -> bool {
+    /// Whether term `s` denotes the same value each time: not a variable or a by-name
+    /// parameter, not a method unless a stable one (dotty's `isStableMember`).
+    pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match sym.kind {
-            Kind::Val | Kind::Param => !sym.flags.has(tasty::tags::MUTABLE),
+            Kind::Param => {
+                let info = self.u.info(s);
+                !matches!(self.u.types().get(info), Type::ByName(_))
+            }
+            Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
             Kind::Def => sym.flags.has(tasty::tags::STABLE),
             _ => true,
         }
@@ -58,7 +62,7 @@ impl Typer<'_> {
 
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
-    fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
+    pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
             Type::ByName(r) => self.widen_if_unstable(r),
             Type::Sym(_, s) if !self.is_type_symbol(s) && !self.is_stable_member(s) => {

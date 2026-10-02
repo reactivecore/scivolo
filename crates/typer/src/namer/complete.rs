@@ -131,7 +131,7 @@ impl Typer<'_> {
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =
-                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
+                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.param_type(p))).collect();
             if clause.first().is_some_and(|&p| self.is_type_symbol(p)) {
                 let params =
                     params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
@@ -165,6 +165,7 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Constant(..) | Type::Str(_) if inline_val => t,
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),
+            Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,
             Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => t,
             Type::Sym(_, s) if !self.is_type_symbol(s) && self.u.symbol(s).kind != Kind::Package => {
                 self.complete(s);
