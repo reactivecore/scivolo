@@ -97,11 +97,7 @@ impl Gen<'_, '_> {
                 Receiver::Tree(t) => self.l.tpd.sym(t),
                 Receiver::Prefix(p, _) => self.l.u.class_symbol(p),
             };
-            let sig = self.method_sig(sym, true);
-            let args = self.gen_args(sym, args, span)?;
-            let name = self.static_member_name(sym, owner);
-            let ptr = self.ptr(name);
-            return Ok(self.emit(Op::Call { ty: sig, ptr, args }));
+            return self.gen_apply_static(sym, owner, args, span);
         }
         let receiver = match recv {
             Receiver::Tree(t) => self.gen_expr(t)?,
@@ -117,6 +113,21 @@ impl Gen<'_, '_> {
         self.check_conforms(receiver, owner_ty, span)?;
         let args = self.gen_args(sym, args, span)?;
         Ok(self.call_method(sym, statically, receiver, args))
+    }
+
+    /// A call of static method `sym`, named as a member of `owner` if given.
+    pub fn gen_apply_static(
+        &mut self,
+        sym: SymbolId,
+        owner: Option<SymbolId>,
+        args: &[TNodeId],
+        span: Span,
+    ) -> Result<ValId> {
+        let sig = self.method_sig(sym, true);
+        let args = self.gen_args(sym, args, span)?;
+        let name = self.static_member_name(sym, owner);
+        let ptr = self.ptr(name);
+        Ok(self.emit(Op::Call { ty: sig, ptr, args }))
     }
 
     /// A call of instance method `sym` on `receiver`, dispatched unless `statically`.
@@ -140,7 +151,7 @@ impl Gen<'_, '_> {
     }
 
     /// The arguments of a call of `sym`, each of its parameter's type.
-    fn gen_args(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Vec<ValId>> {
+    pub fn gen_args(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Vec<ValId>> {
         let params = self.param_types(sym);
         if params.len() != args.len() {
             return unsupported(span, "a call with several argument lists");

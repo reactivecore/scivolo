@@ -1,6 +1,9 @@
 //! The library symbols the lowering refers to by name (dotty's `Definitions`, nscplugin's
 //! `NirDefinitions`).
 
+mod equality;
+
+pub use equality::Equality;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
@@ -21,6 +24,7 @@ pub struct Definitions {
     pub primitives: Vec<Primitive>,
     /// `scala.runtime.BoxedUnit.UNIT`, a Java static field.
     pub boxed_unit_unit: SymbolId,
+    pub equality: Equality,
 }
 
 /// The primitive value classes of package `scala` and their erased letters.
@@ -57,7 +61,8 @@ impl Definitions {
             module_serialization_proxy: proxy,
             module_serialization_proxy_ctor: member(u, proxy, "<init>", Kind::Def)?,
             primitives,
-            boxed_unit_unit: boxed_unit_unit(u, runtime)?,
+            boxed_unit_unit: boxed_unit_unit(u, runtime),
+            equality: Equality::new(u, b.any, b.object, runtime)?,
         })
     }
 
@@ -71,18 +76,28 @@ impl Definitions {
 }
 
 /// `BoxedUnit.UNIT`, defined with its class if the library has no TASTy for them.
-fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> Result<SymbolId, String> {
-    let class = match member(u, runtime, "BoxedUnit", Kind::Class) {
-        Ok(c) => c,
-        Err(_) => u.define(symbol("BoxedUnit", Kind::Class, runtime, Flags::default())),
-    };
-    if let Ok(unit) = member(u, class, "UNIT", Kind::Val) {
-        return Ok(unit);
-    }
-    let unit = u.define(symbol("UNIT", Kind::Val, class, Flags::default().with(STATIC)));
+fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> SymbolId {
+    let class = java_class(u, runtime, "BoxedUnit");
     let info = type_ref(u, class);
-    u.set_info(unit, info);
-    Ok(unit)
+    java_static(u, class, "UNIT", Kind::Val, info)
+}
+
+/// Class `name` of package `owner`, defined if the library has no TASTy for it.
+fn java_class(u: &mut Universe, owner: SymbolId, name: &str) -> SymbolId {
+    match member(u, owner, name, Kind::Class) {
+        Ok(c) => c,
+        Err(_) => u.define(symbol(name, Kind::Class, owner, Flags::default())),
+    }
+}
+
+/// Static member `name` of Java class `class`, defined of type `info` if missing.
+fn java_static(u: &mut Universe, class: SymbolId, name: &str, kind: Kind, info: TypeId) -> SymbolId {
+    if let Ok(s) = member(u, class, name, kind) {
+        return s;
+    }
+    let s = u.define(symbol(name, kind, class, Flags::default().with(STATIC)));
+    u.set_info(s, info);
+    s
 }
 
 /// A symbol defined outside TASTy.

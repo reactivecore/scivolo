@@ -41,7 +41,8 @@ impl Gen<'_, '_> {
         let name = self.l.u.symbol(sym).name.as_str();
         let owner_name = self.l.u.binary_name(owner);
         let object_ops = ["eq", "ne", "synchronized", "==", "!=", "##"];
-        owner == self.l.defs.any
+        let any_ops = ["==", "!=", "##", "isInstanceOf", "asInstanceOf"];
+        (owner == self.l.defs.any && any_ops.contains(&name))
             || is_primitive(&owner_name)
             || (owner == self.l.defs.object && object_ops.contains(&name))
             || (owner_name == "java.lang.String" && name == "+")
