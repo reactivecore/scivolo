@@ -2,7 +2,7 @@
 //! applied, primitive values and `()` boxed where a reference is expected.
 
 use crate::Lower;
-use crate::symbols::{has, is_class, is_constructor, is_module};
+use crate::symbols::{has, is_class, is_constructor, is_java_static, is_module};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
@@ -57,9 +57,13 @@ fn from_start(span: Span) -> Span {
     if span.exists() { span.with_point(span.start()) } else { span }
 }
 
-/// `t()`, spanning `t` with its start as point.
+/// `t()`, spanning `t` with its start as point, unless `t` refers to a Java static, which stands
+/// for a JDK field.
 pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
-    let span = from_start(l.tpd.span(t));
+    let span = match l.tpd.sym(t) {
+        Some(s) if is_java_static(l.u, s) => l.tpd.span(t),
+        _ => from_start(l.tpd.span(t)),
+    };
     let tpe = l.tpd.tpe(t);
     l.apply(t, &[], tpe, span)
 }
