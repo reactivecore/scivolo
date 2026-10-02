@@ -17,7 +17,7 @@ impl Gen<'_, '_> {
     /// Fails for a method the lowering cannot call yet.
     pub fn check_callee(&mut self, sym: SymbolId, span: Span) -> Result<()> {
         if !self.l.u.symbol(sym).owner.is_some_and(|o| crate::symbols::is_class(self.l.u, o)) {
-            return unsupported(span, "calls of methods outside classes, such as `throw`");
+            return unsupported(span, "calls of methods outside classes");
         }
         if self.is_primitive_op(sym) {
             return unsupported(span, "primitive operations");
@@ -32,6 +32,12 @@ impl Gen<'_, '_> {
             return unsupported(span, "by-name parameters");
         }
         Ok(())
+    }
+
+    /// Whether `sym` is dotty's `<special-ops>.throw`.
+    pub fn is_throw(&self, sym: SymbolId) -> bool {
+        let s = self.l.u.symbol(sym);
+        s.name == "throw" && s.owner.is_some_and(|o| self.l.u.symbol(o).name == "<special-ops>")
     }
 
     /// Whether `sym` is an operation nscplugin generates inline: of `Any`, of a primitive class,
