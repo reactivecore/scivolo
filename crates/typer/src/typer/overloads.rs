@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The arguments of an application, typed once without an expected type when overloading needs
 /// their types (dotty's `FunProto`).
@@ -17,6 +17,61 @@ pub struct FunProto {
 }
 
 impl Typer<'_> {
+    /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
+    /// method taking as many arguments as `pt` supplies, or the one overload resolution picks.
+    pub fn choose(
+        &mut self,
+        syms: &[SymbolId],
+        prefix: Option<TypeId>,
+        pt: Pt,
+    ) -> Result<SymbolId, &'static str> {
+        if let [s] = syms {
+            return Ok(*s);
+        }
+        let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
+        let mut methods = Vec::new();
+        for &s in syms {
+            self.complete(s);
+            if self.u.symbol(s).kind == Kind::Def {
+                methods.push(s);
+                continue;
+            }
+            let value = self.ref_type(prefix, s);
+            if !self.type_members(value, "apply").is_empty() {
+                return Err("overloaded value with an apply method");
+            }
+        }
+        if let [s] = methods[..] {
+            return Ok(s);
+        }
+        let n = self.protos[proto].args.len();
+        let mut fitting = Vec::new();
+        for s in methods {
+            let info = self.u.info(s);
+            let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
+            let special = ps.iter().any(|&p| self.is_special_param(p) || self.repeated_elem(p).is_some());
+            if special || self.has_defaults(s) {
+                return Err("overloads with default, repeated or by-name parameters");
+            }
+            if ps.len() == n {
+                fitting.push(s);
+            }
+        }
+        match fitting.as_slice() {
+            [s] => Ok(*s),
+            [] => Err("no alternative with that many arguments"),
+            _ => self.resolve_overloaded(&fitting, prefix, proto),
+        }
+    }
+
+    /// Whether a method named as `s` in its owner has default arguments.
+    fn has_defaults(&mut self, s: SymbolId) -> bool {
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        let prefix = format!("{}$default$", self.u.symbol(s).name);
+        let decls = self.u.decls(owner).unwrap_or_default();
+        decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))
+    }
+
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx` (dotty's
     /// `isCompatible`): `Some` if decided, `None` if an implicit conversion might decide it.
     fn compatible(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
