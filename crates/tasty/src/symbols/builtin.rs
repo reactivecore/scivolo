@@ -3,7 +3,7 @@
 //! defines it; `Object` extends `Any` and `Matchable`, `java.io.Serializable` only `Any`.
 
 use super::{Flags, Kind, Symbol, SymbolId, Universe};
-use crate::tags::{ABSTRACT, FINAL, TRAIT};
+use crate::tags::{ABSTRACT, FINAL, PRIVATE, PRIVATEqualified, TRAIT};
 use crate::types::{Type, TypeId};
 
 /// The type `scala.Nothing`, the first type every universe interns.
@@ -83,8 +83,13 @@ pub fn enter(u: &mut Universe) -> Builtins {
         false => None,
     };
     let object = object.unwrap_or_else(|| synthetic(u, java_lang, "Object", Kind::Class, &[]));
+    let flags = &mut u.symbols[object.0 as usize].flags;
+    *flags = flags.without(PRIVATE).without(PRIVATEqualified);
     let matchable_ref = u.types.intern(Type::Sym(None, matchable));
     u.parents.insert(object, vec![ANY, matchable_ref]);
+    let object_ref = u.types.intern(Type::Sym(None, object));
+    u.parents.insert(nothing, vec![ANY]);
+    u.parents.insert(null, vec![object_ref]);
     let serializable = u
         .package("java.io")
         .and_then(|p| u.decl(p, "Serializable").ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
@@ -92,7 +97,6 @@ pub fn enter(u: &mut Universe) -> Builtins {
         u.parents.insert(serializable, vec![ANY]);
     }
     let any_ref = synthetic(u, scala, "AnyRef", Kind::Type, &[]);
-    let object_ref = u.types.intern(Type::Sym(None, object));
     u.infos.insert(any_ref, object_ref);
     let any_val =
         u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
