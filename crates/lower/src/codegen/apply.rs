@@ -29,6 +29,12 @@ impl Gen<'_, '_> {
             self.m.pos = saved;
             return Ok(v);
         }
+        if let (true, [exception]) = (self.is_throw(sym), &args[..]) {
+            let v = self.gen_expr(*exception)?;
+            self.raise(v);
+            self.m.pos = saved;
+            return Ok(self.val(Val::Unit));
+        }
         if let Some(v) = self.gen_primitive(t, sym, fun, &args)? {
             self.m.pos = saved;
             return Ok(v);
