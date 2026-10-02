@@ -164,13 +164,28 @@ impl Typer<'_> {
             return Ok(*s);
         }
         let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
-        let n = self.protos[proto].args.len();
-        let mut fitting = Vec::new();
+        let mut methods = Vec::new();
         for &s in syms {
             self.complete(s);
+            if self.u.symbol(s).kind == Kind::Def {
+                methods.push(s);
+                continue;
+            }
+            let value = self.ref_type(prefix, s);
+            if !self.type_members(value, "apply").is_empty() {
+                return Err("overloaded value with an apply method");
+            }
+        }
+        if let [s] = methods[..] {
+            return Ok(s);
+        }
+        let n = self.protos[proto].args.len();
+        let mut fitting = Vec::new();
+        for s in methods {
             let info = self.u.info(s);
             let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
-            if ps.iter().any(|&p| self.is_special_param(p)) || self.has_defaults(s) {
+            let special = ps.iter().any(|&p| self.is_special_param(p) || self.repeated_elem(p).is_some());
+            if special || self.has_defaults(s) {
                 return Err("overloads with default, repeated or by-name parameters");
             }
             if ps.len() == n {

@@ -34,6 +34,16 @@ impl Typer<'_> {
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
             }
+            Tree::Annotated { arg, annot } => {
+                let arg = self.typed_type(arg, ctx);
+                let annot = self.typed(annot, Pt::Any, ctx);
+                let annot_tpe = self.tpd.tpe(annot);
+                if !self.is_repeated_annot(annot_tpe) {
+                    return self.unsupported(id, "annotated type");
+                }
+                let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
+                self.tpd.node(T::Annotated { arg, annot }, span, Some(tpe), None)
+            }
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             t => {

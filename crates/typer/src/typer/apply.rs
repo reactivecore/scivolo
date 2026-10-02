@@ -23,31 +23,55 @@ impl Typer<'_> {
         let proto = self.protos.len();
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
+        let f = match self.with_apply(f, proto, ctx) {
+            Ok(f) => f,
+            Err(what) => return self.unsupported(id, what),
+        };
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe);
-        let Some(Type::Method { params, result, .. }) = info.map(|i| self.u.types().get(i).clone()) else {
+        let Some(Type::Method { mut params, result, .. }) = info.map(|i| self.u.types().get(i).clone())
+        else {
             return self.unsupported(id, "application of a non-method");
         };
-        if params.len() != arg_ids.len() {
-            return self.unsupported(id, "default or variable arguments");
+        let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
+        if repeated.is_some() {
+            params.pop();
         }
-        if params.iter().any(|&(_, p)| self.is_special_param(p)) {
-            return self.unsupported(id, "by-name, repeated or dependent parameter");
+        let arity_fits = match repeated {
+            Some(_) => arg_ids.len() >= params.len(),
+            None => arg_ids.len() == params.len(),
+        };
+        if !arity_fits {
+            return self.unsupported(id, "default arguments or wrong arity");
+        }
+        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).chain(repeated).collect();
+        if formals.iter().any(|&p| self.is_special_param(p)) {
+            return self.unsupported(id, "by-name or dependent parameter");
+        }
+        if arg_ids.iter().any(|&a| self.is_sequence_arg(a)) {
+            return self.unsupported(id, "sequence argument");
         }
         match self.u.types().get(result) {
             Type::Bounds(..) => return self.unsupported(id, "result type of a wildcard argument"),
             Type::Method { implicit: true, .. } => return self.unsupported(id, "implicit arguments"),
             _ => {}
         }
-        let typed_args: Vec<TNodeId> = match pretyped {
-            Some(typed) => {
-                typed.into_iter().zip(&params).map(|(a, &(_, p))| self.adapt(a, Pt::Type(p))).collect()
-            }
-            None => {
-                arg_ids.iter().zip(&params).map(|(&a, &(_, p))| self.typed(a, Pt::Type(p), ctx)).collect()
-            }
-        };
+        let mut typed_args = Vec::new();
+        for (i, &a) in arg_ids.iter().enumerate() {
+            let formal = params.get(i).map_or_else(|| repeated.expect("a repeated parameter"), |&(_, p)| p);
+            typed_args.push(match &pretyped {
+                Some(typed) => self.adapt(typed[i], Pt::Type(formal)),
+                None => self.typed(a, Pt::Type(formal), ctx),
+            });
+        }
+        let span = self.ast.span(id);
+        if let Some(elem) = repeated {
+            let elems = typed_args.split_off(params.len());
+            let before = typed_args.last().copied().unwrap_or(f);
+            let at = self.tpd.span(before).end_pos();
+            typed_args.push(self.seq_literal(&elems, elem, at));
+        }
         if let [arg] = typed_args[..]
             && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg))
         {
@@ -65,10 +89,32 @@ impl Typer<'_> {
             _ => result,
         };
         let args = self.tpd.list(&typed_args);
-        let span = self.ast.span(id);
         let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
         self.fold_apply(apply);
         apply
+    }
+
+    /// `f`, or `f.apply` if `f` is not a method (dotty's `tryInsertApplyOrImplicit`), the
+    /// alternative chosen by the arguments of `proto`.
+    fn with_apply(&mut self, f: TNodeId, proto: usize, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
+            return Ok(f);
+        }
+        let found = self.members_found(tpe, "apply", false).ok_or("application of a non-method")?;
+        let sym = self.choose(&found.syms, Some(tpe), super::Pt::Fun(proto))?;
+        self.check_reference(sym, Some(tpe), ctx)?;
+        let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
+        let apply_tpe = self.ref_type(Some(tpe), sym);
+        let span = self.tpd.span(f).to_synthetic();
+        Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
+    }
+
+    /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.
+    fn is_sequence_arg(&self, a: NodeId) -> bool {
+        let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
+        matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
     }
 
     /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives

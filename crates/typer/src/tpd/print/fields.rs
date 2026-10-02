@@ -30,7 +30,13 @@ impl Printer<'_> {
                 self.out.push_str(&shown);
             }
             Tree::New { tpt } => self.node(tpt),
-            Tree::Typed { expr: a, tpt: b } | Tree::Assign { lhs: a, rhs: b } => {
+            Tree::SeqLiteral { elems, elemtpt } => {
+                self.list(elems);
+                self.node(elemtpt);
+            }
+            Tree::Typed { expr: a, tpt: b }
+            | Tree::Assign { lhs: a, rhs: b }
+            | Tree::Annotated { arg: a, annot: b } => {
                 self.node(a);
                 self.node(b);
             }

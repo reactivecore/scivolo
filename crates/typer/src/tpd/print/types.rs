@@ -121,7 +121,7 @@ fn constant(tag: u8, bits: i64) -> String {
         FALSEconst => ("Boolean", "false".to_string()),
         BYTEconst => ("Byte", bits.to_string()),
         SHORTconst => ("Short", bits.to_string()),
-        CHARconst => ("Char", char::from_u32(bits as u32).map_or(String::new(), String::from)),
+        CHARconst => return format!("#Char:{}", quote(&[bits as u16])),
         INTconst => ("Int", bits.to_string()),
         LONGconst => ("Long", bits.to_string()),
         FLOATconst => ("Float", text(Constant::Float(f32::from_bits(bits as u32)))),

@@ -5,7 +5,7 @@
 use super::Typer;
 use syntax::ast::Span;
 use syntax::ast::flags as f;
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     fn is_concrete(&self, s: SymbolId) -> bool {
@@ -50,7 +50,12 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                if self.u.matches(site, a, b) {
+                let poly = [a, b].iter().any(|&m| {
+                    let info = self.u.info(m);
+                    matches!(self.u.types().get(info), Type::Poly { .. })
+                });
+                let erased_clash = !poly && self.u.erased_method(a) == self.u.erased_method(b);
+                if self.u.matches(site, a, b) || erased_clash {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {

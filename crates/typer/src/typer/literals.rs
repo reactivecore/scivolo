@@ -74,6 +74,11 @@ impl Typer<'_> {
     }
 
     pub fn typed_literal(&mut self, id: NodeId, value: Constant) -> TNodeId {
+        if let Constant::String(ref s) = value
+            && String::from_utf16(s).is_err()
+        {
+            return self.unsupported(id, "string with an unpaired surrogate");
+        }
         let tpe = self.literal_type(&value);
         let span = self.ast.span(id);
         self.tpd.node(T::Literal { value }, span, Some(tpe), None)

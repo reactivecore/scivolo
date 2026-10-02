@@ -37,6 +37,8 @@ pub struct Syms {
     pub declared_results: rustc_hash::FxHashSet<SymbolId>,
     /// dotty's `<special-ops>.throw`, once defined.
     pub throw_method: Option<SymbolId>,
+    /// dotty's `scala.<repeated>`, the class of repeated arguments, once defined.
+    pub repeated_class: Option<SymbolId>,
     /// The value parameters of each script method, by clause.
     pub param_clauses: FxHashMap<SymbolId, Vec<Vec<SymbolId>>>,
     /// The primary constructor of each script class.

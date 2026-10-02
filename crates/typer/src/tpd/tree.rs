@@ -109,6 +109,11 @@ pub enum Tree {
         expr: TNodeId,
         tpt: TNodeId,
     },
+    /// The arguments of a repeated parameter, of element type `elemtpt`.
+    SeqLiteral {
+        elems: List,
+        elemtpt: TNodeId,
+    },
     Assign {
         lhs: TNodeId,
         rhs: TNodeId,
@@ -147,6 +152,11 @@ pub enum Tree {
     },
     SingletonTypeTree {
         reference: TNodeId,
+    },
+    /// Type `arg` with annotation `annot`, a constructor call.
+    Annotated {
+        arg: TNodeId,
+        annot: TNodeId,
     },
     AppliedTypeTree {
         tpt: TNodeId,
