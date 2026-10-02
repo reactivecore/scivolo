@@ -18,6 +18,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod literals;
+mod names;
 mod no_inits;
 mod overloads;
 mod overrides;

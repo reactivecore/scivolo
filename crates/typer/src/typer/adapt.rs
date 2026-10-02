@@ -52,12 +52,16 @@ impl Typer<'_> {
     }
 
     /// Whether reference `tree` to a method with an empty parameter list may be called without
-    /// one: a member of `Any`, or of a `java.*` or `javax.*` class, which the JDK defines (dotty's
-    /// auto-application of Java methods).
+    /// one (dotty's auto-application): a member of `Any` other than `getClass`, or of a `java.*`
+    /// or `javax.*` class.
     fn is_auto_applicable(&mut self, tree: TNodeId) -> bool {
-        let Some(owner) = self.tpd.sym(tree).and_then(|s| self.u.symbol(s).owner) else { return false };
+        let Some(s) = self.tpd.sym(tree) else { return false };
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        if owner == self.u.builtins().any {
+            return self.u.symbol(s).name != "getClass";
+        }
         let name = self.u.full_name(owner);
-        owner == self.u.builtins().any || name.starts_with("java.") || name.starts_with("javax.")
+        name.starts_with("java.") || name.starts_with("javax.")
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

@@ -118,6 +118,7 @@ impl Typer<'_> {
             ));
         }
         let names: Vec<String> = entries.iter().map(|(n, _)| n.clone()).collect();
+        let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
         let body_pt = expected.as_ref().map_or(Pt::Any, |&(_, r)| Pt::Type(r));
@@ -130,8 +131,6 @@ impl Typer<'_> {
                 self.widen_singleton(t)
             }
         };
-        let params_syms: Vec<tasty::SymbolId> =
-            self.syms.closure_syms[self.syms.closure_syms.len() - n..].to_vec();
         let mut dependent = false;
         let body_tpe = self.tpd.tpe(body);
         for t in [result, body_tpe] {

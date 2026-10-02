@@ -101,6 +101,7 @@ impl Typer<'_> {
         let args = self.pretyped_args(proto);
         let ctx = self.protos[proto].ctx;
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let arg_types: Vec<TypeId> = arg_types.into_iter().map(|t| self.zonk(t)).collect();
         let mut applicable = Vec::new();
         for &alt in alts {
             match self.applicable(alt, prefix, &arg_types, ctx) {

@@ -31,9 +31,13 @@ impl Typer<'_> {
 
     /// Instantiates the type variables of id `from` or later that `tree`'s type determines:
     /// minimized where they occur covariantly, maximized where contravariantly, by their
-    /// lower bound if they do not occur and have one; invariant ones stay.
+    /// lower bound if they do not occur and have one; invariant ones stay, and all stay while
+    /// `tree` is a method not applied to all its parameter clauses.
     pub fn interpolate(&mut self, tree: TNodeId, from: usize) -> Result<(), &'static str> {
         let Some(tpe) = self.tpd.get(tree).tpe else { return Ok(()) };
+        if matches!(self.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. }) {
+            return Ok(());
+        }
         let variances = self.variances(tpe, from);
         for i in from..self.constraint.count() {
             let v = VarId(i as u32);

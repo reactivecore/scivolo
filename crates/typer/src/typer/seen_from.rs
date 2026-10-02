@@ -62,7 +62,7 @@ impl Typer<'_> {
     }
 
     /// `t` with applied type lambdas reduced and capture-checking annotations (`retains`)
-    /// dropped, which dotty leaves out without capture checking.
+    /// dropped.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         let retains = |u: &mut tasty::Universe, a| {
             u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
