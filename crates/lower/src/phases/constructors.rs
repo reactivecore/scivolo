@@ -1,8 +1,10 @@
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
-//! `Constructors`: the class parameters stored in their fields, that call, then the fields
-//! initialized in order, for classes whose templates hold only methods and fields.
+//! `Constructors`: the class parameters stored in their fields, that call, then the field
+//! initializers and statements of the class body in order.
 
-use super::getters::is_param_accessor;
+use super::first_transform::literal_of;
+use super::getters::{is_const_final, is_param_accessor};
+use super::walk::references;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use tasty::SymbolId;
@@ -14,24 +16,56 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         return Ok(());
     }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
+    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
         unreachable!("a template")
     };
+    let mut class_stats = Vec::new();
     let span = l.tpd.span(td);
     let mut inits = Vec::new();
     let mut accessors = Vec::new();
-    for stat in l.tpd.items(body).to_vec() {
+    let stats = l.tpd.items(body).to_vec();
+    for &stat in &stats {
+        if matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::ValDef { rhs: None, .. }) {
+            accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s)));
+        }
+    }
+    for stat in stats {
+        let sym = l.tpd.sym(stat);
+        let const_getter = sym.filter(|&s| is_const_final(l, s));
         match *l.tpd.tree(stat) {
-            Tree::DefDef { .. } => accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s))),
-            Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {}
+            Tree::Import { .. } => {}
+            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
+                if const_getter.is_some() && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+            {
+                let getter = const_getter.expect("a getter's symbol");
+                let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);
+                if literal != rhs {
+                    inits.push(rhs);
+                }
+                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(literal) };
+                class_stats.push(stat);
+            }
+            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {
+                class_stats.push(stat)
+            }
             Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
+                class_stats.push(stat);
                 let field = l.tpd.sym(stat).expect("a field's symbol");
-                let at = l.tpd.span(rhs);
+                let memoized = l.fields.get(&field).is_some_and(|&g| g != field);
+                let at = if memoized { l.tpd.span(rhs) } else { l.tpd.span(stat) };
+                if references(l.tpd, rhs).iter().any(|s| accessors.contains(s)) {
+                    return unsupported(at, "class parameters used in initializers");
+                }
                 let lhs = l.field_ref(field, at);
                 inits.push(assign(l, lhs, rhs, at));
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
             }
-            _ => return unsupported(l.tpd.span(stat), "statements in a class body"),
+            _ => {
+                if references(l.tpd, stat).iter().any(|s| accessors.contains(s)) {
+                    return unsupported(l.tpd.span(stat), "class parameters used in class body statements");
+                }
+                inits.push(stat);
+            }
         }
     }
     let Tree::DefDef { name, paramss, tpt, rhs: None } = *l.tpd.tree(constr) else {
@@ -54,8 +88,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let value = l.ident(param, template_span);
         stats.push(assign(l, lhs, value, template_span));
     }
-    let parents = l.tpd.items(parents).to_vec();
-    let Some(&first) = parents.first() else {
+    let Some(&first) = l.tpd.items(parents).first() else {
         return unsupported(span, "a class without a superclass");
     };
     stats.push(super_call(l, class, first)?);
@@ -65,6 +98,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let unit = l.unit_literal(block_span);
     let rhs = l.block(&stats, unit, block_span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+    let body = l.tpd.list(&class_stats);
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
 }
 

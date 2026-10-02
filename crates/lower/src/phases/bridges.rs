@@ -4,17 +4,18 @@
 
 use crate::symbols::{has, is_class, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashSet;
 use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter, PRIVATE};
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let bases = l.u.linearization(class);
-    check_inherited(l, class, &bases, span)?;
+    check_inherited(l, class, &bases, deferred, span)?;
     let mut stats = l.tpd.items(body).to_vec();
     let mut bridged: Vec<(String, Vec<Erased>, Erased)> = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
@@ -62,6 +63,7 @@ fn check_inherited(
     l: &mut Lower,
     class: SymbolId,
     bases: &[SymbolId],
+    deferred: &FxHashSet<SymbolId>,
     span: syntax::ast::Span,
 ) -> Result<()> {
     let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
@@ -74,7 +76,9 @@ fn check_inherited(
             let (params, result) = l.u.erased_method(d);
             let implementation = bases.iter().find_map(|&b| {
                 let found = l.u.decl(b, &name).unwrap_or_default();
-                found.into_iter().find(|&o| is_member(l, o) && l.u.erased_method(o).0 == params)
+                found
+                    .into_iter()
+                    .find(|&o| is_member(l, o) && !deferred.contains(&o) && l.u.erased_method(o).0 == params)
             });
             let Some(implementation) = implementation else { continue };
             let inherited_impl = l.u.symbol(implementation).owner != Some(class);

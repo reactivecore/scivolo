@@ -8,18 +8,27 @@ use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Types the methods of class definition `td` against their erased result types.
+/// Types the methods of class definition `td` against their erased result types, and the
+/// statements and field initializers of its body.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(rhs) else { return Ok(()) };
-    let stats: Vec<TNodeId> = std::iter::once(constr).chain(l.tpd.items(body).iter().copied()).collect();
-    for stat in stats {
-        let Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } = *l.tpd.tree(stat) else { continue };
-        let sym = l.tpd.sym(stat).expect("a method definition's symbol");
-        let pt = if is_constructor(l.u, sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
-        let rhs = typed(l, rhs, Some(&pt));
-        l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
+    let mut stats = Vec::new();
+    for stat in std::iter::once(constr).chain(l.tpd.items(body).iter().copied()).collect::<Vec<_>>() {
+        match *l.tpd.tree(stat) {
+            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
+                let sym = l.tpd.sym(stat).expect("a method definition's symbol");
+                let pt = if is_constructor(l.u, sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
+                let rhs = typed(l, rhs, Some(&pt));
+                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+                stats.push(stat);
+            }
+            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => stats.push(stat),
+            _ => stats.push(typed(l, stat, None)),
+        }
     }
+    let body = l.tpd.list(&stats[1..]);
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
 }
 

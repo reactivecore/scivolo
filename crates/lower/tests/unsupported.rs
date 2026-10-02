@@ -7,9 +7,9 @@ use tasty::Universe;
 
 /// Each source and what the refusal names.
 const CASES: [(&str, &str); 14] = [
-    ("object O { var x = \"a\" }", "mutable fields"),
-    ("object O { private val x = \"a\" }", "private fields"),
-    ("object O { final val k = 3 }", "constant final values"),
+    ("object O { lazy val x = \"a\" }", "lazy values"),
+    ("object O { private val x = \"a\" }", "private values used only in the constructor"),
+    ("class A(x: String) { println(x); def f = x }", "class parameters used in class body statements"),
     ("object O { val u = () }", "fields of type Unit"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
@@ -44,9 +44,9 @@ fn constructs_not_lowered_yet_are_refused() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let mut u = Universe::open(&jars).unwrap();
     let mut failures = Vec::new();
     for (source, refusal) in CASES {
+        let mut u = Universe::open(&jars).unwrap();
         let result = lower::compile(&mut u, &SourceFile::new("case.scala", source), &[]);
         match result {
             Err(e) if e.starts_with("the typer does not support") => {}
