@@ -165,16 +165,11 @@ impl Typer<'_> {
         found
     }
 
-    /// Whether parameter type `p` is by-name, repeated, or refers to a parameter.
+    /// Whether parameter type `p` is by-name or refers to a parameter.
     pub fn is_special_param(&mut self, p: TypeId) -> bool {
         let mut special = false;
         self.u.map_type(p, &mut |u, part| {
-            match u.types().get(part) {
-                Type::ByName(_) | Type::Param(..) => special = true,
-                Type::Sym(_, s) if u.symbol(*s).name == "<repeated>" => special = true,
-                Type::TypeRef(_, n) if n == "<repeated>" => special = true,
-                _ => {}
-            }
+            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
             None
         });
         special

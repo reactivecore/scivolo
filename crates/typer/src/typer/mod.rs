@@ -2,6 +2,7 @@
 
 mod access;
 mod adapt;
+mod alternatives;
 mod apply;
 mod classes;
 mod closures;
