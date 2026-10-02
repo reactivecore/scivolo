@@ -6,7 +6,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Each source and what the refusal names.
-const CASES: [(&str, &str); 14] = [
+const CASES: &[(&str, &str)] = &[
     ("object O { lazy val x = \"a\" }", "lazy values"),
     ("object O { def f(c: Boolean): Any = if c then 1 else \"s\" }", "branches of different erased classes"),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
@@ -14,7 +14,6 @@ const CASES: [(&str, &str); 14] = [
     ("object O { val u = () }", "fields of type Unit"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
-    ("object O { def f(a: String)(b: String): String = a }", "several parameter lists"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
     ("trait T { val x = \"a\" }", "traits with initialization"),
     (
@@ -45,7 +44,7 @@ fn constructs_not_lowered_yet_are_refused() {
         return;
     }
     let mut failures = Vec::new();
-    for (source, refusal) in CASES {
+    for &(source, refusal) in CASES {
         let mut u = Universe::open(&jars).unwrap();
         let result = lower::compile(&mut u, &SourceFile::new("case.scala", source), &[]);
         match result {

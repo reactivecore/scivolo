@@ -17,7 +17,7 @@ impl Gen<'_, '_> {
     pub fn gen_method(&mut self, dd: TNodeId) -> Result<Defn> {
         let sym = self.l.tpd.sym(dd).expect("a method definition's symbol");
         let Tree::DefDef { paramss, rhs, .. } = *self.l.tpd.tree(dd) else { unreachable!("a method") };
-        self.check_method(sym, paramss, self.l.tpd.span(dd))?;
+        self.check_method(sym, self.l.tpd.span(dd))?;
         let pos = self.pos_or(self.l.tpd.span(dd), self.no_pos);
         let name = self.method_name(sym);
         let ty = self.method_sig(sym, false);
@@ -36,7 +36,7 @@ impl Gen<'_, '_> {
     }
 
     /// Fails for a method the lowering cannot define yet.
-    fn check_method(&mut self, sym: SymbolId, paramss: Clauses, span: Span) -> Result<()> {
+    fn check_method(&mut self, sym: SymbolId, span: Span) -> Result<()> {
         if has(self.l.u, sym, INLINE) {
             return unsupported(span, "inline methods");
         }
@@ -46,21 +46,17 @@ impl Gen<'_, '_> {
         if has_by_name_params(self.l.u, sym) {
             return unsupported(span, "by-name parameters");
         }
-        let value_clauses = self.l.tpd.clause_items(paramss).iter().filter(|&&c| {
-            let items = self.l.tpd.items(c);
-            items.is_empty() || !items.iter().all(|&p| matches!(self.l.tpd.tree(p), Tree::TypeDef { .. }))
-        });
-        if value_clauses.count() > 1 {
-            return unsupported(span, "several parameter lists");
-        }
         Ok(())
     }
 
     fn gen_method_body(&mut self, sym: SymbolId, paramss: Clauses, rhs: TNodeId) -> Result<Body> {
-        let first = self.l.tpd.clause_items(paramss).first().copied();
-        let param_syms: Vec<SymbolId> = first
-            .map(|c| self.l.tpd.items(c).iter().filter_map(|&p| self.l.tpd.sym(p)).collect())
-            .unwrap_or_default();
+        let clauses = self.l.tpd.clause_items(paramss).to_vec();
+        let param_syms: Vec<SymbolId> = clauses
+            .iter()
+            .flat_map(|&c| self.l.tpd.items(c))
+            .filter(|&&p| matches!(self.l.tpd.tree(p), Tree::ValDef { .. }))
+            .filter_map(|&p| self.l.tpd.sym(p))
+            .collect();
         let mut params = Vec::new();
         for p in param_syms {
             let info = self.l.u.info(p);

@@ -11,3 +11,4 @@ strings
 throws
 statics
 varargs
+curried
