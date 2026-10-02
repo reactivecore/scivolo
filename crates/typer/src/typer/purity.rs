@@ -41,7 +41,7 @@ impl Typer<'_> {
     fn expr_purity(&mut self, tree: TNodeId) -> u8 {
         match self.tpd.tree(tree).clone() {
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
-            T::New { .. } => PURE,
+            T::New { .. } | T::Closure { .. } => PURE,
             T::Ident { .. } => self.ref_purity(tree),
             T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
             T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
@@ -145,7 +145,7 @@ impl Typer<'_> {
         if self.is_pure_expr(tree) {
             let tpe = self.tpd.tpe(tree);
             let widened = self.u.widen(tpe);
-            let shown = self.u.show(widened);
+            let shown = self.show_type(widened);
             let msg = format!("Discarded non-Unit value of type {shown}. Add `: Unit` to discard silently.");
             let at = self.tpd.span(tree).point();
             self.diags.warning(at, msg);

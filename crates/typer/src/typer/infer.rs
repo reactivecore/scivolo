@@ -96,8 +96,13 @@ impl Typer<'_> {
         Err("type variables")
     }
 
-    /// Makes the types of all trees fully defined.
+    /// Makes the types of all trees, and of closures' symbols, fully defined.
     pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
+        for s in self.syms.closure_syms.clone() {
+            let info = self.u.info(s);
+            let info = self.fully_defined(info)?;
+            self.u.set_info(s, info);
+        }
         for i in 0..self.tpd.len() {
             let id = TNodeId::new(i);
             if let Some(t) = self.tpd.get(id).tpe {

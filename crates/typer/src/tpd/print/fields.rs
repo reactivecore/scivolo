@@ -30,6 +30,11 @@ impl Printer<'_> {
                 self.out.push_str(&shown);
             }
             Tree::New { tpt } => self.node(tpt),
+            Tree::Closure { env, meth, tpt } => {
+                self.list(env);
+                self.node(meth);
+                self.opt(tpt);
+            }
             Tree::SeqLiteral { elems, elemtpt } => {
                 self.list(elems);
                 self.node(elemtpt);

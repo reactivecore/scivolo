@@ -4,6 +4,7 @@ mod access;
 mod adapt;
 mod apply;
 mod classes;
+mod closures;
 mod const_fold;
 mod const_ops;
 mod control;
@@ -169,6 +170,7 @@ impl<'a> Typer<'a> {
             Tree::Return { expr } => self.typed_return(id, expr, ctx),
             Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
+            Tree::Function { args, body, mods: None, .. } => self.typed_function(id, args, body, pt, ctx),
             Tree::TypeTree
             | Tree::AppliedTypeTree { .. }
             | Tree::SingletonTypeTree { .. }

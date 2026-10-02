@@ -109,6 +109,12 @@ pub enum Tree {
         expr: TNodeId,
         tpt: TNodeId,
     },
+    /// The function value of method `meth`, closing over `env`; `tpt` for a SAM type.
+    Closure {
+        env: List,
+        meth: TNodeId,
+        tpt: Option<TNodeId>,
+    },
     /// The arguments of a repeated parameter, of element type `elemtpt`.
     SeqLiteral {
         elems: List,

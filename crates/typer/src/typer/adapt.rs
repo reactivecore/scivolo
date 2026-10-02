@@ -21,6 +21,14 @@ impl Typer<'_> {
             return tree;
         }
         let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
+        if let Some(Type::Method { params, result, implicit: false, .. }) = &method
+            && params.is_empty()
+            && self.is_auto_applicable(tree)
+        {
+            let args = self.tpd.list(&[]);
+            let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
+            return self.adapt(apply, pt);
+        }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
             return tree;
@@ -41,6 +49,15 @@ impl Typer<'_> {
         }
         self.unsupported_at(span, "adaptation");
         tree
+    }
+
+    /// Whether reference `tree` to a method with an empty parameter list may be called without
+    /// one: a member of `Any`, or of a `java.*` or `javax.*` class, which the JDK defines (dotty's
+    /// auto-application of Java methods).
+    fn is_auto_applicable(&mut self, tree: TNodeId) -> bool {
+        let Some(owner) = self.tpd.sym(tree).and_then(|s| self.u.symbol(s).owner) else { return false };
+        let name = self.u.full_name(owner);
+        owner == self.u.builtins().any || name.starts_with("java.") || name.starts_with("javax.")
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

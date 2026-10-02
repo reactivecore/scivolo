@@ -37,6 +37,11 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
             list(&mut out, stats);
             out.push(expr);
         }
+        Tree::Closure { env, meth, tpt } => {
+            list(&mut out, env);
+            out.push(meth);
+            out.extend(tpt);
+        }
         Tree::SeqLiteral { elems, elemtpt } => {
             list(&mut out, elems);
             out.push(elemtpt);
