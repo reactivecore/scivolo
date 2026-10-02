@@ -6,7 +6,7 @@ use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, LAZY};
 use typer::tpd::print::class_name;
 use typer::tpd::{TNodeId, Tree};
 
@@ -64,6 +64,8 @@ impl Gen<'_, '_> {
             self.val(Val::Unit)
         } else if is_module(self.l.u, sym) {
             self.gen_module(sym)
+        } else if let Some(&slot) = self.m.env.get(&sym).filter(|_| self.m.mutable.contains(&sym)) {
+            self.emit(Op::Varload(slot))
         } else if let Some(&v) = self.m.env.get(&sym) {
             v
         } else if self.is_field(sym) {
@@ -131,9 +133,7 @@ impl Gen<'_, '_> {
     fn gen_val_def(&mut self, t: TNodeId, rhs: Option<TNodeId>) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let sym = self.l.tpd.sym(t).expect("a value definition's symbol");
-        if has(self.l.u, sym, MUTABLE) {
-            return unsupported(span, "local variables");
-        }
+        let mutable = self.m.mutable.contains(&sym);
         if has(self.l.u, sym, LAZY) {
             return unsupported(span, "local lazy values");
         }
@@ -145,7 +145,7 @@ impl Gen<'_, '_> {
         };
         let value = match *self.pool.val(value) {
             Val::Local(id, _) => {
-                if !self.m.local_names.iter().any(|(l, _)| *l == id) {
+                if !mutable && !self.m.local_names.iter().any(|(l, _)| *l == id) {
                     self.name_local(id, &name);
                 }
                 if rhs.is_some_and(|r| self.ends_in_block(r)) {
@@ -156,7 +156,12 @@ impl Gen<'_, '_> {
             Val::Unit => value,
             _ => self.emit_named(Op::Copy(value), &name),
         };
-        self.m.env.insert(sym, value);
+        if mutable {
+            let slot = self.m.env[&sym];
+            self.emit(Op::Varstore { slot, value });
+        } else {
+            self.m.env.insert(sym, value);
+        }
         self.m.pos = saved;
         Ok(self.val(Val::Unit))
     }

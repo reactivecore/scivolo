@@ -74,8 +74,17 @@ impl Gen<'_, '_> {
             Tree::Select { qualifier, .. } => Some(qualifier),
             _ => None,
         };
+        if let Some(&slot) = self.m.env.get(&f).filter(|_| self.m.mutable.contains(&f)) {
+            let saved = self.at_span(span);
+            let value = self.gen_expr(rhs)?;
+            let ty = self.gen_type(self.l.tpd.tpe(lhs));
+            self.check_conforms(value, ty, span)?;
+            let v = self.emit(Op::Varstore { slot, value });
+            self.m.pos = saved;
+            return Ok(v);
+        }
         if !self.is_field(f) {
-            return unsupported(span, "assignments to local variables or through setters");
+            return unsupported(span, "assignments through setters");
         }
         let saved = self.at_span(span);
         let obj = self.field_owner(f, qualifier, span)?;

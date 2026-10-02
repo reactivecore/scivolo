@@ -4,7 +4,7 @@
 use super::Gen;
 use super::buf::Buf;
 use nir::{LexicalScope, Local, Next, Param, PosId, StrId, ValId};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::SymbolId;
 
 pub struct Method {
@@ -16,7 +16,10 @@ pub struct Method {
     pub scopes: Vec<LexicalScope>,
     pub unwind_handler: Option<Local>,
     pub local_names: Vec<(Local, StrId)>,
+    /// The values of parameters and locals; a variable's is its slot.
     pub env: FxHashMap<SymbolId, ValId>,
+    /// The local variables, held in slots.
+    pub mutable: FxHashSet<SymbolId>,
     pub buf: Buf,
     /// The position of what is being generated.
     pub pos: PosId,
@@ -35,6 +38,7 @@ impl Method {
             unwind_handler: None,
             local_names: Vec::new(),
             env: FxHashMap::default(),
+            mutable: FxHashSet::default(),
             buf: Buf::default(),
             pos,
         }

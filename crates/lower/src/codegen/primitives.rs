@@ -21,11 +21,19 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
     ) -> Result<Option<ValId>> {
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
-        if !is_primitive(&self.l.u.binary_name(owner)) {
+        let name = self.l.u.symbol(sym).name.clone();
+        let reference_eq = owner == self.l.defs.object && matches!(name.as_str(), "eq" | "ne");
+        if !reference_eq && !is_primitive(&self.l.u.binary_name(owner)) {
             return Ok(None);
         }
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return Ok(None) };
-        let name = self.l.u.symbol(sym).name.clone();
+        if let (true, [right]) = (reference_eq, args) {
+            let left = self.gen_expr(qualifier)?;
+            let right = self.gen_expr(*right)?;
+            let comp = if name == "eq" { Comp::Ieq } else { Comp::Ine };
+            let ty = self.class_ref(self.l.defs.object);
+            return Ok(Some(self.emit(Op::Comp { comp, ty, l: left, r: right })));
+        }
         let span = self.l.tpd.span(app);
         let retty = self.result_type(sym);
         let v = match (name.as_str(), args) {

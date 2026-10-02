@@ -6,7 +6,7 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 
 /// Each source and what the refusal names.
-const CASES: [(&str, &str); 15] = [
+const CASES: [(&str, &str); 14] = [
     ("object O { lazy val x = \"a\" }", "lazy values"),
     ("object O { def f(c: Boolean): Any = if c then 1 else \"s\" }", "branches of different erased classes"),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
@@ -16,7 +16,6 @@ const CASES: [(&str, &str); 15] = [
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(a: String)(b: String): String = a }", "several parameter lists"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
-    ("object O { def f(): String = { var x = \"a\"; x } }", "local variables"),
     ("trait T { val x = \"a\" }", "traits with initialization"),
     (
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
