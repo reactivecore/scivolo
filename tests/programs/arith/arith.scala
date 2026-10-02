@@ -27,6 +27,15 @@ object Ops:
   def charLess(c: Char, i: Int): Boolean = c < i
   def fmod(a: Double, b: Double): Double = a % b
   def negDiv(a: Int, b: Int): Int = a / b
+  def widen(a: Int): Long = a
+  def eqRef(a: String, b: String): Boolean = a eq b
+  def sum(n: Int): Int =
+    var i = 0
+    var s = 0
+    while i < n do
+      s = s + i
+      i = i + 1
+    s
 
 @main def arith(): Unit =
   println(Ops.add(2, 3))
@@ -56,3 +65,6 @@ object Ops:
   println(Ops.charLess('a', 100))
   println(Ops.fmod(7.5, 2.0))
   println(Ops.negDiv(-7, 2))
+  println(Ops.widen(5))
+  println(Ops.eqRef("a", "a"))
+  println(Ops.sum(5))

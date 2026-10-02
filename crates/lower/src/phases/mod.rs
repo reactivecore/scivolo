@@ -11,7 +11,7 @@ mod memoize;
 mod methods;
 mod mixin;
 mod synthetic;
-mod walk;
+pub(crate) mod walk;
 
 use crate::{Lower, Result};
 use typer::tpd::{TNodeId, Tpd, Tree};

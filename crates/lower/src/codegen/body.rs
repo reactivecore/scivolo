@@ -4,9 +4,10 @@
 use super::Gen;
 use super::dead::remove_dead_blocks;
 use super::method::Method;
+use crate::phases::walk::children;
 use crate::symbols::{has, has_by_name_params, is_extern, is_java_static};
 use crate::{Result, unsupported};
-use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Param, Type, Val, ValId};
+use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Op, Param, Type, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, INLINE};
@@ -79,12 +80,38 @@ impl Gen<'_, '_> {
         }
         let entry = self.fresh();
         self.label(entry, params);
+        for var in self.mutable_vars(rhs) {
+            let info = self.l.u.info(var);
+            let ty = self.gen_type(info);
+            let name = self.local_name(var);
+            let slot = self.emit_named(Op::Var(ty), &name);
+            self.m.env.insert(var, slot);
+            self.m.mutable.insert(var);
+        }
         let value = self.gen_expr(rhs)?;
         self.gen_return(sym, value, self.l.tpd.span(rhs))?;
         let pos = self.m.pos;
         let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
         let buf = remove_dead_blocks(m.buf);
         Ok(Body { insts: buf.insts, positions: buf.positions, local_names: m.local_names, scopes: m.scopes })
+    }
+
+    /// The local variables assigned in `rhs`, in the order of their first assignment (nscplugin's
+    /// `CollectMethodInfo`).
+    fn mutable_vars(&self, rhs: TNodeId) -> Vec<SymbolId> {
+        let mut out = Vec::new();
+        let mut todo = vec![rhs];
+        while let Some(t) = todo.pop() {
+            if let Tree::Assign { lhs, .. } = *self.l.tpd.tree(t)
+                && let (Tree::Ident { .. }, Some(var)) = (self.l.tpd.tree(lhs), self.l.tpd.sym(lhs))
+                && !self.is_field(var)
+                && !out.contains(&var)
+            {
+                out.push(var);
+            }
+            todo.extend(children(self.l.tpd, t).into_iter().rev());
+        }
+        out
     }
 
     /// `ret value`, `ret unit` for a `Unit` value.
