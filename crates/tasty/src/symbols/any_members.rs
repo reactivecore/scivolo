@@ -38,14 +38,8 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {
         let t = u.types.intern(x0.clone());
-        let by_name = u.types.intern(Type::ByName(t));
         let binder = u.fresh_binder();
-        u.types.intern(Type::Method {
-            binder,
-            params: vec![("x$0".into(), by_name)],
-            result: t,
-            implicit: false,
-        })
+        u.types.intern(Type::Method { binder, params: vec![("x$0".into(), t)], result: t, implicit: false })
     });
     if u.symbol(object).decls.iter().all(|&d| u.symbol(d).name != "clone") {
         method(u, object, "clone", &[], object_type, &[PROTECTED]);

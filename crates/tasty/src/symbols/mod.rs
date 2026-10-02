@@ -16,6 +16,7 @@ mod overrides;
 mod resolve;
 mod seen;
 mod symbol;
+mod varargs;
 mod variance;
 
 use crate::library::Library;
