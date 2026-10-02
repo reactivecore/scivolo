@@ -63,7 +63,7 @@ impl Typer<'_> {
         let Type::Method { result, .. } = self.u.types().get(info).clone() else {
             return None;
         };
-        if !self.u.is_subtype(result, pt) {
+        if !self.conforms(result, pt) {
             return None;
         }
         let span = self.tpd.span(tree);

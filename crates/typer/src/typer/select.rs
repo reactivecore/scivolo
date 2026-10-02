@@ -35,14 +35,47 @@ impl Typer<'_> {
         }
     }
 
-    /// The members named `name` of class `c`, its base classes' included.
+    /// The members named `name` of class `c`, its base classes' included: the first type member,
+    /// or the term members, of each overriding pair the one dotty's `preferSym` prefers.
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         self.complete(c);
         let classes = self.u.linearization(c);
         for &base in classes.iter().skip(1) {
             self.complete(base);
         }
-        self.u.member(c, name)
+        if name == "<init>" {
+            return self.u.decl(c, name).unwrap_or_default();
+        }
+        let site = crate::defn::type_ref(self.u, c);
+        let mut out: Vec<SymbolId> = Vec::new();
+        for base in classes {
+            let decls: Vec<SymbolId> = self.u.decl(base, name).unwrap_or_default();
+            let decls: Vec<SymbolId> = decls
+                .into_iter()
+                .filter(|&m| base == c || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
+                .collect();
+            for m in decls {
+                if self.is_type_symbol(m) {
+                    if !out.iter().any(|&o| self.is_type_symbol(o)) {
+                        out.push(m);
+                    }
+                    continue;
+                }
+                let mut overridden = None;
+                for (k, &o) in out.iter().enumerate() {
+                    if !self.is_type_symbol(o) && self.same_member(site, o, m) {
+                        overridden = Some(k);
+                        break;
+                    }
+                }
+                match overridden {
+                    Some(k) if self.is_concrete(m) && !self.is_concrete(out[k]) => out[k] = m,
+                    Some(_) => {}
+                    None => out.push(m),
+                }
+            }
+        }
+        out
     }
 
     /// Whether term `s` denotes the same value each time: not a variable or a by-name

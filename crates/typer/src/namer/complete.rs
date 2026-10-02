@@ -58,6 +58,10 @@ impl Typer<'_> {
         let typed = self.typed(rhs, pt, ctx);
         self.ahead.insert(rhs, typed);
         let tpe = self.tpd.tpe(typed);
+        let tpe = self.fully_defined(tpe).unwrap_or_else(|what| {
+            self.unsupported(rhs, what);
+            tpe
+        });
         match (inherited, default) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),

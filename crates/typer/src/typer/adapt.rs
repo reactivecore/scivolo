@@ -26,7 +26,7 @@ impl Typer<'_> {
             return tree;
         }
         let Pt::Type(pt) = pt else { return tree };
-        if self.u.is_subtype(tpe, pt) {
+        if self.conforms(tpe, pt) {
             return tree;
         }
         if let Some(converted) = self.converted_constant(tree, pt) {

@@ -97,10 +97,23 @@ impl Typer<'_> {
     /// does not conform to `pt`; `None` if a reference remains.
     fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
+        let tpe = self.zonk(tpe);
         if !self.refers_to(tpe, locals) {
             return Some(expr);
         }
-        let mut avoided = tpe;
+        let mut avoided = self.u.map_type(tpe, &mut |u, part| {
+            let pre = match u.types().get(part) {
+                Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => *pre,
+                _ => return None,
+            };
+            let mut local = false;
+            u.map_type(pre, &mut |u, q| {
+                local |= matches!(*u.types().get(q), Type::Sym(_, l) if locals.contains(&l));
+                None
+            });
+            let dealiased = u.dealias(part);
+            (local && dealiased != part).then_some(dealiased)
+        });
         while let Type::Sym(_, s) = *self.u.types().get(avoided) {
             if !locals.contains(&s) || self.is_type_symbol(s) {
                 break;

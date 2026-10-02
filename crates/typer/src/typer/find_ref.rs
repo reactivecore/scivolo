@@ -52,6 +52,13 @@ impl Typer<'_> {
             match *self.levels.get(l) {
                 Level::Scope(_) | Level::Members(_) => {
                     let Some(found) = self.defined(l, name).and_then(|f| self.qualifying(f, l, ctx)) else {
+                        let as_type = Name { is_type: true, ..name };
+                        let class = self
+                            .defined(l, as_type)
+                            .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));
+                        if !name.is_type && class {
+                            return Err("constructor proxy");
+                        }
                         level = self.levels.outer(l);
                         continue;
                     };

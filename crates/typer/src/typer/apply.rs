@@ -7,24 +7,17 @@ use syntax::ast::{List, NodeId};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The type of the method `fun_tpe` refers to, as seen from its prefix.
-    pub fn method_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
-        let Type::Sym(prefix, s) = self.u.types().get(fun_tpe).clone() else { return None };
-        self.complete(s);
-        let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
-        let info = match seen_from_prefix {
-            Some(p) => self.u.member_info(p, s),
-            None => self.u.info(s),
-        };
-        Some(self.with_repeated_class(info))
-    }
-
-    pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
+    pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
         let f = match self.with_apply(f, proto, ctx) {
+            Ok(f) => f,
+            Err(what) => return self.unsupported(id, what),
+        };
+        let method = self.tpd.sym(f);
+        let f = match self.with_type_vars(f) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -36,8 +29,13 @@ impl Typer<'_> {
         else {
             return self.unsupported(id, "application of a non-method");
         };
-        if self.mentions_params(result, binder, self.tpd.sym(f)) {
+        if self.mentions_params(result, binder, method) {
             return self.unsupported(id, "dependent result type");
+        }
+        if let Pt::Type(p) = pt
+            && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+        {
+            self.conforms(result, p);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
         if repeated.is_some() {

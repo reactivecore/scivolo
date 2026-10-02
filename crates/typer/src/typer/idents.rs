@@ -14,6 +14,14 @@ pub struct Found {
 }
 
 impl Typer<'_> {
+    pub fn name(&mut self, text: &str) -> syntax::names::Name {
+        self.names.intern(text)
+    }
+
+    pub fn text(&self, name: syntax::names::Name) -> &str {
+        self.names.text(name)
+    }
+
     pub fn is_type_symbol(&self, s: SymbolId) -> bool {
         crate::symbols::is_type_symbol(self.u, s)
     }
