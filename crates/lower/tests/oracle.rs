@@ -7,9 +7,6 @@ use std::path::{Path, PathBuf};
 use syntax::source::SourceFile;
 use tasty::Universe;
 
-/// The programs of `tests/programs` the lowering covers.
-const PROGRAMS: [&str; 6] = ["hello", "literals", "objects", "classes", "overrides", "bodies"];
-
 fn root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../..")
 }
@@ -37,7 +34,8 @@ fn programs_lower_as_scala_native_compiles_them() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    for program in PROGRAMS {
+    let programs = std::fs::read_to_string(root().join("tests/programs/lowered.txt")).unwrap();
+    for program in programs.lines().filter(|p| !p.is_empty()) {
         let mut u = Universe::open(&jars).unwrap();
         let dir = root().join("tests/programs").join(program);
         let file = format!("{program}.scala");
@@ -55,9 +53,20 @@ fn programs_lower_as_scala_native_compiles_them() {
             let reference = std::fs::read(dir.join(format!("{}.nir", f.name))).unwrap();
             let (ours, theirs) = (decoded(&f.bytes), decoded(&reference));
             for (a, b) in ours.iter().zip(&theirs) {
-                assert_eq!(a, b, "{program}: {}", f.name);
+                if a != b {
+                    panic!("{program}: {}\n{}", f.name, first_difference(a, b));
+                }
             }
             assert_eq!(ours.len(), theirs.len(), "{program}: {} definitions", f.name);
         }
     }
+}
+
+/// The first line where `ours` and `theirs` differ, with the definition's first line.
+fn first_difference(ours: &str, theirs: &str) -> String {
+    let header = ours.lines().next().unwrap_or_default();
+    let (a, b): (Vec<&str>, Vec<&str>) = (ours.lines().collect(), theirs.lines().collect());
+    let i = a.iter().zip(&b).position(|(x, y)| x != y).unwrap_or(a.len().min(b.len()));
+    let line = |v: &[&str]| v.get(i).copied().unwrap_or("<end>").to_owned();
+    format!("{header}\nline {i}:\n  ours:   {}\n  theirs: {}", line(&a), line(&b))
 }

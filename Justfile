@@ -32,7 +32,7 @@ script file *args: release
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
     #!/usr/bin/env bash
-    names="{{ names }}"; [ -z "$names" ] && names=$(ls tests/programs)
+    names="{{ names }}"; [ -z "$names" ] && names=$(find tests/programs -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
     failed=0
     for p in $names; do
       start=$(date +%s.%N)

@@ -1,13 +1,10 @@
-//! Programs of `tests/programs` through the Rust frontend and lowering, run from the NIR it
-//! writes; the output must equal `<name>.check` (research 10 §5, level 3).
+//! The programs `tests/programs/lowered.txt` lists, through the Rust frontend and lowering, run
+//! from the NIR it writes; the output must equal `<name>.check` (research 10 §5, level 3).
 
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use syntax::source::SourceFile;
 use tasty::Universe;
-
-/// The programs the lowering covers.
-const PROGRAMS: [&str; 6] = ["hello", "literals", "objects", "classes", "overrides", "bodies"];
 
 #[test]
 fn lowered_programs_print_what_scala_native_prints() {
@@ -17,7 +14,8 @@ fn lowered_programs_print_what_scala_native_prints() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    for program in PROGRAMS {
+    let programs = std::fs::read_to_string(root.join("tests/programs/lowered.txt")).unwrap();
+    for program in programs.lines().filter(|p| !p.is_empty()) {
         let mut u = Universe::open(&jars).unwrap();
         let dir = root.join("tests/programs").join(program);
         let file = format!("{program}.scala");

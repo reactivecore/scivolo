@@ -53,6 +53,7 @@ impl Gen<'_, '_> {
                 )?,
             },
             Tree::Ident { .. } => {
+                self.check_callee(sym, span)?;
                 let prefix = match *self.l.u.types().get(self.l.tpd.tpe(fun)) {
                     tasty::Type::Sym(Some(p), _) | tasty::Type::TermRef(p, _) => p,
                     _ => return unsupported(span, "a call of a local method"),
