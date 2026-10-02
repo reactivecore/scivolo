@@ -115,6 +115,7 @@ impl Typer<'_> {
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
         }
+        let tpe = self.widen_if_unstable(tpe);
         let found = self.members_found(tpe, "apply", false).ok_or("application of a non-method")?;
         let sym = self.choose(&found.syms, Some(tpe), super::Pt::Fun(proto))?;
         self.check_reference(sym, Some(tpe), ctx)?;

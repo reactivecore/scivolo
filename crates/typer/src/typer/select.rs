@@ -62,7 +62,7 @@ impl Typer<'_> {
 
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
     /// `widenIfUnstable`).
-    fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
+    pub fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
             Type::ByName(r) => self.widen_if_unstable(r),
             Type::Sym(_, s) if !self.is_type_symbol(s) && !self.is_stable_member(s) => {

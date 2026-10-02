@@ -52,6 +52,18 @@ impl Typer<'_> {
         }
     }
 
+    /// The type of script parameter `p` in its method's type: `<repeated>[T]` for a repeated one.
+    pub fn param_type(&mut self, p: SymbolId) -> TypeId {
+        let info = self.u.info(p);
+        if !self.syms.repeated_params.contains_key(&p) {
+            return info;
+        }
+        match self.u.types().get(info).clone() {
+            Type::Applied(_, args) if args.len() == 1 => self.repeated_type(args[0]),
+            _ => info,
+        }
+    }
+
     /// `<repeated>[elem]`.
     fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let class = self.repeated_class();

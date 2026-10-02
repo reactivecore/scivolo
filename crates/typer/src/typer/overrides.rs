@@ -50,11 +50,15 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                let poly = [a, b].iter().any(|&m| {
-                    let info = self.u.info(m);
-                    matches!(self.u.types().get(info), Type::Poly { .. })
-                });
-                let erased_clash = !poly && self.u.erased_method(a) == self.u.erased_method(b);
+                let type_params = |t: &mut Self, m| {
+                    let info = t.u.info(m);
+                    match t.u.types().get(info) {
+                        Type::Poly { params, .. } => params.len(),
+                        _ => 0,
+                    }
+                };
+                let same_arity = type_params(self, a) == type_params(self, b);
+                let erased_clash = same_arity && self.u.erased_method(a) == self.u.erased_method(b);
                 if self.u.matches(site, a, b) || erased_clash {
                     return self.unsupported_at(span, "double definition");
                 }

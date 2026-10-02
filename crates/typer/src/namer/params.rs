@@ -63,7 +63,17 @@ impl Typer<'_> {
     /// Sets the info of parameter `s` from its type or bounds in `p`, typed in `ctx`.
     fn param_info(&mut self, s: SymbolId, p: NodeId, ctx: Ctx) {
         let info = match *self.ast.tree(p) {
-            Tree::ValDef { tpt, .. } => self.value_type_ahead(tpt, ctx),
+            Tree::ValDef { tpt, .. } => {
+                let info = self.value_type_ahead(tpt, ctx);
+                let repeated = self.repeated_elem(info).is_some();
+                match *self.u.types().get(info) {
+                    Type::Annotated(seq, _) if repeated => {
+                        self.syms.repeated_params.insert(s, info);
+                        seq
+                    }
+                    _ => info,
+                }
+            }
             Tree::TypeDef { rhs, .. } => self.type_def_info(rhs, ctx),
             _ => self.u.intern_type(Type::Error),
         };

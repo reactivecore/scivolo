@@ -31,13 +31,7 @@ impl Typer<'_> {
             }
             Tree::SingletonTypeTree { reference } => {
                 let reference = self.typed(reference, Pt::Any, ctx);
-                let unstable = match *self.tpd.tree(reference) {
-                    T::Ident { .. } | T::Select { .. } => {
-                        self.tpd.sym(reference).is_none_or(|s| !self.is_stable_member(s))
-                    }
-                    _ => false,
-                };
-                if unstable {
+                if !self.is_stable_path(reference) {
                     return self.unsupported(id, "singleton type of an unstable reference");
                 }
                 let tpe = self.tpd.tpe(reference);
@@ -64,6 +58,17 @@ impl Typer<'_> {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
+        }
+    }
+
+    /// Whether `tree` is a literal, `this`, or a path of stable members.
+    fn is_stable_path(&mut self, tree: TNodeId) -> bool {
+        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        match *self.tpd.tree(tree) {
+            T::Literal { .. } | T::This { .. } => true,
+            T::Ident { .. } => stable(self, tree),
+            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
+            _ => false,
         }
     }
 
