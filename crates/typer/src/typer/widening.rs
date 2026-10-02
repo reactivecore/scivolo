@@ -4,6 +4,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
+use syntax::ast::flags as f;
 use tasty::{Kind, Type, TypeId};
 
 /// The value classes, and which of them each converts to by numeric widening.
@@ -17,6 +18,11 @@ const WIDENINGS: [(&str, &[&str]); 7] = [
     ("scala.Double", &[]),
 ];
 const OTHER_VALUE_CLASSES: [&str; 2] = ["scala.Boolean", "scala.Unit"];
+
+/// Whether the value class of full name `name` is numeric.
+pub fn is_numeric(name: &str) -> bool {
+    name != "scala.Boolean" && name != "scala.Unit" && WIDENINGS.iter().any(|(n, _)| *n == name)
+}
 
 /// Whether value class `from` widens to value class `to`, both by full name.
 pub fn widens(from: &str, to: &str) -> bool {
@@ -37,7 +43,8 @@ impl Typer<'_> {
     pub fn numeric_view(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
         let tpe = self.tpd.get(tree).tpe?;
         let (from, to) = (self.value_class(tpe)?, self.value_class(pt)?);
-        if !widens(&from, &to) || self.syms.flags.values().any(|fl| fl.is(syntax::ast::flags::IMPLICIT)) {
+        let implicits = self.syms.flags.values().any(|fl| fl.is(f::IMPLICIT) || fl.is(f::GIVEN));
+        if !widens(&from, &to) || implicits {
             return None;
         }
         let short = |n: &str| n.trim_start_matches("scala.").to_lowercase();

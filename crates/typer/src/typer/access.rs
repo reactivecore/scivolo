@@ -22,8 +22,7 @@ impl Typer<'_> {
         if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
             return Err("inline method call");
         }
-        self.unset_local(sym, prefix);
-        Ok(())
+        self.unset_local(sym, prefix)
     }
 
     /// Whether `sym` may be referred to from `ctx`: it is unrestricted, or `ctx` is inside its
@@ -47,14 +46,21 @@ impl Typer<'_> {
         false
     }
 
-    /// Drops `Local` from script member `sym` accessed through `prefix`, not its owner's `this`.
-    fn unset_local(&mut self, sym: SymbolId, prefix: Option<TypeId>) {
-        let Some(&flags) = self.syms.flags.get(&sym) else { return };
-        let (Some(prefix), Some(owner)) = (prefix, self.u.symbol(sym).owner) else { return };
-        if !flags.is(f::LOCAL) || self.is_privileged_prefix(prefix, owner) {
-            return;
+    /// Drops `Local` from member `sym` accessed through `prefix`, not its owner's `this`, if it
+    /// may lose it (dotty's `canBeLocal`): a script member other than a parameter or its accessor.
+    fn unset_local(&mut self, sym: SymbolId, prefix: Option<TypeId>) -> Result<(), &'static str> {
+        let (Some(prefix), Some(owner)) = (prefix, self.u.symbol(sym).owner) else { return Ok(()) };
+        if !self.u.symbol(sym).flags.has(tasty::tags::LOCAL) || self.is_privileged_prefix(prefix, owner) {
+            return Ok(());
         }
-        self.syms.set_flags(self.u, sym, flags.and_not(f::LOCAL));
+        let flags = self.syms.flags.get(&sym).copied();
+        match flags {
+            Some(fl) if !fl.is(f::PARAM) && !fl.is(f::PARAM_ACCESSOR) => {
+                self.syms.set_flags(self.u, sym, fl.and_not(f::LOCAL));
+                Ok(())
+            }
+            _ => Err("inaccessible member"),
+        }
     }
 
     /// Whether `prefix` is the `this` of class `owner` or the object whose class it is (dotty's
@@ -63,7 +69,6 @@ impl Typer<'_> {
         match self.u.types().get(prefix).clone() {
             Type::This(c) => self.u.class_symbol(c) == Some(owner),
             Type::Sym(_, s) => self.u.module_class(s) == Some(owner),
-            Type::Package(_) => true,
             _ => false,
         }
     }

@@ -144,6 +144,14 @@ impl Typer<'_> {
         Some(crate::defn::type_ref(self.u, module))
     }
 
+    /// Whether a method named as `s` in its owner has default arguments.
+    fn has_defaults(&mut self, s: SymbolId) -> bool {
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        let prefix = format!("{}$default$", self.u.symbol(s).name);
+        let decls = self.u.decls(owner).unwrap_or_default();
+        decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))
+    }
+
     /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
     /// method taking as many arguments as `pt` supplies, or the one overload resolution picks.
     pub fn choose(
@@ -157,15 +165,18 @@ impl Typer<'_> {
         }
         let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
         let n = self.protos[proto].args.len();
-        let fitting: Vec<SymbolId> = syms
-            .iter()
-            .copied()
-            .filter(|&s| {
-                self.complete(s);
-                let info = self.u.info(s);
-                self.u.param_clauses(info).first().is_some_and(|(_, ps)| ps.len() == n)
-            })
-            .collect();
+        let mut fitting = Vec::new();
+        for &s in syms {
+            self.complete(s);
+            let info = self.u.info(s);
+            let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
+            if ps.iter().any(|&p| self.is_special_param(p)) || self.has_defaults(s) {
+                return Err("overloads with default, repeated or by-name parameters");
+            }
+            if ps.len() == n {
+                fitting.push(s);
+            }
+        }
         match fitting.as_slice() {
             [s] => Ok(*s),
             [] => Err("no alternative with that many arguments"),

@@ -92,7 +92,7 @@ impl Typer<'_> {
             let expr = self.with_constant(expr, value);
             return self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None);
         }
-        let pure = matches!(self.tpd.tree(tree), T::Literal { .. }) || self.is_pure_expr(tree);
+        let pure = matches!(self.tpd.tree(tree), T::Literal { .. }) || self.is_idempotent_expr(tree);
         let literal = self.tpd.node(T::Literal { value }, span, Some(tpe), None);
         if pure {
             return literal;

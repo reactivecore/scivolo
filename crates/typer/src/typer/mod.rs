@@ -22,6 +22,7 @@ mod parents;
 mod patterns;
 mod purity;
 mod qualifies;
+mod report;
 mod select;
 mod stats;
 mod this;
@@ -33,12 +34,13 @@ mod widening;
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
 use crate::symbols::Syms;
-use crate::tpd::{TNodeId, Tpd, Tree as T};
+use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
-use syntax::ast::{Ast, NodeId, Span, TName, Tree};
+use syntax::ast::{Ast, NodeId, Span, Tree};
+use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::{Name, Names};
-use tasty::{Type, TypeId, Universe};
+use tasty::{TypeId, Universe};
 
 /// What the context expects of a tree (dotty's prototypes).
 #[derive(Clone, Copy, Debug)]
@@ -58,6 +60,8 @@ pub struct Typer<'a> {
     pub levels: Levels,
     pub syms: Syms,
     pub diags: Diagnostics,
+    /// The language features the options and the unit's language imports enable.
+    pub features: Features,
     /// Trees typed while completing a symbol, taken when typing reaches them.
     pub ahead: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
@@ -78,7 +82,12 @@ pub struct Typer<'a> {
 const MAX_DEPTH: u32 = 400;
 
 impl<'a> Typer<'a> {
-    pub fn new(u: &'a mut Universe, ast: &'a mut Ast, names: &'a mut Names) -> Result<Self, String> {
+    pub fn new(
+        u: &'a mut Universe,
+        ast: &'a mut Ast,
+        names: &'a mut Names,
+        features: Features,
+    ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
         Ok(Typer {
             u,
@@ -89,6 +98,7 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms: Syms::default(),
             diags: Diagnostics::default(),
+            features,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             imports: Vec::new(),
@@ -162,31 +172,6 @@ impl<'a> Typer<'a> {
                 self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))
             }
         }
-    }
-
-    /// Records that `id` is outside the subset; an error tree in its place.
-    pub fn unsupported(&mut self, id: NodeId, what: &str) -> TNodeId {
-        let span = self.ast.span(id);
-        self.unsupported_at(span, what);
-        self.error_tree(span)
-    }
-
-    pub fn unsupported_at(&mut self, span: Span, what: &str) {
-        if self.unsupported.is_none() {
-            self.unsupported = Some((span, what.to_owned()));
-        }
-    }
-
-    pub fn error(&mut self, id: NodeId, msg: impl Into<String>) -> TNodeId {
-        let span = self.ast.span(id);
-        self.diags.error(span.point(), msg);
-        self.error_tree(span)
-    }
-
-    fn error_tree(&mut self, span: Span) -> TNodeId {
-        let name = TName { name: self.name("<error>"), is_type: false };
-        let tpe = self.u.intern_type(Type::Error);
-        self.tpd.node(T::Ident { name }, span, Some(tpe), None)
     }
 
     pub fn name(&mut self, text: &str) -> Name {

@@ -49,7 +49,7 @@ impl Typer<'_> {
             }
         };
         if let [arg] = typed_args[..]
-            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg), ctx)
+            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg))
         {
             return self.unsupported(id, what);
         }
@@ -91,7 +91,7 @@ impl Typer<'_> {
     }
 
     /// Whether parameter type `p` is by-name, repeated, or refers to a parameter.
-    fn is_special_param(&mut self, p: TypeId) -> bool {
+    pub fn is_special_param(&mut self, p: TypeId) -> bool {
         let mut special = false;
         self.u.map_type(p, &mut |u, part| {
             match u.types().get(part) {

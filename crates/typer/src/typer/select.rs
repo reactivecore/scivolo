@@ -47,7 +47,7 @@ impl Typer<'_> {
 
     /// Whether term `s` denotes the same value each time: not a variable, not a method unless a
     /// stable one (dotty's `isStableMember`).
-    fn is_stable_member(&self, s: SymbolId) -> bool {
+    pub fn is_stable_member(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match sym.kind {
             Kind::Val | Kind::Param => !sym.flags.has(tasty::tags::MUTABLE),

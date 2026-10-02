@@ -37,7 +37,7 @@ pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str]) -> String {
         return "== syntax errors\n".into();
     }
     let mut b = String::new();
-    match crate::type_unit(u, &mut p.ast, p.s.names, root) {
+    match crate::type_unit(u, &mut p.ast, p.s.names, root, cfg.features) {
         Ok(typed) => {
             let mut printer = Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new() };
             printer.tree(typed.root);

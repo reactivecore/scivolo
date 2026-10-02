@@ -54,7 +54,9 @@ impl Typer<'_> {
         let flags = if kind == Kind::Param { flags.to_term_flags() } else { flags.to_type_flags() };
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);
-        self.syms.by_tree.insert(p, s);
+        if self.syms.by_tree.insert(p, s).is_some() {
+            self.unsupported(p, "definition tree shared by two definitions");
+        }
         s
     }
 

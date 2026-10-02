@@ -68,19 +68,8 @@ impl Typer<'_> {
 
     /// Whether types `a` and `b` are different numeric classes, which dotty's `harmonize` widens.
     fn needs_harmonizing(&mut self, a: TypeId, b: TypeId) -> bool {
-        const NUMERIC: [&str; 7] = [
-            "scala.Byte",
-            "scala.Short",
-            "scala.Char",
-            "scala.Int",
-            "scala.Long",
-            "scala.Float",
-            "scala.Double",
-        ];
-        let (wa, wb) = (self.u.widen(a), self.u.widen(b));
-        let class = |t: &mut Self, w| t.u.class_symbol(w).map(|c| t.u.full_name(c));
-        let (ca, cb) = (class(self, wa), class(self, wb));
-        let numeric = |c: &Option<String>| c.as_deref().is_some_and(|n| NUMERIC.contains(&n));
+        let (ca, cb) = (self.value_class(a), self.value_class(b));
+        let numeric = |c: &Option<String>| c.as_deref().is_some_and(super::widening::is_numeric);
         numeric(&ca) && numeric(&cb) && ca != cb
     }
 
@@ -121,7 +110,10 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let expr = match expr {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
-            None => self.unit_literal(span),
+            None => {
+                let unit = self.unit_literal(span);
+                self.adapt(unit, Pt::Type(result))
+            }
         };
         let name = TName { name: self.name(&self.u.symbol(method).name.clone()), is_type: false };
         let from_tpe = self.u.intern_type(Type::Sym(None, method));

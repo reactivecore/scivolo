@@ -35,7 +35,7 @@ impl Typer<'_> {
 
     /// Whether class `c` initializes nothing: a script class by its definition, a library class
     /// by its TASTy.
-    fn is_no_inits(&self, c: SymbolId) -> bool {
+    pub fn is_no_inits(&self, c: SymbolId) -> bool {
         match self.syms.no_inits.get(&c) {
             Some(&no_inits) => no_inits,
             None => self.u.no_inits(c),

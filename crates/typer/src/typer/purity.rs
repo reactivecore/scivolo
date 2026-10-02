@@ -1,9 +1,17 @@
-//! Pure expressions and the warnings about them in statement position (dotty's `exprPurity`,
-//! reduced, and `checkStatementPurity`).
+//! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`), and
+//! the warnings about pure expressions in statement position (`checkStatementPurity`).
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
+
+/// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
+/// tree is a path; the weaker of two levels is their intersection.
+const IDEMPOTENT: u8 = 1;
+const PURE: u8 = 2 | IDEMPOTENT;
+const IDEMPOTENT_PATH: u8 = 4 | IDEMPOTENT;
+const PURE_PATH: u8 = 4 | PURE;
+const IMPURE: u8 = 0;
 
 /// The classes whose methods do not observe their arguments (dotty's `isKnownPureOp`).
 const PURE_OP_OWNERS: [&str; 10] = [
@@ -22,70 +30,97 @@ const PURE_OP_OWNERS: [&str; 10] = [
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
     pub fn is_pure_expr(&mut self, tree: TNodeId) -> bool {
-        match *self.tpd.tree(tree) {
-            T::Literal { .. } | T::This { .. } | T::New { .. } => true,
-            T::Ident { .. } => self.is_pure_ref(tree),
-            T::Select { qualifier, .. } => self.is_pure_ref(tree) && self.is_pure_expr(qualifier),
+        self.expr_purity(tree) & PURE == PURE
+    }
+
+    /// Whether evaluating `tree` twice has the effect of evaluating it once.
+    pub fn is_idempotent_expr(&mut self, tree: TNodeId) -> bool {
+        self.expr_purity(tree) & IDEMPOTENT == IDEMPOTENT
+    }
+
+    fn expr_purity(&mut self, tree: TNodeId) -> u8 {
+        match self.tpd.tree(tree).clone() {
+            T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
+            T::New { .. } => PURE,
+            T::Ident { .. } => self.ref_purity(tree),
+            T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
+            T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
             T::Apply { fun, args } => {
-                let callee = self.callee(fun);
-                let stable_ctor = callee.is_some_and(|s| {
-                    self.u.symbol(s).name == "<init>" && self.u.symbol(s).flags.has(tasty::tags::STABLE)
-                });
-                let pure_op = stable_ctor
-                    || self.has_constant_type(tree)
-                        && callee.and_then(|s| self.u.symbol(s).owner).is_some_and(|o| {
-                            let name = self.u.full_name(o);
-                            PURE_OP_OWNERS.contains(&name.as_str())
-                        });
                 let args = self.tpd.items(args).to_vec();
-                pure_op && self.is_pure_expr(fun) && args.into_iter().all(|a| self.is_pure_expr(a))
+                let factor = args.into_iter().fold(self.expr_purity(fun), |p, a| p & self.expr_purity(a));
+                let callee = self.callee(fun);
+                if self.is_method_typed(tree) || self.is_pure_apply(tree, callee) {
+                    factor & PURE
+                } else if callee.is_some_and(|s| self.is_stable_member(s)) {
+                    factor & IDEMPOTENT
+                } else {
+                    IMPURE
+                }
             }
+            T::Typed { expr, .. } => self.expr_purity(expr),
             T::Block { stats, expr } => {
                 let stats = self.tpd.items(stats).to_vec();
-                stats.into_iter().all(|s| self.is_pure_stat(s)) && self.is_pure_expr(expr)
+                stats.into_iter().fold(self.expr_purity(expr), |p, s| p & self.stat_purity(s))
             }
-            T::Typed { expr, .. } => self.is_pure_expr(expr),
-            _ => false,
+            _ => IMPURE,
         }
     }
 
-    /// Whether statement `s` has no effect (dotty's `statPurity`).
-    fn is_pure_stat(&mut self, s: TNodeId) -> bool {
+    fn stat_purity(&mut self, s: TNodeId) -> u8 {
         match *self.tpd.tree(s) {
-            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => true,
+            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => PURE_PATH,
             T::ValDef { rhs, .. } => {
                 let mutable =
                     self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(tasty::tags::MUTABLE));
-                !mutable && rhs.is_none_or(|r| self.is_pure_expr(r))
+                match rhs {
+                    _ if mutable => IMPURE,
+                    Some(r) => self.expr_purity(r) & PURE,
+                    None => PURE,
+                }
             }
-            _ => false,
+            _ => IMPURE,
         }
+    }
+
+    /// The purity of reference `tree`: a path if it is to a method not applied yet, of a
+    /// constant type, or to a stable value; an idempotent path for a lazy value or an object
+    /// that runs code when created.
+    fn ref_purity(&mut self, tree: TNodeId) -> u8 {
+        if self.is_method_typed(tree) || self.has_constant_type(tree) {
+            return PURE_PATH;
+        }
+        let Some(s) = self.tpd.sym(tree) else { return IMPURE };
+        if !self.is_stable_member(s) {
+            return IMPURE;
+        }
+        let flags = self.u.symbol(s).flags;
+        if flags.has(tasty::tags::OBJECT) && self.u.symbol(s).kind == Kind::Val {
+            let no_inits = self.u.module_class(s).is_some_and(|c| self.is_no_inits(c));
+            return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
+        }
+        if flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }
+    }
+
+    /// Whether `tree` has a method type or refers to a method with parameters, unapplied.
+    fn is_method_typed(&mut self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(tree);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+    }
+
+    /// dotty's `isPureApply`: a constant operation of a primitive class, or a stable constructor.
+    fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
+        let Some(s) = callee else { return false };
+        if self.u.symbol(s).name == "<init>" {
+            return self.is_stable_member(s);
+        }
+        let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
+        self.has_constant_type(tree) && owner.is_some_and(|o| PURE_OP_OWNERS.contains(&o.as_str()))
     }
 
     fn has_constant_type(&self, tree: TNodeId) -> bool {
         let tpe = self.tpd.get(tree).tpe;
-        tpe.is_some_and(|t| matches!(self.u.types().get(t), tasty::Type::Constant(..) | tasty::Type::Str(_)))
-    }
-
-    /// Whether reference `tree` has a constant type or refers to a stable symbol.
-    fn is_pure_ref(&mut self, tree: TNodeId) -> bool {
-        self.has_constant_type(tree) || self.tpd.sym(tree).is_some_and(|s| self.is_stable_ref(s, tree))
-    }
-
-    /// Whether reference `tree` to `s` evaluates nothing: a stable value, an object, a package,
-    /// a type, or a method not applied yet; a parameterless method is a call.
-    fn is_stable_ref(&mut self, s: SymbolId, tree: TNodeId) -> bool {
-        let sym = self.u.symbol(s);
-        let mutable = sym.flags.has(tasty::tags::MUTABLE) || sym.flags.has(tasty::tags::LAZY);
-        match sym.kind {
-            Kind::Val | Kind::Param => !mutable,
-            Kind::Def => {
-                let tpe = self.tpd.tpe(tree);
-                let info = self.method_info(tpe).map(|i| self.u.types().get(i).clone());
-                matches!(info, Some(tasty::Type::Method { .. } | tasty::Type::Poly { .. }))
-            }
-            _ => true,
-        }
+        tpe.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)))
     }
 
     /// The method a function tree refers to.
