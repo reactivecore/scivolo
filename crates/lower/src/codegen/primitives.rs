@@ -22,19 +22,32 @@ impl Gen<'_, '_> {
     ) -> Result<Option<ValId>> {
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
         let name = self.l.u.symbol(sym).name.clone();
-        let reference_eq = owner == self.l.defs.object && matches!(name.as_str(), "eq" | "ne");
-        if !reference_eq && !is_primitive(&self.l.u.binary_name(owner)) {
+        let (any, object) = (self.l.defs.any, self.l.defs.object);
+        let object_op =
+            [any, object].contains(&owner) && matches!(name.as_str(), "eq" | "ne" | "==" | "!=" | "##");
+        if !object_op && !is_primitive(&self.l.u.binary_name(owner)) {
             return Ok(None);
         }
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else { return Ok(None) };
-        if let (true, [right]) = (reference_eq, args) {
-            let left = self.gen_expr(qualifier)?;
-            let right = self.gen_expr(*right)?;
-            let comp = if name == "eq" { Comp::Ieq } else { Comp::Ine };
-            let ty = self.class_ref(self.l.defs.object);
-            return Ok(Some(self.emit(Op::Comp { comp, ty, l: left, r: right })));
-        }
         let span = self.l.tpd.span(app);
+        if object_op {
+            let operands = std::iter::once(qualifier).chain(args.iter().copied());
+            for t in operands {
+                let ty = self.gen_type(self.l.tpd.tpe(t));
+                if !matches!(self.pool.ty(ty), Type::Ref { .. } | Type::Array { .. } | Type::Null) {
+                    return unsupported(
+                        self.l.tpd.span(t),
+                        "universal equality and hashes of primitive values",
+                    );
+                }
+            }
+            let v = match (name.as_str(), args) {
+                ("##", []) => self.gen_hash_code(qualifier, span)?,
+                (op, [right]) => self.gen_class_equality(qualifier, *right, op, span)?,
+                _ => return unsupported(span, format!("the operation {name} of `Any`")),
+            };
+            return Ok(Some(v));
+        }
         let retty = self.result_type(sym);
         let v = match (name.as_str(), args) {
             ("unary_-" | "unary_+" | "unary_~" | "unary_!", []) => self.gen_unary(&name, qualifier, retty)?,

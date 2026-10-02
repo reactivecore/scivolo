@@ -8,6 +8,7 @@ mod buf;
 mod callee;
 mod class;
 mod dead;
+mod equality;
 mod erased;
 mod expr;
 mod fields;
