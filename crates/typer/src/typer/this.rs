@@ -111,6 +111,23 @@ impl Typer<'_> {
         self.tpd.node(T::This { qual }, span, Some(tpe), Some(cls))
     }
 
+    /// `C.this` at `span` for a reference to module `sym` from inside its class `C`.
+    pub fn module_this(&mut self, sym: SymbolId, span: Span, ctx: Ctx) -> Option<TNodeId> {
+        if !self.u.symbol(sym).flags.has(tasty::tags::OBJECT) {
+            return None;
+        }
+        let module_class = self.u.module_class(sym)?;
+        let mut o = Some(ctx.owner);
+        while let Some(s) = o.filter(|&s| s != module_class) {
+            o = self.u.symbol(s).owner;
+        }
+        o?;
+        let class = crate::defn::type_ref(self.u, module_class);
+        let this = self.this_tree(class, span);
+        self.tpd.get_mut(this).span = span;
+        Some(this)
+    }
+
     /// `C.this.name` of type `tpe`, a reference to `sym` at `span` (dotty's `ref(tpe)`).
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };

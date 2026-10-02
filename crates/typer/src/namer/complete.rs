@@ -61,7 +61,13 @@ impl Typer<'_> {
         match (inherited, default) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
-            _ => self.widen_rhs(sym, tpe),
+            _ => {
+                let widened = self.widen_rhs(sym, tpe);
+                if matches!(self.u.types().get(widened), Type::Or(..)) {
+                    self.unsupported(rhs, "union widening");
+                }
+                widened
+            }
         }
     }
 
@@ -116,6 +122,9 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Applied(class_ref, args))
             }
         } else {
+            if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+                self.syms.declared_results.insert(sym);
+            }
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
@@ -129,7 +138,10 @@ impl Typer<'_> {
                 let result = self.param_refs(result, &clause, binder);
                 self.u.intern_type(Type::Poly { binder, params, result })
             } else {
-                self.u.intern_type(Type::Method { binder, params, result, implicit: false })
+                let implicit = clause.first().and_then(|p| self.syms.flags.get(p)).is_some_and(|fl| {
+                    fl.is(syntax::ast::flags::IMPLICIT) || fl.is(syntax::ast::flags::GIVEN)
+                });
+                self.u.intern_type(Type::Method { binder, params, result, implicit })
             }
         })
     }

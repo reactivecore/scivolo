@@ -48,6 +48,10 @@ impl Printer<'_> {
                 self.opt(guard);
                 self.node(body);
             }
+            Tree::Return { expr, from } => {
+                self.node(expr);
+                self.node(from);
+            }
             Tree::WhileDo { cond, body } => {
                 self.node(cond);
                 self.node(body);

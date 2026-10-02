@@ -152,7 +152,16 @@ def report(filter_):
     for rel, _ in runnable:
         got = actual.get(rel, "== crash no output")
         rows[rel] = classify_neg(got) if corpus(rel) == "neg" else classify(expected[rel], got)
-    (WORK / "results.tsv").write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
+    results = WORK / "results.tsv"
+    previous = {}
+    if results.exists():
+        for line in results.read_text().splitlines():
+            n, o, _ = (line.split("\t") + ["", ""])[:3]
+            previous[n] = o
+    results.write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
+    changed = [(n, previous[n], o, d) for n, (o, d) in sorted(rows.items()) if n in previous and previous[n] != o]
+    for n, before, after, d in changed:
+        print(f"{before} -> {after}: {n} {d}")
     table = "| Outcome | " + " | ".join(CORPORA) + " |\n|---|" + "---:|" * len(CORPORA) + "\n"
     counts = collections.Counter((corpus(n), o) for n, (o, _) in rows.items())
     for o in OUTCOMES:

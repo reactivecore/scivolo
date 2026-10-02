@@ -65,7 +65,8 @@ impl Desugar<'_> {
             self.error(c.cdef, msg);
             return Vec::new();
         }
-        let mut paramss = c.constr_vparamss.clone();
+        let mut paramss: Vec<Vec<NodeId>> =
+            c.constr_vparamss.iter().map(|ps| ps.iter().map(|&p| self.ast.copy_node(p)).collect()).collect();
         if paramss.first().is_some_and(Vec::is_empty) {
             paramss.remove(0);
         }

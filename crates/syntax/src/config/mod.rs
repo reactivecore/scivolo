@@ -4,7 +4,7 @@ mod version;
 
 pub use version::SourceVersion;
 
-/// Language features that change scanning or parsing.
+/// Language features that change scanning, parsing or typing.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Features(u16);
 
@@ -19,6 +19,7 @@ impl Features {
     pub const MULTI_SPREADS: Features = Features(1 << 7);
     pub const PURE_FUNCTIONS: Features = Features(1 << 8);
     pub const INTO: Features = Features(1 << 9);
+    pub const STRICT_EQUALITY: Features = Features(1 << 10);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -35,6 +36,7 @@ impl Features {
             "experimental.multiSpreads" => Features::MULTI_SPREADS,
             "experimental.pureFunctions" => Features::PURE_FUNCTIONS,
             "experimental.into" => Features::INTO,
+            "strictEquality" => Features::STRICT_EQUALITY,
             _ => return None,
         })
     }

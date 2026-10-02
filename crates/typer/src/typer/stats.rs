@@ -22,7 +22,30 @@ impl Typer<'_> {
         typed.extend(proxies);
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
+        if pkg != self.u.root() {
+            self.check_package_object_name(&stat_ids, span);
+        }
         self.tpd.node(T::PackageDef { pid: typed_pid, stats }, span, Some(tpe), None)
+    }
+
+    /// Warns at `span` if the class path encodes the name of the package object among `stats`
+    /// that declares something not synthetic.
+    fn check_package_object_name(&mut self, stats: &[NodeId], span: syntax::ast::Span) {
+        let objects = stats.iter().filter_map(|s| self.syms.by_tree.get(s).copied());
+        let Some(c) = objects.into_iter().find(|&c| {
+            self.u.symbol(c).kind == tasty::Kind::Class && self.u.symbol(c).name.ends_with("$package$")
+        }) else {
+            return;
+        };
+        let declares = self.u.symbol(c).decls.iter().any(|&d| {
+            self.u.symbol(d).name != "<init>"
+                && !self.syms.flags.get(&d).is_some_and(|fl| fl.is(syntax::ast::flags::SYNTHETIC))
+        });
+        let name = self.u.symbol(c).name.trim_end_matches('$').to_owned();
+        if declares && syntax::desugar::package_def::will_be_encoded(&name) {
+            let msg = syntax::desugar::package_def::encoded_package_name(&name);
+            self.diags.warning(span.point(), msg);
+        }
     }
 
     /// The package that package clause `pid`, `p` or `p.q`, inside package `owner` names, entered
@@ -69,16 +92,61 @@ impl Typer<'_> {
         found
     }
 
+    /// Block result `expr`, ascribed a type without references to `locals` if its own has some
+    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, or `pt` if that
+    /// does not conform to `pt`; `None` if a reference remains.
+    fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
+        let tpe = self.tpd.tpe(expr);
+        if !self.refers_to(tpe, locals) {
+            return Some(expr);
+        }
+        let mut avoided = tpe;
+        while let Type::Sym(_, s) = *self.u.types().get(avoided) {
+            if !locals.contains(&s) || self.is_type_symbol(s) {
+                break;
+            }
+            avoided = self.u.widen(avoided);
+        }
+        if let Pt::Type(p) = pt
+            && !self.u.is_subtype(avoided, p)
+        {
+            avoided = p;
+        }
+        if self.refers_to(avoided, locals) || !self.u.is_subtype(tpe, avoided) {
+            return None;
+        }
+        let span = self.tpd.span(expr);
+        let tpt = self.type_tree(avoided, span.end_pos(), true);
+        Some(self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(avoided), None))
+    }
+
     /// The typed statements `stats`, whose symbols are entered.
     pub fn typed_stats(&mut self, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
         let mut out = Vec::new();
         for &s in stats {
             if !matches!(self.ast.tree(s), Tree::Empty) {
-                out.push(self.typed(s, Pt::Any, ctx));
+                out.push(self.typed_stat(s, ctx));
                 ctx = self.after_stat(s, ctx);
             }
         }
         out
+    }
+
+    /// Statement `s`, an expression checked for purity.
+    pub fn typed_stat(&mut self, s: NodeId, ctx: Ctx) -> TNodeId {
+        let typed = self.typed(s, Pt::Any, ctx);
+        let definition = matches!(
+            self.ast.tree(s),
+            Tree::ValDef { .. }
+                | Tree::DefDef { .. }
+                | Tree::TypeDef { .. }
+                | Tree::Import { .. }
+                | Tree::PackageDef { .. }
+        );
+        if !definition {
+            self.check_statement_purity(typed);
+        }
+        typed
     }
 
     pub fn typed_block(
@@ -99,11 +167,11 @@ impl Typer<'_> {
             Some(e) => self.typed(e, pt, expr_ctx),
             None => return self.unsupported(id, "block without result"),
         };
-        let tpe = self.tpd.tpe(expr);
         let locals = self.levels.scope_symbols(level);
-        if self.refers_to(tpe, &locals) {
+        let Some(expr) = self.no_local_refs(expr, &locals, pt) else {
             return self.unsupported(id, "block type with local symbols");
-        }
+        };
+        let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None)

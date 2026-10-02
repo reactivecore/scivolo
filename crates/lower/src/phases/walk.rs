@@ -27,6 +27,7 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         }
         Tree::Typed { expr: a, tpt: b }
         | Tree::Assign { lhs: a, rhs: b }
+        | Tree::Return { expr: a, from: b }
         | Tree::WhileDo { cond: a, body: b } => {
             out.extend([a, b]);
         }

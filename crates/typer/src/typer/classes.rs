@@ -69,7 +69,7 @@ impl Typer<'_> {
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
-        let self_ = t.self_.map(|s| self.typed(s, Pt::Any, cctx));
+        let self_ = t.self_.map(|s| self.typed(s, Pt::Any, ctx));
         let body = self.typed_template_stats(cls, &t.body, cctx);
         self.check_overrides(cls, self.ast.span(id));
         let parents = self.tpd.list(&parents);
@@ -96,7 +96,7 @@ impl Typer<'_> {
                     ctx.with_owner(d)
                 }
             };
-            out.push(self.typed(s, Pt::Any, stat_ctx));
+            out.push(self.typed_stat(s, stat_ctx));
             ctx = self.after_stat(s, ctx);
         }
         out

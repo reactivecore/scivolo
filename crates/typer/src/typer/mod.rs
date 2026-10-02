@@ -4,41 +4,51 @@ mod access;
 mod adapt;
 mod apply;
 mod classes;
+mod const_fold;
+mod const_ops;
+mod control;
 mod defs;
 mod derived;
+mod equality;
 mod find_ref;
 mod idents;
 mod import_tree;
 mod imports;
 mod literals;
 mod no_inits;
+mod overloads;
 mod overrides;
 mod parents;
 mod patterns;
+mod purity;
 mod qualifies;
+mod report;
 mod select;
 mod stats;
 mod this;
 mod type_defs;
 mod type_trees;
+mod views;
+mod widening;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;
 use crate::symbols::Syms;
-use crate::tpd::{TNodeId, Tpd, Tree as T};
+use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
-use syntax::ast::{Ast, NodeId, Span, TName, Tree};
+use syntax::ast::{Ast, NodeId, Span, Tree};
+use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::{Name, Names};
-use tasty::{Type, TypeId, Universe};
+use tasty::{TypeId, Universe};
 
 /// What the context expects of a tree (dotty's prototypes).
 #[derive(Clone, Copy, Debug)]
 pub enum Pt {
     Any,
     Type(TypeId),
-    /// A function applied to this many arguments (dotty's `FunProto`).
-    Args(usize),
+    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
+    Fun(usize),
 }
 
 pub struct Typer<'a> {
@@ -50,6 +60,8 @@ pub struct Typer<'a> {
     pub levels: Levels,
     pub syms: Syms,
     pub diags: Diagnostics,
+    /// The language features the options and the unit's language imports enable.
+    pub features: Features,
     /// Trees typed while completing a symbol, taken when typing reaches them.
     pub ahead: FxHashMap<NodeId, TNodeId>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
@@ -58,6 +70,8 @@ pub struct Typer<'a> {
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
+    /// The argument lists of the applications being typed.
+    pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many `typed` calls are in progress, one inside another.
@@ -68,7 +82,12 @@ pub struct Typer<'a> {
 const MAX_DEPTH: u32 = 400;
 
 impl<'a> Typer<'a> {
-    pub fn new(u: &'a mut Universe, ast: &'a mut Ast, names: &'a mut Names) -> Result<Self, String> {
+    pub fn new(
+        u: &'a mut Universe,
+        ast: &'a mut Ast,
+        names: &'a mut Names,
+        features: Features,
+    ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
         Ok(Typer {
             u,
@@ -79,10 +98,12 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms: Syms::default(),
             diags: Diagnostics::default(),
+            features,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
+            protos: Vec::new(),
             unsupported: None,
             depth: 0,
         })
@@ -107,7 +128,7 @@ impl<'a> Typer<'a> {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
-        self.adapt(tree, pt);
+        let tree = self.adapt(tree, pt);
         self.depth -= 1;
         tree
     }
@@ -125,6 +146,11 @@ impl<'a> Typer<'a> {
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
             Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
+            Tree::If { cond, thenp, elsep, inline: false } => self.typed_if(id, cond, thenp, elsep, pt, ctx),
+            Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
+            Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
+            Tree::Return { expr } => self.typed_return(id, expr, ctx),
+            Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
             Tree::TypeTree
             | Tree::AppliedTypeTree { .. }
@@ -146,31 +172,6 @@ impl<'a> Typer<'a> {
                 self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))
             }
         }
-    }
-
-    /// Records that `id` is outside the subset; an error tree in its place.
-    pub fn unsupported(&mut self, id: NodeId, what: &str) -> TNodeId {
-        let span = self.ast.span(id);
-        self.unsupported_at(span, what);
-        self.error_tree(span)
-    }
-
-    pub fn unsupported_at(&mut self, span: Span, what: &str) {
-        if self.unsupported.is_none() {
-            self.unsupported = Some((span, what.to_owned()));
-        }
-    }
-
-    pub fn error(&mut self, id: NodeId, msg: impl Into<String>) -> TNodeId {
-        let span = self.ast.span(id);
-        self.diags.error(span.point(), msg);
-        self.error_tree(span)
-    }
-
-    fn error_tree(&mut self, span: Span) -> TNodeId {
-        let name = TName { name: self.name("<error>"), is_type: false };
-        let tpe = self.u.intern_type(Type::Error);
-        self.tpd.node(T::Ident { name }, span, Some(tpe), None)
     }
 
     pub fn name(&mut self, text: &str) -> Name {

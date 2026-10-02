@@ -104,7 +104,9 @@ impl Typer<'_> {
             _ => ctx,
         };
         self.syms.completions.insert(sym, Completion::Pending { tree, ctx: completion_ctx });
-        self.syms.by_tree.insert(tree, sym);
+        if self.syms.by_tree.insert(tree, sym).is_some() {
+            self.unsupported(tree, "definition tree shared by two definitions");
+        }
         self.index_annotations(sym, mods, ctx);
         Some(sym)
     }

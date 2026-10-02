@@ -7,11 +7,17 @@ use syntax::ast::{NodeId, Tree};
 use tasty::SymbolId;
 
 impl Typer<'_> {
-    /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`).
+    /// Whether statement `s` of a class body initializes nothing (dotty's `defKind` has `NoInits`):
+    /// a synthetic companion object counts as part of its class, an extension method does not.
     fn is_no_init_member(&self, s: NodeId) -> bool {
-        match self.ast.tree(s) {
-            Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } | Tree::DefDef { .. } => true,
-            Tree::ValDef { rhs, .. } => rhs.is_none(),
+        match *self.ast.tree(s) {
+            Tree::Empty | Tree::Import { .. } | Tree::TypeDef { .. } => true,
+            Tree::DefDef { mods, .. } => !self.ast.modifiers(mods).flags.is(f::EXTENSION_METHOD),
+            Tree::ValDef { rhs, mods, .. } => {
+                let flags = self.ast.modifiers(mods).flags;
+                rhs.is_none()
+                    || flags.is(syntax::ast::flags::MODULE) && flags.is(syntax::ast::flags::SYNTHETIC)
+            }
             _ => false,
         }
     }
@@ -29,7 +35,7 @@ impl Typer<'_> {
 
     /// Whether class `c` initializes nothing: a script class by its definition, a library class
     /// by its TASTy.
-    fn is_no_inits(&self, c: SymbolId) -> bool {
+    pub fn is_no_inits(&self, c: SymbolId) -> bool {
         match self.syms.no_inits.get(&c) {
             Some(&no_inits) => no_inits,
             None => self.u.no_inits(c),

@@ -19,7 +19,7 @@ pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Resul
     if p.s.diags.has_errors() {
         return Err("syntax errors".into());
     }
-    let mut typed = match typer::type_unit(u, &mut p.ast, p.s.names, root) {
+    let mut typed = match typer::type_unit(u, &mut p.ast, p.s.names, root, cfg.features) {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, .. }) => return Err(format!("the typer does not support {what}")),
         Err(Fallback::Errors(_)) => return Err("type errors".into()),

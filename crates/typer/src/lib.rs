@@ -35,15 +35,17 @@ pub struct Typed {
     pub diags: Diagnostics,
 }
 
-/// Types the desugared unit `root` of `ast`, defining its symbols in `u`.
+/// Types the desugared unit `root` of `ast`, parsed with language features `features`, defining
+/// its symbols in `u`.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
     names: &mut Names,
     root: NodeId,
+    features: syntax::config::Features,
 ) -> Result<Typed, Fallback> {
     let mut typer =
-        Typer::new(u, ast, names).map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
+        Typer::new(u, ast, names, features).map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
     let ctx = root_context(&mut typer);
     let typed = typer.typed(root, typer::Pt::Any, ctx);
     if let Some((at, what)) = typer.unsupported.take() {

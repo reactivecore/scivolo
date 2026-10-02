@@ -20,7 +20,10 @@ impl Typer<'_> {
 
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
         let arg_ids = self.ast.items(args).to_vec();
-        let f = self.typed(fun, Pt::Args(arg_ids.len()), ctx);
+        let proto = self.protos.len();
+        self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
+        let f = self.typed(fun, Pt::Fun(proto), ctx);
+        let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe);
         let Some(Type::Method { params, result, .. }) = info.map(|i| self.u.types().get(i).clone()) else {
@@ -32,8 +35,24 @@ impl Typer<'_> {
         if params.iter().any(|&(_, p)| self.is_special_param(p)) {
             return self.unsupported(id, "by-name, repeated or dependent parameter");
         }
-        let typed_args: Vec<TNodeId> =
-            arg_ids.iter().zip(&params).map(|(&a, &(_, p))| self.typed(a, Pt::Type(p), ctx)).collect();
+        match self.u.types().get(result) {
+            Type::Bounds(..) => return self.unsupported(id, "result type of a wildcard argument"),
+            Type::Method { implicit: true, .. } => return self.unsupported(id, "implicit arguments"),
+            _ => {}
+        }
+        let typed_args: Vec<TNodeId> = match pretyped {
+            Some(typed) => {
+                typed.into_iter().zip(&params).map(|(a, &(_, p))| self.adapt(a, Pt::Type(p))).collect()
+            }
+            None => {
+                arg_ids.iter().zip(&params).map(|(&a, &(_, p))| self.typed(a, Pt::Type(p), ctx)).collect()
+            }
+        };
+        if let [arg] = typed_args[..]
+            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg))
+        {
+            return self.unsupported(id, what);
+        }
         let tpe = match self.u.types().get(fun_tpe).clone() {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
@@ -47,7 +66,9 @@ impl Typer<'_> {
         };
         let args = self.tpd.list(&typed_args);
         let span = self.ast.span(id);
-        self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None)
+        let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
+        self.fold_apply(apply);
+        apply
     }
 
     /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
@@ -70,7 +91,7 @@ impl Typer<'_> {
     }
 
     /// Whether parameter type `p` is by-name, repeated, or refers to a parameter.
-    fn is_special_param(&mut self, p: TypeId) -> bool {
+    pub fn is_special_param(&mut self, p: TypeId) -> bool {
         let mut special = false;
         self.u.map_type(p, &mut |u, part| {
             match u.types().get(part) {
