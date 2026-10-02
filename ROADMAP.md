@@ -169,6 +169,12 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    nscplugin does (ADR 0001).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
+6. **REPL.** Starts as soon as the own frontend runs simple programs. As in
+   dotty's REPL, each input becomes an object `rs$lineN` whose definitions
+   later inputs import; it is typed against the earlier ones, lowered, and
+   its NIR added to the running VM. An expression's value is printed with
+   its type (`val res0: Int = 3`). Input the frontend cannot handle yet is
+   reported as unsupported, never run through another path.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved.
