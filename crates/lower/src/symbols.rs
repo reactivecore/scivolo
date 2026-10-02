@@ -28,9 +28,17 @@ pub fn is_private(u: &Universe, s: SymbolId) -> bool {
     has(u, s, PRIVATE)
 }
 
-/// Java's `static`, which `@main` proxies carry.
+/// Java's `static`, which `@main` proxies carry, and the methods of javalib's objects that
+/// stand for the static members of JDK classes.
 pub fn is_java_static(u: &Universe, s: SymbolId) -> bool {
     has(u, s, STATIC)
+        || (u.symbol(s).kind == Kind::Def && u.symbol(s).owner.is_some_and(|o| is_jdk_object(u, o)))
+}
+
+/// Whether class `c` is the class of a javalib object in a JDK package.
+fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
+    let name = u.full_name(c);
+    is_module_class(u, c) && (name.starts_with("java.") || name.starts_with("javax."))
 }
 
 pub fn is_constructor(u: &Universe, s: SymbolId) -> bool {

@@ -9,3 +9,4 @@ arith
 refs
 strings
 throws
+statics

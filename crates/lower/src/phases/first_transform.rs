@@ -43,9 +43,6 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
     node.tree = Tree::Literal { value };
     node.tpe = Some(info);
     node.sym = None;
-    if node.span.exists() {
-        node.span = node.span.with_point(node.span.start());
-    }
 }
 
 /// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, an object,
