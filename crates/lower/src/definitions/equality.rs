@@ -5,11 +5,11 @@ use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 #[derive(Clone, Copy)]
 pub struct Equality {
     pub any_equals: SymbolId,
-    /// `BoxesRunTime.equals(Object, Object)`, a Java static method.
     pub boxes_runtime: SymbolId,
+    /// `BoxesRunTime.equals(Object, Object)`, a Java static method.
     pub equals: SymbolId,
-    /// `Statics.anyHash(Object)`, a Java static method.
     pub statics: SymbolId,
+    /// `Statics.anyHash(Object)`, a Java static method.
     pub any_hash: SymbolId,
     pub number: SymbolId,
     pub character: SymbolId,

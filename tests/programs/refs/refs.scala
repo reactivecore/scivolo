@@ -8,6 +8,7 @@ object Eq:
   def notNull(s: String): Boolean = s != null
   def literal(s: String): Boolean = "a" == s
   def anys(a: Any, b: Any): Boolean = a == b
+  def matchables(a: Matchable, b: Matchable): Boolean = a == b
   def objects(a: AnyRef, b: AnyRef): Boolean = a != b
   def numbers(a: Integer, b: Integer): Boolean = a == b
   def hash(p: P): Int = p.hashCode()
@@ -27,6 +28,7 @@ object Eq:
   println(Eq.anys(1, 1))
   println(Eq.anys(1, 1L))
   println(Eq.anys(null, null))
+  println(Eq.matchables(1, 1L))
   println(Eq.objects("a", "a"))
   println(Eq.numbers(null, null))
   println(Eq.hash(p) == Eq.hash(p))

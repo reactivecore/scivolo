@@ -105,19 +105,23 @@ impl<'l, 'a> Gen<'l, 'a> {
     /// Whether either side may be a boxed number, character or boolean at run time, unless both
     /// are of the same final class.
     fn must_use_any_comparator(&mut self, left: TNodeId, right: TNodeId) -> bool {
-        let (l, r) = (self.type_class(left), self.type_class(right));
         let same_type = self.l.tpd.tpe(left) == self.l.tpd.tpe(right);
-        let same_finals = same_type && l.is_some_and(|c| has(self.l.u, c, FINAL));
-        !same_finals && self.is_maybe_boxed(l) && self.is_maybe_boxed(r)
+        let same_finals = same_type && self.type_class(left).is_some_and(|c| has(self.l.u, c, FINAL));
+        !same_finals && self.is_maybe_boxed(left) && self.is_maybe_boxed(right)
     }
 
-    fn is_maybe_boxed(&mut self, c: Option<SymbolId>) -> bool {
-        let Some(c) = c else { return false };
-        let d = &self.l.defs;
-        let eq = d.equality;
-        let exact = [d.object, d.any, d.any_ref, eq.serializable, eq.comparable];
+    /// Whether `t` erases to `Object`, `Serializable` or `Comparable`, or to a subclass of
+    /// `Number`, `Character` or `Boolean`.
+    fn is_maybe_boxed(&mut self, t: TNodeId) -> bool {
+        let erased = self.gen_type(self.l.tpd.tpe(t));
+        if erased == self.class_ref(self.l.defs.object) {
+            return true;
+        }
+        let Some(c) = self.type_class(t) else { return false };
+        let eq = self.l.defs.equality;
         let bases = [eq.number, eq.character, eq.boolean];
-        exact.contains(&c) || bases.into_iter().any(|b| self.l.u.derives_from(c, b))
+        [eq.serializable, eq.comparable].contains(&c)
+            || bases.into_iter().any(|b| self.l.u.derives_from(c, b))
     }
 
     fn type_class(&mut self, t: TNodeId) -> Option<SymbolId> {
