@@ -10,6 +10,7 @@ mod getters;
 mod memoize;
 mod methods;
 mod mixin;
+mod repeated;
 mod synthetic;
 pub(crate) mod walk;
 
@@ -30,6 +31,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         getters::setter_calls(l, td)?;
     }
     for &td in &classes {
+        repeated::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }

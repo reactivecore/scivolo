@@ -74,6 +74,17 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
             let erased = l.u.erase(l.tpd.tpe(lhs));
             Some(Tree::Assign { lhs, rhs: typed(l, rhs, Some(&erased))? })
         }
+        Tree::SeqLiteral { elems, elemtpt } => {
+            let elem = match l.u.erase(l.tpd.tpe(t)) {
+                Erased::Array(e) => *e,
+                _ => return unsupported(l.tpd.span(t), "a sequence literal that is not an array"),
+            };
+            let mut typed_elems = Vec::new();
+            for e in l.tpd.items(elems).to_vec() {
+                typed_elems.push(typed(l, e, Some(&elem))?);
+            }
+            Some(Tree::SeqLiteral { elems: l.tpd.list(&typed_elems), elemtpt })
+        }
         Tree::Typed { expr, tpt } => {
             let ascribed = l.u.erase(l.tpd.tpe(tpt));
             Some(Tree::Typed { expr: typed(l, expr, Some(&ascribed))?, tpt })
