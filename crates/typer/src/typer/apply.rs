@@ -12,10 +12,11 @@ impl Typer<'_> {
         let Type::Sym(prefix, s) = self.u.types().get(fun_tpe).clone() else { return None };
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
-        Some(match seen_from_prefix {
+        let info = match seen_from_prefix {
             Some(p) => self.u.member_info(p, s),
             None => self.u.info(s),
-        })
+        };
+        Some(self.with_repeated_class(info))
     }
 
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
@@ -29,11 +30,15 @@ impl Typer<'_> {
         };
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
-        let info = self.method_info(fun_tpe);
-        let Some(Type::Method { mut params, result, .. }) = info.map(|i| self.u.types().get(i).clone())
+        let info = self.method_info(fun_tpe).or(Some(fun_tpe));
+        let Some(Type::Method { binder, mut params, result, .. }) =
+            info.map(|i| self.u.types().get(i).clone())
         else {
             return self.unsupported(id, "application of a non-method");
         };
+        if self.mentions_params(result, binder, self.tpd.sym(f)) {
+            return self.unsupported(id, "dependent result type");
+        }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
         if repeated.is_some() {
             params.pop();
@@ -45,9 +50,17 @@ impl Typer<'_> {
         if !arity_fits {
             return self.unsupported(id, "default arguments or wrong arity");
         }
-        let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).chain(repeated).collect();
+        let formals: Vec<TypeId> = params
+            .iter()
+            .map(|&(_, p)| p)
+            .chain(repeated)
+            .map(|p| match *self.u.types().get(p) {
+                Type::ByName(r) => r,
+                _ => p,
+            })
+            .collect();
         if formals.iter().any(|&p| self.is_special_param(p)) {
-            return self.unsupported(id, "by-name or dependent parameter");
+            return self.unsupported(id, "dependent parameter");
         }
         if arg_ids.iter().any(|&a| self.is_sequence_arg(a)) {
             return self.unsupported(id, "sequence argument");
@@ -59,7 +72,7 @@ impl Typer<'_> {
         }
         let mut typed_args = Vec::new();
         for (i, &a) in arg_ids.iter().enumerate() {
-            let formal = params.get(i).map_or_else(|| repeated.expect("a repeated parameter"), |&(_, p)| p);
+            let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
                 Some(typed) => self.adapt(typed[i], Pt::Type(formal)),
                 None => self.typed(a, Pt::Type(formal), ctx),
@@ -136,6 +149,23 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
+    /// method `method`.
+    fn mentions_params(&mut self, t: TypeId, binder: tasty::Binder, method: Option<SymbolId>) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            match *u.types().get(part) {
+                Type::Param(b, _) if b == binder => found = true,
+                Type::Sym(_, s) if u.symbol(s).kind == Kind::Param && method.is_some() => {
+                    found |= u.symbol(s).owner == method;
+                }
+                _ => {}
+            }
+            None
+        });
+        found
+    }
+
     /// Whether parameter type `p` is by-name, repeated, or refers to a parameter.
     pub fn is_special_param(&mut self, p: TypeId) -> bool {
         let mut special = false;
@@ -154,6 +184,11 @@ impl Typer<'_> {
     pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
         let tpt = self.typed_type(tpt, ctx);
         let tpe = self.tpd.tpe(tpt);
+        if let Type::Sym(_, c) = *self.u.types().get(tpe)
+            && !self.u.type_params(c).is_empty()
+        {
+            return self.unsupported(id, "new of a generic class without type arguments");
+        }
         let span = self.ast.span(id);
         self.tpd.node(T::New { tpt }, span, Some(tpe), None)
     }

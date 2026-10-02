@@ -31,8 +31,22 @@ impl Typer<'_> {
             }
             Tree::SingletonTypeTree { reference } => {
                 let reference = self.typed(reference, Pt::Any, ctx);
+                let unstable = match *self.tpd.tree(reference) {
+                    T::Ident { .. } | T::Select { .. } => {
+                        self.tpd.sym(reference).is_none_or(|s| !self.is_stable_member(s))
+                    }
+                    _ => false,
+                };
+                if unstable {
+                    return self.unsupported(id, "singleton type of an unstable reference");
+                }
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
+            }
+            Tree::ByNameTypeTree { result } => {
+                let result = self.typed_type(result, ctx);
+                let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));
+                self.tpd.node(T::ByNameTypeTree { result }, span, Some(tpe), None)
             }
             Tree::Annotated { arg, annot } => {
                 let arg = self.typed_type(arg, ctx);

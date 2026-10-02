@@ -44,7 +44,7 @@ impl Typer<'_> {
         };
         let branch_pt = match pt {
             _ if self.is_incomplete(elsep) => Pt::Type(self.unit_type()),
-            Pt::Fun(_) => Pt::Any,
+            Pt::Fun(_) | Pt::PolyFun => Pt::Any,
             pt => pt,
         };
         let thenp = self.typed(thenp, branch_pt, ctx);

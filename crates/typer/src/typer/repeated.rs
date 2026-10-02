@@ -14,16 +14,49 @@ impl Typer<'_> {
         self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == REPEATED_ANNOT)
     }
 
-    /// The element type `T` of repeated parameter type `p`, `Seq[T] @Repeated`.
+    /// The element type `T` of repeated parameter type `p`: `<repeated>[T]`, or `Seq[T] @Repeated`
+    /// as TASTy and parameter type trees give it.
     pub fn repeated_elem(&mut self, p: TypeId) -> Option<TypeId> {
-        let Type::Annotated(seq, annot) = self.u.types().get(p).clone() else { return None };
-        if !self.is_repeated_annot(annot) {
-            return None;
-        }
-        match self.u.types().get(seq) {
-            Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
+        match self.u.types().get(p).clone() {
+            Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => match self.u.types().get(seq) {
+                Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
+                _ => None,
+            },
+            Type::Applied(c, args) if args.len() == 1 => {
+                let class = self.u.class_symbol(c);
+                (class.is_some() && class == self.syms.repeated_class).then_some(args[0])
+            }
             _ => None,
         }
+    }
+
+    /// Method type `t` with its repeated parameters typed `<repeated>[T]`, in each clause.
+    pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
+        match self.u.types().get(t).clone() {
+            Type::Method { binder, params, result, implicit } => {
+                let params = params
+                    .into_iter()
+                    .map(|(n, p)| match self.repeated_elem(p) {
+                        Some(elem) => (n, self.repeated_type(elem)),
+                        None => (n, p),
+                    })
+                    .collect();
+                let result = self.with_repeated_class(result);
+                self.u.intern_type(Type::Method { binder, params, result, implicit })
+            }
+            Type::Poly { binder, params, result } => {
+                let result = self.with_repeated_class(result);
+                self.u.intern_type(Type::Poly { binder, params, result })
+            }
+            _ => t,
+        }
+    }
+
+    /// `<repeated>[elem]`.
+    fn repeated_type(&mut self, elem: TypeId) -> TypeId {
+        let class = self.repeated_class();
+        let class = crate::defn::type_ref(self.u, class);
+        self.u.intern_type(Type::Applied(class, vec![elem]))
     }
 
     /// dotty's `scala.<repeated>`, defined on first use.
@@ -55,9 +88,7 @@ impl Typer<'_> {
         let elemtpt = self.type_tree(elem, span.end_pos(), true);
         let elems = self.tpd.list(elems);
         let seq = self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, None, None);
-        let class = self.repeated_class();
-        let class = crate::defn::type_ref(self.u, class);
-        let repeated = self.u.intern_type(Type::Applied(class, vec![elem]));
+        let repeated = self.repeated_type(elem);
         let tpt = self.type_tree(repeated, span.end_pos(), true);
         self.tpd.node(T::Typed { expr: seq, tpt }, span, Some(repeated), None)
     }

@@ -68,7 +68,7 @@ impl Printer<'_> {
                 self.opt(finalizer);
             }
             Tree::TypeTree { .. } => {}
-            Tree::SingletonTypeTree { reference } => self.node(reference),
+            Tree::SingletonTypeTree { reference: a } | Tree::ByNameTypeTree { result: a } => self.node(a),
             Tree::AppliedTypeTree { tpt, args } => {
                 self.node(tpt);
                 self.list(args);

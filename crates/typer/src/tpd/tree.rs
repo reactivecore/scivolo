@@ -153,6 +153,9 @@ pub enum Tree {
     SingletonTypeTree {
         reference: TNodeId,
     },
+    ByNameTypeTree {
+        result: TNodeId,
+    },
     /// Type `arg` with annotation `annot`, a constructor call.
     Annotated {
         arg: TNodeId,

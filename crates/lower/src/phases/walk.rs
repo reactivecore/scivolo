@@ -15,6 +15,7 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         | Tree::Super { qual: a, .. }
         | Tree::New { tpt: a }
         | Tree::SingletonTypeTree { reference: a }
+        | Tree::ByNameTypeTree { result: a }
         | Tree::Bind { body: a, .. }
         | Tree::TypeDef { rhs: a, .. } => out.push(a),
         Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {

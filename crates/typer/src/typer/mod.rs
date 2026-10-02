@@ -28,6 +28,7 @@ mod report;
 mod select;
 mod stats;
 mod this;
+mod type_apply;
 mod type_defs;
 mod type_trees;
 mod views;
@@ -51,6 +52,8 @@ pub enum Pt {
     Type(TypeId),
     /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
     Fun(usize),
+    /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
+    PolyFun,
 }
 
 pub struct Typer<'a> {
@@ -140,6 +143,7 @@ impl<'a> Typer<'a> {
             Tree::Ident { name } => self.typed_ident(id, name, pt, ctx),
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
             Tree::Apply { fun, args } => self.typed_apply(id, fun, args, ctx),
+            Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, ctx),
             Tree::Literal { value } => self.typed_literal(id, value),
             Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
