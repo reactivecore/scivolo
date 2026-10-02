@@ -28,6 +28,8 @@ pub struct Definitions {
     pub boxed_unit_unit: SymbolId,
     pub equality: Equality,
     pub strings: Strings,
+    /// The object `scala.runtime.ScalaRunTime`.
+    pub scala_run_time: SymbolId,
 }
 
 /// The primitive value classes of package `scala` and their erased letters.
@@ -67,6 +69,7 @@ impl Definitions {
             boxed_unit_unit: boxed_unit_unit(u, runtime),
             equality: Equality::new(u, b.any, b.object, runtime)?,
             strings: Strings::new(u)?,
+            scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
         })
     }
 

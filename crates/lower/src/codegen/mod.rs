@@ -2,6 +2,7 @@
 //! interop.
 
 mod apply;
+mod array;
 mod body;
 mod branch;
 mod buf;

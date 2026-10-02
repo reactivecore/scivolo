@@ -10,3 +10,4 @@ refs
 strings
 throws
 statics
+varargs
