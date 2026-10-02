@@ -1,5 +1,5 @@
-//! The members dotty's `Definitions` gives `Any`, and those it gives `java.lang.Object`, whose
-//! members repeating `Any`'s are hidden.
+//! The members dotty's `Definitions` gives `Any`, `java.lang.Object`, whose members repeating
+//! `Any`'s are hidden, and `java.lang.String`.
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
@@ -10,8 +10,8 @@ use crate::{ANY, NOTHING};
 /// The members of `Object`'s TASTy that `Any` declares.
 const HIDDEN: [&str; 4] = ["equals", "hashCode", "toString", "getClass"];
 
-/// Enters the members of `any` and `object`; `object`'s TASTy, if loaded, keeps its members but
-/// those `Any` declares.
+/// Enters the members of `any` and `object`, and `String`'s `+`; `object`'s TASTy, if loaded,
+/// keeps its members but those `Any` declares.
 pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let boolean = class_type(u, "scala", "Boolean");
     let int = class_type(u, "scala", "Int");
@@ -49,6 +49,12 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     });
     if u.symbol(object).decls.iter().all(|&d| u.symbol(d).name != "clone") {
         method(u, object, "clone", &[], object_type, &[PROTECTED]);
+    }
+    let string_class = u
+        .package("java.lang")
+        .and_then(|p| u.decl(p, "String").ok()?.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
+    if let Some(s) = string_class {
+        method(u, s, "+", &[("x$0", ANY)], string, &[FINAL]);
     }
 }
 

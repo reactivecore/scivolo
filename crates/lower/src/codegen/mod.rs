@@ -7,6 +7,7 @@ mod branch;
 mod buf;
 mod callee;
 mod class;
+mod concat;
 mod dead;
 mod equality;
 mod erased;

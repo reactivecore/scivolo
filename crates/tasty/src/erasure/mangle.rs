@@ -30,8 +30,8 @@ impl Universe {
     /// The mangled signature of public method `def`, e.g. `D3mapL15scala.Function1L12scala.OptionEO`,
     /// under its `@targetName` if it has one; `None` unless it is a public instance method that
     /// exists at run time: not erased, not a super accessor, not `inline` unless it overrides a
-    /// method that is not, not an extern, not a member of `Any` or `Object`'s `eq`, `ne` and
-    /// `synchronized`.
+    /// method that is not, not an extern, not a member of `Any`, `Object`'s `eq`, `ne` and
+    /// `synchronized`, or `String`'s `+`.
     pub fn method_signature(&mut self, def: SymbolId) -> Option<String> {
         let s = self.symbol(def);
         let runtime = !s.flags.has(PRIVATE) && !s.flags.has(ERASED);
@@ -45,6 +45,7 @@ impl Universe {
         let primitive = match s.owner {
             Some(o) if o == builtins.any => true,
             Some(o) if o == builtins.object => matches!(s.name.as_str(), "eq" | "ne" | "synchronized"),
+            Some(o) => s.name == "+" && self.full_name(o) == "java.lang.String",
             _ => false,
         };
         if primitive {
