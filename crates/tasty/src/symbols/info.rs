@@ -16,7 +16,10 @@ impl Universe {
         let (kind, tree) = (self.symbol(sym).kind, self.symbol(sym).tree);
         let t = match (kind, tree) {
             (Kind::Package | Kind::Class, _) | (_, None) => self.types.intern(Type::Other(TEMPLATE)),
-            (_, Some((file, id))) => self.with_decoder(file, |d| d.definition_type(id)),
+            (_, Some((file, id))) => {
+                let t = self.with_decoder(file, |d| d.definition_type(id));
+                self.with_java_varargs(sym, t)
+            }
         };
         self.infos.insert(sym, t);
         t
