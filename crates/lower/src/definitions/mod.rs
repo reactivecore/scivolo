@@ -2,8 +2,10 @@
 //! `NirDefinitions`).
 
 mod equality;
+mod strings;
 
 pub use equality::Equality;
+pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
@@ -25,6 +27,7 @@ pub struct Definitions {
     /// `scala.runtime.BoxedUnit.UNIT`, a Java static field.
     pub boxed_unit_unit: SymbolId,
     pub equality: Equality,
+    pub strings: Strings,
 }
 
 /// The primitive value classes of package `scala` and their erased letters.
@@ -63,6 +66,7 @@ impl Definitions {
             primitives,
             boxed_unit_unit: boxed_unit_unit(u, runtime),
             equality: Equality::new(u, b.any, b.object, runtime)?,
+            strings: Strings::new(u)?,
         })
     }
 

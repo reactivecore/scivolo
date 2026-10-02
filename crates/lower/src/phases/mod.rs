@@ -1,6 +1,6 @@
 //! dotty's phases between the typer and NIR generation, each a pass over the unit.
 
-mod adapt;
+pub(crate) mod adapt;
 mod bridges;
 mod build;
 mod constructors;

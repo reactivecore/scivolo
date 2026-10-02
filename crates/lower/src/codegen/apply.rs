@@ -24,6 +24,11 @@ impl Gen<'_, '_> {
         let Some(sym) = self.l.tpd.sym(fun) else {
             return unsupported(span, "a call without a method symbol");
         };
+        if self.is_string_concat(sym) {
+            let v = self.gen_string_concat(t, span)?;
+            self.m.pos = saved;
+            return Ok(v);
+        }
         if let Some(v) = self.gen_primitive(t, sym, fun, &args)? {
             self.m.pos = saved;
             return Ok(v);
