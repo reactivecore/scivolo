@@ -28,7 +28,7 @@ JOBS = max(2, (os.cpu_count() or 4) // 2)
 
 def scala_cli(command, name, *extra):
     work = WORK / name
-    return ["scala-cli", "--power", command, "--quiet", "--native", "--native-version", NATIVE,
+    return ["scala-cli", "--power", command, "--quiet", "--server=false", "--native", "--native-version", NATIVE,
             "--workspace", str(work), *extra, str(work / f"{name}.scala")]
 
 
