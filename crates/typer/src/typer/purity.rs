@@ -40,7 +40,24 @@ impl Typer<'_> {
                 let args = self.tpd.items(args).to_vec();
                 pure_op && self.is_pure_expr(fun) && args.into_iter().all(|a| self.is_pure_expr(a))
             }
-            T::Block { stats, expr } => self.tpd.items(stats).is_empty() && self.is_pure_expr(expr),
+            T::Block { stats, expr } => {
+                let stats = self.tpd.items(stats).to_vec();
+                stats.into_iter().all(|s| self.is_pure_stat(s)) && self.is_pure_expr(expr)
+            }
+            T::Typed { expr, .. } => self.is_pure_expr(expr),
+            _ => false,
+        }
+    }
+
+    /// Whether statement `s` has no effect (dotty's `statPurity`).
+    fn is_pure_stat(&mut self, s: TNodeId) -> bool {
+        match *self.tpd.tree(s) {
+            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => true,
+            T::ValDef { rhs, .. } => {
+                let mutable =
+                    self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(tasty::tags::MUTABLE));
+                !mutable && rhs.is_none_or(|r| self.is_pure_expr(r))
+            }
             _ => false,
         }
     }

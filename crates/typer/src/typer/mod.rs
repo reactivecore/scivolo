@@ -28,6 +28,7 @@ mod this;
 mod type_defs;
 mod type_trees;
 mod views;
+mod widening;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::Defn;

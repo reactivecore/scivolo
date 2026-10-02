@@ -16,26 +16,7 @@ pub struct FunProto {
     pub typed: Option<Vec<TNodeId>>,
 }
 
-/// The value classes, and which of them each converts to by numeric widening.
-const WIDENINGS: [(&str, &[&str]); 7] = [
-    ("scala.Byte", &["scala.Short", "scala.Int", "scala.Long", "scala.Float", "scala.Double"]),
-    ("scala.Short", &["scala.Int", "scala.Long", "scala.Float", "scala.Double"]),
-    ("scala.Char", &["scala.Int", "scala.Long", "scala.Float", "scala.Double"]),
-    ("scala.Int", &["scala.Long", "scala.Float", "scala.Double"]),
-    ("scala.Long", &["scala.Float", "scala.Double"]),
-    ("scala.Float", &["scala.Double"]),
-    ("scala.Double", &[]),
-];
-const OTHER_VALUE_CLASSES: [&str; 2] = ["scala.Boolean", "scala.Unit"];
-
 impl Typer<'_> {
-    fn value_class(&mut self, t: TypeId) -> Option<String> {
-        let widened = self.u.widen(t);
-        let name = self.u.class_symbol(widened).map(|c| self.u.full_name(c))?;
-        let value = WIDENINGS.iter().any(|(n, _)| *n == name) || OTHER_VALUE_CLASSES.contains(&name.as_str());
-        value.then_some(name)
-    }
-
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx` (dotty's
     /// `isCompatible`): `Some` if decided, `None` if an implicit conversion might decide it.
     fn compatible(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
@@ -43,7 +24,7 @@ impl Typer<'_> {
             return Some(true);
         }
         if let (Some(a), Some(p)) = (self.value_class(arg), self.value_class(param))
-            && WIDENINGS.iter().any(|(n, to)| *n == a && to.contains(&p.as_str()))
+            && super::widening::widens(&a, &p)
         {
             return Some(true);
         }

@@ -92,6 +92,34 @@ impl Typer<'_> {
         found
     }
 
+    /// Block result `expr`, ascribed a type without references to `locals` if its own has some
+    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, or `pt` if that
+    /// does not conform to `pt`; `None` if a reference remains.
+    fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
+        let tpe = self.tpd.tpe(expr);
+        if !self.refers_to(tpe, locals) {
+            return Some(expr);
+        }
+        let mut avoided = tpe;
+        while let Type::Sym(_, s) = *self.u.types().get(avoided) {
+            if !locals.contains(&s) || self.is_type_symbol(s) {
+                break;
+            }
+            avoided = self.u.widen(avoided);
+        }
+        if let Pt::Type(p) = pt
+            && !self.u.is_subtype(avoided, p)
+        {
+            avoided = p;
+        }
+        if self.refers_to(avoided, locals) || !self.u.is_subtype(tpe, avoided) {
+            return None;
+        }
+        let span = self.tpd.span(expr);
+        let tpt = self.type_tree(avoided, span.end_pos(), true);
+        Some(self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(avoided), None))
+    }
+
     /// The typed statements `stats`, whose symbols are entered.
     pub fn typed_stats(&mut self, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
         let mut out = Vec::new();
@@ -139,11 +167,11 @@ impl Typer<'_> {
             Some(e) => self.typed(e, pt, expr_ctx),
             None => return self.unsupported(id, "block without result"),
         };
-        let tpe = self.tpd.tpe(expr);
         let locals = self.levels.scope_symbols(level);
-        if self.refers_to(tpe, &locals) {
+        let Some(expr) = self.no_local_refs(expr, &locals, pt) else {
             return self.unsupported(id, "block type with local symbols");
-        }
+        };
+        let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None)
