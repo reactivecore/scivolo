@@ -22,11 +22,48 @@ pub struct Lambda {
     pub captured: Vec<SymbolId>,
 }
 
-/// Lifts the lambdas of class definition `td` into methods of its class.
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+/// Lifts the lambdas of class definitions `classes` into methods of their classes; the proxies
+/// of `$adapted` methods are named last.
+pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+    let mut deferred = Vec::new();
+    for &td in classes {
+        deferred.extend(lift_class(l, td)?);
+    }
+    for p in deferred {
+        let base = l.u.symbol(p).name.clone();
+        let name = fresh(l, &base);
+        l.u.rename(p, &name);
+    }
+    Ok(())
+}
+
+/// `base$N`, `N` counting the names made from `base` in the unit.
+pub fn fresh(l: &mut Lower, base: &str) -> String {
+    let n = l.lifted_names.entry(base.to_owned()).or_insert(0);
+    *n += 1;
+    format!("{base}${n}")
+}
+
+/// The indices of `lambdas`, each after the lambdas in it.
+pub fn post_order(lambdas: &[Lambda]) -> Vec<usize> {
+    fn visit(lambdas: &[Lambda], i: Option<usize>, out: &mut Vec<usize>) {
+        for j in (0..lambdas.len()).filter(|&j| lambdas[j].parent == i) {
+            visit(lambdas, Some(j), out);
+            out.push(j);
+        }
+    }
+    let mut out = Vec::new();
+    visit(lambdas, None, &mut out);
+    out
+}
+
+/// Lifts the lambdas of class definition `td`; the proxies to name last.
+fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
+    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
+        return Ok(Vec::new());
+    };
     let mut stats = l.tpd.items(body).to_vec();
     let mut lambdas = Vec::new();
     for &stat in &stats {
@@ -41,15 +78,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
     }
     if lambdas.is_empty() {
-        return Ok(());
+        return Ok(Vec::new());
     }
     for i in 0..lambdas.len() {
         lambdas[i].captured = captured(l, &lambdas, i, class)?;
     }
-    stats.extend(super::lifted::lift(l, class, &lambdas)?);
+    let (lifted, deferred) = super::lifted::lift(l, class, &lambdas)?;
+    stats.extend(lifted);
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-    Ok(())
+    Ok(deferred)
 }
 
 /// The lambdas under `t` in pre-order, `parent` the one they are in.
@@ -80,8 +118,8 @@ fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
         .then_some((def, expr, sym))
 }
 
-/// The values lambda `i` captures, in the order they were defined: the local values its body
-/// refers to that are defined outside it.
+/// The values lambda `i` captures, in the order its body first refers to them: the local values
+/// defined outside it.
 fn captured(l: &Lower, lambdas: &[Lambda], i: usize, class: SymbolId) -> Result<Vec<SymbolId>> {
     let inside: FxHashSet<SymbolId> = (0..lambdas.len())
         .filter(|&j| std::iter::successors(Some(j), |&k| lambdas[k].parent).any(|k| k == i))
@@ -90,12 +128,10 @@ fn captured(l: &Lower, lambdas: &[Lambda], i: usize, class: SymbolId) -> Result<
     let mut out = Vec::new();
     let mut todo = vec![lambdas[i].def];
     while let Some(t) = todo.pop() {
-        todo.extend(children(l.tpd, t));
+        todo.extend(children(l.tpd, t).into_iter().rev());
         let span = l.tpd.span(t);
         match (l.tpd.tree(t), l.tpd.sym(t)) {
-            (Tree::This { .. }, Some(c)) if !is_module_class(l.u, c) => {
-                return unsupported(span, "lambdas using `this` of a class");
-            }
+            (Tree::This { .. }, _) => return unsupported(span, "lambdas using `this`"),
             (Tree::Ident { .. }, Some(s)) => {
                 let owner = l.u.symbol(s).owner;
                 if owner == Some(class) && !is_module_class(l.u, class) {
@@ -112,6 +148,5 @@ fn captured(l: &Lower, lambdas: &[Lambda], i: usize, class: SymbolId) -> Result<
             _ => {}
         }
     }
-    out.sort_by_key(|s| s.0);
     Ok(out)
 }

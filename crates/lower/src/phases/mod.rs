@@ -34,8 +34,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         getters::setter_calls(l, td)?;
     }
+    lambda_lift::transform(l, &classes)?;
     for &td in &classes {
-        lambda_lift::transform(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;

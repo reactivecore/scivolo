@@ -3,7 +3,7 @@
 //! primitive or the result `Unit` (dotty's `Erasure.Typer.typedClosure`).
 
 use super::adapt::from_start;
-use super::lambda_lift::Lambda;
+use super::lambda_lift::{Lambda, fresh, post_order};
 use super::walk::children;
 use crate::definitions::{procedure, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -19,12 +19,12 @@ pub struct Method {
 }
 
 /// The methods of `lambdas` of `class`, inner lambdas first, each followed by its `$adapted`
-/// method; the lambdas' blocks become closures of them.
-pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<Vec<TNodeId>> {
-    let mut names = FxHashMap::default();
-    let mut proxy_names = FxHashMap::default();
+/// method, and the proxies of the `$adapted` methods, named last in the unit; the lambdas'
+/// blocks become closures of them.
+pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
     let mut lifted: Vec<(Method, Option<Method>)> = Vec::new();
     let mut procedures = Vec::new();
+    let mut deferred = Vec::new();
     for lambda in lambdas {
         let owner = match lambda.parent {
             Some(p) => l.u.symbol(lifted[p].0.sym).name.clone(),
@@ -33,24 +33,26 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<Vec<TN
         let params = params(l, lambda.def);
         let info = l.u.info(lambda.sym);
         let Type::Method { result, .. } = *l.u.types().get(info) else { unreachable!("a method type") };
-        let name = fresh(&mut names, &format!("{owner}$$anonfun"));
+        let name = fresh(l, &format!("{owner}$$anonfun"));
         let typed: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, l.u.info(p))).collect();
-        let method = define(l, class, &name, &lambda.captured, &typed, result, &mut proxy_names);
+        let method = define(l, class, &name, &lambda.captured, &typed, result, true);
         let erased: Vec<Erased> = typed.iter().map(|&(_, t)| l.u.erase(t)).collect();
         let erased_result = l.u.erase(result);
         let unit = erased_result == Erased::Unit;
         let primitive = erased.iter().any(|e| matches!(e, Erased::Prim(_) | Erased::Unit));
-        if (unit || primitive) && super::adapted::specializable(&erased, &erased_result) {
+        let function = matches!(l.tpd.tree(lambda.closure), Tree::Closure { tpt: None, .. });
+        if function && (unit || primitive) && super::adapted::specializable(&erased, &erased_result) {
             return unsupported(l.tpd.span(lambda.block), "lambdas of specialized function types");
         }
-        procedures.push((unit && !primitive).then_some(params.len()));
-        let adapted = primitive.then(|| {
+        procedures.push((function && unit && !primitive).then_some(params.len()));
+        let adapted = (primitive || unit && !function).then(|| {
             let object = type_ref(l.u, l.defs.object);
             let objects: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, object)).collect();
             let result = if unit { object } else { result };
-            let name = fresh(&mut names, &format!("{owner}$$anonfun$adapted"));
-            let adapted = define(l, class, &name, &lambda.captured, &objects, result, &mut proxy_names);
+            let name = fresh(l, &format!("{owner}$$anonfun$adapted"));
+            let adapted = define(l, class, &name, &lambda.captured, &objects, result, false);
             l.bridges.insert(adapted.sym);
+            deferred.extend(adapted.proxies.iter().copied());
             adapted
         });
         lifted.push((method, adapted));
@@ -100,10 +102,11 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<Vec<TN
             out.push(super::adapted::adapted_def(l, lambdas[i].def, method, adapted, tpt));
         }
     }
-    Ok(out)
+    Ok((out, deferred))
 }
 
-/// A private static method `name` of `class` with proxies of `captured`, then `params`.
+/// A private static method `name` of `class` with proxies of `captured`, then `params`; the
+/// proxies named `x$N` now if `named`, else later by `name_proxies`.
 fn define(
     l: &mut Lower,
     class: SymbolId,
@@ -111,12 +114,13 @@ fn define(
     captured: &[SymbolId],
     params: &[(SymbolId, TypeId)],
     result: TypeId,
-    proxy_names: &mut FxHashMap<String, u32>,
+    named: bool,
 ) -> Method {
     let sym = l.u.define(symbol(name, Kind::Def, class, Flags::default().with(PRIVATE).with(STATIC)));
     let mut proxies = Vec::new();
     for &s in captured {
-        let name = fresh(proxy_names, &l.u.symbol(s).name.clone());
+        let base = l.u.symbol(s).name.clone();
+        let name = if named { fresh(l, &base) } else { base };
         let proxy = l.u.define(symbol(&name, Kind::Param, sym, Flags::default()));
         let info = l.u.info(s);
         l.u.set_info(proxy, info);
@@ -131,31 +135,11 @@ fn define(
     Method { sym, proxies }
 }
 
-/// `base$N`, `N` counting the names made from `base`.
-fn fresh(names: &mut FxHashMap<String, u32>, base: &str) -> String {
-    let n = names.entry(base.to_owned()).or_insert(0);
-    *n += 1;
-    format!("{base}${n}")
-}
-
 /// The value parameters of method definition `def`.
 fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return Vec::new() };
     let clauses = l.tpd.clause_items(paramss);
     clauses.iter().flat_map(|&c| l.tpd.items(c)).filter_map(|&p| l.tpd.sym(p)).collect()
-}
-
-/// The indices of `lambdas`, each after the lambdas in it.
-fn post_order(lambdas: &[Lambda]) -> Vec<usize> {
-    fn visit(lambdas: &[Lambda], i: Option<usize>, out: &mut Vec<usize>) {
-        for j in (0..lambdas.len()).filter(|&j| lambdas[j].parent == i) {
-            visit(lambdas, Some(j), out);
-            out.push(j);
-        }
-    }
-    let mut out = Vec::new();
-    visit(lambdas, None, &mut out);
-    out
 }
 
 /// Makes the references to the keys of `map` under `t` refer to their values.

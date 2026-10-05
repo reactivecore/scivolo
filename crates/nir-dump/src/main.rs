@@ -180,9 +180,10 @@ fn dump(entries: &[source::Entry], args: &Args) -> usize {
             Ok(defns) if !defns.is_empty() => {
                 println!("\n// {}", e.name);
                 for d in &defns {
-                    match args.debug {
-                        true => println!("{}\n", show::defn_with_debug_info(&pool, d)),
-                        false => println!("{}\n", show::defn(&pool, d, !args.mangled)),
+                    if args.debug {
+                        println!("{}\n", show::defn_with_debug_info(&pool, d));
+                    } else {
+                        println!("{}\n", show::defn(&pool, d, !args.mangled));
                     }
                 }
             }

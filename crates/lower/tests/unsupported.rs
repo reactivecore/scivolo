@@ -10,6 +10,7 @@ const CASES: &[(&str, &str)] = &[
     ("object O { lazy val x = \"a\" }", "lazy values"),
     ("object O { val f: String => String = s => s }", "lambdas outside methods"),
     ("object O { def f(): Int => Int = x => x }", "lambdas of specialized function types"),
+    ("object O { def g(s: String) = s; def f(): String => String = x => this.g(x) }", "lambdas using `this`"),
     ("class C(p: String) { def f(): String => String = s => s + p }", "lambdas using `this` of a class"),
     ("object O { def f(): () => String = { var v = \"a\"; () => v } }", "lambdas capturing variables"),
     ("object O { def f(a: Array[Int]): Int = a.length }", "array operations"),
