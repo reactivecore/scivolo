@@ -15,8 +15,8 @@ impl Typer<'_> {
             return Ok(None);
         }
         let [arg] = args[..] else { return Ok(None) };
-        let arg = self.fully_defined(arg)?;
-        let arg = self.u.dealias(arg);
+        let orig = self.fully_defined(arg)?;
+        let arg = self.u.dealias(orig);
         let class = match *self.u.types().get(arg) {
             Type::Sym(..) | Type::TypeRef(..) => self.u.class_symbol(arg),
             _ => None,
@@ -40,8 +40,8 @@ impl Typer<'_> {
         let apply_tpe = self.u.intern_type(Type::Sym(Some(module_tpe), apply));
         let name = TName { name: self.name("apply"), is_type: false };
         let select = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_tpe), Some(apply));
-        let targ = self.type_tree(arg, at, false);
-        let method = self.instantiated(select, &[arg])?;
+        let targ = self.type_tree(orig, at, false);
+        let method = self.instantiated(select, &[orig])?;
         let targs = self.tpd.list(&[targ]);
         let fun = self.tpd.node(T::TypeApply { fun: select, args: targs }, at, Some(method), None);
         let Type::Method { result, .. } = self.u.types().get(method).clone() else {

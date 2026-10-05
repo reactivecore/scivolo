@@ -11,9 +11,7 @@ use tasty::{Binder, SymbolId, Type, TypeId};
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
         let f = self.typed(fun, Pt::PolyFun, ctx);
-        if self.tpd.sym(f).is_some_and(|s| self.u.full_name(s) == "scala.Predef$.classOf") {
-            return self.unsupported(id, "classOf");
-        }
+        let class_of = self.tpd.sym(f).is_some_and(|s| self.u.full_name(s) == "scala.Predef$.classOf");
         let f = match self.with_apply(f, Pt::PolyFun, ctx) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
@@ -21,10 +19,17 @@ impl Typer<'_> {
         let arg_ids = self.ast.items(args).to_vec();
         let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let tpe = match self.instantiated(f, &arg_types) {
+        let mut tpe = match self.instantiated(f, &arg_types) {
             Ok(tpe) => tpe,
             Err(what) => return self.unsupported(id, what),
         };
+        if class_of {
+            let [arg] = arg_types[..] else { return self.unsupported(id, "classOf") };
+            if !self.is_class_type(arg, true) {
+                return self.unsupported(id, "classOf of a type that is not a class");
+            }
+            tpe = self.u.intern_type(Type::Constant(tasty::tags::CLASSconst, i64::from(arg.0)));
+        }
         let args = self.tpd.list(&typed_args);
         let span = self.ast.span(id);
         self.tpd.node(T::TypeApply { fun: f, args }, span, Some(tpe), None)

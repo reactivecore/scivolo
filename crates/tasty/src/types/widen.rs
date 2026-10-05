@@ -24,6 +24,10 @@ impl Universe {
                 Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
                     self.term_type(p, s)
                 }
+                Type::Constant(CLASSconst, bits) => {
+                    let class = self.class_ref("java.lang.Class");
+                    self.intern_type(Type::Applied(class, vec![TypeId(bits as u32)]))
+                }
                 Type::Constant(tag, _) => self.constant_type(tag),
                 Type::Str(_) => self.constant_type(STRINGconst),
                 Type::ByName(r) => r,

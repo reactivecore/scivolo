@@ -93,18 +93,30 @@ impl Typer<'_> {
         let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
             return self.unsupported(a, "sequence argument");
         };
-        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else {
+        let Some(seq_class) = self.resolve_full_name("scala.collection.immutable.Seq", true) else {
             return self.unsupported(a, "sequence argument");
         };
-        let seq = crate::defn::type_ref(self.u, seq);
+        let seq = crate::defn::type_ref(self.u, seq_class);
         let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
         let expr = self.typed(expr, super::Pt::Type(seq), ctx);
+        let converted = matches!(*self.tpd.tree(expr), T::Apply { fun, .. }
+            if self.tpd.sym(fun).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::IMPLICIT)));
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
-        if self.u.class_symbol(expr_tpe).is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing) {
-            return self.unsupported(a, "sequence argument of a bottom type");
+        if converted
+            || self
+                .u
+                .class_symbol(expr_tpe)
+                .is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing)
+        {
+            return self.unsupported(a, "sequence argument of an array or a bottom type");
         }
-        let repeated = self.repeated_type(elem);
+        let widened = self.u.widen(expr_tpe);
+        let base = self.u.base_type(widened, seq_class);
+        let Some(Type::Applied(_, args)) = base.map(|b| self.u.types().get(b).clone()) else {
+            return self.unsupported(a, "sequence argument");
+        };
+        let repeated = self.repeated_type(args[0]);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
         self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
     }

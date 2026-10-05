@@ -24,7 +24,13 @@ impl Typer<'_> {
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
-            Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
+            Tree::Try { expr, cases, finalizer } => {
+                let cases = self.ast.items(cases).to_vec();
+                self.typed_try(id, expr, &cases, finalizer, pt, ctx)
+            }
+            Tree::ParsedTry { expr, handler, finalizer } => {
+                self.typed_parsed_try(id, expr, handler, finalizer, pt, ctx)
+            }
             Tree::If { cond, thenp, elsep, inline: false } => self.typed_if(id, cond, thenp, elsep, pt, ctx),
             Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
             Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),

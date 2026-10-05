@@ -67,7 +67,10 @@ impl Typer<'_> {
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
-                let widened = self.simplified(widened);
+                let mut widened = self.simplified(widened);
+                if matches!(self.u.types().get(widened), Type::Or(..)) {
+                    widened = self.widen_singleton(widened);
+                }
                 if matches!(self.u.types().get(widened), Type::Or(..)) {
                     self.unsupported(rhs, "union widening");
                 }

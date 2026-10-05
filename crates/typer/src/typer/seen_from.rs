@@ -110,7 +110,7 @@ impl Typer<'_> {
                     again = true;
                     u.info(s)
                 }
-                Some(s) if u.symbol(s).kind == Kind::Type => {
+                Some(s) if u.symbol(s).kind == Kind::Type && !u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
                     let info = u.info(s);
                     match *u.types().get(info) {
                         Type::Alias(a) => a,

@@ -1,0 +1,136 @@
+//! Whether an alternative applies to arguments of given types (dotty's `isApplicableMethodRef`,
+//! `isCompatible`): by subtyping, closures by their single abstract method, and with implicit
+//! conversions, numeric widenings among them, where nothing applies without.
+
+use super::Typer;
+use super::implicits::conversions::Goal;
+use crate::ctx::Ctx;
+use crate::tpd::Tree as T;
+use tasty::{SymbolId, Type, TypeId, TypeVars};
+
+impl Typer<'_> {
+    /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through an
+    /// implicit conversion if `views` (dotty's `isCompatible`, else its direct applicability):
+    /// `None` if undecided.
+    fn compatible(&mut self, arg: TypeId, param: TypeId, views: bool, ctx: Ctx) -> Option<bool> {
+        if self.conforms(arg, param) {
+            return Some(true);
+        }
+        match self.sam_arg_ok(arg, param) {
+            Ok(Some(fits)) => return Some(fits),
+            Ok(None) => {}
+            Err(_) => return None,
+        }
+        if !views {
+            return Some(false);
+        }
+        if let (Some(a), Some(p)) = (self.value_class(arg), self.value_class(param))
+            && super::widening::widens(&a, &p)
+        {
+            return Some(true);
+        }
+        self.view_exists(arg, param, ctx)
+    }
+
+    /// Whether an implicit conversion takes a value of type `arg` to `param` (dotty's
+    /// `viewExists`): `None` if the search is outside the subset.
+    fn view_exists(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
+        let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
+        let dummy = self.tpd.node(T::TypeTree { inferred: true }, syntax::ast::Span::NONE, Some(arg), None);
+        let found = self.converted(dummy, Goal::Conform(param), ctx);
+        let clean = self.unsupported == unsupported;
+        self.constraint.rollback(mark);
+        self.unsupported = unsupported;
+        match found {
+            Ok(found) if clean => Some(found.is_some()),
+            _ => None,
+        }
+    }
+
+    /// Whether an argument of function type `arg` fits single abstract method type `param`: `arg`
+    /// conforms to the function type of the method (dotty's `SAMargOK`); `None` if `arg` is no
+    /// function type or `param` no such type.
+    fn sam_arg_ok(&mut self, arg: TypeId, param: TypeId) -> Result<Option<bool>, &'static str> {
+        let arg = self.u.widen(arg);
+        let Some(n) = (0..=22).find(|&n| self.function_parts(arg, n).is_some()) else { return Ok(None) };
+        let Some(sam) = self.sam_parts(param, n)? else { return Ok(None) };
+        let class = self.function_class(n).ok_or("function class")?;
+        let mut args = sam.params;
+        args.push(sam.result);
+        let fun = self.u.intern_type(Type::Applied(class, args));
+        Ok(Some(self.conforms(arg, fun)))
+    }
+
+    /// Whether arguments of types `args` fit the first parameter clause of `alt` seen from
+    /// `prefix` in `ctx`, through implicit conversions if `views`: `None` if undecided.
+    pub fn applicable(
+        &mut self,
+        alt: SymbolId,
+        prefix: Option<TypeId>,
+        args: &[TypeId],
+        views: bool,
+        ctx: Ctx,
+    ) -> Option<bool> {
+        let mark = self.constraint.mark();
+        let fits = self.applicable_with_vars(alt, prefix, args, views, ctx);
+        self.constraint.rollback(mark);
+        fits
+    }
+
+    fn applicable_with_vars(
+        &mut self,
+        alt: SymbolId,
+        prefix: Option<TypeId>,
+        args: &[TypeId],
+        views: bool,
+        ctx: Ctx,
+    ) -> Option<bool> {
+        let (mut params, repeated) = self.param_types(alt, prefix, true)?;
+        let elem = repeated.then(|| params.pop()).flatten();
+        let fits = if elem.is_some() { args.len() >= params.len() } else { args.len() == params.len() };
+        if !fits {
+            return Some(false);
+        }
+        let mut all = true;
+        for (i, &a) in args.iter().enumerate() {
+            let p = params.get(i).copied().or(elem)?;
+            all &= self.compatible(a, p, views, ctx)?;
+        }
+        Some(all)
+    }
+
+    /// The parameter types of the first clause of `alt` seen from `prefix`, a repeated one as its
+    /// element type, and whether the last is repeated; of a polymorphic `alt` only if `poly`,
+    /// its type parameters replaced by fresh type variables within their bounds.
+    pub fn param_types(
+        &mut self,
+        alt: SymbolId,
+        prefix: Option<TypeId>,
+        poly: bool,
+    ) -> Option<(Vec<TypeId>, bool)> {
+        let tpe = self.u.intern_type(Type::Sym(prefix, alt));
+        let mut info = self.method_info(tpe)?;
+        if let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
+            if !poly {
+                return None;
+            }
+            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
+            for (&(_, bounds), &v) in params.iter().zip(&vars) {
+                let bounds = self.instantiate_poly(bounds, binder, &names, &vars, Some(alt));
+                if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
+                    self.conforms(lo, v);
+                    self.conforms(v, hi);
+                }
+            }
+            info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
+        }
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let elem = types.last().and_then(|&p| self.repeated_elem(p));
+        if let Some(e) = elem {
+            *types.last_mut().expect("a parameter") = e;
+        }
+        Some((types, elem.is_some()))
+    }
+}
