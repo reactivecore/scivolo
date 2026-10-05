@@ -19,3 +19,4 @@ fib
 interp
 capture
 cpu
+loops
