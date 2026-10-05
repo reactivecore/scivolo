@@ -2,12 +2,13 @@
 //! and each `def f(ps) = body` in a block of a class's methods becomes a private method of the
 //! class taking the captured values first; closures and calls pass them.
 
-use super::captures::{direct, propagate};
+use super::captures::dependencies;
+use super::lifted::{Method, lift, methods};
 use super::walk::children;
-use crate::symbols::has;
+use crate::symbols::{has, is_module_class, is_static};
 use crate::{Lower, Result, unsupported};
-use tasty::SymbolId;
 use tasty::tags::FIELDaccessor;
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A function to lift: its definition, the block it is in, its closure if a lambda, the function
@@ -22,12 +23,40 @@ pub struct Function {
     pub this: bool,
 }
 
+/// The functions of a class to lift, their methods, the functions in the order their proxies are
+/// named and the number of those capturing directly.
+struct Lifting {
+    class: SymbolId,
+    template: TNodeId,
+    stats: Vec<TNodeId>,
+    functions: Vec<Function>,
+    methods: Vec<Method>,
+    order: Vec<usize>,
+    direct: usize,
+}
+
 /// Lifts the lambdas and local methods of class definitions `classes` into methods of their
-/// classes; the proxies of `$adapted` methods are named last.
+/// classes; the proxies are named first, those of `$adapted` methods last.
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
-    let mut deferred = Vec::new();
+    let mut liftings = Vec::new();
     for &td in classes {
-        deferred.extend(lift_class(l, td)?);
+        liftings.extend(prepare(l, td)?);
+    }
+    let direct = liftings.iter().flat_map(|c| c.order[..c.direct].iter().map(move |&i| &c.methods[i]));
+    let propagated = liftings.iter().flat_map(|c| c.order[c.direct..].iter().map(move |&i| &c.methods[i]));
+    for method in direct.chain(propagated) {
+        name_proxies(l, &method.proxies);
+    }
+    let mut deferred = Vec::new();
+    for c in liftings {
+        let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
+        deferred.extend(adapted);
+        let stats: Vec<TNodeId> = c.stats.into_iter().chain(lifted).collect();
+        let body = l.tpd.list(&stats);
+        let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(c.template) else {
+            unreachable!("a template")
+        };
+        l.tpd.get_mut(c.template).tree = Tree::Template { constr, parents, self_, body };
     }
     name_proxies(l, &deferred);
     Ok(())
@@ -62,21 +91,22 @@ pub fn post_order(functions: &[Function]) -> Vec<usize> {
     out
 }
 
-/// Lifts the functions of class definition `td`; the proxies to name last.
-fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
+/// The functions of class definition `td` with their dependencies and methods, if any.
+fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
-        return Ok(Vec::new());
-    };
-    let mut stats = l.tpd.items(body).to_vec();
-    let mut functions = Vec::new();
+    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(None) };
+    let stats = l.tpd.items(body).to_vec();
+    let (mut functions, mut roots) = (Vec::new(), Vec::new());
     for &stat in &stats {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
             (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor));
         let first = functions.len();
         match *l.tpd.tree(stat) {
-            Tree::DefDef { rhs: Some(rhs), .. } if method => collect(l, rhs, None, &mut functions),
+            Tree::DefDef { rhs: Some(rhs), .. } if method => {
+                roots.push(rhs);
+                collect(l, rhs, None, &mut functions);
+            }
             _ => collect(l, stat, None, &mut functions),
         }
         if !method && functions.len() > first {
@@ -87,20 +117,17 @@ fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
         }
     }
     if functions.is_empty() {
-        return Ok(Vec::new());
+        return Ok(None);
     }
-    let mut calls = Vec::new();
-    for i in 0..functions.len() {
-        let (captured, called, this) = direct(l, &functions, i, class)?;
-        (functions[i].captured, functions[i].this) = (captured, this || functions[i].closure.is_none());
-        calls.push(called);
+    let owner = l.u.symbol(class).owner.expect("a class's owner");
+    let in_class =
+        is_static(l.u, class) && (is_module_class(l.u, class) || l.u.symbol(owner).kind != Kind::Package);
+    for f in &mut functions {
+        f.this = f.closure.is_none() && in_class;
     }
-    propagate(l, &mut functions, &calls);
-    let (lifted, deferred) = super::lifted::lift(l, class, template, &functions)?;
-    stats.extend(lifted);
-    let body = l.tpd.list(&stats);
-    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-    Ok(deferred)
+    let (order, direct) = dependencies(l, &mut functions, class, &roots)?;
+    let methods = methods(l, class, &functions)?;
+    Ok(Some(Lifting { class, template, stats, functions, methods, order, direct }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.
@@ -135,7 +162,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
                             sym,
                             parent,
                             captured: Vec::new(),
-                            this: true,
+                            this: false,
                         });
                         let index = out.len() - 1;
                         collect(l, rhs, Some(index), out);

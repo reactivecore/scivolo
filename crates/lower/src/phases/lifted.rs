@@ -3,7 +3,7 @@
 //! they need `this`. Calls of local methods pass the captured values.
 
 use super::closures::{Plan, plan, rewrite};
-use super::lambda_lift::{Function, fresh, name_proxies, post_order};
+use super::lambda_lift::{Function, fresh, post_order};
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -18,24 +18,44 @@ pub struct Method {
     pub proxies: Vec<SymbolId>,
 }
 
-/// The methods of `functions` of `class`, inner functions first, each lambda's followed by its
-/// `$adapted` method, and the proxies of the `$adapted` methods, named last in the unit; the
-/// lambdas' blocks become closures, the local methods leave their blocks and calls of them in
+/// The methods of `functions` of `class`, named as the functions until `lift`.
+pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result<Vec<Method>> {
+    let mut methods = Vec::new();
+    for f in functions {
+        let (params, result) = signature(l, f)?;
+        let name = l.u.symbol(f.sym).name.clone();
+        methods.push(define(l, class, &name, &f.captured, &params, result, f.this));
+    }
+    Ok(methods)
+}
+
+/// The parameters with their types and the result type of function `f`.
+fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
+    let info = l.u.info(f.sym);
+    let result = match *l.u.types().get(info) {
+        Type::Method { result, .. } => result,
+        Type::Poly { .. } => return unsupported(l.tpd.span(f.def), "local methods with type parameters"),
+        _ => return unsupported(l.tpd.span(f.def), "local methods without parameter lists"),
+    };
+    let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
+    Ok((params, result))
+}
+
+/// Names `methods` of `functions` of `class`, inner functions first, each lambda's followed by
+/// its `$adapted` method, and the proxies of the `$adapted` methods, to name last in the unit;
+/// the lambdas' blocks become closures, the local methods leave their blocks and calls of them in
 /// `template` call the lifted methods.
 pub fn lift(
     l: &mut Lower,
     class: SymbolId,
     template: TNodeId,
     functions: &[Function],
+    methods: &[Method],
 ) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
-    let mut methods: Vec<Method> = Vec::new();
     let mut plans: Vec<Option<Plan>> = Vec::new();
     let mut deferred = Vec::new();
-    for f in functions {
-        let info = l.u.info(f.sym);
-        let Type::Method { result, .. } = *l.u.types().get(info) else {
-            return unsupported(l.tpd.span(f.def), "local methods with type parameters");
-        };
+    for (f, method) in functions.iter().zip(methods) {
+        let (params, result) = signature(l, f)?;
         let prefix = match l.u.symbol(f.sym).owner {
             Some(o) if l.u.symbol(o).kind == Kind::Def => match functions.iter().position(|x| x.sym == o) {
                 Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
@@ -47,19 +67,15 @@ pub fn lift(
             Some(_) => fresh(l, &format!("{prefix}$anonfun")),
             None => fresh(l, &l.u.symbol(f.sym).name.clone()),
         };
-        let params: Vec<(SymbolId, TypeId)> =
-            params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
-        let method = define(l, class, &name, &f.captured, &params, result, f.this);
-        name_proxies(l, &method.proxies);
+        l.u.rename(method.sym, &name);
         let closure = match f.closure {
             Some(_) => Some(plan(l, class, f, &prefix, &params, result, &mut deferred)?),
             None => None,
         };
-        methods.push(method);
         plans.push(closure);
     }
-    calls(l, class, template, functions, &methods);
-    for ((f, method), plan) in functions.iter().zip(&methods).zip(&plans) {
+    calls(l, class, template, functions, methods);
+    for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {
         match plan {
             Some(plan) => rewrite(l, f, method, plan),
             None => leave_block(l, f),
