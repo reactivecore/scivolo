@@ -164,10 +164,12 @@ impl Gen<'_, '_> {
     /// The abstract methods of `class`.
     fn abstract_methods(&mut self, class: SymbolId) -> Vec<SymbolId> {
         let decls = self.l.u.decls(class).unwrap_or_default();
+        let function = self.l.u.full_name(class).starts_with("scala.Function");
         decls
             .into_iter()
             .filter(|&d| self.l.u.symbol(d).kind == Kind::Def && self.l.u.body(d).is_none())
             .filter(|&d| self.l.u.symbol(d).name != "<init>")
+            .filter(|&d| !(function && self.l.u.symbol(d).name.starts_with("apply$mc")))
             .collect()
     }
 
