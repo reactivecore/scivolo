@@ -97,7 +97,8 @@ impl Typer<'_> {
                     return self.unsupported(p, "function parameter without a type");
                 };
                 let formal = match self.fully_defined(formal) {
-                    Ok(t) => t,
+                    Ok(t) if !matches!(self.u.types().get(t), Type::Bounds(..)) => t,
+                    Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
                     Err(what) => return self.unsupported(p, what),
                 };
                 self.type_tree(formal, self.ast.span(p).end_pos(), true)

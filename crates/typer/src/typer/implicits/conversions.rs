@@ -5,7 +5,6 @@ use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::TName;
 use tasty::tags::GIVEN;
 use tasty::{Kind, Type, TypeId};
 
@@ -105,10 +104,7 @@ impl Typer<'_> {
         }
         self.complete(c.sym);
         let span = self.tpd.span(tree);
-        let name = self.u.symbol(c.sym).name.clone();
-        let name = TName { name: self.name(&name), is_type: false };
-        let tpe = self.ref_type(c.prefix, c.sym);
-        let fun = self.tpd.node(T::Ident { name }, span.start_pos(), Some(tpe), Some(c.sym));
+        let fun = self.candidate_ref(c, span.start_pos(), ctx)?;
         let fun = self.with_type_vars(fun)?;
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);

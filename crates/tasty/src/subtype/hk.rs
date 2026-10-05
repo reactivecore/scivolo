@@ -20,10 +20,7 @@ impl Cmp<'_> {
     pub fn lift_if_constructors(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
         let combined = match (self.constructor_arity(a), self.constructor_arity(b)) {
             (Some(n), Some(m)) if n == m => n,
-            _ => {
-                let t = if and { Type::And(a, b) } else { Type::Or(a, b) };
-                return self.u.intern_type(t);
-            }
+            _ => return self.balanced(a, b, and),
         };
         let binder = Binder(FileId(LIFTED), a.0.wrapping_mul(0x9e37_79b9) ^ b.0);
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
@@ -33,6 +30,42 @@ impl Cmp<'_> {
         let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
         let result = if and { self.glb(applied_a, applied_b) } else { self.lub(applied_a, applied_b) };
         self.u.intern_type(Type::Lambda { binder, params, result })
+    }
+
+    /// `a & b`, or `a | b` if not `and`, rebalanced if one side has more than one part more
+    /// than the other (dotty's `AndType.balanced`, `OrType.balanced`).
+    fn balanced(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
+        let mut parts = Vec::new();
+        self.flattened(a, and, &mut parts);
+        let left = parts.len();
+        self.flattened(b, and, &mut parts);
+        if left.abs_diff(parts.len() - left) <= 1 {
+            return self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b) });
+        }
+        self.built(&parts, and)
+    }
+
+    fn flattened(&self, t: TypeId, and: bool, out: &mut Vec<TypeId>) {
+        match *self.u.types().get(t) {
+            Type::And(x, y) if and => {
+                self.flattened(x, and, out);
+                self.flattened(y, and, out);
+            }
+            Type::Or(x, y) if !and => {
+                self.flattened(x, and, out);
+                self.flattened(y, and, out);
+            }
+            _ => out.push(t),
+        }
+    }
+
+    fn built(&mut self, parts: &[TypeId], and: bool) -> TypeId {
+        if let [t] = parts {
+            return *t;
+        }
+        let (x, y) = parts.split_at(parts.len() / 2);
+        let (x, y) = (self.built(x, and), self.built(y, and));
+        self.u.intern_type(if and { Type::And(x, y) } else { Type::Or(x, y) })
     }
 
     /// `a <: v[args]` for variable constructor `v` without instance: `v` above the constructor

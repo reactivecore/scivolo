@@ -57,7 +57,17 @@ impl Cmp<'_> {
     /// Whether `t`, widened, is `Nothing` or erroneous.
     pub fn is_bottom(&mut self, t: TypeId) -> bool {
         let t = self.u.widen(t);
-        t == NOTHING || matches!(self.u.types().get(t), Type::Error)
+        let t = match *self.u.types().get(t) {
+            Type::ByName(r) => r,
+            _ => t,
+        };
+        let nothing = Some(self.u.builtins().nothing);
+        match self.u.types().get(t).clone() {
+            Type::Error => true,
+            Type::Sym(_, s) => Some(s) == nothing,
+            Type::TypeRef(p, n) => self.u.resolve(p, &n, true) == nothing,
+            _ => t == NOTHING,
+        }
     }
 
     /// Whether `t` is the type of values or a type lambda: not a method type or bounds.

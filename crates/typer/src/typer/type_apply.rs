@@ -14,6 +14,10 @@ impl Typer<'_> {
         if self.tpd.sym(f).is_some_and(|s| self.u.full_name(s) == "scala.Predef$.classOf") {
             return self.unsupported(id, "classOf");
         }
+        let f = match self.with_apply(f, Pt::PolyFun, ctx) {
+            Ok(f) => f,
+            Err(what) => return self.unsupported(id, what),
+        };
         let arg_ids = self.ast.items(args).to_vec();
         let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
@@ -81,6 +85,9 @@ impl Typer<'_> {
                 Type::Bounds(lo, hi) => (lo, hi),
                 _ => (bounds, bounds),
             };
+            if self.type_arity(arg) != self.type_arity(hi) {
+                return Err("type argument of another kind");
+            }
             if !self.conforms(lo, arg) || !self.conforms(arg, hi) {
                 return Err("type argument outside its bounds");
             }

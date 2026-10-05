@@ -6,6 +6,7 @@ mod builtin;
 mod classes;
 mod define;
 mod enter;
+mod impure_functions;
 mod info;
 mod inits;
 mod jdk;

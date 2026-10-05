@@ -4,6 +4,7 @@ mod access;
 mod adapt;
 mod alternatives;
 mod apply;
+mod avoid;
 mod classes;
 mod closures;
 mod const_fold;
@@ -13,6 +14,7 @@ mod constructors;
 mod control;
 mod defs;
 mod derived;
+mod dispatch;
 mod equality;
 mod find_ref;
 mod idents;
@@ -21,6 +23,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod literals;
+mod matches;
 mod names;
 mod no_inits;
 mod op_assign;
@@ -40,6 +43,7 @@ mod this;
 mod type_apply;
 mod type_defs;
 mod type_trees;
+mod unapply;
 mod variances;
 mod views;
 mod widen_inferred;
@@ -50,7 +54,7 @@ use crate::defn::Defn;
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
-use syntax::ast::{Ast, NodeId, Span, Tree};
+use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::Names;
@@ -152,48 +156,5 @@ impl<'a> Typer<'a> {
         let tree = self.adapt(tree, pt, ctx);
         self.depth -= 1;
         tree
-    }
-
-    fn typed_unadapted(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
-        match self.ast.tree(id).clone() {
-            Tree::Ident { name } => self.typed_ident(id, name, pt, ctx),
-            Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
-            Tree::Apply { fun, args } => self.typed_apply(id, fun, args, pt, ctx),
-            Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, ctx),
-            Tree::Literal { value } => self.typed_literal(id, value),
-            Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
-            Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
-            Tree::This { qual } => self.typed_this(id, qual, ctx),
-            Tree::New { tpt } => self.typed_new(id, tpt, ctx),
-            Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
-            Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
-            Tree::Try { expr, cases, finalizer: None } => self.typed_try(id, expr, cases, pt, ctx),
-            Tree::If { cond, thenp, elsep, inline: false } => self.typed_if(id, cond, thenp, elsep, pt, ctx),
-            Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
-            Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
-            Tree::Return { expr } => self.typed_return(id, expr, ctx),
-            Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
-            Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
-            Tree::Function { args, body, mods: None, .. } => self.typed_function(id, args, body, pt, ctx),
-            Tree::TypeTree
-            | Tree::AppliedTypeTree { .. }
-            | Tree::SingletonTypeTree { .. }
-            | Tree::TypeBoundsTree { .. }
-            | Tree::DerivedTypeTree { .. } => self.typed_type(id, ctx),
-            Tree::ValDef { .. } => self.typed_val_def(id, ctx),
-            Tree::DefDef { .. } => self.typed_def_def(id, ctx),
-            Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
-                self.typed_class_def(id, ctx)
-            }
-            Tree::TypeDef { .. } => self.typed_type_def(id, ctx),
-            Tree::PackageDef { pid, stats } => self.typed_package_def(id, pid, stats, ctx),
-            Tree::Import { selectors, .. } if self.import_levels.contains_key(&id) => {
-                self.typed_import(id, selectors)
-            }
-            t => {
-                let what = format!("{t:?}");
-                self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))
-            }
-        }
     }
 }

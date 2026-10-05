@@ -98,6 +98,7 @@ impl Printer<'_> {
         }
         match tree {
             Tree::ClassLiteral { tpe } => write!(self.out, " :#Class:{}", types::tpe(self.u, tpe)).unwrap(),
+            Tree::Alternative { .. } => {}
             _ => {
                 if let Some(t) = node.tpe {
                     write!(self.out, " :{}", types::tpe(self.u, t)).unwrap();

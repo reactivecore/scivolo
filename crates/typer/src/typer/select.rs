@@ -110,7 +110,7 @@ impl Typer<'_> {
     }
 
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
-        let mut qual = self.typed(qualifier, Pt::Any, ctx);
+        let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(crate::ctx::Mode::NONE));
         let text = self.text(name.name).to_owned();
         let mut converted = false;
         let (qual_tpe, syms) = loop {

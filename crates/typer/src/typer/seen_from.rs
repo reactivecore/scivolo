@@ -62,13 +62,26 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
+    /// `t` without `@uncheckedVariance` annotations (dotty's `TypeOps.simplify` of a term's type).
+    pub fn simplified(&mut self, t: TypeId) -> TypeId {
+        self.u.map_type(t, &mut |u, part| {
+            let Type::Annotated(inner, annot) = *u.types().get(part) else { return None };
+            let class = u.class_symbol(annot);
+            class
+                .is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
+                .then_some(inner)
+        })
+    }
+
     /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
-    /// `appliedTo`), and capture-checking annotations (`retains`) dropped.
+    /// `appliedTo`), and capture-checking annotations (`retains`) dropped; an impure function
+    /// alias only if its arguments have such annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         let retains = |u: &mut tasty::Universe, a| {
             u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
         };
-        self.u.map_type(t, &mut |u, part| {
+        let mut again = false;
+        let out = self.u.map_type(t, &mut |u, part| {
             if let Type::Annotated(inner, a) = *u.types().get(part)
                 && retains(u, a)
             {
@@ -81,6 +94,22 @@ impl Typer<'_> {
                 _ => None,
             };
             let lambda = match alias {
+                Some(s) if u.full_name(s).starts_with("scala.Impure") => {
+                    let mut annotated = false;
+                    for &a in &args {
+                        u.map_type(a, &mut |u, x| {
+                            if let Type::Annotated(_, an) = *u.types().get(x) {
+                                annotated |= retains(u, an);
+                            }
+                            None
+                        });
+                    }
+                    if !annotated {
+                        return None;
+                    }
+                    again = true;
+                    u.info(s)
+                }
                 Some(s) if u.symbol(s).kind == Kind::Type => {
                     let info = u.info(s);
                     match *u.types().get(info) {
@@ -92,8 +121,12 @@ impl Typer<'_> {
                 _ => tycon,
             };
             let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
+            if matches!(u.types().get(result), Type::Match(_)) {
+                return None;
+            }
             let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
             Some(u.subst(result, binder, &names, &args))
-        })
+        });
+        if again { self.normalized(out) } else { out }
     }
 }

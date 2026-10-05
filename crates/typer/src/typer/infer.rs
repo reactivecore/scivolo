@@ -56,7 +56,7 @@ impl Typer<'_> {
     }
 
     /// Instantiates `v` to its lower bound widened (dotty's `widenInferred`), or its upper bound.
-    fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
+    pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
         let (lo, hi) = (self.zonk(lo), self.zonk(hi));
         let mut inst = if from_below { lo } else { hi };
@@ -79,6 +79,18 @@ impl Typer<'_> {
         }
         self.constraint.instantiate(v, inst);
         Ok(())
+    }
+
+    /// Whether `t` has no uninstantiated type variables (dotty's `isFullyDefined` with
+    /// `ForceDegree.none`).
+    pub fn is_fully_defined(&mut self, t: TypeId) -> bool {
+        let t = self.zonk(t);
+        let mut open = false;
+        self.u.map_type(t, &mut |u, part| {
+            open |= matches!(u.types().get(part), Type::Var(_));
+            None
+        });
+        !open
     }
 
     /// `t` with every type variable in it instantiated, from below unless its lower bound is

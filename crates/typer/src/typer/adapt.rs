@@ -3,7 +3,7 @@
 
 use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -62,6 +62,12 @@ impl Typer<'_> {
             return tree;
         }
         let Pt::Type(pt) = pt else { return tree };
+        if ctx.mode.is(Mode::PATTERN) {
+            if let Err(what) = self.check_pattern_equality(tree, pt) {
+                self.unsupported_at(span, what);
+            }
+            return tree;
+        }
         if self.conforms(tpe, pt) {
             return tree;
         }

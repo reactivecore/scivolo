@@ -2,8 +2,9 @@
 //! `orDominator`: a union stays a union).
 
 use super::{Cmp, NoVars};
+use crate::tags::{MUTABLE, STABLE};
 use crate::types::{Type, TypeId};
-use crate::{ANY, NOTHING, Universe};
+use crate::{ANY, Kind, NOTHING, Universe};
 
 impl Universe {
     /// The least upper bound of `a` and `b`: one of them if it contains the other, else their
@@ -33,6 +34,7 @@ impl Cmp<'_> {
         if self.is_stable(b) && self.recur_frozen(b, a) {
             return a;
         }
+        let (a, b) = (self.widen_if_unstable(a), self.widen_if_unstable(b));
         let b_rest = self.drop_if_sub(b, a);
         let a_rest = match b_rest {
             Some(b) => self.drop_if_sub(a, b),
@@ -73,6 +75,23 @@ impl Cmp<'_> {
             }
             (Type::Constant(..) | Type::Str(_), Type::Constant(..) | Type::Str(_)) => NOTHING,
             _ => self.and_type(a, b),
+        }
+    }
+
+    /// `t` widened if it refers to a variable, method or by-name parameter (dotty's
+    /// `widenIfUnstable`).
+    fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
+        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        let (kind, flags, info) = (self.u.symbol(s).kind, self.u.symbol(s).flags, self.u.info(s));
+        let unstable = match kind {
+            Kind::Val => flags.has(MUTABLE),
+            Kind::Def => !flags.has(STABLE),
+            _ => kind == Kind::Param && matches!(self.u.types().get(info), Type::ByName(_)),
+        };
+        let widened = if unstable { self.u.widen(t) } else { return t };
+        match *self.u.types().get(widened) {
+            Type::ByName(r) => r,
+            _ => widened,
         }
     }
 

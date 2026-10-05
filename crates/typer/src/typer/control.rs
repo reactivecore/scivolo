@@ -10,7 +10,7 @@ use syntax::ast::{NodeId, Span, TName};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    fn boolean(&mut self) -> TypeId {
+    pub fn boolean(&mut self) -> TypeId {
         let boolean = self.resolve_full_name("scala.Boolean", true).expect("scala.Boolean");
         type_ref(self.u, boolean)
     }
@@ -67,7 +67,7 @@ impl Typer<'_> {
     }
 
     /// Whether types `a` and `b` are different numeric classes, which dotty's `harmonize` widens.
-    fn needs_harmonizing(&mut self, a: TypeId, b: TypeId) -> bool {
+    pub fn needs_harmonizing(&mut self, a: TypeId, b: TypeId) -> bool {
         let (ca, cb) = (self.value_class(a), self.value_class(b));
         let numeric = |c: &Option<String>| c.as_deref().is_some_and(super::widening::is_numeric);
         numeric(&ca) && numeric(&cb) && ca != cb
@@ -84,6 +84,19 @@ impl Typer<'_> {
 
     /// `x = v` for a variable `x` (dotty's `typedAssign`, without setters and `update`).
     pub fn typed_assign(&mut self, id: NodeId, lhs: NodeId, rhs: NodeId, ctx: Ctx) -> TNodeId {
+        if let syntax::ast::Tree::Apply { fun, args } = *self.ast.tree(lhs) {
+            let name = TName { name: self.name("update"), is_type: false };
+            let select = self.ast.node(syntax::ast::Tree::Select { qualifier: fun, name });
+            let fun_span = self.ast.span(fun);
+            self.ast.with_span(select, Span::synthetic(fun_span.start(), fun_span.end()));
+            let mut items = self.ast.items(args).to_vec();
+            items.push(rhs);
+            let args = self.ast.list(&items);
+            let update = self.ast.node(syntax::ast::Tree::Apply { fun: select, args });
+            let span = Span::synthetic(self.ast.span(lhs).start(), self.ast.span(rhs).end());
+            self.ast.with_span(update, span);
+            return self.typed_apply(update, select, args, Pt::Any, ctx);
+        }
         let lhs = self.typed(lhs, Pt::Any, ctx);
         let var = self.tpd.sym(lhs).filter(|&s| {
             let s = self.u.symbol(s);

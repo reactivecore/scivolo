@@ -19,7 +19,33 @@ impl Typer<'_> {
         if self.features.contains(Features::STRICT_EQUALITY) {
             return Err("comparison under strictEquality");
         }
-        let (a, b) = (self.tpd.tpe(qualifier), arg_tpe);
+        let a = self.tpd.tpe(qualifier);
+        self.check_comparable(a, arg_tpe)
+    }
+
+    /// Checks that a value of type `pt` can be compared with literal or stable identifier
+    /// pattern `pat` (dotty's `checkEqualityEvidence`).
+    pub fn check_pattern_equality(&mut self, pat: TNodeId, pt: TypeId) -> Result<(), &'static str> {
+        let wildcard = matches!(*self.tpd.tree(pat), T::Ident { name } if self.text(name.name) == "_");
+        if !matches!(self.tpd.tree(pat), T::Ident { .. } | T::Select { .. } | T::Literal { .. }) || wildcard {
+            return Ok(());
+        }
+        let path = matches!(self.tpd.tree(pat), T::Ident { .. } | T::Select { .. });
+        let package = self.tpd.sym(pat).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
+        if path && (package || !self.is_stable_path(pat)) {
+            return Err("pattern that is not a stable identifier");
+        }
+        let tpe = self.tpd.tpe(pat);
+        if self.u.is_subtype(pt, tpe) {
+            return Ok(());
+        }
+        if self.features.contains(Features::STRICT_EQUALITY) {
+            return Err("pattern under strictEquality");
+        }
+        self.check_comparable(tpe, pt)
+    }
+
+    fn check_comparable(&mut self, a: TypeId, b: TypeId) -> Result<(), &'static str> {
         let (a, b) = (self.zonk(a), self.zonk(b));
         let (a, b) = (self.u.widen(a), self.u.widen(b));
         let numeric = |t: &mut Self, x| t.value_class(x).is_some_and(|c| is_numeric(&c));

@@ -15,6 +15,16 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new with an unstable prefix");
         }
+        let tycon = match *self.u.types().get(tpe) {
+            Type::Applied(tc, _) => tc,
+            _ => tpe,
+        };
+        if let Type::Sym(_, s) = *self.u.types().get(tycon)
+            && self.u.symbol(s).kind == Kind::Type
+            && !self.u.symbol(s).owner.is_some_and(|o| self.is_static_owner(o))
+        {
+            return self.unsupported(id, "new of a type alias of a non-static owner");
+        }
         let erased = self.resolve_full_name("scala.compiletime.Erased", true);
         if let (Some(c), Some(erased)) = (self.u.class_symbol(tpe), erased)
             && self.u.derives_from(c, erased)
