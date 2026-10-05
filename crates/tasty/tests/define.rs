@@ -53,6 +53,7 @@ fn script_classes_extend_library_classes() {
         params: vec![("x".into(), int_t)],
         result: int_t,
         implicit: false,
+        contextual: false,
     });
     u.set_info(apply, info);
 

@@ -182,11 +182,12 @@ impl<'a> Decoder<'a> {
         let (tag, k) = (self.ast.tag(id), self.ast.kids(id));
         let result = self.ty(k[0]);
         let mut params = Vec::new();
-        let mut implicit = false;
+        let (mut implicit, mut contextual) = (false, false);
         let mut rest = k[1..].iter().copied();
         while let Some(c) = rest.next() {
             match self.ast.tag(c) {
-                IMPLICIT | GIVEN => implicit = true,
+                IMPLICIT => implicit = true,
+                GIVEN => (implicit, contextual) = (true, true),
                 t if is_modifier(t) => {}
                 _ => {
                     let ty = self.ty(c);
@@ -198,7 +199,7 @@ impl<'a> Decoder<'a> {
         let binder = self.binder(id);
         match tag {
             POLYtype => Type::Poly { binder, params, result },
-            METHODtype => Type::Method { binder, params, result, implicit },
+            METHODtype => Type::Method { binder, params, result, implicit, contextual },
             _ => Type::Lambda { binder, params, result },
         }
     }

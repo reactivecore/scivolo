@@ -33,7 +33,7 @@ impl Typer<'_> {
     /// Method type `t` with its repeated parameters typed `<repeated>[T]`, in each clause.
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
-            Type::Method { binder, params, result, implicit } => {
+            Type::Method { binder, params, result, implicit, contextual } => {
                 let params = params
                     .into_iter()
                     .map(|(n, p)| match self.repeated_elem(p) {
@@ -42,7 +42,7 @@ impl Typer<'_> {
                     })
                     .collect();
                 let result = self.with_repeated_class(result);
-                self.u.intern_type(Type::Method { binder, params, result, implicit })
+                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
             Type::Poly { binder, params, result } => {
                 let result = self.with_repeated_class(result);

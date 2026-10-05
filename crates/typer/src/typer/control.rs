@@ -155,6 +155,7 @@ impl Typer<'_> {
             params: vec![("x".into(), throwable)],
             result: nothing,
             implicit: false,
+            contextual: false,
         });
         self.u.set_info(throw, info);
         self.syms.throw_method = Some(throw);

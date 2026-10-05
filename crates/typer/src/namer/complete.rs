@@ -142,10 +142,10 @@ impl Typer<'_> {
                 let result = self.param_refs(result, &clause, binder);
                 self.u.intern_type(Type::Poly { binder, params, result })
             } else {
-                let implicit = clause.first().and_then(|p| self.syms.flags.get(p)).is_some_and(|fl| {
-                    fl.is(syntax::ast::flags::IMPLICIT) || fl.is(syntax::ast::flags::GIVEN)
-                });
-                self.u.intern_type(Type::Method { binder, params, result, implicit })
+                let flags = clause.first().and_then(|p| self.syms.flags.get(p)).copied().unwrap_or_default();
+                let contextual = flags.is(syntax::ast::flags::GIVEN);
+                let implicit = contextual || flags.is(syntax::ast::flags::IMPLICIT);
+                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
         })
     }

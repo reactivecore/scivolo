@@ -40,8 +40,12 @@ impl Universe {
             Type::Refined(p, n, i) => format!("{} {{ {n}: {} }}", self.show(*p), self.show(*i)),
             Type::Rec(_, p) => self.show(*p),
             Type::RecThis(_) => "this".into(),
-            Type::Method { params: ps, result, implicit, .. } => {
-                let using = if *implicit { "using " } else { "" };
+            Type::Method { params: ps, result, implicit, contextual, .. } => {
+                let using = match (*contextual, *implicit) {
+                    (true, _) => "using ",
+                    (false, true) => "implicit ",
+                    _ => "",
+                };
                 format!("({using}{}): {}", params(ps), self.show(*result))
             }
             Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(ps), self.show(*result)),
