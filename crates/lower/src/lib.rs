@@ -49,6 +49,8 @@ pub struct Lower<'a> {
     bridges: FxHashSet<SymbolId>,
     /// The numbers of the names `LambdaLift` made in the unit, by prefix.
     lifted_names: FxHashMap<String, u32>,
+    /// The extension methods entered for the methods of value classes.
+    extensions: FxHashMap<SymbolId, SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -71,6 +73,7 @@ pub fn lower(
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
         lifted_names: FxHashMap::default(),
+        extensions: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

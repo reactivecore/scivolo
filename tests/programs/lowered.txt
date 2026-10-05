@@ -15,3 +15,5 @@ curried
 generics
 lambdas
 specialized
+fib
+interp

@@ -6,7 +6,7 @@ use crate::Lower;
 use crate::definitions::type_ref;
 use crate::symbols::{has, is_class};
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
-use tasty::{Erased, Type, TypeId};
+use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t.asInstanceOf[T]` for the type `T` erasing to `to`.
@@ -47,15 +47,47 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
             matches!(**y, Erased::Class(ref o) if o == "java.lang.Object")
                 && matches!(**x, Erased::Class(_) | Erased::Array(_))
         }
-        (Erased::Class(f), Erased::Class(t)) => {
-            let (f, t) = (l.u.class_ref(f), l.u.class_ref(t));
-            match (l.u.class_symbol(f), l.u.class_symbol(t)) {
-                (Some(f), Some(t)) => l.u.derives_from(f, t),
-                _ => false,
-            }
-        }
+        (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
+            (Some(f), Some(t)) => l.u.derives_from(f, t),
+            _ => false,
+        },
         _ => false,
     }
+}
+
+/// The class of binary name `name`, through the classes and objects it is nested in.
+fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
+    let (pkg, rest) = match name.rsplit_once('.') {
+        Some((pkg, rest)) => (l.u.package(pkg)?, rest),
+        None => (l.u.package("")?, name),
+    };
+    let found = member_named(l, pkg, rest)?;
+    (l.u.binary_name(found) == name).then_some(found)
+}
+
+/// The class of binary name `rest` relative to `owner`: a member class `C`, or a class nested in
+/// member class or object `C` named `C$rest`.
+fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
+    let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
+        let found = l.u.decl(owner, name).unwrap_or_default();
+        found.into_iter().filter(|&s| is_class(l.u, s)).collect()
+    };
+    if let Some(&c) = classes(l, owner, rest).first() {
+        return Some(c);
+    }
+    for (i, _) in rest.match_indices('$').filter(|&(i, _)| i > 0) {
+        for (name, tail) in [(&rest[..i], &rest[i + 1..]), (&rest[..=i], &rest[i + 1..])] {
+            for c in classes(l, owner, name) {
+                if tail.is_empty() {
+                    return Some(c);
+                }
+                if let Some(found) = member_named(l, c, tail) {
+                    return Some(found);
+                }
+            }
+        }
+    }
+    None
 }
 
 /// Whether `t` is a cast `x.asInstanceOf[T]`.

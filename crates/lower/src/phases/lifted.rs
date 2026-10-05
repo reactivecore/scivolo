@@ -27,14 +27,17 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<T
     let mut interfaces = Vec::new();
     let mut deferred = Vec::new();
     for lambda in lambdas {
-        let owner = match lambda.parent {
-            Some(p) => l.u.symbol(lifted[p].0.sym).name.clone(),
-            None => lambda.method.clone(),
+        let prefix = match l.u.symbol(lambda.sym).owner {
+            Some(o) if l.u.symbol(o).kind == Kind::Def => match lambdas.iter().position(|x| x.sym == o) {
+                Some(p) => format!("{}$", l.u.symbol(lifted[p].0.sym).name),
+                None => format!("{}$", l.u.symbol(o).name),
+            },
+            _ => String::new(),
         };
         let params = params(l, lambda.def);
         let info = l.u.info(lambda.sym);
         let Type::Method { result, .. } = *l.u.types().get(info) else { unreachable!("a method type") };
-        let name = fresh(l, &format!("{owner}$$anonfun"));
+        let name = fresh(l, &format!("{prefix}$anonfun"));
         let typed: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, l.u.info(p))).collect();
         let method = define(l, class, &name, &lambda.captured, &typed, result, true);
         let erased: Vec<Erased> = typed.iter().map(|&(_, t)| l.u.erase(t)).collect();
@@ -56,7 +59,7 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<T
             let object = type_ref(l.u, l.defs.object);
             let objects: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, object)).collect();
             let result = if unit { object } else { result };
-            let name = fresh(l, &format!("{owner}$$anonfun$adapted"));
+            let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
             let adapted = define(l, class, &name, &lambda.captured, &objects, result, false);
             l.bridges.insert(adapted.sym);
             deferred.extend(adapted.proxies.iter().copied());

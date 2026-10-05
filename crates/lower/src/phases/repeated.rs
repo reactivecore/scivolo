@@ -45,11 +45,18 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
         return Ok(a);
     }
     let span = l.tpd.span(a);
-    let Tree::SeqLiteral { elemtpt, .. } = *l.tpd.tree(seq) else {
-        return unsupported(span, "sequences passed as repeated arguments");
-    };
     let Some((method, clause)) = callee(l, app) else {
         return unsupported(span, "repeated arguments of a call without a method symbol");
+    };
+    let Tree::SeqLiteral { elemtpt, .. } = *l.tpd.tree(seq) else {
+        let tpe = l.u.widen(l.tpd.tpe(seq));
+        if java_varargs(l, method, clause, i).is_some() || is_class(l, tpe, "scala.Array") {
+            return unsupported(
+                span,
+                "sequences passed to Java varargs and arrays passed as repeated arguments",
+            );
+        }
+        return Ok(seq);
     };
     let elem = l.tpd.tpe(elemtpt);
     let array = l.u.class_ref("scala.Array");

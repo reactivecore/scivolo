@@ -112,7 +112,7 @@ impl Universe {
 
     /// The underlying value of value class `c` (a class, not a trait, extending `AnyVal`): its
     /// class parameter, unless that has type `c` itself.
-    fn underlying(&mut self, c: SymbolId) -> Option<SymbolId> {
+    pub fn underlying(&mut self, c: SymbolId) -> Option<SymbolId> {
         if self.symbol(c).flags.has(TRAIT) {
             return None;
         }
