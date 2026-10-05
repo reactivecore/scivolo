@@ -1,7 +1,7 @@
 //! What the lowering can call: the methods it refuses to call yet.
 
 use super::Gen;
-use crate::symbols::{has, has_by_name_params, is_extern};
+use crate::symbols::{has, is_extern};
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -30,9 +30,6 @@ impl Gen<'_, '_> {
         }
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");
-        }
-        if has_by_name_params(self.l.u, sym) {
-            return unsupported(span, "by-name parameters");
         }
         Ok(())
     }

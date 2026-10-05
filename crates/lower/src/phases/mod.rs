@@ -4,11 +4,13 @@ pub(crate) mod adapt;
 mod adapted;
 mod bridges;
 mod build;
+mod by_name;
 pub(crate) mod casts;
 mod constructors;
 mod erasure;
 mod first_transform;
 mod getters;
+mod interpolators;
 mod lambda_lift;
 mod lifted;
 mod memoize;
@@ -17,6 +19,7 @@ mod mixin;
 mod repeated;
 mod specialize;
 mod synthetic;
+mod value_classes;
 pub(crate) mod walk;
 
 use crate::{Lower, Result};
@@ -35,8 +38,13 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         getters::setter_calls(l, td)?;
     }
+    for &td in &classes {
+        interpolators::transform(l, td);
+        by_name::transform(l, td)?;
+    }
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {
+        value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;

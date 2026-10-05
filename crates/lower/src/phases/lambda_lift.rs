@@ -10,15 +10,13 @@ use tasty::tags::{FIELDaccessor, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-/// A lambda: its block and `$anonfun` definition, the lambda it is in, the name of the method
-/// it is in, the values it captures.
+/// A lambda: its block and `$anonfun` definition, the lambda it is in, the values it captures.
 pub struct Lambda {
     pub block: TNodeId,
     pub def: TNodeId,
     pub closure: TNodeId,
     pub sym: SymbolId,
     pub parent: Option<usize>,
-    pub method: String,
     pub captured: Vec<SymbolId>,
 }
 
@@ -67,13 +65,11 @@ fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
     let mut stats = l.tpd.items(body).to_vec();
     let mut lambdas = Vec::new();
     for &stat in &stats {
-        let method = match (l.tpd.tree(stat), l.tpd.sym(stat)) {
-            (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor) => l.u.symbol(s).name.clone(),
-            _ => String::new(),
-        };
+        let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
+            (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor));
         let first = lambdas.len();
-        collect(l, stat, None, &method, &mut lambdas);
-        if method.is_empty() && lambdas.len() > first {
+        collect(l, stat, None, &mut lambdas);
+        if !method && lambdas.len() > first {
             return unsupported(l.tpd.span(lambdas[first].block), "lambdas outside methods");
         }
     }
@@ -91,12 +87,12 @@ fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
 }
 
 /// The lambdas under `t` in pre-order, `parent` the one they are in.
-fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, method: &str, out: &mut Vec<Lambda>) {
+fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Lambda>) {
     if let Some((def, closure, sym)) = lambda(l, t) {
-        out.push(Lambda { block: t, def, closure, sym, parent, method: method.into(), captured: Vec::new() });
+        out.push(Lambda { block: t, def, closure, sym, parent, captured: Vec::new() });
         let index = out.len() - 1;
         if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) {
-            collect(l, rhs, Some(index), method, out);
+            collect(l, rhs, Some(index), out);
         }
         return;
     }
@@ -104,7 +100,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, method: &str, out: &mut
         return;
     }
     for c in children(l.tpd, t) {
-        collect(l, c, parent, method, out);
+        collect(l, c, parent, out);
     }
 }
 
