@@ -64,6 +64,13 @@ impl Typer<'_> {
             if fresh {
                 let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
                 let vars: Vec<TypeId> = params.iter().map(|_| self.constraint.fresh(self.u)).collect();
+                for (&(_, bounds), &v) in params.iter().zip(&vars) {
+                    let bounds = self.instantiate_poly(bounds, binder, &names, &vars, Some(c.sym));
+                    if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
+                        self.conforms(lo, v);
+                        self.conforms(v, hi);
+                    }
+                }
                 info = self.instantiate_poly(result, binder, &names, &vars, Some(c.sym));
             }
         }

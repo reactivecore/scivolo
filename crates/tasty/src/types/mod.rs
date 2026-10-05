@@ -73,7 +73,8 @@ pub enum Type {
     Param(Binder, u32),
     /// A match type, by its upper bound.
     Match(TypeId),
-    /// A constant's tag and bits; strings are `Str`.
+    /// A constant's tag and bits; strings are `Str`, and a `CLASSconst`'s bits are the id of its
+    /// class type.
     Constant(u8, i64),
     /// A string constant.
     Str(String),

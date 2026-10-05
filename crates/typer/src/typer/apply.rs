@@ -82,7 +82,10 @@ impl Typer<'_> {
         for (i, &a) in arg_ids.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
-                Some(typed) => self.adapt(typed[i], Pt::Type(formal), ctx),
+                Some(typed) => {
+                    let arg = self.to_sam(typed[i], formal).unwrap_or(typed[i]);
+                    self.adapt(arg, Pt::Type(formal), ctx)
+                }
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }

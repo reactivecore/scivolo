@@ -1,35 +1,14 @@
-//! `try` with cases, and typed patterns, binds, wildcards (dotty's `typedTry`, `typedTyped`,
-//! `typedBind`).
+//! Typed patterns, binds, variables and wildcards (dotty's `typedTyped`, `typedBind`).
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{List, NodeId, TName, Tree};
+use syntax::ast::{NodeId, TName, Tree};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    pub fn typed_try(&mut self, id: NodeId, expr: NodeId, cases: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let expr = self.typed(expr, pt, ctx);
-        let throwable = crate::defn::type_ref(self.u, self.defn.throwable);
-        let case_ids = self.ast.items(cases).to_vec();
-        let typed_cases: Vec<TNodeId> =
-            case_ids.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)).collect();
-        let mut types = vec![self.tpd.tpe(expr)];
-        for &c in &typed_cases {
-            let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
-            types.push(self.tpd.tpe(body));
-        }
-        let first = types[0];
-        if types.iter().any(|&t| !(self.u.is_subtype(t, first) && self.u.is_subtype(first, t))) {
-            return self.unsupported(id, "least upper bound");
-        }
-        let cases = self.tpd.list(&typed_cases);
-        let span = self.ast.span(id);
-        self.tpd.node(T::Try { expr, cases, finalizer: None }, span, Some(types[0]), None)
-    }
-
     pub fn typed_typed(&mut self, id: NodeId, expr: NodeId, tpt: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         if ctx.mode.is(Mode::PATTERN)
             && let Tree::Ident { name } = *self.ast.tree(expr)
@@ -83,6 +62,11 @@ impl Typer<'_> {
 
     /// Whether `t` is a class type, possibly applied, without wildcard arguments.
     pub fn is_checkable_class_type(&mut self, t: TypeId) -> bool {
+        self.is_class_type(t, false)
+    }
+
+    /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
+    pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
         let mut t = self.u.dealias(t);
         for _ in 0..8 {
             let Type::Sym(_, s) = *self.u.types().get(t) else { break };
@@ -104,7 +88,7 @@ impl Typer<'_> {
             _ => None,
         };
         let class = sym.is_some_and(|s| self.u.symbol(s).kind == Kind::Class);
-        class && args.iter().all(|&a| !matches!(self.u.types().get(a), Type::Bounds(..)))
+        class && (wildcards || args.iter().all(|&a| !matches!(self.u.types().get(a), Type::Bounds(..))))
     }
 
     /// Whether identifier `id` named `text` is a variable pattern: a lower-case name, not

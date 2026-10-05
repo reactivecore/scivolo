@@ -141,6 +141,9 @@ impl Printer<'_> {
                 }
             }
             Type::Match(bound) => format!("(<match> <: {})", self.tpe(bound, n)),
+            Type::Constant(tasty::tags::CLASSconst, bits) => {
+                format!("#Class:{}", self.tpe(TypeId(bits as u32), n))
+            }
             Type::Constant(tag, bits) => constant(tag, bits),
             Type::Str(s) => format!("#String:{}", quote(&s.encode_utf16().collect::<Vec<_>>())),
             Type::Var(v) => format!("?tv{}", v.0),

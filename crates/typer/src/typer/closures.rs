@@ -1,6 +1,6 @@
-//! Function values `(x: T) => e` and function types `A => B` (dotty's `typedFunctionValue`,
-//! `typedFunctionType`): a closure is an anonymous method and a `Closure` of it in a block,
-//! its parameter types from the declarations or the expected function type.
+//! Function values `(x: T) => e` (dotty's `typedFunctionValue`): a closure is an anonymous
+//! method and a `Closure` of it in a block, its parameter types from the declarations or the
+//! expected function or single abstract method type.
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
@@ -10,67 +10,20 @@ use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    /// The class `scala.FunctionN` of `n` parameters.
-    fn function_class(&mut self, n: usize) -> Option<TypeId> {
-        let c = self.resolve_full_name(&format!("scala.Function{n}"), true)?;
-        Some(crate::defn::type_ref(self.u, c))
-    }
-
-    /// The parameter and result types of `t` if it is a `FunctionN` of `n` parameters.
-    fn function_parts(&mut self, t: TypeId, n: usize) -> Option<(Vec<TypeId>, TypeId)> {
-        let t = self.zonk(t);
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
-        (self.u.full_name(class) == format!("scala.Function{n}") && args.len() == n + 1)
-            .then(|| (args[..n].to_vec(), args[n]))
-    }
-
-    /// Type `t` as dotty's messages show it: function types as `(A, B) => R`.
-    pub fn show_type(&mut self, t: TypeId) -> String {
-        let t = self.zonk(t);
-        if let Type::Applied(tycon, args) = self.u.types().get(t).clone()
-            && let Some(class) = self.u.class_symbol(tycon)
-            && self.u.full_name(class) == format!("scala.Function{}", args.len() - 1)
-        {
-            let (params, result) = args.split_at(args.len() - 1);
-            let params: Vec<String> = params.iter().map(|&p| self.show_type(p)).collect();
-            let result = self.show_type(result[0]);
-            return match params.as_slice() {
-                [p] if !p.contains("=>") => format!("{p} => {result}"),
-                _ => format!("({}) => {result}", params.join(", ")),
-            };
-        }
-        self.u.show(t)
-    }
-
-    /// Function type `(args) => body` as `FunctionN[args, body]`.
-    pub fn typed_function_type(&mut self, id: NodeId, args: List, body: NodeId, ctx: Ctx) -> TNodeId {
-        let arg_ids = self.ast.items(args).to_vec();
-        let Some(class) = self.function_class(arg_ids.len()) else {
-            return self.unsupported(id, "function type of that many parameters");
-        };
-        let mut typed: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
-        typed.push(self.typed_type(body, ctx));
-        if typed.iter().any(|&t| matches!(self.tpd.tree(t), T::ByNameTypeTree { .. })) {
-            return self.unsupported(id, "by-name function parameter");
-        }
-        let span = self.ast.span(id);
-        let first = arg_ids.first().copied().unwrap_or(body);
-        let tycon = self.type_tree(class, self.ast.span(first).start_pos(), false);
-        let arg_types: Vec<TypeId> = typed.iter().map(|&t| self.tpd.tpe(t)).collect();
-        let tpe = self.u.intern_type(Type::Applied(class, arg_types));
-        let args = self.tpd.list(&typed);
-        self.tpd.node(T::AppliedTypeTree { tpt: tycon, args }, span, Some(tpe), None)
-    }
-
     /// Function value `(params) => body` against the expected type `pt`.
     pub fn typed_function(&mut self, id: NodeId, args: List, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let params = self.ast.items(args).to_vec();
         let n = params.len();
-        let expected = match pt {
-            Pt::Type(p) => self.function_parts(p, n),
-            _ => None,
+        let (expected, sam) = match pt {
+            Pt::Type(p) => match self.function_parts(p, n) {
+                Some(parts) => (Some(parts), None),
+                None => match self.sam_parts(p, n) {
+                    Ok(Some(s)) => (Some((s.params, s.result)), Some(s.parent)),
+                    Ok(None) => (None, None),
+                    Err(what) => return self.unsupported(id, what),
+                },
+            },
+            _ => (None, None),
         };
         let Some(class) = self.function_class(n) else {
             return self.unsupported(id, "function of that many parameters");
@@ -159,19 +112,37 @@ impl Typer<'_> {
         let mut fun_args = param_types;
         fun_args.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
-        self.closure_tree(id, anonfun, &param_trees, result, body, fun_tpe)
+        self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
+    }
+
+    /// Function value `tree` typed as single abstract method type `pt` if it does not conform but
+    /// fits the method (dotty's `toSAM`).
+    pub fn to_sam(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
+        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return None };
+        let T::Closure { env, meth, tpt: None } = *self.tpd.tree(expr) else { return None };
+        let tpe = self.tpd.tpe(tree);
+        if self.u.is_subtype(tpe, pt) {
+            return None;
+        }
+        let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
+        let parent = self.sam_parts(pt, n).ok()??.parent;
+        let span = self.tpd.span(expr);
+        let tpt = Some(self.type_tree(parent, span.start_pos(), false));
+        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);
+        let span = self.tpd.span(tree);
+        Some(self.tpd.node(T::Block { stats, expr: closure }, span, Some(parent), None))
     }
 
     /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span
-    /// of function `id`.
+    /// of function `id`, the closure given that type if `sam`.
     fn closure_tree(
         &mut self,
         id: NodeId,
         anonfun: tasty::SymbolId,
         params: &[TNodeId],
-        result: TypeId,
-        body: TNodeId,
+        (result, body): (TypeId, TNodeId),
         fun_tpe: TypeId,
+        sam: bool,
     ) -> TNodeId {
         let span = self.ast.span(id);
         let result_at = match params.last() {
@@ -187,7 +158,8 @@ impl Typer<'_> {
         let meth_tpe = self.u.intern_type(Type::Sym(None, anonfun));
         let meth = self.tpd.node(T::Ident { name }, span.start_pos(), Some(meth_tpe), Some(anonfun));
         let env = self.tpd.list(&[]);
-        let closure = self.tpd.node(T::Closure { env, meth, tpt: None }, span, Some(fun_tpe), None);
+        let tpt = sam.then(|| self.type_tree(fun_tpe, span.start_pos(), false));
+        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(fun_tpe), None);
         let stats = self.tpd.list(&[def]);
         self.tpd.node(T::Block { stats, expr: closure }, span.to_synthetic(), Some(fun_tpe), None)
     }

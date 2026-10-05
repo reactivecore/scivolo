@@ -1,12 +1,11 @@
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
-//! `isApplicableMethodRef`, `compare`), with the numeric widenings of the value classes as the
-//! only implicit conversions; where another conversion could decide, outside the subset.
+//! `compare`): those applicable without implicit conversions, else those applicable with.
 
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 
 /// What the context expects of a tree (dotty's prototypes).
 #[derive(Clone, Copy, Debug)]
@@ -28,59 +27,14 @@ pub struct FunProto {
 }
 
 impl Typer<'_> {
-    /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx` (dotty's
-    /// `isCompatible`): `Some` if decided, `None` if an implicit conversion might decide it.
-    fn compatible(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
-        if self.u.is_subtype(arg, param) {
-            return Some(true);
-        }
-        if let (Some(a), Some(p)) = (self.value_class(arg), self.value_class(param))
-            && super::widening::widens(&a, &p)
-        {
-            return Some(true);
-        }
-        (!self.view_may_exist(arg, param, ctx)).then_some(false)
-    }
-
-    /// Whether arguments of types `args` fit the first parameter clause of `alt` seen from
-    /// `prefix` in `ctx`: `None` if undecided.
-    fn applicable(
-        &mut self,
-        alt: SymbolId,
-        prefix: Option<TypeId>,
-        args: &[TypeId],
-        ctx: Ctx,
-    ) -> Option<bool> {
-        let (mut params, repeated) = self.param_types(alt, prefix)?;
-        let elem = repeated.then(|| params.pop()).flatten();
-        let fits = if elem.is_some() { args.len() >= params.len() } else { args.len() == params.len() };
-        if !fits {
-            return Some(false);
-        }
-        let mut all = true;
-        for (i, &a) in args.iter().enumerate() {
-            let p = params.get(i).copied().or(elem)?;
-            all &= self.compatible(a, p, ctx)?;
-        }
-        Some(all)
-    }
-
-    /// The parameter types of the first clause of `alt` seen from `prefix`, a repeated one as its
-    /// element type, and whether the last is repeated.
-    fn param_types(&mut self, alt: SymbolId, prefix: Option<TypeId>) -> Option<(Vec<TypeId>, bool)> {
-        let tpe = self.u.intern_type(Type::Sym(prefix, alt));
-        let info = self.method_info(tpe)?;
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
-        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-        let elem = types.last().and_then(|&p| self.repeated_elem(p));
-        if let Some(e) = elem {
-            *types.last_mut().expect("a parameter") = e;
-        }
-        Some((types, elem.is_some()))
-    }
-
     /// dotty's `compare`: 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
-    fn compare_alts(&mut self, a: SymbolId, b: SymbolId, prefix: Option<TypeId>, ctx: Ctx) -> Option<i32> {
+    fn compare_alts(
+        &mut self,
+        (a, b): (SymbolId, SymbolId),
+        prefix: Option<TypeId>,
+        views: bool,
+        ctx: Ctx,
+    ) -> Option<i32> {
         let (oa, ob) = (self.u.symbol(a).owner?, self.u.symbol(b).owner?);
         let owner_score = if oa == ob {
             0
@@ -91,10 +45,10 @@ impl Typer<'_> {
         } else {
             0
         };
-        let (pa, va) = self.param_types(a, prefix)?;
-        let (pb, vb) = self.param_types(b, prefix)?;
-        let wins_a = (!va || vb) && self.applicable(b, prefix, &pa, ctx)?;
-        let wins_b = (!vb || va) && self.applicable(a, prefix, &pb, ctx)?;
+        let (pa, va) = self.param_types(a, prefix, false)?;
+        let (pb, vb) = self.param_types(b, prefix, false)?;
+        let wins_a = (!va || vb) && self.applicable(b, prefix, &pa, views, ctx)?;
+        let wins_b = (!vb || va) && self.applicable(a, prefix, &pb, views, ctx)?;
         Some(match owner_score {
             1 => i32::from(wins_a || !wins_b),
             -1 => -i32::from(wins_b || !wins_a),
@@ -111,33 +65,36 @@ impl Typer<'_> {
     ) -> Result<SymbolId, &'static str> {
         let args = self.pretyped_args(proto);
         let ctx = self.protos[proto].ctx;
-        let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let arg_types: Vec<TypeId> = arg_types.into_iter().map(|t| self.zonk(t)).collect();
+        let mut arg_types = Vec::new();
+        for &a in &args {
+            let t = self.tpd.tpe(a);
+            arg_types.push(self.zonk(t));
+        }
         let mut applicable = Vec::new();
-        for &alt in alts {
-            match self.applicable(alt, prefix, &arg_types, ctx) {
-                Some(true) => applicable.push(alt),
-                Some(false) => {}
-                None => return Err("overload resolution with implicit conversions"),
+        let mut views = false;
+        for phase in [false, true] {
+            views = phase;
+            for &alt in alts {
+                match self.applicable(alt, prefix, &arg_types, views, ctx) {
+                    Some(true) => applicable.push(alt),
+                    Some(false) => {}
+                    None => return Err("overload resolution with implicit conversions"),
+                }
+            }
+            if !applicable.is_empty() {
+                break;
             }
         }
         let Some((&first, rest)) = applicable.split_first() else { return Err("no applicable alternative") };
+        let undecided = "overload resolution with implicit conversions";
         let mut best = first;
         for &alt in rest {
-            if self
-                .compare_alts(alt, best, prefix, ctx)
-                .ok_or("overload resolution with implicit conversions")?
-                > 0
-            {
+            if self.compare_alts((alt, best), prefix, views, ctx).ok_or(undecided)? > 0 {
                 best = alt;
             }
         }
         for &alt in applicable.iter().filter(|&&a| a != best) {
-            if self
-                .compare_alts(best, alt, prefix, ctx)
-                .ok_or("overload resolution with implicit conversions")?
-                <= 0
-            {
+            if self.compare_alts((best, alt), prefix, views, ctx).ok_or(undecided)? <= 0 {
                 return Err("ambiguous overload");
             }
         }
