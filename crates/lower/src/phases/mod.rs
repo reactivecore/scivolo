@@ -39,8 +39,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         getters::setter_calls(l, td)?;
     }
     for &td in &classes {
-        interpolators::transform(l, td);
-        by_name::transform(l, td)?;
+        interpolators::transform(l, td)?;
+        by_name::transform(l, td);
     }
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {

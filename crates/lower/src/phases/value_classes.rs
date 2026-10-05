@@ -39,7 +39,16 @@ fn rewire(l: &mut Lower, t: TNodeId) -> Result<()> {
         }
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(()) };
-    let Some(m) = l.tpd.sym(fun).filter(|&m| has_extension(l, m)) else { return Ok(()) };
+    let Some(m) = l.tpd.sym(fun) else { return Ok(()) };
+    if !has_extension(l, m) {
+        let receiver = l.u.widen(l.tpd.tpe(qualifier));
+        let value_class =
+            l.u.class_symbol(receiver).is_some_and(|c| !is_trait(l.u, c) && l.u.underlying(c).is_some());
+        if value_class {
+            return unsupported(l.tpd.span(t), "members value classes inherit");
+        }
+        return Ok(());
+    }
     let span = from_start(l.tpd.span(t));
     let Some(extension) = extension(l, m) else {
         return unsupported(span, "methods of generic value classes or with type parameters");
@@ -51,10 +60,12 @@ fn rewire(l: &mut Lower, t: TNodeId) -> Result<()> {
     let info = l.u.info(extension);
     let mut tpe = l.u.result_type(info);
     call = l.apply(call, &[qualifier], tpe, span);
+    let call_span = if argss.is_empty() { span } else { l.tpd.span(t) };
     for args in argss.into_iter().rev() {
         tpe = l.u.result_type(tpe);
-        call = l.apply(call, &args, tpe, span);
+        call = l.apply(call, &args, tpe, call_span);
     }
+    l.tpd.get_mut(call).span = call_span;
     let tpt = l.type_tree(tpe, span);
     let node = l.tpd.get_mut(t);
     (node.tree, node.tpe, node.sym) = (Tree::Typed { expr: call, tpt }, Some(tpe), None);
@@ -76,7 +87,8 @@ fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
 }
 
 /// The extension method `m$extension` of method `m` of a value class, in the companion object's
-/// class: of type `($this: C)` then `m`'s; entered if missing. `None` for a generic class or method.
+/// class: of type `($this: C)` then `m`'s; entered once per method, so overloads get their own.
+/// `None` for a generic class or method.
 fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let class = l.u.symbol(m).owner?;
     if !l.u.type_params(class).is_empty() {
@@ -88,11 +100,12 @@ fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     }
     let module = companion(l, class)?;
     let module_class = l.u.module_class(module)?;
-    let name = format!("{}$extension", l.u.symbol(m).name);
-    if let Some(&found) = l.u.decl(module_class, &name).ok()?.first() {
+    if let Some(&found) = l.extensions.get(&m) {
         return Some(found);
     }
+    let name = format!("{}$extension", l.u.symbol(m).name);
     let sym = l.u.define(symbol(&name, Kind::Def, module_class, Flags::default().with(FINAL)));
+    l.extensions.insert(m, sym);
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();
     let params = vec![("$this".to_owned(), this)];

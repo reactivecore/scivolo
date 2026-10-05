@@ -3,17 +3,30 @@
 //! parts of `s` with their escapes processed.
 
 use super::walk::children;
-use crate::Lower;
+use crate::{Lower, Result, unsupported};
 use syntax::ast::constant::Constant;
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// Rewrites the interpolations in class definition `td`.
-pub fn transform(l: &mut Lower, td: TNodeId) {
+/// Rewrites the interpolations in class definition `td`; fails for one that is not `s` or `raw`
+/// of literal parts with valid escapes.
+pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut todo = vec![td];
     while let Some(t) = todo.pop() {
-        if let Some((parts, args, raw)) = interpolation(l, t)
-            && let Some(parts) = parts.iter().map(|&p| part(l, p, raw)).collect::<Option<Vec<_>>>()
-        {
+        if let Some(raw) = interpolator(l, t) {
+            let span = l.tpd.span(t);
+            let literals = |l: &Lower, parts: &[TNodeId]| {
+                parts.iter().all(|&p| matches!(l.tpd.tree(p), Tree::Literal { value: Constant::String(_) }))
+            };
+            let Some((parts, args)) = interpolation(l, t).filter(|(parts, _)| literals(l, parts)) else {
+                return unsupported(span, "interpolations of parts that are not literals");
+            };
+            let Some(texts) = parts.iter().map(|&p| text(l, p, raw)).collect::<Option<Vec<_>>>() else {
+                return unsupported(span, "interpolations with invalid escapes");
+            };
+            for (&p, text) in parts.iter().zip(texts) {
+                l.tpd.get_mut(p).tree = Tree::Literal { value: Constant::String(text.into()) };
+            }
             let concat = concat(l, &parts, &args);
             let (tree, span, tpe) = (l.tpd.tree(concat).clone(), l.tpd.span(concat), l.tpd.tpe(concat));
             let node = l.tpd.get_mut(t);
@@ -24,22 +37,27 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             todo.extend(children(l.tpd, t));
         }
     }
+    Ok(())
 }
 
-/// The parts and arguments of `StringContext(parts*).s(args*)` or `.raw(args*)` at `t`, and
-/// whether it is `raw`.
-fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId>, bool)> {
-    let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
-    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
+/// Whether `t` is a call of `StringContext`'s `raw`, `Some(false)` for its `s`.
+fn interpolator(l: &Lower, t: TNodeId) -> Option<bool> {
+    let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { return None };
     let method = l.u.symbol(l.tpd.sym(fun)?);
-    let raw = match method.name.as_str() {
-        "s" => false,
-        "raw" => true,
-        _ => return None,
-    };
     if method.owner.map(|o| l.u.full_name(o)).as_deref() != Some("scala.StringContext") {
         return None;
     }
+    match method.name.as_str() {
+        "s" => Some(false),
+        "raw" => Some(true),
+        _ => None,
+    }
+}
+
+/// The parts and arguments of interpolation `StringContext(parts*).s(args*)` at `t`.
+fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId>)> {
+    let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
     let Tree::Apply { fun: apply, args: parts } = *l.tpd.tree(qualifier) else { return None };
     let apply = l.u.symbol(l.tpd.sym(apply)?);
     if apply.name != "apply"
@@ -48,7 +66,7 @@ fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId>, b
         return None;
     }
     let (parts, args) = (sequence(l, parts)?, sequence(l, args)?);
-    (parts.len() == args.len() + 1).then_some((parts, args, raw))
+    (parts.len() == args.len() + 1).then_some((parts, args))
 }
 
 /// The elements of the single `seq: _*` argument in `args`.
@@ -62,16 +80,11 @@ fn sequence(l: &Lower, args: typer::tpd::List) -> Option<Vec<TNodeId>> {
     Some(l.tpd.items(elems).to_vec())
 }
 
-/// Part `p` with its escapes processed unless `raw`; `None` unless a string literal with valid
-/// escapes.
-fn part(l: &mut Lower, p: TNodeId, raw: bool) -> Option<TNodeId> {
+/// The text of part `p`, its escapes processed unless `raw`; `None` unless a string literal with
+/// valid escapes.
+fn text(l: &Lower, p: TNodeId, raw: bool) -> Option<Vec<u16>> {
     let Tree::Literal { value: Constant::String(s) } = l.tpd.tree(p) else { return None };
-    if raw {
-        return Some(p);
-    }
-    let processed = process_escapes(s)?;
-    l.tpd.get_mut(p).tree = Tree::Literal { value: Constant::String(processed.into()) };
-    Some(p)
+    if raw { Some(s.to_vec()) } else { process_escapes(s) }
 }
 
 /// `s` with its escapes replaced (`StringContext.processEscapes`): `\b \t \n \f \r \" \' \\` and
@@ -99,6 +112,9 @@ fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
                     j += 1;
                 }
                 let hex = String::from_utf16(s.get(j..j + 4)?).ok()?;
+                if !hex.chars().all(|c| c.is_ascii_hexdigit()) {
+                    return None;
+                }
                 let code = u16::from_str_radix(&hex, 16).ok()?;
                 out.push(code);
                 i = j + 4;
@@ -116,7 +132,7 @@ fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
 /// of what it appends.
 fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
     let plus = l.u.decl(l.defs.strings.string, "+").unwrap_or_default()[0];
-    let tpe = l.tpd.tpe(parts[0]);
+    let tpe = l.u.class_ref("java.lang.String");
     let mut result = parts[0];
     for (&arg, &part) in args.iter().zip(&parts[1..]) {
         result = append(l, result, plus, arg, tpe);
@@ -129,13 +145,7 @@ fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
 }
 
 /// `left + right` at the span of `right`.
-fn append(
-    l: &mut Lower,
-    left: TNodeId,
-    plus: tasty::SymbolId,
-    right: TNodeId,
-    tpe: tasty::TypeId,
-) -> TNodeId {
+fn append(l: &mut Lower, left: TNodeId, plus: SymbolId, right: TNodeId, tpe: TypeId) -> TNodeId {
     let span = l.tpd.span(right);
     let fun = l.select(left, plus, span);
     l.apply(fun, &[right], tpe, span)

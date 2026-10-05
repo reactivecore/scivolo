@@ -8,6 +8,11 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     ("object O { lazy val x = \"a\" }", "lazy values"),
+    (
+        "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
+        "interpolations of parts that are not literals",
+    ),
+    ("object O { def f() = 3.compare(4) }", "members value classes inherit"),
     ("object O { val f: String => String = s => s }", "lambdas outside methods"),
     ("object O { def g(s: String) = s; def f(): String => String = x => this.g(x) }", "lambdas using `this`"),
     ("class C(p: String) { def f(): String => String = s => s + p }", "lambdas using `this` of a class"),

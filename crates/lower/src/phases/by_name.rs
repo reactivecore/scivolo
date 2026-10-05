@@ -3,17 +3,16 @@
 //! definition the call is in.
 
 use super::walk::children;
+use crate::Lower;
 use crate::definitions::symbol;
-use crate::{Lower, Result};
 use tasty::tags::{ARTIFACT, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Wraps the arguments to by-name parameters in class definition `td` in closures.
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+pub fn transform(l: &mut Lower, td: TNodeId) {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     walk(l, td, class, td);
-    Ok(())
 }
 
 /// Wraps the by-name arguments under `t`, `owner` the definition `t` is in.

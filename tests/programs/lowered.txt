@@ -16,3 +16,4 @@ generics
 lambdas
 specialized
 fib
+interp
