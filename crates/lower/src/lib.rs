@@ -45,7 +45,7 @@ pub struct Lower<'a> {
     defs: Definitions,
     /// The fields `Memoize` made, each with its getter.
     fields: FxHashMap<SymbolId, SymbolId>,
-    /// The bridges `Bridges` made.
+    /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
 }
 

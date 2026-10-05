@@ -62,11 +62,16 @@ fn programs_lower_as_scala_native_compiles_them() {
     }
 }
 
-/// The first line where `ours` and `theirs` differ, with the definition's first line.
+/// The first line where `ours` and `theirs` differ, with the definition's first line, then both
+/// definitions.
 fn first_difference(ours: &str, theirs: &str) -> String {
     let header = ours.lines().next().unwrap_or_default();
     let (a, b): (Vec<&str>, Vec<&str>) = (ours.lines().collect(), theirs.lines().collect());
     let i = a.iter().zip(&b).position(|(x, y)| x != y).unwrap_or(a.len().min(b.len()));
     let line = |v: &[&str]| v.get(i).copied().unwrap_or("<end>").to_owned();
-    format!("{header}\nline {i}:\n  ours:   {}\n  theirs: {}", line(&a), line(&b))
+    format!(
+        "{header}\nline {i}:\n  ours:   {}\n  theirs: {}\n\nours:\n{ours}\ntheirs:\n{theirs}",
+        line(&a),
+        line(&b)
+    )
 }

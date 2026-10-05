@@ -2,9 +2,11 @@
 //! `NirDefinitions`).
 
 mod equality;
+mod procedures;
 mod strings;
 
 pub use equality::Equality;
+pub use procedures::procedure;
 pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
