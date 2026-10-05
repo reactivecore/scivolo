@@ -20,3 +20,4 @@ interp
 capture
 cpu
 loops
+arrays

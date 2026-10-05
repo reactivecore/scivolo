@@ -4,7 +4,7 @@
 use super::Gen;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
-use typer::tpd::{List, TNodeId};
+use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
     /// Array literal `t` with elements `elems`: allocated from an array value if all elements are
@@ -42,6 +42,56 @@ impl Gen<'_, '_> {
         }
         self.m.pos = saved;
         Ok(arr)
+    }
+
+    /// Call `app` of `fun` with `args` if it is `apply`, `update` or `length` of an array, or
+    /// `new Array[T](n)` (nscplugin's `genArrayOp`, `newArrayMethod`); `None` for another call.
+    pub fn gen_array_op(&mut self, app: TNodeId, fun: TNodeId, args: &[TNodeId]) -> Result<Option<ValId>> {
+        let span = self.l.tpd.span(app);
+        let Some(sym) = self.l.tpd.sym(fun) else { return Ok(None) };
+        let owner = self.l.u.symbol(sym).owner.map(|o| self.l.u.full_name(o));
+        if owner.as_deref() != Some("scala.Array") {
+            return Ok(None);
+        }
+        let name = self.l.u.symbol(sym).name.clone();
+        let array = match *self.l.tpd.tree(fun) {
+            Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
+                Tree::New { tpt } if name == "<init>" => {
+                    let ty = self.gen_type(self.l.tpd.tpe(tpt));
+                    let (Type::Array { elem, .. }, [length]) = (self.pool.ty(ty).clone(), args) else {
+                        return unsupported(span, "arrays of generic or several dimensions");
+                    };
+                    let length = self.gen_expr(*length)?;
+                    let saved = self.at_span(span);
+                    let v = self.emit(Op::Arrayalloc { ty: elem, init: length, zone: None });
+                    self.m.pos = saved;
+                    return Ok(Some(v));
+                }
+                _ => qualifier,
+            },
+            _ => return Ok(None),
+        };
+        let ty = self.gen_type(self.l.tpd.tpe(array));
+        let Type::Array { elem, .. } = *self.pool.ty(ty) else {
+            return unsupported(span, "operations on generic arrays");
+        };
+        let saved = self.at_span(span);
+        let arr = self.gen_expr(array)?;
+        let v = match (name.as_str(), args) {
+            ("apply", [i]) => {
+                let idx = self.gen_expr(*i)?;
+                self.emit(Op::Arrayload { ty: elem, arr, idx })
+            }
+            ("update", [i, value]) => {
+                let idx = self.gen_expr(*i)?;
+                let value = self.gen_expr(*value)?;
+                self.emit(Op::Arraystore { ty: elem, arr, idx, value })
+            }
+            ("length", []) => self.emit(Op::Arraylength(arr)),
+            _ => return unsupported(span, "array operations"),
+        };
+        self.m.pos = saved;
+        Ok(Some(v))
     }
 
     /// Whether `v` is a zero value: `false`, `null`, a numeric zero (NIR's `isZero`).
