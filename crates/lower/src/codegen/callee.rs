@@ -19,6 +19,9 @@ impl Gen<'_, '_> {
         if !self.l.u.symbol(sym).owner.is_some_and(|o| crate::symbols::is_class(self.l.u, o)) {
             return unsupported(span, "calls of methods outside classes");
         }
+        if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == "scala.Array") {
+            return unsupported(span, "array operations");
+        }
         if self.is_primitive_op(sym) {
             return unsupported(span, "primitive operations");
         }

@@ -1,7 +1,8 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, erased_type, is_cast, is_parameterless_ref, receiver_type};
+use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
+use super::casts::{is_cast, receiver_type};
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
 use tasty::Erased;
@@ -65,6 +66,14 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
             Some(Tree::Select { qualifier: typed(l, qualifier, owner.as_ref())?, name })
         }
         Tree::TypeApply { fun, .. } if !is_cast(l, t) => return typed(l, fun, pt),
+        Tree::TypeApply { fun, args } => {
+            if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
+                let owner = receiver_type(l, fun, qualifier);
+                let qualifier = typed(l, qualifier, owner.as_ref())?;
+                l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
+            }
+            Some(Tree::TypeApply { fun, args })
+        }
         Tree::Block { stats, expr } => {
             let mut typed_stats = Vec::new();
             for s in l.tpd.items(stats).to_vec() {

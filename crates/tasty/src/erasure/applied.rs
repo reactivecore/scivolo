@@ -92,7 +92,7 @@ impl Universe {
     }
 
     /// Whether an array of `t` erases to `Object`: no JVM array holds all its values.
-    fn is_generic(&mut self, t: TypeId) -> bool {
+    pub fn is_generic(&mut self, t: TypeId) -> bool {
         match self.types().get(t).clone() {
             Type::Param(..) | Type::Local(..) => true,
             Type::Bounds(_, hi) => self.holder(hi) == Holder::None,

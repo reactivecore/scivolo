@@ -8,6 +8,7 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     ("object O { lazy val x = \"a\" }", "lazy values"),
+    ("object O { def f(a: Array[Int]): Int = a.length }", "array operations"),
     ("object O { def f(c: Boolean): Any = if c then 1 else \"s\" }", "branches of different erased classes"),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
     ("class A(x: String) { println(x); def f = x }", "class parameters used in class body statements"),

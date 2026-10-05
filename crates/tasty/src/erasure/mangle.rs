@@ -99,15 +99,21 @@ impl Universe {
         (params, self.erase(t))
     }
 
-    /// `t`, or the upper bound of the type parameter `t` is, given the bounds of the parameters
-    /// of each polymorphic type.
-    fn upper_bound(&mut self, mut t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
+    /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
+    /// parameters of each polymorphic type; within `t`, only those bounded by a class.
+    fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
+        let bound =
+            |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
+        let mut t = self.map_type(t, &mut |u, x| match *u.types().get(x) {
+            Type::Param(b, i) => {
+                let bounds = bound(b, i)?;
+                let Type::Bounds(_, hi) = *u.types().get(bounds) else { return None };
+                (!u.is_generic(bounds)).then_some(hi)
+            }
+            _ => None,
+        });
         while let Type::Param(b, i) = *self.types().get(t) {
-            let Some(&bound) =
-                bounds.iter().find(|(binder, _)| *binder == b).and_then(|(_, bs)| bs.get(i as usize))
-            else {
-                break;
-            };
+            let Some(bound) = bound(b, i) else { break };
             t = match *self.types().get(bound) {
                 Type::Bounds(_, hi) => hi,
                 _ => bound,
