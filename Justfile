@@ -157,6 +157,11 @@ typer-diff path:
     cargo build -q --release -p typer
     python3 scripts/typer-tests.py diff {{ path }}
 
+# Type Scala files with dotty's oracle and the Rust typer, and compare the typed trees.
+typer-compare +files:
+    cargo build -q --release -p typer
+    python3 scripts/typer-compare.py {{ files }}
+
 # The Rust typer's typed trees of Scala files, or why they fall back.
 typer-dump +files:
     cargo build -q --release -p typer

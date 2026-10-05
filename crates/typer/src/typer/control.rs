@@ -112,7 +112,7 @@ impl Typer<'_> {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
             None => {
                 let unit = self.unit_literal(span);
-                self.adapt(unit, Pt::Type(result))
+                self.adapt(unit, Pt::Type(result), ctx)
             }
         };
         let name = TName { name: self.name(&self.u.symbol(method).name.clone()), is_type: false };

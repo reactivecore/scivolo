@@ -1,5 +1,6 @@
 //! Selections `qual.name` and the members of a type (dotty's `typedSelect`, `Type.member`).
 
+use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -109,17 +110,32 @@ impl Typer<'_> {
     }
 
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
-        let qual = self.typed(qualifier, Pt::Any, ctx);
-        let qual_tpe = self.tpd.tpe(qual);
-        let qual_tpe = self.widen_if_unstable(qual_tpe);
+        let mut qual = self.typed(qualifier, Pt::Any, ctx);
         let text = self.text(name.name).to_owned();
-        let syms: Vec<SymbolId> = self
-            .type_members(qual_tpe, &text)
-            .into_iter()
-            .filter(|&s| self.is_type_symbol(s) == name.is_type)
-            .collect();
+        let mut converted = false;
+        let (qual_tpe, syms) = loop {
+            let qual_tpe = self.tpd.tpe(qual);
+            let qual_tpe = self.widen_if_unstable(qual_tpe);
+            let syms: Vec<SymbolId> = self
+                .type_members(qual_tpe, &text)
+                .into_iter()
+                .filter(|&s| self.is_type_symbol(s) == name.is_type)
+                .collect();
+            if !syms.is_empty() || converted || name.is_type {
+                break (qual_tpe, syms);
+            }
+            if self.extension_visible(&text, ctx) {
+                return self.unsupported(id, "extension method");
+            }
+            match self.converted(qual, Goal::Member(&text), ctx) {
+                Ok(Some(q)) => qual = q,
+                Ok(None) => return self.unsupported(id, "member not found"),
+                Err(what) => return self.unsupported(id, what),
+            }
+            converted = true;
+        };
         if syms.is_empty() {
-            return self.unsupported(id, "member not found: extension or conversion");
+            return self.unsupported(id, "member not found");
         }
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => sym,

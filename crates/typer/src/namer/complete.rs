@@ -172,10 +172,10 @@ impl Typer<'_> {
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,
             Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => t,
             Type::Sym(_, s) if !self.is_type_symbol(s) && self.u.symbol(s).kind != Kind::Package => {
-                self.complete(s);
-                let info = self.u.info(s);
+                let info = self.method_info(t).unwrap_or(t);
                 self.widen_rhs(sym, info)
             }
+            Type::ByName(r) => self.widen_rhs(sym, r),
             _ => t,
         }
     }

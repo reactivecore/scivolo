@@ -63,16 +63,14 @@ impl Typer<'_> {
         if arg_ids.iter().any(|&a| self.is_sequence_arg(a)) {
             return self.unsupported(id, "sequence argument");
         }
-        match self.u.types().get(result) {
-            Type::Bounds(..) => return self.unsupported(id, "result type of a wildcard argument"),
-            Type::Method { implicit: true, .. } => return self.unsupported(id, "implicit arguments"),
-            _ => {}
+        if let Type::Bounds(..) = self.u.types().get(result) {
+            return self.unsupported(id, "result type of a wildcard argument");
         }
         let mut typed_args = Vec::new();
         for (i, &a) in arg_ids.iter().enumerate() {
             let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
-                Some(typed) => self.adapt(typed[i], Pt::Type(formal)),
+                Some(typed) => self.adapt(typed[i], Pt::Type(formal), ctx),
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
@@ -88,14 +86,20 @@ impl Typer<'_> {
         {
             return self.unsupported(id, what);
         }
-        let tpe = match self.u.types().get(fun_tpe).clone() {
+        let mut callee = f;
+        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
+            callee = fun;
+        }
+        let callee_tpe = self.tpd.tpe(callee);
+        let partial = matches!(self.u.types().get(result), Type::Method { .. });
+        let tpe = match self.u.types().get(callee_tpe).clone() {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
                 if matches!(self.u.types().get(class), Type::This(_)) {
                     return self.unsupported(id, "secondary constructor call");
                 }
-                self.constructor_result(s, class, result)
+                if partial { result } else { self.constructor_result(s, class, result) }
             }
             _ => result,
         };

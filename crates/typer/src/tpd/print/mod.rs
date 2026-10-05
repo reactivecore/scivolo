@@ -96,8 +96,13 @@ impl Printer<'_> {
             let flags = node.sym.map(|s| self.u.symbol(s).flags).unwrap_or_default();
             write!(self.out, " [{}]", flag_names(flags)).unwrap();
         }
-        if let Some(t) = node.tpe {
-            write!(self.out, " :{}", types::tpe(self.u, t)).unwrap();
+        match tree {
+            Tree::ClassLiteral { tpe } => write!(self.out, " :#Class:{}", types::tpe(self.u, tpe)).unwrap(),
+            _ => {
+                if let Some(t) = node.tpe {
+                    write!(self.out, " :{}", types::tpe(self.u, t)).unwrap();
+                }
+            }
         }
         self.fields(&tree);
         self.out.push(')');
