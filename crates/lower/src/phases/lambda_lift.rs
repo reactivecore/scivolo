@@ -1,38 +1,45 @@
-//! Lambdas (dotty's `LambdaLift` for closures): each `{ def $anonfun(ps) = body; closure }` of a
-//! class's methods becomes a private static method of the class taking the captured values
-//! first, and the closure passes them.
+//! Lambdas and local methods (dotty's `LambdaLift`): each `{ def $anonfun(ps) = body; closure }`
+//! and each `def f(ps) = body` in a block of a class's methods becomes a private method of the
+//! class taking the captured values first; closures and calls pass them.
 
+use super::captures::{direct, propagate};
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module_class};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
-use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, MUTABLE};
-use tasty::{Kind, SymbolId};
+use tasty::SymbolId;
+use tasty::tags::FIELDaccessor;
 use typer::tpd::{TNodeId, Tree};
 
-/// A lambda: its block and `$anonfun` definition, the lambda it is in, the values it captures.
-pub struct Lambda {
-    pub block: TNodeId,
+/// A function to lift: its definition, the block it is in, its closure if a lambda, the function
+/// it is in, the values it captures, whether it needs `this`.
+pub struct Function {
     pub def: TNodeId,
-    pub closure: TNodeId,
+    pub block: TNodeId,
+    pub closure: Option<TNodeId>,
     pub sym: SymbolId,
     pub parent: Option<usize>,
     pub captured: Vec<SymbolId>,
+    pub this: bool,
 }
 
-/// Lifts the lambdas of class definitions `classes` into methods of their classes; the proxies
-/// of `$adapted` methods are named last.
+/// Lifts the lambdas and local methods of class definitions `classes` into methods of their
+/// classes; the proxies of `$adapted` methods are named last.
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     let mut deferred = Vec::new();
     for &td in classes {
         deferred.extend(lift_class(l, td)?);
     }
-    for p in deferred {
+    name_proxies(l, &deferred);
+    Ok(())
+}
+
+/// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
+pub fn name_proxies(l: &mut Lower, proxies: &[SymbolId]) {
+    for &p in proxies {
         let base = l.u.symbol(p).name.clone();
         let name = fresh(l, &base);
         l.u.rename(p, &name);
     }
-    Ok(())
 }
 
 /// `base$N`, `N` counting the names made from `base` in the unit.
@@ -42,20 +49,20 @@ pub fn fresh(l: &mut Lower, base: &str) -> String {
     format!("{base}${n}")
 }
 
-/// The indices of `lambdas`, each after the lambdas in it.
-pub fn post_order(lambdas: &[Lambda]) -> Vec<usize> {
-    fn visit(lambdas: &[Lambda], i: Option<usize>, out: &mut Vec<usize>) {
-        for j in (0..lambdas.len()).filter(|&j| lambdas[j].parent == i) {
-            visit(lambdas, Some(j), out);
+/// The indices of `functions`, each after the functions in it.
+pub fn post_order(functions: &[Function]) -> Vec<usize> {
+    fn visit(functions: &[Function], i: Option<usize>, out: &mut Vec<usize>) {
+        for j in (0..functions.len()).filter(|&j| functions[j].parent == i) {
+            visit(functions, Some(j), out);
             out.push(j);
         }
     }
     let mut out = Vec::new();
-    visit(lambdas, None, &mut out);
+    visit(functions, None, &mut out);
     out
 }
 
-/// Lifts the lambdas of class definition `td`; the proxies to name last.
+/// Lifts the functions of class definition `td`; the proxies to name last.
 fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
@@ -63,44 +70,86 @@ fn lift_class(l: &mut Lower, td: TNodeId) -> Result<Vec<SymbolId>> {
         return Ok(Vec::new());
     };
     let mut stats = l.tpd.items(body).to_vec();
-    let mut lambdas = Vec::new();
+    let mut functions = Vec::new();
     for &stat in &stats {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
             (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor));
-        let first = lambdas.len();
-        collect(l, stat, None, &mut lambdas);
-        if !method && lambdas.len() > first {
-            return unsupported(l.tpd.span(lambdas[first].block), "lambdas outside methods");
+        let first = functions.len();
+        match *l.tpd.tree(stat) {
+            Tree::DefDef { rhs: Some(rhs), .. } if method => collect(l, rhs, None, &mut functions),
+            _ => collect(l, stat, None, &mut functions),
+        }
+        if !method && functions.len() > first {
+            return unsupported(
+                l.tpd.span(functions[first].def),
+                "lambdas and local methods outside methods",
+            );
         }
     }
-    if lambdas.is_empty() {
+    if functions.is_empty() {
         return Ok(Vec::new());
     }
-    for i in 0..lambdas.len() {
-        lambdas[i].captured = captured(l, &lambdas, i, class)?;
+    let mut calls = Vec::new();
+    for i in 0..functions.len() {
+        let (captured, called, this) = direct(l, &functions, i, class)?;
+        (functions[i].captured, functions[i].this) = (captured, this || functions[i].closure.is_none());
+        calls.push(called);
     }
-    let (lifted, deferred) = super::lifted::lift(l, class, &lambdas)?;
+    propagate(l, &mut functions, &calls);
+    let (lifted, deferred) = super::lifted::lift(l, class, template, &functions)?;
     stats.extend(lifted);
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(deferred)
 }
 
-/// The lambdas under `t` in pre-order, `parent` the one they are in.
-fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Lambda>) {
+/// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.
+fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>) {
     if let Some((def, closure, sym)) = lambda(l, t) {
-        out.push(Lambda { block: t, def, closure, sym, parent, captured: Vec::new() });
+        out.push(Function {
+            def,
+            block: t,
+            closure: Some(closure),
+            sym,
+            parent,
+            captured: Vec::new(),
+            this: false,
+        });
         let index = out.len() - 1;
         if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) {
             collect(l, rhs, Some(index), out);
         }
         return;
     }
-    if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-        return;
-    }
-    for c in children(l.tpd, t) {
-        collect(l, c, parent, out);
+    match *l.tpd.tree(t) {
+        Tree::TypeDef { .. } => {}
+        Tree::Block { stats, expr } => {
+            for &s in l.tpd.items(stats) {
+                match (l.tpd.tree(s), l.tpd.sym(s)) {
+                    (Tree::DefDef { rhs: Some(rhs), .. }, Some(sym)) => {
+                        let rhs = *rhs;
+                        out.push(Function {
+                            def: s,
+                            block: t,
+                            closure: None,
+                            sym,
+                            parent,
+                            captured: Vec::new(),
+                            this: true,
+                        });
+                        let index = out.len() - 1;
+                        collect(l, rhs, Some(index), out);
+                    }
+                    _ => collect(l, s, parent, out),
+                }
+            }
+            collect(l, expr, parent, out);
+        }
+        _ => {
+            for c in children(l.tpd, t) {
+                collect(l, c, parent, out);
+            }
+        }
     }
 }
 
@@ -112,37 +161,4 @@ fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
     let sym = l.tpd.sym(def)?;
     (matches!(l.tpd.tree(def), Tree::DefDef { .. }) && l.tpd.sym(meth) == Some(sym))
         .then_some((def, expr, sym))
-}
-
-/// The values lambda `i` captures, in the order its body first refers to them: the local values
-/// defined outside it.
-fn captured(l: &Lower, lambdas: &[Lambda], i: usize, class: SymbolId) -> Result<Vec<SymbolId>> {
-    let inside: FxHashSet<SymbolId> = (0..lambdas.len())
-        .filter(|&j| std::iter::successors(Some(j), |&k| lambdas[k].parent).any(|k| k == i))
-        .map(|j| lambdas[j].sym)
-        .collect();
-    let mut out = Vec::new();
-    let mut todo = vec![lambdas[i].def];
-    while let Some(t) = todo.pop() {
-        todo.extend(children(l.tpd, t).into_iter().rev());
-        let span = l.tpd.span(t);
-        match (l.tpd.tree(t), l.tpd.sym(t)) {
-            (Tree::This { .. }, _) => return unsupported(span, "lambdas using `this`"),
-            (Tree::Ident { .. }, Some(s)) => {
-                let owner = l.u.symbol(s).owner;
-                if owner == Some(class) && !is_module_class(l.u, class) {
-                    return unsupported(span, "lambdas using `this` of a class");
-                }
-                let local = owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Def && !is_class(l.u, o));
-                if local && !inside.contains(&owner.expect("an owner")) && !out.contains(&s) {
-                    if has(l.u, s, MUTABLE) {
-                        return unsupported(span, "lambdas capturing variables");
-                    }
-                    out.push(s);
-                }
-            }
-            _ => {}
-        }
-    }
-    Ok(out)
 }
