@@ -31,6 +31,11 @@ impl Universe {
         self.symbols[sym.0 as usize].flags = flags;
     }
 
+    /// Renames `sym`, a symbol defined outside TASTy.
+    pub fn rename(&mut self, sym: SymbolId, name: &str) {
+        self.symbols[sym.0 as usize].name = name.to_owned();
+    }
+
     /// A binder no other type uses, for a type lambda or method type made outside TASTy.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;

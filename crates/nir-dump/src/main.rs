@@ -7,7 +7,7 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 const USAGE: &str = "usage: nir-dump [--dump | --parse | --index | --stats] [--mangled] [--externs] \
-                     [--filter TEXT] [--repeat N] <file.nir | dir | file.jar>";
+                     [--debug] [--filter TEXT] [--repeat N] <file.nir | dir | file.jar>";
 
 #[derive(PartialEq)]
 enum Mode {
@@ -21,14 +21,23 @@ struct Args {
     mode: Option<Mode>,
     mangled: bool,
     externs: bool,
+    /// Dump definitions with their positions, local names and scopes.
+    debug: bool,
     filter: Option<String>,
     repeat: usize,
     path: PathBuf,
 }
 
 fn parse_args() -> Option<Args> {
-    let mut a =
-        Args { mode: None, mangled: false, externs: false, filter: None, repeat: 1, path: PathBuf::new() };
+    let mut a = Args {
+        mode: None,
+        mangled: false,
+        externs: false,
+        debug: false,
+        filter: None,
+        repeat: 1,
+        path: PathBuf::new(),
+    };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         match arg.as_str() {
@@ -38,6 +47,7 @@ fn parse_args() -> Option<Args> {
             "--stats" => a.mode = Some(Mode::Stats),
             "--mangled" => a.mangled = true,
             "--externs" => a.externs = true,
+            "--debug" => a.debug = true,
             "--filter" => a.filter = Some(it.next()?),
             "--repeat" => a.repeat = it.next()?.parse().ok()?,
             s if !s.starts_with("--") => a.path = PathBuf::from(s),
@@ -170,7 +180,11 @@ fn dump(entries: &[source::Entry], args: &Args) -> usize {
             Ok(defns) if !defns.is_empty() => {
                 println!("\n// {}", e.name);
                 for d in &defns {
-                    println!("{}\n", show::defn(&pool, d, !args.mangled));
+                    if args.debug {
+                        println!("{}\n", show::defn_with_debug_info(&pool, d));
+                    } else {
+                        println!("{}\n", show::defn(&pool, d, !args.mangled));
+                    }
                 }
             }
             Ok(_) => {}

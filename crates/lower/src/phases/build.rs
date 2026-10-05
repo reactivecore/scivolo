@@ -87,6 +87,32 @@ impl Lower<'_> {
         self.tpd.node(Tree::Literal { value: Constant::Unit }, span, Some(tpe), None)
     }
 
+    /// The definition of parameter `p`.
+    pub fn param_def(&mut self, p: SymbolId, span: Span) -> TNodeId {
+        let name = self.u.symbol(p).name.clone();
+        let name = self.term_name(&name);
+        let info = self.u.info(p);
+        let tpt = self.type_tree(info, span);
+        self.tpd.node(Tree::ValDef { name, tpt, rhs: None }, span, Some(info), Some(p))
+    }
+
+    /// The definition of method `sym` with one clause of `params`.
+    pub fn method_def(
+        &mut self,
+        sym: SymbolId,
+        params: &[TNodeId],
+        tpt: TNodeId,
+        rhs: TNodeId,
+        span: Span,
+    ) -> TNodeId {
+        let name = self.u.symbol(sym).name.clone();
+        let name = self.term_name(&name);
+        let clause = self.tpd.list(params);
+        let paramss = self.tpd.clauses(&[clause]);
+        let info = self.u.info(sym);
+        self.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, Some(info), Some(sym))
+    }
+
     pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId, span: Span) -> TNodeId {
         let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(stats);

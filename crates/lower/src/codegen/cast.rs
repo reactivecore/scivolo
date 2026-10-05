@@ -1,16 +1,53 @@
 //! Conversions between types: casts `x.asInstanceOf[T]` between references (nscplugin's
-//! `genAsInstanceOf`), and the `box` and `unbox` methods of the primitives' objects.
+//! `genAsInstanceOf`), the `box` and `unbox` methods of the primitives' objects, and the boxing
+//! of values passed through erased signatures (`ensureBoxed`, `ensureUnboxed`).
 
 use super::Gen;
 use crate::phases::adapt::erased_type;
 use crate::phases::casts::conforms;
 use crate::{Result, unsupported};
-use nir::{Op, Type, ValId};
+use nir::{Conv, Op, Type, TypeId, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
+    /// `value` as type `to`: unboxed for a primitive, else cast (nscplugin's `ensureUnboxed`).
+    pub fn ensure_unboxed(&mut self, value: ValId, to: TypeId) -> ValId {
+        let from = self.val_ty(value);
+        match self.boxed_class(to) {
+            Some(_) if from == to => value,
+            Some(boxed) => self.emit(Op::Unbox { ty: boxed, obj: value }),
+            None => self.emit(Op::Conv { conv: Conv::Bitcast, ty: to, value }),
+        }
+    }
+
+    /// `value` boxed if primitive and `ret` is not (nscplugin's `ensureBoxed`).
+    pub fn ensure_boxed(&mut self, value: ValId, ret: TypeId) -> ValId {
+        let from = self.val_ty(value);
+        match self.boxed_class(from) {
+            Some(boxed) if from != ret => self.emit(Op::Box { ty: boxed, obj: value }),
+            _ => value,
+        }
+    }
+
+    /// The class boxing values of primitive type `t`.
+    fn boxed_class(&mut self, t: TypeId) -> Option<TypeId> {
+        let letter = match self.pool.ty(t) {
+            Type::Bool => 'z',
+            Type::Char => 'c',
+            Type::Byte => 'b',
+            Type::Short => 's',
+            Type::Int => 'i',
+            Type::Long => 'j',
+            Type::Float => 'f',
+            Type::Double => 'd',
+            _ => return None,
+        };
+        let box_method = self.l.defs.primitive(letter)?.box_method;
+        Some(self.result_type(box_method))
+    }
+
     /// A call of `box` or `unbox` method `sym` with `args`; `None` for another method.
     pub fn gen_boxing(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Option<ValId>> {
         let unboxed = self.l.defs.unboxed_by(sym).map(|p| p.box_method);

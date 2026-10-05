@@ -45,8 +45,10 @@ pub struct Lower<'a> {
     defs: Definitions,
     /// The fields `Memoize` made, each with its getter.
     fields: FxHashMap<SymbolId, SymbolId>,
-    /// The bridges `Bridges` made.
+    /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
+    /// The numbers of the names `LambdaLift` made in the unit, by prefix.
+    lifted_names: FxHashMap<String, u32>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -68,6 +70,7 @@ pub fn lower(
         defs,
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
+        lifted_names: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

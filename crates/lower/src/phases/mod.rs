@@ -1,6 +1,7 @@
 //! dotty's phases between the typer and NIR generation, each a pass over the unit.
 
 pub(crate) mod adapt;
+mod adapted;
 mod bridges;
 mod build;
 pub(crate) mod casts;
@@ -8,6 +9,8 @@ mod constructors;
 mod erasure;
 mod first_transform;
 mod getters;
+mod lambda_lift;
+mod lifted;
 mod memoize;
 mod methods;
 mod mixin;
@@ -31,6 +34,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         getters::setter_calls(l, td)?;
     }
+    lambda_lift::transform(l, &classes)?;
     for &td in &classes {
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;

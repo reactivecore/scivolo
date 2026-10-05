@@ -9,6 +9,7 @@ mod buf;
 mod callee;
 mod cast;
 mod class;
+mod closure;
 mod concat;
 mod dead;
 mod equality;
@@ -49,6 +50,10 @@ pub struct Gen<'l, 'a> {
     spans: FxHashMap<SymbolId, Span>,
     /// The unit's abstract methods.
     deferred: FxHashSet<SymbolId>,
+    /// The anonymous classes of the class's closures.
+    closures: Vec<Defn>,
+    /// The number of the class's closures so far.
+    lambdas: u32,
 }
 
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
@@ -72,6 +77,8 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         no_pos,
         spans,
         deferred,
+        closures: Vec::new(),
+        lambdas: 0,
     };
     for td in type_defs {
         g.gen_class(td)?;

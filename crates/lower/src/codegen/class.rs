@@ -28,7 +28,10 @@ impl Gen<'_, '_> {
         };
         self.defns.push(Defn { name, attrs, pos, kind });
         self.gen_class_fields(sym, pos);
+        self.lambdas = 0;
         self.gen_methods(td)?;
+        let closures = std::mem::take(&mut self.closures);
+        self.defns.extend(closures);
         self.gen_mirror_class(sym, pos)
     }
 

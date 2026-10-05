@@ -35,6 +35,7 @@ impl Gen<'_, '_> {
             Tree::Select { qualifier, .. } => self.gen_select(t, qualifier),
             Tree::SeqLiteral { elems, .. } => self.gen_array_literal(t, elems),
             Tree::TypeApply { fun, .. } => self.gen_cast(t, fun),
+            Tree::Closure { env, meth, tpt } => self.gen_closure(t, env, meth, tpt),
             Tree::This { .. } => self.gen_this(t),
             Tree::Try { expr, cases, finalizer } => self.gen_try(t, expr, cases, finalizer),
             Tree::WhileDo { cond, body } => self.gen_while(t, cond, body),
@@ -122,7 +123,8 @@ impl Gen<'_, '_> {
     pub fn this_of(&mut self, c: SymbolId, span: Span) -> Result<ValId> {
         let class = self.class.expect("a class");
         let package_object = is_package_object(self.l.u, c);
-        if (c != class && is_module_class(self.l.u, c)) || package_object {
+        let static_method = self.m.this.is_none();
+        if (c != class || static_method) && is_module_class(self.l.u, c) || package_object {
             return Ok(self.gen_module(c));
         }
         let method_owner = self.m.sym.and_then(|m| self.l.u.symbol(m).owner);

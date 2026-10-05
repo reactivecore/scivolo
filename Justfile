@@ -54,7 +54,7 @@ programs-stale *names:
 # Print NIR file, directory or jar `path` as text.
 nir-dump path *args:
     cargo build -q --release -p nir-dump
-    target/release/nir-dump {{ args }} {{ path }}
+    target/release/nir-dump {{ args }} '{{ path }}'
 
 # Compile the library overlay (overlay/src) with Scala Native into its committed NIR (overlay/nir).
 overlay:
