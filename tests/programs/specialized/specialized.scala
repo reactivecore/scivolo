@@ -1,0 +1,28 @@
+//> using scala 3.9.0
+object S:
+  def ii(f: Int => Int, x: Int): Int = f(x)
+  def ib(f: Int => Boolean, x: Int): Boolean = f(x)
+  def iu(f: Int => Unit, x: Int): Unit = f(x)
+  def dd(f: Double => Double, x: Double): Double = f(x)
+  def jj(f: Long => Long, x: Long): Long = f(x)
+  def iii(f: (Int, Int) => Int): Int = f(3, 4)
+  def zero(f: () => Int): Int = f()
+  def unit(f: () => Unit): Unit = f()
+  def inc(): Int = ii(x => x + 1, 5)
+  def even(): Boolean = ib(x => x % 2 == 0, 4)
+  def show(): Unit = iu(x => println(x), 7)
+  def half(): Double = dd(x => x / 2, 3.0)
+  def big(k: Long): Long = jj(x => x * k, 3L)
+  def sum(): Int = iii((a, b) => a + b)
+  def answer(): Int = zero(() => 42)
+  def hello(): Unit = unit(() => println("hi"))
+
+@main def specialized(): Unit =
+  println(S.inc())
+  println(S.even())
+  S.show()
+  println(S.half())
+  println(S.big(2L))
+  println(S.sum())
+  println(S.answer())
+  S.hello()

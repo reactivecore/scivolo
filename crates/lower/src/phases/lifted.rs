@@ -3,9 +3,10 @@
 //! primitive or the result `Unit` (dotty's `Erasure.Typer.typedClosure`).
 
 use super::adapt::from_start;
+use super::adapted::specializable;
 use super::lambda_lift::{Lambda, fresh, post_order};
 use super::walk::children;
-use crate::definitions::{procedure, symbol, type_ref};
+use crate::definitions::{procedure, specialized, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::{PRIVATE, STATIC};
@@ -23,7 +24,7 @@ pub struct Method {
 /// blocks become closures of them.
 pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
     let mut lifted: Vec<(Method, Option<Method>)> = Vec::new();
-    let mut procedures = Vec::new();
+    let mut interfaces = Vec::new();
     let mut deferred = Vec::new();
     for lambda in lambdas {
         let owner = match lambda.parent {
@@ -41,11 +42,17 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<T
         let unit = erased_result == Erased::Unit;
         let primitive = erased.iter().any(|e| matches!(e, Erased::Prim(_) | Erased::Unit));
         let function = matches!(l.tpd.tree(lambda.closure), Tree::Closure { tpt: None, .. });
-        if function && (unit || primitive) && super::adapted::specializable(&erased, &erased_result) {
-            return unsupported(l.tpd.span(lambda.block), "lambdas of specialized function types");
-        }
-        procedures.push((function && unit && !primitive).then_some(params.len()));
-        let adapted = (primitive || unit && !function).then(|| {
+        let specialized_ = function && (unit || primitive) && specializable(&erased, &erased_result);
+        let interface = match () {
+            _ if specialized_ => Some(specialized(l.u, &erased, &erased_result)),
+            _ if function && unit && !primitive => Some(procedure(l.u, params.len())),
+            _ => None,
+        };
+        let Ok(interface) = interface.transpose() else {
+            return unsupported(l.tpd.span(lambda.block), "lambdas of this function type");
+        };
+        interfaces.push(interface);
+        let adapted = (!specialized_ && (primitive || unit && !function)).then(|| {
             let object = type_ref(l.u, l.defs.object);
             let objects: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, object)).collect();
             let result = if unit { object } else { result };
@@ -57,17 +64,14 @@ pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<T
         });
         lifted.push((method, adapted));
     }
-    for ((lambda, (method, adapted)), void_arity) in lambdas.iter().zip(&lifted).zip(procedures) {
+    for ((lambda, (method, adapted)), interface) in lambdas.iter().zip(&lifted).zip(interfaces) {
         let span = l.tpd.span(lambda.closure);
         let env: Vec<TNodeId> = lambda.captured.iter().map(|&s| l.ident(s, span)).collect();
         let target = adapted.as_ref().unwrap_or(method).sym;
         let meth = l.ident(target, span);
         let Tree::Closure { tpt, .. } = *l.tpd.tree(lambda.closure) else { unreachable!("a closure") };
-        let tpt = match void_arity {
-            Some(arity) => {
-                let Ok(interface) = procedure(l.u, arity) else {
-                    return unsupported(span, format!("lambdas of {arity} parameters returning Unit"));
-                };
+        let tpt = match interface {
+            Some(interface) => {
                 let interface = type_ref(l.u, interface);
                 Some(l.type_tree(interface, span))
             }
@@ -130,7 +134,8 @@ fn define(
         proxies.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
     typed.extend(params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)));
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false });
+    let info =
+        l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
     l.u.set_info(sym, info);
     Method { sym, proxies }
 }

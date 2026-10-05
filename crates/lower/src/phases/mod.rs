@@ -15,6 +15,7 @@ mod memoize;
 mod methods;
 mod mixin;
 mod repeated;
+mod specialize;
 mod synthetic;
 pub(crate) mod walk;
 
@@ -36,6 +37,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {
+        specialize::transform(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;

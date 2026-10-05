@@ -14,3 +14,4 @@ varargs
 curried
 generics
 lambdas
+specialized
