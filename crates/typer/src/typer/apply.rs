@@ -1,4 +1,4 @@
-//! Applications `f(args)` and `new C` (dotty's `typedApply`, `typedNew`).
+//! Applications `f(args)` (dotty's `typedApply`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
@@ -24,11 +24,15 @@ impl Typer<'_> {
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
-        let Some(Type::Method { binder, mut params, result, .. }) =
+        let Some(Type::Method { binder, mut params, result, implicit, contextual }) =
             info.map(|i| self.u.types().get(i).clone())
         else {
             return self.unsupported(id, "application of a non-method");
         };
+        let using = self.ast.attrs(id).contains(syntax::ast::Attrs::USING_APPLY);
+        if contextual && !using || using && !implicit {
+            return self.unsupported(id, "arguments not matching the clause's using");
+        }
         if self.mentions_params(result, binder, method) {
             return self.unsupported(id, "dependent result type");
         }
@@ -60,42 +64,57 @@ impl Typer<'_> {
         if formals.iter().any(|&p| self.is_special_param(p)) {
             return self.unsupported(id, "dependent parameter");
         }
-        if arg_ids.iter().any(|&a| self.is_sequence_arg(a)) {
+        let seq_arg = arg_ids
+            .last()
+            .copied()
+            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
+        let misplaced = arg_ids.iter().any(|&a| self.is_sequence_arg(a) && Some(a) != seq_arg);
+        if misplaced || seq_arg.is_some() && pretyped.is_some() {
             return self.unsupported(id, "sequence argument");
         }
-        match self.u.types().get(result) {
-            Type::Bounds(..) => return self.unsupported(id, "result type of a wildcard argument"),
-            Type::Method { implicit: true, .. } => return self.unsupported(id, "implicit arguments"),
-            _ => {}
+        if let Type::Bounds(..) = self.u.types().get(result) {
+            return self.unsupported(id, "result type of a wildcard argument");
         }
         let mut typed_args = Vec::new();
-        for (i, &a) in arg_ids.iter().enumerate() {
+        for (i, &a) in arg_ids.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
-                Some(typed) => self.adapt(typed[i], Pt::Type(formal)),
+                Some(typed) => self.adapt(typed[i], Pt::Type(formal), ctx),
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
         let span = self.ast.span(id);
         if let Some(elem) = repeated {
-            let elems = typed_args.split_off(params.len());
-            let before = typed_args.last().copied().unwrap_or(f);
-            let at = self.tpd.span(before).end_pos();
-            typed_args.push(self.seq_literal(&elems, elem, at));
+            let arg = match seq_arg {
+                Some(a) => self.sequence_arg(a, elem, ctx),
+                None => {
+                    let elems = typed_args.split_off(params.len());
+                    let before = typed_args.last().copied().unwrap_or(f);
+                    let at = self.tpd.span(before).end_pos();
+                    self.seq_literal(&elems, elem, at)
+                }
+            };
+            typed_args.push(arg);
         }
         if let [arg] = typed_args[..]
             && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg))
         {
             return self.unsupported(id, what);
         }
-        let tpe = match self.u.types().get(fun_tpe).clone() {
+        let mut callee = f;
+        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
+            callee = fun;
+        }
+        let callee_tpe = self.tpd.tpe(callee);
+        let partial = matches!(self.u.types().get(result), Type::Method { .. });
+        let tpe = match self.u.types().get(callee_tpe).clone() {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
                 if matches!(self.u.types().get(class), Type::This(_)) {
                     return self.unsupported(id, "secondary constructor call");
                 }
-                self.constructor_result(s, class, result)
+                if partial { result } else { self.constructor_result(s, class, result) }
             }
             _ => result,
         };
@@ -129,25 +148,6 @@ impl Typer<'_> {
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
     }
 
-    /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
-    /// `result`: `result` if it names the constructor's class, else the class itself unless
-    /// `class` applies it to arguments.
-    pub fn constructor_result(&mut self, ctor: SymbolId, class: TypeId, result: TypeId) -> TypeId {
-        let owner = self.u.symbol(ctor).owner;
-        let names_owner = |u: &tasty::Universe, t| match *u.types().get(t) {
-            Type::Sym(_, c) => Some(c) == owner,
-            Type::Applied(c, _) => matches!(*u.types().get(c), Type::Sym(_, c) if Some(c) == owner),
-            _ => false,
-        };
-        match owner {
-            _ if names_owner(self.u, result) => result,
-            Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
-                crate::defn::type_ref(self.u, o)
-            }
-            _ => class,
-        }
-    }
-
     /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
     /// method `method`.
     fn mentions_params(&mut self, t: TypeId, binder: tasty::Binder, method: Option<SymbolId>) -> bool {
@@ -173,17 +173,5 @@ impl Typer<'_> {
             None
         });
         special
-    }
-
-    pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
-        let tpt = self.typed_type(tpt, ctx);
-        let tpe = self.tpd.tpe(tpt);
-        if let Type::Sym(_, c) = *self.u.types().get(tpe)
-            && !self.u.type_params(c).is_empty()
-        {
-            return self.unsupported(id, "new of a generic class without type arguments");
-        }
-        let span = self.ast.span(id);
-        self.tpd.node(T::New { tpt }, span, Some(tpe), None)
     }
 }

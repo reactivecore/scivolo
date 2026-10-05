@@ -23,6 +23,10 @@ impl Typer<'_> {
             }
             _ if self.is_singleton(t) => {
                 let widened = self.u.widen(t);
+                let widened = match *self.u.types().get(widened) {
+                    Type::ByName(r) => r,
+                    _ => widened,
+                };
                 if self.is_singleton_bounded(widened) { t } else { widened }
             }
             _ => t,

@@ -37,7 +37,13 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     };
     let any_ref = type_ref(l.u, l.defs.any_ref);
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method { binder, params: Vec::new(), result: any_ref, implicit: false });
+    let info = l.u.intern_type(Type::Method {
+        binder,
+        params: Vec::new(),
+        result: any_ref,
+        implicit: false,
+        contextual: false,
+    });
     let sym = l.u.define(Symbol {
         name: "writeReplace".into(),
         kind: Kind::Def,

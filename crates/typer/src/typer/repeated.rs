@@ -33,7 +33,7 @@ impl Typer<'_> {
     /// Method type `t` with its repeated parameters typed `<repeated>[T]`, in each clause.
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
-            Type::Method { binder, params, result, implicit } => {
+            Type::Method { binder, params, result, implicit, contextual } => {
                 let params = params
                     .into_iter()
                     .map(|(n, p)| match self.repeated_elem(p) {
@@ -42,7 +42,7 @@ impl Typer<'_> {
                     })
                     .collect();
                 let result = self.with_repeated_class(result);
-                self.u.intern_type(Type::Method { binder, params, result, implicit })
+                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
             Type::Poly { binder, params, result } => {
                 let result = self.with_repeated_class(result);
@@ -85,6 +85,23 @@ impl Typer<'_> {
         );
         self.syms.repeated_class = Some(c);
         c
+    }
+
+    /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
+    /// `xs` typed as a `Seq[elem]`, ascribed `<repeated>[elem]`.
+    pub fn sequence_arg(&mut self, a: syntax::ast::NodeId, elem: TypeId, ctx: crate::ctx::Ctx) -> TNodeId {
+        let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
+            return self.unsupported(a, "sequence argument");
+        };
+        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else {
+            return self.unsupported(a, "sequence argument");
+        };
+        let seq = crate::defn::type_ref(self.u, seq);
+        let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
+        let expr = self.typed(expr, super::Pt::Type(seq), ctx);
+        let repeated = self.repeated_type(elem);
+        let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
+        self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
     }
 
     /// Arguments `elems` of element type `elem` passed to a repeated parameter, at `span` if

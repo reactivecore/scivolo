@@ -1,7 +1,9 @@
 //! Fitting a typed tree to what its context expects (dotty's `adapt`), as far as the subset
 //! goes: a tree that fits as it is, a numeric constant converted, a value discarded for `Unit`.
 
+use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -10,24 +12,50 @@ use tasty::{Type, TypeId};
 impl Typer<'_> {
     /// `tree` fitted to `pt`: unchanged if it conforms; a tree that needs more of dotty's `adapt`
     /// than the subset has is outside it.
-    pub fn adapt(&mut self, tree: TNodeId, pt: Pt) -> TNodeId {
+    pub fn adapt(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
         if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun) {
             return tree;
         }
         let span = self.tpd.span(tree);
-        if let Type::Method { implicit: true, .. } = self.u.types().get(tpe) {
-            self.unsupported_at(span, "implicit arguments");
-            return tree;
-        }
         let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
+        if let Some(Type::Poly { .. }) = method {
+            let vars = self.constraint.count();
+            return match self.with_type_vars(tree) {
+                Ok(applied) => {
+                    if let Err(what) = self.interpolate(applied, vars) {
+                        self.unsupported_at(span, what);
+                    }
+                    self.adapt(applied, pt, ctx)
+                }
+                Err(what) => {
+                    self.unsupported_at(span, what);
+                    tree
+                }
+            };
+        }
+        if let Some(Type::Method { params, result, implicit: true, .. }) = &method {
+            let mut args = Vec::new();
+            for &(_, p) in params {
+                match self.implicit_arg(p, span.end_pos(), ctx, 0) {
+                    Ok(arg) => args.push(arg),
+                    Err(what) => {
+                        self.unsupported_at(span, what);
+                        return tree;
+                    }
+                }
+            }
+            let args = self.tpd.list(&args);
+            let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
+            return self.adapt(apply, pt, ctx);
+        }
         if let Some(Type::Method { params, result, implicit: false, .. }) = &method
             && params.is_empty()
             && self.is_auto_applicable(tree)
         {
             let args = self.tpd.list(&[]);
             let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
-            return self.adapt(apply, pt);
+            return self.adapt(apply, pt, ctx);
         }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
@@ -47,8 +75,17 @@ impl Typer<'_> {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);
         }
-        self.unsupported_at(span, "adaptation");
-        tree
+        match self.converted(tree, Goal::Conform(pt), ctx) {
+            Ok(Some(converted)) => converted,
+            Ok(None) => {
+                self.unsupported_at(span, "adaptation");
+                tree
+            }
+            Err(what) => {
+                self.unsupported_at(span, what);
+                tree
+            }
+        }
     }
 
     /// Whether reference `tree` to a method with an empty parameter list may be called without

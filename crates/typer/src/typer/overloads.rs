@@ -2,11 +2,22 @@
 //! `isApplicableMethodRef`, `compare`), with the numeric widenings of the value classes as the
 //! only implicit conversions; where another conversion could decide, outside the subset.
 
-use super::{Pt, Typer};
+use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
 use tasty::{SymbolId, Type, TypeId};
+
+/// What the context expects of a tree (dotty's prototypes).
+#[derive(Clone, Copy, Debug)]
+pub enum Pt {
+    Any,
+    Type(TypeId),
+    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
+    Fun(usize),
+    /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
+    PolyFun,
+}
 
 /// The arguments of an application, typed once without an expected type when overloading needs
 /// their types (dotty's `FunProto`).

@@ -89,8 +89,12 @@ fn tpe_at(u: &mut Universe, t: TypeId, d: u32) -> String {
         Type::Refined(p, name, info) => format!("{}{{{name} {}}}", tpe_at(u, p, n), tpe_at(u, info, n)),
         Type::Rec(_, p) => format!("rec{{{}}}", tpe_at(u, p, n)),
         Type::RecThis(_) => "rec.this".into(),
-        Type::Method { params: ps, result, implicit, .. } => {
-            let using = if implicit { "using " } else { "" };
+        Type::Method { params: ps, result, implicit, contextual, .. } => {
+            let using = match (contextual, implicit) {
+                (true, _) => "using ",
+                (false, true) => "implicit ",
+                _ => "",
+            };
             format!("{using}({}){}", params(u, &ps), tpe_at(u, result, n))
         }
         Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(u, &ps), tpe_at(u, result, n)),

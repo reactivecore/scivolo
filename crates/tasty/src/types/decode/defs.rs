@@ -25,10 +25,11 @@ impl Decoder<'_> {
             let t = match ast.tag(clause[0]) {
                 TYPEPARAM => Type::Poly { binder, params, result },
                 _ => {
-                    let implicit = clause
-                        .iter()
-                        .any(|&p| ast.kids(p).iter().any(|&m| matches!(ast.tag(m), GIVEN | IMPLICIT)));
-                    Type::Method { binder, params, result, implicit }
+                    let has =
+                        |tag: u8| clause.iter().any(|&p| ast.kids(p).iter().any(|&m| ast.tag(m) == tag));
+                    let contextual = has(GIVEN);
+                    let implicit = contextual || has(IMPLICIT);
+                    Type::Method { binder, params, result, implicit, contextual }
                 }
             };
             self.intern(t)

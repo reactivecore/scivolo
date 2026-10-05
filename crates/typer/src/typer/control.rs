@@ -112,7 +112,7 @@ impl Typer<'_> {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
             None => {
                 let unit = self.unit_literal(span);
-                self.adapt(unit, Pt::Type(result))
+                self.adapt(unit, Pt::Type(result), ctx)
             }
         };
         let name = TName { name: self.name(&self.u.symbol(method).name.clone()), is_type: false };
@@ -155,6 +155,7 @@ impl Typer<'_> {
             params: vec![("x".into(), throwable)],
             result: nothing,
             implicit: false,
+            contextual: false,
         });
         self.u.set_info(throw, info);
         self.syms.throw_method = Some(throw);

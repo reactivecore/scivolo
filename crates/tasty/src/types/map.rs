@@ -34,9 +34,9 @@ impl Universe {
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),
             Type::Match(a) => Type::Match(m(self, a)),
             Type::Wildcard(Some(b)) => Type::Wildcard(Some(m(self, b))),
-            Type::Method { binder, params: ps, result, implicit } => {
+            Type::Method { binder, params: ps, result, implicit, contextual } => {
                 let params = params(self, ps, &mut m);
-                Type::Method { binder, params, result: m(self, result), implicit }
+                Type::Method { binder, params, result: m(self, result), implicit, contextual }
             }
             Type::Poly { binder, params: ps, result } => {
                 let params = params(self, ps, &mut m);

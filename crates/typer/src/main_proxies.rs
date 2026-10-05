@@ -93,16 +93,34 @@ impl Typer<'_> {
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
         match self.u.types().get(info).clone() {
-            Type::Method { params, result, .. } if params.is_empty() => {
-                if matches!(self.u.types().get(result), Type::Method { .. }) {
-                    self.unsupported_at(annot_span, "@main method with several parameter lists");
-                    return None;
+            Type::Method { params, result, implicit: false, .. }
+                if !matches!(self.u.types().get(result), Type::Method { .. }) =>
+            {
+                let mut args = Vec::new();
+                for (i, &(_, p)) in params.iter().enumerate() {
+                    let repeated = self.repeated_elem(p);
+                    let parser = if repeated.is_some() { "parseRemainingArguments" } else { "parseArgument" };
+                    let Some(parser) = self.command_line_parser_member(parser, Kind::Def) else {
+                        self.unsupported_at(annot_span, "CommandLineParser missing from the library");
+                        return None;
+                    };
+                    let parse = self.parse_call(parser, repeated.unwrap_or(p), i);
+                    args.push(match repeated {
+                        Some(_) => {
+                            let star = self.ident("_*", true);
+                            self.ast.node(Tree::Typed { expr: parse, tpt: star })
+                        }
+                        None => parse,
+                    });
                 }
-                let args = self.ast.list(&[]);
+                let args = self.ast.list(&args);
                 call = self.ast.node(Tree::Apply { fun: call, args });
             }
             Type::Method { .. } | Type::Poly { .. } => {
-                self.unsupported_at(annot_span, "@main method with parameters");
+                self.unsupported_at(
+                    annot_span,
+                    "@main method with several parameter lists or type parameters",
+                );
                 return None;
             }
             _ => {}
@@ -147,6 +165,19 @@ impl Typer<'_> {
         let cls = self.ast.node(Tree::TypeDef { name: cls_name, rhs: template, mods });
         self.ast.with_span(cls, annot_span.to_synthetic());
         Some(cls)
+    }
+
+    /// `parser[tpe](args, i)`, a call of `CommandLineParser.parseArgument` or
+    /// `parseRemainingArguments`.
+    fn parse_call(&mut self, parser: SymbolId, tpe: TypeId, i: usize) -> NodeId {
+        let fun = self.splice_ref(parser);
+        let targ = self.splice_type(tpe);
+        let targs = self.ast.list(&[targ]);
+        let fun = self.ast.node(Tree::TypeApply { fun, args: targs });
+        let args = self.ident("args", false);
+        let index = self.ast.node(Tree::Literal { value: syntax::ast::constant::Constant::Int(i as i32) });
+        let args = self.ast.list(&[args, index]);
+        self.ast.node(Tree::Apply { fun, args })
     }
 
     fn def_def(

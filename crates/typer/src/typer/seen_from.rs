@@ -61,8 +61,8 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// `t` with applied type lambdas reduced and capture-checking annotations (`retains`)
-    /// dropped.
+    /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
+    /// `appliedTo`), and capture-checking annotations (`retains`) dropped.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         let retains = |u: &mut tasty::Universe, a| {
             u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
@@ -74,7 +74,23 @@ impl Typer<'_> {
                 return Some(inner);
             }
             let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-            let Type::Lambda { binder, params, result } = u.types().get(tycon).clone() else { return None };
+            let alias = match u.types().get(tycon).clone() {
+                Type::Sym(_, s) => Some(s),
+                Type::TypeRef(p, n) => u.resolve(p, &n, true),
+                _ => None,
+            };
+            let lambda = match alias {
+                Some(s) if u.symbol(s).kind == Kind::Type => {
+                    let info = u.info(s);
+                    match *u.types().get(info) {
+                        Type::Alias(a) => a,
+                        Type::Lambda { .. } => info,
+                        _ => return None,
+                    }
+                }
+                _ => tycon,
+            };
+            let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
             let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
             Some(u.subst(result, binder, &names, &args))
         })

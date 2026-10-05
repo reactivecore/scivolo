@@ -8,12 +8,14 @@ mod classes;
 mod closures;
 mod const_fold;
 mod const_ops;
+mod constructors;
 mod control;
 mod defs;
 mod derived;
 mod equality;
 mod find_ref;
 mod idents;
+mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
@@ -50,18 +52,9 @@ use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::Names;
-use tasty::{TypeId, Universe};
+use tasty::Universe;
 
-/// What the context expects of a tree (dotty's prototypes).
-#[derive(Clone, Copy, Debug)]
-pub enum Pt {
-    Any,
-    Type(TypeId),
-    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
-    Fun(usize),
-    /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
-    PolyFun,
-}
+pub use overloads::Pt;
 
 pub struct Typer<'a> {
     pub u: &'a mut Universe,
@@ -84,6 +77,8 @@ pub struct Typer<'a> {
     pub import_levels: FxHashMap<NodeId, LevelId>,
     /// The bounds and instances of the type variables.
     pub constraint: crate::constraint::Constraint,
+    /// How many more candidates the implicit search in progress may try.
+    pub implicit_budget: u32,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
@@ -118,6 +113,7 @@ impl<'a> Typer<'a> {
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             constraint: Default::default(),
+            implicit_budget: 0,
             protos: Vec::new(),
             unsupported: None,
             depth: 0,
@@ -147,7 +143,11 @@ impl<'a> Typer<'a> {
         if let Err(what) = self.interpolate(tree, vars) {
             self.unsupported(id, what);
         }
-        let tree = self.adapt(tree, pt);
+        if let Some(t) = self.tpd.get(tree).tpe {
+            let t = self.zonk(t);
+            self.tpd.get_mut(tree).tpe = Some(t);
+        }
+        let tree = self.adapt(tree, pt, ctx);
         self.depth -= 1;
         tree
     }

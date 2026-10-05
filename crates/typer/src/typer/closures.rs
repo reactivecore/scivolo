@@ -146,8 +146,13 @@ impl Typer<'_> {
         }
         let binder = self.syms.fresh_binder();
         let method_params = names.into_iter().zip(param_types.iter().copied()).collect();
-        let info =
-            self.u.intern_type(Type::Method { binder, params: method_params, result, implicit: false });
+        let info = self.u.intern_type(Type::Method {
+            binder,
+            params: method_params,
+            result,
+            implicit: false,
+            contextual: false,
+        });
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
         let mut fun_args = param_types;

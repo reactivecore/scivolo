@@ -64,7 +64,7 @@ impl Typer<'_> {
 
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables.
-    fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
+    pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
@@ -90,7 +90,7 @@ impl Typer<'_> {
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
     /// symbols of `method` replaced by `args`.
-    fn instantiate_poly(
+    pub fn instantiate_poly(
         &mut self,
         t: TypeId,
         binder: Binder,

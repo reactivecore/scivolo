@@ -142,10 +142,10 @@ impl Typer<'_> {
                 let result = self.param_refs(result, &clause, binder);
                 self.u.intern_type(Type::Poly { binder, params, result })
             } else {
-                let implicit = clause.first().and_then(|p| self.syms.flags.get(p)).is_some_and(|fl| {
-                    fl.is(syntax::ast::flags::IMPLICIT) || fl.is(syntax::ast::flags::GIVEN)
-                });
-                self.u.intern_type(Type::Method { binder, params, result, implicit })
+                let flags = clause.first().and_then(|p| self.syms.flags.get(p)).copied().unwrap_or_default();
+                let contextual = flags.is(syntax::ast::flags::GIVEN);
+                let implicit = contextual || flags.is(syntax::ast::flags::IMPLICIT);
+                self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
         })
     }
@@ -172,10 +172,10 @@ impl Typer<'_> {
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,
             Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => t,
             Type::Sym(_, s) if !self.is_type_symbol(s) && self.u.symbol(s).kind != Kind::Package => {
-                self.complete(s);
-                let info = self.u.info(s);
+                let info = self.method_info(t).unwrap_or(t);
                 self.widen_rhs(sym, info)
             }
+            Type::ByName(r) => self.widen_rhs(sym, r),
             _ => t,
         }
     }

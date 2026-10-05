@@ -50,12 +50,14 @@ pub enum Type {
     Refined(TypeId, String, TypeId),
     Rec(Binder, TypeId),
     RecThis(Binder),
-    /// Parameters named and typed; `implicit` for a `using` or `implicit` clause.
+    /// Parameters named and typed; `implicit` for a `using` or `implicit` clause, `contextual`
+    /// for a `using` one.
     Method {
         binder: Binder,
         params: Vec<(String, TypeId)>,
         result: TypeId,
         implicit: bool,
+        contextual: bool,
     },
     /// Type parameters named, with their bounds.
     Poly {

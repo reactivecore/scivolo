@@ -39,7 +39,13 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     poly(u, object, "synchronized", any_bounds, |u, x0| {
         let t = u.types.intern(x0.clone());
         let binder = u.fresh_binder();
-        u.types.intern(Type::Method { binder, params: vec![("x$0".into(), t)], result: t, implicit: false })
+        u.types.intern(Type::Method {
+            binder,
+            params: vec![("x$0".into(), t)],
+            result: t,
+            implicit: false,
+            contextual: false,
+        })
     });
     if u.symbol(object).decls.iter().all(|&d| u.symbol(d).name != "clone") {
         method(u, object, "clone", &[], object_type, &[PROTECTED]);
@@ -71,7 +77,7 @@ fn method(
 ) {
     let binder = u.fresh_binder();
     let params = params.iter().map(|&(n, t)| (n.to_owned(), t)).collect();
-    let info = u.types.intern(Type::Method { binder, params, result, implicit: false });
+    let info = u.types.intern(Type::Method { binder, params, result, implicit: false, contextual: false });
     let s = synthetic(u, owner, name, Kind::Def, flags);
     u.infos.insert(s, info);
 }

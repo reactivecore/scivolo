@@ -44,7 +44,7 @@ fn declared_types_of_methods_values_and_types() {
     );
     assert_eq!(
         infos(&mut u, "scala", "Predef$", "implicitly"),
-        ["[T: >: scala.Nothing <: scala.Any](using e: T): T"]
+        ["[T: >: scala.Nothing <: scala.Any](implicit e: T): T"]
     );
     assert_eq!(infos(&mut u, "scala", "Predef$", "String"), ["java.lang.String"]);
     assert_eq!(infos(&mut u, "scala.collection.immutable", "List", "A"), [">: scala.Nothing <: scala.Any"]);
