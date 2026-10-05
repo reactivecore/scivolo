@@ -34,6 +34,7 @@ impl Gen<'_, '_> {
             Tree::ClassLiteral { tpe } => self.gen_class_literal(t, tpe),
             Tree::Select { qualifier, .. } => self.gen_select(t, qualifier),
             Tree::SeqLiteral { elems, .. } => self.gen_array_literal(t, elems),
+            Tree::TypeApply { fun, .. } => self.gen_cast(t, fun),
             Tree::This { .. } => self.gen_this(t),
             Tree::Try { expr, cases, finalizer } => self.gen_try(t, expr, cases, finalizer),
             Tree::WhileDo { cond, body } => self.gen_while(t, cond, body),

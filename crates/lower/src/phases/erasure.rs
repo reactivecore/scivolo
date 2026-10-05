@@ -1,7 +1,7 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
+use super::adapt::{adapt, applied_to_none, erased_type, is_cast, is_parameterless_ref, receiver_type};
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
 use tasty::Erased;
@@ -38,12 +38,19 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
     let new = match tree {
         Tree::Apply { mut fun, args } => {
             let mut all = l.tpd.items(args).to_vec();
-            while let Tree::Apply { fun: inner, args } = *l.tpd.tree(fun) {
-                all.splice(0..0, l.tpd.items(args).iter().copied());
-                fun = inner;
+            loop {
+                match *l.tpd.tree(fun) {
+                    Tree::Apply { fun: inner, args } => {
+                        all.splice(0..0, l.tpd.items(args).iter().copied());
+                        fun = inner;
+                    }
+                    Tree::TypeApply { fun: inner, .. } if !is_cast(l, fun) => fun = inner,
+                    _ => break,
+                }
             }
             if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
-                let qualifier = typed(l, qualifier, None)?;
+                let owner = receiver_type(l, fun, qualifier);
+                let qualifier = typed(l, qualifier, owner.as_ref())?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
             let params = l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default();
@@ -54,8 +61,10 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
             Some(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
         }
         Tree::Select { qualifier, name } => {
-            Some(Tree::Select { qualifier: typed(l, qualifier, None)?, name })
+            let owner = receiver_type(l, t, qualifier);
+            Some(Tree::Select { qualifier: typed(l, qualifier, owner.as_ref())?, name })
         }
+        Tree::TypeApply { fun, .. } if !is_cast(l, t) => return typed(l, fun, pt),
         Tree::Block { stats, expr } => {
             let mut typed_stats = Vec::new();
             for s in l.tpd.items(stats).to_vec() {

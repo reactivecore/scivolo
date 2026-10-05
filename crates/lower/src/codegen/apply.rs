@@ -48,6 +48,13 @@ impl Gen<'_, '_> {
                 let ty = self.result_type(sym);
                 self.emit(Op::Box { ty, obj: value })
             }
+            _ if self.l.defs.unboxed_by(sym).is_some() => {
+                let box_method = self.l.defs.unboxed_by(sym).expect("a primitive").box_method;
+                let [arg] = args[..] else { unreachable!("one argument to `unbox`") };
+                let value = self.gen_expr(arg)?;
+                let ty = self.result_type(box_method);
+                self.emit(Op::Unbox { ty, obj: value })
+            }
             Tree::TypeApply { .. } => return unsupported(span, "calls with type arguments"),
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
                 Tree::Super { .. } => {

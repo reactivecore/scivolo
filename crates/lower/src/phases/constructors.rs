@@ -71,11 +71,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::DefDef { name, paramss, tpt, rhs: None } = *l.tpd.tree(constr) else {
         return unsupported(l.tpd.span(constr), "a constructor with a body");
     };
-    let params: Vec<SymbolId> = match l.tpd.clause_items(paramss) {
-        [] => Vec::new(),
-        [first] => l.tpd.items(*first).iter().filter_map(|&p| l.tpd.sym(p)).collect(),
-        _ => return unsupported(l.tpd.span(constr), "a constructor with several parameter lists"),
-    };
+    let params: Vec<SymbolId> = l
+        .tpd
+        .clause_items(paramss)
+        .iter()
+        .flat_map(|&c| l.tpd.items(c))
+        .filter(|&&p| matches!(l.tpd.tree(p), Tree::ValDef { .. }))
+        .filter_map(|&p| l.tpd.sym(p))
+        .collect();
     if accessors.len() != params.len() {
         return unsupported(l.tpd.span(constr), "class parameters without fields");
     }

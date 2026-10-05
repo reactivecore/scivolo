@@ -12,3 +12,4 @@ throws
 statics
 varargs
 curried
+generics
