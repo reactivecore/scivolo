@@ -83,6 +83,23 @@ impl Desugar<'_> {
         self.ast.with_mods(id, Modifiers { annotations, ..m })
     }
 
+    /// Copies of type parameters `tparams` and of their bounds trees, for another method.
+    pub fn fresh_type_params(&mut self, tparams: &[NodeId]) -> Vec<NodeId> {
+        tparams
+            .iter()
+            .map(|&t| {
+                let copy = self.ast.copy_node(t);
+                if let Tree::TypeDef { rhs, .. } = *self.ast.tree(copy) {
+                    let fresh = self.ast.copy_node(rhs);
+                    if let Tree::TypeDef { rhs, .. } = &mut self.ast.get_mut(copy).tree {
+                        *rhs = fresh;
+                    }
+                }
+                copy
+            })
+            .collect()
+    }
+
     /// `tparams` as a leading clause of `paramss` unless empty (dotty's `joinParams`).
     pub fn join_params(&mut self, tparams: &[NodeId], paramss: &[Vec<NodeId>]) -> Vec<List> {
         let mut clauses = Vec::with_capacity(paramss.len() + 1);

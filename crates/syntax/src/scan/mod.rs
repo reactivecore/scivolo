@@ -1,6 +1,6 @@
 //! The scanner, a port of dotty's `Scanners.Scanner`.
 
-pub(crate) mod chars;
+pub mod chars;
 mod comment;
 mod fetch;
 mod ident;

@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Types Scala files with dotty's oracle and with the Rust typer, and prints per file whether the
-typed trees are the same, why the Rust typer fell back, or where they first differ.
+typed trees are the same, why the Rust typer fell back, or where they first differ. Both trees
+are written to tmp/typer/compare/NAME.dotty and NAME.ours, one node per line.
 
 Usage: scripts/typer-compare.py FILE...
 """
@@ -38,6 +39,8 @@ def main(files):
     for p in paths:
         e, r = expected.get(p, "== no oracle output"), actual.get(p, "== no output (crash or timeout)")
         name = Path(p).name
+        (WORK / f"{name}.dotty").write_text(e.replace(" (", "\n("))
+        (WORK / f"{name}.ours").write_text(r.replace(" (", "\n("))
         if e == r:
             print(f"{name}: same")
         elif r.startswith("=="):

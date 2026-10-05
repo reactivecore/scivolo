@@ -70,7 +70,8 @@ impl Desugar<'_> {
         if paramss.first().is_some_and(Vec::is_empty) {
             paramss.remove(0);
         }
-        let clauses = self.join_params(&c.constr_tparams, &paramss);
+        let tparams = self.fresh_type_params(&c.constr_tparams);
+        let clauses = self.join_params(&tparams, &paramss);
         let creator = self.creator_expr(c);
         let kept = c.mods.flags.to_term_flags().and(flags::GIVEN_OR_IMPLICIT.or(flags::INLINE));
         let m = self.companion_mods(c).or(kept.or(flags::FINAL));

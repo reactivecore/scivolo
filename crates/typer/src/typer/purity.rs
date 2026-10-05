@@ -38,6 +38,11 @@ impl Typer<'_> {
         self.expr_purity(tree) & IDEMPOTENT == IDEMPOTENT
     }
 
+    /// Whether `tree` is a path whose evaluation has no effect (dotty's `isPurePath`).
+    pub fn is_pure_path(&mut self, tree: TNodeId) -> bool {
+        self.expr_purity(tree) == PURE_PATH
+    }
+
     fn expr_purity(&mut self, tree: TNodeId) -> u8 {
         match self.tpd.tree(tree).clone() {
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,

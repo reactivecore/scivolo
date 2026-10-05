@@ -53,6 +53,9 @@ impl Typer<'_> {
         let found = match self.find_ref(&text, name.is_type, ctx) {
             Ok(Some(found)) => found,
             Ok(None) => return self.unsupported(id, &format!("unresolved name {text}")),
+            Err("constructor proxy") if matches!(pt, Pt::Fun(_)) => {
+                return self.proxy_ident(id, name, pt, ctx);
+            }
             Err(what) => return self.unsupported(id, what),
         };
         let sym = match self.choose(&found.syms, found.prefix, pt) {

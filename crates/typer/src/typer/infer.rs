@@ -3,7 +3,7 @@
 
 use super::Typer;
 use crate::tpd::TNodeId;
-use tasty::{NOTHING, Type, TypeId, TypeVars, VarId};
+use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
     /// Whether `a` conforms to `b`, constraining type variables.
@@ -84,6 +84,13 @@ impl Typer<'_> {
     /// `t` with every type variable in it instantiated, from below unless its lower bound is
     /// `Nothing` (dotty's `fullyDefinedType` with `flipBottom`).
     pub fn fully_defined(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
+        self.fully_defined_as(t, false)
+    }
+
+    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok`: a variable with a lower
+    /// bound maximized where it occurs contravariantly, one without minimized where it occurs
+    /// covariantly, or invariantly without upper bound.
+    pub fn fully_defined_as(&mut self, t: TypeId, bottom_ok: bool) -> Result<TypeId, &'static str> {
         for _ in 0..64 {
             let t = self.zonk(t);
             let mut open = None;
@@ -94,7 +101,12 @@ impl Typer<'_> {
                 None
             });
             let Some(v) = open else { return Ok(t) };
-            let from_below = self.constraint.bounds(v).0 != NOTHING;
+            let (lo, hi) = self.constraint.bounds(v);
+            let variance = if bottom_ok { self.variances(t, 0).get(&v.0).copied().unwrap_or(0) } else { 0 };
+            let from_below = match lo != NOTHING {
+                true => variance >= 0,
+                false => bottom_ok && (variance > 0 || variance == 0 && hi == ANY),
+            };
             self.instantiate_var(v, from_below)?;
         }
         Err("type variables")
