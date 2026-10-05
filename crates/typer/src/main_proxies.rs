@@ -93,15 +93,7 @@ impl Typer<'_> {
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
         match self.u.types().get(info).clone() {
-            Type::Method { params, result, .. } if params.is_empty() => {
-                if matches!(self.u.types().get(result), Type::Method { .. }) {
-                    self.unsupported_at(annot_span, "@main method with several parameter lists");
-                    return None;
-                }
-                let args = self.ast.list(&[]);
-                call = self.ast.node(Tree::Apply { fun: call, args });
-            }
-            Type::Method { params, result, .. }
+            Type::Method { params, result, implicit: false, .. }
                 if !matches!(self.u.types().get(result), Type::Method { .. }) =>
             {
                 let mut args = Vec::new();

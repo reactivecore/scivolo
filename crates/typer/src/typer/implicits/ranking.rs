@@ -1,5 +1,6 @@
 //! Ranking successful implicit candidates (dotty's `compareAlternatives`): by the derivation of
-//! their owners, then by `isAsSpecific` on their types.
+//! their owners, then by `isAsSpecific` on their types; undecided for givens and for types with
+//! contravariant parts, which dotty ranks by further rules.
 
 use super::super::Typer;
 use super::candidates::Candidate;
@@ -8,10 +9,32 @@ use tasty::{Type, TypeId, TypeVars};
 impl Typer<'_> {
     /// The candidate of `found` that ranks above all others.
     pub fn most_specific(&mut self, found: &[Candidate]) -> Option<Candidate> {
+        for &c in found {
+            if self.u.symbol(c.sym).flags.has(tasty::tags::GIVEN) || self.has_contravariant_part(c) {
+                return None;
+            }
+        }
         found
             .iter()
             .copied()
             .find(|&c| found.iter().filter(|&&d| d != c).all(|&d| self.compare_candidates(c, d) > 0))
+    }
+
+    /// Whether the type of candidate `c` applies a class with a contravariant type parameter.
+    fn has_contravariant_part(&mut self, c: Candidate) -> bool {
+        let tpe = self.ref_type(c.prefix, c.sym);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let mut found = false;
+        self.u.map_type(info, &mut |u, part| {
+            if let Type::Applied(tycon, _) = *u.types().get(part)
+                && let Some(class) = u.class_symbol(tycon)
+            {
+                let params = u.type_params(class);
+                found |= params.iter().any(|&p| u.symbol(p).flags.has(tasty::tags::CONTRAVARIANT));
+            }
+            None
+        });
+        found
     }
 
     /// 1 if `a` ranks above `b`, -1 if below, 0 if neither (dotty's `compare`).

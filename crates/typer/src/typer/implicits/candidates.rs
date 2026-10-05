@@ -19,15 +19,16 @@ impl Typer<'_> {
         matches!(sym.kind, Kind::Val | Kind::Def) && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
     }
 
-    /// The implicit members of class `c` and its base classes, the private ones of `c` only.
-    fn implicit_members(&mut self, c: SymbolId) -> Vec<SymbolId> {
+    /// The implicit members of class `c` and its base classes, the private ones of `c` if
+    /// `own_private`.
+    fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
         self.complete(c);
         let mut out = Vec::new();
         for base in self.u.linearization(c) {
             self.complete(base);
             for d in self.u.decls(base).unwrap_or_default() {
                 if self.is_implicit(d)
-                    && (base == c || !self.u.symbol(d).flags.has(PRIVATE))
+                    && (own_private && base == c || !self.u.symbol(d).flags.has(PRIVATE))
                     && !out.contains(&d)
                 {
                     out.push(d);
@@ -37,10 +38,11 @@ impl Typer<'_> {
         out
     }
 
-    /// The implicits visible in `ctx`, by nesting level, innermost first; `Err` if seeing them
-    /// needs a symbol whose completion is in progress (dotty's cyclic reference).
+    /// The implicits visible in `ctx`, by nesting level, innermost first, an import at the level
+    /// of the scope it is in; `Err` if seeing them needs a symbol whose completion is in progress
+    /// (dotty's cyclic reference).
     pub fn contextual_implicits(&mut self, ctx: Ctx) -> Result<Vec<Vec<Candidate>>, &'static str> {
-        let mut levels = Vec::new();
+        let mut levels: Vec<(Option<crate::ctx::LevelId>, Vec<Candidate>)> = Vec::new();
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             let (scope, owner, import) = match self.levels.get(l) {
@@ -56,17 +58,21 @@ impl Typer<'_> {
             if let Some(owner) = owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) {
                 let this = crate::defn::type_ref(self.u, owner);
                 let prefix = Some(self.u.intern_type(Type::This(this)));
-                found.extend(self.implicit_members(owner).into_iter().map(|sym| Candidate { sym, prefix }));
+                found.extend(
+                    self.implicit_members(owner, true).into_iter().map(|sym| Candidate { sym, prefix }),
+                );
             }
             if let Some(i) = import {
                 found.extend(self.imported_implicits(i)?);
             }
-            if !found.is_empty() {
-                levels.push(found);
+            let key = self.levels.def_scope(l);
+            match levels.last_mut() {
+                Some((k, group)) if *k == key => group.extend(found),
+                _ => levels.push((key, found)),
             }
             level = self.levels.outer(l);
         }
-        Ok(levels)
+        Ok(levels.into_iter().map(|(_, g)| g).filter(|g| !g.is_empty()).collect())
     }
 
     /// The implicits import `i` makes visible: implicit members by a wildcard, givens by `given`,
@@ -92,7 +98,7 @@ impl Typer<'_> {
         let wildcard = names.iter().any(|(n, _)| n == "_");
         let givens = names.iter().any(|(n, _)| n.is_empty());
         let mut out = Vec::new();
-        for sym in self.implicit_members(class) {
+        for sym in self.implicit_members(class, false) {
             let name = self.u.symbol(sym).name.clone();
             let given = self.u.symbol(sym).flags.has(GIVEN);
             let excluded = names.iter().any(|(n, r)| *n == name && r == "_");
@@ -123,7 +129,7 @@ impl Typer<'_> {
                 let Some(module) = self.companion_module(base) else { continue };
                 let Some(module_class) = self.u.module_class(module) else { continue };
                 let prefix = Some(crate::defn::type_ref(self.u, module));
-                for sym in self.implicit_members(module_class) {
+                for sym in self.implicit_members(module_class, false) {
                     let candidate = Candidate { sym, prefix };
                     if !out.contains(&candidate) {
                         out.push(candidate);

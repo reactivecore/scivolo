@@ -8,6 +8,7 @@ mod classes;
 mod closures;
 mod const_fold;
 mod const_ops;
+mod constructors;
 mod control;
 mod defs;
 mod derived;
@@ -51,18 +52,9 @@ use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::Names;
-use tasty::{TypeId, Universe};
+use tasty::Universe;
 
-/// What the context expects of a tree (dotty's prototypes).
-#[derive(Clone, Copy, Debug)]
-pub enum Pt {
-    Any,
-    Type(TypeId),
-    /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
-    Fun(usize),
-    /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
-    PolyFun,
-}
+pub use overloads::Pt;
 
 pub struct Typer<'a> {
     pub u: &'a mut Universe,

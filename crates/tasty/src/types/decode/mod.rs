@@ -186,8 +186,7 @@ impl<'a> Decoder<'a> {
         let mut rest = k[1..].iter().copied();
         while let Some(c) = rest.next() {
             match self.ast.tag(c) {
-                IMPLICIT => implicit = true,
-                GIVEN => (implicit, contextual) = (true, true),
+                t @ (IMPLICIT | GIVEN) => (implicit, contextual) = (true, t == GIVEN),
                 t if is_modifier(t) => {}
                 _ => {
                     let ty = self.ty(c);

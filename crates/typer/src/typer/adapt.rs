@@ -20,8 +20,14 @@ impl Typer<'_> {
         let span = self.tpd.span(tree);
         let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
         if let Some(Type::Poly { .. }) = method {
+            let vars = self.constraint.count();
             return match self.with_type_vars(tree) {
-                Ok(applied) => self.adapt(applied, pt, ctx),
+                Ok(applied) => {
+                    if let Err(what) = self.interpolate(applied, vars) {
+                        self.unsupported_at(span, what);
+                    }
+                    self.adapt(applied, pt, ctx)
+                }
                 Err(what) => {
                     self.unsupported_at(span, what);
                     tree

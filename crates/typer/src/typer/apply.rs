@@ -1,4 +1,4 @@
-//! Applications `f(args)` and `new C` (dotty's `typedApply`, `typedNew`).
+//! Applications `f(args)` (dotty's `typedApply`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
@@ -24,11 +24,15 @@ impl Typer<'_> {
         let pretyped = self.protos[proto].typed.take();
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).or(Some(fun_tpe));
-        let Some(Type::Method { binder, mut params, result, .. }) =
+        let Some(Type::Method { binder, mut params, result, implicit, contextual }) =
             info.map(|i| self.u.types().get(i).clone())
         else {
             return self.unsupported(id, "application of a non-method");
         };
+        let using = self.ast.attrs(id).contains(syntax::ast::Attrs::USING_APPLY);
+        if contextual && !using || using && !implicit {
+            return self.unsupported(id, "arguments not matching the clause's using");
+        }
         if self.mentions_params(result, binder, method) {
             return self.unsupported(id, "dependent result type");
         }
@@ -144,25 +148,6 @@ impl Typer<'_> {
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
     }
 
-    /// The type of a call of constructor `ctor` on `new` of type `class`, whose method type gives
-    /// `result`: `result` if it names the constructor's class, else the class itself unless
-    /// `class` applies it to arguments.
-    pub fn constructor_result(&mut self, ctor: SymbolId, class: TypeId, result: TypeId) -> TypeId {
-        let owner = self.u.symbol(ctor).owner;
-        let names_owner = |u: &tasty::Universe, t| match *u.types().get(t) {
-            Type::Sym(_, c) => Some(c) == owner,
-            Type::Applied(c, _) => matches!(*u.types().get(c), Type::Sym(_, c) if Some(c) == owner),
-            _ => false,
-        };
-        match owner {
-            _ if names_owner(self.u, result) => result,
-            Some(o) if !matches!(self.u.types().get(class), Type::Applied(..)) => {
-                crate::defn::type_ref(self.u, o)
-            }
-            _ => class,
-        }
-    }
-
     /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
     /// method `method`.
     fn mentions_params(&mut self, t: TypeId, binder: tasty::Binder, method: Option<SymbolId>) -> bool {
@@ -188,17 +173,5 @@ impl Typer<'_> {
             None
         });
         special
-    }
-
-    pub fn typed_new(&mut self, id: NodeId, tpt: NodeId, ctx: Ctx) -> TNodeId {
-        let tpt = self.typed_type(tpt, ctx);
-        let tpe = self.tpd.tpe(tpt);
-        if let Type::Sym(_, c) = *self.u.types().get(tpe)
-            && !self.u.type_params(c).is_empty()
-        {
-            return self.unsupported(id, "new of a generic class without type arguments");
-        }
-        let span = self.ast.span(id);
-        self.tpd.node(T::New { tpt }, span, Some(tpe), None)
     }
 }

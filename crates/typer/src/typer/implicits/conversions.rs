@@ -7,7 +7,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use tasty::tags::GIVEN;
-use tasty::{Kind, Type, TypeId, TypeVars};
+use tasty::{Kind, Type, TypeId};
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]
@@ -32,29 +32,31 @@ impl Typer<'_> {
         {
             return Ok(None);
         }
-        self.implicit_budget = 400;
+        self.implicit_budget = super::search::MAX_TRIES;
         let mut groups = self.contextual_implicits(ctx)?;
         let mut scope = self.implicit_scope(from);
         if let Goal::Conform(pt) = goal {
             scope.extend(self.implicit_scope(pt));
         }
+        if let Goal::Member(name) = goal
+            && scope.iter().any(|c| {
+                let s = self.u.symbol(c.sym);
+                s.name == name && s.flags.has(tasty::tags::EXTENSION)
+            })
+        {
+            return Err("extension method in the implicit scope");
+        }
         groups.push(scope);
         for group in groups {
-            let mut found = Vec::new();
             for &c in &group {
                 if self.u.symbol(c.sym).flags.has(GIVEN) {
                     return Err("given conversion");
                 }
-                let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
-                if self.try_conversion(c, tree, goal, ctx).is_ok() && self.unsupported == unsupported {
-                    found.push(c);
+                if self.u.symbol(c.sym).kind == Kind::Val && self.is_function_value(c) {
+                    return Err("implicit function value");
                 }
-                self.constraint.rollback(mark);
-                self.unsupported = unsupported;
             }
-            if self.implicit_budget == 0 {
-                return Err("implicit search too costly");
-            }
+            let found = self.fitting(&group, |t, c| t.try_conversion(c, tree, goal, ctx))?;
             let winner = match found.as_slice() {
                 [] => continue,
                 [c] => *c,
@@ -63,6 +65,19 @@ impl Typer<'_> {
             return self.try_conversion(winner, tree, goal, ctx).map(Some);
         }
         Ok(None)
+    }
+
+    /// Whether candidate value `c` is a function or a `Conversion`, which dotty applies as a view.
+    fn is_function_value(&mut self, c: Candidate) -> bool {
+        self.complete(c.sym);
+        let tpe = self.ref_type(c.prefix, c.sym);
+        let widened = self.u.widen(tpe);
+        self.u.class_symbol(widened).is_some_and(|k| {
+            let base = |t: &mut Self, name: &str| {
+                t.resolve_full_name(name, true).is_some_and(|b| t.u.derives_from(k, b))
+            };
+            base(self, "scala.Function1") || base(self, "scala.Conversion")
+        })
     }
 
     /// Whether `pt` is `Any`, `AnyVal`, `AnyRef` or `Matchable`, which no conversion targets.
