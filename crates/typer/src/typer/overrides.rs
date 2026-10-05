@@ -8,7 +8,7 @@ use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    fn is_concrete(&self, s: SymbolId) -> bool {
+    pub fn is_concrete(&self, s: SymbolId) -> bool {
         match self.syms.flags.get(&s) {
             Some(flags) => !flags.is(f::DEFERRED),
             None => self.u.body(s).is_some(),
@@ -34,7 +34,7 @@ impl Typer<'_> {
         decls.iter().filter(keep).copied().collect()
     }
 
-    fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
+    pub fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ka, kb) = (self.u.symbol(a).kind, self.u.symbol(b).kind);
         if ka == Kind::Def && kb == Kind::Def { self.u.matches(site, a, b) } else { true }
     }

@@ -30,6 +30,15 @@ impl Tpd {
         TNodeId::new(self.nodes.len() - 1)
     }
 
+    /// How many trees the arena holds.
+    pub fn len(&self) -> usize {
+        self.nodes.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.nodes.is_empty()
+    }
+
     pub fn get(&self, id: TNodeId) -> &Node {
         &self.nodes[id.index()]
     }

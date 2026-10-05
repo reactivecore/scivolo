@@ -2,8 +2,10 @@
 
 mod access;
 mod adapt;
+mod alternatives;
 mod apply;
 mod classes;
+mod closures;
 mod const_fold;
 mod const_ops;
 mod control;
@@ -14,7 +16,9 @@ mod find_ref;
 mod idents;
 mod import_tree;
 mod imports;
+mod infer;
 mod literals;
+mod names;
 mod no_inits;
 mod overloads;
 mod overrides;
@@ -25,13 +29,16 @@ mod purity;
 mod qualifies;
 mod repeated;
 mod report;
+mod seen_from;
 mod select;
 mod stats;
 mod this;
 mod type_apply;
 mod type_defs;
 mod type_trees;
+mod variances;
 mod views;
+mod widen_inferred;
 mod widening;
 
 use crate::ctx::{Ctx, LevelId, Levels};
@@ -42,7 +49,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
-use syntax::names::{Name, Names};
+use syntax::names::Names;
 use tasty::{TypeId, Universe};
 
 /// What the context expects of a tree (dotty's prototypes).
@@ -75,6 +82,8 @@ pub struct Typer<'a> {
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
+    /// The bounds and instances of the type variables.
+    pub constraint: crate::constraint::Constraint,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
@@ -108,6 +117,7 @@ impl<'a> Typer<'a> {
             splices: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
+            constraint: Default::default(),
             protos: Vec::new(),
             unsupported: None,
             depth: 0,
@@ -129,10 +139,14 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        let vars = self.constraint.count();
         let tree = match self.ready(id) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
+        if let Err(what) = self.interpolate(tree, vars) {
+            self.unsupported(id, what);
+        }
         let tree = self.adapt(tree, pt);
         self.depth -= 1;
         tree
@@ -142,7 +156,7 @@ impl<'a> Typer<'a> {
         match self.ast.tree(id).clone() {
             Tree::Ident { name } => self.typed_ident(id, name, pt, ctx),
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
-            Tree::Apply { fun, args } => self.typed_apply(id, fun, args, ctx),
+            Tree::Apply { fun, args } => self.typed_apply(id, fun, args, pt, ctx),
             Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, ctx),
             Tree::Literal { value } => self.typed_literal(id, value),
             Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
@@ -158,6 +172,7 @@ impl<'a> Typer<'a> {
             Tree::Return { expr } => self.typed_return(id, expr, ctx),
             Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
+            Tree::Function { args, body, mods: None, .. } => self.typed_function(id, args, body, pt, ctx),
             Tree::TypeTree
             | Tree::AppliedTypeTree { .. }
             | Tree::SingletonTypeTree { .. }
@@ -178,13 +193,5 @@ impl<'a> Typer<'a> {
                 self.unsupported(id, what.split([' ', '{']).next().unwrap_or("tree"))
             }
         }
-    }
-
-    pub fn name(&mut self, text: &str) -> Name {
-        self.names.intern(text)
-    }
-
-    pub fn text(&self, name: Name) -> &str {
-        self.names.text(name)
     }
 }

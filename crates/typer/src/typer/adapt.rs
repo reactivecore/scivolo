@@ -21,12 +21,20 @@ impl Typer<'_> {
             return tree;
         }
         let method = self.method_info(tpe).or(Some(tpe)).map(|i| self.u.types().get(i).clone());
+        if let Some(Type::Method { params, result, implicit: false, .. }) = &method
+            && params.is_empty()
+            && self.is_auto_applicable(tree)
+        {
+            let args = self.tpd.list(&[]);
+            let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
+            return self.adapt(apply, pt);
+        }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
             return tree;
         }
         let Pt::Type(pt) = pt else { return tree };
-        if self.u.is_subtype(tpe, pt) {
+        if self.conforms(tpe, pt) {
             return tree;
         }
         if let Some(converted) = self.converted_constant(tree, pt) {
@@ -41,6 +49,19 @@ impl Typer<'_> {
         }
         self.unsupported_at(span, "adaptation");
         tree
+    }
+
+    /// Whether reference `tree` to a method with an empty parameter list may be called without
+    /// one (dotty's auto-application): a member of `Any` other than `getClass`, or of a `java.*`
+    /// or `javax.*` class.
+    fn is_auto_applicable(&mut self, tree: TNodeId) -> bool {
+        let Some(s) = self.tpd.sym(tree) else { return false };
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        if owner == self.u.builtins().any {
+            return self.u.symbol(s).name != "getClass";
+        }
+        let name = self.u.full_name(owner);
+        name.starts_with("java.") || name.starts_with("javax.")
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

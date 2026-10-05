@@ -90,7 +90,16 @@ pub fn sym(u: &mut Universe, s: SymbolId) -> String {
                 }
                 Type::Method { params, result, .. } => {
                     for (_, p) in params {
-                        let p = bounded(u, p, &bounds);
+                        let p = match u.types().get(p) {
+                            Type::Param(..) => bounded(u, p, &bounds),
+                            _ => u.map_type(p, &mut |u, x| match *u.types().get(x) {
+                                Type::Param(..) => {
+                                    let hi = bounded(u, x, &bounds);
+                                    Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
+                                }
+                                _ => None,
+                            }),
+                        };
                         let e = match u.erase(p) {
                             tasty::Erased::Unit => tasty::Erased::Class("scala.runtime.BoxedUnit".into()),
                             e => e,

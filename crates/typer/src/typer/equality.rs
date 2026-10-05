@@ -20,6 +20,7 @@ impl Typer<'_> {
             return Err("comparison under strictEquality");
         }
         let (a, b) = (self.tpd.tpe(qualifier), arg_tpe);
+        let (a, b) = (self.zonk(a), self.zonk(b));
         let (a, b) = (self.u.widen(a), self.u.widen(b));
         let numeric = |t: &mut Self, x| t.value_class(x).is_some_and(|c| is_numeric(&c));
         let comparable =

@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// The arguments of an application, typed once without an expected type when overloading needs
 /// their types (dotty's `FunProto`).
@@ -17,61 +17,6 @@ pub struct FunProto {
 }
 
 impl Typer<'_> {
-    /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
-    /// method taking as many arguments as `pt` supplies, or the one overload resolution picks.
-    pub fn choose(
-        &mut self,
-        syms: &[SymbolId],
-        prefix: Option<TypeId>,
-        pt: Pt,
-    ) -> Result<SymbolId, &'static str> {
-        if let [s] = syms {
-            return Ok(*s);
-        }
-        let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
-        let mut methods = Vec::new();
-        for &s in syms {
-            self.complete(s);
-            if self.u.symbol(s).kind == Kind::Def {
-                methods.push(s);
-                continue;
-            }
-            let value = self.ref_type(prefix, s);
-            if !self.type_members(value, "apply").is_empty() {
-                return Err("overloaded value with an apply method");
-            }
-        }
-        if let [s] = methods[..] {
-            return Ok(s);
-        }
-        let n = self.protos[proto].args.len();
-        let mut fitting = Vec::new();
-        for s in methods {
-            let info = self.u.info(s);
-            let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
-            let special = ps.iter().any(|&p| self.is_special_param(p) || self.repeated_elem(p).is_some());
-            if special || self.has_defaults(s) {
-                return Err("overloads with default, repeated or by-name parameters");
-            }
-            if ps.len() == n {
-                fitting.push(s);
-            }
-        }
-        match fitting.as_slice() {
-            [s] => Ok(*s),
-            [] => Err("no alternative with that many arguments"),
-            _ => self.resolve_overloaded(&fitting, prefix, proto),
-        }
-    }
-
-    /// Whether a method named as `s` in its owner has default arguments.
-    fn has_defaults(&mut self, s: SymbolId) -> bool {
-        let Some(owner) = self.u.symbol(s).owner else { return false };
-        let prefix = format!("{}$default$", self.u.symbol(s).name);
-        let decls = self.u.decls(owner).unwrap_or_default();
-        decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))
-    }
-
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx` (dotty's
     /// `isCompatible`): `Some` if decided, `None` if an implicit conversion might decide it.
     fn compatible(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
@@ -95,26 +40,32 @@ impl Typer<'_> {
         args: &[TypeId],
         ctx: Ctx,
     ) -> Option<bool> {
-        let tpe = self.u.intern_type(Type::Sym(prefix, alt));
-        let info = self.method_info(tpe)?;
-        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
-        if params.len() != args.len() {
+        let (mut params, repeated) = self.param_types(alt, prefix)?;
+        let elem = repeated.then(|| params.pop()).flatten();
+        let fits = if elem.is_some() { args.len() >= params.len() } else { args.len() == params.len() };
+        if !fits {
             return Some(false);
         }
         let mut all = true;
-        for (&a, &(_, p)) in args.iter().zip(&params) {
+        for (i, &a) in args.iter().enumerate() {
+            let p = params.get(i).copied().or(elem)?;
             all &= self.compatible(a, p, ctx)?;
         }
         Some(all)
     }
 
-    fn param_types(&mut self, alt: SymbolId, prefix: Option<TypeId>) -> Option<Vec<TypeId>> {
+    /// The parameter types of the first clause of `alt` seen from `prefix`, a repeated one as its
+    /// element type, and whether the last is repeated.
+    fn param_types(&mut self, alt: SymbolId, prefix: Option<TypeId>) -> Option<(Vec<TypeId>, bool)> {
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
         let info = self.method_info(tpe)?;
-        match self.u.types().get(info) {
-            Type::Method { params, .. } => Some(params.iter().map(|&(_, p)| p).collect()),
-            _ => None,
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let elem = types.last().and_then(|&p| self.repeated_elem(p));
+        if let Some(e) = elem {
+            *types.last_mut().expect("a parameter") = e;
         }
+        Some((types, elem.is_some()))
     }
 
     /// dotty's `compare`: 1 if `a` is better, -1 if `b` is, 0 if neither; `None` if undecided.
@@ -129,10 +80,10 @@ impl Typer<'_> {
         } else {
             0
         };
-        let pa = self.param_types(a, prefix)?;
-        let pb = self.param_types(b, prefix)?;
-        let wins_a = self.applicable(b, prefix, &pa, ctx)?;
-        let wins_b = self.applicable(a, prefix, &pb, ctx)?;
+        let (pa, va) = self.param_types(a, prefix)?;
+        let (pb, vb) = self.param_types(b, prefix)?;
+        let wins_a = (!va || vb) && self.applicable(b, prefix, &pa, ctx)?;
+        let wins_b = (!vb || va) && self.applicable(a, prefix, &pb, ctx)?;
         Some(match owner_score {
             1 => i32::from(wins_a || !wins_b),
             -1 => -i32::from(wins_b || !wins_a),
@@ -150,6 +101,7 @@ impl Typer<'_> {
         let args = self.pretyped_args(proto);
         let ctx = self.protos[proto].ctx;
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let arg_types: Vec<TypeId> = arg_types.into_iter().map(|t| self.zonk(t)).collect();
         let mut applicable = Vec::new();
         for &alt in alts {
             match self.applicable(alt, prefix, &arg_types, ctx) {

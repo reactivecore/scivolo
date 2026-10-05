@@ -64,6 +64,15 @@ impl Typer<'_> {
         };
         let cls = self.syms.by_tree[&id];
         self.complete(cls);
+        let ctor = self.syms.primary_ctors.get(&cls).copied();
+        let params = ctor.is_some_and(|c| {
+            self.complete(c);
+            let info = self.u.info(c);
+            self.u.param_clauses(info).iter().any(|(_, ps)| !ps.is_empty())
+        });
+        if self.is_trait(cls) && params {
+            return self.unsupported(id, "trait parameters");
+        }
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
         let constr = self.typed(t.constr, Pt::Any, cctx);
