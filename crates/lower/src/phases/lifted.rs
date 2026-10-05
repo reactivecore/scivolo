@@ -1,133 +1,118 @@
-//! The methods lifted from lambdas: named `<owner>$$anonfun$N` from the outermost lambda in,
-//! taking proxies `x$N` of the captured values first; an `$adapted` method where a parameter is
-//! primitive or the result `Unit` (dotty's `Erasure.Typer.typedClosure`).
+//! The methods lifted from lambdas and local methods: named `<owner>$$anonfun$N` and `f$N` from
+//! the outermost function in, taking proxies `x$N` of the captured values first; static unless
+//! they need `this`. Calls of local methods pass the captured values.
 
-use super::adapt::from_start;
-use super::adapted::specializable;
-use super::lambda_lift::{Lambda, fresh, post_order};
+use super::closures::{Plan, plan, rewrite};
+use super::lambda_lift::{Function, fresh, post_order};
 use super::walk::children;
-use crate::definitions::{procedure, specialized, symbol, type_ref};
+use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::{PRIVATE, STATIC};
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// A lambda's method: its symbol and the proxies of the captured values.
+/// A lifted method: its symbol and the proxies of the captured values.
 pub struct Method {
     pub sym: SymbolId,
     pub proxies: Vec<SymbolId>,
 }
 
-/// The methods of `lambdas` of `class`, inner lambdas first, each followed by its `$adapted`
-/// method, and the proxies of the `$adapted` methods, named last in the unit; the lambdas'
-/// blocks become closures of them.
-pub fn lift(l: &mut Lower, class: SymbolId, lambdas: &[Lambda]) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
-    let mut lifted: Vec<(Method, Option<Method>)> = Vec::new();
-    let mut interfaces = Vec::new();
+/// The methods of `functions` of `class`, named as the functions until `lift`.
+pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result<Vec<Method>> {
+    let mut methods = Vec::new();
+    for f in functions {
+        let (params, result) = signature(l, f)?;
+        let name = l.u.symbol(f.sym).name.clone();
+        methods.push(define(l, class, &name, &f.captured, &params, result, f.this));
+    }
+    Ok(methods)
+}
+
+/// The parameters with their types and the result type of function `f`.
+fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
+    let info = l.u.info(f.sym);
+    let result = match *l.u.types().get(info) {
+        Type::Method { result, .. } => result,
+        Type::Poly { .. } => return unsupported(l.tpd.span(f.def), "local methods with type parameters"),
+        _ => return unsupported(l.tpd.span(f.def), "local methods without parameter lists"),
+    };
+    let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
+    Ok((params, result))
+}
+
+/// Names `methods` of `functions` of `class`, inner functions first, each lambda's followed by
+/// its `$adapted` method, and the proxies of the `$adapted` methods, to name last in the unit;
+/// the lambdas' blocks become closures, the local methods leave their blocks and calls of them in
+/// `template` call the lifted methods.
+pub fn lift(
+    l: &mut Lower,
+    class: SymbolId,
+    template: TNodeId,
+    functions: &[Function],
+    methods: &[Method],
+) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
+    let mut plans: Vec<Option<Plan>> = Vec::new();
     let mut deferred = Vec::new();
-    for lambda in lambdas {
-        let prefix = match l.u.symbol(lambda.sym).owner {
-            Some(o) if l.u.symbol(o).kind == Kind::Def => match lambdas.iter().position(|x| x.sym == o) {
-                Some(p) => format!("{}$", l.u.symbol(lifted[p].0.sym).name),
+    for (f, method) in functions.iter().zip(methods) {
+        let (params, result) = signature(l, f)?;
+        let prefix = match l.u.symbol(f.sym).owner {
+            Some(o) if l.u.symbol(o).kind == Kind::Def => match functions.iter().position(|x| x.sym == o) {
+                Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
                 None => format!("{}$", l.u.symbol(o).name),
             },
             _ => String::new(),
         };
-        let params = params(l, lambda.def);
-        let info = l.u.info(lambda.sym);
-        let Type::Method { result, .. } = *l.u.types().get(info) else { unreachable!("a method type") };
-        let name = fresh(l, &format!("{prefix}$anonfun"));
-        let typed: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, l.u.info(p))).collect();
-        let method = define(l, class, &name, &lambda.captured, &typed, result, true);
-        let erased: Vec<Erased> = typed.iter().map(|&(_, t)| l.u.erase(t)).collect();
-        let erased_result = l.u.erase(result);
-        let unit = erased_result == Erased::Unit;
-        let primitive = erased.iter().any(|e| matches!(e, Erased::Prim(_) | Erased::Unit));
-        let function = matches!(l.tpd.tree(lambda.closure), Tree::Closure { tpt: None, .. });
-        let specialized_ = function && (unit || primitive) && specializable(&erased, &erased_result);
-        let interface = match () {
-            _ if specialized_ => Some(specialized(l.u, &erased, &erased_result)),
-            _ if function && unit && !primitive => Some(procedure(l.u, params.len())),
-            _ => None,
+        let name = match f.closure {
+            Some(_) => fresh(l, &format!("{prefix}$anonfun")),
+            None => fresh(l, &l.u.symbol(f.sym).name.clone()),
         };
-        let Ok(interface) = interface.transpose() else {
-            return unsupported(l.tpd.span(lambda.block), "lambdas of this function type");
+        l.u.rename(method.sym, &name);
+        let closure = match f.closure {
+            Some(_) => Some(plan(l, class, f, &prefix, &params, result, &mut deferred)?),
+            None => None,
         };
-        interfaces.push(interface);
-        let adapted = (!specialized_ && (primitive || unit && !function)).then(|| {
-            let object = type_ref(l.u, l.defs.object);
-            let objects: Vec<(SymbolId, TypeId)> = params.iter().map(|&p| (p, object)).collect();
-            let result = if unit { object } else { result };
-            let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
-            let adapted = define(l, class, &name, &lambda.captured, &objects, result, false);
-            l.bridges.insert(adapted.sym);
-            deferred.extend(adapted.proxies.iter().copied());
-            adapted
-        });
-        lifted.push((method, adapted));
+        plans.push(closure);
     }
-    for ((lambda, (method, adapted)), interface) in lambdas.iter().zip(&lifted).zip(interfaces) {
-        let span = l.tpd.span(lambda.closure);
-        let env: Vec<TNodeId> = lambda.captured.iter().map(|&s| l.ident(s, span)).collect();
-        let target = adapted.as_ref().unwrap_or(method).sym;
-        let meth = l.ident(target, span);
-        let Tree::Closure { tpt, .. } = *l.tpd.tree(lambda.closure) else { unreachable!("a closure") };
-        let tpt = match interface {
-            Some(interface) => {
-                let interface = type_ref(l.u, interface);
-                Some(l.type_tree(interface, span))
-            }
-            None => tpt,
-        };
-        let env = l.tpd.list(&env);
-        l.tpd.get_mut(lambda.closure).tree = Tree::Closure { env, meth, tpt };
-        let stats = l.tpd.list(&[]);
-        let expr = match adapted {
-            Some(_) => {
-                let closure = l.tpd.get_mut(lambda.closure);
-                let span = closure.span;
-                closure.span = from_start(span);
-                l.block(&[], lambda.closure, span)
-            }
-            None => lambda.closure,
-        };
-        l.tpd.get_mut(lambda.block).tree = Tree::Block { stats, expr };
+    calls(l, class, template, functions, methods);
+    for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {
+        match plan {
+            Some(plan) => rewrite(l, f, method, plan),
+            None => leave_block(l, f),
+        }
     }
     let mut out = Vec::new();
-    for i in post_order(lambdas) {
-        let (method, adapted) = &lifted[i];
-        let Tree::DefDef { tpt, rhs: Some(rhs), .. } = *l.tpd.tree(lambdas[i].def) else {
-            unreachable!("a lambda")
-        };
+    for i in post_order(functions) {
+        let f = &functions[i];
+        let Tree::DefDef { tpt, rhs: Some(rhs), .. } = *l.tpd.tree(f.def) else { unreachable!("a function") };
         let map: FxHashMap<SymbolId, SymbolId> =
-            lambdas[i].captured.iter().copied().zip(method.proxies.iter().copied()).collect();
+            f.captured.iter().copied().zip(methods[i].proxies.iter().copied()).collect();
         substitute(l, rhs, &map);
-        let params = params(l, lambdas[i].def);
-        out.push(def(l, lambdas[i].def, method, &params, tpt, rhs));
-        if let Some(adapted) = adapted {
-            out.push(super::adapted::adapted_def(l, lambdas[i].def, method, adapted, tpt));
+        out.push(def(l, f.def, &methods[i], tpt, rhs));
+        if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
+            out.push(super::adapted::adapted_def(l, f.def, &methods[i], adapted, tpt));
         }
     }
     Ok((out, deferred))
 }
 
-/// A private static method `name` of `class` with proxies of `captured`, then `params`; the
-/// proxies named `x$N` now if `named`, else later by `name_proxies`.
-fn define(
+/// A private method `name` of `class`, static unless `this`, with proxies of `captured`, then
+/// `params`; the proxies named as the values they stand for, until `name_proxies`.
+pub fn define(
     l: &mut Lower,
     class: SymbolId,
     name: &str,
     captured: &[SymbolId],
     params: &[(SymbolId, TypeId)],
     result: TypeId,
-    named: bool,
+    this: bool,
 ) -> Method {
-    let sym = l.u.define(symbol(name, Kind::Def, class, Flags::default().with(PRIVATE).with(STATIC)));
+    let flags = Flags::default().with(PRIVATE);
+    let flags = if this { flags } else { flags.with(STATIC) };
+    let sym = l.u.define(symbol(name, Kind::Def, class, flags));
     let mut proxies = Vec::new();
     for &s in captured {
-        let base = l.u.symbol(s).name.clone();
-        let name = if named { fresh(l, &base) } else { base };
+        let name = l.u.symbol(s).name.clone();
         let proxy = l.u.define(symbol(&name, Kind::Param, sym, Flags::default()));
         let info = l.u.info(s);
         l.u.set_info(proxy, info);
@@ -141,6 +126,38 @@ fn define(
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
     l.u.set_info(sym, info);
     Method { sym, proxies }
+}
+
+/// Makes the calls of the local methods among `functions` under `t` call their `methods` with
+/// the captured values first.
+fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function], methods: &[Method]) {
+    let mut todo = vec![t];
+    while let Some(t) = todo.pop() {
+        if let Tree::Apply { fun, args } = *l.tpd.tree(t)
+            && let Some(i) = l.tpd.sym(fun).and_then(|s| functions.iter().position(|f| f.sym == s))
+            && functions[i].closure.is_none()
+            && matches!(l.tpd.tree(fun), Tree::Ident { .. })
+        {
+            let span = l.tpd.span(fun);
+            let this = l.this(class, span);
+            let fun = l.select(this, methods[i].sym, span);
+            let mut all: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
+            all.extend(l.tpd.items(args));
+            let args = l.tpd.list(&all);
+            l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
+        }
+        if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
+            todo.extend(children(l.tpd, t));
+        }
+    }
+}
+
+/// Removes local method `f` from the block it is in.
+fn leave_block(l: &mut Lower, f: &Function) {
+    let Tree::Block { stats, expr } = *l.tpd.tree(f.block) else { unreachable!("a block") };
+    let kept: Vec<TNodeId> = l.tpd.items(stats).iter().copied().filter(|&s| s != f.def).collect();
+    let stats = l.tpd.list(&kept);
+    l.tpd.get_mut(f.block).tree = Tree::Block { stats, expr };
 }
 
 /// The value parameters of method definition `def`.
@@ -165,20 +182,14 @@ fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
     }
 }
 
-/// The definition of `method` with `params` after its proxies, from lambda definition `lambda`.
-fn def(
-    l: &mut Lower,
-    lambda: TNodeId,
-    method: &Method,
-    params: &[SymbolId],
-    tpt: TNodeId,
-    rhs: TNodeId,
-) -> TNodeId {
-    let span = l.tpd.span(lambda);
+/// The definition of `method` from function definition `function`: its proxies, then its
+/// parameters.
+fn def(l: &mut Lower, function: TNodeId, method: &Method, tpt: TNodeId, rhs: TNodeId) -> TNodeId {
+    let span = l.tpd.span(function);
     let mut defs: Vec<TNodeId> = method.proxies.iter().map(|&p| l.param_def(p, span)).collect();
-    let Tree::DefDef { paramss, .. } = *l.tpd.tree(lambda) else { unreachable!("a lambda") };
+    let Tree::DefDef { paramss, .. } = *l.tpd.tree(function) else { unreachable!("a function") };
     let originals: Vec<TNodeId> =
         l.tpd.clause_items(paramss).iter().flat_map(|&c| l.tpd.items(c).to_vec()).collect();
-    defs.extend(originals.into_iter().filter(|&p| l.tpd.sym(p).is_some_and(|s| params.contains(&s))));
+    defs.extend(originals.into_iter().filter(|&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })));
     l.method_def(method.sym, &defs, tpt, rhs, span)
 }

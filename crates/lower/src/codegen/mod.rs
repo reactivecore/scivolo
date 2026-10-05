@@ -10,6 +10,7 @@ mod callee;
 mod cast;
 mod class;
 mod closure;
+mod closure_methods;
 mod concat;
 mod dead;
 mod equality;

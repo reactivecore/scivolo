@@ -21,3 +21,4 @@ capture
 cpu
 loops
 arrays
+localdefs
