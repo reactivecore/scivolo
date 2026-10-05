@@ -1,6 +1,7 @@
 //! The lowering's NIR against Scala Native's for the same sources (research 10 §5): the same
 //! files, each with the same classes and fields in order, the same methods in any order, with the
-//! same instructions and positions and the same local names and scopes in any order.
+//! same instructions and positions and the same local names, scopes and variable slots in any
+//! order.
 
 use nir::{Caches, Pool, Reader, show};
 use std::path::{Path, PathBuf};
@@ -21,7 +22,8 @@ fn decoded(data: &[u8]) -> Vec<String> {
     let is_method =
         |d: &&nir::Defn| matches!(d.kind, nir::DefnKind::Define { .. } | nir::DefnKind::Declare { .. });
     let (methods, others): (Vec<_>, Vec<_>) = defns.iter().partition(is_method);
-    let mut methods: Vec<String> = methods.iter().map(|d| show::defn_with_debug_info(&pool, d)).collect();
+    let mut methods: Vec<String> =
+        methods.iter().map(|d| vars_by_name(&show::defn_with_debug_info(&pool, d))).collect();
     methods.sort();
     let others = others.iter().map(|d| show::defn_with_debug_info(&pool, d));
     std::iter::once(entry_points).chain(others).chain(methods).collect()
@@ -60,6 +62,67 @@ fn programs_lower_as_scala_native_compiles_them() {
             assert_eq!(ours.len(), theirs.len(), "{program}: {} definitions", f.name);
         }
     }
+}
+
+/// Method text `text` with its local variable slots in name order: nscplugin keeps them in a
+/// `Set`, whose order beyond four elements follows dotty's symbol ids.
+fn vars_by_name(text: &str) -> String {
+    let var = |line: &str| -> Option<(u64, String)> {
+        let rest = line.strip_prefix("  %")?;
+        let (id, rest) = rest.split_once(" <")?;
+        let (name, rest) = rest.split_once('>')?;
+        rest.starts_with(" = var[")
+            .then(|| (id.parse().ok(), name.to_owned()))
+            .and_then(|(i, n)| Some((i?, n)))
+    };
+    let vars: Vec<(u64, String)> = text.lines().filter_map(var).collect();
+    if vars.len() < 2 {
+        return text.to_owned();
+    }
+    let mut ids: Vec<u64> = vars.iter().map(|&(i, _)| i).collect();
+    ids.sort_unstable();
+    let mut by_name = vars.clone();
+    by_name.sort_by(|a, b| a.1.cmp(&b.1));
+    let map: std::collections::HashMap<u64, u64> =
+        by_name.iter().zip(&ids).map(|(&(old, _), &new)| (old, new)).collect();
+    let renumber = |line: &str| -> String {
+        let mut out = String::new();
+        let mut rest = line;
+        while let Some(i) = rest.find('%') {
+            out.push_str(&rest[..=i]);
+            rest = &rest[i + 1..];
+            let digits = rest.find(|c: char| !c.is_ascii_digit()).unwrap_or(rest.len());
+            let id = rest[..digits].parse().ok().and_then(|n: u64| map.get(&n).copied());
+            match id {
+                Some(new) => out.push_str(&new.to_string()),
+                None => out.push_str(&rest[..digits]),
+            }
+            rest = &rest[digits..];
+        }
+        out + rest
+    };
+    let mut lines: Vec<String> = text.lines().map(renumber).collect();
+    let slots: Vec<usize> =
+        lines.iter().enumerate().filter(|(_, l)| var(l).is_some()).map(|(i, _)| i).collect();
+    let mut var_lines: Vec<String> = slots.iter().map(|&i| lines[i].clone()).collect();
+    var_lines.sort_by_key(|l| var(l).map(|(i, _)| i));
+    for (&i, line) in slots.iter().zip(var_lines) {
+        lines[i] = line;
+    }
+    for line in lines.iter_mut().filter(|l| l.starts_with("names [")) {
+        let mut names: Vec<(u64, String)> = line["names [".len()..line.len() - 1]
+            .split("), (")
+            .filter_map(|e| {
+                let (id, name) = e.trim_matches(|c| c == '(' || c == ')').split_once(", ")?;
+                let id: u64 = id.parse().ok()?;
+                Some((map.get(&id).copied().unwrap_or(id), name.to_owned()))
+            })
+            .collect();
+        names.sort();
+        let entries: Vec<String> = names.iter().map(|(i, n)| format!("({i}, {n})")).collect();
+        *line = format!("names [{}]", entries.join(", "));
+    }
+    lines.join("\n")
 }
 
 /// The first line where `ours` and `theirs` differ, with the definition's first line, then both

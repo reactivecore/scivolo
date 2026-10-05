@@ -17,3 +17,6 @@ lambdas
 specialized
 fib
 interp
+capture
+cpu
+loops

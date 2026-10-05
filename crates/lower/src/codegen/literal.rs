@@ -35,7 +35,12 @@ impl Gen<'_, '_> {
             _ => self.l.u.class_symbol(tpe),
         };
         match class {
-            Some(c) if !is_primitive(&self.l.u.binary_name(c)) => {
+            Some(c) if is_primitive(&self.l.u.binary_name(c)) => {
+                let simple = self.l.u.symbol(c).name.clone();
+                let name = self.pool.top(&format!("scala.scalanative.runtime.Primitive{simple}"));
+                Ok(self.val(Val::ClassOf(name)))
+            }
+            Some(c) => {
                 let name = self.type_name(c);
                 Ok(self.val(Val::ClassOf(name)))
             }

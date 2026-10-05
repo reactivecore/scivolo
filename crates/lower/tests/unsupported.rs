@@ -16,7 +16,6 @@ const CASES: &[(&str, &str)] = &[
     ("object O { val f: String => String = s => s }", "lambdas outside methods"),
     ("object O { def g(s: String) = s; def f(): String => String = x => this.g(x) }", "lambdas using `this`"),
     ("class C(p: String) { def f(): String => String = s => s + p }", "lambdas using `this` of a class"),
-    ("object O { def f(): () => String = { var v = \"a\"; () => v } }", "lambdas capturing variables"),
     ("object O { def f(a: Array[Int]): Int = a.length }", "array operations"),
     ("object O { def f(c: Boolean): Any = if c then 1 else \"s\" }", "branches of different erased classes"),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
