@@ -36,9 +36,6 @@ pub fn transform(
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
-    if l.tpd.items(body).iter().any(|&s| matches!(l.tpd.tree(s), Tree::TypeDef { .. })) {
-        return unsupported(span, "type parameters and members");
-    }
     if is_trait(l.u, class) {
         if !l.u.no_inits(class)
             || l.tpd.items(body).iter().any(|&s| !matches!(l.tpd.tree(s), Tree::DefDef { .. }))

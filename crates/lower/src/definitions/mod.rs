@@ -9,11 +9,13 @@ pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
-/// A primitive value class: its erased letter, its object and that object's `box` method.
+/// A primitive value class: its erased letter, its object and that object's `box` and `unbox`
+/// methods.
 pub struct Primitive {
     pub letter: char,
     pub module: SymbolId,
     pub box_method: SymbolId,
+    pub unbox_method: SymbolId,
 }
 
 pub struct Definitions {
@@ -30,6 +32,8 @@ pub struct Definitions {
     pub strings: Strings,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
+    /// `Any.asInstanceOf`.
+    pub as_instance_of: SymbolId,
 }
 
 /// The primitive value classes of package `scala` and their erased letters.
@@ -55,7 +59,8 @@ impl Definitions {
             let module = member(u, scala, name, Kind::Val)?;
             let class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
             let box_method = member(u, class, "box", Kind::Def)?;
-            primitives.push(Primitive { letter, module, box_method });
+            let unbox_method = member(u, class, "unbox", Kind::Def)?;
+            primitives.push(Primitive { letter, module, box_method, unbox_method });
         }
         let b = u.builtins();
         Ok(Definitions {
@@ -70,6 +75,7 @@ impl Definitions {
             equality: Equality::new(u, b.any, b.object, runtime)?,
             strings: Strings::new(u)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
+            as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })
     }
 
@@ -79,6 +85,11 @@ impl Definitions {
 
     pub fn is_box(&self, m: SymbolId) -> bool {
         self.primitives.iter().any(|p| p.box_method == m)
+    }
+
+    /// The primitive whose `unbox` method `m` is.
+    pub fn unboxed_by(&self, m: SymbolId) -> Option<&Primitive> {
+        self.primitives.iter().find(|p| p.unbox_method == m)
     }
 }
 

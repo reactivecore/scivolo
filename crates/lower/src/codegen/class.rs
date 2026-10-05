@@ -68,7 +68,10 @@ impl Gen<'_, '_> {
                         self.defns.push(defn);
                     }
                 }
-                Tree::TypeDef { .. } => return unsupported(self.l.tpd.span(stat), "nested classes"),
+                Tree::TypeDef { rhs, .. } if matches!(self.l.tpd.tree(*rhs), Tree::Template { .. }) => {
+                    return unsupported(self.l.tpd.span(stat), "nested classes");
+                }
+                Tree::TypeDef { .. } => {}
                 Tree::ValDef { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }

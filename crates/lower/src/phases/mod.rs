@@ -3,6 +3,7 @@
 pub(crate) mod adapt;
 mod bridges;
 mod build;
+pub(crate) mod casts;
 mod constructors;
 mod erasure;
 mod first_transform;

@@ -4,8 +4,8 @@
 use super::Erased;
 use crate::symbols::encode;
 use crate::tags::{ERASED, INLINE, PRIVATE};
-use crate::types::Type;
-use crate::{Kind, SymbolId, Universe};
+use crate::types::{Type, TypeId};
+use crate::{Binder, Kind, SymbolId, Universe};
 
 /// `id` as a mangled identifier: its length in UTF-16 units, a `-` if it starts with a digit or
 /// `-`, then itself.
@@ -66,13 +66,18 @@ impl Universe {
         Some(out)
     }
 
-    /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type.
+    /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type; a
+    /// type parameter erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
         let mut t = self.info(def);
         let mut params = Vec::new();
+        let mut bounds = Vec::new();
         loop {
             match self.types().get(t).clone() {
-                Type::Poly { result, .. } => t = result,
+                Type::Poly { binder, params: ps, result } => {
+                    bounds.push((binder, ps.into_iter().map(|(_, b)| b).collect::<Vec<_>>()));
+                    t = result;
+                }
                 Type::Method { params: ps, result, .. } => {
                     params.extend(ps.into_iter().map(|(_, p)| p));
                     t = result;
@@ -82,12 +87,39 @@ impl Universe {
         }
         let params = params
             .into_iter()
-            .map(|p| match self.erase(p) {
-                Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
-                e => e,
+            .map(|p| {
+                let p = self.upper_bound(p, &bounds);
+                match self.erase(p) {
+                    Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
+                    e => e,
+                }
             })
             .collect();
+        let t = self.upper_bound(t, &bounds);
         (params, self.erase(t))
+    }
+
+    /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
+    /// parameters of each polymorphic type; within `t`, only those bounded by a class.
+    fn upper_bound(&mut self, t: TypeId, bounds: &[(Binder, Vec<TypeId>)]) -> TypeId {
+        let bound =
+            |b: Binder, i: u32| bounds.iter().find(|(binder, _)| *binder == b)?.1.get(i as usize).copied();
+        let mut t = self.map_type(t, &mut |u, x| match *u.types().get(x) {
+            Type::Param(b, i) => {
+                let bounds = bound(b, i)?;
+                let Type::Bounds(_, hi) = *u.types().get(bounds) else { return None };
+                (!u.is_generic(bounds)).then_some(hi)
+            }
+            _ => None,
+        });
+        while let Type::Param(b, i) = *self.types().get(t) {
+            let Some(bound) = bound(b, i) else { break };
+            t = match *self.types().get(bound) {
+                Type::Bounds(_, hi) => hi,
+                _ => bound,
+            };
+        }
+        t
     }
 
     /// Whether `def` overrides a method of a base class of its owner that is neither `inline`

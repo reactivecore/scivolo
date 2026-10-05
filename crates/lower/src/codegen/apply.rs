@@ -35,19 +35,15 @@ impl Gen<'_, '_> {
             self.m.pos = saved;
             return Ok(self.val(Val::Unit));
         }
-        if let Some(v) = self.gen_primitive(t, sym, fun, &args)? {
+        let primitive = match self.gen_primitive(t, sym, fun, &args)? {
+            Some(v) => Some(v),
+            None => self.gen_boxing(sym, &args, span)?,
+        };
+        if let Some(v) = primitive {
             self.m.pos = saved;
             return Ok(v);
         }
         let v = match *self.l.tpd.tree(fun) {
-            _ if self.l.defs.is_box(sym) => {
-                let [arg] = args[..] else { unreachable!("one argument to `box`") };
-                let value = self.gen_expr(arg)?;
-                let [primitive] = self.param_types(sym)[..] else { unreachable!("one parameter of `box`") };
-                self.check_conforms(value, primitive, span)?;
-                let ty = self.result_type(sym);
-                self.emit(Op::Box { ty, obj: value })
-            }
             Tree::TypeApply { .. } => return unsupported(span, "calls with type arguments"),
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
                 Tree::Super { .. } => {

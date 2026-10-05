@@ -1,6 +1,7 @@
 //! Erasure's adaptation of a typed tree to its expected erased type: parameterless methods
-//! applied, primitive values and `()` boxed where a reference is expected.
+//! applied, values boxed, unboxed or cast.
 
+use super::casts::{cast, conforms};
 use crate::Lower;
 use crate::symbols::{has, is_class, is_constructor, is_java_static, is_module};
 use syntax::ast::Span;
@@ -53,7 +54,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
 }
 
 /// `span` with its start as point, as a tree made without a span takes from its parts.
-fn from_start(span: Span) -> Span {
+pub fn from_start(span: Span) -> Span {
     if span.exists() { span.with_point(span.start()) } else { span }
 }
 
@@ -72,31 +73,44 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
     l.apply(t, &[], tpe, span)
 }
 
-/// `t` adapted to erased type `pt`: boxed if a primitive value or `()` where a reference is
-/// expected.
+/// `t` adapted to erased type `pt` (dotty's `Boxing.adaptToType`): boxed if a primitive value or
+/// `()` where a reference is expected, unboxed if a reference where a primitive is, cast if a
+/// reference of a class that does not conform.
 pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
-    if !matches!(pt, Erased::Class(_) | Erased::Array(_)) {
-        return t;
-    }
-    match erased_type(l, t) {
-        Erased::Prim(c) => match l.defs.primitive(c) {
+    let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
+    let from = erased_type(l, t);
+    match (&from, pt) {
+        (Erased::Prim(c), pt) if reference(pt) => match l.defs.primitive(*c) {
             Some(p) => {
                 let (module, box_method) = (p.module, p.box_method);
-                boxed(l, t, module, box_method)
+                converted(l, t, module, box_method)
             }
             None => t,
         },
-        Erased::Unit => boxed_unit(l, t),
+        (Erased::Unit, pt) if reference(pt) => boxed_unit(l, t),
+        (Erased::Class(_), Erased::Prim(c)) => match l.defs.primitive(*c) {
+            Some(p) => {
+                let (module, unbox_method) = (p.module, p.unbox_method);
+                converted(l, t, module, unbox_method)
+            }
+            None => t,
+        },
+        (from, Erased::Unit) if reference(from) => {
+            let span = l.tpd.span(t);
+            let unit = l.unit_literal(span);
+            l.block(&[t], unit, span)
+        }
+        (from, to) if reference(from) && reference(to) && !conforms(l, from, to) => cast(l, t, to),
         _ => t,
     }
 }
 
-/// `C.box(t)` for object `C` with method `box_method`.
-fn boxed(l: &mut Lower, t: TNodeId, module: SymbolId, box_method: SymbolId) -> TNodeId {
+/// `C.m(t)` for object `C` with method `m`.
+fn converted(l: &mut Lower, t: TNodeId, module: SymbolId, m: SymbolId) -> TNodeId {
     let span = from_start(l.tpd.span(t));
     let module_ref = l.ident(module, span);
-    let fun = l.select(module_ref, box_method, span);
-    let info = l.u.info(box_method);
+    let fun = l.select(module_ref, m, span);
+    let info = l.u.info(m);
     let result = l.u.result_type(info);
     l.apply(fun, &[t], result, span)
 }
