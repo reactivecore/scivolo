@@ -57,7 +57,15 @@ impl Typer<'_> {
                             .defined(l, as_type)
                             .is_some_and(|f| f.syms.iter().any(|&s| self.u.symbol(s).kind == Kind::Class));
                         if !name.is_type && class {
-                            return Err("constructor proxy");
+                            if prev.is_some() {
+                                return Err("constructor proxy and an imported term");
+                            }
+                            let Some(outer) = self.levels.outer(l) else { return Err("constructor proxy") };
+                            return match self.find_ref(name.text, false, Ctx { level: outer, ..ctx }) {
+                                Ok(Some(_)) => Err("constructor proxy shadowing a term"),
+                                Ok(None) | Err("constructor proxy") => Err("constructor proxy"),
+                                Err(what) => Err(what),
+                            };
                         }
                         level = self.levels.outer(l);
                         continue;

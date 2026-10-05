@@ -58,7 +58,7 @@ impl Typer<'_> {
         let typed = self.typed(rhs, pt, ctx);
         self.ahead.insert(rhs, typed);
         let tpe = self.tpd.tpe(typed);
-        let tpe = self.fully_defined(tpe).unwrap_or_else(|what| {
+        let tpe = self.fully_defined_as(tpe, true).unwrap_or_else(|what| {
             self.unsupported(rhs, what);
             tpe
         });

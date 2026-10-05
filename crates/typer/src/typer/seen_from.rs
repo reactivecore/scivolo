@@ -16,6 +16,7 @@ impl Typer<'_> {
             None => self.u.info(s),
         };
         let info = self.resolve_class_params(info);
+        let info = self.effective_constructor_info(s, info, prefix);
         Some(self.with_repeated_class(info))
     }
 

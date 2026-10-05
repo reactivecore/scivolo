@@ -103,7 +103,8 @@ impl Desugar<'_> {
                         .collect()
                 })
                 .collect();
-            let joined = self.join_params(&c.derived_tparams, &paramss);
+            let tparams = self.fresh_type_params(&c.derived_tparams);
+            let joined = self.join_params(&tparams, &paramss);
             let creator = self.creator_expr(c);
             let name = self.term("apply");
             meths.push(self.method(name, &joined, None, creator, mods));
@@ -126,7 +127,8 @@ impl Desugar<'_> {
         } else {
             (self.ident(param_name), None)
         };
-        let joined = self.join_params(&c.derived_tparams, &[vec![param]]);
+        let tparams = self.fresh_type_params(&c.derived_tparams);
+        let joined = self.join_params(&tparams, &[vec![param]]);
         let mods = self.mods(flags::SYNTHETIC);
         meths.push(self.method(name, &joined, res, rhs, mods));
         let text: Vec<u16> = to_utf16(self.text(c.name));

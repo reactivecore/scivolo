@@ -36,6 +36,11 @@ impl Typer<'_> {
         if self.is_type_symbol(sym) || self.u.symbol(sym).flags.has(STATIC) {
             return true;
         }
+        self.term_prefix_is_elidable(prefix, sym, ctx)
+    }
+
+    /// Whether a reference to term `sym` through `prefix` from `ctx` can be an identifier.
+    pub fn term_prefix_is_elidable(&mut self, prefix: Option<TypeId>, sym: SymbolId, ctx: Ctx) -> bool {
         let Some(prefix) = prefix else { return true };
         match *self.u.types().get(prefix) {
             Type::This(c) => {

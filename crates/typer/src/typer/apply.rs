@@ -8,6 +8,9 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
+        if let Some(assign) = self.op_assign(id, fun, args, ctx) {
+            return assign;
+        }
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
@@ -61,7 +64,7 @@ impl Typer<'_> {
                 _ => p,
             })
             .collect();
-        if formals.iter().any(|&p| self.is_special_param(p)) {
+        if formals.iter().any(|&p| self.is_special_param(p) || self.mentions_params(p, binder, method)) {
             return self.unsupported(id, "dependent parameter");
         }
         let seq_arg = arg_ids
@@ -133,7 +136,9 @@ impl Typer<'_> {
             return Ok(f);
         }
         let tpe = self.widen_if_unstable(tpe);
-        let found = self.members_found(tpe, "apply", false).ok_or("application of a non-method")?;
+        let Some(found) = self.members_found(tpe, "apply", false) else {
+            return self.proxy_companion(f, Pt::Fun(proto), ctx).ok_or("application of a non-method");
+        };
         let sym = self.choose(&found.syms, Some(tpe), super::Pt::Fun(proto))?;
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };

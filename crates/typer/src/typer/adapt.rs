@@ -7,7 +7,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// `tree` fitted to `pt`: unchanged if it conforms; a tree that needs more of dotty's `adapt`
@@ -89,10 +89,29 @@ impl Typer<'_> {
     }
 
     /// Whether reference `tree` to a method with an empty parameter list may be called without
-    /// one (dotty's auto-application): a member of `Any` other than `getClass`, or of a `java.*`
-    /// or `javax.*` class.
+    /// one (dotty's auto-application, `matchNullaryLoosely`): a member of `Any` other than
+    /// `getClass`, or of a `java.*` or `javax.*` class, or one overriding such a member.
     fn is_auto_applicable(&mut self, tree: TNodeId) -> bool {
         let Some(s) = self.tpd.sym(tree) else { return false };
+        let Some(owner) = self.u.symbol(s).owner else { return false };
+        if self.is_java_like_member(s) {
+            return true;
+        }
+        let name = self.u.symbol(s).name.clone();
+        let site = crate::defn::type_ref(self.u, owner);
+        for base in self.u.linearization(owner).into_iter().skip(1) {
+            for m in self.u.decl(base, &name).unwrap_or_default() {
+                let private = self.u.symbol(m).flags.has(tasty::tags::PRIVATE);
+                if !private && self.is_java_like_member(m) && self.same_member(site, m, s) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether `s` is a member of `Any` other than `getClass`, or of a `java.*` or `javax.*` class.
+    fn is_java_like_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
         if owner == self.u.builtins().any {
             return self.u.symbol(s).name != "getClass";

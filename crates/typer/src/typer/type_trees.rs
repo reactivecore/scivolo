@@ -63,7 +63,7 @@ impl Typer<'_> {
     }
 
     /// Whether `tree` is a literal, `this`, or a path of stable members.
-    fn is_stable_path(&mut self, tree: TNodeId) -> bool {
+    pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
         let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
         match *self.tpd.tree(tree) {
             T::Literal { .. } | T::This { .. } => true,
