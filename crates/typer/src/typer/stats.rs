@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Tree};
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_package_def(&mut self, id: NodeId, pid: NodeId, stats: List, ctx: Ctx) -> TNodeId {
@@ -76,61 +76,6 @@ impl Typer<'_> {
             None => T::Ident { name },
         };
         Some(self.tpd.node(tree, span, Some(tpe), Some(pkg)))
-    }
-
-    /// Whether type `t` refers to one of `syms`.
-    fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = u.types().get(part)
-                && syms.contains(s)
-            {
-                found = true;
-            }
-            None
-        });
-        found
-    }
-
-    /// Block result `expr`, ascribed a type without references to `locals` if its own has some
-    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, or `pt` if that
-    /// does not conform to `pt`; `None` if a reference remains.
-    fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
-        let tpe = self.tpd.tpe(expr);
-        let tpe = self.zonk(tpe);
-        if !self.refers_to(tpe, locals) {
-            return Some(expr);
-        }
-        let mut avoided = self.u.map_type(tpe, &mut |u, part| {
-            let pre = match u.types().get(part) {
-                Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => *pre,
-                _ => return None,
-            };
-            let mut local = false;
-            u.map_type(pre, &mut |u, q| {
-                local |= matches!(*u.types().get(q), Type::Sym(_, l) if locals.contains(&l));
-                None
-            });
-            let dealiased = u.dealias(part);
-            (local && dealiased != part).then_some(dealiased)
-        });
-        while let Type::Sym(_, s) = *self.u.types().get(avoided) {
-            if !locals.contains(&s) || self.is_type_symbol(s) {
-                break;
-            }
-            avoided = self.u.widen(avoided);
-        }
-        if let Pt::Type(p) = pt
-            && !self.u.is_subtype(avoided, p)
-        {
-            avoided = p;
-        }
-        if self.refers_to(avoided, locals) || !self.u.is_subtype(tpe, avoided) {
-            return None;
-        }
-        let span = self.tpd.span(expr);
-        let tpt = self.type_tree(avoided, span.end_pos(), true);
-        Some(self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(avoided), None))
     }
 
     /// The typed statements `stats`, whose symbols are entered.

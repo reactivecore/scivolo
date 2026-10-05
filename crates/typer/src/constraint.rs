@@ -50,6 +50,18 @@ impl Constraint {
         self.vars[i].hi = hi;
     }
 
+    /// Adds bound `t` to variable `w` that bounds another variable, a lower bound if `lower`
+    /// (dotty's propagation along the ordering of variables); false if unsatisfiable.
+    fn propagated(&mut self, u: &mut Universe, w: VarId, t: TypeId, lower: bool) -> bool {
+        if self.checks >= MAX_CHECKS {
+            return false;
+        }
+        self.checks += 1;
+        let ok = if lower { self.add_lower(u, w, t) } else { self.add_upper(u, w, t) };
+        self.checks -= 1;
+        ok
+    }
+
     /// Whether `lo <: hi` holds without extending the constraint.
     fn satisfiable(&mut self, u: &mut Universe, lo: TypeId, hi: TypeId) -> bool {
         if self.checks >= MAX_CHECKS {
@@ -81,6 +93,11 @@ impl TypeVars for Constraint {
         } else {
             u.lub(e.lo, lo)
         };
+        if let Type::Var(w) = *u.types().get(e.hi)
+            && !self.propagated(u, w, lo, true)
+        {
+            return false;
+        }
         if !self.satisfiable(u, lo, e.hi) {
             return false;
         }
@@ -100,6 +117,11 @@ impl TypeVars for Constraint {
         } else {
             u.glb(e.hi, hi)
         };
+        if let Type::Var(w) = *u.types().get(e.lo)
+            && !self.propagated(u, w, hi, false)
+        {
+            return false;
+        }
         if !self.satisfiable(u, e.lo, hi) {
             return false;
         }

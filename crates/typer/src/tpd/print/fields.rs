@@ -72,6 +72,16 @@ impl Printer<'_> {
                 self.list(cases);
                 self.opt(finalizer);
             }
+            Tree::Match { selector, cases } => {
+                self.node(selector);
+                self.list(cases);
+            }
+            Tree::Alternative { trees } => self.list(trees),
+            Tree::UnApply { fun, implicits, patterns } => {
+                self.node(fun);
+                self.list(implicits);
+                self.list(patterns);
+            }
             Tree::TypeTree { .. } => {}
             Tree::SingletonTypeTree { reference: a } | Tree::ByNameTypeTree { result: a } => self.node(a),
             Tree::AppliedTypeTree { tpt, args } => {

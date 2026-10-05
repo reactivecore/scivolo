@@ -67,6 +67,7 @@ impl Typer<'_> {
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
+                let widened = self.simplified(widened);
                 if matches!(self.u.types().get(widened), Type::Or(..)) {
                     self.unsupported(rhs, "union widening");
                 }
@@ -176,6 +177,14 @@ impl Typer<'_> {
                 self.widen_rhs(sym, info)
             }
             Type::ByName(r) => self.widen_rhs(sym, r),
+            Type::This(c)
+                if !self
+                    .u
+                    .class_symbol(c)
+                    .is_some_and(|k| self.u.symbol(k).flags.has(tasty::tags::OBJECT)) =>
+            {
+                c
+            }
             _ => t,
         }
     }

@@ -15,7 +15,7 @@ impl Typer<'_> {
         let proto = self.protos.len();
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
-        let f = match self.with_apply(f, proto, ctx) {
+        let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -119,7 +119,8 @@ impl Typer<'_> {
                 }
                 if partial { result } else { self.constructor_result(s, class, result) }
             }
-            _ => result,
+            _ if partial => result,
+            _ => self.simplified(result),
         };
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
@@ -128,8 +129,8 @@ impl Typer<'_> {
     }
 
     /// `f`, or `f.apply` if `f` is not a method (dotty's `tryInsertApplyOrImplicit`), the
-    /// alternative chosen by the arguments of `proto`.
-    fn with_apply(&mut self, f: TNodeId, proto: usize, ctx: Ctx) -> Result<TNodeId, &'static str> {
+    /// alternative chosen by `pt`, arguments or type arguments.
+    pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
@@ -137,9 +138,10 @@ impl Typer<'_> {
         }
         let tpe = self.widen_if_unstable(tpe);
         let Some(found) = self.members_found(tpe, "apply", false) else {
-            return self.proxy_companion(f, Pt::Fun(proto), ctx).ok_or("application of a non-method");
+            let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
+            return proxy.ok_or("application of a non-method");
         };
-        let sym = self.choose(&found.syms, Some(tpe), super::Pt::Fun(proto))?;
+        let sym = self.choose(&found.syms, Some(tpe), pt)?;
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
         let apply_tpe = self.ref_type(Some(tpe), sym);

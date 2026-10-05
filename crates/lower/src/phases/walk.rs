@@ -55,6 +55,16 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
             list(&mut out, cases);
             out.extend(finalizer);
         }
+        Tree::Match { selector, cases } => {
+            out.push(selector);
+            list(&mut out, cases);
+        }
+        Tree::Alternative { trees } => list(&mut out, trees),
+        Tree::UnApply { fun, implicits, patterns } => {
+            out.push(fun);
+            list(&mut out, implicits);
+            list(&mut out, patterns);
+        }
         Tree::TypeBoundsTree { lo, hi, alias } => {
             out.extend([Some(lo), Some(hi), alias].into_iter().flatten())
         }

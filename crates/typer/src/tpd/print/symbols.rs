@@ -7,6 +7,11 @@ use tasty::{Erased, Kind, SymbolId, Type, TypeId, Universe};
 /// as a `_$` before the name, the root and the empty package left out.
 pub fn full_name(u: &Universe, s: SymbolId) -> String {
     let name = &u.symbol(s).name;
+    let unique = name.len() > 2
+        && name.starts_with('$')
+        && name.ends_with('$')
+        && name[1..name.len() - 1].bytes().all(|b| b.is_ascii_digit());
+    let name = if unique { &name[..name.len() - 1] } else { name.as_str() };
     if s == u.root() {
         return "<empty>".into();
     }

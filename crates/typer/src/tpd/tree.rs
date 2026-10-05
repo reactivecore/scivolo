@@ -152,6 +152,20 @@ pub enum Tree {
         cases: List,
         finalizer: Option<TNodeId>,
     },
+    Match {
+        selector: TNodeId,
+        cases: List,
+    },
+    /// The pattern `p1 | p2 | ...`.
+    Alternative {
+        trees: List,
+    },
+    /// An extractor pattern: `fun` is the `unapply` method, `implicits` its implicit arguments.
+    UnApply {
+        fun: TNodeId,
+        implicits: List,
+        patterns: List,
+    },
     /// `inferred` for dotty's `InferredTypeTree`.
     TypeTree {
         inferred: bool,

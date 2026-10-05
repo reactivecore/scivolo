@@ -8,7 +8,7 @@ use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Span, TName};
+use syntax::ast::Span;
 use tasty::{Type, TypeId, TypeVars};
 
 /// How deep implicit arguments of implicit arguments may nest.
@@ -127,10 +127,7 @@ impl Typer<'_> {
         }
         self.implicit_budget -= 1;
         self.complete(c.sym);
-        let name = self.u.symbol(c.sym).name.clone();
-        let name = TName { name: self.name(&name), is_type: false };
-        let tpe = self.ref_type(c.prefix, c.sym);
-        let tree = self.tpd.node(T::Ident { name }, at, Some(tpe), Some(c.sym));
+        let tree = self.candidate_ref(c, at, ctx)?;
         let mut tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
         let mut result = self.method_info(t).unwrap_or(t);

@@ -3,6 +3,8 @@
 
 use super::super::Typer;
 use crate::ctx::{Ctx, Level};
+use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::{Span, TName};
 use tasty::tags::{GIVEN, IMPLICIT, OBJECT, PRIVATE};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -138,6 +140,21 @@ impl Typer<'_> {
             }
         }
         out
+    }
+
+    /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
+    /// selection from `this`.
+    pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        let name = self.u.symbol(c.sym).name.clone();
+        let name = TName { name: self.name(&name), is_type: false };
+        let tpe = self.ref_type(c.prefix, c.sym);
+        if self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
+            return Ok(self.tpd.node(T::Ident { name }, span, Some(tpe), Some(c.sym)));
+        }
+        match c.prefix.map(|p| self.u.types().get(p).clone()) {
+            Some(Type::This(_)) => Ok(self.this_select(span, name, tpe, c.sym)),
+            _ => Err("implicit through a path"),
+        }
     }
 
     /// Whether an extension method named `name` is visible in `ctx`.

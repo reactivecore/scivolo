@@ -44,6 +44,9 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) && text == "_" {
             return self.wildcard_pattern(id, name, pt);
         }
+        if ctx.mode.is(Mode::PATTERN) && !name.is_type && self.is_var_pattern(id, &text) {
+            return self.pattern_var(id, name, pt, ctx);
+        }
         if text == "_root_" && !name.is_type {
             let root = self.u.root();
             let tpe = self.u.intern_type(Type::Package(root));
@@ -64,6 +67,9 @@ impl Typer<'_> {
         };
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
+        }
+        if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
+            return self.unsupported(id, "impure function type");
         }
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
@@ -95,9 +101,9 @@ impl Typer<'_> {
 
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.
     pub fn resolve_full_name(&mut self, full: &str, is_type: bool) -> Option<SymbolId> {
-        let (outer, last) = full.rsplit_once('.')?;
+        let (outer, last) = full.rsplit_once('.').unwrap_or(("", full));
         let mut owner = self.u.root();
-        for seg in outer.split('.') {
+        for seg in outer.split('.').filter(|s| !s.is_empty()) {
             let decls = self.u.decl(owner, seg).ok()?;
             owner =
                 decls.into_iter().find(|&d| matches!(self.u.symbol(d).kind, Kind::Package | Kind::Class))?;
