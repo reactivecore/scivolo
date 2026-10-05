@@ -57,14 +57,18 @@ fn from_start(span: Span) -> Span {
     if span.exists() { span.with_point(span.start()) } else { span }
 }
 
-/// `t()`, spanning `t` with its start as point, unless `t` refers to a Java static, which stands
-/// for a JDK field.
+/// `t()`, of `t`'s result type, spanning `t` with its start as point, unless `t` refers to a Java
+/// static, which stands for a JDK field.
 pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
     let span = match l.tpd.sym(t) {
         Some(s) if is_java_static(l.u, s) => l.tpd.span(t),
         _ => from_start(l.tpd.span(t)),
     };
-    let tpe = l.tpd.tpe(t);
+    let widened = l.u.widen(l.tpd.tpe(t));
+    let tpe = match l.u.types().get(widened).clone() {
+        tasty::Type::Method { params, result, .. } if params.is_empty() => result,
+        _ => widened,
+    };
     l.apply(t, &[], tpe, span)
 }
 

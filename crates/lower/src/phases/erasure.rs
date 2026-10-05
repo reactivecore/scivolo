@@ -36,14 +36,19 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
     let boolean = Erased::Prim('z');
     let tree = l.tpd.tree(t).clone();
     let new = match tree {
-        Tree::Apply { fun, args } => {
+        Tree::Apply { mut fun, args } => {
+            let mut all = l.tpd.items(args).to_vec();
+            while let Tree::Apply { fun: inner, args } = *l.tpd.tree(fun) {
+                all.splice(0..0, l.tpd.items(args).iter().copied());
+                fun = inner;
+            }
             if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
                 let qualifier = typed(l, qualifier, None)?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
             let params = l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default();
             let mut typed_args = Vec::new();
-            for (i, &a) in l.tpd.items(args).to_vec().iter().enumerate() {
+            for (i, &a) in all.iter().enumerate() {
                 typed_args.push(typed(l, a, params.get(i))?);
             }
             Some(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
