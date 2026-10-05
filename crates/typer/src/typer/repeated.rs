@@ -87,6 +87,23 @@ impl Typer<'_> {
         c
     }
 
+    /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
+    /// `xs` typed as a `Seq[elem]`, ascribed `<repeated>[elem]`.
+    pub fn sequence_arg(&mut self, a: syntax::ast::NodeId, elem: TypeId, ctx: crate::ctx::Ctx) -> TNodeId {
+        let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
+            return self.unsupported(a, "sequence argument");
+        };
+        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else {
+            return self.unsupported(a, "sequence argument");
+        };
+        let seq = crate::defn::type_ref(self.u, seq);
+        let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
+        let expr = self.typed(expr, super::Pt::Type(seq), ctx);
+        let repeated = self.repeated_type(elem);
+        let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
+        self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
+    }
+
     /// Arguments `elems` of element type `elem` passed to a repeated parameter, at `span` if
     /// there are none: `elems: <repeated>[elem]`.
     pub fn seq_literal(&mut self, elems: &[TNodeId], elem: TypeId, span: Span) -> TNodeId {

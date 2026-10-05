@@ -60,14 +60,19 @@ impl Typer<'_> {
         if formals.iter().any(|&p| self.is_special_param(p)) {
             return self.unsupported(id, "dependent parameter");
         }
-        if arg_ids.iter().any(|&a| self.is_sequence_arg(a)) {
+        let seq_arg = arg_ids
+            .last()
+            .copied()
+            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
+        let misplaced = arg_ids.iter().any(|&a| self.is_sequence_arg(a) && Some(a) != seq_arg);
+        if misplaced || seq_arg.is_some() && pretyped.is_some() {
             return self.unsupported(id, "sequence argument");
         }
         if let Type::Bounds(..) = self.u.types().get(result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
         let mut typed_args = Vec::new();
-        for (i, &a) in arg_ids.iter().enumerate() {
+        for (i, &a) in arg_ids.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
                 Some(typed) => self.adapt(typed[i], Pt::Type(formal), ctx),
@@ -76,10 +81,16 @@ impl Typer<'_> {
         }
         let span = self.ast.span(id);
         if let Some(elem) = repeated {
-            let elems = typed_args.split_off(params.len());
-            let before = typed_args.last().copied().unwrap_or(f);
-            let at = self.tpd.span(before).end_pos();
-            typed_args.push(self.seq_literal(&elems, elem, at));
+            let arg = match seq_arg {
+                Some(a) => self.sequence_arg(a, elem, ctx),
+                None => {
+                    let elems = typed_args.split_off(params.len());
+                    let before = typed_args.last().copied().unwrap_or(f);
+                    let at = self.tpd.span(before).end_pos();
+                    self.seq_literal(&elems, elem, at)
+                }
+            };
+            typed_args.push(arg);
         }
         if let [arg] = typed_args[..]
             && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg))

@@ -17,9 +17,11 @@ impl Typer<'_> {
         let [arg] = args[..] else { return Ok(None) };
         let arg = self.fully_defined(arg)?;
         let arg = self.u.dealias(arg);
-        let Type::Sym(_, c) = *self.u.types().get(arg) else {
-            return Err("class tag of a type that is not a class");
+        let class = match *self.u.types().get(arg) {
+            Type::Sym(..) | Type::TypeRef(..) => self.u.class_symbol(arg),
+            _ => None,
         };
+        let Some(c) = class else { return Err("class tag of a type that is not a class") };
         if self.u.symbol(c).kind != Kind::Class || !self.u.type_params(c).is_empty() {
             return Err("class tag of a type that is not a class");
         }
