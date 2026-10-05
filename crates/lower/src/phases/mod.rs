@@ -5,6 +5,7 @@ mod adapted;
 mod bridges;
 mod build;
 mod by_name;
+mod captured_vars;
 pub(crate) mod casts;
 mod constructors;
 mod erasure;
@@ -41,6 +42,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
+        captured_vars::transform(l, td)?;
     }
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {

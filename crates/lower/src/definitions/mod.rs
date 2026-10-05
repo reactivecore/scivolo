@@ -3,10 +3,12 @@
 
 mod equality;
 mod interfaces;
+mod refs;
 mod strings;
 
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_apply};
+pub use refs::{Ref, ref_class};
 pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
