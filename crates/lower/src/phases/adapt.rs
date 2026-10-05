@@ -33,8 +33,9 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     let sym = l.tpd.sym(t);
     match *l.tpd.tree(t) {
-        Tree::Apply { fun, .. } => match l.tpd.sym(fun) {
-            Some(m) if !is_constructor(l.u, m) => l.u.erased_method(m).1,
+        Tree::Apply { fun, .. } => match (array_op(l, fun), l.tpd.sym(fun)) {
+            (Some((_, result)), _) => result,
+            (None, Some(m)) if !is_constructor(l.u, m) => l.u.erased_method(m).1,
             _ => l.u.erase(l.tpd.tpe(t)),
         },
         Tree::Block { expr, .. } => erased_type(l, expr),
@@ -50,6 +51,26 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
             _ => l.u.erase(l.tpd.tpe(t)),
         },
         _ => l.u.erase(l.tpd.tpe(t)),
+    }
+}
+
+/// The erased parameters and result of array operation `fun`, a selection of `apply`, `update`
+/// or `length` on an array of a known element type; `None` for another function.
+pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
+    let m = l.tpd.sym(fun)?;
+    let owner = l.u.symbol(m).owner?;
+    if l.u.full_name(owner) != "scala.Array" {
+        return None;
+    }
+    let array = l.u.widen(l.tpd.tpe(qualifier));
+    let Erased::Array(elem) = l.u.erase(array) else { return None };
+    let int = Erased::Prim('i');
+    match l.u.symbol(m).name.as_str() {
+        "apply" => Some((vec![int], *elem)),
+        "update" => Some((vec![int, *elem], Erased::Unit)),
+        "length" => Some((Vec::new(), int)),
+        _ => None,
     }
 }
 

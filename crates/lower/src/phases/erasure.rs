@@ -1,7 +1,7 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
+use super::adapt::{adapt, applied_to_none, array_op, erased_type, is_parameterless_ref};
 use super::casts::{is_cast, receiver_type};
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
@@ -54,7 +54,10 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
                 let qualifier = typed(l, qualifier, owner.as_ref())?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
-            let params = l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default();
+            let params = match array_op(l, fun) {
+                Some((params, _)) => params,
+                None => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),
+            };
             let mut typed_args = Vec::new();
             for (i, &a) in all.iter().enumerate() {
                 typed_args.push(typed(l, a, params.get(i))?);
