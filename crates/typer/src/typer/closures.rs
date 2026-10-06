@@ -14,6 +14,9 @@ impl Typer<'_> {
     pub fn typed_function(&mut self, id: NodeId, args: List, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let params = self.ast.items(args).to_vec();
         let n = params.len();
+        if let Some(untupled) = self.untupled_function(id, args, body, pt, ctx) {
+            return untupled;
+        }
         let (expected, sam) = match pt {
             Pt::Type(p) => match self.function_parts(p, n) {
                 Some(parts) => (Some(parts), None),
@@ -42,7 +45,7 @@ impl Typer<'_> {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
-            let declared = !matches!(self.ast.tree(tpt), Tree::TypeTree);
+            let declared = !matches!(self.ast.tree(tpt), Tree::TypeTree) || self.splices.contains_key(&tpt);
             let tpt = if declared {
                 self.typed_type(tpt, ctx)
             } else {
@@ -75,10 +78,12 @@ impl Typer<'_> {
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
-        let body_pt = expected.as_ref().map_or(Pt::Any, |&(_, r)| Pt::Type(r));
+        let expected_result =
+            expected.map(|(_, r)| r).filter(|&r| !matches!(self.u.types().get(r), Type::Wildcard(_)));
+        let body_pt = expected_result.map_or(Pt::Any, Pt::Type);
         let body = self.typed(body, body_pt, bctx);
-        let result = match expected {
-            Some((_, r)) => r,
+        let result = match expected_result {
+            Some(r) => r,
             None => {
                 let t = self.tpd.tpe(body);
                 let t = self.fully_defined(t).unwrap_or(t);

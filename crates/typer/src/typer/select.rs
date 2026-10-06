@@ -112,6 +112,9 @@ impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(crate::ctx::Mode::NONE));
         let text = self.text(name.name).to_owned();
+        if text == "apply" && self.is_eta_closure(qual) {
+            return self.unsupported(id, "apply of a method reference");
+        }
         let mut converted = false;
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);

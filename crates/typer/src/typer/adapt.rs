@@ -57,6 +57,18 @@ impl Typer<'_> {
             let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
             return self.adapt(apply, pt, ctx);
         }
+        if let Some(Type::Method { params, implicit: false, .. }) = &method
+            && !params.is_empty()
+            && !ctx.mode.is(Mode::PATTERN)
+        {
+            return match self.eta_expansion(tree, pt, ctx) {
+                Ok(closure) => closure,
+                Err(what) => {
+                    self.unsupported_at(span, what);
+                    tree
+                }
+            };
+        }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
             return tree;
@@ -122,8 +134,7 @@ impl Typer<'_> {
         if owner == self.u.builtins().any {
             return self.u.symbol(s).name != "getClass";
         }
-        let name = self.u.full_name(owner);
-        name.starts_with("java.") || name.starts_with("javax.")
+        self.is_java_member(s)
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

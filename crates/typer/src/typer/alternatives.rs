@@ -6,6 +6,58 @@ use super::{Pt, Typer};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
+    /// unless that is a function type (dotty's `resolveOverloaded` without arguments).
+    fn parameterless_alternative(
+        &mut self,
+        syms: &[SymbolId],
+        prefix: Option<TypeId>,
+        pt: Pt,
+    ) -> Result<SymbolId, &'static str> {
+        if let Pt::Type(p) = pt
+            && let Some((args, _)) = (0..=22).find_map(|n| self.function_parts(p, n))
+        {
+            let mut fitting = Vec::new();
+            for &s in syms {
+                let Some((formals, false)) = self.param_types(s, prefix, false) else {
+                    return Err("overloaded reference against a function type");
+                };
+                if formals.len() == args.len()
+                    && args.iter().zip(&formals).all(|(&a, &f)| self.u.is_subtype(a, f))
+                {
+                    fitting.push(s);
+                }
+            }
+            return match fitting[..] {
+                [s] => Ok(s),
+                _ => Err("overloaded reference against a function type"),
+            };
+        }
+        let mut found = Vec::new();
+        for &s in syms {
+            self.complete(s);
+            let tpe = self.ref_type(prefix, s);
+            let info = self.method_info(tpe).unwrap_or(tpe);
+            if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+                continue;
+            }
+            let result = match *self.u.types().get(info) {
+                Type::ByName(r) => r,
+                _ => info,
+            };
+            if let Pt::Type(p) = pt
+                && !self.u.is_subtype(result, p)
+            {
+                continue;
+            }
+            found.push(s);
+        }
+        match found[..] {
+            [s] => Ok(s),
+            _ => Err("overloaded reference"),
+        }
+    }
+
     /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
     /// method taking as many arguments as `pt` supplies, or the one overload resolution picks.
     pub fn choose(
@@ -31,6 +83,9 @@ impl Typer<'_> {
                 [s] => Ok(s),
                 _ => Err("overloaded reference with type arguments"),
             };
+        }
+        if matches!(pt, Pt::Any | Pt::Type(_)) {
+            return self.parameterless_alternative(syms, prefix, pt);
         }
         let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
         let mut methods = Vec::new();

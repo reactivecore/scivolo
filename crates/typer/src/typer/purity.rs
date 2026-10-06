@@ -113,14 +113,39 @@ impl Typer<'_> {
         matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
-    /// dotty's `isPureApply`: a constant operation of a primitive class, or a stable constructor.
+    /// dotty's `isPureApply`: a constant operation of a primitive class, a stable constructor, or
+    /// the synthetic `apply` of a case class that initializes nothing.
     fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
         if self.u.symbol(s).name == "<init>" {
             return self.is_stable_member(s);
         }
+        if self.is_pure_case_apply(s) {
+            return true;
+        }
         let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
         self.has_constant_type(tree) && owner.is_some_and(|o| PURE_OP_OWNERS.contains(&o.as_str()))
+    }
+
+    /// dotty's `isPureSyntheticCaseApply`.
+    fn is_pure_case_apply(&mut self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        if sym.name != "apply" || !sym.flags.has(tasty::tags::SYNTHETIC) {
+            return false;
+        }
+        let Some(module) = sym.owner else { return false };
+        let Some(name) = self.u.symbol(module).name.strip_suffix('$').map(str::to_owned) else {
+            return false;
+        };
+        let Some(owner) = self.u.symbol(module).owner else { return false };
+        let classes = self.u.decl(owner, &name).unwrap_or_default();
+        classes.into_iter().any(|c| {
+            let flags = self.u.symbol(c).flags;
+            self.u.symbol(c).kind == Kind::Class
+                && flags.has(tasty::tags::CASE)
+                && !flags.has(tasty::tags::TRAIT)
+                && self.is_no_inits(c)
+        })
     }
 
     fn has_constant_type(&self, tree: TNodeId) -> bool {
