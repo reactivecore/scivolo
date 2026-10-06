@@ -3,9 +3,10 @@
 //! for a primitive; `x.asInstanceOf[T]` of a reference to a primitive as unboxing.
 
 use super::adapt::{adapt, erased_type};
-use super::casts::{conforms, type_of};
+use super::casts::type_of;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -50,21 +51,39 @@ fn type_test(
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {
         return unsupported(span, "type tests of unions or intersections");
     }
+    let tuple = l.u.class_symbol(dealiased).map(|c| l.u.full_name(c));
+    if tuple.is_some_and(|n| {
+        ["scala.Tuple", "scala.NonEmptyTuple", "scala.*:", "scala.EmptyTuple"].contains(&n.as_str())
+    }) {
+        return unsupported(span, "type tests of tuple types");
+    }
     let test = l.u.erase(target);
     if !matches!(test, Erased::Class(_) | Erased::Prim(_)) {
         return unsupported(span, "type tests of arrays, singletons or Unit");
     }
-    is_instance_of(l, expr, test, in_match, span)
+    is_instance_of(l, expr, test.clone(), &test, in_match, span)
 }
 
-/// `expr` tested for erased class `test` (dotty's `transformIsInstanceOf`, without the checks
-/// whether the test can hold).
-fn is_instance_of(l: &mut Lower, expr: TNodeId, test: Erased, in_match: bool, span: Span) -> Result<TNodeId> {
+/// `expr` tested for erased class `test`, `unboxed` the primitive tested for if `test` is its box
+/// class (dotty's `transformIsInstanceOf`).
+fn is_instance_of(
+    l: &mut Lower,
+    expr: TNodeId,
+    test: Erased,
+    unboxed: &Erased,
+    in_match: bool,
+    span: Span,
+) -> Result<TNodeId> {
     let found = erased_type(l, expr);
     if !matches!(found, Erased::Class(_) | Erased::Array(_)) {
-        return unsupported(span, "type tests of primitive values");
+        return unsupported(span, "type tests of primitive values or of null");
     }
-    if in_match && conforms(l, &found, &test) {
+    let expr_tpe = l.tpd.tpe(expr);
+    let test_tpe = type_of(l, &test);
+    if in_match && l.u.is_subtype(expr_tpe, test_tpe) {
+        if is_not_null(l, expr_tpe) {
+            return Ok(constant(l, expr, true));
+        }
         let null = l.null_literal(Span::NONE);
         let ne = l.select(expr, l.defs.patmat.ne, Span::NONE);
         let ne = l.positioned(ne);
@@ -72,9 +91,12 @@ fn is_instance_of(l: &mut Lower, expr: TNodeId, test: Erased, in_match: bool, sp
         let test = l.apply(ne, &[null], boolean, Span::NONE);
         return Ok(l.positioned(test));
     }
+    if !super::sensical::sensical(l, expr_tpe, &test, unboxed) {
+        return Ok(constant(l, expr, false));
+    }
     if let Erased::Prim(c) = test {
         let boxed = boxed_class(c).expect("a primitive's box class");
-        return is_instance_of(l, expr, Erased::Class(boxed.into()), in_match, span);
+        return is_instance_of(l, expr, Erased::Class(boxed.into()), &test, in_match, span);
     }
     let tested = type_of(l, &test);
     let fun = l.select(expr, l.defs.patmat.is_instance_of, l.tpd.span(expr));
@@ -95,6 +117,34 @@ fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, target: tasty::TypeId) -> Resu
             unsupported(l.tpd.span(t), "casts between primitive values or to references")
         }
         _ => Ok(t),
+    }
+}
+
+/// Whether a value of type `tpe` is never null: a constant other than `null` (dotty's
+/// `isNotNull`).
+fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
+    let tpe = match *l.u.types().get(tpe) {
+        Type::Sym(_, s) if l.u.symbol(s).kind == tasty::Kind::Val => l.u.info(s),
+        _ => tpe,
+    };
+    match *l.u.types().get(tpe) {
+        Type::Constant(tag, _) => tag != tasty::tags::NULLconst,
+        Type::Str(_) => true,
+        _ => false,
+    }
+}
+
+/// Boolean `value`, after `expr` unless it is a literal, identifier or `this` (dotty's
+/// `constant`).
+fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
+    let span = l.tpd.span(expr);
+    let tpe = l
+        .u
+        .intern_type(Type::Constant(if value { tasty::tags::TRUEconst } else { tasty::tags::FALSEconst }, 0));
+    let lit = l.tpd.node(Tree::Literal { value: Constant::Boolean(value) }, Span::NONE, Some(tpe), None);
+    match l.tpd.tree(expr) {
+        Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => lit,
+        _ => l.block(&[expr], lit, span),
     }
 }
 

@@ -12,6 +12,7 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(x: Any): Boolean = x.isInstanceOf[String | Int] }",
         "type tests of unions or intersections",
     ),
+    ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
     (
         "object O { def f(x: Int): Long = x.asInstanceOf[Long] }",
         "casts between primitive values or to references",

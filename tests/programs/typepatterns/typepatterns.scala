@@ -29,6 +29,17 @@ object T:
     case c: Char => "char " + c
     case b: Boolean => if b then "yes" else "no"
     case _ => "?"
+  type S = String
+  def anyRef(x: Any): Int = x match
+    case _: AnyRef => 1
+    case _ => 2
+  def lit(): Int = "abc" match
+    case _: String => 1
+  def alias(x: Any): Int = x match
+    case s: S if s.isEmpty => 1
+    case _: java.lang.String => 2
+    case _ => 3
+  def never(c: Cat, s: String): Boolean = c.isInstanceOf[Dog] || s.isInstanceOf[Int]
   def tests(x: Any): Boolean = x.isInstanceOf[String] || x.isInstanceOf[Int]
   def dogs(a: Animal): Boolean = a.isInstanceOf[Dog]
   def casts(x: Any): Int = x.asInstanceOf[Int] + 1
@@ -50,6 +61,10 @@ object T:
   println(T.merged("s"))
   println(T.merged('c'))
   println(T.merged(false))
+  println(T.anyRef(1))
+  println(T.lit())
+  println(T.alias("x"))
+  println(T.never(Cat(), "s"))
   println(T.tests(3))
   println(T.dogs(Cat()))
   println(T.casts(4))
