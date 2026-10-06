@@ -14,9 +14,12 @@ impl Typer<'_> {
             self.complete(s);
             self.u.info(s)
         });
-        let tpt = self.typed_tpt(tpt, info, ctx);
-        let pt = info.map_or(Pt::Any, Pt::Type);
         let rhs_ctx = sym.map_or(ctx, |s| ctx.with_owner(s));
+        let tpt = match self.ready(tpt, rhs_ctx) {
+            Some(typed) => typed,
+            None => self.typed_tpt(tpt, info, ctx),
+        };
+        let pt = info.map_or(Pt::Any, Pt::Type);
         let rhs = rhs.map(|r| self.typed(r, pt, rhs_ctx));
         let span = self.ast.span(id);
         self.tpd.node(T::ValDef { name, tpt, rhs }, span, None, sym)

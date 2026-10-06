@@ -56,7 +56,7 @@ impl Typer<'_> {
         let default = self.default_param_type(sym).filter(|&d| !self.mentions_own_type_params(d, sym));
         let pt = inherited.or(default).map_or(Pt::Any, Pt::Type);
         let typed = self.typed(rhs, pt, ctx);
-        self.ahead.insert(rhs, typed);
+        self.typed_ahead(rhs, typed, ctx);
         let tpe = self.tpd.tpe(typed);
         let tpe = self.fully_defined_as(tpe, true).unwrap_or_else(|what| {
             self.unsupported(rhs, what);
@@ -83,7 +83,7 @@ impl Typer<'_> {
     /// The type of value type tree `tpt`, typed ahead in `ctx`.
     pub fn value_type_ahead(&mut self, tpt: NodeId, ctx: Ctx) -> TypeId {
         let typed = self.typed_type(tpt, ctx);
-        self.ahead.insert(tpt, typed);
+        self.typed_ahead(tpt, typed, ctx);
         let tpe = self.tpd.tpe(typed);
         self.check_simple_kinded(tpe, tpt);
         tpe

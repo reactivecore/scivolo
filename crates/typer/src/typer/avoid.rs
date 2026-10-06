@@ -55,15 +55,30 @@ impl Typer<'_> {
                 checked = true;
                 break;
             }
-            if !locals.contains(&s) || self.is_type_symbol(s) {
+            if self.is_type_symbol(s) {
                 break;
             }
-            let info = self.u.info(s);
+            let pre = match *self.u.types().get(avoided) {
+                Type::Sym(pre, _) => pre,
+                _ => None,
+            };
+            let prefix = pre.filter(|&p| !locals.contains(&s) && self.refers_to(p, locals));
+            if !locals.contains(&s) && prefix.is_none() {
+                break;
+            }
+            let info = match prefix {
+                Some(pre) => self.u.member_info(pre, s),
+                None => self.u.info(s),
+            };
+            let info = match *self.u.types().get(info) {
+                Type::Bounds(_, hi) => hi,
+                _ => info,
+            };
             let info = match *self.u.types().get(info) {
                 Type::ByName(r) => r,
                 _ => info,
             };
-            avoided = self.u.dealias(info);
+            avoided = if prefix.is_some() { info } else { self.u.dealias(info) };
         }
         if let Pt::Type(p) = pt
             && self.is_fully_defined(p)

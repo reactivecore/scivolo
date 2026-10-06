@@ -44,10 +44,16 @@ impl Typer<'_> {
             T::Select { .. } | T::Literal { .. } => true,
             _ => false,
         };
+        let b = self.u.builtins();
+        let (nothing, null) = (b.nothing, b.null);
+        let bottom = |t: &mut Self, p| matches!(t.u.class_symbol(p), Some(c) if c == nothing || c == null);
         let info = match pt {
             Pt::Type(p) if stable_or_literal => p,
-            Pt::Type(p) if p != tasty::NOTHING && !self.u.is_subtype(body_tpe, p) => {
-                return self.unsupported(id, "pattern variable of an intersection type");
+            Pt::Type(p) if !bottom(self, p) && !self.u.is_subtype(body_tpe, p) => {
+                if !self.u.is_subtype(p, body_tpe) {
+                    return self.unsupported(id, "pattern variable of an intersection type");
+                }
+                p
             }
             _ => body_tpe,
         };

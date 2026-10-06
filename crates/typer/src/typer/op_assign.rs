@@ -28,7 +28,7 @@ impl Typer<'_> {
         }
         let unsupported = self.unsupported.clone();
         let typed_lhs = self.typed(lhs, Pt::Any, ctx);
-        self.ahead.insert(lhs, typed_lhs);
+        self.typed_ahead(lhs, typed_lhs, ctx);
         let clean = self.unsupported == unsupported && !self.diags.has_errors();
         let has_member = if clean { self.has_member(typed_lhs, &text, ctx) } else { Ok(true) };
         let pure_prefix = match *self.tpd.tree(typed_lhs) {

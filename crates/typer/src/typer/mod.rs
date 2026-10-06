@@ -65,7 +65,7 @@ use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::Names;
-use tasty::Universe;
+use tasty::{SymbolId, Universe};
 
 pub use overloads::Pt;
 
@@ -80,8 +80,9 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
-    /// Trees typed while completing a symbol, taken when typing reaches them.
-    pub ahead: FxHashMap<NodeId, TNodeId>,
+    /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
+    /// reaches them.
+    pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
@@ -133,9 +134,23 @@ impl<'a> Typer<'a> {
         })
     }
 
-    /// The tree typed for `id` ahead of typing it, or the typed tree it stands for.
-    pub fn ready(&mut self, id: NodeId) -> Option<TNodeId> {
-        if let Some(t) = self.ahead.remove(&id) {
+    /// Records `typed` as the tree of `id` typed ahead in `ctx`.
+    pub fn typed_ahead(&mut self, id: NodeId, typed: TNodeId, ctx: Ctx) {
+        let entries = self.ahead.entry(id).or_default();
+        entries.retain(|&(owner, _)| owner != ctx.owner);
+        entries.push((ctx.owner, typed));
+    }
+
+    /// The tree typed for `id` ahead of typing it with the owner of `ctx`, or the typed tree it
+    /// stands for.
+    pub fn ready(&mut self, id: NodeId, ctx: Ctx) -> Option<TNodeId> {
+        if let Some(entries) = self.ahead.get_mut(&id)
+            && let Some(i) = entries.iter().position(|&(owner, _)| owner == ctx.owner)
+        {
+            let (_, t) = entries.remove(i);
+            if entries.is_empty() {
+                self.ahead.remove(&id);
+            }
             return Some(t);
         }
         let &t = self.splices.get(&id)?;
@@ -149,7 +164,7 @@ impl<'a> Typer<'a> {
         }
         self.depth += 1;
         let vars = self.constraint.count();
-        let tree = match self.ready(id) {
+        let tree = match self.ready(id, ctx) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };

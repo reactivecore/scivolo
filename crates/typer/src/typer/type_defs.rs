@@ -17,7 +17,7 @@ impl Typer<'_> {
             return self.u.intern_type(Type::Error);
         }
         let typed = self.typed_type(rhs, ctx);
-        self.ahead.insert(rhs, typed);
+        self.typed_ahead(rhs, typed, ctx);
         let tpe = self.tpd.tpe(typed);
         match self.u.types().get(tpe) {
             Type::Bounds(..) => tpe,
