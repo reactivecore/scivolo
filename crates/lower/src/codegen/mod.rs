@@ -18,6 +18,7 @@ mod erased;
 mod expr;
 mod fields;
 mod interface_bridges;
+mod labels;
 mod literal;
 mod method;
 mod names;

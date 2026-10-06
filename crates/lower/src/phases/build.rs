@@ -113,6 +113,14 @@ impl Lower<'_> {
         self.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, Some(info), Some(sym))
     }
 
+    /// Makes node `to` a copy of node `from`.
+    pub fn copy_node(&mut self, to: TNodeId, from: TNodeId) {
+        let n = self.tpd.get(from);
+        let (tree, span, tpe, sym) = (n.tree.clone(), n.span, n.tpe, n.sym);
+        let node = self.tpd.get_mut(to);
+        (node.tree, node.span, node.tpe, node.sym) = (tree, span, tpe, sym);
+    }
+
     pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId, span: Span) -> TNodeId {
         let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(stats);

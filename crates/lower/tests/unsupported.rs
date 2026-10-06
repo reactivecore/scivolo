@@ -8,6 +8,8 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     ("object O { lazy val x = \"a\" }", "lazy values"),
+    ("object O { def f(x: Any): Int = x match { case s: String => 1; case _ => 0 } }", "type patterns"),
+    ("object O { def f(x: Some[Int]): Int = x match { case Some(n) => n } }", "extractor patterns"),
     (
         "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
         "interpolations of parts that are not literals",

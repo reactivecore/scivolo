@@ -14,6 +14,7 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         | Tree::This { qual: a }
         | Tree::Super { qual: a, .. }
         | Tree::New { tpt: a }
+        | Tree::Labeled { expr: a }
         | Tree::SingletonTypeTree { reference: a }
         | Tree::ByNameTypeTree { result: a }
         | Tree::Bind { body: a, .. }
@@ -94,6 +95,40 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         }
     }
     out
+}
+
+/// `t` and the trees in it, outer trees first.
+pub fn subtrees(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
+    let mut out = vec![t];
+    let mut i = 0;
+    while i < out.len() {
+        out.extend(children(tpd, out[i]));
+        i += 1;
+    }
+    out
+}
+
+/// Whether `a` and `b` are the same identifiers, selections, literals, applications or type
+/// applications (dotty's `===`).
+pub fn same(tpd: &Tpd, a: TNodeId, b: TNodeId) -> bool {
+    match (tpd.tree(a), tpd.tree(b)) {
+        (Tree::Ident { .. }, Tree::Ident { .. }) => tpd.sym(a) == tpd.sym(b),
+        (&Tree::Select { qualifier: q1, .. }, &Tree::Select { qualifier: q2, .. }) => {
+            tpd.sym(a) == tpd.sym(b) && same(tpd, q1, q2)
+        }
+        (Tree::Literal { value: c1 }, Tree::Literal { value: c2 }) => c1 == c2,
+        (&Tree::Apply { fun: f1, args: a1 }, &Tree::Apply { fun: f2, args: a2 }) => {
+            let (a1, a2) = (tpd.items(a1), tpd.items(a2));
+            same(tpd, f1, f2) && a1.len() == a2.len() && a1.iter().zip(a2).all(|(&x, &y)| same(tpd, x, y))
+        }
+        (&Tree::TypeApply { fun: f1, args: a1 }, &Tree::TypeApply { fun: f2, args: a2 }) => {
+            let (a1, a2) = (tpd.items(a1), tpd.items(a2));
+            same(tpd, f1, f2)
+                && a1.len() == a2.len()
+                && a1.iter().zip(a2).all(|(&x, &y)| tpd.tpe(x) == tpd.tpe(y))
+        }
+        _ => false,
+    }
 }
 
 /// The symbols that the identifiers and selections in `t` refer to.

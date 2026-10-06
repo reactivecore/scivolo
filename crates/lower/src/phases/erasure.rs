@@ -1,11 +1,12 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, array_op, erased_type, is_parameterless_ref};
+use super::adapt::{adapt, applied_to_none, array_op, is_parameterless_ref};
 use super::casts::{is_cast, receiver_type};
+use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
-use tasty::Erased;
+use tasty::{Erased, Kind};
 use typer::tpd::{TNodeId, Tree};
 
 /// Types the methods of class definition `td` against their erased result types, and the
@@ -33,7 +34,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// `t` with its subtrees typed against their erased expected types, then adapted to `pt`.
-fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
+pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
     let boolean = Erased::Prim('z');
     let tree = l.tpd.tree(t).clone();
     let new = match tree {
@@ -93,9 +94,20 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
             Some(Tree::WhileDo { cond: typed(l, cond, Some(&boolean))?, body: typed(l, body, None)? })
         }
         Tree::Return { expr, from } => {
-            let result = l.tpd.sym(from).map(|m| l.u.erased_method(m).1);
+            let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {
+                Kind::Def => l.u.erased_method(m).1,
+                _ => {
+                    let info = l.u.info(m);
+                    l.u.erase(info)
+                }
+            });
             Some(Tree::Return { expr: typed(l, expr, result.as_ref())?, from })
         }
+        Tree::Labeled { expr } => {
+            let erased = l.u.erase(l.tpd.tpe(t));
+            Some(Tree::Labeled { expr: typed(l, expr, Some(&erased))? })
+        }
+        Tree::Match { selector, cases } => Some(typed_switch(l, selector, cases)?),
         Tree::Assign { lhs, rhs } => {
             let erased = l.u.erase(l.tpd.tpe(lhs));
             Some(Tree::Assign { lhs, rhs: typed(l, rhs, Some(&erased))? })
@@ -121,26 +133,7 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
             let erased = l.u.erase(info);
             Some(Tree::ValDef { name, tpt, rhs: Some(typed(l, rhs, Some(&erased))?) })
         }
-        Tree::Try { expr, cases, finalizer } => {
-            let cases: Vec<TNodeId> = l.tpd.items(cases).to_vec();
-            let mut bodies = vec![expr];
-            for &c in &cases {
-                if let Tree::CaseDef { body, .. } = *l.tpd.tree(c) {
-                    bodies.push(body);
-                }
-            }
-            let typed_bodies = typed_branches(l, t, &bodies, pt)?;
-            for (&c, &body) in cases.iter().zip(&typed_bodies[1..]) {
-                if let Tree::CaseDef { pat, guard, .. } = *l.tpd.tree(c) {
-                    l.tpd.get_mut(c).tree = Tree::CaseDef { pat, guard, body };
-                }
-            }
-            let finalizer = match finalizer {
-                Some(f) => Some(typed(l, f, None)?),
-                None => None,
-            };
-            Some(Tree::Try { expr: typed_bodies[0], cases: l.tpd.list(&cases), finalizer })
-        }
+        Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
         _ => None,
     };
     if let Some(new) = new {
@@ -151,41 +144,4 @@ fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
         Some(pt) => adapt(l, t, pt),
         None => t,
     })
-}
-
-/// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected,
-/// `t` then of their common erased class; else against the erasure of `t`'s type.
-fn typed_branches(
-    l: &mut Lower,
-    t: TNodeId,
-    branches: &[TNodeId],
-    pt: Option<&Erased>,
-) -> Result<Vec<TNodeId>> {
-    let reference = pt.filter(|p| matches!(p, Erased::Class(_) | Erased::Array(_)));
-    let expected = match reference {
-        Some(p) => p.clone(),
-        None => l.u.erase(l.tpd.tpe(t)),
-    };
-    let mut out = Vec::new();
-    for &b in branches {
-        out.push(typed(l, b, Some(&expected))?);
-    }
-    if reference.is_some() {
-        let mut classes: Vec<Erased> = Vec::new();
-        for &b in &out {
-            let e = erased_type(l, b);
-            if e != Erased::Nothing && !classes.contains(&e) {
-                classes.push(e);
-            }
-        }
-        match classes.as_slice() {
-            [] => {}
-            [Erased::Class(name)] => {
-                let tpe = l.u.class_ref(name);
-                l.tpd.get_mut(t).tpe = Some(tpe);
-            }
-            _ => return unsupported(l.tpd.span(t), "branches of different erased classes"),
-        }
-    }
-    Ok(out)
 }

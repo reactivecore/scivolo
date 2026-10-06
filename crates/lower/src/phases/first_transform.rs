@@ -26,8 +26,17 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
     }
 }
 
-/// Makes `t` a literal if it refers to a constant `final` value through a pure path.
+/// Makes `t` a literal if it refers to a constant `final` value through a pure path, or is a
+/// block of constant type with only a constant.
 fn const_to_literal(l: &mut Lower, t: TNodeId) {
+    if is_constant_block(l, t) {
+        let tpe = l.tpd.tpe(t);
+        if let Some(value) = constant(l.u.types().get(tpe)) {
+            let node = l.tpd.get_mut(t);
+            node.tree = Tree::Literal { value };
+            return;
+        }
+    }
     let pure = match *l.tpd.tree(t) {
         Tree::Ident { .. } => true,
         Tree::Select { qualifier, .. } => is_pure(l, qualifier),
@@ -43,6 +52,12 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
     node.tree = Tree::Literal { value };
     node.tpe = Some(info);
     node.sym = None;
+}
+
+/// Whether `t` is a block without statements whose expression is a literal or such a block.
+fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
+    let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return false };
+    stats.is_empty() && (matches!(l.tpd.tree(expr), Tree::Literal { .. }) || is_constant_block(l, expr))
 }
 
 /// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, an object,

@@ -3,7 +3,7 @@
 
 use super::Gen;
 use super::buf::Buf;
-use nir::{LexicalScope, Local, Next, Param, PosId, StrId, ValId};
+use nir::{LexicalScope, Local, Next, Param, PosId, StrId, TypeId, ValId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::SymbolId;
 
@@ -20,6 +20,8 @@ pub struct Method {
     pub env: FxHashMap<SymbolId, ValId>,
     /// The local variables, held in slots.
     pub mutable: FxHashSet<SymbolId>,
+    /// The labels of the enclosing labeled blocks: their exit blocks and result types.
+    pub labels: FxHashMap<SymbolId, (Local, TypeId)>,
     pub buf: Buf,
     /// The position of what is being generated.
     pub pos: PosId,
@@ -39,6 +41,7 @@ impl Method {
             local_names: Vec::new(),
             env: FxHashMap::default(),
             mutable: FxHashSet::default(),
+            labels: FxHashMap::default(),
             buf: Buf::default(),
             pos,
         }
