@@ -67,6 +67,9 @@ impl Typer<'_> {
             return Err("single abstract method type outside the subset");
         }
         let parent = self.u.base_type(t, class).ok_or("single abstract method type outside the subset")?;
+        let parent = self
+            .without_wildcard_args(parent, class, method)
+            .ok_or("single abstract method type of a wildcard argument outside the subset")?;
         let info = self.u.member_info(parent, method);
         let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
             return Ok(None);
@@ -76,6 +79,50 @@ impl Typer<'_> {
             return Ok(None);
         }
         Ok(Some(Sam { params: params.into_iter().map(|(_, p)| p).collect(), result, parent }))
+    }
+
+    /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower
+    /// bound where the type parameter is a parameter type of `method` and occurs nowhere else,
+    /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
+    /// `None` otherwise or if `method` is not declared in `c`.
+    fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
+        let Type::Applied(tycon, args) = self.u.types().get(parent).clone() else { return Some(parent) };
+        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
+            return Some(parent);
+        }
+        if self.u.symbol(method).owner != Some(c) {
+            return None;
+        }
+        let tparams = self.u.type_params(c);
+        let info = self.u.info(method);
+        let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { return None };
+        let occurs = |t: &mut Self, ty: TypeId, p: SymbolId| {
+            let mut found = false;
+            t.u.map_type(ty, &mut |u, part| {
+                found |= matches!(*u.types().get(part), Type::Sym(_, s) if s == p);
+                None
+            });
+            found
+        };
+        let mut new_args = Vec::new();
+        for (i, &a) in args.iter().enumerate() {
+            let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
+                new_args.push(a);
+                continue;
+            };
+            let p = tparams.get(i).copied()?;
+            let is_p = |t: &Self, ty: TypeId| matches!(*t.u.types().get(ty), Type::Sym(_, s) if s == p);
+            let direct = params.iter().any(|&(_, pt)| is_p(self, pt));
+            let nested = params.iter().any(|&(_, pt)| !is_p(self, pt) && occurs(self, pt, p));
+            let in_result = occurs(self, result, p);
+            let result_nested = in_result && !is_p(self, result);
+            new_args.push(match (direct, nested || result_nested, in_result) {
+                (true, false, false) => lo,
+                (false, false, _) => hi,
+                _ => return None,
+            });
+        }
+        Some(self.u.intern_type(Type::Applied(tycon, new_args)))
     }
 
     /// The abstract term members of class `c` that do not match members of `Object` (dotty's

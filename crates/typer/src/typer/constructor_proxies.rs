@@ -24,6 +24,10 @@ impl Typer<'_> {
             Ok(Some(found)) => found.syms.first().map(|&c| (found.prefix, c)),
             _ => None,
         };
+        let found = found.and_then(|(prefix, s)| match self.u.symbol(s).kind {
+            tasty::Kind::Type => self.package_class_alias(s).map(|c| (None, c)),
+            _ => Some((prefix, s)),
+        });
         let Some((prefix, class)) = found.filter(|&(_, c)| self.needs_constructor_proxies(c)) else {
             return self.unsupported(id, "constructor proxy");
         };
@@ -39,6 +43,29 @@ impl Typer<'_> {
             self.this_select(span, name, tpe, class)
         };
         self.proxy_new(tpt, pt, ctx)
+    }
+
+    /// The class of a package without a companion object that type alias `s`, a class member,
+    /// stands for, such as `java.lang.Exception` for `scala.Exception`.
+    fn package_class_alias(&mut self, s: SymbolId) -> Option<SymbolId> {
+        let alias_owner = self.u.symbol(s).owner?;
+        if self.u.symbol(alias_owner).kind != Kind::Class {
+            return None;
+        }
+        let tpe = self.u.intern_type(Type::Sym(None, s));
+        let dealiased = self.u.dealias(tpe);
+        if !matches!(self.u.types().get(dealiased), Type::Sym(..) | Type::TypeRef(..)) {
+            return None;
+        }
+        let c = self.u.class_symbol(dealiased)?;
+        let owner = self.u.symbol(c).owner?;
+        if self.u.symbol(c).kind != Kind::Class || self.u.symbol(owner).kind != Kind::Package {
+            return None;
+        }
+        let name = self.u.symbol(c).name.clone();
+        let decls = self.u.decl(owner, &name).unwrap_or_default();
+        let companion = decls.iter().any(|&d| self.u.symbol(d).flags.has(OBJECT));
+        (!companion).then_some(c)
     }
 
     /// `new C` for `f`, a reference to the companion object of class `C` without an `apply`

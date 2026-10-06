@@ -148,6 +148,21 @@ typer-report filter="":
     cargo build -q --release -p typer
     python3 scripts/typer-tests.py report {{ filter }}
 
+# Save the typer report's results (default: the latest) as the baseline of typer-progress.
+typer-baseline from="tmp/typer/3.9.0/results.tsv":
+    cp {{ from }} tmp/typer/baseline.tsv
+
+# Run the typer report and list the files that changed outcome against the baseline.
+typer-progress: typer-report
+    bash scripts/typer-progress.sh
+
+# Format, run the gates, commit every change not ignored with message `msg` and push the branch.
+ship msg: fmt gates
+    git add -A
+    git status --short
+    git commit -q -m {{ quote(msg) }}
+    git push -q -u origin HEAD
+
 # Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed

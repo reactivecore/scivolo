@@ -101,6 +101,9 @@ impl Typer<'_> {
                 | Tree::Import { .. }
                 | Tree::PackageDef { .. }
         );
+        if !definition && !matches!(self.ast.tree(s), Tree::Function { .. }) && self.is_eta_closure(typed) {
+            return self.unsupported(s, "method reference in statement position");
+        }
         if !definition {
             self.check_statement_purity(typed);
         }

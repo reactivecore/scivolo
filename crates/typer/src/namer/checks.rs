@@ -69,7 +69,9 @@ impl Typer<'_> {
         } else if !is_type && flags.is(f::TRANSPARENT) && !flags.is(f::INLINE) {
             "transparent without inline"
         } else if kind == Kind::Def && self.defines_value(owner, name)
-            || (kind != Kind::Def || name.contains("$default$")) && self.defines(owner, name, is_type)
+            || (kind != Kind::Def || name.contains("$default$"))
+                && name != "$anon"
+                && self.defines(owner, name, is_type)
         {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
@@ -185,13 +187,6 @@ impl Typer<'_> {
                 continue;
             };
             self.unsupported(rhs, what);
-        }
-    }
-
-    /// Checks that annotation class `annot` is one the typer handles: `@main`.
-    pub fn check_annotation(&mut self, annot: NodeId, class: Option<SymbolId>) {
-        if class != Some(self.defn.main_annot) {
-            self.unsupported(annot, "annotation");
         }
     }
 }
