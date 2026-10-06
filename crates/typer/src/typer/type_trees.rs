@@ -8,7 +8,7 @@ use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_type(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
-        if let Some(t) = self.ready(id) {
+        if let Some(t) = self.ready(id, ctx) {
             return t;
         }
         let span = self.ast.span(id);
