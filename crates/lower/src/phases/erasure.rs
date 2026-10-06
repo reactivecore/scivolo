@@ -4,6 +4,7 @@
 use super::adapt::{adapt, applied_to_none, array_op, is_parameterless_ref};
 use super::casts::{is_cast, receiver_type};
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
+use super::type_tests::{intercept, is_test_or_cast};
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Kind};
@@ -36,6 +37,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 /// `t` with its subtrees typed against their erased expected types, then adapted to `pt`.
 pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
     let boolean = Erased::Prim('z');
+    if is_test_or_cast(l, t) {
+        intercept(l, t)?;
+    }
     let tree = l.tpd.tree(t).clone();
     let new = match tree {
         Tree::Apply { mut fun, args } => {
@@ -69,7 +73,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             let owner = receiver_type(l, t, qualifier);
             Some(Tree::Select { qualifier: typed(l, qualifier, owner.as_ref())?, name })
         }
-        Tree::TypeApply { fun, .. } if !is_cast(l, t) => return typed(l, fun, pt),
+        Tree::TypeApply { fun, .. } if !is_test_or_cast(l, t) => return typed(l, fun, pt),
         Tree::TypeApply { fun, args } => {
             if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
                 let owner = receiver_type(l, fun, qualifier);

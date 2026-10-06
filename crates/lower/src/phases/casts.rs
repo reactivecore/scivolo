@@ -20,7 +20,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
 }
 
 /// A type erasing to `e`.
-fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
+pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
     match e {
         Erased::Array(elem) => {
             let elem = type_of(l, elem);

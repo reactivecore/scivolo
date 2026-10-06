@@ -76,6 +76,17 @@ impl Gen<'_, '_> {
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else {
             return unsupported(span, "type applications without a call");
         };
+        if self.l.tpd.sym(fun) == Some(self.l.defs.patmat.is_instance_of) {
+            let value = self.gen_expr(qualifier)?;
+            let saved = self.at_span(span);
+            let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else {
+                unreachable!("a type application")
+            };
+            let ty = self.gen_type(self.l.tpd.tpe(self.l.tpd.items(args)[0]));
+            let v = self.emit(Op::Is { ty, obj: value });
+            self.m.pos = saved;
+            return Ok(v);
+        }
         if self.l.tpd.sym(fun) != Some(self.l.defs.as_instance_of) {
             return unsupported(span, "type applications without a call");
         }

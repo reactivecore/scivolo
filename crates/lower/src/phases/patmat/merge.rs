@@ -75,6 +75,7 @@ impl Translator<'_, '_> {
         let tests = match (*t1, *t2) {
             (Test::Equal(a), Test::Equal(b)) => same(self.l.tpd, a, b),
             (Test::Guard, Test::Guard) => true,
+            (Test::Type(a), Test::Type(b)) => self.l.tpd.tpe(a) == self.l.tpd.tpe(b),
             _ => false,
         };
         tests && same(self.l.tpd, *s1, *s2)

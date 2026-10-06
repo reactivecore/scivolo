@@ -14,10 +14,15 @@ pub struct Patmat {
     pub match_error_ctor: SymbolId,
     /// dotty's `<special-ops>.throw`.
     pub throw: SymbolId,
+    /// `Any.isInstanceOf`, and `Any.$isInstanceOf` that pattern matches test with.
+    pub is_instance_of: SymbolId,
+    pub type_test: SymbolId,
+    /// `Object.ne`.
+    pub ne: SymbolId,
 }
 
 impl Patmat {
-    pub fn new(u: &mut Universe, any: SymbolId) -> Result<Patmat, String> {
+    pub fn new(u: &mut Universe, any: SymbolId, object: SymbolId) -> Result<Patmat, String> {
         let scala = package(u, "scala")?;
         let java_lang = package(u, "java.lang")?;
         let boolean = member(u, scala, "Boolean", Kind::Class)?;
@@ -30,6 +35,9 @@ impl Patmat {
             match_error,
             match_error_ctor: member(u, match_error, "<init>", Kind::Def)?,
             throw: throw(u, java_lang)?,
+            is_instance_of: member(u, any, "isInstanceOf", Kind::Def)?,
+            type_test: member(u, any, "$isInstanceOf", Kind::Def)?,
+            ne: member(u, object, "ne", Kind::Def)?,
         })
     }
 }

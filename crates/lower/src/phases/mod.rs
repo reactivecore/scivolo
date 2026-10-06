@@ -26,6 +26,7 @@ mod repeated;
 mod returns;
 mod specialize;
 mod synthetic;
+mod type_tests;
 mod value_classes;
 pub(crate) mod walk;
 

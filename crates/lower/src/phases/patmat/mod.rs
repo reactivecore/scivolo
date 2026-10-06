@@ -7,6 +7,7 @@ mod inline;
 mod merge;
 mod plan;
 mod switch;
+mod types;
 
 use super::walk::children;
 use crate::definitions::symbol;
