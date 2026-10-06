@@ -3,7 +3,7 @@
 //! `narrowBySize` with `sizeFits`), before overload resolution.
 
 use super::{Pt, Typer};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The alternative of `syms`, members of `prefix`, that `pt` selects: the only one, the only
@@ -16,6 +16,21 @@ impl Typer<'_> {
     ) -> Result<SymbolId, &'static str> {
         if let [s] = syms {
             return Ok(*s);
+        }
+        if let Pt::PolyFun = pt {
+            let mut poly = Vec::new();
+            for &s in syms {
+                self.complete(s);
+                let tpe = self.ref_type(prefix, s);
+                let info = self.method_info(tpe).unwrap_or(tpe);
+                if matches!(self.u.types().get(info), Type::Poly { .. }) {
+                    poly.push(s);
+                }
+            }
+            return match poly[..] {
+                [s] => Ok(s),
+                _ => Err("overloaded reference with type arguments"),
+            };
         }
         let Pt::Fun(proto) = pt else { return Err("overloaded reference") };
         let mut methods = Vec::new();

@@ -15,6 +15,17 @@ impl Typer<'_> {
             return Ok(None);
         }
         let [arg] = args[..] else { return Ok(None) };
+        let arg = self.zonk(arg);
+        let mut unbounded = false;
+        self.u.map_type(arg, &mut |u, part| {
+            if let Type::Var(v) = *u.types().get(part) {
+                unbounded |= tasty::TypeVars::bounds(&self.constraint, v).0 == tasty::NOTHING;
+            }
+            None
+        });
+        if unbounded {
+            return Err("class tag of an undetermined type");
+        }
         let orig = self.fully_defined(arg)?;
         let arg = self.u.dealias(orig);
         let class = match *self.u.types().get(arg) {

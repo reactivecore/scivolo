@@ -50,7 +50,7 @@ impl Typer<'_> {
                     return self.unsupported(p, "function parameter without a type");
                 };
                 let formal = match self.fully_defined(formal) {
-                    Ok(t) if !matches!(self.u.types().get(t), Type::Bounds(..)) => t,
+                    Ok(t) if !self.has_wildcard(t) => t,
                     Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
                     Err(what) => return self.unsupported(p, what),
                 };
@@ -113,6 +113,16 @@ impl Typer<'_> {
         fun_args.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
+    }
+
+    /// Whether `t` has a wildcard type argument or is one.
+    fn has_wildcard(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
+            None
+        });
+        found
     }
 
     /// Function value `tree` typed as single abstract method type `pt` if it does not conform but
