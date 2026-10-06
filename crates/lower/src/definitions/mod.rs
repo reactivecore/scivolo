@@ -86,7 +86,7 @@ impl Definitions {
             boxed_unit_unit: boxed_unit_unit(u, runtime),
             equality: Equality::new(u, b.any, b.object, runtime)?,
             strings: Strings::new(u)?,
-            patmat: Patmat::new(u, b.any)?,
+            patmat: Patmat::new(u, b.any, b.object)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })

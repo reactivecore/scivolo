@@ -112,6 +112,9 @@ impl Translator<'_, '_> {
             Tree::Ident { .. } => self.l.tpd.sym(t).is_none_or(|s| {
                 self.l.u.symbol(s).kind != Kind::Def && !has(self.l.u, s, MUTABLE) && !has(self.l.u, s, LAZY)
             }),
+            Tree::TypeApply { fun, .. } if self.l.tpd.sym(fun) == Some(self.l.defs.as_instance_of) => {
+                matches!(*self.l.tpd.tree(fun), Tree::Select { qualifier, .. } if self.is_pure(qualifier))
+            }
             _ => false,
         }
     }

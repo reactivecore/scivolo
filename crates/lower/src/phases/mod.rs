@@ -24,8 +24,10 @@ mod mixin;
 mod patmat;
 mod repeated;
 mod returns;
+mod sensical;
 mod specialize;
 mod synthetic;
+mod type_tests;
 mod value_classes;
 pub(crate) mod walk;
 

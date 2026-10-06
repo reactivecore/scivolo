@@ -29,6 +29,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let class_of_any = u.types.intern(Type::Applied(class, vec![wildcard]));
     method(u, any, "getClass", &[], class_of_any, &[FINAL]);
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
+    poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
     let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
     let kept: Vec<SymbolId> =

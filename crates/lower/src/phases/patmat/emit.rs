@@ -4,8 +4,7 @@
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
-use crate::definitions::{primitive_class_name, type_ref};
-use crate::phases::casts::class_named;
+use crate::definitions::type_ref;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -89,6 +88,7 @@ impl Translator<'_, '_> {
         let cond = match test {
             Test::Guard => scrutinee,
             Test::Equal(tree) => self.equal(tree, scrutinee),
+            Test::Type(tpt) => self.type_test(scrutinee, tpt),
         };
         self.l.with_span(cond, span)
     }
@@ -102,27 +102,6 @@ impl Translator<'_, '_> {
             .and_then(|eqs| eqs.into_iter().find(|&m| self.single_param_class(m) == arg))
             .unwrap_or(self.l.defs.patmat.any_eq);
         self.call(lhs, eq, &[rhs])
-    }
-
-    fn single_param_class(&mut self, m: SymbolId) -> Option<SymbolId> {
-        let info = self.l.u.info(m);
-        let Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return None };
-        let &[(_, p)] = params.as_slice() else { return None };
-        self.class_of(p)
-    }
-
-    /// The class of type `tpe`, through singletons, unions and aliases to its erasure's.
-    fn class_of(&mut self, tpe: TypeId) -> Option<SymbolId> {
-        let widened = self.l.u.widen(tpe);
-        if let Some(c) = self.l.u.class_symbol(widened) {
-            return Some(c);
-        }
-        let name = match self.l.u.erase(tpe) {
-            tasty::Erased::Prim(letter) => primitive_class_name(letter)?,
-            tasty::Erased::Class(name) => name,
-            _ => return None,
-        };
-        class_named(self.l, &name)
     }
 
     /// `a && b`.
@@ -159,7 +138,10 @@ impl Translator<'_, '_> {
             {
                 let all: Vec<TNodeId> = stats.iter().chain(self.l.tpd.items(inner)).copied().collect();
                 let span = self.l.tpd.span(expr);
-                self.l.block(&all, last, span)
+                let block = self.l.block(&all, last, Span::NONE);
+                self.l.positioned(block);
+                self.l.tpd.get_mut(block).span = span;
+                block
             }
             _ => {
                 let block = self.l.block(stats, expr, Span::NONE);

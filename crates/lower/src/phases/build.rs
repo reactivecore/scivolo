@@ -87,6 +87,11 @@ impl Lower<'_> {
         self.tpd.node(Tree::Literal { value: Constant::Unit }, span, Some(tpe), None)
     }
 
+    pub fn null_literal(&mut self, span: Span) -> TNodeId {
+        let tpe = self.u.intern_type(Type::Constant(tasty::tags::NULLconst, 0));
+        self.tpd.node(Tree::Literal { value: Constant::Null }, span, Some(tpe), None)
+    }
+
     /// The definition of parameter `p`.
     pub fn param_def(&mut self, p: SymbolId, span: Span) -> TNodeId {
         let name = self.u.symbol(p).name.clone();

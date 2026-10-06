@@ -23,3 +23,4 @@ loops
 arrays
 localdefs
 matches
+typepatterns

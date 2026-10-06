@@ -3,7 +3,7 @@
 use super::Translator;
 use super::plan::{Plan, PlanId, Test, set_on_success};
 use crate::phases::walk::{same, subtrees};
-use tasty::SymbolId;
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -44,10 +44,9 @@ impl Translator<'_, '_> {
     /// `p1` followed by `p2` as one plan, if they start with the same test or binding.
     fn try_merge(&mut self, p1: PlanId, p2: PlanId) -> Option<PlanId> {
         let (s1, s2) = (self.skip_user_lets(p1), self.skip_user_lets(p2));
+        let same_tests = self.same_test(s1, s2);
         match (self.plan(s1), self.plan(s2)) {
-            (&Plan::Test { on_success: ons1, .. }, &Plan::Test { on_success: ons2, .. })
-                if self.same_test(s1, s2) =>
-            {
+            (&Plan::Test { on_success: ons1, .. }, &Plan::Test { on_success: ons2, .. }) if same_tests => {
                 let rest = self.transfer_user_lets(p2, ons2);
                 let merged = self.add(Plan::Seq { head: ons1, tail: rest });
                 set_on_success(self.plan_mut(s1), merged);
@@ -66,18 +65,33 @@ impl Translator<'_, '_> {
         }
     }
 
-    fn same_test(&self, a: PlanId, b: PlanId) -> bool {
-        let (Plan::Test { test: t1, scrutinee: s1, .. }, Plan::Test { test: t2, scrutinee: s2, .. }) =
+    fn same_test(&mut self, a: PlanId, b: PlanId) -> bool {
+        let (&Plan::Test { test: t1, scrutinee: s1, .. }, &Plan::Test { test: t2, scrutinee: s2, .. }) =
             (self.plan(a), self.plan(b))
         else {
             return false;
         };
-        let tests = match (*t1, *t2) {
+        let tests = match (t1, t2) {
             (Test::Equal(a), Test::Equal(b)) => same(self.l.tpd, a, b),
             (Test::Guard, Test::Guard) => true,
+            (Test::Type(a), Test::Type(b)) => {
+                let (a, b) = (self.l.tpd.tpe(a), self.l.tpd.tpe(b));
+                self.l.u.dealias(a) == self.l.u.dealias(b) || self.same_class(a, b)
+            }
             _ => false,
         };
-        tests && same(self.l.tpd, *s1, *s2)
+        tests && same(self.l.tpd, s1, s2)
+    }
+
+    /// Whether `a` and `b` both are references to the same class, through aliases.
+    fn same_class(&mut self, a: TypeId, b: TypeId) -> bool {
+        let mut class = |t: TypeId| {
+            let t = self.l.u.dealias(t);
+            let plain = matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..));
+            plain.then(|| self.l.u.class_symbol(t)).flatten()
+        };
+        let a = class(a);
+        a.is_some() && a == class(b)
     }
 
     /// The plan after the bindings of user variables `p` starts with.
