@@ -3,11 +3,13 @@
 
 mod equality;
 mod interfaces;
+mod patmat;
 mod refs;
 mod strings;
 
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_apply};
+pub use patmat::Patmat;
 pub use refs::{Ref, ref_class};
 pub use strings::Strings;
 use tasty::tags::STATIC;
@@ -34,6 +36,7 @@ pub struct Definitions {
     pub boxed_unit_unit: SymbolId,
     pub equality: Equality,
     pub strings: Strings,
+    pub patmat: Patmat,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
     /// `Any.asInstanceOf`.
@@ -51,6 +54,11 @@ const PRIMITIVES: [(&str, char); 8] = [
     ("Float", 'f'),
     ("Double", 'd'),
 ];
+
+/// The binary name of the primitive value class of erased letter `letter`.
+pub fn primitive_class_name(letter: char) -> Option<String> {
+    PRIMITIVES.iter().find(|&&(_, l)| l == letter).map(|(name, _)| format!("scala.{name}"))
+}
 
 impl Definitions {
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
@@ -78,6 +86,7 @@ impl Definitions {
             boxed_unit_unit: boxed_unit_unit(u, runtime),
             equality: Equality::new(u, b.any, b.object, runtime)?,
             strings: Strings::new(u)?,
+            patmat: Patmat::new(u, b.any)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })

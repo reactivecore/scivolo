@@ -29,7 +29,7 @@ impl Printer<'_> {
                 self.out.push_str(" #Class:");
                 self.out.push_str(&shown);
             }
-            Tree::New { tpt } => self.node(tpt),
+            Tree::New { tpt } | Tree::Labeled { expr: tpt } => self.node(tpt),
             Tree::Closure { env, meth, tpt } => {
                 self.list(env);
                 self.node(meth);

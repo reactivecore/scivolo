@@ -39,7 +39,12 @@ impl Gen<'_, '_> {
             Tree::This { .. } => self.gen_this(t),
             Tree::Try { expr, cases, finalizer } => self.gen_try(t, expr, cases, finalizer),
             Tree::WhileDo { cond, body } => self.gen_while(t, cond, body),
+            Tree::Labeled { expr } => self.gen_labeled(t, expr),
+            Tree::Match { selector, cases } => self.gen_switch(t, selector, cases),
             Tree::Return { expr, from } => {
+                if let Some(result) = self.gen_label_return(t, expr, from) {
+                    return result;
+                }
                 let Some(method) = self.l.tpd.sym(from).filter(|&m| Some(m) == self.m.sym) else {
                     return unsupported(span, "returns from enclosing methods or labels");
                 };

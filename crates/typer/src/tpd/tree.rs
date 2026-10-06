@@ -138,7 +138,11 @@ pub enum Tree {
         guard: Option<TNodeId>,
         body: TNodeId,
     },
-    /// `from` is an identifier of the method returned from.
+    /// Block `expr` whose symbol is a label, which `Return`s exit (made by the lowering).
+    Labeled {
+        expr: TNodeId,
+    },
+    /// `from` is an identifier of the method or label returned from.
     Return {
         expr: TNodeId,
         from: TNodeId,

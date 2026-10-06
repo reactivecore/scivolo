@@ -56,7 +56,7 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
 }
 
 /// The class of binary name `name`, through the classes and objects it is nested in.
-fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
+pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
     let (pkg, rest) = match name.rsplit_once('.') {
         Some((pkg, rest)) => (l.u.package(pkg)?, rest),
         None => (l.u.package("")?, name),

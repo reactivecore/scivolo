@@ -33,7 +33,10 @@ Apache-2.0. Rust translations of:
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
     (result-type bridges)
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
-  - `LambdaLift`, `Dependencies` (closures, local methods), `CapturedVars`, `ElimByName` (calls)
+  - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
+    `ElimByName` (calls)
+  - `PatternMatcher` (literal, binding and alternative patterns, guards, switches),
+    `ast/Positioned.envelope` (spans of the trees phases make)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)

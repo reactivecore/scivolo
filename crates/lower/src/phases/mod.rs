@@ -10,6 +10,8 @@ mod captures;
 pub(crate) mod casts;
 mod closures;
 mod constructors;
+mod envelope;
+mod erased_branches;
 mod erasure;
 mod first_transform;
 mod getters;
@@ -19,7 +21,9 @@ mod lifted;
 mod memoize;
 mod methods;
 mod mixin;
+mod patmat;
 mod repeated;
+mod returns;
 mod specialize;
 mod synthetic;
 mod value_classes;
@@ -44,6 +48,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
+        patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
     }
     lambda_lift::transform(l, &classes)?;
@@ -64,6 +69,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     for &td in &classes {
         constructors::transform(l, td)?;
+    }
+    for &td in &classes {
+        returns::transform(l, td);
     }
     Ok(())
 }
