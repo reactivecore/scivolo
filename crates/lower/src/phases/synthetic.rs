@@ -1,26 +1,44 @@
 //! dotty's `SyntheticMembers` as PostTyper runs it on each template: `writeReplace` of static
-//! objects.
+//! objects, the members of case classes (`case_members.rs`).
 
+use super::case_members::case_members;
+use super::mirrors::mirror_support;
 use crate::definitions::{applied, type_ref};
 use crate::symbols::{is_module_class, is_static, source_module};
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-pub fn add_synthetic_members(l: &mut Lower, td: TNodeId) -> Result<()> {
+/// Adds the synthetic members of class definition `td`; `concrete` the methods of the unit with
+/// a body.
+pub fn add_synthetic_members(l: &mut Lower, td: TNodeId, concrete: &FxHashSet<SymbolId>) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
         unreachable!("a template")
     };
-    let mut members = serializable_object_method(l, class, l.tpd.span(td))?;
-    if members.is_empty() {
+    let span = l.tpd.span(td);
+    let mut members = serializable_object_method(l, class, span)?;
+    members.extend(case_members(l, class, span, concrete)?);
+    let mirror = mirror_support(l, class, span)?;
+    if members.is_empty() && mirror.is_none() {
         return Ok(());
     }
     members.extend_from_slice(l.tpd.items(body));
+    let mut parents = l.tpd.items(parents).to_vec();
+    if let Some((parent, defs)) = mirror {
+        members.extend(defs);
+        let parent = type_ref(l.u, parent);
+        let mut types = l.u.parents(class);
+        types.push(parent);
+        l.u.set_parents(class, types);
+        parents.push(l.type_tree(parent, Span::NONE));
+    }
     let body = l.tpd.list(&members);
+    let parents = l.tpd.list(&parents);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
 }

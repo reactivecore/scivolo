@@ -27,11 +27,12 @@ Apache-2.0. Rust translations of:
 - `crates/typer`: `typer/{Typer,Namer}`, `ast/MainProxies`, the flag pickling of
   `core/tasty/TreePickler`, `SymDenotations.fullName`.
 - `crates/lower/src/phases`, from `transform/`:
-  - `SyntheticMembers` (`serializableObjectMethod`), `FirstTransform` (constant folding)
+  - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
+    `FirstTransform` (constant folding)
   - `Getters`, `Memoize`, `Mixin` (superclass call, trait constructors, forwarders),
     `Constructors` (constructor body)
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
-    (result-type bridges)
+    (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
     `ElimByName` (calls)

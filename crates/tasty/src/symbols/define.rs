@@ -31,6 +31,18 @@ impl Universe {
         self.symbols[sym.0 as usize].flags = flags;
     }
 
+    /// Removes `sym`, a symbol defined outside TASTy, from the declarations of its owner.
+    pub fn unenter(&mut self, sym: SymbolId) {
+        if let Some(owner) = self.symbol(sym).owner {
+            self.symbols[owner.0 as usize].decls.retain(|&d| d != sym);
+        }
+    }
+
+    /// Makes `owner` the owner of `sym`, a symbol defined outside TASTy.
+    pub fn set_owner(&mut self, sym: SymbolId, owner: SymbolId) {
+        self.symbols[sym.0 as usize].owner = Some(owner);
+    }
+
     /// Renames `sym`, a symbol defined outside TASTy.
     pub fn rename(&mut self, sym: SymbolId, name: &str) {
         self.symbols[sym.0 as usize].name = name.to_owned();

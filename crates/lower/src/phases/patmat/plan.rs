@@ -93,7 +93,7 @@ impl Translator<'_, '_> {
         let p = self.l.defs.patmat;
         let new = self.l.new_(p.match_error, Span::NONE);
         let arg = self.l.ident(scrutinee, Span::NONE);
-        let error = self.call(new, p.match_error_ctor, &[arg]);
+        let error = self.l.call(new, p.match_error_ctor, &[arg]);
         let tpe = self.l.tpd.tpe(new);
         self.l.tpd.get_mut(error).tpe = Some(tpe);
         let throw = self.l.ident(p.throw, Span::NONE);

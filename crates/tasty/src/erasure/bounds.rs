@@ -79,7 +79,8 @@ impl Universe {
     }
 
     /// The common base of `a` and `b` in dotty's `erasedLub`: of the bases of `a` that `b`
-    /// derives from, up to the first class, the last one no other of them derives from.
+    /// derives from, up to the first class, the last one no other of them derives from, every
+    /// one deriving from `Object` (Java interfaces too, as in dotty).
     fn common_base(&mut self, a: SymbolId, b: SymbolId) -> Option<SymbolId> {
         let mut candidates = Vec::new();
         for base in self.linearization(a) {
@@ -90,10 +91,13 @@ impl Universe {
                 }
             }
         }
+        let derives = |u: &mut Self, x: SymbolId, c: SymbolId| {
+            u.derives_from(x, c) || u.full_name(c) == "java.lang.Object"
+        };
         let minimal = candidates
             .iter()
             .copied()
-            .filter(|&c| candidates.iter().all(|&x| x == c || !self.derives_from(x, c)))
+            .filter(|&c| candidates.iter().all(|&x| x == c || !derives(self, x, c)))
             .collect::<Vec<_>>();
         let base = *minimal.last()?;
         let full = self.full_name(base);

@@ -123,11 +123,11 @@ impl Names {
 
 /// The counters of a compilation unit's fresh names, one per prefix (dotty's `FreshNameCreator`).
 #[derive(Default)]
-pub struct FreshNames(rustc_hash::FxHashMap<&'static str, u32>);
+pub struct FreshNames(rustc_hash::FxHashMap<String, u32>);
 
 impl FreshNames {
     /// `prefix` followed by the next number for it: `_$1`, `evidence$2`.
-    pub fn next(&mut self, names: &mut Names, prefix: &'static str) -> Name {
+    pub fn next(&mut self, names: &mut Names, prefix: &str) -> Name {
         let n = self.count(prefix);
         names.intern(&format!("{prefix}{n}"))
     }
@@ -138,8 +138,8 @@ impl FreshNames {
         names.intern(&format!("${n}$"))
     }
 
-    fn count(&mut self, prefix: &'static str) -> u32 {
-        let n = self.0.entry(prefix).or_insert(0);
+    fn count(&mut self, prefix: &str) -> u32 {
+        let n = self.0.entry(prefix.to_owned()).or_insert(0);
         *n += 1;
         *n
     }

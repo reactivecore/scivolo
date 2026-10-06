@@ -5,7 +5,7 @@ use super::Gen;
 use super::method::Method;
 use crate::symbols::{
     companion_class, companion_module, has, is_constructor, is_extern, is_module_class, is_static,
-    is_static_module,
+    is_static_module, is_trait,
 };
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Param, PosId, Type, Val};
@@ -65,7 +65,10 @@ impl Gen<'_, '_> {
         let d = &self.l.defs;
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
-        if bases.iter().skip(1).any(|b| !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable") {
+        let inherits = |b: &SymbolId| {
+            !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable" && !is_trait(self.l.u, *b)
+        };
+        if bases.iter().skip(1).any(inherits) {
             return unsupported(Span::NONE, "forwarders to inherited methods");
         }
         let decls = self.l.u.decls(module_class).unwrap_or_default();

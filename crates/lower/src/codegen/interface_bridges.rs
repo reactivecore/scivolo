@@ -1,6 +1,6 @@
 //! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member of a
-//! trait its class directly extends, with another erased signature, gets a bridge of that
-//! member's type calling it.
+//! trait of the unit or the library its class directly extends, with another erased signature,
+//! gets a bridge of that member's type calling it.
 
 use super::Gen;
 use crate::Result;
@@ -19,16 +19,18 @@ impl Gen<'_, '_> {
         }
         let name = self.l.u.symbol(m).name.clone();
         let (params, result) = self.l.u.erased_method(m);
-        let parents = self.l.u.parents(class);
-        let classes: Vec<SymbolId> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-        let traits: Vec<SymbolId> = classes.into_iter().filter(|&t| is_trait(self.l.u, t)).collect();
+        let bases = self.l.u.linearization(class);
+        let before_superclass = bases[1..].iter().copied().take_while(|&b| is_trait(self.l.u, b));
+        let mut traits: Vec<SymbolId> = before_superclass.collect();
+        traits.reverse();
         let mut seen: Vec<(Vec<Erased>, Erased)> = Vec::new();
         let mut out = Vec::new();
         for t in traits {
             for inherited in self.l.u.decl(t, &name).unwrap_or_default() {
-                if !matches!(self.l.u.symbol(inherited).kind, Kind::Def | Kind::Val)
-                    || !self.deferred.contains(&inherited)
-                {
+                let library = self.l.u.symbol(inherited).tree.is_some();
+                let deferred =
+                    self.deferred.contains(&inherited) || library && self.l.u.body(inherited).is_none();
+                if !matches!(self.l.u.symbol(inherited).kind, Kind::Def | Kind::Val) || !deferred {
                     continue;
                 }
                 let signature = self.l.u.erased_method(inherited);
@@ -41,11 +43,13 @@ impl Gen<'_, '_> {
                 let m_info = self.l.u.info(m);
                 let m_result = self.l.u.result_type(m_info);
                 let flags = self.l.u.symbol(m).flags;
-                let (_, def) = self.l.method_like(class, inherited, flags, info, span, |l, args, _| {
-                    let this = l.this(class, span);
-                    let fun = l.select(this, m, span);
-                    l.apply(fun, args, m_result, span)
-                })?;
+                let (bridge, def) =
+                    self.l.method_like(class, inherited, flags, info, span, |l, args, _| {
+                        let this = l.this(class, span);
+                        let fun = l.select(this, m, span);
+                        l.apply(fun, args, m_result, span)
+                    })?;
+                self.l.u.unenter(bridge);
                 out.push(def);
             }
         }

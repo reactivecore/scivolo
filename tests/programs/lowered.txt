@@ -24,3 +24,5 @@ arrays
 localdefs
 matches
 typepatterns
+caseclasses
+mixins

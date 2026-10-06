@@ -2,10 +2,8 @@
 //! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches.
 
 use super::Translator;
-use crate::definitions::primitive_class_name;
-use crate::phases::casts::class_named;
 use syntax::ast::Span;
-use tasty::{Erased, Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -28,28 +26,6 @@ impl Translator<'_, '_> {
             Type::Sym(_, s) => matches!(self.l.u.symbol(s).kind, Kind::Val | Kind::Param),
             _ => false,
         }
-    }
-
-    /// The class of the only parameter of method `m`.
-    pub fn single_param_class(&mut self, m: SymbolId) -> Option<SymbolId> {
-        let info = self.l.u.info(m);
-        let Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return None };
-        let &[(_, p)] = params.as_slice() else { return None };
-        self.class_of(p)
-    }
-
-    /// The class of type `tpe`, through singletons, unions and aliases to its erasure's.
-    pub fn class_of(&mut self, tpe: TypeId) -> Option<SymbolId> {
-        let widened = self.l.u.widen(tpe);
-        if let Some(c) = self.l.u.class_symbol(widened) {
-            return Some(c);
-        }
-        let name = match self.l.u.erase(tpe) {
-            Erased::Prim(letter) => primitive_class_name(letter)?,
-            Erased::Class(name) => name,
-            _ => return None,
-        };
-        class_named(self.l, &name)
     }
 
     /// `value.asInstanceOf[target]`.

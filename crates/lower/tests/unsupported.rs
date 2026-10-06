@@ -37,19 +37,8 @@ const CASES: &[(&str, &str)] = &[
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",
     ),
-    (
-        "class B; class S extends B; class P { def f: S = new S() }; trait T { def f: B }; class C extends P with T",
-        "bridges for inherited members",
-    ),
-    (
-        "class B; class S extends B; trait T { def f: B }; trait U { def f: S = new S() }; class C extends T with U",
-        "bridges for inherited members",
-    ),
-    (
-        "class C extends Product { def canEqual(o: Any) = true; def productArity = 0; \
-         def productElement(n: Int): Any = 0 }",
-        "library traits",
-    ),
+    ("case class C[T](x: T)", "generic case classes"),
+    ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
 ];
 
 #[test]
