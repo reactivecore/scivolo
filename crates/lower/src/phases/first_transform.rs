@@ -1,5 +1,5 @@
 //! The constant folding of dotty's `FirstTransform`: a pure reference to a constant `final`
-//! value becomes the constant.
+//! value, and a pure block of constant type, becomes the constant.
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
@@ -14,15 +14,20 @@ use tasty::tags::{
 use tasty::{Kind, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Folds the references to constant `final` values in class definition `td`.
+/// Folds the references to constant `final` values and the constant blocks in class definition
+/// `td`, inner trees first.
 pub fn transform(l: &mut Lower, td: TNodeId) {
+    let mut trees = Vec::new();
     let mut todo = vec![td];
     while let Some(t) = todo.pop() {
-        const_to_literal(l, t);
+        trees.push(t);
         let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
         if !nested {
             todo.extend(children(l.tpd, t));
         }
+    }
+    for &t in trees.iter().rev() {
+        const_to_literal(l, t);
     }
 }
 
@@ -30,7 +35,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 /// block of constant type with only a constant.
 fn const_to_literal(l: &mut Lower, t: TNodeId) {
     if is_constant_block(l, t) {
-        let tpe = l.tpd.tpe(t);
+        let tpe = match *l.u.types().get(l.tpd.tpe(t)) {
+            Type::Sym(_, s) if l.u.symbol(s).kind == Kind::Val => l.u.info(s),
+            _ => l.tpd.tpe(t),
+        };
         if let Some(value) = constant(l.u.types().get(tpe)) {
             let node = l.tpd.get_mut(t);
             node.tree = Tree::Literal { value };
@@ -54,10 +62,19 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
     node.sym = None;
 }
 
-/// Whether `t` is a block without statements whose expression is a literal or such a block.
+/// Whether `t` is a block of pure definitions ending in a literal (dotty's `isIdempotentExpr`
+/// with `statPurity`).
 fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return false };
-    stats.is_empty() && (matches!(l.tpd.tree(expr), Tree::Literal { .. }) || is_constant_block(l, expr))
+    let pure_stat = |&s: &TNodeId| match *l.tpd.tree(s) {
+        Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
+        Tree::ValDef { rhs, .. } => {
+            let mutable = l.tpd.sym(s).is_some_and(|v| has(l.u, v, MUTABLE) || has(l.u, v, LAZY));
+            !mutable && rhs.is_some_and(|r| matches!(l.tpd.tree(r), Tree::Literal { .. }) || is_pure(l, r))
+        }
+        _ => false,
+    };
+    l.tpd.items(stats).iter().all(pure_stat) && matches!(l.tpd.tree(expr), Tree::Literal { .. })
 }
 
 /// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, an object,

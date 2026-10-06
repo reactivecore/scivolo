@@ -2,7 +2,7 @@
 //! literals (nscplugin's `genLabelDef`, `genReturn` and `genMatch`).
 
 use super::Gen;
-use crate::Result;
+use crate::{Result, unsupported};
 use nir::{Inst, Local, Next, Type, TypeId, Val, ValId};
 use syntax::ast::Span;
 use typer::tpd::{List, TNodeId, Tree};
@@ -53,19 +53,24 @@ impl Gen<'_, '_> {
             let lits = match *self.l.tpd.tree(pat) {
                 Tree::Literal { .. } => vec![pat],
                 Tree::Alternative { trees } => self.l.tpd.items(trees).to_vec(),
-                _ => {
+                Tree::Ident { name } if self.l.names.text(name.name) == "_" => {
                     default = Some(body);
                     Vec::new()
                 }
+                _ => return unsupported(self.l.tpd.span(pat), "matches on patterns other than literals"),
             };
             for lit in lits {
-                let Tree::Literal { ref value } = *self.l.tpd.tree(lit) else { unreachable!("a literal") };
+                let Tree::Literal { ref value } = *self.l.tpd.tree(lit) else {
+                    return unsupported(self.l.tpd.span(lit), "matches on patterns other than literals");
+                };
                 let value = self.gen_literal(lit, &value.clone())?;
                 let id = self.fresh();
                 switch_cases.push(Case { id, value, lit, body, span: self.l.tpd.span(c) });
             }
         }
-        let default = default.expect("a default case");
+        let Some(default) = default else {
+            return unsupported(self.l.tpd.span(t), "switches without a default");
+        };
         let retty = self.gen_type(self.l.tpd.tpe(t));
         let scrut = self.gen_expr(selector)?;
         let int = self.ty(Type::Int);

@@ -17,7 +17,8 @@ use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// Compiles the matches in class definition `td`, inner matches first.
+/// Compiles the matches in class definition `td`, inner matches first; those outside methods
+/// with their variables owned by the constructor.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let mut matches = Vec::new();
@@ -29,8 +30,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             }
             continue;
         }
-        let inner = match l.tpd.tree(t) {
+        let inner = match *l.tpd.tree(t) {
             Tree::DefDef { .. } => l.tpd.sym(t).unwrap_or(owner),
+            Tree::Template { constr, .. } => l.tpd.sym(constr).unwrap_or(owner),
             _ => owner,
         };
         todo.push((t, owner, true));

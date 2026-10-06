@@ -4,7 +4,8 @@
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
-use crate::definitions::type_ref;
+use crate::definitions::{primitive_class_name, type_ref};
+use crate::phases::casts::class_named;
 use syntax::ast::Span;
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -94,9 +95,8 @@ impl Translator<'_, '_> {
 
     /// `lhs == rhs`, with the `==` of `lhs`'s class taking `rhs`'s class if any, else `Any`'s.
     fn equal(&mut self, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
-        let (lhs_tpe, rhs_tpe) = (self.l.u.widen(self.l.tpd.tpe(lhs)), self.l.u.widen(self.l.tpd.tpe(rhs)));
-        let class = self.l.u.class_symbol(lhs_tpe);
-        let arg = self.l.u.class_symbol(rhs_tpe);
+        let class = self.class_of(self.l.tpd.tpe(lhs));
+        let arg = self.class_of(self.l.tpd.tpe(rhs));
         let eq = class
             .and_then(|c| self.l.u.decl(c, "==").ok())
             .and_then(|eqs| eqs.into_iter().find(|&m| self.single_param_class(m) == arg))
@@ -108,8 +108,21 @@ impl Translator<'_, '_> {
         let info = self.l.u.info(m);
         let Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return None };
         let &[(_, p)] = params.as_slice() else { return None };
-        let p = self.l.u.widen(p);
-        self.l.u.class_symbol(p)
+        self.class_of(p)
+    }
+
+    /// The class of type `tpe`, through singletons, unions and aliases to its erasure's.
+    fn class_of(&mut self, tpe: TypeId) -> Option<SymbolId> {
+        let widened = self.l.u.widen(tpe);
+        if let Some(c) = self.l.u.class_symbol(widened) {
+            return Some(c);
+        }
+        let name = match self.l.u.erase(tpe) {
+            tasty::Erased::Prim(letter) => primitive_class_name(letter)?,
+            tasty::Erased::Class(name) => name,
+            _ => return None,
+        };
+        class_named(self.l, &name)
     }
 
     /// `a && b`.

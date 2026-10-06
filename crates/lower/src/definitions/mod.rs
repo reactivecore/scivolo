@@ -55,6 +55,11 @@ const PRIMITIVES: [(&str, char); 8] = [
     ("Double", 'd'),
 ];
 
+/// The binary name of the primitive value class of erased letter `letter`.
+pub fn primitive_class_name(letter: char) -> Option<String> {
+    PRIMITIVES.iter().find(|&&(_, l)| l == letter).map(|(name, _)| format!("scala.{name}"))
+}
+
 impl Definitions {
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
         let java_lang = package(u, "java.lang")?;

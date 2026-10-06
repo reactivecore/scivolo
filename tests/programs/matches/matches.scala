@@ -54,7 +54,39 @@ object M:
       case _ => count -= 1
     count
 
+object B:
+  final val Three = 3
+  val seed: Int = 2
+  val v: Int = seed match
+    case 1 => 10
+    case k => k * 3
+  seed match
+    case 2 => println("two")
+    case _ => println("other")
+  def union(c: Boolean): Int = (if c then 1 else 2) match
+    case 1 => 10
+    case _ => 20
+  def blocks(n: Int): Any = n match
+    case 1 => { Three }
+    case _ => { val y = 1; 2 }
+  def zeros(d: Double): Int = d match
+    case 0.0 => 1
+    case -0.0 => 2
+    case _ => 3
+
+class K:
+  val base: Int = 4
+  val r: Int = base match
+    case 1 => 1
+    case k => k + 1
+
 @main def matches(): Unit =
+  println(B.v)
+  println(B.union(false))
+  println(B.blocks(1))
+  println(B.blocks(2))
+  println(B.zeros(-0.0))
+  println(K().r)
   println(M.small(2))
   println(M.switch(3))
   println(M.switch(9))

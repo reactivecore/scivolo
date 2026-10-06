@@ -4,7 +4,9 @@
 use super::Translator;
 use super::plan::{Plan, PlanId, set_on_success};
 use crate::phases::walk::{children, subtrees};
+use crate::symbols::has;
 use rustc_hash::FxHashMap;
+use tasty::tags::{LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -107,7 +109,9 @@ impl Translator<'_, '_> {
     fn is_pure(&self, t: TNodeId) -> bool {
         match *self.l.tpd.tree(t) {
             Tree::Literal { .. } | Tree::This { .. } => true,
-            Tree::Ident { .. } => self.l.tpd.sym(t).is_none_or(|s| self.l.u.symbol(s).kind != Kind::Def),
+            Tree::Ident { .. } => self.l.tpd.sym(t).is_none_or(|s| {
+                self.l.u.symbol(s).kind != Kind::Def && !has(self.l.u, s, MUTABLE) && !has(self.l.u, s, LAZY)
+            }),
             _ => false,
         }
     }
