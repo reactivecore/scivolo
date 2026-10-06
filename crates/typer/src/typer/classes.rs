@@ -57,6 +57,20 @@ impl Typer<'_> {
         self.set_stable_constructor(cls, t.constr);
     }
 
+    /// Whether enum class `c` declares or inherits a concrete `ordinal` other than `Enum`'s.
+    fn defines_enum_ordinal(&mut self, c: SymbolId) -> bool {
+        let flags = self.u.symbol(c).flags;
+        if !flags.has(tasty::tags::ENUM) || flags.has(tasty::tags::CASE) {
+            return false;
+        }
+        self.class_members(c, "ordinal").into_iter().any(|m| {
+            let owner = self.u.symbol(m).owner.map(|o| self.u.full_name(o));
+            !self.u.symbol(m).flags.has(tasty::tags::SYNTHETIC)
+                && owner.as_deref() != Some("scala.reflect.Enum")
+                && self.is_concrete(m)
+        })
+    }
+
     pub fn typed_class_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {
         let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(id) else { unreachable!() };
         let Tree::Template { .. } = self.ast.tree(rhs) else {
@@ -64,6 +78,9 @@ impl Typer<'_> {
         };
         let cls = self.syms.by_tree[&id];
         self.complete(cls);
+        if self.defines_enum_ordinal(cls) {
+            return self.unsupported(id, "enum class with its own ordinal");
+        }
         let ctor = self.syms.primary_ctors.get(&cls).copied();
         let params = ctor.is_some_and(|c| {
             self.complete(c);

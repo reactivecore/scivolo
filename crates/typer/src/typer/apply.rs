@@ -64,8 +64,12 @@ impl Typer<'_> {
                 _ => p,
             })
             .collect();
-        if formals.iter().any(|&p| self.is_special_param(p) || self.mentions_params(p, binder, method)) {
-            return self.unsupported(id, "dependent parameter");
+        if formals.iter().any(|&p| {
+            self.is_special_param(p)
+                || self.mentions_params(p, binder, method)
+                || self.mentions_foreign_private_type(p, ctx)
+        }) {
+            return self.unsupported(id, "dependent parameter or private type");
         }
         let seq_arg = arg_ids
             .last()
@@ -128,7 +132,10 @@ impl Typer<'_> {
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
         self.fold_apply(apply);
-        apply
+        match self.widen_enum_case(apply, method, pt) {
+            Ok(tree) => tree,
+            Err(what) => self.unsupported(id, what),
+        }
     }
 
     /// `f`, or `f.apply` if `f` is not a method (dotty's `tryInsertApplyOrImplicit`), the

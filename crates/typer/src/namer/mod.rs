@@ -85,6 +85,9 @@ impl Typer<'_> {
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
             flags = flags.or(f::LOCAL);
         }
+        if kind == Kind::Val && flags.is(f::ENUM) && self.is_static_owner(ctx.owner) {
+            flags = flags.or(f::JAVA_STATIC);
+        }
         let package_private = flags.is(f::PRIVATE) && self.is_package_level(ctx.owner);
         if package_private {
             flags = flags.and_not(f::PRIVATE_LOCAL);

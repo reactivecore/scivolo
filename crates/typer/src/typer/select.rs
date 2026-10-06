@@ -124,6 +124,10 @@ impl Typer<'_> {
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
+            if let Some(case) = self.widened_enum_case(qual) {
+                qual = case;
+                continue;
+            }
             if self.extension_visible(&text, ctx) {
                 return self.unsupported(id, "extension method");
             }
@@ -156,6 +160,9 @@ impl Typer<'_> {
             if matches!(self.u.types().get(info), Type::Alias(_)) {
                 return self.unsupported(id, "projection of a type alias");
             }
+        }
+        if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
+            return self.unsupported(id, "deferred given");
         }
         let tpe = self.ref_type(Some(qual_tpe), sym);
         let span = self.ast.span(id);

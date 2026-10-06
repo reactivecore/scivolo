@@ -71,6 +71,9 @@ impl Typer<'_> {
         if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
             return self.unsupported(id, "impure function type");
         }
+        if text == "deferred" && self.u.full_name(sym).starts_with("scala.compiletime.") {
+            return self.unsupported(id, "deferred given");
+        }
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
         if !self.prefix_is_elidable(tpe, ctx) {

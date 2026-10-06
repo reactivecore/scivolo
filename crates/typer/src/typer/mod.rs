@@ -3,6 +3,7 @@
 mod access;
 mod adapt;
 mod alternatives;
+mod anon_classes;
 mod applicability;
 mod apply;
 mod avoid;
@@ -16,6 +17,7 @@ mod control;
 mod defs;
 mod derived;
 mod dispatch;
+mod enum_cases;
 mod equality;
 mod find_ref;
 mod function_types;

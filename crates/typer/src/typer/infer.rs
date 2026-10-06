@@ -65,6 +65,7 @@ impl Typer<'_> {
             if self.conforms(widened, hi) {
                 inst = self.module_ref(widened);
             }
+            inst = self.without_transparent_traits(inst, hi);
         }
         if matches!(self.u.types().get(inst), Type::Or(..)) {
             return Err("type variable instantiated to a union");

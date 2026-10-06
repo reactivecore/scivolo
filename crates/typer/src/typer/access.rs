@@ -63,6 +63,21 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether type `t` refers to a private type member of a class other than the class
+    /// enclosing `ctx`.
+    pub fn mentions_foreign_private_type(&mut self, t: TypeId, ctx: Ctx) -> bool {
+        let here = self.enclosing_class(ctx.owner);
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part) {
+                let sym = u.symbol(s);
+                found |= sym.kind == tasty::Kind::Type && sym.flags.has(PRIVATE) && sym.owner != here;
+            }
+            None
+        });
+        found
+    }
+
     /// Whether `prefix` is the `this` of class `owner` or the object whose class it is (dotty's
     /// `isAccessPrivilegedThisType`).
     fn is_privileged_prefix(&mut self, prefix: TypeId, owner: SymbolId) -> bool {

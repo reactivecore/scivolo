@@ -67,7 +67,8 @@ impl Typer<'_> {
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
-                let mut widened = self.simplified(widened);
+                let widened = self.simplified(widened);
+                let mut widened = self.without_transparent_traits(widened, tasty::ANY);
                 if matches!(self.u.types().get(widened), Type::Or(..)) {
                     widened = self.widen_singleton(widened);
                 }

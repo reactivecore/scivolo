@@ -21,6 +21,9 @@ impl Typer<'_> {
             Tree::Number { digits, kind } => self.typed_number(id, &digits, kind, pt),
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
             Tree::This { qual } => self.typed_this(id, qual, ctx),
+            Tree::New { tpt } if matches!(self.ast.tree(tpt), Tree::Template { .. }) => {
+                self.typed_anon_class(id, tpt, pt, ctx)
+            }
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),

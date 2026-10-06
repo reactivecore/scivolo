@@ -99,8 +99,16 @@ impl Typer<'_> {
         let seq = crate::defn::type_ref(self.u, seq_class);
         let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
         let expr = self.typed(expr, super::Pt::Type(seq), ctx);
-        let converted = matches!(*self.tpd.tree(expr), T::Apply { fun, .. }
-            if self.tpd.sym(fun).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::IMPLICIT)));
+        let mut callee = match *self.tpd.tree(expr) {
+            T::Apply { fun, .. } => Some(fun),
+            _ => None,
+        };
+        while let Some(T::TypeApply { fun, .. }) = callee.map(|c| self.tpd.tree(c).clone()) {
+            callee = Some(fun);
+        }
+        let converted = callee
+            .and_then(|c| self.tpd.sym(c))
+            .is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::IMPLICIT));
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
         if converted
