@@ -65,6 +65,15 @@ impl Typer<'_> {
             if self.conforms(widened, hi) {
                 inst = self.module_ref(widened);
             }
+            if self.constraint.soft_lower(v)
+                && matches!(self.u.types().get(inst), Type::Or(..))
+                && self.is_fully_defined(inst)
+                && let Some(joined) = self.u.join(inst)
+                && !self.is_transparent(joined, false)
+                && self.conforms(joined, hi)
+            {
+                inst = joined;
+            }
             inst = self.without_transparent_traits(inst, hi);
         }
         if matches!(self.u.types().get(inst), Type::Or(..)) {

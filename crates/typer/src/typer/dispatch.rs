@@ -13,6 +13,10 @@ impl Typer<'_> {
             Tree::Apply { fun, args } if ctx.mode.is(Mode::PATTERN) => {
                 self.typed_unapply(id, fun, args, pt, ctx)
             }
+            Tree::Apply { fun, args } if self.is_right_assoc_call(id) => {
+                let call = self.typed_apply(id, fun, args, pt, ctx);
+                self.lifted_right_assoc(call, ctx)
+            }
             Tree::Apply { fun, args } => self.typed_apply(id, fun, args, pt, ctx),
             Tree::Match { selector, cases, kind } => self.typed_match(id, selector, cases, kind, pt, ctx),
             Tree::Alternative { trees } => self.typed_alternative(id, trees, pt, ctx),
