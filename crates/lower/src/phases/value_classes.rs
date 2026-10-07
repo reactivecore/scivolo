@@ -7,7 +7,7 @@ use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_constructor, is_module, is_trait};
 use crate::{Lower, Result, unsupported};
-use tasty::tags::{FINAL, INLINE, MACRO, SYNTHETIC};
+use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -70,13 +70,11 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     };
     let class = l.u.symbol(m).owner.expect("a method's class");
     let generic = !l.u.type_params(class).is_empty();
-    let (receiver, ev_def) = match *l.tpd.tree(qualifier) {
-        Tree::Ident { .. } | Tree::This { .. } | Tree::Literal { .. } => (qualifier, None),
-        _ if generic => {
-            let (ev, def) = eval_once(l, qualifier, owner);
-            (l.ident(ev, l.tpd.span(qualifier)), Some(def))
-        }
-        _ => (qualifier, None),
+    let (receiver, ev_def) = if generic && !is_stable_path(l, qualifier) {
+        let (ev, def) = eval_once(l, qualifier, owner);
+        (l.ident(ev, l.tpd.span(qualifier)), Some(def))
+    } else {
+        (qualifier, None)
     };
     let module = companion(l, class).expect("the companion of an extension method's class");
     let module_ref = l.ident(module, span);
@@ -94,15 +92,34 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
         call = l.apply(call, &args, tpe, call_span);
     }
     l.tpd.get_mut(call).span = call_span;
-    let tpe = if generic { l.tpd.tpe(t) } else { tpe };
+    if generic {
+        let tpe = l.tpd.tpe(t);
+        let tree = match ev_def {
+            Some(def) => Tree::Block { stats: l.tpd.list(&[def]), expr: call },
+            None => l.tpd.tree(call).clone(),
+        };
+        let node = l.tpd.get_mut(t);
+        (node.tree, node.tpe, node.sym) = (tree, Some(tpe), None);
+        return Ok(());
+    }
     let tpt = l.type_tree(tpe, span);
-    let expr = match ev_def {
-        Some(def) => l.block(&[def], call, call_span),
-        None => call,
-    };
     let node = l.tpd.get_mut(t);
-    (node.tree, node.tpe, node.sym) = (Tree::Typed { expr, tpt }, Some(tpe), None);
+    (node.tree, node.tpe, node.sym) = (Tree::Typed { expr: call, tpt }, Some(tpe), None);
     Ok(())
+}
+
+/// Whether `t` is a literal, `this`, or a path of stable values and objects (dotty's
+/// `isIdempotentExpr` for these).
+fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
+    let stable = |l: &mut Lower, s: Option<SymbolId>| {
+        s.is_some_and(|s| is_module(l.u, s) || l.u.symbol(s).kind == Kind::Val && !has(l.u, s, MUTABLE))
+    };
+    match *l.tpd.tree(t) {
+        Tree::Literal { .. } | Tree::This { .. } => true,
+        Tree::Ident { .. } => stable(l, l.tpd.sym(t)),
+        Tree::Select { qualifier, .. } => stable(l, l.tpd.sym(t)) && is_stable_path(l, qualifier),
+        _ => false,
+    }
 }
 
 /// `val ev$N = expr` in `owner` (dotty's `evalOnce`), with its symbol.

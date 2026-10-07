@@ -29,7 +29,7 @@ impl Universe {
             Some("scala.|") if args.len() == 2 => self.erase_or(args[0], args[1]),
             Some("scala.&") if args.len() == 2 => self.erase_and(args[0], args[1]),
             Some(_) => match self.generic_underlying(tycon, args) {
-                Some(arg) => match self.erase(arg) {
+                Some(arg) => match self.erase_boxed(arg) {
                     Erased::Prim(c) => super::special::boxed(c),
                     e => e,
                 },
