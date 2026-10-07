@@ -110,9 +110,10 @@ impl<'a> Typer<'a> {
         ast: &'a mut Ast,
         names: &'a mut Names,
         features: Features,
-        mut syms: Syms,
+        syms: &mut Syms,
     ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
+        let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, "throw", Kind::Def));
         syms.repeated_class =

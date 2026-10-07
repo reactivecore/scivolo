@@ -85,6 +85,19 @@ fn classes_of_earlier_units() {
 }
 
 #[test]
+fn unit_after_a_failed_one() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let first = "object rs$line$1 { def f(xs: Int*): Int = xs.sum }";
+    assert_eq!(type_unit(&mut u, &mut units, "line.scala", first), Ok(()));
+    let failed = "object rs$line$2 { import rs$line$1.*; val s: String = f(1) }";
+    assert!(type_unit(&mut u, &mut units, "line.scala", failed).is_err());
+    let third = "object rs$line$3 { import rs$line$1.*; val y = f(1, 2) + f() }";
+    assert_eq!(type_unit(&mut u, &mut units, "line.scala", third), Ok(()));
+    assert_eq!(member_type(&mut u, "rs$line$3", "y"), "scala.Int");
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";
