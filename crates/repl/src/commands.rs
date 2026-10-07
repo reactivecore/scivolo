@@ -5,15 +5,17 @@ pub enum Command {
     Quit,
     Help,
     Reset(String),
+    TypeOf(String),
     Unknown(String),
 }
 
-const COMMANDS: [&str; 4] = [":quit", ":exit", ":help", ":reset"];
+const COMMANDS: [&str; 5] = [":quit", ":exit", ":help", ":reset", ":type"];
 
 pub const HELP: &str = "The REPL has several commands available:
 
 :help                    print this summary
 :quit                    exit the interpreter
+:type <expression>       evaluate the type of the given expression
 :reset                   reset the repl to its initial state, forgetting all session entries";
 
 /// The command `text` is, if it starts with `:` and a letter; a prefix names the one command it
@@ -30,6 +32,7 @@ pub fn parse(text: &str) -> Option<Command> {
         [":quit"] | [":exit"] => Command::Quit,
         [":help"] => Command::Help,
         [":reset"] => Command::Reset(arg.trim().to_owned()),
+        [":type"] => Command::TypeOf(arg.trim().to_owned()),
         _ => Command::Unknown(name.to_owned()),
     })
 }
@@ -49,6 +52,7 @@ mod tests {
         assert_eq!(parse(":exit"), Some(Command::Quit));
         assert_eq!(parse(" :help "), Some(Command::Help));
         assert_eq!(parse(":reset -deprecation"), Some(Command::Reset("-deprecation".into())));
+        assert_eq!(parse(":t  List(1) "), Some(Command::TypeOf("List(1)".into())));
         assert_eq!(parse(":load f"), Some(Command::Unknown(":load".into())));
         assert_eq!(parse(":: x"), None);
         assert_eq!(parse("1 :: Nil"), None);

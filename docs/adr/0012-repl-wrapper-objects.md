@@ -26,10 +26,15 @@ top-level name, and the collector serves one VM per process.
   was constructed, as in dotty's `renderDefinitions`. Only inputs whose module was constructed
   are imported later. Output shows `rs$line$N` less the index at the last `:reset`, so the
   user's numbers restart at 1 as in dotty.
+- `:type` wraps its input like other inputs, but in object `rs$line$type$K`, a fresh name, and
+  only types it: it takes no wrapper or `res` index and is never imported. It prints the
+  widened type of the last statement, of the expression for one that became a `res` value.
 
 ## Consequences
 - The typer and the lowering need no REPL mode.
 - A module whose constructor threw stays cached in the VM.
+- The universe keeps the symbols of `:type` wrappers. `:type object O` prints `O.type` where
+  dotty prints `O`.
 - `x as _` hides both kinds: an input defining a type and a term `x` loses the type once a later
   input defines the term `x` alone, where dotty keeps it.
 - A later definition of a name an earlier user import brings is ambiguous, as in dotty, but

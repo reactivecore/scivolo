@@ -21,3 +21,44 @@ val res2: List[Int] = List(3)
 
 scala> :frobnicate
 Unknown command: ":frobnicate", run ":help" for a list of commands
+
+scala> :type 1 + 1
+Int
+
+scala> :type List(1)
+List[Int]
+
+scala> val s = "s"
+val s: String = "s"
+
+scala> :type s
+String
+
+scala> :type val z = 1
+Int
+
+scala> :t (1, s)
+(Int, String)
+
+scala> :type def f(x: Int) = x
+(x: Int): Int
+
+scala> :type class A
+A
+
+scala> :type 1 +
+1:4: error: expression expected but eof found
+
+scala> :type
+:type <expression>
+
+scala> 3
+val res3: Int = 3
+
+scala> :help
+The REPL has several commands available:
+
+:help                    print this summary
+:quit                    exit the interpreter
+:type <expression>       evaluate the type of the given expression
+:reset                   reset the repl to its initial state, forgetting all session entries
