@@ -35,12 +35,14 @@ fn session() -> Result<(), String> {
         let data = std::fs::read(dir.join(format!("{top}.nir"))).unwrap();
         vm.add_nir(top, data).map_err(|e| e.to_string())?;
     }
-    assert!(matches!(vm.add_nir("Cfg$", Vec::new()), Err(VmError::Load(_))));
+    let defined = |r: Result<(), VmError>| r.is_err_and(|e| e.to_string().contains("already defined"));
+    assert!(defined(vm.add_nir("Cfg$", Vec::new())));
     vm.start_runtime("session", &[]).map_err(|e| e.to_string())?;
     vm.eval_module("Cfg$").map_err(|e| e.to_string())?;
     assert_eq!(vm.call_string("Cfg$", "name").map_err(|e| e.to_string())?, "cfg");
     let missing = vm.eval_module("Absent$").unwrap_err().to_string();
     assert!(missing.contains("Absent$"), "{missing}");
+    assert!(defined(vm.add_nir("Absent$", Vec::new())));
     let files = compiled(&root);
     let any = !files.is_empty();
     for f in files {
@@ -49,6 +51,7 @@ fn session() -> Result<(), String> {
     if any {
         let boom = vm.eval_module("Boom$").unwrap_err().to_string();
         assert!(boom.contains("IllegalStateException: boom"), "{boom}");
+        vm.eval_module("Boom$").map_err(|e| e.to_string())?;
         assert_eq!(vm.call_string("Show$", "s").map_err(|e| e.to_string())?, "a1");
     }
     vm.shutdown().map_err(|e| e.to_string())
