@@ -34,3 +34,4 @@ tryfinally
 namedargs
 superargs
 lazyvals
+arrows

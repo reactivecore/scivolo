@@ -40,6 +40,22 @@ fn function(full: &str) -> Option<Erased> {
     (class != full || arity > 22).then_some(Erased::Class(class))
 }
 
+/// The box class of the primitive of erased letter `c`.
+pub fn boxed(c: char) -> Erased {
+    let class = match c {
+        'z' => "java.lang.Boolean",
+        'c' => "java.lang.Character",
+        'b' => "java.lang.Byte",
+        's' => "java.lang.Short",
+        'i' => "java.lang.Integer",
+        'j' => "java.lang.Long",
+        'f' => "java.lang.Float",
+        'd' => "java.lang.Double",
+        _ => OBJECT,
+    };
+    Erased::Class(class.into())
+}
+
 /// The erasure of a tuple of `arity` elements: `TupleN`, or `TupleXXL` above 22.
 pub fn tuple(arity: usize) -> Erased {
     match arity {
