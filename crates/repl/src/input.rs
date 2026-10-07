@@ -63,7 +63,15 @@ pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshName
 
 #[cfg(test)]
 mod tests {
-    use super::is_incomplete;
+    use super::{Input, classify, is_incomplete};
+
+    #[test]
+    fn blank_inputs_are_empty() {
+        for text in ["", "  \t\n ", "// c", "/* c */ ;"] {
+            let input = classify("t", text, &mut Default::default(), &mut Default::default());
+            assert!(matches!(input, Input::Empty), "{text:?}");
+        }
+    }
 
     #[test]
     fn incomplete_inputs() {

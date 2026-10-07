@@ -6,10 +6,9 @@ use tasty::{Erased, Universe};
 use typer::Typed;
 use typer::tpd::{TNodeId, Tree};
 
-/// Drops the `res` values of type `Unit` or `Nothing` from module class `module` of `typed`;
-/// how many there were.
-pub fn drop(u: &mut Universe, typed: &mut Typed, module: &str) -> u32 {
-    let Some(template) = wrapper_template(u, typed, module) else { return 0 };
+/// Drops the `res` values of type `Unit` or `Nothing` from wrapper template `template` of
+/// `typed`; how many there were.
+pub fn drop(u: &mut Universe, typed: &mut Typed, template: TNodeId) -> u32 {
     let Tree::Template { body, .. } = *typed.tpd.tree(template) else { return 0 };
     let stats = typed.tpd.items(body).to_vec();
     let mut dropped: Vec<String> = Vec::new();
@@ -51,7 +50,7 @@ fn is_res(name: &str) -> bool {
 }
 
 /// The template of the class definition of `module` in `typed`.
-fn wrapper_template(u: &Universe, typed: &Typed, module: &str) -> Option<TNodeId> {
+pub fn wrapper_template(u: &Universe, typed: &Typed, module: &str) -> Option<TNodeId> {
     let mut todo = vec![typed.root];
     while let Some(t) = todo.pop() {
         match *typed.tpd.tree(t) {

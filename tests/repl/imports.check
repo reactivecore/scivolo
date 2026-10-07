@@ -7,3 +7,14 @@ scala> import scala.collection.mutable
 
 scala> mutable.ArrayBuffer(1, 2).length + max(3, 4)
 val res1: Int = 6
+
+scala> val s = "abc"
+val s: String = "abc"
+
+scala> import s.length
+
+scala> val s = 5
+val s: Int = 5
+
+scala> s + 1
+val res2: Int = 6

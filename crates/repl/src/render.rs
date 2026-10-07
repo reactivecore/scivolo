@@ -54,8 +54,8 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
             if flags.has(LAZY) {
                 return text(format!("lazy val {name}: {tpe}"));
             }
-            let quote = value::quote(&tpe);
-            let show = Some((format!("{name}{SUFFIX}"), quote));
+            let quote = value::quote(&u.erase(info));
+            let show = Some((tasty::encode(&format!("{name}{SUFFIX}")), quote));
             let text = match name.strip_suffix("$assign") {
                 Some(var) => format!("{var}: {tpe}"),
                 None if flags.has(MUTABLE) => format!("var {name}: {tpe}"),

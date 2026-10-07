@@ -1,6 +1,6 @@
 //! The transcripts in `tests/repl/*.check`, in the format of dotty's `test-resources/repl`:
 //! `scala> ` input lines, `     | ` continuation lines, the expected output; blank lines do not
-//! count. All share one session, reset between files: the collector serves one VM per process.
+//! count. All share one session, reset between files.
 
 #[path = "../../scalai/src/libs.rs"]
 mod libs;

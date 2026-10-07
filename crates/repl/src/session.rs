@@ -4,7 +4,7 @@
 use crate::commands::{self, Command};
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
-use crate::{render, report, unit_results, wrap};
+use crate::{imports, render, report, unit_results, wrap};
 use libimage::Image;
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
@@ -92,13 +92,17 @@ impl Session {
             Err(errors) => return errors,
         };
         let features = parsed.cfg.features;
-        let mut typed = match type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features) {
+        let mut typed = match typer::type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features) {
             Ok(typed) => typed,
             Err(Fallback::Errors(diags)) => return report::diagnostics(&parsed.source, &diags),
             Err(Fallback::Unsupported { what, .. }) => return vec![report::unsupported(&what)],
         };
         let module = format!("{object}$");
-        let unit_res = unit_results::drop(&mut self.u, &mut typed, &module);
+        let Some(template) = unit_results::wrapper_template(&self.u, &typed, &module) else {
+            return vec![report::unsupported("a wrapper object without a template")];
+        };
+        let imports = imports::imports(&self.u, &typed, template, &parsed.source);
+        let unit_res = unit_results::drop(&mut self.u, &mut typed, template);
         let defs = render::definitions(&mut self.u, &module);
         let members = earlier::members(&mut self.u, &module);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
@@ -115,12 +119,15 @@ impl Session {
         if let Err(e) = self.vm.eval_module(&module) {
             return self.failed(e);
         }
-        self.earlier.push(Earlier { object, imports: wrapped.imports, members });
+        self.earlier.push(Earlier { object, imports, members });
         let mut out = Vec::new();
         for d in defs {
             match render::line(&mut self.vm, &module, &d) {
                 Ok(line) => out.push(line),
-                Err(e) => return self.failed(e),
+                Err(e) => {
+                    out.extend(self.failed(e));
+                    break;
+                }
             }
         }
         out
@@ -137,15 +144,4 @@ impl Session {
             e => vec![e.to_string()],
         }
     }
-}
-
-/// Types unit `root` in `u`.
-fn type_unit(
-    u: &mut Universe,
-    ast: &mut syntax::ast::Ast,
-    names: &mut Names,
-    root: syntax::ast::NodeId,
-    features: syntax::config::Features,
-) -> Result<typer::Typed, Fallback> {
-    typer::type_unit(u, ast, names, root, features)
 }

@@ -1,6 +1,8 @@
 //! Values as the REPL prints them: `ScalaRunTime.stringOf`'s text, quoted for strings and
 //! characters and suffixed for `Long` and `Float` as pprint does, without the wrapper prefix.
 
+use tasty::Erased;
+
 const WRAPPER_PREFIX: &str = "rs$line$";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -12,13 +14,13 @@ pub enum Quote {
     Float,
 }
 
-/// How a value of the type shown as `tpe` is quoted.
-pub fn quote(tpe: &str) -> Quote {
-    match tpe {
-        "String" => Quote::Str,
-        "Char" => Quote::Char,
-        "Long" => Quote::Long,
-        "Float" => Quote::Float,
+/// How a value of a type that erases to `erased` is quoted.
+pub fn quote(erased: &Erased) -> Quote {
+    match erased {
+        Erased::Class(c) if c == "java.lang.String" => Quote::Str,
+        Erased::Prim('c') => Quote::Char,
+        Erased::Prim('j') => Quote::Long,
+        Erased::Prim('f') => Quote::Float,
         _ => Quote::None,
     }
 }

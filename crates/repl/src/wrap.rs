@@ -14,8 +14,6 @@ use syntax::source::SourceFile;
 /// The desugared unit of an input.
 pub struct Wrapped {
     pub root: NodeId,
-    /// The input's top-level imports as source text.
-    pub imports: Vec<String>,
     /// The next free `res` index.
     pub next_res: u32,
 }
@@ -33,7 +31,6 @@ pub fn wrap(
     let mut next_res = res;
     let ast = &mut parsed.ast;
     let stats = definitions(ast, names, &parsed.stats, &mut next_res);
-    let imports = stats.iter().filter_map(|&s| import_text(ast, &parsed.source, s)).collect();
     let shows = show_methods::source(ast, names, &stats);
     let text = format!("{prelude}\nobject {object} {{\n{shows}}}\n");
     let mut outer = synthetic(ast, names, fresh, &text);
@@ -55,7 +52,7 @@ pub fn wrap(
     if diags.has_errors() {
         return Err(report::diagnostics(&parsed.source, &diags));
     }
-    Ok(Wrapped { root, imports, next_res })
+    Ok(Wrapped { root, next_res })
 }
 
 /// The statements of `stats` with each expression bound to the next `res` value and each
@@ -132,15 +129,6 @@ fn bump(ast: &Ast, names: &Names, t: NodeId, res: &mut u32) {
     if let Some(n) = index.filter(|&n| n >= *res) {
         *res = n + 1;
     }
-}
-
-/// The source text of import statement `t`, with `import` in front.
-fn import_text(ast: &Ast, source: &SourceFile, t: NodeId) -> Option<String> {
-    let Tree::Import { .. } = ast.tree(t) else { return None };
-    let span = ast.span(t);
-    let text = source.text.get(span.start() as usize..span.end() as usize)?;
-    let first = text.strip_prefix("import").is_some_and(|r| r.starts_with(char::is_whitespace));
-    Some(if first { text.to_owned() } else { format!("import {text}") })
 }
 
 /// The statements of synthetic source `text`, parsed into `ast` without positions.
