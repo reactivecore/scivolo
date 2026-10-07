@@ -11,4 +11,3 @@ scala> object Counter { var n = 0 }
 // defined object Counter
 
 scala> Counter.n += 1
--- unsupported: assignment operator on a complex prefix
