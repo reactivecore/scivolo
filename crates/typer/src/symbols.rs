@@ -52,6 +52,8 @@ pub struct Syms {
     /// The result type of each script method as its definition states it, before its type
     /// parameters become parameter references of its info.
     pub def_results: FxHashMap<SymbolId, tasty::TypeId>,
+    /// The script symbols whose units ended before their infos were complete.
+    pub incomplete: rustc_hash::FxHashSet<SymbolId>,
     binders: u32,
 }
 
@@ -87,9 +89,18 @@ impl Syms {
         self.flags.insert(s, flags);
     }
 
-    /// Drops what refers to the trees of the unit just typed; its symbols count as completed.
-    pub fn end_unit(&mut self) {
-        self.completions.clear();
+    /// Drops what refers to the trees of the unit just typed; its symbols count as completed, those
+    /// not completed as incomplete, the infos of the non-classes among them erroneous.
+    pub fn end_unit(&mut self, u: &mut Universe) {
+        let error = u.intern_type(tasty::Type::Error);
+        for (s, c) in self.completions.drain() {
+            if !matches!(c, Completion::Done) {
+                self.incomplete.insert(s);
+                if u.symbol(s).kind != Kind::Class {
+                    u.set_info(s, error);
+                }
+            }
+        }
         self.by_tree.clear();
         self.closure_syms.clear();
     }

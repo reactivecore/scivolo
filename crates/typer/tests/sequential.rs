@@ -98,6 +98,22 @@ fn unit_after_a_failed_one() {
 }
 
 #[test]
+fn definition_left_incomplete_by_a_failed_unit() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let first = "object rs$line$1 { trait T(x: Int) { def g = 1 } }";
+    assert_eq!(
+        type_unit(&mut u, &mut units, "line.scala", first),
+        Err("unsupported trait parameters".into())
+    );
+    let second = "object rs$line$2 { import rs$line$1.*; def h(t: T) = t.g }";
+    assert_eq!(
+        type_unit(&mut u, &mut units, "line.scala", second),
+        Err("unsupported definition left incomplete by a failed unit".into())
+    );
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";

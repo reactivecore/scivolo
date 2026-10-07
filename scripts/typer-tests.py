@@ -65,10 +65,18 @@ def split(output):
     records = {}
     for chunk in output.split("== file ")[1:]:
         path, _, body = chunk.partition("\n")
-        marker = next((m for m in ("/ref/", "/tests/") if m in path), None)
-        rel = marker[1:] + path.split(marker, 1)[1] if marker else str(Path(path).relative_to(ROOT))
-        records[rel] = body
+        records[relative(path)] = body
     return records
+
+
+def relative(path):
+    """`path` relative to the repository, also for a path from another checkout."""
+    if Path(path).is_relative_to(ROOT):
+        return str(Path(path).relative_to(ROOT))
+    marker = next((m for m in ("/ref/dotty/", "/tests/programs/", "/crates/") if m in path), None)
+    if marker is None:
+        sys.exit(f"{path}: not in the repository")
+    return marker[1:] + path.split(marker, 1)[1]
 
 
 def load_expected():
@@ -174,7 +182,7 @@ def report(filter_):
 
 
 def diff(path):
-    rel = str(Path(path).resolve().relative_to(ROOT))
+    rel = relative(str(Path(path).resolve()))
     opts = next((o for r, o, _ in selected(rel) if r == rel), "")
     lst = write_list("one.tsv", [(rel, opts)])
     out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8")

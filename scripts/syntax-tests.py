@@ -49,8 +49,18 @@ def split(output):
     records = {}
     for chunk in output.split("== file ")[1:]:
         path, _, body = chunk.partition("\n")
-        records[path.split("ref/dotty/tests/", 1)[-1]] = body
+        records[relative(path)] = body
     return records
+
+
+def relative(path):
+    """`path` relative to tests/, also for a path from another checkout."""
+    if Path(path).is_relative_to(TESTS):
+        return str(Path(path).relative_to(TESTS))
+    marker = "/ref/dotty/tests/"
+    if marker not in path:
+        sys.exit(f"{path}: not in {TESTS}")
+    return path.split(marker, 1)[1]
 
 
 def oracle(filter_):
@@ -129,7 +139,7 @@ def checks(directory):
 
 
 def diff(path):
-    rel = str(Path(path).resolve().relative_to(TESTS)) if Path(path).exists() else path
+    rel = relative(str(Path(path).resolve())) if Path(path).exists() else path
     lst = WORK / "one.tsv"
     opts = next((o for r, o, _ in tests(rel) if r == rel), "")
     lst.write_text(f"{TESTS / rel}\t{opts}\n")
