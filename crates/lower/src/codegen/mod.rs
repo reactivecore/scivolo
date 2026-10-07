@@ -17,6 +17,7 @@ mod equality;
 mod erased;
 mod expr;
 mod fields;
+mod finally;
 mod interface_bridges;
 mod labels;
 mod literal;
