@@ -21,6 +21,7 @@ mod interface_bridges;
 mod labels;
 mod literal;
 mod method;
+mod modules;
 mod names;
 mod numeric;
 mod ops;
@@ -114,14 +115,18 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
     Ok(files)
 }
 
-/// The class definitions of the unit's packages.
+/// The class definitions of the unit's packages and of their templates, each before those in it.
 fn type_defs(l: &Lower, root: TNodeId) -> Vec<TNodeId> {
     let mut out = Vec::new();
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
         match *l.tpd.tree(t) {
             Tree::PackageDef { stats, .. } => todo.extend(l.tpd.items(stats).iter().rev()),
-            Tree::TypeDef { .. } => out.push(t),
+            Tree::TypeDef { rhs, .. } => {
+                let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+                out.push(t);
+                todo.extend(l.tpd.items(body).iter().rev());
+            }
             _ => {}
         }
     }

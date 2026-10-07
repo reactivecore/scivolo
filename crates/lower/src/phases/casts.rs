@@ -33,7 +33,10 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             let name = l.u.full_name(class);
             l.u.class_ref(name.trim_end_matches('$'))
         }
-        Erased::Class(name) => l.u.class_ref(name),
+        Erased::Class(name) => match class_named(l, name) {
+            Some(c) => type_ref(l.u, c),
+            None => l.u.class_ref(name),
+        },
         _ => l.u.class_ref("java.lang.Object"),
     }
 }

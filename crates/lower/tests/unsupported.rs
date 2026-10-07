@@ -38,6 +38,8 @@ const CASES: &[(&str, &str)] = &[
         "overridable class parameters selected on this in the constructor",
     ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
+    ("class A { object B }", "objects in classes"),
+    ("class A { class B }", "classes in classes and traits"),
     (
         "abstract class A { def u: Unit }; class B extends A { val u: Unit = () }",
         "values of type Unit overriding",

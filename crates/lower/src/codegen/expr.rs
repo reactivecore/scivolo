@@ -1,11 +1,9 @@
 //! Expressions (nscplugin's `ExprBuffer.genExpr` and the trees without calls).
 
 use super::Gen;
-use crate::symbols::{has, is_module, is_module_class, is_package_object};
+use crate::symbols::{has, is_module};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
-use syntax::ast::Span;
-use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LAZY};
 use typer::tpd::print::class_name;
 use typer::tpd::{TNodeId, Tree};
@@ -91,16 +89,13 @@ impl Gen<'_, '_> {
         Ok(value)
     }
 
-    /// The instance of object `sym`, its value or its class.
-    pub fn gen_module(&mut self, sym: SymbolId) -> ValId {
-        let class = if is_module_class(self.l.u, sym) { Some(sym) } else { self.l.u.module_class(sym) };
-        let name = self.module_name(class.unwrap_or(sym));
-        self.emit(Op::Module(name))
-    }
-
     fn gen_select(&mut self, t: TNodeId, qual: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "a selection without a symbol") };
+        let owner = self.l.u.symbol(sym).owner.expect("a member's owner");
+        if is_module(self.l.u, sym) && self.l.u.symbol(owner).kind != tasty::Kind::Package {
+            return self.gen_nested_module(t, sym, qual);
+        }
         let saved = self.at_span(span);
         let v = if is_module(self.l.u, sym) {
             self.gen_module(sym)
@@ -116,30 +111,6 @@ impl Gen<'_, '_> {
         };
         self.m.pos = saved;
         Ok(v)
-    }
-
-    fn gen_this(&mut self, t: TNodeId) -> Result<ValId> {
-        let span = self.l.tpd.span(t);
-        let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "`this` without a class") };
-        let saved = self.at_span(span);
-        let v = self.this_of(sym, span)?;
-        self.m.pos = saved;
-        Ok(v)
-    }
-
-    /// `C.this` for class `c`: an object's instance, or the method's `this`.
-    pub fn this_of(&mut self, c: SymbolId, span: Span) -> Result<ValId> {
-        let class = self.class.expect("a class");
-        let package_object = is_package_object(self.l.u, c);
-        let static_method = self.m.this.is_none();
-        if (c != class || static_method) && is_module_class(self.l.u, c) || package_object {
-            return Ok(self.gen_module(c));
-        }
-        let method_owner = self.m.sym.and_then(|m| self.l.u.symbol(m).owner);
-        match self.m.this {
-            Some(this) if c == class || method_owner == Some(class) => Ok(this),
-            _ => unsupported(span, "`this` of an enclosing class"),
-        }
     }
 
     fn gen_val_def(&mut self, t: TNodeId, rhs: Option<TNodeId>) -> Result<ValId> {

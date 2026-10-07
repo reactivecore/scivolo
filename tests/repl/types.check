@@ -1,14 +1,14 @@
 scala> class C(val n: Int)
--- unsupported: nested classes
+// defined class C
 
 scala> trait T
--- unsupported: nested classes
+// defined trait T
 
 scala> object O { val k = 1 }
--- unsupported: assignments through setters
+// defined object O
 
 scala> case class P(x: Int, y: Int)
--- unsupported: assignments through setters
+// defined case class P
 
 scala> type I = Int
 // defined alias type I = Int

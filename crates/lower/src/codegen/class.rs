@@ -1,7 +1,7 @@
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;
-use crate::symbols::{is_static_module, is_trait};
+use crate::symbols::{is_class, is_static_module, is_trait};
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
@@ -13,6 +13,10 @@ impl Gen<'_, '_> {
         self.class = Some(sym);
         if crate::symbols::is_extern(self.l.u, sym) {
             return unsupported(self.l.tpd.span(td), "native interop");
+        }
+        let owner = self.l.u.symbol(sym).owner.expect("a class's owner");
+        if is_class(self.l.u, owner) && !is_static_module(self.l.u, owner) {
+            return unsupported(self.l.tpd.span(td), "classes in classes and traits");
         }
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
         let attrs =
@@ -70,9 +74,6 @@ impl Gen<'_, '_> {
                         let defn = self.gen_method(bridge)?;
                         self.defns.push(defn);
                     }
-                }
-                Tree::TypeDef { rhs, .. } if matches!(self.l.tpd.tree(*rhs), Tree::Template { .. }) => {
-                    return unsupported(self.l.tpd.span(stat), "nested classes");
                 }
                 Tree::TypeDef { .. } => {}
                 Tree::ValDef { .. } => {}

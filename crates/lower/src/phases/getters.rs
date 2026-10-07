@@ -4,7 +4,7 @@
 //! call of its setter.
 
 use super::walk::references;
-use crate::symbols::{has, is_class, is_module, is_trait};
+use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PARAMsetter, PRIVATE};
@@ -12,7 +12,8 @@ use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters; drops the private parameter fields not in
-/// `retained`; makes the private local values nothing refers to values of the constructor.
+/// `retained`; makes the private local values nothing refers to values of the constructor; drops
+/// the values of objects in objects.
 pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(()) };
@@ -31,10 +32,17 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let Tree::ValDef { name, tpt, rhs } = *l.tpd.tree(stat) else { continue };
         let Some(sym) = l.tpd.sym(stat) else { continue };
         let owner = l.u.symbol(sym).owner;
-        if is_module(l.u, sym) || !owner.is_some_and(|o| is_class(l.u, o)) {
+        if !owner.is_some_and(|o| is_class(l.u, o)) {
             continue;
         }
         let span = l.tpd.span(stat);
+        if is_module(l.u, sym) {
+            if !owner.is_some_and(|o| is_module_class(l.u, o) && is_static(l.u, o)) {
+                return unsupported(span, "objects in classes and traits");
+            }
+            kept.pop();
+            continue;
+        }
         if owner.is_some_and(|o| is_trait(l.u, o)) {
             return unsupported(span, "traits with initialization");
         }
@@ -100,7 +108,10 @@ pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
         };
         let fun = match *l.tpd.tree(lhs) {
             Tree::Select { qualifier, .. } => l.select(qualifier, setter, l.tpd.span(lhs)),
-            _ => l.ident(setter, l.tpd.span(lhs)),
+            _ => {
+                let s = l.tpd.span(rhs);
+                l.ident(setter, if s.exists() { s.with_point(s.start()) } else { l.tpd.span(lhs) })
+            }
         };
         let args = l.tpd.list(&[rhs]);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
