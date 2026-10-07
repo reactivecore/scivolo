@@ -178,10 +178,14 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    `scalai` without a target (2026-10-07): values, defs, type aliases,
    imports, lambdas, shadowing, `:reset`, and the `res` numbering match
    dotty 3.9 on the transcripts in `tests/repl` (`just repl-oracle`), but for
-   error messages and stack traces. Classes, traits and objects defined in an
-   input and lazy vals wait for the lowering (nested classes); some
-   adaptations and overloads, and dotty's messages for unresolved names, for
-   the typer.
+   error messages and stack traces. Classes, case classes, traits and objects
+   defined in one input are used, extended, matched on and redefined in later
+   ones, as are methods with default arguments (`tests/repl/classes.check`);
+   case class values print without field names. Lazy vals, enums, sealed
+   companions and class parameters in super calls wait for the lowering, as
+   do named arguments; some adaptations and overloads, compound assignment to
+   a selection, defaults on an impure prefix, and dotty's messages for
+   unresolved names, for the typer.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved.

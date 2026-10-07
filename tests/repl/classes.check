@@ -1,0 +1,85 @@
+scala> class C(val n: Int)
+// defined class C
+
+scala> new C(1).n
+val res0: Int = 1
+
+scala> C(2).n
+val res1: Int = 2
+
+scala> case class P(x: Int, y: Int)
+// defined case class P
+
+scala> P(1, 2)
+val res2: P = P(1,2)
+
+scala> P(1, 2).copy(y = 5)
+-- unsupported: default arguments needing lifting
+
+scala> P(3, 4) match { case P(a, b) => a + b }
+val res4: Int = 7
+
+scala> P(1, 2) == P(1, 2)
+val res5: Boolean = true
+
+scala> trait T { def f: Int = 1 }
+// defined trait T
+
+scala> object O extends T
+// defined object O
+
+scala> O.f
+val res6: Int = 1
+
+scala> object Counter { var n = 0 }
+// defined object Counter
+
+scala> Counter.n += 1
+-- unsupported: assignment operator on a complex prefix
+
+scala> Counter.n = Counter.n + 1
+
+scala> Counter.n
+val res8: Int = 1
+
+scala> class E extends C(5) { override def toString = s"E($n)" }
+// defined class E
+
+scala> new E
+val res9: E = E(5)
+
+scala> val p = P(1, 2)
+val p: P = P(1,2)
+
+scala> p.copy(y = 5).y
+-- unsupported: NamedArg in an expression
+
+scala> class D(m: Int) extends C(m * 2) { override def toString = s"D($n)" }
+-- unsupported: a reference to m
+
+scala> new D(3)
+-- unsupported: unresolved name D
+
+scala> def g(a: Int = 1, b: String = "x") = s"$a$b"
+def g(a: Int, b: String): String
+
+scala> g()
+val res12: String = "1x"
+
+scala> g(b = "y")
+-- unsupported: NamedArg in an expression
+
+scala> enum Color { case Red, Green }
+-- unsupported: companions of sealed classes
+
+scala> Color.Green
+-- unsupported: unresolved name Color
+
+scala> class C(val s: String) { override def toString = s"C($s)" }
+// defined class C
+
+scala> C("a")
+val res15: C = C(a)
+
+scala> new C("b").s
+val res16: String = "b"

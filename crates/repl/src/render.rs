@@ -61,7 +61,8 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     let (name, kind, flags) = (s.name.clone(), s.kind, s.flags);
     let hidden = [PRIVATE, SYNTHETIC, ARTIFACT].iter().any(|&f| flags.has(f));
     let special = name.strip_prefix('<').is_some_and(|n| n.starts_with(char::is_alphabetic));
-    if hidden || special || name.ends_with(SUFFIX) || name.ends_with("_=") {
+    let generated = name.ends_with("_=") || name.contains("$default$");
+    if hidden || special || generated || name.ends_with(SUFFIX) {
         return None;
     }
     let text = |text: String| Some(Definition { text, show: None });
