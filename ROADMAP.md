@@ -177,7 +177,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    reported as unsupported, never run through another path (#37). Runs as
    `scalai` without a target (2026-10-07): values (printed as dotty's
    pprint), defs, type aliases, imports, lambdas, shadowing, `:reset`, stack
-   traces and the `res` numbering match dotty 3.9 on the transcripts in
+   traces with causes and suppressed exceptions and the `res` numbering match dotty 3.9 on the transcripts in
    `tests/repl` (`just repl-oracle`), but for error messages; Ctrl-C stops
    an input. Classes, case classes, traits and objects defined in one input
    are used, extended, matched on and redefined in later ones, with default

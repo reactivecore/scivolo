@@ -34,5 +34,7 @@ top-level name, and the collector serves one VM per process.
   input defines the term `x` alone, where dotty keeps it.
 - A later definition of a name an earlier user import brings is ambiguous, as in dotty, but
   for a wildcard import, where dotty's nested contexts pick the definition.
-- Traces show the interpreter's frames; `... N elided` counts the wrapper frames cut, not the
-  JVM's reflection frames. Causes and suppressed exceptions are not printed.
+- Traces show the interpreter's frames; `... N elided` and `... N more` count those, not the
+  JVM's reflection frames. A trace holds at most 64 throwables. The wrappers dotty's `rootCause`
+  unwraps are matched by class name, so their subclasses are not unwrapped, and a throwable met
+  before is left out also when it was only met as such an unwrapped wrapper.

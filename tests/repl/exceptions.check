@@ -46,7 +46,68 @@ scala.NotImplementedError: an implementation is missing
 scala> throw new Exception(null: String, new IllegalStateException("inner"))
 java.lang.Exception: java.lang.IllegalStateException: inner
   ... 1 elided
+Caused by: java.lang.IllegalStateException: inner
+  ... 1 more
 
 scala> throw new Exception(null: String, new IllegalStateException())
 java.lang.Exception: java.lang.IllegalStateException
   ... 1 elided
+Caused by: java.lang.IllegalStateException
+  ... 1 more
+
+scala> def wrap(): Int = throw new RuntimeException("outer", new IllegalStateException("inner"))
+def wrap(): Int
+
+scala> def call(): Int = wrap() + 1
+def call(): Int
+
+scala> call()
+java.lang.RuntimeException: outer
+  at rs$line$13$.wrap(rs$line$13:1)
+  at rs$line$14$.call(rs$line$14:1)
+  ... 1 elided
+Caused by: java.lang.IllegalStateException: inner
+  ... 3 more
+
+scala> def made(): Exception = new IllegalStateException("made")
+def made(): Exception
+
+scala> def far(): Int = throw new RuntimeException("far", made())
+def far(): Int
+
+scala> far()
+java.lang.RuntimeException: far
+  at rs$line$17$.far(rs$line$17:1)
+  ... 1 elided
+Caused by: java.lang.IllegalStateException: made
+  at rs$line$16$.made(rs$line$16:1)
+  ... 2 more
+
+scala> val e = new Exception("a"); e.addSuppressed(new Exception("b")); throw e
+java.lang.Exception: a
+  ... 1 elided
+  Suppressed: java.lang.Exception: b
+    ... 1 more
+
+scala> val s = new Exception("s"); s.addSuppressed(made()); throw new RuntimeException("top", s)
+java.lang.RuntimeException: top
+  ... 1 elided
+Caused by: java.lang.Exception: s
+  ... 1 more
+  Suppressed: java.lang.IllegalStateException: made
+    at rs$line$16$.made(rs$line$16:1)
+    ... 1 elided
+
+scala> throw new java.util.concurrent.ExecutionException(new IllegalStateException("wrapped"))
+java.lang.IllegalStateException: wrapped
+  ... 1 elided
+
+scala> throw new java.util.concurrent.ExecutionException(null: Throwable)
+java.util.concurrent.ExecutionException
+  ... 1 elided
+
+scala> val c = new Exception("c"); val d = new Exception("d", c); c.initCause(d); throw d
+java.lang.Exception: d
+  ... 1 elided
+Caused by: java.lang.Exception: c
+  ... 1 more
