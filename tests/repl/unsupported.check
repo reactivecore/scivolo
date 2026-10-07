@@ -1,5 +1,5 @@
-scala> val f = (x: Int) => x
--- unsupported: lambdas and local methods outside methods
+scala> class A(var p: Int)
+-- unsupported: mutable class parameters
 
 scala> lazy val l = 1
 -- unsupported: lazy values
