@@ -1,7 +1,9 @@
 //! Types and definitions as dotty 3.9's REPL shows them.
 
 use std::path::Path;
-use tasty::tags::{CASE, INTconst, LAZY, MUTABLE, OBJECT, TRAIT};
+use tasty::tags::{
+    CASE, CHARconst, DOUBLEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, OBJECT, TRAIT,
+};
 use tasty::{ANY, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, Universe};
 
 fn universe() -> Option<Universe> {
@@ -81,7 +83,11 @@ fn library_methods() {
     assert_eq!(defs(u, "scala.collection", "IterableFactory", "apply"), ["def apply[A](elems: A*): CC[A]"]);
     assert_eq!(
         defs(u, "scala", "Tuple", "map"),
-        ["def map[F[_]](f: [t] => (x$1: t) => F[t]): Tuple.Map[Tuple.this.type, F]"]
+        ["def map[F[_$1]](f: [t] => (x$1: t) => F[t]): Tuple.Map[Tuple.this.type, F]"]
+    );
+    assert_eq!(
+        defs(u, "scala.collection", "MapFactory", "apply"),
+        ["def apply[K, V](elems: (K, V)*): CC[K, V]"]
     );
 }
 
@@ -92,9 +98,9 @@ fn library_values_and_types() {
     assert_eq!(defs(u, "scala", "Predef$", "String"), ["type String = String"]);
     assert_eq!(
         defs(u, "scala", "Predef$", "Map"),
-        ["type Map[K,+V] = Map[K, V]", "val Map: scala.collection.immutable.Map.type"]
+        ["type Map[K,+V] = Map[K, V]", "val Map: collection.immutable.Map.type"]
     );
-    assert_eq!(defs(u, "scala", "package$", "Nil"), ["val Nil: scala.collection.immutable.Nil.type"]);
+    assert_eq!(defs(u, "scala", "package$", "Nil"), ["val Nil: collection.immutable.Nil.type"]);
     assert_eq!(defs(u, "scala", "Predef$", "ArrowAssoc")[..2], ["class ArrowAssoc", "object ArrowAssoc"]);
 }
 
@@ -110,9 +116,14 @@ fn classes_print_without_their_standard_prefixes() {
         (t(u, "java.lang.Object"), "Object"),
         (app(u, "scala.Array", &[int]), "Array[Int]"),
         (app(u, "scala.collection.immutable.Seq", &[int]), "Seq[Int]"),
-        (app(u, "scala.collection.Seq", &[int]), "scala.collection.Seq[Int]"),
+        (app(u, "scala.collection.Seq", &[int]), "collection.Seq[Int]"),
+        (app(u, "scala.collection.mutable.ArrayBuffer", &[int]), "collection.mutable.ArrayBuffer[Int]"),
+        (t(u, "scala.collection.immutable.Range.Inclusive"), "collection.immutable.Range.Inclusive"),
+        (app(u, "java.util.List", &[int]), "java.util.List[Int]"),
+        (t(u, "java.lang.reflect.Method"), "reflect.Method"),
+        (t(u, "java.lang.Integer"), "Integer"),
         (app(u, "scala.collection.immutable.Map", &[string, int]), "Map[String, Int]"),
-        (app(u, "scala.util.Try", &[int]), "scala.util.Try[Int]"),
+        (app(u, "scala.util.Try", &[int]), "util.Try[Int]"),
         (app(u, "scala.util.Either", &[int, string]), "Either[Int, String]"),
         (app(u, "scala.Option", &[int]), "Option[Int]"),
     ];
@@ -185,6 +196,10 @@ fn wildcards_constants_singletons_and_lambdas() {
         (app(u, "scala.Option", &[lower]), "Option[? >: Int]"),
         (app(u, "scala.Option", &[unbounded]), "Option[?]"),
         (u.intern_type(Type::Constant(INTconst, 1)), "1"),
+        (u.intern_type(Type::Constant(LONGconst, -1)), "-1"),
+        (u.intern_type(Type::Constant(CHARconst, 'c' as i64)), "c"),
+        (u.intern_type(Type::Constant(DOUBLEconst, 1e10f64.to_bits() as i64)), "1.0E10"),
+        (u.intern_type(Type::Constant(FLOATconst, 1.5f32.to_bits() as i64)), "1.5"),
         (u.intern_type(Type::Str("a".into())), "\"a\""),
         (u.intern_type(Type::TermRef(scala, "None".into())), "None.type"),
         (lambda(u, map), "[X] =>> Map[X, Int]"),

@@ -142,7 +142,7 @@ impl Printer<'_> {
         text
     }
 
-    /// The result of type lambda `t` and its parameters `[X,+Y]` with `variances`, which stay
+    /// The result of type lambda `t` and its parameters `[X,+Y]`, `[_$1]` with `variances`, which stay
     /// in scope; `t` and nothing else.
     fn lambda_params(&mut self, t: TypeId, variances: &[i8]) -> (TypeId, String) {
         let Type::Lambda { binder, params, result } = self.u.types().get(t).clone() else {
@@ -157,7 +157,7 @@ impl Printer<'_> {
                     Some(-1) => "-",
                     _ => "",
                 };
-                format!("{sign}{}{}", simple(n), self.rhs(*b))
+                format!("{sign}{n}{}", self.rhs(*b))
             })
             .collect();
         self.binders.push((binder, params.into_iter().map(|(n, _)| n).collect()));

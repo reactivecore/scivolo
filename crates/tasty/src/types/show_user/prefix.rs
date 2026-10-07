@@ -1,5 +1,5 @@
-//! Paths and prefixes: packages in full; the root and empty packages, `scala`, `java.lang`,
-//! `Predef` and REPL wrapper objects omitted as prefixes; package objects skipped.
+//! Paths and prefixes: the root and empty packages, `scala`, `java.lang`, `Predef` and REPL
+//! wrapper objects omitted as prefixes, of packages too (`collection.Seq`); package objects skipped.
 
 use super::{Printer, simple};
 use crate::tags::OBJECT;
@@ -67,11 +67,8 @@ impl Printer<'_> {
     pub fn path(&mut self, p: TypeId) -> Path {
         match self.u.types().get(p).clone() {
             Type::Package(s) => self.symbol_path(None, s),
-            Type::PackageName(n) => Path { full: n.clone(), shown: n },
-            Type::TermRef(pp, n) => {
-                let prefix = self.path(pp);
-                self.select(prefix, &n)
-            }
+            Type::PackageName(n) => package_path(&n),
+            Type::TermRef(pp, n) => select(self.path(pp), &n),
             Type::Sym(pp, s) => self.symbol_path(pp, s),
             Type::This(c) => match self.u.class_symbol(c) {
                 Some(cls) if self.u.symbol(cls).flags.has(OBJECT) => self.symbol_path(None, cls),
@@ -88,8 +85,7 @@ impl Printer<'_> {
     /// The path of symbol `s` through `prefix`, or else its owners.
     pub fn symbol_path(&mut self, prefix: Option<TypeId>, s: SymbolId) -> Path {
         if self.u.symbol(s).kind == Kind::Package {
-            let full = self.u.full_name(s);
-            return Path { shown: full.clone(), full };
+            return package_path(&self.u.full_name(s));
         }
         let prefix = match prefix {
             Some(p) => self.path(p),
@@ -100,7 +96,7 @@ impl Printer<'_> {
             true => sym.name.strip_suffix('$').unwrap_or(&sym.name).to_owned(),
             false => sym.name.clone(),
         };
-        self.select(prefix, &name)
+        select(prefix, &name)
     }
 
     /// The path of the owner of `s`, empty for a local symbol.
@@ -121,20 +117,25 @@ impl Printer<'_> {
             shown: format!("{}.this", simple(&self.u.symbol(class).name)),
         }
     }
+}
 
-    /// Member `name` of path `prefix`.
-    fn select(&mut self, prefix: Path, name: &str) -> Path {
-        if is_package_object(name) {
-            return prefix;
-        }
-        if matches!(name, "_root_" | "<root>" | "<empty>") {
-            return Path::default();
-        }
-        let full = join(&prefix.full, name);
-        if self.u.package(&full).is_some() {
-            return Path { shown: full.clone(), full };
-        }
-        let shown = format!("{}{}", prefix_text(prefix), simple(name));
-        Path { full, shown }
+/// Package `full` through its owners: `java.util`, `collection.immutable`.
+fn package_path(full: &str) -> Path {
+    match full.rsplit_once('.') {
+        Some((owner, name)) => select(package_path(owner), name),
+        None => select(Path::default(), full),
     }
+}
+
+/// Member `name` of path `prefix`.
+fn select(prefix: Path, name: &str) -> Path {
+    if is_package_object(name) {
+        return prefix;
+    }
+    if matches!(name, "" | "_root_" | "<root>" | "<empty>") {
+        return Path::default();
+    }
+    let full = join(&prefix.full, name);
+    let shown = format!("{}{}", prefix_text(prefix), simple(name));
+    Path { full, shown }
 }
