@@ -1,0 +1,17 @@
+scala> class C(val n: Int)
+-- unsupported: nested classes
+
+scala> trait T
+-- unsupported: nested classes
+
+scala> object O { val k = 1 }
+-- unsupported: assignments through setters
+
+scala> case class P(x: Int, y: Int)
+-- unsupported: assignments through setters
+
+scala> type I = Int
+// defined alias type I = Int
+
+scala> val i: I = 3
+val i: I = 3

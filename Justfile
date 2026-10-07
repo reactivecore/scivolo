@@ -163,6 +163,11 @@ ship msg: fmt gates
     git commit -q -m {{ quote(msg) }}
     git push -q -u origin HEAD
 
+# Print REPL transcripts (default: tests/repl) as Scala 3.9's REPL answers their inputs (JVM).
+repl-oracle *files:
+    f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl/*.check); \
+    scala-cli --power run --server=false --quiet --workspace tmp/repl-oracle-ws scripts/repl-oracle -- $f
+
 # Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed

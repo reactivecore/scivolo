@@ -1,0 +1,23 @@
+scala> def f(x: Int): Int = x + 1
+def f(x: Int): Int
+
+scala> def g = 3
+def g: Int
+
+scala> def h(): String = "h"
+def h(): String
+
+scala> f(2)
+val res0: Int = 3
+
+scala> def id[T](x: T): T = x
+def id[T](x: T): T
+
+scala> id("a")
+val res1: String = "a"
+
+scala> def add(a: Int)(b: Int) = a + b
+def add(a: Int)(b: Int): Int
+
+scala> add(1)(2)
+val res2: Int = 3

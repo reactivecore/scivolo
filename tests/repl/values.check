@@ -1,0 +1,40 @@
+scala> 1 + 2
+val res0: Int = 3
+
+scala> val x = 42
+val x: Int = 42
+
+scala> val s = "hi"
+val s: String = "hi"
+
+scala> var n = 1
+var n: Int = 1
+
+scala> x * 2
+val res1: Int = 84
+
+scala> 'c'
+val res2: Char = 'c'
+
+scala> true && false
+val res3: Boolean = false
+
+scala> 1.5 * 2
+val res4: Double = 3.0
+
+scala> 10L
+val res5: Long = 10L
+
+scala> ()
+
+scala> List(1, 2, 3)
+val res6: List[Int] = List(1, 2, 3)
+
+scala> val res8 = 8
+val res8: Int = 8
+
+scala> 9
+val res9: Int = 9
+
+scala> val t = "tab\there"
+val t: String = "tab\there"
