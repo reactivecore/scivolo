@@ -5,7 +5,7 @@ use crate::commands::{self, Command};
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
 use crate::render::Definition;
-use crate::{imports, render, report, unit_results, wrap};
+use crate::{imports, render, report, wrap};
 use libimage::Image;
 use lower::NirFile;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -22,7 +22,8 @@ struct Unit {
     files: Vec<NirFile>,
     defs: Vec<Definition>,
     earlier: Earlier,
-    next_res: u32,
+    /// How many `res` values of type `Unit` it defines, whose indices a run gives back.
+    unit_res: u32,
 }
 
 pub struct Session {
@@ -119,6 +120,7 @@ impl Session {
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let prelude = earlier::prelude(&self.earlier);
         let wrapped = wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh)?;
+        self.res = wrapped.next_res;
         let features = parsed.cfg.features;
         let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features);
         let mut typed = match typed {
@@ -127,31 +129,31 @@ impl Session {
             Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
         };
         let module = format!("{object}$");
-        let Some(template) = unit_results::wrapper_template(&self.u, &typed, &module) else {
+        let Some(template) = wrap::template(&self.u, &typed, &module) else {
             return Err(vec![report::unsupported("a wrapper object without a template")]);
         };
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
-        let unit_res = unit_results::drop(&mut self.u, &mut typed, template);
-        let defs = render::definitions(&mut self.u, &module);
+        let units = render::inferred_units(&mut self.u, &typed, template);
+        let defs = render::definitions(&mut self.u, &module, &units);
         let members = earlier::members(&mut self.u, &module);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
         let earlier = Earlier { object, imports, members };
-        Ok(Unit { module, files, defs, earlier, next_res: wrapped.next_res - unit_res })
+        Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units) })
     }
 
     /// Loads and runs `unit`; the lines it prints.
     fn run(&mut self, unit: Unit) -> Vec<String> {
-        let Unit { module, files, defs, earlier, next_res } = unit;
+        let Unit { module, files, defs, earlier, unit_res } = unit;
         for f in files {
             if let Err(e) = self.vm.add_nir(&f.name, f.bytes) {
                 return vec![e.to_string()];
             }
         }
-        self.res = next_res;
         if let Err(e) = self.vm.eval_module(&module) {
             return self.failed(e);
         }
+        self.res -= unit_res;
         self.earlier.push(earlier);
         let mut out = Vec::new();
         for d in defs {

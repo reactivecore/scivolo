@@ -174,7 +174,12 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    later inputs import; it is typed against the earlier ones, lowered, and
    its NIR added to the running VM. An expression's value is printed with
    its type (`val res0: Int = 3`). Input the frontend cannot handle yet is
-   reported as unsupported, never run through another path (#37).
+   reported as unsupported, never run through another path (#37). Runs as
+   `scalai` without a target (2026-10-07): values, defs, classes, imports,
+   lambdas, shadowing, `:reset`, and the `res` numbering match dotty 3.9 on the
+   transcripts in `tests/repl` (`just repl-oracle`); lazy vals, mutable class
+   parameters, some adaptations and overloads, and dotty's messages for
+   unresolved names wait for the lowering and the typer.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved.

@@ -10,6 +10,9 @@ use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
+use tasty::Universe;
+use typer::Typed;
+use typer::tpd::{TNodeId, Tree as T};
 
 /// The desugared unit of an input.
 pub struct Wrapped {
@@ -53,6 +56,21 @@ pub fn wrap(
         return Err(report::diagnostics(&parsed.source, &diags));
     }
     Ok(Wrapped { root, next_res })
+}
+
+/// The template of the class definition of `module` in `typed`.
+pub fn template(u: &Universe, typed: &Typed, module: &str) -> Option<TNodeId> {
+    let mut todo = vec![typed.root];
+    while let Some(t) = todo.pop() {
+        match *typed.tpd.tree(t) {
+            T::PackageDef { stats, .. } => todo.extend(typed.tpd.items(stats)),
+            T::TypeDef { rhs, .. } if typed.tpd.sym(t).is_some_and(|s| u.symbol(s).name == module) => {
+                return Some(rhs);
+            }
+            _ => {}
+        }
+    }
+    None
 }
 
 /// The statements of `stats` with each expression bound to the next `res` value and each

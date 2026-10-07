@@ -4,7 +4,9 @@
 use crate::show_methods::SUFFIX;
 use crate::value::{self, Quote};
 use tasty::tags::{ARTIFACT, LAZY, OBJECT, PRIVATE, SYNTHETIC};
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{Erased, Kind, SymbolId, Universe};
+use typer::Typed;
+use typer::tpd::{TNodeId, Tree};
 use vm::{Vm, VmError};
 
 /// A definition to print: its text, and for a value the show method and quoting of its value.
@@ -13,11 +15,36 @@ pub struct Definition {
     show: Option<(String, Quote)>,
 }
 
-/// The definitions of module class `module`, in source order.
-pub fn definitions(u: &mut Universe, module: &str) -> Vec<Definition> {
+/// The definitions of module class `module` but `unprinted`, in source order.
+pub fn definitions(u: &mut Universe, module: &str, unprinted: &[SymbolId]) -> Vec<Definition> {
     let Some(class) = module_class(u, module) else { return Vec::new() };
     let decls = u.symbol(class).decls.clone();
-    decls.into_iter().filter_map(|d| definition(u, d)).collect()
+    decls.into_iter().filter(|d| !unprinted.contains(d)).filter_map(|d| definition(u, d)).collect()
+}
+
+/// The values of wrapper template `template` of `typed` whose inferred type is `Unit`.
+pub fn inferred_units(u: &mut Universe, typed: &Typed, template: TNodeId) -> Vec<SymbolId> {
+    let Tree::Template { body, .. } = *typed.tpd.tree(template) else { return Vec::new() };
+    let mut units = Vec::new();
+    for &s in typed.tpd.items(body) {
+        let (Tree::ValDef { tpt, .. }, Some(sym)) = (typed.tpd.tree(s), typed.tpd.sym(s)) else { continue };
+        if matches!(typed.tpd.tree(*tpt), Tree::TypeTree { inferred: true }) {
+            let info = u.info(sym);
+            if u.erase(info) == Erased::Unit {
+                units.push(sym);
+            }
+        }
+    }
+    units
+}
+
+/// How many of `values` are `res` values.
+pub fn results(u: &Universe, values: &[SymbolId]) -> u32 {
+    values.iter().filter(|&&v| is_res(&u.symbol(v).name)).count() as u32
+}
+
+fn is_res(name: &str) -> bool {
+    name.strip_prefix("res").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The class of top-level module class `module`.

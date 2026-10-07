@@ -1,0 +1,42 @@
+scala> def unit(): Unit = ()
+def unit(): Unit
+
+scala> unit()
+
+scala> 2
+val res0: Int = 2
+
+scala> val u = ()
+
+scala> val v: Unit = unit()
+val v: Unit = ()
+
+scala> val n: Null = null
+val n: Null = null
+
+scala> null
+val res1: Null = null
+
+scala> ???
+scala.NotImplementedError: an implementation is missing
+
+scala> 3
+val res3: Int = 3
+
+scala> throw new RuntimeException("x")
+java.lang.RuntimeException: x
+
+scala> 4
+val res5: Int = 4
+
+scala> unit(); 6
+val res7: Int = 6
+
+scala> 7
+val res7: Int = 7
+
+scala> 1; unit()
+val res8: Int = 1
+
+scala> res7
+val res9: Int = 7
