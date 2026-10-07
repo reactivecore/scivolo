@@ -61,7 +61,8 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     let (name, kind, flags) = (s.name.clone(), s.kind, s.flags);
     let hidden = [PRIVATE, SYNTHETIC, ARTIFACT].iter().any(|&f| flags.has(f));
     let special = name.strip_prefix('<').is_some_and(|n| n.starts_with(char::is_alphabetic));
-    if hidden || special || name.ends_with(SUFFIX) || name.ends_with("_=") {
+    let generated = name.ends_with("_=") || is_default_getter(&name);
+    if hidden || special || generated || name.ends_with(SUFFIX) {
         return None;
     }
     let text = |text: String| Some(Definition { text, show: None });
@@ -83,6 +84,11 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
         Kind::Def => text(u.show_def(d)),
         Kind::Package | Kind::TypeParam => None,
     }
+}
+
+/// Whether `name` has the form `m$default$N` (dotty's `DefaultGetterName`).
+fn is_default_getter(name: &str) -> bool {
+    name.rsplit_once("$default$").is_some_and(|(_, n)| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
 }
 
 /// The text that prints definition `d` of module `module` in `width` columns, running its show
