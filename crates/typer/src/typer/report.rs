@@ -21,7 +21,7 @@ impl Typer<'_> {
 
     pub fn error(&mut self, id: NodeId, msg: impl Into<String>) -> TNodeId {
         let span = self.ast.span(id);
-        self.diags.error(span.point(), msg);
+        self.diags.error_at(span.start(), span.end(), span.point(), msg);
         self.error_tree(span)
     }
 

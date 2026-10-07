@@ -75,15 +75,35 @@ impl Typer<'_> {
 
     /// Whether `t` is a transparent trait (dotty's `isTransparent(traitOnly = true)`).
     fn is_transparent_trait(&mut self, t: TypeId) -> bool {
+        self.is_transparent(t, true)
+    }
+
+    /// Whether `t` is a transparent class or trait, or an intersection of them (dotty's
+    /// `isTransparent`); `Any`, `Matchable` and `Object` count unless `trait_only`.
+    pub fn is_transparent(&mut self, t: TypeId, trait_only: bool) -> bool {
         let tycon = match *self.u.types().get(t) {
+            Type::And(a, b) => {
+                return self.is_transparent(a, trait_only) && self.is_transparent(b, trait_only);
+            }
             Type::Applied(c, _) => c,
             _ => t,
         };
-        let Type::Sym(_, c) = *self.u.types().get(tycon) else { return false };
+        let c = match *self.u.types().get(tycon) {
+            Type::Sym(_, c) => c,
+            Type::TypeRef(..) => match self.u.class_symbol(tycon) {
+                Some(c) => c,
+                None => return false,
+            },
+            _ => return false,
+        };
+        let b = self.u.builtins();
+        if !trait_only && (c == b.any || c == b.matchable || c == b.object) {
+            return true;
+        }
         let s = self.u.symbol(c);
         let assumed = matches!(self.u.full_name(c).as_str(), "java.lang.Comparable" | "java.io.Serializable");
         s.kind == Kind::Class
-            && s.flags.has(tasty::tags::TRAIT)
+            && (!trait_only || s.flags.has(tasty::tags::TRAIT))
             && (s.flags.has(tasty::tags::TRANSPARENT) || assumed)
     }
 

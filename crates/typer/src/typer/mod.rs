@@ -45,6 +45,7 @@ mod purity;
 mod qualifies;
 mod repeated;
 mod report;
+mod right_assoc;
 mod seen_from;
 mod select;
 mod stats;

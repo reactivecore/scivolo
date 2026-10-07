@@ -6,6 +6,7 @@ mod binders;
 mod first;
 mod fourth;
 mod hk;
+mod join;
 mod lub;
 mod null;
 mod refined;
