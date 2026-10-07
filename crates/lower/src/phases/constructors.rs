@@ -5,6 +5,7 @@
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_param_accessor};
 use super::initializers::constructor_params;
+use super::memoize::bottom;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use tasty::SymbolId;
@@ -49,9 +50,20 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 class_stats.push(stat)
             }
             Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
-                class_stats.push(stat);
                 let field = l.tpd.sym(stat).expect("a field's symbol");
-                let memoized = l.fields.get(&field).is_some_and(|&g| g != field);
+                let getter = l.fields.get(&field).copied().filter(|&g| g != field);
+                let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
+                if getter.is_some_and(|g| bottom(l, g).is_some()) {
+                    l.u.set_owner(field, ctor);
+                    let s = l.tpd.span(rhs);
+                    l.tpd.get_mut(stat).span = if s.exists() { s.with_point(s.start()) } else { s };
+                }
+                if l.u.symbol(field).owner == Some(ctor) {
+                    inits.push(stat);
+                    continue;
+                }
+                class_stats.push(stat);
+                let memoized = getter.is_some();
                 let at = match (memoized, l.tpd.span(rhs)) {
                     (true, s) if s.exists() => s.with_point(s.start()),
                     (true, s) => s,

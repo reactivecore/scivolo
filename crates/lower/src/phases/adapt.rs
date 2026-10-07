@@ -143,6 +143,6 @@ fn boxed_unit(l: &mut Lower, t: TNodeId) -> TNodeId {
     let unit = l.ident(unit, span);
     match l.tpd.tree(t) {
         Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => unit,
-        _ => l.block(&[t], unit, span),
+        _ => l.block(&[t], unit, l.tpd.span(t)),
     }
 }

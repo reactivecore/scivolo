@@ -9,8 +9,8 @@ use crate::symbols::{has, has_by_name_params, is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Op, Param, Type, Val, ValId};
 use syntax::ast::Span;
-use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, INLINE};
+use tasty::{Erased, SymbolId};
 use typer::tpd::{Clauses, TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -60,7 +60,10 @@ impl Gen<'_, '_> {
         let mut params = Vec::new();
         for p in param_syms {
             let info = self.l.u.info(p);
-            let ty = self.gen_type(info);
+            let ty = match self.l.u.erase(info) {
+                Erased::Unit => self.erased(&Erased::Class("scala.runtime.BoxedUnit".into())),
+                _ => self.gen_type(info),
+            };
             let name = self.local_name(p);
             let id = self.fresh_named(&name);
             let v = self.val(Val::Local(id, ty));
