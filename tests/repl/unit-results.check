@@ -40,3 +40,30 @@ val res8: Int = 1
 
 scala> res7
 val res9: Int = 7
+
+scala> type U = Unit
+// defined alias type U = Unit
+
+scala> def fu: U = ()
+def fu: U
+
+scala> fu
+
+scala> val a: U = fu
+val a: U = ()
+
+scala> var w = ()
+
+scala> val (p, q) = ((), 1)
+val q: Int = 1
+
+scala> unit(); ???
+scala.NotImplementedError: an implementation is missing
+
+scala> 8
+val res12: Int = 8
+
+scala> val res20 = ()
+
+scala> 9
+val res20: Int = 9
