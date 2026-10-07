@@ -1,0 +1,16 @@
+[package]
+name = "repl"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+libimage.workspace = true
+lower = { path = "../lower" }
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+typer = { path = "../typer" }
+vm = { path = "../vm" }
+
+[lints]
+workspace = true

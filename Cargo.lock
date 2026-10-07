@@ -316,6 +316,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "repl"
+version = "0.1.0"
+dependencies = [
+ "libimage",
+ "lower",
+ "syntax",
+ "tasty",
+ "typer",
+ "vm",
+]
+
+[[package]]
 name = "rustc-hash"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
