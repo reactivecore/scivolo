@@ -60,11 +60,14 @@ def write_list(name, rows):
 
 
 def split(output):
-    """{path relative to the repository: record text} from dump or oracle output."""
+    """{path relative to the repository: record text} from dump or oracle output, recorded in any
+    checkout."""
     records = {}
     for chunk in output.split("== file ")[1:]:
         path, _, body = chunk.partition("\n")
-        records[str(Path(path).relative_to(ROOT))] = body
+        marker = next((m for m in ("/ref/", "/tests/") if m in path), None)
+        rel = marker[1:] + path.split(marker, 1)[1] if marker else str(Path(path).relative_to(ROOT))
+        records[rel] = body
     return records
 
 

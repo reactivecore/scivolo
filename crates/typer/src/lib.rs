@@ -45,20 +45,41 @@ pub fn type_unit(
     root: NodeId,
     features: syntax::config::Features,
 ) -> Result<Typed, Fallback> {
-    let mut typer =
-        Typer::new(u, ast, names, features).map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
-    let ctx = root_context(&mut typer);
-    let typed = typer.typed(root, typer::Pt::Any, ctx);
-    if let Err(what) = typer.zonk_trees() {
-        typer.unsupported_at(Span::NONE, what);
+    Units::default().type_unit(u, ast, names, root, features)
+}
+
+/// The typer's knowledge of the script symbols of the units typed so far into one universe.
+#[derive(Default)]
+pub struct Units(symbols::Syms);
+
+impl Units {
+    /// Types unit `root` like `type_unit`, the symbols of the units typed before counting as
+    /// script symbols.
+    pub fn type_unit(
+        &mut self,
+        u: &mut Universe,
+        ast: &mut Ast,
+        names: &mut Names,
+        root: NodeId,
+        features: syntax::config::Features,
+    ) -> Result<Typed, Fallback> {
+        let mut typer = Typer::new(u, ast, names, features, &mut self.0)
+            .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
+        let ctx = root_context(&mut typer);
+        let typed = typer.typed(root, typer::Pt::Any, ctx);
+        if let Err(what) = typer.zonk_trees() {
+            typer.unsupported_at(Span::NONE, what);
+        }
+        self.0 = std::mem::take(&mut typer.syms);
+        self.0.end_unit();
+        if let Some((at, what)) = typer.unsupported.take() {
+            return Err(Fallback::Unsupported { at, what });
+        }
+        if typer.diags.has_errors() {
+            return Err(Fallback::Errors(typer.diags));
+        }
+        Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
     }
-    if let Some((at, what)) = typer.unsupported.take() {
-        return Err(Fallback::Unsupported { at, what });
-    }
-    if typer.diags.has_errors() {
-        return Err(Fallback::Errors(typer.diags));
-    }
-    Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
 }
 
 /// The context of a unit: the members of the root package, then the wildcard imports of

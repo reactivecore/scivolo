@@ -87,6 +87,13 @@ impl Syms {
         self.flags.insert(s, flags);
     }
 
+    /// Drops what refers to the trees of the unit just typed; its symbols count as completed.
+    pub fn end_unit(&mut self) {
+        self.completions.clear();
+        self.by_tree.clear();
+        self.closure_syms.clear();
+    }
+
     /// A binder no other method or type lambda has.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;
