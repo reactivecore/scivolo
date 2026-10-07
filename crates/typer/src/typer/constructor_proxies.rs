@@ -45,6 +45,46 @@ impl Typer<'_> {
         self.proxy_new(tpt, pt, ctx)
     }
 
+    /// `new q.C` for the constructor proxy `q.C` that selection `id`, `name` of `qual` of type
+    /// `qual_tpe`, refers to, if `C` is a class member of `qual_tpe` that gets proxies and no
+    /// base class of its owner declares a term `C` (dotty's `memberExists`).
+    pub fn proxy_select(
+        &mut self,
+        id: NodeId,
+        (qual, qual_tpe): (TNodeId, tasty::TypeId),
+        name: TName,
+        pt: Pt,
+        ctx: Ctx,
+    ) -> Option<TNodeId> {
+        let text = self.text(name.name).to_owned();
+        let classes: Vec<SymbolId> = self
+            .type_members(qual_tpe, &text)
+            .into_iter()
+            .filter(|&c| self.u.symbol(c).kind == Kind::Class)
+            .collect();
+        let [class] = classes[..] else { return None };
+        let owner = self.u.symbol(class).owner?;
+        let term_exists = self.u.linearization(owner).into_iter().any(|b| {
+            let decls = self.u.decl(b, &text).unwrap_or_default();
+            decls.iter().any(|&d| self.u.symbol(d).kind.is_term())
+        });
+        if term_exists || !self.needs_constructor_proxies(class) {
+            return None;
+        }
+        if let Err(what) = self.check_reference(class, Some(qual_tpe), ctx) {
+            return Some(self.unsupported(id, what));
+        }
+        let span = self.ast.span(id);
+        let tpe = if self.is_static_owner(owner) {
+            crate::defn::type_ref(self.u, class)
+        } else {
+            self.ref_type(Some(qual_tpe), class)
+        };
+        let name = TName { is_type: true, ..name };
+        let tpt = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(class));
+        Some(self.proxy_new(tpt, pt, ctx))
+    }
+
     /// The class of a package without a companion object that type alias `s`, a class member,
     /// stands for, such as `java.lang.Exception` for `scala.Exception`.
     fn package_class_alias(&mut self, s: SymbolId) -> Option<SymbolId> {
@@ -84,6 +124,7 @@ impl Typer<'_> {
         let module = self.tpd.sym(f)?;
         let is_module = self.u.module_class(module) == Some(module_class);
         let tpe = match *self.u.types().get(tpe) {
+            _ if self.is_static_owner(owner) => crate::defn::type_ref(self.u, class),
             Type::Sym(prefix, _) if is_module => self.ref_type(prefix, class),
             _ if self.is_static_owner(module_class) => crate::defn::type_ref(self.u, class),
             _ => return None,
