@@ -1,5 +1,4 @@
-//! NIR generation from the lowered trees: a port of Scala Native's nscplugin without native
-//! interop.
+//! NIR generation from the lowered trees: a port of Scala Native's nscplugin, no native interop.
 
 mod apply;
 mod array;
@@ -69,7 +68,8 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
     let no_pos = PosId(pool.positions.intern(Pos { file: virtual_file, line: 0, column: 0 }));
     let m = Method::new(None, 0, no_pos);
     let type_defs = type_defs(l, root);
-    let spans = definition_spans(l, &type_defs);
+    let mut spans = definition_spans(l, &type_defs);
+    spans.extend(l.lazy_fields.iter().map(|f| (f.accessor, f.span)));
     let deferred = interface_bridges::deferred_methods(l.tpd, &type_defs);
     let mut g = Gen {
         l,
@@ -85,6 +85,7 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         closures: Vec::new(),
         lambdas: 0,
     };
+    g.gen_companion_handle_fields(&type_defs);
     for td in type_defs {
         g.gen_class(td)?;
     }
@@ -152,10 +153,7 @@ fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Spa
 impl Gen<'_, '_> {
     /// The position of class or method `s` of this unit, else of class `or`, else none.
     pub fn sym_pos(&mut self, s: SymbolId, or: SymbolId) -> PosId {
-        let lazy = self.l.lazy_fields.iter().find(|f| f.accessor == s).map(|f| f.span);
-        let span = lazy
-            .or_else(|| self.spans.get(&s).or_else(|| self.spans.get(&or)).copied())
-            .unwrap_or(Span::NONE);
+        let span = self.spans.get(&s).or_else(|| self.spans.get(&or)).copied().unwrap_or(Span::NONE);
         self.pos_or(span, self.no_pos)
     }
 

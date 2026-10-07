@@ -72,7 +72,33 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The field `x$lzyN` and method `x$lzyINITN` of lazy value `accessor` of `class`.
+/// Defines the method `x$lzyINITN` of lazy value `accessor` of `class` and makes the
+/// definitions in its right-hand side `rhs` owned by it, as `LambdaLift` finds them in dotty.
+pub fn define_init(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: TNodeId) {
+    let name = l.u.symbol(accessor).name.clone();
+    let init_name = fresh(l, &format!("{name}$lzyINIT"));
+    let init =
+        l.u.define(symbol(&init_name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
+    let binder = l.u.fresh_binder();
+    let result = object(l);
+    let info = l.u.intern_type(Type::Method {
+        binder,
+        params: Vec::new(),
+        result,
+        implicit: false,
+        contextual: false,
+    });
+    l.u.set_info(init, info);
+    l.lazy_inits.insert(accessor, init);
+    for s in super::walk::subtrees(l.tpd, rhs) {
+        let defined = matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. });
+        if let Some(sym) = l.tpd.sym(s).filter(|&sym| defined && l.u.symbol(sym).owner == Some(accessor)) {
+            l.u.set_owner(sym, init);
+        }
+    }
+}
+
+/// The field `x$lzyN` and the method `define_init` made for lazy value `accessor` of `class`.
 fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
     let name = l.u.symbol(accessor).name.clone();
     let field_name = fresh(l, &format!("{name}$lzy"));
@@ -81,18 +107,7 @@ fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
     let object = object(l);
     l.u.set_info(field, object);
     l.fields.insert(field, field);
-    let init_name = fresh(l, &format!("{name}$lzyINIT"));
-    let init =
-        l.u.define(symbol(&init_name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
-    let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: object,
-        implicit: false,
-        contextual: false,
-    });
-    l.u.set_info(init, info);
+    let init = l.lazy_inits[&accessor];
     Lazy { class, accessor, field, init }
 }
 
@@ -103,16 +118,28 @@ fn fresh(l: &mut Lower, base: &str) -> String {
 }
 
 /// `{ val result = x$lzy; if result.isInstanceOf[T] then result else if result eq NullValue then
-/// null else x$lzyINIT() }`, each branch adapted to the value's type `info`.
+/// null else x$lzyINIT() }`, each branch adapted to the value's type `info`; the test is
+/// `result != null && !result.isInstanceOf[LazyValControlState]` where `T` includes the states.
 fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
     let object = object(l);
     let result = local(l, lazy.accessor, "result", object, false);
     let field = field_ref(l, lazy);
     let def = val_def(l, result, field);
     let erased = l.u.erase(info);
-    let test_type = boxed_type(l, &erased, info);
-    let read = l.ident(result, Span::NONE);
-    let cond = l.is_instance(read, test_type);
+    let cond = if holds_control_states(l, &erased) {
+        let read = l.ident(result, Span::NONE);
+        let null = l.null_literal(Span::NONE);
+        let set = call(l, read, l.defs.patmat.ne, &[null]);
+        let read = l.ident(result, Span::NONE);
+        let control = crate::definitions::type_ref(l.u, l.defs.lazy_vals.control_state);
+        let is_control = l.is_instance(read, control);
+        let not_control = call(l, is_control, l.defs.lazy_vals.not, &[]);
+        call(l, set, l.defs.patmat.and, &[not_control])
+    } else {
+        let test_type = boxed_type(l, &erased, info);
+        let read = l.ident(result, Span::NONE);
+        l.is_instance(read, test_type)
+    };
     let read = l.ident(result, Span::NONE);
     let value = adapt(l, read, &erased);
     let read = l.ident(result, Span::NONE);
@@ -127,6 +154,13 @@ fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
     let inner = if_(l, is_null, null, init, info);
     let outer = if_(l, cond, value, inner, info);
     block(l, &[def], outer)
+}
+
+/// Whether the values of erased type `erased` include `LazyValControlState`'s.
+fn holds_control_states(l: &mut Lower, erased: &Erased) -> bool {
+    let Erased::Class(name) = erased else { return false };
+    let control = l.defs.lazy_vals.control_state;
+    super::casts::class_named(l, name).is_some_and(|c| l.u.derives_from(control, c))
 }
 
 /// The class `T` of type `info` erasing to `erased` as a reference: its box for a primitive.

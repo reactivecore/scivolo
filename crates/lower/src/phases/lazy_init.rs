@@ -23,7 +23,6 @@ struct Shared {
 
 /// The `$lzyINIT` method of `lazy` computing `rhs` of type `info`.
 pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId) -> TNodeId {
-    reown(l, rhs, lazy.accessor, lazy.init);
     let defs = l.defs.lazy_vals;
     let native = l.ident(defs.native, Span::NONE);
     let cas = l.select(native, defs.obj_cas, Span::NONE);
@@ -159,14 +158,4 @@ fn apply_cas(l: &mut Lower, s: &Shared, expected: TNodeId, value: TNodeId) -> TN
     let boolean = l.u.class_ref("scala.Boolean");
     let apply = l.apply(s.cas, &[s.field, expected, value], boolean, Span::NONE);
     l.positioned(apply)
-}
-
-/// Makes the definitions in `t` owned by `from` owned by `to`.
-fn reown(l: &mut Lower, t: TNodeId, from: SymbolId, to: SymbolId) {
-    for s in super::walk::subtrees(l.tpd, t) {
-        let defined = matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. });
-        if let Some(sym) = l.tpd.sym(s).filter(|&sym| defined && l.u.symbol(sym).owner == Some(from)) {
-            l.u.set_owner(sym, to);
-        }
-    }
 }

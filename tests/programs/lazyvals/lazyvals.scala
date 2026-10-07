@@ -24,6 +24,20 @@ class Flaky:
 object Flaky:
   def make() = Flaky()
 
+object Funcs:
+  val base = 3
+  lazy val add: Int => Int = i => i + base
+  lazy val nothing: AnyRef = null
+  lazy val anything: Any = null
+
+class Scaler(k: Int):
+  lazy val scale: Int => Int = i => i * k
+
+object Holder:
+  val tag = "holder"
+class Holder[T](t: T):
+  lazy val held: T = t
+
 @main def lazyvals(): Unit =
   println(Config.loads)
   println(Config.answer + 1)
@@ -40,3 +54,11 @@ object Flaky:
   catch case e: IllegalStateException => println(e.getMessage)
   println(f.value)
   println(f.value)
+  println(Funcs.add(1))
+  println(Funcs.nothing == null && Funcs.nothing == null)
+  println(Funcs.anything)
+  println(Funcs.anything)
+  println(Scaler(2).scale(5))
+  val h = new Holder[String](null)
+  println(h.held == null && h.held == null)
+  println(Holder.tag)

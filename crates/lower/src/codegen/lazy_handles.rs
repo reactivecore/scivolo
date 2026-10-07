@@ -8,6 +8,7 @@ use crate::symbols::is_module_class;
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, PosId, Type, Val};
 use tasty::{Kind, SymbolId};
+use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
     /// The fields of the `VarHandle`s of the lazy values of class `c`, the latest first.
@@ -19,6 +20,16 @@ impl Gen<'_, '_> {
             let ty = self.handle_type();
             let rhs = self.val(Val::Zero(ty));
             self.defns.push(Defn { name, attrs: vec![Attr::Final], pos, kind: DefnKind::Var { ty, rhs } });
+        }
+    }
+
+    /// The `VarHandle` fields of the lazy values of the classes of `type_defs` that are not
+    /// objects', first in their companions' files.
+    pub fn gen_companion_handle_fields(&mut self, type_defs: &[TNodeId]) {
+        for &td in type_defs {
+            let Some(c) = self.l.tpd.sym(td).filter(|&c| !is_module_class(self.l.u, c)) else { continue };
+            let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
+            self.gen_lazy_handle_fields(c, pos);
         }
     }
 
