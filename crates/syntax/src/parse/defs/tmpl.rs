@@ -2,6 +2,7 @@ use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{NodeId, Span, TName, Tree};
+use crate::diag::Message;
 use crate::parse::Parser;
 use crate::source::Offset;
 use crate::token::Token;
@@ -47,7 +48,7 @@ impl Parser<'_> {
             }
             _ => {
                 let start = self.last_offset();
-                let msg = crate::diag::Message::syntax(88, "Expected start of definition");
+                let msg = Message::syntax(88, "Expected start of definition");
                 self.syntax_error_or_incomplete(msg, self.offset());
                 match *self.ast.items(mods.annotations) {
                     [head] => head,

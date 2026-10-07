@@ -2,6 +2,7 @@ use super::super::Parser;
 use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use crate::diag::Message;
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -43,7 +44,7 @@ impl Parser<'_> {
                 for &cb in self.ast.items(cx_bounds).to_vec().iter() {
                     let span = self.ast.span(cb);
                     let msg = "Context bounds are not allowed in this position";
-                    let msg = crate::diag::Message::syntax(214, msg).without_explanation();
+                    let msg = Message::syntax(214, msg).without_explanation();
                     self.syntax_error_span(msg, span);
                 }
                 b

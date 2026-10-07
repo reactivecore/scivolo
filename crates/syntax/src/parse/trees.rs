@@ -4,6 +4,7 @@ use super::Parser;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, TName, Tree};
+use crate::diag::Message;
 
 impl Parser<'_> {
     /// `(t)` for one tree (unless a named argument), a tuple otherwise.
@@ -109,7 +110,7 @@ impl Parser<'_> {
             return t;
         }
         let span = self.ast.span(t);
-        self.syntax_error_span(crate::diag::Message::syntax(35, "Unbound wildcard type"), span);
+        self.syntax_error_span(Message::syntax(35, "Unbound wildcard type"), span);
         let any = self.type_name("Any");
         self.scala_dot(any)
     }

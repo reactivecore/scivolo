@@ -3,6 +3,7 @@
 use super::Scanner;
 use super::indent::IndentWidth;
 use super::region::{RegionId, RegionKind};
+use crate::diag::Message;
 use crate::token::Token;
 use crate::token::sets::{
     CAN_END_STAT_TOKENS, CAN_START_EXPR_TOKENS2, CAN_START_EXPR_TOKENS3, CAN_START_INDENT_TOKENS,
@@ -128,10 +129,7 @@ impl Scanner<'_> {
         } else if self.regions.get(r).kind == RegionKind::InBraces
             && !CLOSING_REGION_TOKENS.contains(self.cur.token)
         {
-            let msg = crate::diag::Message::syntax(
-                229,
-                "Line is indented too far to the left, or a '}' is missing",
-            );
+            let msg = Message::syntax(229, "Line is indented too far to the left, or a '}' is missing");
             self.diags.warning(self.cur.offset, msg);
         }
     }

@@ -5,6 +5,7 @@ use super::{Location, Parser};
 use crate::ast::flags;
 use crate::ast::modifiers::{ModKind, Modifiers};
 use crate::ast::{NodeId, Tree};
+use crate::diag::Message;
 use crate::token::Token;
 use crate::token::sets::{
     DCL_INTRO_TOKENS, DEF_INTRO_TOKENS, LOCAL_MODIFIER_TOKENS, MODIFIER_TOKENS, MODIFIER_TOKENS_OR_CASE,
@@ -139,7 +140,7 @@ impl Parser<'_> {
         if DCL_INTRO_TOKENS.contains(self.tok()) && self.tok() != Token::Given {
             let o = self.offset();
             let msg = "The final modifier is not allowed on local definitions";
-            self.syntax_error(crate::diag::Message::syntax(200, msg).without_explanation(), o);
+            self.syntax_error(Message::syntax(200, msg).without_explanation(), o);
         }
         self.tmpl_def(start, mods)
     }

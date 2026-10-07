@@ -16,6 +16,7 @@ use super::{Location, Parser};
 use crate::ast::NodeId;
 use crate::ast::modifiers::Modifiers;
 use crate::config::Features;
+use crate::diag::Message;
 use crate::scan::RegionKind;
 use crate::token::Token;
 use crate::token::sets::TokenSet;
@@ -174,7 +175,7 @@ impl Parser<'_> {
             if !next_width.lt(&start_width) {
                 let msg = if start_width.le(&next_width) {
                     let text = "Line is indented too far to the right, or a '{' is missing before:\n\n";
-                    crate::diag::Message::syntax(229, text)
+                    Message::syntax(229, text)
                 } else {
                     format!(
                         "Incompatible combinations of tabs and spaces in indentation prefixes.\nPrevious indent : {start_width}\nLatest indent   : {next_width}"

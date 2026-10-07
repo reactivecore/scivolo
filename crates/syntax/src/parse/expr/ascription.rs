@@ -3,7 +3,7 @@
 use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::{NodeId, Tree};
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -53,7 +53,7 @@ impl Parser<'_> {
                     let msg = "`_*` can be used only for last argument of method application.\nIt is no longer allowed in operands of infix operations.";
                     self.migration_error(msg, uscore, Migration::Scala2to3);
                 } else {
-                    let msg = crate::diag::Message::syntax(31, "* can be used only for last argument");
+                    let msg = Message::syntax(31, "* can be used only for last argument");
                     self.syntax_error(msg, uscore);
                 }
                 let star = self.type_name("_*");

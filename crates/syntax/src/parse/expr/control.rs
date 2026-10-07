@@ -4,7 +4,7 @@ use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::constant::Constant;
 use crate::ast::{Attrs, NodeId, Span, Tree};
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -97,7 +97,7 @@ impl Parser<'_> {
         {
             let end = self.end_offset(h);
             let msg = "The catch block does not contain a valid expression, try\nadding a case like - case e: Exception => to the block";
-            let msg = crate::diag::Message::syntax(1, msg);
+            let msg = Message::syntax(1, msg);
             self.syntax_error_or_incomplete_span(msg, Span::synthetic(handler_start, end));
         }
         let finalizer = if self.tok() == Token::Finally {
@@ -114,7 +114,7 @@ impl Parser<'_> {
             if handler.is_none() {
                 let end = self.end_offset(body);
                 let msg = "A try without catch or finally is equivalent to putting\nits body in a block; no exceptions are handled.";
-                self.s.diags.warning_at(try_offset, end, try_offset, crate::diag::Message::syntax(2, msg));
+                self.s.diags.warning_at(try_offset, end, try_offset, Message::syntax(2, msg));
             }
             None
         };
