@@ -2,13 +2,14 @@
 
 use super::{LoadError, World};
 use crate::member_table::Table;
-use nir::{Caches, Global, GlobalId, Reader};
+use nir::{Caches, Global, GlobalId, Reader, StrId};
+use std::borrow::Cow;
 use std::collections::hash_map::Entry;
 
 /// A loaded NIR file, whose definitions decode on first use; with a member table, its index
 /// is not decoded.
 pub struct File {
-    pub data: std::borrow::Cow<'static, [u8]>,
+    pub data: Cow<'static, [u8]>,
     pub caches: Caches,
     pub table: Option<Table>,
 }
@@ -74,10 +75,36 @@ impl World {
         let overlay = super::overlay::file(&text);
         let (found, overlaid) = match (self.classpath.find(&text), overlay) {
             (Some(found), overlay) => (found, overlay),
-            (None, Some(data)) => ((std::borrow::Cow::Borrowed(data), None), None),
+            (None, Some(data)) => ((Cow::Borrowed(data), None), None),
             (None, None) => return Ok(None),
         };
         let (data, table) = found;
+        let file = self.index(name, text, data, table)?;
+        if let Some(data) = overlaid {
+            self.merge(top, data)?;
+        }
+        Ok(Some(file))
+    }
+
+    /// Adds NIR file `data` as the file of top-level `top`; an error if `top` was looked up or
+    /// added before.
+    pub fn add_file(&mut self, top: &str, data: Vec<u8>) -> Result<(), LoadError> {
+        let name = StrId(self.pool.strings.intern_str(top));
+        if self.loaded.contains_key(&name) || self.broken.contains_key(&name) {
+            return Err(LoadError::Defined(top.to_owned()));
+        }
+        self.index(name, top.to_owned(), Cow::Owned(data), None).map(drop)
+    }
+
+    /// Adds `data` as the file of top-level name `name` (`text`), indexing its definitions unless
+    /// it has a member table.
+    fn index(
+        &mut self,
+        name: StrId,
+        text: String,
+        data: Cow<'static, [u8]>,
+        table: Option<Table>,
+    ) -> Result<u32, LoadError> {
         let file = self.files.len() as u32;
         let mut caches = Caches::default();
         let mut reader = Reader::new(&data, &mut caches, &mut self.pool)
@@ -93,9 +120,6 @@ impl World {
         }
         self.files.push(File { data, caches, table });
         self.loaded.insert(name, Some(file));
-        if let Some(data) = overlaid {
-            self.merge(top, data)?;
-        }
-        Ok(Some(file))
+        Ok(file)
     }
 }
