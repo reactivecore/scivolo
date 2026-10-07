@@ -3,8 +3,8 @@
 
 use crate::show_methods::SUFFIX;
 use crate::value::{self, Quote};
-use tasty::tags::{ARTIFACT, CASE, LAZY, MUTABLE, OBJECT, PRIVATE, SYNTHETIC, TRAIT};
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::tags::{ARTIFACT, LAZY, OBJECT, PRIVATE, SYNTHETIC};
+use tasty::{Kind, SymbolId, Universe};
 use vm::{Vm, VmError};
 
 /// A definition to print: its text, and for a value the show method and quoting of its value.
@@ -35,96 +35,25 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     }
     let text = |text: String| Some(Definition { text, show: None });
     match kind {
-        Kind::Class if flags.has(OBJECT) => text(format!("// defined object {}", name.trim_end_matches('$'))),
-        Kind::Class if flags.has(TRAIT) => text(format!("// defined trait {name}")),
-        Kind::Class if flags.has(CASE) => text(format!("// defined case class {name}")),
-        Kind::Class => text(format!("// defined class {name}")),
-        Kind::Type => {
-            let info = u.info(d);
-            let alias = match u.types().get(info) {
-                Type::Alias(a) | Type::Bounds(a, _) => *a,
-                _ => info,
-            };
-            text(format!("// defined alias type {name} = {}", show_type(u, alias)))
-        }
+        Kind::Class => text(format!("// defined {}", u.show_def(d))),
+        Kind::Type if u.alias_of(d).is_some() => text(format!("// defined alias {}", u.show_def(d))),
+        Kind::Type => text(format!("// defined {}", u.show_def(d))),
         Kind::Val if flags.has(OBJECT) => None,
+        Kind::Val | Kind::Param if flags.has(LAZY) => text(u.show_def(d)),
         Kind::Val | Kind::Param => {
             let info = u.info(d);
-            let tpe = show_type(u, info);
-            if flags.has(LAZY) {
-                return text(format!("lazy val {name}: {tpe}"));
-            }
             let quote = value::quote(&u.erase(info));
             let show = Some((tasty::encode(&format!("{name}{SUFFIX}")), quote));
             let text = match name.strip_suffix("$assign") {
-                Some(var) => format!("{var}: {tpe}"),
-                None if flags.has(MUTABLE) => format!("var {name}: {tpe}"),
-                None => format!("val {name}: {tpe}"),
+                Some(var) => format!("{var}: {}", u.show_user(info)),
+                None => u.show_def(d),
             };
             Some(Definition { text, show })
         }
-        Kind::Def => {
-            let info = u.info(d);
-            text(format!("def {name}{}", signature(u, info)))
-        }
+        Kind::Def => text(u.show_def(d)),
         Kind::Package | Kind::TypeParam => None,
     }
 }
-
-/// The parameter clauses and result type of a method of type `t`: `[T](x: T): T`.
-fn signature(u: &Universe, t: TypeId) -> String {
-    match u.types().get(t) {
-        Type::Poly { params, result, .. } => {
-            let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
-            let mut rest = signature(u, *result);
-            for (i, n) in names.iter().enumerate() {
-                rest = rest.replace(&format!("<param {i}>"), n);
-            }
-            format!("[{}]{rest}", names.join(", "))
-        }
-        Type::Method { params, result, contextual, implicit, .. } => {
-            let using = match (*contextual, *implicit) {
-                (true, _) => "using ",
-                (false, true) => "implicit ",
-                _ => "",
-            };
-            let params: Vec<String> =
-                params.iter().map(|(n, t)| format!("{n}: {}", show_type(u, *t))).collect();
-            format!("({using}{}){}", params.join(", "), signature(u, *result))
-        }
-        Type::ByName(r) => format!(": {}", show_type(u, *r)),
-        _ => format!(": {}", show_type(u, t)),
-    }
-}
-
-/// Type `t` as the REPL shows it to users.
-pub fn show_type(u: &Universe, t: TypeId) -> String {
-    let full = u.show(t);
-    let mut out = String::with_capacity(full.len());
-    let mut rest = full.as_str();
-    'text: while let Some(c) = rest.chars().next() {
-        if !out.ends_with(|p: char| p.is_alphanumeric() || p == '_' || p == '$' || p == '.') {
-            for prefix in OMITTED_PREFIXES {
-                if let Some(after) = rest.strip_prefix(prefix).filter(|a| a.starts_with(char::is_uppercase)) {
-                    rest = after;
-                    continue 'text;
-                }
-            }
-            if let Some(after) = rest.strip_prefix("rs$line$") {
-                let after = after.trim_start_matches(|c: char| c.is_ascii_digit());
-                rest = after.strip_prefix('.').or(after.strip_prefix("$.")).unwrap_or(after);
-                continue;
-            }
-        }
-        out.push(c);
-        rest = &rest[c.len_utf8()..];
-    }
-    out
-}
-
-/// The prefixes of the names in the root imports, which `show_type` omits.
-const OMITTED_PREFIXES: [&str; 5] =
-    ["scala.collection.immutable.", "scala.Predef.", "scala.package.", "java.lang.", "scala."];
 
 /// The line that prints definition `d` of module `module`, running its show method.
 pub fn line(vm: &mut Vm, module: &str, d: &Definition) -> Result<String, VmError> {

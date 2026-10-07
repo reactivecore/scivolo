@@ -8,13 +8,14 @@ use crate::{imports, render, report, unit_results, wrap};
 use libimage::Image;
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
-use typer::Fallback;
+use typer::{Fallback, Units};
 use vm::{Vm, VmError};
 
 pub struct Session {
     vm: Vm,
     image: &'static Image,
     u: Universe,
+    units: Units,
     names: Names,
     fresh: FreshNames,
     /// The index of the last wrapper object; it grows across resets.
@@ -23,7 +24,7 @@ pub struct Session {
     res: u32,
     /// The earlier inputs that ran.
     earlier: Vec<Earlier>,
-    quit: bool,
+    exit: Option<i32>,
 }
 
 impl Session {
@@ -31,22 +32,24 @@ impl Session {
     pub fn new(mut vm: Vm, image: &'static Image) -> Result<Session, VmError> {
         vm.start_runtime("repl", &[])?;
         let (names, fresh) = (Names::default(), FreshNames::default());
-        let u = Universe::open_image(image);
-        Ok(Session { vm, image, u, names, fresh, line: 0, res: 0, earlier: Vec::new(), quit: false })
+        let (u, units) = (Universe::open_image(image), Units::default());
+        let earlier = Vec::new();
+        Ok(Session { vm, image, u, units, names, fresh, line: 0, res: 0, earlier, exit: None })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
     pub fn reset(&mut self) {
         self.u = Universe::open_image(self.image);
+        self.units = Units::default();
         self.names = Names::default();
         self.fresh = FreshNames::default();
         self.res = 0;
         self.earlier.clear();
     }
 
-    /// Whether an input asked to end the session.
-    pub fn quitting(&self) -> bool {
-        self.quit
+    /// The exit code an input ended the session with: 0 after `:quit`, `n` after `sys.exit(n)`.
+    pub fn exit(&self) -> Option<i32> {
+        self.exit
     }
 
     /// Ends the session: the runtime's shutdown runs queued tasks.
@@ -69,7 +72,7 @@ impl Session {
     fn command(&mut self, c: Command) -> Vec<String> {
         match c {
             Command::Quit => {
-                self.quit = true;
+                self.exit = Some(0);
                 Vec::new()
             }
             Command::Help => vec![commands::HELP.to_owned()],
@@ -92,7 +95,8 @@ impl Session {
             Err(errors) => return errors,
         };
         let features = parsed.cfg.features;
-        let mut typed = match typer::type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features) {
+        let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features);
+        let mut typed = match typed {
             Ok(typed) => typed,
             Err(Fallback::Errors(diags)) => return report::diagnostics(&parsed.source, &diags),
             Err(Fallback::Unsupported { what, .. }) => return vec![report::unsupported(&what)],
@@ -137,8 +141,8 @@ impl Session {
     fn failed(&mut self, e: VmError) -> Vec<String> {
         match e {
             VmError::Uncaught(exc) => vec![exc],
-            VmError::Exit(_) => {
-                self.quit = true;
+            VmError::Exit(code) => {
+                self.exit = Some(code);
                 Vec::new()
             }
             e => vec![e.to_string()],

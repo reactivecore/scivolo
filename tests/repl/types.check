@@ -15,3 +15,12 @@ scala> type I = Int
 
 scala> val i: I = 3
 val i: I = 3
+
+scala> def id[A](x: A): A = x
+def id[A](x: A): A
+
+scala> def g(f: Int => String, xs: (Int, Long)*)(using s: String): Option[String] = None
+def g(f: Int => String, xs: (Int, Long)*)(using s: String): Option[String]
+
+scala> val o: Option[List[Int]] = Some(List(1))
+val o: Option[List[Int]] = Some(List(1))
