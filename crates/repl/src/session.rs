@@ -14,6 +14,8 @@ use tasty::Universe;
 use typer::{Fallback, Units};
 use vm::{Vm, VmError};
 
+const RESETTING: &str = "Resetting REPL state.";
+
 /// A compiled input: its wrapper module, NIR files and definitions to print.
 struct Unit {
     module: String,
@@ -70,13 +72,16 @@ impl Session {
     }
 
     /// Evaluates input `text`; the lines it prints. A panic while compiling the input is reported
-    /// as an internal error; a panic while running it is passed on.
+    /// as an internal error and resets the session; a panic while running it is passed on.
     pub fn eval(&mut self, text: &str) -> Vec<String> {
         let compiled = catch_unwind(AssertUnwindSafe(|| self.compile(text)));
         let out = match compiled {
             Ok(Ok(unit)) => self.run(unit),
             Ok(Err(out)) => out,
-            Err(panic) => vec![report::internal(panic.as_ref())],
+            Err(panic) => {
+                self.reset();
+                vec![report::internal(panic.as_ref()), RESETTING.to_owned()]
+            }
         };
         out.iter().flat_map(|s| s.lines()).map(str::to_owned).collect()
     }
@@ -101,7 +106,7 @@ impl Session {
             Command::Help => vec![commands::HELP.to_owned()],
             Command::Reset(_) => {
                 self.reset();
-                vec!["Resetting REPL state.".to_owned()]
+                vec![RESETTING.to_owned()]
             }
             Command::Unknown(name) => vec![commands::unknown(&name)],
         }

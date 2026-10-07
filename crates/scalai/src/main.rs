@@ -13,7 +13,8 @@ use vm::{Classpath, Vm, VmError};
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
 /// SCALAI_CACHE holds the library image, compiled scripts and the REPL history; SCALAI_SCALA_CLI
 /// names the scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit
-/// 124); SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr.
+/// 124); SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr;
+/// RUST_BACKTRACE prints panics in full.
 #[derive(Parser)]
 #[command(name = "scalai", override_usage = "scalai [OPTIONS] [TARGET] [ARGS]...")]
 struct Cli {
@@ -56,18 +57,29 @@ fn main() -> ExitCode {
             vm::exit_immediately(124);
         });
     }
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| match std::env::var_os("RUST_BACKTRACE") {
+        Some(_) => default_hook(info),
+        None => eprintln!("scalai: panic at {}", info.location().map_or("?".into(), |l| l.to_string())),
+    }));
     let thread = std::thread::Builder::new().stack_size(STACK).spawn(move || match main_class {
         Some(main_class) => run(cp, &main_class, &rest),
         None => repl::run(&cp),
     });
-    match thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|_| "interpreter panicked".into()))
-    {
+    let joined = thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|p| panicked(p.as_ref())));
+    match joined {
         Ok(Ok(code)) => ExitCode::from(code as u8),
         Ok(Err(e)) | Err(e) => {
             eprintln!("scalai: {e}");
             ExitCode::FAILURE
         }
     }
+}
+
+/// The error for a panic with payload `panic`.
+fn panicked(panic: &(dyn std::any::Any + Send)) -> String {
+    let what = panic.downcast_ref::<String>().map(String::as_str).or(panic.downcast_ref::<&str>().copied());
+    format!("internal error: {}", what.unwrap_or("panic"))
 }
 
 /// The main class of `target` given `--main` `chosen`; a source file's classes join `cp`.

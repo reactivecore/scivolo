@@ -25,10 +25,11 @@ val s: String = \"a1\"
 ";
 
 /// The exit code, stdout, stderr and wall time of `scalai` reading `input`, with environment
-/// `env` added.
+/// `env` added; `scalai` stops with exit code 124 after 300 s.
 fn repl_with(input: &[u8], env: &[(&str, &str)]) -> (Option<i32>, String, String, f64) {
     let start = Instant::now();
     let mut child = Command::new(env!("CARGO_BIN_EXE_scalai"))
+        .env("SCALAI_TIMEOUT", "300")
         .envs(env.iter().copied())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
