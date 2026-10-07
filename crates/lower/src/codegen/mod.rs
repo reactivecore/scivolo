@@ -121,7 +121,16 @@ fn type_defs(l: &Lower, root: TNodeId) -> Vec<TNodeId> {
     while let Some(t) = todo.pop() {
         match *l.tpd.tree(t) {
             Tree::PackageDef { stats, .. } => todo.extend(l.tpd.items(stats).iter().rev()),
-            Tree::TypeDef { .. } => out.push(t),
+            Tree::TypeDef { rhs, .. } => {
+                out.push(t);
+                if let Tree::Template { body, .. } = *l.tpd.tree(rhs) {
+                    let nested = l.tpd.items(body).iter().rev();
+                    todo.extend(nested.filter(|&&s| {
+                        matches!(l.tpd.tree(s), Tree::TypeDef { rhs, .. }
+                        if matches!(l.tpd.tree(*rhs), Tree::Template { .. }))
+                    }));
+                }
+            }
             _ => {}
         }
     }

@@ -101,7 +101,10 @@ impl Gen<'_, '_> {
     fn gen_select(&mut self, t: TNodeId, qual: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "a selection without a symbol") };
-        let saved = self.at_span(span);
+        let owner = self.l.u.symbol(sym).owner.expect("a member's owner");
+        let nested_module = is_module(self.l.u, sym) && self.l.u.symbol(owner).kind != tasty::Kind::Package;
+        let at = if nested_module && span.exists() { span.with_point(span.start()) } else { span };
+        let saved = self.at_span(at);
         let v = if is_module(self.l.u, sym) {
             self.gen_module(sym)
         } else if self.is_field(sym) {
