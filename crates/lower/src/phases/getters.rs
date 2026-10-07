@@ -12,16 +12,18 @@ use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters; drops the private parameter fields not in
-/// `retained`.
+/// `retained`; makes the private local values nothing refers to values of the constructor.
 pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(()) };
+    let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(()) };
+    let constructor = l.tpd.sym(constr).expect("a constructor's symbol");
     let stats = l.tpd.items(body).to_vec();
-    let mut in_methods = FxHashSet::default();
+    let (mut in_methods, mut referenced) = (FxHashSet::default(), FxHashSet::default());
     for &stat in &stats {
         if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(stat) {
             in_methods.extend(references(l.tpd, rhs));
         }
+        referenced.extend(references(l.tpd, stat));
     }
     let mut kept = Vec::new();
     for stat in stats {
@@ -42,16 +44,27 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         if rhs.is_none() && !is_param_accessor(l, sym) {
             return unsupported(span, "abstract values");
         }
-        let info = l.u.info(sym);
-        if matches!(l.u.erase(info), Erased::Unit | Erased::Null | Erased::Nothing) {
-            return unsupported(span, "fields of type Unit, Null or Nothing");
+        let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL);
+        if private_local && is_param_accessor(l, sym) && !retained.contains(&sym) {
+            kept.pop();
+            l.u.unenter(sym);
+            continue;
         }
-        if has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) {
-            if is_param_accessor(l, sym) && !retained.contains(&sym) {
-                kept.pop();
-                l.u.unenter(sym);
-                continue;
-            }
+        if private_local && !is_param_accessor(l, sym) && !referenced.contains(&sym) {
+            l.u.set_owner(sym, constructor);
+            continue;
+        }
+        let info = l.u.info(sym);
+        let erased = l.u.erase(info);
+        if (private_local || is_param_accessor(l, sym))
+            && matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing)
+        {
+            return unsupported(span, "parameters and private local fields of type Unit, Null or Nothing");
+        }
+        if erased == Erased::Unit && overrides(l, sym) {
+            return unsupported(span, "values of type Unit overriding members");
+        }
+        if private_local {
             if !is_param_accessor(l, sym) && !in_methods.contains(&sym) {
                 return unsupported(span, "private values used only in the constructor");
             }
@@ -93,6 +106,14 @@ pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// Whether a base class of value `s`'s class has a member of its name.
+fn overrides(l: &mut Lower, s: SymbolId) -> bool {
+    let Some(class) = l.u.symbol(s).owner else { return false };
+    let name = l.u.symbol(s).name.clone();
+    let bases = l.u.linearization(class);
+    bases[1..].iter().any(|&b| l.u.decl(b, &name).is_ok_and(|d| !d.is_empty()))
 }
 
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).

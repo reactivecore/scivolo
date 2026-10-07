@@ -60,7 +60,7 @@ impl Gen<'_, '_> {
         let mut params = Vec::new();
         for p in param_syms {
             let info = self.l.u.info(p);
-            let ty = self.gen_type(info);
+            let ty = self.value_type(info);
             let name = self.local_name(p);
             let id = self.fresh_named(&name);
             let v = self.val(Val::Local(id, ty));

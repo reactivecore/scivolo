@@ -7,7 +7,7 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use tasty::tags::{FIELDaccessor, LOCAL, MUTABLE, PRIVATE};
-use tasty::{Flags, Kind, SymbolId};
+use tasty::{Erased, Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -23,7 +23,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         };
         if is_setter(l, accessor) {
-            let rhs = setter_rhs(l, class, accessor, paramss, rhs);
+            let rhs = match rhs {
+                _ if !is_unit_setter(l, class, accessor) => setter_rhs(l, class, accessor, paramss, rhs),
+                Some(r) => r,
+                None => l.unit_literal(l.tpd.span(stat)),
+            };
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
             stats.push(stat);
             continue;
@@ -47,13 +51,36 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         stats.push(l.tpd.node(def, span, None, Some(field)));
         let read_span = rhs.map_or(span, |r| l.tpd.span(r));
         let read_span = if read_span.exists() { read_span.with_point(read_span.start()) } else { read_span };
-        let read = l.field_ref(field, read_span);
+        let read = match bottom(l, accessor) {
+            Some(Erased::Unit) => l.unit_literal(read_span),
+            Some(Erased::Null) => l.null_literal(read_span),
+            Some(_) => {
+                let null = l.null_literal(read_span);
+                l.throw_(null)
+            }
+            None => l.field_ref(field, read_span),
+        };
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(read) };
         stats.push(stat);
     }
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
+}
+
+/// The erased class of getter `getter`'s value if it is `Unit`, `Null` or `Nothing`, which need
+/// no field (dotty's `isErasableBottomField`).
+pub fn bottom(l: &mut Lower, getter: SymbolId) -> Option<Erased> {
+    let info = l.u.info(getter);
+    let erased = l.u.erase(info);
+    matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing).then_some(erased)
+}
+
+/// Whether setter `setter` of class `class` sets a value that needs no field.
+fn is_unit_setter(l: &mut Lower, class: SymbolId, setter: SymbolId) -> bool {
+    let name = l.u.symbol(setter).name.trim_end_matches("_=").to_owned();
+    let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().find(|&g| !is_setter(l, g));
+    getter.is_some_and(|g| bottom(l, g).is_some())
 }
 
 /// `field = x$1` for setter `setter` of class `class`.

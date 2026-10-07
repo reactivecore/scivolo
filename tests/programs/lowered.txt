@@ -28,3 +28,4 @@ caseclasses
 mixins
 extractors
 fieldlambdas
+unitfields

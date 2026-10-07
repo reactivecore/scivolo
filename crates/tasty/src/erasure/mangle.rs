@@ -66,8 +66,8 @@ impl Universe {
         Some(out)
     }
 
-    /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type; a
-    /// type parameter erases to its upper bound.
+    /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also
+    /// boxed for a value; a type parameter erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
         let mut t = self.info(def);
         let mut params = Vec::new();
@@ -96,7 +96,12 @@ impl Universe {
             })
             .collect();
         let t = self.upper_bound(t, &bounds);
-        (params, self.erase(t))
+        match self.erase(t) {
+            Erased::Unit if self.symbol(def).kind == Kind::Val => {
+                (params, Erased::Class("scala.runtime.BoxedUnit".into()))
+            }
+            e => (params, e),
+        }
     }
 
     /// `t` with its type parameters replaced by their upper bounds, given the bounds of the
