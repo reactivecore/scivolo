@@ -50,4 +50,7 @@ fn piped_inputs() {
     let (code, out, _) = repl(INPUT);
     assert_eq!(out, OUTPUT);
     assert_eq!(code, Some(0));
+    let (code, out, _) = repl("val a = 1\nSystem.exit(3)\nprintln(\"not reached\")\n");
+    assert_eq!(out, "val a: Int = 1\n");
+    assert_eq!(code, Some(3));
 }

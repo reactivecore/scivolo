@@ -23,8 +23,9 @@ pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
         true => interactive(&mut session)?,
         false => piped(&mut session),
     }
+    let code = session.exit().unwrap_or(0);
     session.shutdown().map_err(|e| e.to_string())?;
-    Ok(0)
+    Ok(code)
 }
 
 /// Evaluates `input` and prints its output; whether the session goes on.
@@ -32,7 +33,7 @@ fn eval(session: &mut Session, input: &str) -> bool {
     for line in session.eval(input) {
         println!("{line}");
     }
-    !session.quitting()
+    session.exit().is_none()
 }
 
 /// Reads inputs from stdin, each the lines up to the first that completes it.
