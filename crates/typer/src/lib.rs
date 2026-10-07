@@ -71,7 +71,7 @@ impl Units {
             typer.unsupported_at(Span::NONE, what);
         }
         self.0 = std::mem::take(&mut typer.syms);
-        self.0.end_unit();
+        self.0.end_unit(typer.u);
         if let Some((at, what)) = typer.unsupported.take() {
             return Err(Fallback::Unsupported { at, what });
         }

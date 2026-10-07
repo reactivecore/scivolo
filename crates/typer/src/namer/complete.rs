@@ -4,7 +4,7 @@
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::{Pt, Typer};
-use syntax::ast::{NodeId, Tree};
+use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -16,6 +16,9 @@ impl Typer<'_> {
                 self.unsupported(tree, "cyclic reference");
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
+            }
+            _ if self.syms.incomplete.contains(&sym) => {
+                return self.unsupported_at(Span::NONE, "definition left incomplete by a failed unit");
             }
             _ => return,
         };
