@@ -12,7 +12,8 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the references to the parameter fields of class definition `td` in its field
-/// initializers and statements refer to the constructor's parameters of their names; the
+/// initializers, statements and superclass call refer to the constructor's parameters of their
+/// names; the
 /// parameter fields referenced where no constructor parameter can stand for them.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
@@ -40,15 +41,28 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
                     "overridable class parameters selected on this in the constructor",
                 );
             }
-            let Some(param) = params.iter().copied().find(|&p| l.u.symbol(p).name == l.u.symbol(field).name)
-            else {
-                continue;
-            };
-            let ident = l.ident(param, l.tpd.span(t));
-            l.copy_node(t, ident);
+            to_param(l, &params, t, field);
+        }
+    }
+    let Tree::Template { parents, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    for parent in l.tpd.items(parents).to_vec() {
+        for t in subtrees(l.tpd, parent) {
+            if let Some(field) = field_ref(l, class, t) {
+                to_param(l, &params, t, field);
+            }
         }
     }
     Ok(retained)
+}
+
+/// Makes reference `t` to parameter field `field` refer to the constructor parameter of its name
+/// among `params`.
+fn to_param(l: &mut Lower, params: &[SymbolId], t: TNodeId, field: SymbolId) {
+    let Some(param) = params.iter().copied().find(|&p| l.u.symbol(p).name == l.u.symbol(field).name) else {
+        return;
+    };
+    let ident = l.ident(param, l.tpd.span(t));
+    l.copy_node(t, ident);
 }
 
 /// Whether member `s` of class `class` cannot be overridden.
