@@ -1,0 +1,14 @@
+scala> val x = )
+1:9: error: expression expected but ')' found
+
+scala> val i: Int = 12345678901
+1:14: error: number too large
+
+scala> val x: Int = "a"
+-- unsupported: adaptation
+
+scala> val x = 1
+val x: Int = 1
+
+scala> y
+-- unsupported: unresolved name y

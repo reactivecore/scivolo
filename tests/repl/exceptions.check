@@ -1,0 +1,14 @@
+scala> def boom(): Int = throw new IllegalStateException("boom")
+def boom(): Int
+
+scala> boom()
+java.lang.IllegalStateException: boom
+
+scala> val ok = 1
+val ok: Int = 1
+
+scala> val v: Int = boom()
+java.lang.IllegalStateException: boom
+
+scala> ok + 1
+val res1: Int = 2

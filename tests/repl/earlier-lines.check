@@ -1,0 +1,32 @@
+scala> val a = 1
+val a: Int = 1
+
+scala> def twice(x: Int) = 2 * x
+def twice(x: Int): Int
+
+scala> twice(a)
+val res0: Int = 2
+
+scala> twice(res0) + a
+val res1: Int = 5
+
+scala> val a = "now a string"
+val a: String = "now a string"
+
+scala> a.length
+val res2: Int = 12
+
+scala> def twice(s: String) = s + s
+def twice(s: String): String
+
+scala> twice(a)
+val res3: String = "now a stringnow a string"
+
+scala> var n = 1
+var n: Int = 1
+
+scala> n = n + 1
+n: Int = 2
+
+scala> n
+val res4: Int = 2

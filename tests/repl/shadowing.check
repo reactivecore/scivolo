@@ -1,0 +1,47 @@
+scala> type T = Int
+// defined alias type T = Int
+
+scala> val T = 3
+val T: Int = 3
+
+scala> val t: T = T
+val t: T = 3
+
+scala> def o(i: Int) = 1; def o(s: String) = 2
+def o(i: Int): Int
+def o(s: String): Int
+
+scala> o(1) + o("a")
+val res0: Int = 3
+
+scala> def o(b: Boolean) = 3
+def o(b: Boolean): Int
+
+scala> o(true)
+val res1: Int = 3
+
+scala> o(1)
+-- unsupported: adaptation
+
+scala> def f(using i: Int) = i
+def f(using i: Int): Int
+
+scala> implicit val i1: Int = 3
+val i1: Int = 3
+
+scala> f
+val res2: Int = 3
+
+scala> implicit val i1: Int = 4
+val i1: Int = 4
+
+scala> f
+val res3: Int = 4
+
+scala> import scala.math.max
+
+scala> val max = 5
+val max: Int = 5
+
+scala> max
+-- unsupported: overloaded reference

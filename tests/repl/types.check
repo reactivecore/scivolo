@@ -1,0 +1,26 @@
+scala> class C(val n: Int)
+-- unsupported: nested classes
+
+scala> trait T
+-- unsupported: nested classes
+
+scala> object O { val k = 1 }
+-- unsupported: assignments through setters
+
+scala> case class P(x: Int, y: Int)
+-- unsupported: assignments through setters
+
+scala> type I = Int
+// defined alias type I = Int
+
+scala> val i: I = 3
+val i: I = 3
+
+scala> def id[A](x: A): A = x
+def id[A](x: A): A
+
+scala> def g(f: Int => String, xs: (Int, Long)*)(using s: String): Option[String] = None
+def g(f: Int => String, xs: (Int, Long)*)(using s: String): Option[String]
+
+scala> val o: Option[List[Int]] = Some(List(1))
+val o: Option[List[Int]] = Some(List(1))

@@ -1,0 +1,29 @@
+scala> def sum(xs: List[Int]): Int =
+     |   xs.foldLeft(0)(_ + _)
+def sum(xs: List[Int]): Int
+
+scala> sum(List(1, 2, 3))
+val res0: Int = 6
+
+scala> def sign(i: Int): String =
+     |   if i < 0 then "negative"
+     |   else if i == 0 then "zero"
+     |   else "positive"
+def sign(i: Int): String
+
+scala> sign(-3)
+val res1: String = "negative"
+
+scala> val a = 1; val b = 2
+val a: Int = 1
+val b: Int = 2
+
+scala> {
+     |   val c = 3
+     |   def d = c + 1
+     | }
+val c: Int = 3
+def d: Int
+
+scala> d
+val res2: Int = 4
