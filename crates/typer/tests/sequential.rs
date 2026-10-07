@@ -114,6 +114,20 @@ fn definition_left_incomplete_by_a_failed_unit() {
 }
 
 #[test]
+fn deferred_members_of_earlier_units() {
+    let Some(mut u) = universe() else { return };
+    type_lines(&mut u, &["trait T { def a: Int; def b: Int = 1 }", "class C extends T { def a = 2 }"]);
+    let root = u.root();
+    let object = u.decl(root, "rs$line$1$").expect("a lookup");
+    let object = *object.iter().find(|&&c| u.symbol(c).kind == Kind::Class).expect("the module class");
+    let t = u.decl(object, "T").expect("a lookup")[0];
+    let a = u.decl(t, "a").expect("a lookup")[0];
+    let b = u.decl(t, "b").expect("a lookup")[0];
+    assert!(u.is_deferred(a));
+    assert!(!u.is_deferred(b));
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";

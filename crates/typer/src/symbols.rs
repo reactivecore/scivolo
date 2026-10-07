@@ -78,6 +78,7 @@ impl Syms {
             decls: Vec::new(),
             tree: None,
         });
+        u.set_deferred(s, is_term && flags.is(f::DEFERRED));
         self.flags.insert(s, flags);
         s
     }
@@ -86,6 +87,7 @@ impl Syms {
     pub fn set_flags(&mut self, u: &mut Universe, s: SymbolId, flags: FlagSet) {
         let is_term = !is_type_symbol(u, s);
         u.set_flags(s, pickled(flags, is_term));
+        u.set_deferred(s, is_term && flags.is(f::DEFERRED));
         self.flags.insert(s, flags);
     }
 

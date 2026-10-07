@@ -31,6 +31,21 @@ impl Universe {
         self.symbols[sym.0 as usize].flags = flags;
     }
 
+    /// Records whether `sym`, a method or value defined outside TASTy, is abstract.
+    pub fn set_deferred(&mut self, sym: SymbolId, deferred: bool) {
+        if deferred {
+            self.deferred.insert(sym);
+        } else {
+            self.deferred.remove(&sym);
+        }
+    }
+
+    /// Whether `sym` is a method or value defined outside TASTy without a body; `false` for
+    /// the library's symbols, whose bodies `body` gives.
+    pub fn is_deferred(&self, sym: SymbolId) -> bool {
+        self.deferred.contains(&sym)
+    }
+
     /// Removes `sym`, a symbol defined outside TASTy, from the declarations of its owner.
     pub fn unenter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
