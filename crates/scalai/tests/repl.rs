@@ -99,10 +99,11 @@ const SPIN: &str = "def spin(): Unit = while true do ()
 ";
 
 /// The exit code and stdout of `scalai` reading `input` and, once it printed `looping`, getting
-/// `signals` SIGINTs 300 ms apart and reading `rest`.
+/// `signals` SIGINTs 300 ms apart and reading `rest`; `scalai` stops with exit code 124 after
+/// 60 s, and a line other than a definition before `looping` fails at once.
 fn interrupted(input: &str, signals: usize, rest: &str) -> (Option<i32>, String) {
     let mut child = Command::new(env!("CARGO_BIN_EXE_scalai"))
-        .env("SCALAI_TIMEOUT", "300")
+        .env("SCALAI_TIMEOUT", "60")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
@@ -112,8 +113,13 @@ fn interrupted(input: &str, signals: usize, rest: &str) -> (Option<i32>, String)
     stdin.write_all(input.as_bytes()).unwrap();
     let mut stdout = BufReader::new(child.stdout.take().unwrap());
     let mut out = String::new();
-    while !out.contains("looping\n") {
-        assert!(stdout.read_line(&mut out).unwrap() > 0, "{out}");
+    while !out.ends_with("looping\n") {
+        let start = out.len();
+        let read = stdout.read_line(&mut out).unwrap();
+        if read == 0 || !(out[start..].starts_with("def ") || out.ends_with("looping\n")) {
+            let _ = child.kill();
+            panic!("{out}");
+        }
     }
     for _ in 0..signals {
         std::thread::sleep(Duration::from_millis(300));

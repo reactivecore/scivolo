@@ -26,4 +26,5 @@ already counts calls and loop back-edges to preempt (ADR 0003).
   monitors it still holds.
 - A main thread blocked on a contended monitor or in blocking C I/O stops only after the wait,
   one inside a C callback only after the callback returns.
+- During a long CPU-bound C call no SIGINT is polled, not even the second, until the call returns.
 - Background green threads keep running.
