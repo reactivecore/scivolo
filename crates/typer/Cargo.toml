@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+clap.workspace = true
 rustc-hash.workspace = true
 syntax = { path = "../syntax" }
 tasty = { path = "../tasty" }

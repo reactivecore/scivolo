@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+clap.workspace = true
 libimage.workspace = true
 nir.workspace = true
 vm = { path = "../vm" }

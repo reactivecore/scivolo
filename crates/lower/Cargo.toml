@@ -5,6 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
+clap.workspace = true
 nir.workspace = true
 rustc-hash.workspace = true
 syntax = { path = "../syntax" }
