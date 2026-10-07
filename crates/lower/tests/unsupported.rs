@@ -17,7 +17,10 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(x: Int): Long = x.asInstanceOf[Long] }",
         "casts between primitive values or to references",
     ),
-    ("object O { def f(x: Some[Int]): Int = x match { case Some(n) => n } }", "extractor patterns"),
+    (
+        "object O { def f(x: List[Int]): Int = x match { case List(a) => a; case _ => 0 } }",
+        "sequence extractors",
+    ),
     (
         "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
         "interpolations of parts that are not literals",
@@ -25,7 +28,10 @@ const CASES: &[(&str, &str)] = &[
     ("object O { def f() = 3.compare(4) }", "members value classes inherit"),
     ("object O { val f: String => String = s => s }", "lambdas and local methods outside methods"),
     ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
-    ("object O { def f(c: Boolean): Any = if c then 1 else \"s\" }", "branches of different erased classes"),
+    (
+        "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
+        "branches of arrays and other erased classes",
+    ),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
     ("class A(x: String) { println(x); def f = x }", "class parameters used in class body statements"),
     ("object O { val u = () }", "fields of type Unit"),

@@ -59,14 +59,19 @@ impl Translator<'_, '_> {
         }
     }
 
-    /// Replaces the references in `t` to the variables to drop by their initializers.
+    /// Replaces the references in `t` to the variables to drop by their initializers, an
+    /// initializer without span at the reference's.
     fn inline_tree(&mut self, t: TNodeId, drop: &dyn Fn(&Self, SymbolId) -> bool) {
         let mut todo = vec![t];
         while let Some(t) = todo.pop() {
             if let (Tree::Ident { .. }, Some(s)) = (self.l.tpd.tree(t), self.l.tpd.sym(t))
                 && drop(self, s)
             {
+                let span = self.l.tpd.span(t);
                 self.l.copy_node(t, self.initializer[&s]);
+                if !self.l.tpd.span(t).exists() {
+                    self.l.with_span(t, span);
+                }
             }
             todo.extend(children(self.l.tpd, t));
         }
@@ -112,6 +117,14 @@ impl Translator<'_, '_> {
             Tree::Ident { .. } => self.l.tpd.sym(t).is_none_or(|s| {
                 self.l.u.symbol(s).kind != Kind::Def && !has(self.l.u, s, MUTABLE) && !has(self.l.u, s, LAZY)
             }),
+            Tree::Select { qualifier, .. } => {
+                let stable = self.l.tpd.sym(t).is_some_and(|s| {
+                    matches!(self.l.u.symbol(s).kind, Kind::Val | Kind::Param)
+                        && !has(self.l.u, s, MUTABLE)
+                        && !has(self.l.u, s, LAZY)
+                });
+                stable && self.is_pure(qualifier)
+            }
             Tree::TypeApply { fun, .. } if self.l.tpd.sym(fun) == Some(self.l.defs.as_instance_of) => {
                 matches!(*self.l.tpd.tree(fun), Tree::Select { qualifier, .. } if self.is_pure(qualifier))
             }
