@@ -49,7 +49,8 @@ impl<'l, 'a> Gen<'l, 'a> {
         self.jump(cond_l, Vec::new());
         self.at_span(self.l.tpd.span(cond));
         self.label(cond_l, Vec::new());
-        let c = self.gen_expr(cond)?;
+        let endless = self.l.endless_loops.contains(&t);
+        let c = if endless { self.val(nir::Val::True) } else { self.gen_expr(cond)? };
         self.branch(c, body_l, exit_l);
         self.at_span(self.l.tpd.span(body));
         self.label(body_l, Vec::new());
@@ -59,6 +60,10 @@ impl<'l, 'a> Gen<'l, 'a> {
         self.at_span(span.end_pos());
         self.label(exit_l, Vec::new());
         self.m.pos = saved;
+        if endless {
+            let nothing = self.ty(nir::Type::Nothing);
+            return Ok(self.val(nir::Val::Zero(nothing)));
+        }
         Ok(self.val(nir::Val::Unit))
     }
 }

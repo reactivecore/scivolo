@@ -33,3 +33,4 @@ nested
 tryfinally
 namedargs
 superargs
+lazyvals

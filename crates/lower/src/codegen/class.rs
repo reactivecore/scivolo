@@ -31,7 +31,12 @@ impl Gen<'_, '_> {
             DefnKind::Class { parent: Some(self.class_parent(sym)), traits }
         };
         self.defns.push(Defn { name, attrs, pos, kind });
-        self.gen_class_fields(sym, pos);
+        self.gen_lazy_handle_fields(sym, pos);
+        self.gen_lazy_handle_accessors(sym, pos);
+        let Tree::TypeDef { rhs: template, .. } = *self.l.tpd.tree(td) else {
+            unreachable!("a class definition")
+        };
+        self.gen_class_fields(sym, template, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
         let closures = std::mem::take(&mut self.closures);

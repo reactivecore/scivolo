@@ -20,6 +20,7 @@ mod fields;
 mod finally;
 mod interface_bridges;
 mod labels;
+mod lazy_handles;
 mod literal;
 mod method;
 mod modules;
@@ -151,7 +152,10 @@ fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Spa
 impl Gen<'_, '_> {
     /// The position of class or method `s` of this unit, else of class `or`, else none.
     pub fn sym_pos(&mut self, s: SymbolId, or: SymbolId) -> PosId {
-        let span = self.spans.get(&s).or_else(|| self.spans.get(&or)).copied().unwrap_or(Span::NONE);
+        let lazy = self.l.lazy_fields.iter().find(|f| f.accessor == s).map(|f| f.span);
+        let span = lazy
+            .or_else(|| self.spans.get(&s).or_else(|| self.spans.get(&or)).copied())
+            .unwrap_or(Span::NONE);
         self.pos_or(span, self.no_pos)
     }
 

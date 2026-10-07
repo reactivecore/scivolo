@@ -17,15 +17,26 @@ impl Gen<'_, '_> {
         self.l.fields.contains_key(&s)
     }
 
-    /// A `var` for each field of class `c`, in declaration order.
-    pub fn gen_class_fields(&mut self, c: SymbolId, class_pos: PosId) {
+    /// A `var` for each field of class `c` with template `template`, in the order of their
+    /// definitions there, then of declaration.
+    pub fn gen_class_fields(&mut self, c: SymbolId, template: TNodeId, class_pos: PosId) {
         let decls = self.l.u.decls(c).unwrap_or_default();
-        let fields: Vec<SymbolId> = decls.into_iter().filter(|&f| self.is_field(f)).collect();
+        let mut fields: Vec<SymbolId> = decls.into_iter().filter(|&f| self.is_field(f)).collect();
+        let stats = match *self.l.tpd.tree(template) {
+            Tree::Template { body, .. } => self.l.tpd.items(body).to_vec(),
+            _ => Vec::new(),
+        };
+        let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.l.tpd.sym(s)).collect();
+        fields.sort_by_key(|f| defined.iter().position(|d| d == f).unwrap_or(usize::MAX));
         for f in fields {
             let pos = self.sym_pos(f, c);
             let pos = if pos == self.no_pos { class_pos } else { pos };
             let mutable = has(self.l.u, f, MUTABLE);
-            let attrs = if mutable { Vec::new() } else { vec![Attr::Final] };
+            let attrs = match () {
+                _ if self.l.lazy_fields.iter().any(|lazy| lazy.field == f) => vec![Attr::Volatile],
+                _ if mutable => Vec::new(),
+                _ => vec![Attr::Final],
+            };
             let info = self.l.u.info(f);
             let ty = self.gen_type(info);
             let rhs = self.val(Val::Zero(ty));
@@ -54,10 +65,24 @@ impl Gen<'_, '_> {
         Ok(self.emit(Op::Fieldload { ty, obj, name }))
     }
 
-    /// The object holding field `f`: a static object's instance, else `qual` or `this`.
+    /// The address of the field selection `t` (nscplugin's `classFieldRawPtr`).
+    pub fn gen_field_ptr(&mut self, t: TNodeId) -> Result<ValId> {
+        let span = self.l.tpd.span(t);
+        let (Tree::Select { qualifier, .. }, Some(f)) = (self.l.tpd.tree(t).clone(), self.l.tpd.sym(t))
+        else {
+            return unsupported(span, "the address of a value that is not a field");
+        };
+        let obj = self.gen_expr(qualifier)?;
+        let name = self.field_name(f);
+        Ok(self.emit(Op::Field { obj, name }))
+    }
+
+    /// The object holding field `f`: `qual` if a `this`, a static object's instance, else `qual`
+    /// or `this`.
     fn field_owner(&mut self, f: SymbolId, qual: Option<TNodeId>, span: Span) -> Result<ValId> {
         let owner = self.l.u.symbol(f).owner.expect("a field's class");
         match qual {
+            Some(q) if matches!(self.l.tpd.tree(q), Tree::This { .. }) => self.gen_expr(q),
             _ if is_static_module(self.l.u, owner) => Ok(self.gen_module(owner)),
             Some(q) => self.gen_expr(q),
             None => self.this_of(owner, span),

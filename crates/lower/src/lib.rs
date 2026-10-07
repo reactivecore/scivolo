@@ -49,6 +49,10 @@ pub struct Lower<'a> {
     bridges: FxHashSet<SymbolId>,
     /// The extension methods entered for the methods of value classes.
     extensions: FxHashMap<SymbolId, SymbolId>,
+    /// The fields `LazyVals` made for lazy values, in order.
+    lazy_fields: Vec<phases::lazy_vals::LazyField>,
+    /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
+    endless_loops: FxHashSet<TNodeId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -71,6 +75,8 @@ pub fn lower(
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
         extensions: FxHashMap::default(),
+        lazy_fields: Vec::new(),
+        endless_loops: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
