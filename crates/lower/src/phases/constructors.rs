@@ -4,7 +4,7 @@
 
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_param_accessor};
-use super::walk::references;
+use super::initializers::constructor_params;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use tasty::SymbolId;
@@ -53,38 +53,24 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 let field = l.tpd.sym(stat).expect("a field's symbol");
                 let memoized = l.fields.get(&field).is_some_and(|&g| g != field);
                 let at = if memoized { l.tpd.span(rhs) } else { l.tpd.span(stat) };
-                if references(l.tpd, rhs).iter().any(|s| accessors.contains(s)) {
-                    return unsupported(at, "class parameters used in initializers");
-                }
+                let at = if memoized && at.exists() { at.with_point(at.start()) } else { at };
                 let lhs = l.field_ref(field, at);
                 inits.push(assign(l, lhs, rhs, at));
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
             }
-            _ => {
-                if references(l.tpd, stat).iter().any(|s| accessors.contains(s)) {
-                    return unsupported(l.tpd.span(stat), "class parameters used in class body statements");
-                }
-                inits.push(stat);
-            }
+            _ => inits.push(stat),
         }
     }
     let Tree::DefDef { name, paramss, tpt, rhs: None } = *l.tpd.tree(constr) else {
         return unsupported(l.tpd.span(constr), "a constructor with a body");
     };
-    let params: Vec<SymbolId> = l
-        .tpd
-        .clause_items(paramss)
-        .iter()
-        .flat_map(|&c| l.tpd.items(c))
-        .filter(|&&p| matches!(l.tpd.tree(p), Tree::ValDef { .. }))
-        .filter_map(|&p| l.tpd.sym(p))
-        .collect();
-    if accessors.len() != params.len() {
-        return unsupported(l.tpd.span(constr), "class parameters without fields");
-    }
+    let params = constructor_params(l, constr);
     let template_span = l.tpd.span(template);
     let mut stats = Vec::new();
-    for (accessor, param) in accessors.into_iter().zip(params) {
+    for accessor in accessors {
+        let name = &l.u.symbol(accessor).name;
+        let param = params.iter().copied().find(|&p| &l.u.symbol(p).name == name);
+        let param = param.expect("a class parameter's constructor parameter");
         let field = l.fields.iter().find(|&(_, &g)| g == accessor).map(|(&f, _)| f);
         let field = field.expect("a class parameter's field");
         let lhs = l.field_ref(field, template_span);

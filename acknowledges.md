@@ -30,7 +30,7 @@ Apache-2.0. Rust translations of:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding)
   - `Getters`, `Memoize`, `Mixin` (superclass call, trait constructors, forwarders),
-    `Constructors` (constructor body)
+    `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
     (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`

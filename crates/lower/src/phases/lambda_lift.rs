@@ -1,18 +1,21 @@
 //! Lambdas and local methods (dotty's `LambdaLift`): each `{ def $anonfun(ps) = body; closure }`
-//! and each `def f(ps) = body` in a block of a class's methods becomes a private method of the
-//! class taking the captured values first; closures and calls pass them.
+//! and each `def f(ps) = body` in a block of a class's methods, field initializers or statements
+//! becomes a private method of the class taking the captured values first; closures and calls
+//! pass them.
 
 use super::captures::dependencies;
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
+use crate::Lower;
+use crate::Result;
 use crate::symbols::{has, is_module_class, is_static};
-use crate::{Lower, Result, unsupported};
 use tasty::tags::FIELDaccessor;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A function to lift: its definition, the block it is in, its closure if a lambda, the function
-/// it is in, the values it captures, whether it needs `this`.
+/// it is in, the values it captures, whether it needs `this`, whether it is in the constructor
+/// (a field initializer or statement).
 pub struct Function {
     pub def: TNodeId,
     pub block: TNodeId,
@@ -21,6 +24,7 @@ pub struct Function {
     pub parent: Option<usize>,
     pub captured: Vec<SymbolId>,
     pub this: bool,
+    pub ctor: bool,
 }
 
 /// The functions of a class to lift, their methods, the functions in the order their proxies are
@@ -101,18 +105,17 @@ fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
             (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor));
         let first = functions.len();
-        match *l.tpd.tree(stat) {
-            Tree::DefDef { rhs: Some(rhs), .. } if method => {
-                roots.push(rhs);
-                collect(l, rhs, None, &mut functions);
+        let root = match *l.tpd.tree(stat) {
+            Tree::DefDef { rhs: Some(rhs), .. } => rhs,
+            Tree::DefDef { .. } | Tree::TypeDef { .. } => continue,
+            _ => stat,
+        };
+        roots.push(root);
+        collect(l, root, None, &mut functions);
+        if !method {
+            for f in &mut functions[first..] {
+                f.ctor = true;
             }
-            _ => collect(l, stat, None, &mut functions),
-        }
-        if !method && functions.len() > first {
-            return unsupported(
-                l.tpd.span(functions[first].def),
-                "lambdas and local methods outside methods",
-            );
         }
     }
     if functions.is_empty() {
@@ -122,7 +125,7 @@ fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
     let in_class =
         is_static(l.u, class) && (is_module_class(l.u, class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
-        f.this = f.closure.is_none() && in_class;
+        f.this = (f.closure.is_none() || f.ctor) && in_class;
     }
     let (order, direct) = dependencies(l, &mut functions, class, &roots)?;
     let methods = methods(l, class, &functions)?;
@@ -140,6 +143,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
             parent,
             captured: Vec::new(),
             this: false,
+            ctor: false,
         });
         let index = out.len() - 1;
         if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) {
@@ -162,6 +166,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
                             parent,
                             captured: Vec::new(),
                             this: false,
+                            ctor: false,
                         });
                         let index = out.len() - 1;
                         collect(l, rhs, Some(index), out);

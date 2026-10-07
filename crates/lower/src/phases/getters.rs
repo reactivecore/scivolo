@@ -1,6 +1,6 @@
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
-//! value's right-hand side, none for a class parameter's; a private local value stays a field;
-//! an assignment to a variable becomes a call of its setter.
+//! value's right-hand side, none for a class parameter's; a private local value stays a field,
+//! none for a class parameter only the constructor uses; an assignment to a variable becomes a call of its setter.
 
 use super::walk::references;
 use crate::symbols::{has, is_class, is_module, is_trait};
@@ -10,7 +10,9 @@ use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PARAMsetter, PRIVATE};
 use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+/// Makes the values of class definition `td` getters; drops the private parameter fields not in
+/// `retained`.
+pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(()) };
     let stats = l.tpd.items(body).to_vec();
@@ -20,7 +22,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             in_methods.extend(references(l.tpd, rhs));
         }
     }
+    let mut kept = Vec::new();
     for stat in stats {
+        kept.push(stat);
         let Tree::ValDef { name, tpt, rhs } = *l.tpd.tree(stat) else { continue };
         let Some(sym) = l.tpd.sym(stat) else { continue };
         let owner = l.u.symbol(sym).owner;
@@ -42,7 +46,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             return unsupported(span, "fields of type Unit, Null or Nothing");
         }
         if has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) {
-            if !in_methods.contains(&sym) {
+            if is_param_accessor(l, sym) && !retained.contains(&sym) {
+                kept.pop();
+                l.u.unenter(sym);
+                continue;
+            }
+            if !is_param_accessor(l, sym) && !in_methods.contains(&sym) {
                 return unsupported(span, "private values used only in the constructor");
             }
             l.fields.insert(sym, sym);
@@ -53,6 +62,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let paramss = l.tpd.clauses(&[]);
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
     }
+    let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(template) else {
+        unreachable!("a template")
+    };
+    let body = l.tpd.list(&kept);
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
 }
 
