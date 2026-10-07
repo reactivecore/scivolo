@@ -7,30 +7,71 @@ use super::casts::cast;
 use super::walk::children;
 use crate::Lower;
 use crate::symbols::is_module;
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::{Erased, SymbolId};
+use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Rewrites the array and sequence constructions in class definition `td`.
-pub fn transform(l: &mut Lower, td: TNodeId) {
+/// Rewrites the array and sequence constructions in class definitions `classes`; lifted lambdas
+/// and local classes start with the budget left where they are made.
+pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
+    let mut budgets = FxHashMap::default();
+    loop {
+        let known = budgets.clone();
+        for &td in classes {
+            walk(l, td, &mut budgets);
+        }
+        if budgets == known {
+            break;
+        }
+    }
+    for &td in classes {
+        for (t, budget) in walk(l, td, &mut budgets).into_iter().rev() {
+            if let Some(elems) = seq_elems(l, t).filter(|e| budget > 0 || e.is_empty()) {
+                cons(l, t, &elems);
+            } else if let Some(literal) = array_literal(l, t) {
+                l.copy_node(t, literal);
+            }
+        }
+    }
+}
+
+/// The trees of class definition `td` in pre-order, each with the budget left in it; records in
+/// `budgets` the budget where each lambda and local class is made.
+fn walk(l: &Lower, td: TNodeId, budgets: &mut FxHashMap<SymbolId, i32>) -> Vec<(TNodeId, i32)> {
+    let start = l.tpd.sym(td).and_then(|c| budgets.get(&c).copied()).unwrap_or(BUDGET);
     let mut order = Vec::new();
-    let mut todo = vec![(td, 8i32)];
+    let mut todo = vec![(td, start)];
     while let Some((t, budget)) = todo.pop() {
+        let budget = match *l.tpd.tree(t) {
+            Tree::DefDef { .. } => l.tpd.sym(t).and_then(|m| budgets.get(&m).copied()).unwrap_or(budget),
+            _ => budget,
+        };
         let budget = budget - seq_elems(l, t).map_or(0, |e| e.len() as i32);
+        match *l.tpd.tree(t) {
+            Tree::Closure { meth, .. } => {
+                budgets.extend(l.tpd.sym(meth).map(|m| (m, budget)));
+            }
+            Tree::New { tpt } => {
+                if let Type::Sym(_, c) = *l.u.types().get(l.tpd.tpe(tpt))
+                    && l.local_classes.contains(&c)
+                {
+                    budgets.insert(c, budget);
+                }
+            }
+            _ => {}
+        }
         order.push((t, budget));
         let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
         if !nested {
             todo.extend(children(l.tpd, t).into_iter().map(|c| (c, budget)));
         }
     }
-    for (t, budget) in order.into_iter().rev() {
-        if let Some(elems) = seq_elems(l, t).filter(|e| budget > 0 || e.is_empty()) {
-            cons(l, t, &elems);
-        } else if let Some(literal) = array_literal(l, t) {
-            l.copy_node(t, literal);
-        }
-    }
+    order
 }
+
+/// dotty's `transformListApplyBudget`.
+const BUDGET: i32 = 8;
 
 /// The objects whose `apply` builds a list (dotty's `isSeqApply`), and the aliases of `scala`'s
 /// package object.
@@ -77,20 +118,23 @@ fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
     }
 }
 
-/// The array literal `ScalaRunTime.wrapXArray` call `t` wraps.
+/// The array literal a `ScalaRunTime.wrapXArray` call `t` wraps (dotty's `WrapArrayMethods`),
+/// or a `genericWrapArray` call an empty one.
 fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let t = strip_typed(l, t);
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
-    let name = &l.u.symbol(m).name;
-    let wrap = name.starts_with("wrap") && name.ends_with("Array") || name == "genericWrapArray";
-    if !wrap || l.u.full_name(owner) != "scala.runtime.ScalaRunTime$" {
+    if l.u.full_name(owner) != "scala.runtime.ScalaRunTime$" {
         return None;
     }
     let &[literal] = l.tpd.items(args) else { return None };
     let literal = strip_typed(l, literal);
-    matches!(l.tpd.tree(literal), Tree::SeqLiteral { .. }).then_some(literal)
+    let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(literal) else { return None };
+    let name = &l.u.symbol(m).name;
+    let wrap = name.starts_with("wrap") && name.ends_with("Array");
+    let generic = name == "genericWrapArray" && l.tpd.items(elems).is_empty();
+    (wrap || generic).then_some(literal)
 }
 
 fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
@@ -102,7 +146,7 @@ fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
 
 /// `new ::(e1, ... new ::(en, Nil))` for `List(e1, ..., en)` call `t`, cast to its erased result.
 fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) {
-    let defs = l.defs.array_apply;
+    let defs = l.defs.sequences;
     let object = Erased::Class("java.lang.Object".into());
     let mut acc = l.ident(defs.nil, Span::NONE);
     for &e in elems.iter().rev() {

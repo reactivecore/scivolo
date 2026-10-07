@@ -45,7 +45,7 @@ pub struct Definitions {
     pub patmat: Patmat,
     pub case_classes: CaseClasses,
     pub lazy_vals: LazyVals,
-    pub array_apply: Sequences,
+    pub sequences: Sequences,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
     /// `Any.asInstanceOf`.
@@ -99,7 +99,7 @@ impl Definitions {
             patmat: Patmat::new(u, b.any, b.object)?,
             case_classes: CaseClasses::new(u, b.any, b.object, equality.statics)?,
             lazy_vals: LazyVals::new(u, b.object)?,
-            array_apply: Sequences::new(u)?,
+            sequences: Sequences::new(u)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })

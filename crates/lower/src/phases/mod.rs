@@ -75,9 +75,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         specialize::transform(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
-        array_apply::transform(l, td);
         bridges::transform(l, td, &deferred)?;
     }
+    array_apply::transform(l, &classes);
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
     for &td in &classes {
         mixin::transform(l, td, &unit_classes)?;
