@@ -81,7 +81,7 @@ impl Vm {
     }
 
     /// The first concrete definition of `sig` in `cls`'s lookup order.
-    fn resolve(&mut self, cls: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {
+    pub fn resolve(&mut self, cls: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {
         for id in self.lookup_order(cls) {
             if let Some(g) = self.defined(id, sig)? {
                 return Ok(Some(g));
