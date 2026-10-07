@@ -1,5 +1,7 @@
-//! Errors as output lines: `<line>:<col>: error: <message>`, `-- unsupported: <what>`.
+//! Errors as output lines: `<line>:<col>: error: <message>`, `-- unsupported: <what>`,
+//! `-- internal error: <panic>`.
 
+use std::any::Any;
 use syntax::diag::{Diagnostics, Level};
 use syntax::source::{Offset, SourceFile};
 
@@ -18,4 +20,10 @@ fn error(source: &SourceFile, at: Option<Offset>, message: &str) -> String {
 
 pub fn unsupported(what: &str) -> String {
     format!("-- unsupported: {what}")
+}
+
+/// The line for a panic with payload `panic`.
+pub fn internal(panic: &(dyn Any + Send)) -> String {
+    let what = (panic.downcast_ref::<String>().map(String::as_str)).or(panic.downcast_ref::<&str>().copied());
+    format!("-- internal error: {}", what.unwrap_or("panic"))
 }

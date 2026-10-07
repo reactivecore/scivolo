@@ -3,7 +3,6 @@ mod repl;
 mod script;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
-use libimage::Image;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use vm::{Classpath, Vm, VmError};
@@ -84,22 +83,17 @@ fn target_class(target: String, chosen: Option<String>, cp: &mut Vec<PathBuf>) -
     }
 }
 
-/// A VM over `cp` and the library jars, and their image if there is one.
-fn vm(cp: &[PathBuf]) -> Result<(Vm, Option<&'static Image>), String> {
+fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<i32, String> {
     let jars = libs::jars()?;
-    let (classpath, image) = match libs::image(&jars).and_then(|i| Ok((Classpath::with_image(cp, i)?, i))) {
-        Ok((c, image)) => (c, Some(image)),
+    let classpath = match libs::image(&jars).and_then(|image| Classpath::with_image(&cp, image)) {
+        Ok(c) => c,
         Err(e) => {
             eprintln!("scalai: no library image ({e}); reading the jars");
-            let all: Vec<PathBuf> = cp.iter().cloned().chain(jars).collect();
-            (Classpath::open(&all).map_err(|e| e.to_string())?, None)
+            cp.extend(jars);
+            Classpath::open(&cp).map_err(|e| e.to_string())?
         }
     };
-    Ok((Vm::new(classpath).map_err(|e| e.to_string())?, image))
-}
-
-fn run(cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<i32, String> {
-    let (mut vm, _) = vm(&cp)?;
+    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let result = vm.run_main(main_class, args);
     if std::env::var_os("SCALAI_PROFILE").is_some() {
         for (calls, name) in vm.profile_report(30) {
