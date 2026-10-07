@@ -42,6 +42,8 @@ Apache-2.0. Rust translations of:
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
+- `crates/tasty/src/types/show_user`: `printing/{ReplPrinter,RefinedPrinter,PlainPrinter}`
+  (types and `dclText` as the REPL shows them).
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 compiler and NIR
 
