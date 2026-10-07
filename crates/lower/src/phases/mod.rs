@@ -2,6 +2,7 @@
 
 pub(crate) mod adapt;
 mod adapted;
+mod array_apply;
 mod bridges;
 mod build;
 mod by_name;
@@ -74,6 +75,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         specialize::transform(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
+        array_apply::transform(l, td);
         bridges::transform(l, td, &deferred)?;
     }
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
