@@ -33,6 +33,16 @@ object Cleanup:
       sum
     finally log += "l"
 
+  def fail(m: String): Nothing = throw IllegalArgumentException(m)
+
+  def guarded(n: Int): Int =
+    val x =
+      try
+        if n < 0 then fail("negative")
+        n
+      finally log += "g"
+    x + log.length
+
   def nested(): String =
     try
       try "inner"
@@ -49,4 +59,7 @@ object Cleanup:
   println(Cleanup.early(-1))
   println(Cleanup.loop(4))
   println(Cleanup.nested())
+  println(Cleanup.guarded(1))
+  try Cleanup.guarded(-1)
+  catch case e: IllegalArgumentException => println(e.getMessage)
   println(Cleanup.log)

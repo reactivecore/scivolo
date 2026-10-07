@@ -18,7 +18,7 @@ impl Gen<'_, '_> {
             .filter_map(|i| if let Inst::Label(l, _) = i { Some(*l) } else { None })
             .collect();
         let mut kept = Vec::new();
-        let (result, finalies) = self.nested(|g| -> Result<()> {
+        let (result, finalizers) = self.nested(|g| -> Result<()> {
             for (inst, pos) in insts.insts.into_iter().zip(insts.positions) {
                 if matches!(inst, Inst::Label(..) | Inst::Let { .. }) || is_internal(&inst, &labels) {
                     kept.push((inst, pos));
@@ -37,13 +37,7 @@ impl Gen<'_, '_> {
             Ok(())
         });
         result?;
-        let ((), out) = self.nested(|g| {
-            for (inst, pos) in kept {
-                g.push(inst, pos);
-            }
-            g.append(finalies);
-        });
-        Ok(out)
+        Ok(Buf::concat(kept, finalizers))
     }
 }
 
