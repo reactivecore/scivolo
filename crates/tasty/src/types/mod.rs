@@ -4,6 +4,7 @@
 mod decode;
 mod map;
 mod show;
+mod show_user;
 mod widen;
 
 use crate::{FileId, SymbolId};
