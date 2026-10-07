@@ -29,5 +29,12 @@ inputs are not plain Scala: `collectionClassName` is private to package `scala`,
 - A walker in Rust would have to call `toString`, `iterator` and the product methods through
   the interpreter one by one and copy pprint's logic in another language; the Scala port stays
   a near line-by-line copy of pprint.
-- A value whose printing throws shows `scalai.repl.Show` frames in its trace, where dotty shows
-  pprint's and its reflection frames.
+- Deliberate differences from dotty:
+  - a trace thrown while printing stops at the first `scalai.repl` frame and counts the rest as
+    elided, where dotty shows pprint's and its reflection frames;
+  - `hasUserToString` only reads the compiled body, where dotty first asks the class's symbol:
+    a written `toString = ScalaRunTime._toString(this)` counts as synthesized;
+  - ANSI escapes in a `toString` are printed as they are and count towards the width, where
+    fansi parses them out;
+  - a `$COLUMNS` that is not a positive number gives 80, where dotty fails to start or takes
+    it as the width.

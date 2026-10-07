@@ -1,0 +1,228 @@
+scala> val someLongName: List[String] = List("aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc", "dddddddddd")
+val someLongName: List[String] = List(
+  "aaaaaaaaaa",
+  "bbbbbbbbbb",
+  "cccccccccc",
+  "dddddddddd"
+)
+
+scala> val short: List[String] = List("aaaaaaaaaa", "bbbbbbbbbb", "cccccccccc", "ddddd")
+val short: List[String] = List(
+  "aaaaaaaaaa",
+  "bbbbbbbbbb",
+  "cccccccccc",
+  "ddddd"
+)
+
+scala> val nested = List(List("aaaaaaaaaa", "bbbbbbbbbb"), List("cccccccccc", "dddddddddd", "eeeeeeeeee", "ffffffffff"))
+val nested: List[List[String]] = List(
+  List("aaaaaaaaaa", "bbbbbbbbbb"),
+  List("cccccccccc", "dddddddddd", "eeeeeeeeee", "ffffffffff")
+)
+
+scala> val wideOffsetName: Map[String, String] = Map(("aaaaaaaaaaaa", "bbbbbbbbbbbbbb"), ("cccccccccccc", "dddddddddd"))
+val wideOffsetName: Map[String, String] = Map(
+  "aaaaaaaaaaaa" -> "bbbbbbbbbbbbbb",
+  "cccccccccccc" -> "dddddddddd"
+)
+
+scala> Vector.fill(3)(Map((1, "a")))
+val res0: Vector[Map[Int, String]] = Vector(
+  Map(1 -> "a"),
+  Map(1 -> "a"),
+  Map(1 -> "a")
+)
+
+scala> Map((1, Map(("k", List("aaaaaaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbbbbbb", "cccccccccccccccccccc")))))
+val res1: Map[Int, Map[String, List[String]]] = Map(
+  1 -> Map(
+    "k" -> List(
+      "aaaaaaaaaaaaaaaaaaaa",
+      "bbbbbbbbbbbbbbbbbbbbbbbb",
+      "cccccccccccccccccccc"
+    )
+  )
+)
+
+scala> case class Doc(title: String, body: String)
+// defined case class Doc
+
+scala> Doc("t", "line one\nline two")
+val res2: Doc = Doc(
+  title = "t",
+  body = """line one
+line two"""
+)
+
+scala> case class Holder(name: String, items: List[String])
+// defined case class Holder
+
+scala> Holder("h", List("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbb", "cccccccccccccccccc", "dddddddddddddd"))
+val res3: Holder = Holder(
+  name = "h",
+  items = List(
+    "aaaaaaaaaaaaaaaa",
+    "bbbbbbbbbbbbbbbbbbb",
+    "cccccccccccccccccc",
+    "dddddddddddddd"
+  )
+)
+
+scala> case class Deep(a: List[Int], b: Map[Int, List[String]])
+// defined case class Deep
+
+scala> Deep(List.range(0, 30), Map((1, List("xxxxxxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyyyyyyyy"))))
+val res4: Deep = Deep(
+  a = List(
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29
+  ),
+  b = Map(1 -> List("xxxxxxxxxxxxxxxxxxxx", "yyyyyyyyyyyyyyyyyyyyyy"))
+)
+
+scala> List("x" * 100)
+val res5: List[String] = List(
+  "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+)
+
+scala> "y" * 200
+val res6: String = "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+
+scala> Option.empty[Int]
+val res7: Option[Int] = None
+
+scala> val u = List("äöü", "日本語", "😀")
+val u: List[String] = List("äöü", "日本語", "😀")
+
+scala> 'é'
+val res8: Char = 'é'
+
+scala> "tab\u0001ctl"
+val res9: String = "tab\u0001ctl"
+
+scala> List("😀" * 30, "x")
+val res10: List[String] = List(
+  "😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀",
+  "x"
+)
+
+scala> scala.util.Success(1)
+val res11: util.Success[Int] = Success(1)
+
+scala> scala.util.Try(1 / 0)
+val res12: util.Try[Int] = Failure(java.lang.ArithmeticException: / by zero)
+
+scala> scala.concurrent.duration.Duration(1, "s")
+val res13: concurrent.duration.FiniteDuration = 1 second
+
+scala> Some(Some(1))
+val res14: Some[Some[Int]] = Some(Some(1))
+
+scala> Some(null)
+val res15: Some[Null] = Some(null)
+
+scala> new RuntimeException("x")
+val res16: RuntimeException = java.lang.RuntimeException: x
+
+scala> List((1, "a"), (2, "b"))
+val res17: List[(Int, String)] = List((1, "a"), (2, "b"))
+
+scala> trait Pretty { override def toString = "pretty" }
+     | case class Q(a: Int, b: Int) extends Pretty
+// defined trait Pretty
+// defined case class Q
+
+scala> Q(1, 2)
+val res18: Q = pretty
+
+scala> class NullStr { override def toString = null }
+// defined class NullStr
+
+scala> new NullStr
+val res19: NullStr = null
+
+scala> List(new NullStr)
+val res20: List[NullStr] = List(null)
+
+scala> LazyList.from(1).take(10).toList
+val res21: List[Int] = List(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+
+scala> 1 to Int.MaxValue
+val res22: collection.immutable.Range.Inclusive = Range(
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+...

@@ -1,12 +1,15 @@
 //! An uncaught exception as dotty's `StackTraceOps` prints it: its header, then its frames up to
-//! the initialization of a wrapper object.
+//! the initialization of a wrapper object or the value printer.
 
 use crate::line_names::PREFIX;
 use vm::{Frame, Thrown};
 
+/// The package of the value printer in the overlay.
+const PRINTER: &str = "scalai.repl.";
+
 /// The lines printed for `t`.
 pub fn lines(t: &Thrown) -> Vec<String> {
-    let shown = t.frames.iter().take_while(|f| !wrapper_init(f)).count();
+    let shown = t.frames.iter().take_while(|f| !wrapper_init(f) && !f.class.starts_with(PRINTER)).count();
     let mut out = vec![t.header.clone()];
     out.extend(t.frames[..shown].iter().map(|f| format!("  at {}", element(f))));
     if shown < t.frames.len() {
@@ -49,6 +52,16 @@ mod tests {
             lines(&t),
             ["E", "  at rs$line$2$.f(rs$line$2:1)", "  at Lib.g(null:-1)", "  ... 2 elided"]
         );
+    }
+
+    #[test]
+    fn cuts_at_the_value_printer() {
+        let t = thrown(vec![
+            frame("rs$line$2$C", "toString", Some("rs$line$2"), 1),
+            frame("scalai.repl.Renderer", "rec", Some("Renderer.scala"), 9),
+            frame("scalai.repl.Show$", "apply", Some("Show.scala"), 9),
+        ]);
+        assert_eq!(lines(&t), ["E", "  at rs$line$2$C.toString(rs$line$2:1)", "  ... 2 elided"]);
     }
 
     #[test]

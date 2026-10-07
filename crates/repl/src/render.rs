@@ -90,7 +90,7 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
 pub fn line(vm: &mut Vm, module: &str, d: &Definition, width: i32) -> Result<String, VmError> {
     let Some(method) = &d.show else { return Ok(d.text.clone()) };
     let prefix = format!("{} = ", d.text);
-    let offset = prefix.lines().last().unwrap_or_default().chars().count() as i32;
+    let offset = prefix.lines().last().unwrap_or_default().encode_utf16().count() as i32;
     let shown = vm.show_value(module, method, [width, HEIGHT, offset])?;
     Ok(format!("{prefix}{}", strip_wrapper(&shown)))
 }

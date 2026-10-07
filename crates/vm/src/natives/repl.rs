@@ -3,7 +3,7 @@
 use super::NativeFn;
 use crate::Vm;
 use crate::interp::Flow;
-use nir::{DefnKind, Inst, Op, StrId};
+use nir::{DefnKind, Inst, Local, Op, Pool, StrId, Val, ValId};
 
 const SHOW: &str = "scalai.repl.Show$";
 const TO_STRING: &str = "D8toStringL16java.lang.StringEO";
@@ -34,19 +34,28 @@ fn has_user_to_string(vm: &mut Vm, args: &[u64]) -> Flow {
     }
     let defn = vm.world.defn(g)?;
     let DefnKind::Define { body, .. } = &defn.kind else { return Ok(1) };
-    let lets = body.insts.iter().filter_map(|i| match i {
-        Inst::Let { op: Op::As { .. }, .. } => None,
-        Inst::Let { op, .. } => Some(op),
-        _ => None,
-    });
-    let ops: Vec<&Op> = lets.collect();
-    let pool = &vm.world.pool;
-    let synthesized = matches!(
+    Ok(!synthesized(&vm.world.pool, &body.insts) as u64)
+}
+
+/// Whether `insts` only return `ScalaRunTime._toString(this)`, `this` cast or not.
+fn synthesized(pool: &Pool, insts: &[Inst]) -> bool {
+    let [Inst::Label(_, params), lets @ .., Inst::Ret(_)] = insts else { return false };
+    let Some(this) = params.first() else { return false };
+    let is_this = |v: ValId, this: &[Local]| matches!(pool.val(v), Val::Local(l, _) if this.contains(l));
+    let (mut this, mut ops) = (vec![this.id], Vec::new());
+    for i in lets {
+        match i {
+            Inst::Let { id, op: Op::As { obj, .. }, .. } if is_this(*obj, &this) => this.push(*id),
+            Inst::Let { op, .. } => ops.push(op),
+            _ => return false,
+        }
+    }
+    matches!(
         ops.as_slice(),
-        [Op::Module(m), Op::Method { sig, .. }, Op::Call { .. }]
+        [Op::Module(m), Op::Method { sig, .. }, Op::Call { args, .. }]
             if pool.top_name(*m) == SCALA_RUN_TIME && pool.str(*sig) == RUNTIME_TO_STRING
-    );
-    Ok(!synthesized as u64)
+                && args.last().is_some_and(|&a| is_this(a, &this))
+    )
 }
 
 /// `Show.collectionName(x)`: `x.collectionClassName`, which is private to package `scala`.

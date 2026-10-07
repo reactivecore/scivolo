@@ -29,15 +29,14 @@ java.lang.IllegalStateException: boom
   at rs$line$6$.outer(rs$line$6:1)
   ... 1 elided
 
-scala> val unshowable = new scala.collection.immutable.ArraySeq.ofInt(null)
-java.lang.NullPointerException
-  at java.lang.reflect.Array$.getLength(Array.scala:63)
-  at java.lang.reflect.Array.getLength(Array.scala:60)
-  at scala.runtime.ScalaRunTime$.array_length(ScalaRunTime.scala:110)
-  at scala.collection.ArrayOps$ArrayIterator.<init>(ArrayOps.scala:126)
-  at scala.collection.immutable.ArraySeq$ofInt.iterator(ArraySeq.scala:514)
-  at scalai.repl.Show$.treeify(Show.scala:66)
-  at scalai.repl.Show$.apply(Show.scala:19)
+scala> class Bad { override def toString = throw new RuntimeException("boom") }
+// defined class Bad
+
+scala> new Bad
+java.lang.RuntimeException: boom
+  at rs$line$8$Bad.toString(rs$line$8:1)
+  at rs$line$8$Bad.toString(rs$line$8:1)
+  ... 4 elided
 
 scala> ???
 scala.NotImplementedError: an implementation is missing
