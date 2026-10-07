@@ -44,6 +44,25 @@ impl Vm {
         self.run_main_thread(move |vm| vm.module(top).map(drop))
     }
 
+    /// What the no-argument method `method` of module `module`, returning a `java.lang.String`,
+    /// returns.
+    pub fn call_string(&mut self, module: &str, method: &str) -> Result<String, VmError> {
+        let top = self.world.top(module);
+        let mut sig = String::from("D");
+        nir::sig::ident(&mut sig, method);
+        sig.push_str("L16java.lang.StringEO");
+        let f = self.world.member(top, &sig);
+        let out = Rc::new(Cell::new(String::new()));
+        let result = out.clone();
+        self.run_main_thread(move |vm| {
+            let obj = vm.module(top)? as u64;
+            let s = vm.call_global(f, &[obj])?;
+            result.set(vm.read_string(s as usize)?);
+            Ok(())
+        })?;
+        Ok(out.take())
+    }
+
     /// What the no-argument method `method` of module `module`, returning a `java.lang.Object`,
     /// returns, as the REPL prints it: `scalai.repl.Show(value, width, height, offset)`.
     pub fn show_value(
