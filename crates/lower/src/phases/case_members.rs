@@ -134,7 +134,8 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>) -> TNodeId {
 /// The values the parameters of case class `class` define, in order (dotty's `caseAccessors`).
 pub fn case_accessors(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let decls = l.u.decls(class).unwrap_or_default();
-    decls.into_iter().filter(|&d| l.u.symbol(d).kind == Kind::Val && has(l.u, d, CASEaccessor)).collect()
+    let value = |l: &Lower, d| matches!(l.u.symbol(d).kind, Kind::Val | Kind::Param);
+    decls.into_iter().filter(|&d| value(l, d) && has(l.u, d, CASEaccessor)).collect()
 }
 
 /// The name of `class` without the `$` of an object's class.

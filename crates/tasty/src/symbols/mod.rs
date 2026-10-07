@@ -35,6 +35,8 @@ pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 struct Loaded {
     ast: Ast,
     names: Vec<String>,
+    /// Whether the file is of the Scala 2 standard library (`SCALA2STANDARDLIBRARY`).
+    scala2: bool,
 }
 
 pub struct Universe {
@@ -107,6 +109,11 @@ impl Universe {
     pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
         let f = &self.files[file.0 as usize];
         (&f.ast, &f.names)
+    }
+
+    /// Whether `s` comes from the Scala 2 standard library (dotty's `Scala2x` flag).
+    pub fn is_scala2(&self, s: SymbolId) -> bool {
+        self.symbol(s).tree.is_some_and(|(file, _)| self.files[file.0 as usize].scala2)
     }
 
     /// The arena of the types decoded so far.

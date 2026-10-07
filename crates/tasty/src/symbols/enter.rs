@@ -23,11 +23,13 @@ impl Universe {
         };
         let ast = Ast::parse(section.bytes).map_err(corrupt)?;
         let names: Vec<String> = tasty.names.iter().map(|(r, _)| tasty.names.show(r)).collect();
+        let attributes = tasty.attributes().map_err(corrupt)?;
+        let scala2 = attributes.iter().any(|a| matches!(a, crate::Attribute::Flag(1)));
         let src = Source { file: FileId(self.files.len() as u32), ast: &ast, names: &names };
         for &root in ast.roots() {
             self.enter_stat(&src, root, self.root());
         }
-        self.files.push(Loaded { ast, names });
+        self.files.push(Loaded { ast, names, scala2 });
         Ok(())
     }
 

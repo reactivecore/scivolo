@@ -106,7 +106,10 @@ impl Gen<'_, '_> {
             self.gen_module(sym)
         } else if self.is_field(sym) {
             self.gen_field_load(t, sym, Some(qual))?
-        } else if self.l.u.symbol(sym).kind == tasty::Kind::Def || has(self.l.u, sym, FIELDaccessor) {
+        } else if self.l.u.symbol(sym).kind == tasty::Kind::Def
+            || has(self.l.u, sym, FIELDaccessor)
+            || self.l.u.symbol(sym).tree.is_some()
+        {
             self.gen_apply_method(sym, false, super::apply::Receiver::Tree(qual), &[], span)?
         } else {
             return unsupported(span, "a selection of a value that is not a field");

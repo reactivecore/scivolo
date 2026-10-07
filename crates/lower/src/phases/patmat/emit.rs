@@ -89,6 +89,11 @@ impl Translator<'_, '_> {
             Test::Guard => scrutinee,
             Test::Equal(tree) => self.l.equal(tree, scrutinee),
             Test::Type(tpt) => self.type_test(scrutinee, tpt),
+            Test::NonNull => {
+                let null = self.l.null_literal(Span::NONE);
+                self.l.call(scrutinee, self.l.defs.patmat.ne, &[null])
+            }
+            Test::NonEmpty => self.non_empty(scrutinee),
         };
         self.l.with_span(cond, span)
     }

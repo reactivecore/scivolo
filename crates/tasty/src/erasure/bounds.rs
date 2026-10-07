@@ -60,13 +60,16 @@ impl Universe {
 
     /// The erasure of `a | b`: the other side for `Nothing`, and for `Null` beside a reference;
     /// one side if both erase alike; an array of the joined elements; the closest common base
-    /// class; else `Object`.
+    /// class of the erased sides; else `Object`.
     pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
         let (ea, eb) = (self.erase(a), self.erase(b));
-        if let (Erased::Class(_), Erased::Class(_)) = (&ea, &eb)
+        if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
             && ea != eb
-            && let (Some(ca), Some(cb)) = (self.erased_class(a), self.erased_class(b))
         {
+            let (ra, rb) = (self.class_ref(na), self.class_ref(nb));
+            let (Some(ca), Some(cb)) = (self.class_symbol(ra), self.class_symbol(rb)) else {
+                return object();
+            };
             return match self.common_base(ca, cb) {
                 Some(base) => {
                     let base = self.intern_type(Type::Sym(None, base));
@@ -78,30 +81,30 @@ impl Universe {
         lub(ea, eb)
     }
 
-    /// The common base of `a` and `b` in dotty's `erasedLub`: of the bases of `a` that `b`
-    /// derives from, up to the first class, the last one no other of them derives from, every
-    /// one deriving from `Object` (Java interfaces too, as in dotty).
+    /// The common base of `a` and `b` in dotty's `erasedLub`: of the bases of `a` but `Pure` that
+    /// `b` derives from, up to and including the first trait, the last one no other of them
+    /// derives from.
     fn common_base(&mut self, a: SymbolId, b: SymbolId) -> Option<SymbolId> {
         let mut candidates = Vec::new();
         for base in self.linearization(a) {
-            if self.derives_from(b, base) {
+            if self.full_name(base) != "scala.caps.Pure" && self.derives_from(b, base) {
                 candidates.push(base);
-                if !self.symbol(base).flags.has(TRAIT) {
+                if self.symbol(base).flags.has(TRAIT) {
                     break;
                 }
             }
         }
-        let derives = |u: &mut Self, x: SymbolId, c: SymbolId| {
-            u.derives_from(x, c) || u.full_name(c) == "java.lang.Object"
-        };
-        let minimal = candidates
-            .iter()
-            .copied()
-            .filter(|&c| candidates.iter().all(|&x| x == c || !derives(self, x, c)))
-            .collect::<Vec<_>>();
+        let mut minimal = Vec::new();
+        for &c in &candidates {
+            if self.full_name(c) != "scala.*:"
+                && candidates.iter().all(|&x| x == c || !self.derives_from(x, c))
+            {
+                minimal.push(c);
+            }
+        }
         let base = *minimal.last()?;
         let full = self.full_name(base);
-        (!matches!(full.as_str(), "scala.Any" | "scala.AnyVal" | "scala.*:")).then_some(base)
+        (!matches!(full.as_str(), "scala.Any" | "scala.AnyVal")).then_some(base)
     }
 
     /// The class `t` erases to: its class, a value class unwrapped to its underlying type's.

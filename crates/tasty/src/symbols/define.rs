@@ -38,8 +38,10 @@ impl Universe {
         }
     }
 
-    /// Makes `owner` the owner of `sym`, a symbol defined outside TASTy.
+    /// Makes `owner` the owner of `sym`, a local symbol defined outside TASTy: no longer a
+    /// declaration of its former owner.
     pub fn set_owner(&mut self, sym: SymbolId, owner: SymbolId) {
+        self.unenter(sym);
         self.symbols[sym.0 as usize].owner = Some(owner);
     }
 

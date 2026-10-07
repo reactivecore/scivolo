@@ -3,7 +3,9 @@
 //! trees (`emit.rs`).
 
 mod emit;
+mod extractors;
 mod inline;
+mod members;
 mod merge;
 mod plan;
 mod switch;
@@ -55,6 +57,8 @@ pub struct Translator<'t, 'a> {
     initializer: FxHashMap<SymbolId, TNodeId>,
     spans: FxHashMap<SymbolId, Span>,
     generated: FxHashSet<SymbolId>,
+    /// The variables known not to be null: those of type patterns.
+    non_null: FxHashSet<SymbolId>,
     owner: SymbolId,
     result_label: SymbolId,
 }
@@ -67,6 +71,7 @@ impl<'t, 'a> Translator<'t, 'a> {
             initializer: FxHashMap::default(),
             spans: FxHashMap::default(),
             generated: FxHashSet::default(),
+            non_null: FxHashSet::default(),
             owner,
             result_label: owner,
         };

@@ -73,7 +73,9 @@ impl Translator<'_, '_> {
         };
         let tests = match (t1, t2) {
             (Test::Equal(a), Test::Equal(b)) => same(self.l.tpd, a, b),
-            (Test::Guard, Test::Guard) => true,
+            (Test::Guard, Test::Guard)
+            | (Test::NonNull, Test::NonNull)
+            | (Test::NonEmpty, Test::NonEmpty) => true,
             (Test::Type(a), Test::Type(b)) => {
                 let (a, b) = (self.l.tpd.tpe(a), self.l.tpd.tpe(b));
                 self.l.u.dealias(a) == self.l.u.dealias(b) || self.same_class(a, b)

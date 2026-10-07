@@ -52,6 +52,10 @@ pub enum Test {
     Guard,
     /// `scrutinee.$isInstanceOf[tpt]`.
     Type(TNodeId),
+    /// `scrutinee ne null`.
+    NonNull,
+    /// `!scrutinee.isEmpty`.
+    NonEmpty,
 }
 
 impl Translator<'_, '_> {
@@ -113,7 +117,7 @@ impl Translator<'_, '_> {
     }
 
     /// The plan matching the value of `scrutinee` against `pat`, then `on_success`.
-    fn pattern_plan(&mut self, scrutinee: SymbolId, pat: TNodeId, on_success: PlanId) -> Result<PlanId> {
+    pub fn pattern_plan(&mut self, scrutinee: SymbolId, pat: TNodeId, on_success: PlanId) -> Result<PlanId> {
         let span = self.l.tpd.span(pat);
         let pat = self.swap_bind(pat);
         match *self.l.tpd.tree(pat) {
@@ -124,12 +128,16 @@ impl Translator<'_, '_> {
                 }
                 let value = self.l.ident(scrutinee, Span::NONE);
                 let cast = self.cast(value, target);
-                let body =
-                    self.let_abstract(cast, None, |t, casted| t.pattern_plan(casted, inner, on_success))?;
+                let body = self.let_abstract(cast, None, |t, casted| {
+                    t.non_null.insert(casted);
+                    t.pattern_plan(casted, inner, on_success)
+                })?;
                 let scrutinee = self.l.ident(scrutinee, Span::NONE);
                 Ok(self.add(Plan::Test { test: Test::Type(tpt), scrutinee, span, on_success: body }))
             }
-            Tree::UnApply { .. } => unsupported(span, "extractor patterns"),
+            Tree::UnApply { fun, implicits, patterns } => {
+                self.unapply_pattern_plan(scrutinee, pat, (fun, implicits, patterns), on_success)
+            }
             Tree::SeqLiteral { .. } => unsupported(span, "sequence patterns"),
             Tree::Bind { name, body } if self.l.names.text(name.name) == "_" => {
                 self.pattern_plan(scrutinee, body, on_success)

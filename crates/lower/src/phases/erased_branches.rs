@@ -44,7 +44,7 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
 }
 
 /// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected,
-/// `t` then of their common erased class; else against the erasure of `t`'s type.
+/// `t` then of the erased lub of their classes; else against the erasure of `t`'s type.
 pub fn typed_branches(
     l: &mut Lower,
     t: TNodeId,
@@ -68,13 +68,23 @@ pub fn typed_branches(
                 classes.push(e);
             }
         }
-        match classes.as_slice() {
-            [] => {}
-            [Erased::Class(name)] => {
-                let tpe = l.u.class_ref(name);
-                l.tpd.get_mut(t).tpe = Some(tpe);
-            }
-            _ => return unsupported(l.tpd.span(t), "branches of different erased classes"),
+        let mut lub: Option<tasty::TypeId> = None;
+        for class in &classes {
+            let Erased::Class(name) = class else {
+                return unsupported(l.tpd.span(t), "branches of arrays and other erased classes");
+            };
+            let tpe = l.u.class_ref(name);
+            lub = Some(match lub {
+                Some(acc) => {
+                    let union = l.u.intern_type(tasty::Type::Or(acc, tpe));
+                    let Erased::Class(name) = l.u.erase(union) else { unreachable!("a class lub") };
+                    l.u.class_ref(&name)
+                }
+                None => tpe,
+            });
+        }
+        if let Some(lub) = lub {
+            l.tpd.get_mut(t).tpe = Some(lub);
         }
     }
     Ok(out)
