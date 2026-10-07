@@ -1,9 +1,8 @@
 //! The singleton types a type consists of (dotty's `Atoms`), and comparisons decided by them
 //! (`compareAtoms`).
 //! Not modelled: the object as atom of its module class, the bounds of binder-bound type
-//! parameters and of applications of abstract constructors, match type reduction, the declared
-//! bound of a type variable without instance (its atoms are unknown), `Nothing` as a union part
-//! other than itself or an alias.
+//! parameters, match type reduction, the declared bound of a type variable without instance
+//! (its atoms are unknown), `Nothing` as a union part other than itself or an alias.
 
 use super::refs::Meaning;
 use super::{Cmp, MAX_DEPTH};
@@ -98,6 +97,13 @@ impl Cmp<'_> {
             _ if self.is_singleton(t) => self.singleton_atoms(t, depth),
             Type::TypeRef(..) | Type::Sym(..) => match self.named(t)?.meaning {
                 Meaning::Abstract(_, hi) => Some(self.atoms_at(hi, depth)?.upper()),
+                _ => None,
+            },
+            Type::Applied(tycon, args) => match self.named(tycon)?.meaning {
+                Meaning::Abstract(_, hi) => {
+                    let upper = self.apply(hi, &args);
+                    Some(self.atoms_at(upper, depth)?.upper())
+                }
                 _ => None,
             },
             _ => None,

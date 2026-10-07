@@ -54,7 +54,8 @@ impl Cmp<'_> {
     /// `underlying`), or `a` widened.
     fn below_singleton(&mut self, a: TypeId, b: TypeId) -> bool {
         let path = matches!(self.u.types().get(b), Type::TermRef(..) | Type::This(_) | Type::Sym(..));
-        if path && (self.compare_atoms(a, b, true) == Some(true) || self.same_path(a, b)) {
+        let atom = path && self.is_singleton(b) && self.compare_atoms(a, b, true) == Some(true);
+        if atom || path && self.same_path(a, b) {
             return true;
         }
         if path
