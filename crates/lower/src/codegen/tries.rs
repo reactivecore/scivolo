@@ -24,10 +24,7 @@ impl<'l, 'a> Gen<'l, 'a> {
         finalizer: Option<TNodeId>,
     ) -> Result<ValId> {
         let cases = self.l.tpd.items(cases).to_vec();
-        if finalizer.is_some() {
-            return unsupported(self.l.tpd.span(t), "`finally`");
-        }
-        if cases.is_empty() {
+        if cases.is_empty() && finalizer.is_none() {
             return self.gen_expr(expr);
         }
         let retty = self.gen_type(self.l.tpd.tpe(t));
@@ -49,12 +46,16 @@ impl<'l, 'a> Gen<'l, 'a> {
             let scope = g.enter_scope(pos);
             g.label(handler, vec![Param { id: exc, ty: throwable }]);
             let exc = g.val(Val::Local(exc, throwable));
-            let v = g.catches(retty, exc, merge, &cases)?;
+            let v = g.catches(retty, exc, merge, &cases, pos)?;
             g.jump_exclude_unit(retty, merge, v)?;
             g.m.scope = scope;
             Ok(())
         });
         result?;
+        let insts = match finalizer {
+            Some(f) => self.with_finally(f, insts)?,
+            None => insts,
+        };
         self.jump(normal, Vec::new());
         self.append(insts);
         let v = self.label_exclude_unit(merge, merge_v, retty);
@@ -89,24 +90,43 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     /// The cases in turn: a type test, the body if it holds, the remaining cases if not, a
     /// rethrow after the last.
-    fn catches(&mut self, retty: TypeId, exc: ValId, merge: Local, cases: &[Case]) -> Result<ValId> {
+    fn catches(
+        &mut self,
+        retty: TypeId,
+        exc: ValId,
+        merge: Local,
+        cases: &[Case],
+        at: PosId,
+    ) -> Result<ValId> {
         let Some((case, rest)) = cases.split_first() else {
+            let saved = self.at(at);
             self.raise(exc);
+            self.m.pos = saved;
             return Ok(self.val(Val::Unit));
         };
+        let saved = self.at(at);
         let cond = self.emit(Op::Is { ty: case.ty, obj: exc });
+        self.m.pos = saved;
         let span = self.l.tpd.span(case.body);
         self.gen_if_with(
             retty,
             [
                 (span, Box::new(move |_: &mut Gen<'l, 'a>| Ok(cond))),
-                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catch_body(retty, exc, merge, case))),
-                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catches(retty, exc, merge, rest))),
+                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catch_body(retty, exc, merge, case, at))),
+                (span, Box::new(move |g: &mut Gen<'l, 'a>| g.catches(retty, exc, merge, rest, at))),
             ],
         )
     }
 
-    fn catch_body(&mut self, retty: TypeId, exc: ValId, merge: Local, case: &Case) -> Result<ValId> {
+    /// The body of catch case `case`, then a jump to `merge` at the `try`'s position `at`.
+    fn catch_body(
+        &mut self,
+        retty: TypeId,
+        exc: ValId,
+        merge: Local,
+        case: &Case,
+        at: PosId,
+    ) -> Result<ValId> {
         let body_pos = self.m.pos;
         let scope = self.enter_scope(body_pos);
         if let Some(sym) = case.bind {
@@ -119,7 +139,9 @@ impl<'l, 'a> Gen<'l, 'a> {
             self.m.env.insert(sym, cast);
         }
         let v = self.gen_expr(case.body)?;
+        let saved = self.at(at);
         self.jump_exclude_unit(retty, merge, v)?;
+        self.m.pos = saved;
         self.m.scope = scope;
         Ok(self.val(Val::Unit))
     }

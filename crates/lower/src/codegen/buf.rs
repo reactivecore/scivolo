@@ -14,6 +14,14 @@ pub struct Buf {
 }
 
 impl Buf {
+    /// Instructions `parts` and those of `rest` as they are, without labels or unreachables added.
+    pub fn concat(parts: Vec<(Inst, PosId)>, rest: Buf) -> Buf {
+        let (mut insts, mut positions): (Vec<Inst>, Vec<PosId>) = parts.into_iter().unzip();
+        insts.extend(rest.insts);
+        positions.extend(rest.positions);
+        Buf { insts, positions, labeled: false }
+    }
+
     /// Whether the last instruction is in a block that does not end yet.
     pub fn labeled(&self) -> bool {
         self.labeled
