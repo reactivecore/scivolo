@@ -48,13 +48,10 @@ impl Typer<'_> {
         if repeated.is_some() {
             params.pop();
         }
-        let arity_fits = match repeated {
-            Some(_) => arg_ids.len() >= params.len(),
-            None => arg_ids.len() == params.len(),
+        let aligned = match self.aligned_args(&arg_ids, &params, repeated.is_some(), pretyped.is_some()) {
+            Ok(aligned) => aligned,
+            Err(what) => return self.unsupported(id, what),
         };
-        if !arity_fits {
-            return self.unsupported(id, "default arguments or wrong arity");
-        }
         let formals: Vec<TypeId> = params
             .iter()
             .map(|&(_, p)| p)
@@ -82,8 +79,16 @@ impl Typer<'_> {
         if let Type::Bounds(..) = self.u.types().get(result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
-        let mut typed_args = Vec::new();
-        for (i, &a) in arg_ids.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
+        let mut typed_args = match aligned
+            .as_ref()
+            .map(|a| self.typed_aligned_args(f, method, (&arg_ids, a), &formals, ctx))
+        {
+            Some(Err(what)) => return self.unsupported(id, what),
+            Some(Ok(args)) => args,
+            None => Vec::new(),
+        };
+        let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
+        for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
             typed_args.push(match &pretyped {
                 Some(typed) => {

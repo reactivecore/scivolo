@@ -81,7 +81,7 @@ impl Printer<'_> {
                 if is_static_prefix(self.u, p) {
                     format!("{k}{}", full_name(self.u, s))
                 } else {
-                    let name = self.u.symbol(s).name.clone();
+                    let name = self.u.symbol(s).name.replace("<init>$default$", "$lessinit$greater$default$");
                     format!("{}.{k}{name}", self.tpe(p.expect("a prefix"), n))
                 }
             }

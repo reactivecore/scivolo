@@ -162,7 +162,7 @@ typer-progress: typer-report
     bash scripts/typer-progress.sh
 
 # Format, run the gates, commit every change not ignored with message `msg` and push the branch.
-ship msg: fmt gates
+ship msg: fmt gates lint-msrv
     git add -A
     git status --short
     git commit -q -m {{ quote(msg) }}
@@ -262,6 +262,10 @@ fmt-check:
 # Lint every target, warnings denied.
 lint *args:
     cargo clippy --workspace --all-targets {{ locked }} {{ args }} -- -D warnings
+
+# Lint with the Rust release of the macOS pipeline runner.
+lint-msrv:
+    cargo +1.93.0 clippy --workspace --all-targets -- -D warnings
 
 # Run the whole test suite.
 test *args:

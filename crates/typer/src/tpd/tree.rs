@@ -109,6 +109,10 @@ pub enum Tree {
         expr: TNodeId,
         tpt: TNodeId,
     },
+    NamedArg {
+        name: TName,
+        arg: TNodeId,
+    },
     /// The function value of method `meth`, closing over `env`; `tpt` for a SAM type.
     Closure {
         env: List,
