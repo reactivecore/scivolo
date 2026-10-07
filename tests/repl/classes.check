@@ -11,7 +11,7 @@ scala> case class P(x: Int, y: Int)
 // defined case class P
 
 scala> P(1, 2)
-val res2: P = P(1,2)
+val res2: P = P(x = 1, y = 2)
 
 scala> P(1, 2).copy(y = 5)
 -- unsupported: default arguments needing lifting
@@ -46,16 +46,16 @@ scala> new E
 val res8: E = E(5)
 
 scala> val p = P(1, 2)
-val p: P = P(1,2)
+val p: P = P(x = 1, y = 2)
 
 scala> p.copy(y = 5).y
--- unsupported: NamedArg in an expression
+val res9: Int = 5
 
 scala> class D(m: Int) extends C(m * 2) { override def toString = s"D($n)" }
--- unsupported: a reference to m
+// defined class D
 
 scala> new D(3)
--- unsupported: unresolved name D
+val res10: D = D(6)
 
 scala> def g(a: Int = 1, b: String = "x") = s"$a$b"
 def g(a: Int, b: String): String
@@ -64,7 +64,7 @@ scala> g()
 val res11: String = "1x"
 
 scala> g(b = "y")
--- unsupported: NamedArg in an expression
+val res12: String = "1y"
 
 scala> enum Color { case Red, Green }
 -- unsupported: companions of sealed classes
