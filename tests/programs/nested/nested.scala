@@ -20,6 +20,11 @@ object Outer:
 
   case class Pt(a: Int, b: Int)
   def origin = Pt(0, 0)
+  def viaThis = this.Nested.name
+
+def outer: Outer.type =
+  println("outer")
+  Outer
 
 @main def nested(): Unit =
   val i = new Outer.Inner(3)
@@ -35,3 +40,5 @@ object Outer:
   println(new Outer.Nested.Deeper.Leaf("x").show)
   println(Outer.Pt(1, 2))
   println(Outer.origin == Outer.Pt(0, 0))
+  println(Outer.viaThis)
+  println(outer.Nested.twice(5))

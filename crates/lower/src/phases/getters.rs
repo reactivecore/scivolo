@@ -38,7 +38,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let span = l.tpd.span(stat);
         if is_module(l.u, sym) {
             if !owner.is_some_and(|o| is_module_class(l.u, o) && is_static(l.u, o)) {
-                return unsupported(span, "objects in classes");
+                return unsupported(span, "objects in classes and traits");
             }
             kept.pop();
             continue;

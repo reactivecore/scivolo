@@ -8,3 +8,6 @@ nested
 leaf x at 3
 Pt(1,2)
 true
+nested
+outer
+10
