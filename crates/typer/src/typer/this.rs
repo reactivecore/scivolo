@@ -22,6 +22,25 @@ impl Typer<'_> {
         None
     }
 
+    /// The class `this` refers to in `owner`: the enclosing class, or the class enclosing that
+    /// one in its parent calls, which the primary constructor owns (dotty's `superCallContext`).
+    fn this_class(&self, owner: SymbolId) -> Option<SymbolId> {
+        let mut o = Some(owner);
+        while let Some(s) = o {
+            let sym = self.u.symbol(s);
+            if sym.kind == Kind::Class {
+                return Some(s);
+            }
+            if let Some(c) = sym.owner
+                && self.syms.primary_ctors.get(&c) == Some(&s)
+            {
+                return self.u.symbol(c).owner.and_then(|oc| self.enclosing_class(oc));
+            }
+            o = sym.owner;
+        }
+        None
+    }
+
     fn is_param_or_accessor(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match self.syms.flags.get(&s) {
@@ -87,7 +106,7 @@ impl Typer<'_> {
             Some(_) => return self.unsupported(id, "this qualifier"),
             None => None,
         };
-        let mut cls = self.enclosing_class(ctx.owner);
+        let mut cls = self.this_class(ctx.owner);
         if let Some(n) = name {
             let text = self.text(n.name).to_owned();
             let named = |u: &tasty::Universe, c: SymbolId| {

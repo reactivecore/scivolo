@@ -46,7 +46,8 @@ impl Desugar<'_> {
                     ps.iter()
                         .map(|&p| {
                             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else { return p };
-                            self.ast.derived(p, Tree::ValDef { name, tpt, rhs: None, mods })
+                            let d = self.ast.derived(p, Tree::ValDef { name, tpt, rhs: None, mods });
+                            if d == p { self.ast.copy_node(p) } else { d }
                         })
                         .collect(),
                 );

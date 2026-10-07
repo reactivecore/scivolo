@@ -153,7 +153,13 @@ impl Typer<'_> {
         }
         let flags = self.u.symbol(sym).flags;
         let protected = flags.has(tasty::tags::PROTECTED) || flags.has(tasty::tags::PROTECTEDqualified);
-        if protected && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
+        let super_call = matches!(self.tpd.tree(qual), T::New { .. })
+            && self.u.symbol(sym).name == "<init>"
+            && self.u.symbol(ctx.owner).owner.is_some_and(|c| {
+                self.syms.primary_ctors.get(&c) == Some(&ctx.owner)
+                    && self.u.symbol(sym).owner.is_some_and(|p| self.u.derives_from(c, p))
+            });
+        if protected && !super_call && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
             return self.unsupported(id, "protected member through a path");
         }
         let projection = self.tpd.sym(qual).is_some_and(|q| self.is_type_symbol(q));

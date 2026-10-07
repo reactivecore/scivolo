@@ -37,6 +37,11 @@ impl Typer<'_> {
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
             }
+            Tree::Literal { .. } => {
+                let reference = self.typed(id, Pt::Any, ctx.with_mode(crate::ctx::Mode::NONE));
+                let tpe = self.tpd.tpe(reference);
+                self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
+            }
             Tree::Function { args, body, mods: None, .. } => self.typed_function_type(id, args, body, ctx),
             Tree::ByNameTypeTree { result } => {
                 let result = self.typed_type(result, ctx);
