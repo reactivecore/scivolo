@@ -50,11 +50,24 @@ impl Cmp<'_> {
         self.either(|s| s.recur(x, b), |s| s.recur(y, b))
     }
 
-    /// `a <: b` for a singleton `a`: the same path, or `a` widened.
+    /// `a <: b` for a singleton `a`: the same path, `a`'s underlying path (dotty's `underlying`),
+    /// or `a` widened.
     fn below_singleton(&mut self, a: TypeId, b: TypeId) -> bool {
         let path = matches!(self.u.types().get(b), Type::TermRef(..) | Type::This(_) | Type::Sym(..));
         if path && self.same_path(a, b) {
             return true;
+        }
+        if path
+            && let Some(n) = self.named(a)
+            && let Some(s) = n.sym
+            && matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def)
+        {
+            let underlying = self.u.term_type(n.prefix, s);
+            let singleton =
+                matches!(self.u.types().get(underlying), Type::TermRef(..) | Type::Sym(..) | Type::This(_));
+            if singleton && underlying != a && self.recur(underlying, b) {
+                return true;
+            }
         }
         let widened = self.u.widen(a);
         widened != a && self.recur(widened, b)

@@ -45,6 +45,41 @@ impl Typer<'_> {
         self.companion_constructor(owner)
     }
 
+    /// `t` with its references to type parameters of method `sym` made wildcards (dotty's
+    /// `wildApprox`); `None` if one of them has bounds other than `Nothing` and `Any`.
+    pub fn own_type_params_approximated(&mut self, t: TypeId, sym: SymbolId) -> Option<TypeId> {
+        let mut bounded = false;
+        let approximated = self.u.map_type(t, &mut |u, x| {
+            let Type::Sym(None, s) = *u.types().get(x) else { return None };
+            if u.symbol(s).owner != Some(sym) || u.symbol(s).kind != Kind::TypeParam {
+                return None;
+            }
+            let info = u.info(s);
+            let (nothing, any) = (u.builtins().nothing, u.builtins().any);
+            let trivial = match *u.types().get(info) {
+                Type::Bounds(lo, hi) => {
+                    u.class_symbol(lo) == Some(nothing) && u.class_symbol(hi) == Some(any)
+                }
+                _ => false,
+            };
+            bounded |= !trivial;
+            Some(u.intern_type(Type::Wildcard(None)))
+        });
+        (!bounded).then_some(approximated)
+    }
+
+    /// Whether `t` refers to a type parameter of method `sym`.
+    pub fn mentions_own_type_params(&mut self, t: TypeId, sym: SymbolId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, x| {
+            if let Type::Sym(None, s) = *u.types().get(x) {
+                found |= u.symbol(s).owner == Some(sym) && u.symbol(s).kind == Kind::TypeParam;
+            }
+            None
+        });
+        found
+    }
+
     /// `t` with references to the type parameters of `method` made references to the same-named
     /// type parameters of `getter`.
     fn with_getter_type_params(&mut self, t: TypeId, method: SymbolId, getter: SymbolId) -> TypeId {

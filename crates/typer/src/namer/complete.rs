@@ -56,8 +56,20 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
-        let default = self.default_param_type(sym).filter(|&d| !self.mentions_own_type_params(d, sym));
-        let pt = inherited.or(default).map_or(Pt::Any, Pt::Type);
+        let raw_default = self.default_param_type(sym);
+        let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
+        let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
+        let approx = match raw_default.filter(|_| lambda && default.is_none()) {
+            Some(d) => match self.own_type_params_approximated(d, sym) {
+                Some(a) => Some(a),
+                None => {
+                    self.unsupported(rhs, "function default of a bounded type parameter");
+                    None
+                }
+            },
+            None => None,
+        };
+        let pt = inherited.or(default).or(approx).map_or(Pt::Any, Pt::Type);
         let typed = self.typed(rhs, pt, ctx);
         self.typed_ahead(rhs, typed, ctx);
         let tpe = self.tpd.tpe(typed);
@@ -90,18 +102,6 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(typed);
         self.check_simple_kinded(tpe, tpt);
         tpe
-    }
-
-    /// Whether `t` refers to a type parameter of method `sym`.
-    fn mentions_own_type_params(&mut self, t: TypeId, sym: SymbolId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, x| {
-            if let Type::Sym(None, s) = *u.types().get(x) {
-                found |= u.symbol(s).owner == Some(sym) && u.symbol(s).kind == Kind::TypeParam;
-            }
-            None
-        });
-        found
     }
 
     /// `t @uncheckedVariance`.

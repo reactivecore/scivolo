@@ -50,6 +50,7 @@ impl Typer<'_> {
         let text = self.text(name).to_owned();
         let tpe = self.tpd.tpe(expr);
         let tpe = if self.is_stable_type(tpe) { tpe } else { self.u.widen(tpe) };
+        let tpe = self.fully_defined(tpe).unwrap_or(tpe);
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, f::SYNTHETIC);
         self.u.set_info(sym, tpe);
         self.syms.closure_syms.push(sym);
@@ -98,9 +99,8 @@ impl Typer<'_> {
                 if lifted == fun {
                     return Ok(f);
                 }
-                let types: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
-                let tpe = self.instantiated(lifted, &types)?;
-                Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, Some(tpe), None))
+                let tpe = self.tpd.get(f).tpe;
+                Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, tpe, None))
             }
             T::Select { qualifier, name } => {
                 let sym = self.tpd.sym(f).ok_or("lifting")?;

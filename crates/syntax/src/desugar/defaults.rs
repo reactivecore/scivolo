@@ -100,14 +100,20 @@ impl Desugar<'_> {
         let mut taken = Vec::new();
         for l in no_rhs {
             let params = self.ast.items(l).to_vec();
-            let params = if self.is_type_clause(l) {
-                params.iter().map(|&t| self.type_param_of_getter(t)).collect::<Vec<_>>()
+            let params: Vec<NodeId> = if self.is_type_clause(l) {
+                params.iter().map(|&t| self.type_param_of_getter(t)).collect()
             } else if params.len() <= left {
                 left -= params.len();
                 params.iter().map(|&v| self.meth_value_param(v, Keep::All, false)).collect()
             } else {
                 break;
             };
+            let originals = self.ast.items(l).to_vec();
+            let params: Vec<NodeId> = params
+                .into_iter()
+                .zip(originals)
+                .map(|(p, o)| if p == o { self.ast.copy_node(p) } else { p })
+                .collect();
             taken.push(self.list(&params));
         }
         self.ast.clauses(&taken)

@@ -106,7 +106,7 @@ impl Universe {
     }
 
     /// The type of term `s` referred to through `prefix`.
-    fn term_type(&mut self, prefix: Option<TypeId>, s: SymbolId) -> TypeId {
+    pub fn term_type(&mut self, prefix: Option<TypeId>, s: SymbolId) -> TypeId {
         let info = self.info(s);
         match (prefix, self.symbol(s).owner) {
             (Some(p), Some(owner)) if self.symbol(owner).kind == Kind::Class => {
@@ -116,11 +116,13 @@ impl Universe {
         }
     }
 
-    /// The type of `this` in class `c`: `c` applied to its own type parameters.
+    /// The type of `this` in class `c`: `c` applied to its own type parameters, seen from `this`
+    /// (dotty's `appliedRef`).
     pub fn this_type(&mut self, c: SymbolId) -> TypeId {
         let class = self.intern_type(Type::Sym(None, c));
+        let this = self.intern_type(Type::This(class));
         let params: Vec<TypeId> =
-            self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(None, p))).collect();
+            self.type_params(c).into_iter().map(|p| self.intern_type(Type::Sym(Some(this), p))).collect();
         match params.is_empty() {
             true => class,
             false => self.intern_type(Type::Applied(class, params)),
