@@ -17,8 +17,60 @@ fn parse(text: &str) -> (usize, bool, bool) {
 
 #[test]
 fn input_ending_early_is_incomplete() {
-    for text in ["val x =", "val x = 1 +", "def f(x: Int) = {", "object O:\n  val x = 1", "\"\"\"abc"] {
-        assert!(parse(text).1, "{text:?}");
+    let texts = [
+        "val x =",
+        "val x = 1 +",
+        "val x = 1 +\n",
+        "val x:",
+        "def f(x: Int) = {",
+        "f(1,",
+        "List(1, 2",
+        "a(0) = ",
+        "if x then",
+        "if x then 1 else",
+        "x match",
+        "x match {\n  case 1 =>",
+        "for x <- xs yield",
+        "class A {",
+        "trait T:",
+        "object O:\n  val x = 1",
+        "object O:\n  def f =\n    1",
+        "def f =\n  val y = 1\n  y",
+        "\"\"\"abc",
+        "s\"\"\"abc ${x}",
+        "/* abc",
+        "/* a /* b */",
+        "val x = <a>",
+        "xs.map: x =>",
+    ];
+    for text in texts {
+        let (_, incomplete, errors) = parse(text);
+        assert!(incomplete && errors, "{text:?}");
+    }
+}
+
+#[test]
+fn complete_input_is_not_incomplete() {
+    let texts = [
+        "val x = 1",
+        "1 + 2\n",
+        "def f(x: Int) = { x }",
+        "object O:\n  val x = 1\n",
+        "s\"\"\"abc ${x}\"\"\"",
+        "/* abc */ 1",
+        "import scala.collection.mutable",
+    ];
+    for text in texts {
+        let (_, incomplete, errors) = parse(text);
+        assert!(!incomplete && !errors, "{text:?}");
+    }
+}
+
+#[test]
+fn unclosed_single_line_literal_is_an_error() {
+    for text in ["\"abc", "'a", "s\"abc"] {
+        let (_, incomplete, errors) = parse(text);
+        assert!(!incomplete && errors, "{text:?}");
     }
 }
 
