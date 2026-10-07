@@ -56,6 +56,8 @@ pub struct Lower<'a> {
     /// The fields of lifted local classes holding the values they capture, each with the
     /// constructor parameter setting it.
     proxies: Vec<(SymbolId, SymbolId)>,
+    /// The local classes lifted out of blocks.
+    local_classes: FxHashSet<SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
 }
@@ -84,6 +86,7 @@ pub fn lower(
         lazy_inits: FxHashMap::default(),
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),
+        local_classes: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

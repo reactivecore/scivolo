@@ -28,7 +28,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<()
 
 /// Adds to class definition `td` a leading constructor parameter for each value of `free` and a
 /// private field, at the value's definition span of `spans`, for each its methods use; makes the
-/// references to them in its methods read the fields and elsewhere the parameters. The fields.
+/// references to them in its methods read the fields and elsewhere the parameters; the fields.
 fn add_proxies(l: &mut Lower, td: TNodeId, class: SymbolId, free: &Free, spans: &[Span]) -> Vec<SymbolId> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {

@@ -80,6 +80,7 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId, outer: S
     l.u.rename(class, &name);
     l.u.set_owner(class, package);
     l.u.enter(class);
+    l.local_classes.insert(class);
     for t in super::walk::subtrees(l.tpd, root) {
         match *l.tpd.tree(t) {
             Tree::Block { stats, expr } if l.tpd.items(stats).contains(&td) => {
