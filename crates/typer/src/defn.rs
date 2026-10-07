@@ -49,6 +49,11 @@ fn member(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind) -> Result<S
         .ok_or_else(|| format!("{}.{name} missing from the library", u.full_name(owner)))
 }
 
+/// The declaration `name` of `kind` already entered in `owner`, loading nothing.
+pub fn entered(u: &Universe, owner: SymbolId, name: &str, kind: Kind) -> Option<SymbolId> {
+    u.symbol(owner).decls.iter().copied().find(|&d| u.symbol(d).name == name && u.symbol(d).kind == kind)
+}
+
 /// The prefix of references to members of `owner`: a package, or the `this` of a class.
 pub fn owner_prefix(u: &mut Universe, owner: SymbolId) -> TypeId {
     match u.symbol(owner).kind {

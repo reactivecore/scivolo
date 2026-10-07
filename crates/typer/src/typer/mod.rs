@@ -57,7 +57,7 @@ mod widen_inferred;
 mod widening;
 
 use crate::ctx::{Ctx, LevelId, Levels};
-use crate::defn::Defn;
+use crate::defn::{Defn, entered};
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
@@ -65,7 +65,7 @@ use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
 use syntax::names::Names;
-use tasty::{SymbolId, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 pub use overloads::Pt;
 
@@ -110,8 +110,13 @@ impl<'a> Typer<'a> {
         ast: &'a mut Ast,
         names: &'a mut Names,
         features: Features,
+        mut syms: Syms,
     ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
+        let ops = u.package("<special-ops>");
+        syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, "throw", Kind::Def));
+        syms.repeated_class =
+            syms.repeated_class.or_else(|| entered(u, defn.scala, "<repeated>", Kind::Class));
         Ok(Typer {
             u,
             ast,
@@ -119,7 +124,7 @@ impl<'a> Typer<'a> {
             defn,
             tpd: Tpd::default(),
             levels: Levels::default(),
-            syms: Syms::default(),
+            syms,
             diags: Diagnostics::default(),
             features,
             ahead: FxHashMap::default(),
