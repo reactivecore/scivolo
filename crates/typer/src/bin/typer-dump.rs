@@ -1,7 +1,4 @@
-//! Prints what the typer makes of Scala files, in the format of `scripts/typer-oracle`.
-//! Usage: typer-dump --list LIST, one `path<TAB>options` per line; `$SCALAI_LIBS` holds the
-//! library jars.
-
+use clap::Parser;
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
@@ -9,12 +6,19 @@ use syntax::source::SourceFile;
 use tasty::Universe;
 use typer::dump::{dump, library_jars};
 
+/// Prints what the typer makes of Scala files, in the format of `scripts/typer-oracle`.
+///
+/// Environment: SCALAI_LIBS holds the library jars (default: ref/libs).
+#[derive(Parser)]
+#[command(name = "typer-dump")]
+struct Cli {
+    /// The files, one `path<TAB>options` per line.
+    #[arg(long, value_name = "LIST")]
+    list: PathBuf,
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let [flag, list] = args.as_slice() else { return usage() };
-    if flag != "--list" {
-        return usage();
-    }
+    let Cli { list } = Cli::parse();
     let libs = std::env::var_os("SCALAI_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = library_jars(&libs);
@@ -41,9 +45,4 @@ fn main() {
         }
         out.write_all(b.as_bytes()).unwrap();
     }
-}
-
-fn usage() {
-    eprintln!("usage: typer-dump --list LIST");
-    std::process::exit(2);
 }

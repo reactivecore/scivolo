@@ -8,6 +8,7 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace.dependencies]
+clap = { version = "4.6", features = ["derive"] }
 hashbrown = { version = "0.17", default-features = false }
 libimage = { path = "crates/libimage" }
 nir = { path = "crates/nir" }

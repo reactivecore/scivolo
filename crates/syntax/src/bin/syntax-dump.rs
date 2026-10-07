@@ -1,9 +1,7 @@
-//! Prints what the scanner, parser or desugaring makes of Scala files, in the format of
-//! `scripts/syntax-oracle`.
-//! Usage: syntax-dump tokens|trees|desugar --list LIST, one `path<TAB>options` per line.
-
+use clap::{Parser as _, ValueEnum};
 use std::fmt::Write as _;
 use std::io::Write as _;
+use std::path::PathBuf;
 use syntax::ast::print::Printer;
 use syntax::config::Config;
 use syntax::desugar::Desugar;
@@ -14,18 +12,32 @@ use syntax::scan::{Scanner, TokenData};
 use syntax::source::SourceFile;
 use syntax::token::Token;
 
+/// Prints what the scanner, parser or desugaring makes of Scala files, in the format of
+/// `scripts/syntax-oracle`.
+#[derive(clap::Parser)]
+#[command(name = "syntax-dump")]
+struct Cli {
+    /// What to print.
+    mode: Mode,
+    /// The files, one `path<TAB>options` per line.
+    #[arg(long, value_name = "LIST")]
+    list: PathBuf,
+}
+
+#[derive(Clone, ValueEnum)]
+enum Mode {
+    Tokens,
+    Trees,
+    Desugar,
+}
+
 fn main() {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    let [mode, flag, list] = args.as_slice() else { return usage() };
-    let run: fn(&SourceFile, &[&str], &mut String) = match mode.as_str() {
-        "tokens" => tokens,
-        "trees" => trees,
-        "desugar" => desugared,
-        _ => return usage(),
+    let Cli { mode, list } = Cli::parse();
+    let run: fn(&SourceFile, &[&str], &mut String) = match mode {
+        Mode::Tokens => tokens,
+        Mode::Trees => trees,
+        Mode::Desugar => desugared,
     };
-    if flag != "--list" {
-        return usage();
-    }
     let jobs = std::fs::read_to_string(list).expect("reading the list");
     let mut out = std::io::BufWriter::new(std::io::stdout().lock());
     for line in jobs.lines().filter(|l| !l.is_empty()) {
@@ -38,11 +50,6 @@ fn main() {
         }
         out.write_all(b.as_bytes()).unwrap();
     }
-}
-
-fn usage() {
-    eprintln!("usage: syntax-dump tokens|trees|desugar --list LIST");
-    std::process::exit(2);
 }
 
 fn tokens(source: &SourceFile, options: &[&str], b: &mut String) {

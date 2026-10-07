@@ -1,15 +1,54 @@
 mod source;
 mod stats;
 
+use clap::Parser;
 use nir::{Caches, Pool, Reader, cursor, show};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
-const USAGE: &str = "usage: nir-dump [--dump | --parse | --index | --stats] [--mangled] [--externs] \
-                     [--debug] [--filter TEXT] [--repeat N] <file.nir | dir | file.jar>";
+/// Prints, parses, indexes or counts NIR files.
+#[derive(Parser)]
+#[command(name = "nir-dump")]
+struct Args {
+    #[command(flatten)]
+    mode: ModeFlags,
+    /// Print names mangled.
+    #[arg(long)]
+    mangled: bool,
+    /// List the extern definitions in the statistics.
+    #[arg(long)]
+    externs: bool,
+    /// Dump definitions with their positions, local names and scopes.
+    #[arg(long)]
+    debug: bool,
+    /// Dump only definitions whose name contains TEXT.
+    #[arg(long, value_name = "TEXT")]
+    filter: Option<String>,
+    /// Time the best of N runs.
+    #[arg(long, value_name = "N", default_value_t = 1)]
+    repeat: usize,
+    /// A .nir file, a directory or a jar.
+    path: PathBuf,
+}
 
-#[derive(PartialEq)]
+#[derive(clap::Args)]
+#[group(multiple = false)]
+struct ModeFlags {
+    /// Print the definitions as text (the default, except for a jar).
+    #[arg(long)]
+    dump: bool,
+    /// Parse all definitions (the default for a jar).
+    #[arg(long)]
+    parse: bool,
+    /// Index the definitions.
+    #[arg(long)]
+    index: bool,
+    /// Parse and print statistics.
+    #[arg(long)]
+    stats: bool,
+}
+
 enum Mode {
     Dump,
     Parse,
@@ -17,51 +56,8 @@ enum Mode {
     Stats,
 }
 
-struct Args {
-    mode: Option<Mode>,
-    mangled: bool,
-    externs: bool,
-    /// Dump definitions with their positions, local names and scopes.
-    debug: bool,
-    filter: Option<String>,
-    repeat: usize,
-    path: PathBuf,
-}
-
-fn parse_args() -> Option<Args> {
-    let mut a = Args {
-        mode: None,
-        mangled: false,
-        externs: false,
-        debug: false,
-        filter: None,
-        repeat: 1,
-        path: PathBuf::new(),
-    };
-    let mut it = std::env::args().skip(1);
-    while let Some(arg) = it.next() {
-        match arg.as_str() {
-            "--dump" => a.mode = Some(Mode::Dump),
-            "--parse" => a.mode = Some(Mode::Parse),
-            "--index" => a.mode = Some(Mode::Index),
-            "--stats" => a.mode = Some(Mode::Stats),
-            "--mangled" => a.mangled = true,
-            "--externs" => a.externs = true,
-            "--debug" => a.debug = true,
-            "--filter" => a.filter = Some(it.next()?),
-            "--repeat" => a.repeat = it.next()?.parse().ok()?,
-            s if !s.starts_with("--") => a.path = PathBuf::from(s),
-            _ => return None,
-        }
-    }
-    (!a.path.as_os_str().is_empty()).then_some(a)
-}
-
 fn main() -> ExitCode {
-    let Some(mut args) = parse_args() else {
-        eprintln!("{USAGE}");
-        return ExitCode::from(2);
-    };
+    let args = Args::parse();
     let t = Instant::now();
     let entries = match source::load(&args.path) {
         Ok(e) => e,
@@ -72,7 +68,13 @@ fn main() -> ExitCode {
     };
     let load_time = t.elapsed();
     let is_jar = args.path.extension().is_some_and(|e| e == "jar");
-    let mode = args.mode.take().unwrap_or(if is_jar { Mode::Parse } else { Mode::Dump });
+    let mode = match args.mode {
+        ModeFlags { parse: true, .. } => Mode::Parse,
+        ModeFlags { index: true, .. } => Mode::Index,
+        ModeFlags { stats: true, .. } => Mode::Stats,
+        ModeFlags { dump: false, .. } if is_jar => Mode::Parse,
+        _ => Mode::Dump,
+    };
     let bytes: usize = entries.iter().map(|e| e.data.len()).sum();
     println!("# {} .nir files, {} bytes, loaded in {}", entries.len(), bytes, ms(load_time));
     let failures = match mode {

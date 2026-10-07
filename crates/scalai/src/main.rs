@@ -1,37 +1,37 @@
 mod libs;
 mod script;
 
+use clap::{CommandFactory, Parser, error::ErrorKind};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use vm::{Classpath, Vm, VmError};
 
-const USAGE: &str =
-    "usage: scalai [--cp DIR_OR_JAR]... (MAIN_CLASS | [--main CLASS] FILE.scala | FILE.sc) [ARGS...]";
+/// Runs a Scala program: a main class on the classpath, a Scala file or a script.
+///
+/// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
+/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_SCALA_CLI names the
+/// scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit 124);
+/// SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr.
+#[derive(Parser)]
+#[command(name = "scalai", override_usage = "scalai [OPTIONS] <TARGET> [ARGS]...")]
+struct Cli {
+    /// A directory or jar of NIR files and resources.
+    #[arg(long, value_name = "DIR_OR_JAR")]
+    cp: Vec<PathBuf>,
+    /// The main class of FILE.scala, when it has several.
+    #[arg(long, value_name = "CLASS")]
+    main: Option<String>,
+    /// MAIN_CLASS, FILE.scala or FILE.sc, then the program's arguments.
+    #[arg(value_name = "TARGET", required = true, trailing_var_arg = true, allow_hyphen_values = true)]
+    command: Vec<String>,
+}
 
 /// The interpreter thread's stack; only the pages deep recursion touches are committed.
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
-    let mut args = std::env::args().skip(1);
-    let (mut cp, mut chosen, mut target) = (Vec::new(), None, None);
-    while let Some(a) = args.next() {
-        match a.as_str() {
-            "--cp" | "--main" => {
-                let Some(v) = args.next() else { return usage() };
-                if a == "--cp" {
-                    cp.push(PathBuf::from(v));
-                } else {
-                    chosen = Some(v);
-                }
-            }
-            _ => {
-                target = Some(a);
-                break;
-            }
-        }
-    }
-    let Some(target) = target else { return usage() };
-    let rest: Vec<String> = args.collect();
+    let Cli { mut cp, main: chosen, command: mut rest } = Cli::parse();
+    let target = rest.remove(0);
     let main_class = if script::is_source(&target) {
         match script::main_of(&target, chosen) {
             Ok((classes, main)) => {
@@ -44,7 +44,7 @@ fn main() -> ExitCode {
             }
         }
     } else if chosen.is_some() {
-        return usage();
+        Cli::command().error(ErrorKind::ArgumentConflict, "--main needs FILE.scala").exit()
     } else {
         target
     };
@@ -64,11 +64,6 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-fn usage() -> ExitCode {
-    eprintln!("{USAGE}");
-    ExitCode::from(2)
 }
 
 fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<(), String> {
