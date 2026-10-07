@@ -39,8 +39,8 @@ pub struct Syms {
     pub throw_method: Option<SymbolId>,
     /// dotty's `scala.<repeated>`, the class of repeated arguments, once defined.
     pub repeated_class: Option<SymbolId>,
-    /// The anonymous methods of closures and their parameters, their infos made fully defined
-    /// once the unit is typed.
+    /// The anonymous methods of closures, their parameters and lifted values, their infos made
+    /// fully defined once the unit is typed.
     pub closure_syms: Vec<SymbolId>,
     /// The repeated parameters of script methods, typed `Seq[T]`, with their types as written,
     /// `Seq[T] @Repeated`.

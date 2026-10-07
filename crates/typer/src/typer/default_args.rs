@@ -1,5 +1,4 @@
-//! Default arguments as getter calls (dotty's `findDefaultGetter`, `spliceMeth`), where the
-//! function needs no lifting.
+//! Default arguments as getter calls (dotty's `findDefaultGetter`, `spliceMeth`).
 
 use super::Typer;
 use crate::ctx::Ctx;
@@ -9,21 +8,6 @@ use tasty::tags::{OBJECT, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
-    /// Whether call `f` of a method with default arguments would have its prefix lifted (dotty's
-    /// `liftApp` with `LiftComplex`).
-    pub fn needs_lift_for_defaults(&mut self, f: TNodeId) -> bool {
-        match *self.tpd.tree(f) {
-            T::TypeApply { fun, .. } => self.needs_lift_for_defaults(fun),
-            T::Select { qualifier, .. } => match *self.tpd.tree(qualifier) {
-                T::Literal { .. } | T::This { .. } | T::New { .. } => false,
-                T::Ident { .. } | T::Select { .. } => !self.is_idempotent_expr(qualifier),
-                _ => true,
-            },
-            T::Ident { .. } => !self.is_pure_path(f),
-            _ => true,
-        }
-    }
-
     /// The default argument for parameter `n` of `method`, which call `f` applies (dotty's
     /// `defaultArgument`).
     pub fn default_arg(
@@ -71,11 +55,21 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::TypeApply { fun: select, args }, span, Some(tpe), None))
     }
 
-    /// A copy of path `t`, its selections and `this` qualifiers copied too.
-    fn copied_path(&mut self, t: TNodeId) -> TNodeId {
+    /// A copy of path or call `t`, its qualifiers, functions and arguments copied too.
+    pub fn copied_path(&mut self, t: TNodeId) -> TNodeId {
         let tree = match self.tpd.tree(t).clone() {
             T::Select { qualifier, name } => T::Select { qualifier: self.copied_path(qualifier), name },
             T::This { qual } => T::This { qual: self.copied_path(qual) },
+            T::Apply { fun, args } | T::TypeApply { fun, args } => {
+                let fun = self.copied_path(fun);
+                let items: Vec<TNodeId> =
+                    self.tpd.items(args).to_vec().into_iter().map(|a| self.copied_path(a)).collect();
+                let args = self.tpd.list(&items);
+                match self.tpd.tree(t) {
+                    T::Apply { .. } => T::Apply { fun, args },
+                    _ => T::TypeApply { fun, args },
+                }
+            }
             tree => tree,
         };
         let (span, tpe, sym) = (self.tpd.span(t), self.tpd.get(t).tpe, self.tpd.sym(t));

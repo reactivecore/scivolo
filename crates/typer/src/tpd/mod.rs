@@ -1,6 +1,7 @@
 //! Typed trees: dotty's `tpd` trees in an arena per unit, each node with its type and, for
 //! references and definitions, its symbol.
 
+mod children;
 pub mod print;
 mod tree;
 

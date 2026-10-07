@@ -15,7 +15,7 @@ mod typer;
 use crate::ctx::{Ctx, Level, Mode};
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::diag::Diagnostics;
-use syntax::names::Names;
+use syntax::names::{FreshNames, Names};
 use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
@@ -37,15 +37,15 @@ pub struct Typed {
 }
 
 /// Types the desugared unit `root` of `ast`, parsed with language features `features`, defining
-/// its symbols in `u`.
+/// its symbols in `u`; `fresh` holds the counters of the unit's fresh names.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
-    names: &mut Names,
+    (names, fresh): (&mut Names, &mut FreshNames),
     root: NodeId,
     features: syntax::config::Features,
 ) -> Result<Typed, Fallback> {
-    Units::default().type_unit(u, ast, names, root, features)
+    Units::default().type_unit(u, ast, (names, fresh), root, features)
 }
 
 /// The typer's knowledge of the script symbols of the units typed so far into one universe.
@@ -59,11 +59,11 @@ impl Units {
         &mut self,
         u: &mut Universe,
         ast: &mut Ast,
-        names: &mut Names,
+        (names, fresh): (&mut Names, &mut FreshNames),
         root: NodeId,
         features: syntax::config::Features,
     ) -> Result<Typed, Fallback> {
-        let mut typer = Typer::new(u, ast, names, features, &mut self.0)
+        let mut typer = Typer::new(u, ast, (names, fresh), features, &mut self.0)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);

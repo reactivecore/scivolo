@@ -79,14 +79,15 @@ impl Typer<'_> {
         if let Type::Bounds(..) = self.u.types().get(result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
-        let mut typed_args = match aligned
+        let aligned_args = aligned
             .as_ref()
-            .map(|a| self.typed_aligned_args(f, method, (&arg_ids, a), &formals, ctx))
-        {
+            .map(|a| self.typed_aligned_args((f, method), (&arg_ids, a), (&params, &formals), ctx));
+        let (f, mut typed_args, lifted) = match aligned_args {
             Some(Err(what)) => return self.unsupported(id, what),
-            Some(Ok(args)) => args,
-            None => Vec::new(),
+            Some(Ok(parts)) => parts,
+            None => (f, Vec::new(), Vec::new()),
         };
+        let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
@@ -138,7 +139,7 @@ impl Typer<'_> {
         let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
         self.fold_apply(apply);
         match self.widen_enum_case(apply, method, pt) {
-            Ok(tree) => tree,
+            Ok(tree) => self.wrap_defs(lifted, tree),
             Err(what) => self.unsupported(id, what),
         }
     }

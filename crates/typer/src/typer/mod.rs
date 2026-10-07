@@ -29,6 +29,7 @@ mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
+mod lift;
 mod literals;
 mod matches;
 mod named_args;
@@ -67,7 +68,7 @@ use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::Features;
 use syntax::diag::Diagnostics;
-use syntax::names::Names;
+use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
 
 pub use overloads::Pt;
@@ -76,6 +77,8 @@ pub struct Typer<'a> {
     pub u: &'a mut Universe,
     pub ast: &'a mut Ast,
     pub names: &'a mut Names,
+    /// The counters of the unit's fresh names, shared with the desugaring.
+    pub fresh: &'a mut FreshNames,
     pub defn: Defn,
     pub tpd: Tpd,
     pub levels: Levels,
@@ -111,7 +114,7 @@ impl<'a> Typer<'a> {
     pub fn new(
         u: &'a mut Universe,
         ast: &'a mut Ast,
-        names: &'a mut Names,
+        (names, fresh): (&'a mut Names, &'a mut FreshNames),
         features: Features,
         syms: &mut Syms,
     ) -> Result<Self, String> {
@@ -125,6 +128,7 @@ impl<'a> Typer<'a> {
             u,
             ast,
             names,
+            fresh,
             defn,
             tpd: Tpd::default(),
             levels: Levels::default(),
