@@ -46,9 +46,8 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
-    let concrete = mixin::methods_with_body(l, &classes, true);
     for &td in &classes {
-        synthetic::add_synthetic_members(l, td, &concrete)?;
+        synthetic::add_synthetic_members(l, td)?;
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
@@ -74,9 +73,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         bridges::transform(l, td, &deferred)?;
     }
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
-    let concrete = mixin::methods_with_body(l, &classes, true);
     for &td in &classes {
-        mixin::transform(l, td, &unit_classes, &concrete)?;
+        mixin::transform(l, td, &unit_classes)?;
     }
     for &td in &classes {
         lazy_vals::transform(l, td)?;
