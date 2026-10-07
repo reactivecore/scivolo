@@ -12,6 +12,7 @@ mod member_table;
 mod natives;
 mod object;
 mod rtti;
+mod session;
 mod stack;
 mod threads;
 mod world;
@@ -98,43 +99,6 @@ impl Vm {
         let booted = vm.bootstrap();
         drop(running);
         booted.map(|()| vm)
-    }
-
-    /// Runs `main(args)` of the top-level object or class `entry` on the main green thread as a
-    /// Scala Native executable does: runtime initialization, `main`, then the runtime's
-    /// shutdown, which runs queued tasks. Interpreted calls throw `StackOverflowError` within
-    /// `STACK_RESERVE` of the end of their thread's stack.
-    pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
-        let vm: *mut Vm = self;
-        let _running = self.callbacks.enter(vm);
-        let argv = self.c_argv(entry, args);
-        let (entry, argc) = (entry.to_owned(), args.len() + 1);
-        let main = move |vm: &mut Vm| {
-            vm.run_program(&entry, argc, argv).map_err(|u| match u.thrown() {
-                Some(exc) => VmError::Uncaught(vm.describe_throwable(exc)).into(),
-                None => u,
-            })
-        };
-        match self.run_threads(main) {
-            Ok(()) => Ok(()),
-            Err(u) => match u.into_inner() {
-                interp::Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
-                interp::Unwound::Fatal(e) => Err(e),
-            },
-        }
-    }
-
-    fn run_program(&mut self, entry: &str, argc: usize, argv: usize) -> interp::Flow<()> {
-        let runtime = self.world.top("scala.scalanative.runtime.package$");
-        let module = self.module(runtime)? as u64;
-        let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
-        let args = self.call_global(init, &[module, argc as u64, argv as u64])?;
-        let top = self.world.top(entry);
-        let main = self.world.member(top, "D4mainLAL16java.lang.String_uEo");
-        self.call_global(main, &[args])?;
-        let shutdown = self.world.member(runtime, "D10onShutdownuEO");
-        self.call_global(shutdown, &[module])?;
-        Ok(())
     }
 
     /// Exits the process with `code`, keeping the VM available to exit handlers C registered.

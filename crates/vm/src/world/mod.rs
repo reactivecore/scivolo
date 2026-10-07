@@ -29,6 +29,8 @@ pub enum LoadError {
     Corrupt(String, nir::Error),
     /// An overlay member the library does not match.
     Overlay(String),
+    /// A file added for a top-level name already looked up or added.
+    Defined(String),
 }
 
 impl std::fmt::Display for LoadError {
@@ -37,6 +39,7 @@ impl std::fmt::Display for LoadError {
             LoadError::Missing(name) => write!(f, "no definition of {name} on the classpath"),
             LoadError::Corrupt(name, e) => write!(f, "{name}: {e}"),
             LoadError::Overlay(what) => write!(f, "overlay: {what}"),
+            LoadError::Defined(name) => write!(f, "{name} is already defined"),
         }
     }
 }

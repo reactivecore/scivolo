@@ -48,7 +48,7 @@ fn dispatch(slot: usize, args: [u64; MAX_ARITY]) -> u64 {
     for i in 0..s.arity {
         values[i] = narrow(s.params[i], args[i]);
     }
-    // SAFETY: `RUNNING` holds the VM of this slot only while its `run_main` runs, during which
+    // SAFETY: `RUNNING` holds the VM of this slot only while it runs Scala code, during which
     // the VM stays in place; C calls back only while the VM waits inside the foreign call, so
     // its own `&mut` borrow is not used until this call returns.
     let vm = unsafe { &mut *vm };
