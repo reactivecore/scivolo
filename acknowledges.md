@@ -47,8 +47,13 @@ Apache-2.0. Rust translations of:
   (types and `dclText` as the REPL shows them).
 - `crates/repl`, from `repl/` (scala3-repl): `ReplPhase` (wrapping, `res` names),
   `ParseResult` (commands, help text, incomplete input), `Rendering` and `ReplDriver`
-  (definitions shown), pprint's `Util.escapeChar` (string quoting);
-  the transcript format of `compiler/test-resources/repl`.
+  (definitions shown), `ReplBytecodeAnalysis` (the synthesized `toString` test in
+  `crates/vm/src/natives/repl.rs`); the transcript format of `compiler/test-resources/repl`.
+
+### [PPrint](https://github.com/com-lihaoyi/PPrint) by Li Haoyi, as vendored by dotty 3.9.0
+
+MIT. `overlay/src/scalai/repl`: a Scala port of `Walker`, `Renderer`, `Result`, `Truncated`,
+`Util` and `ProductSupport`, without colors (fansi).
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 compiler and NIR
 

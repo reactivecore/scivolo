@@ -1,5 +1,5 @@
 //! A VM session: NIR added at run time instead of read from the classpath, modules evaluated,
-//! `String` methods called. The collector serves one VM per process, so one test.
+//! values shown. The collector serves one VM per process, so one test.
 
 #[path = "../src/libs.rs"]
 mod libs;
@@ -11,6 +11,7 @@ const SOURCE: &str = "object Boom:
   val n: Int = if \"a\".length > 0 then throw new IllegalStateException(\"boom\") else 0
 object Show:
   val s: String = \"a\" + 1
+  def v: Any = (s, List(1))
 ";
 
 /// The NIR files of `SOURCE` through the own frontend, empty without the TASTy jars.
@@ -39,7 +40,6 @@ fn session() -> Result<(), String> {
     assert!(defined(vm.add_nir("Cfg$", Vec::new())));
     vm.start_runtime("session", &[]).map_err(|e| e.to_string())?;
     vm.eval_module("Cfg$").map_err(|e| e.to_string())?;
-    assert_eq!(vm.call_string("Cfg$", "name").map_err(|e| e.to_string())?, "cfg");
     let missing = vm.eval_module("Absent$").unwrap_err().to_string();
     assert!(missing.contains("Absent$"), "{missing}");
     assert!(defined(vm.add_nir("Absent$", Vec::new())));
@@ -52,7 +52,8 @@ fn session() -> Result<(), String> {
         let boom = vm.eval_module("Boom$").unwrap_err().to_string();
         assert!(boom.contains("IllegalStateException: boom"), "{boom}");
         vm.eval_module("Boom$").map_err(|e| e.to_string())?;
-        assert_eq!(vm.call_string("Show$", "s").map_err(|e| e.to_string())?, "a1");
+        let shown = vm.show_value("Show$", "v", [80, 50, 0]).map_err(|e| e.to_string())?;
+        assert_eq!(shown, "(\"a1\", List(1))");
     }
     vm.shutdown().map_err(|e| e.to_string())
 }

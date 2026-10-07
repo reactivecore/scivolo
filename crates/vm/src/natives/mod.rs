@@ -7,6 +7,7 @@ mod gc;
 mod java_thread;
 mod junit;
 mod llvm;
+mod repl;
 mod resources;
 mod runtime;
 mod services;

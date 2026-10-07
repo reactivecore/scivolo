@@ -1,0 +1,209 @@
+scala> List("a", "b")
+val res0: List[String] = List("a", "b")
+
+scala> Vector(1, 2)
+val res1: Vector[Int] = Vector(1, 2)
+
+scala> Set(1, 2)
+val res2: Set[Int] = Set(1, 2)
+
+scala> Map((1, "one"), (2, "two"))
+val res3: Map[Int, String] = Map(1 -> "one", 2 -> "two")
+
+scala> Map(("k", List(1, 2)))
+val res4: Map[String, List[Int]] = Map("k" -> List(1, 2))
+
+scala> Array.range(1, 4)
+val res5: Array[Int] = Array(1, 2, 3)
+
+scala> Array("x", "y")
+val res6: Array[String] = Array("x", "y")
+
+scala> Array.empty[Int]
+val res7: Array[Int] = Array()
+
+scala> List()
+val res8: List[Nothing] = List()
+
+scala> val nil: List[Int] = Nil
+val nil: List[Int] = List()
+
+scala> Seq(1, 2)
+val res9: Seq[Int] = List(1, 2)
+
+scala> 1 to 3
+val res10: collection.immutable.Range.Inclusive = Range(1, 2, 3)
+
+scala> (1 to 3000).toList
+val res11: List[Int] = List(
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10,
+  11,
+  12,
+  13,
+  14,
+  15,
+  16,
+  17,
+  18,
+  19,
+  20,
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29,
+  30,
+  31,
+  32,
+  33,
+  34,
+  35,
+  36,
+  37,
+  38,
+  39,
+  40,
+  41,
+  42,
+  43,
+  44,
+  45,
+  46,
+  47,
+  48,
+...
+
+scala> List.fill(3)(List("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbb", "cccccccccccccccc"))
+val res12: List[List[String]] = List(
+  List("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbb", "cccccccccccccccc"),
+  List("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbb", "cccccccccccccccc"),
+  List("aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbbbbbb", "cccccccccccccccc")
+)
+
+scala> java.util.List.of(1, 2)
+val res13: java.util.List[Int] = [1, 2]
+
+scala> Iterator(1, 2)
+val res14: Iterator[Int] = non-empty iterator
+
+scala> Iterator.empty
+val res15: Iterator[Nothing] = empty iterator
+
+scala> LazyList(1, 2, 3)
+val res16: LazyList[Int] = LazyList(<not computed>)
+
+scala> val ll = LazyList.from(1)
+val ll: LazyList[Int] = LazyList(<not computed>)
+
+scala> ll.take(2).toList
+val res17: List[Int] = List(1, 2)
+
+scala> scala.collection.mutable.ArrayBuffer(1, 2)
+val res18: collection.mutable.ArrayBuffer[Int] = ArrayBuffer(1, 2)
+
+scala> scala.collection.mutable.Map(("a", 1))
+val res19: collection.mutable.Map[String, Int] = HashMap("a" -> 1)
+
+scala> scala.collection.mutable.ListBuffer("x")
+val res20: collection.mutable.ListBuffer[String] = ListBuffer("x")
+
+scala> scala.collection.immutable.HashMap((1, 2))
+val res21: collection.immutable.HashMap[Int, Int] = Map(1 -> 2)
+
+scala> scala.collection.immutable.HashSet(1)
+val res22: collection.immutable.HashSet[Int] = Set(1)
+
+scala> scala.collection.mutable.ArraySeq(1, 2)
+val res23: collection.mutable.ArraySeq[Int] = Seq(1, 2)
+
+scala> scala.collection.immutable.TreeMap((1, "a"))
+val res24: collection.immutable.TreeMap[Int, String] = TreeMap(1 -> "a")
+
+scala> List[Option[Int]](Some(1), None)
+val res25: List[Option[Int]] = List(Some(1), None)
+
+scala> val l = scala.collection.mutable.ArrayBuffer[Any](1)
+val l: collection.mutable.ArrayBuffer[Any] = ArrayBuffer(1)
+
+scala> l += l
+val res26: collection.mutable.ArrayBuffer[Any] = ArrayBuffer(
+  1,
+  ArrayBuffer(
+    1,
+    ArrayBuffer(
+      1,
+      ArrayBuffer(
+        1,
+        ArrayBuffer(
+          1,
+          ArrayBuffer(
+            1,
+            ArrayBuffer(
+              1,
+              ArrayBuffer(
+                1,
+                ArrayBuffer(
+                  1,
+                  ArrayBuffer(
+                    1,
+                    ArrayBuffer(
+                      1,
+                      ArrayBuffer(
+                        1,
+                        ArrayBuffer(
+                          1,
+                          ArrayBuffer(
+                            1,
+                            ArrayBuffer(
+                              1,
+                              ArrayBuffer(
+                                1,
+                                ArrayBuffer(
+                                  1,
+                                  ArrayBuffer(
+                                    1,
+                                    ArrayBuffer(
+                                      1,
+                                      ArrayBuffer(
+                                        1,
+                                        ArrayBuffer(
+                                          1,
+                                          ArrayBuffer(
+                                            1,
+                                            ArrayBuffer(
+                                              1,
+                                              ArrayBuffer(
+                                                1,
+                                                ArrayBuffer(
+...
+
+scala> Option("s")
+val res27: Option[String] = Some("s")
+
+scala> "abc".toList
+val res28: List[Char] = List('a', 'b', 'c')
+
+scala> List(1L, 2L)
+val res29: List[Long] = List(1L, 2L)
+
+scala> Map.empty[Int, Int]
+val res30: Map[Int, Int] = Map()
+
+scala> (1 to 10).map(_ * 2)
+val res31: IndexedSeq[Int] = Vector(2, 4, 6, 8, 10, 12, 14, 16, 18, 20)
+
+scala> List(List(1, 2), List(3))
+val res32: List[List[Int]] = List(List(1, 2), List(3))

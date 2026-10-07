@@ -1,0 +1,128 @@
+scala> case class P(x: Int, y: Int)
+// defined case class P
+
+scala> P(1, 2)
+val res0: P = P(x = 1, y = 2)
+
+scala> case class Box(value: String)
+// defined case class Box
+
+scala> Box("hi")
+val res1: Box = Box("hi")
+
+scala> case class Named(name: String, tags: List[String], inner: P)
+// defined case class Named
+
+scala> Named("n", List("a", "b"), P(3, 4))
+val res2: Named = Named(
+  name = "n",
+  tags = List("a", "b"),
+  inner = P(x = 3, y = 4)
+)
+
+scala> Some(P(1, 2))
+val res3: Some[P] = Some(P(x = 1, y = 2))
+
+scala> None
+val res4: None.type = None
+
+scala> (1, "two", '3')
+val res5: (Int, String, Char) = (1, "two", '3')
+
+scala> ((1, 2), (3L, 4.5F))
+val res6: ((Int, Int), (Long, Float)) = ((1, 2), (3L, 4.5F))
+
+scala> Tuple1(1)
+val res7: Tuple1[Int] = Tuple1(1)
+
+scala> case class Shown(n: Int) { override def toString = s"Shown#$n" }
+// defined case class Shown
+
+scala> Shown(5)
+val res8: Shown = Shown#5
+
+scala> List(Shown(1), Shown(2))
+val res9: List[Shown] = List(Shown#1, Shown#2)
+
+scala> class Plain(val n: Int) { override def toString = "plain" }
+// defined class Plain
+
+scala> new Plain(1)
+val res10: Plain = plain
+
+scala> case object Obj
+// defined case object Obj
+
+scala> Obj
+val res11: Obj.type = Obj
+
+scala> case class `odd name`(`a b`: Int, c: Int)
+// defined case class odd name
+
+scala> `odd name`(1, 2)
+val res12: odd name = odd name(`a b` = 1, c = 2)
+
+scala> case class <+>(l: Int, r: String)
+// defined case class <+>
+
+scala> <+>(1, "x")
+val res13: <+> = 1 <+> "x"
+
+scala> case class Wide(first: String, second: String, third: String, fourth: String)
+// defined case class Wide
+
+scala> Wide("aaaaaaaaaaaa", "bbbbbbbbbbbbbbb", "cccccccccccccccc", "dddddddddddddddd")
+val res14: Wide = Wide(
+  first = "aaaaaaaaaaaa",
+  second = "bbbbbbbbbbbbbbb",
+  third = "cccccccccccccccc",
+  fourth = "dddddddddddddddd"
+)
+
+scala> List(Wide("aaaaaaaaaaaa", "bbbbbbbbbbbbbbb", "cccccccccccccccc", "dddddddddddddddd"), Wide("e", "f", "g", "h"))
+val res15: List[Wide] = List(
+  Wide(
+    first = "aaaaaaaaaaaa",
+    second = "bbbbbbbbbbbbbbb",
+    third = "cccccccccccccccc",
+    fourth = "dddddddddddddddd"
+  ),
+  Wide(first = "e", second = "f", third = "g", fourth = "h")
+)
+
+scala> Left(1)
+val res16: Left[Int, Nothing] = Left(1)
+
+scala> Right("r")
+val res17: Right[Nothing, String] = Right("r")
+
+scala> val e: Either[String, Int] = Right(3)
+val e: Either[String, Int] = Right(3)
+
+scala> val n: P = null
+val n: P = null
+
+scala> val a: Any = "a"
+val a: Any = "a"
+
+scala> val c: Any = 'c'
+val c: Any = 'c'
+
+scala> val l: Any = 5L
+val l: Any = 5L
+
+scala> val f: Any = 1.5F
+val f: Any = 1.5F
+
+scala> "quote\"and\\slash"
+val res18: String = "quote\"and\\slash"
+
+scala> "two\nlines"
+val res19: String = """two
+lines"""
+
+scala> new StringBuilder("sb")
+val res20: StringBuilder = sb
+
+scala> Some(new StringBuilder("sb"))
+val res21: Some[StringBuilder] = Some("sb")

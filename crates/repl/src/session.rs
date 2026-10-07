@@ -42,16 +42,19 @@ pub struct Session {
     /// The earlier inputs that ran.
     earlier: Vec<Earlier>,
     exit: Option<i32>,
+    /// The columns values are wrapped at.
+    width: i32,
 }
 
 impl Session {
-    /// A session running in `vm`, whose runtime is started here, over the TASTy of `image`.
-    pub fn new(mut vm: Vm, image: &'static Image) -> Result<Session, VmError> {
+    /// A session running in `vm`, whose runtime is started here, over the TASTy of `image`,
+    /// printing values in `width` columns.
+    pub fn new(mut vm: Vm, image: &'static Image, width: i32) -> Result<Session, VmError> {
         vm.start_runtime("repl", &[])?;
         let (names, fresh) = (Names::default(), FreshNames::default());
         let (u, units) = (Universe::open_image(image), Units::default());
-        let earlier = Vec::new();
-        Ok(Session { vm, image, u, units, names, fresh, line: 0, base: 0, res: 0, earlier, exit: None })
+        let (earlier, exit) = (Vec::new(), None);
+        Ok(Session { vm, image, u, units, names, fresh, line: 0, base: 0, res: 0, earlier, exit, width })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -166,7 +169,7 @@ impl Session {
         self.earlier.push(earlier);
         let mut out = Vec::new();
         for d in defs {
-            match render::line(&mut self.vm, &module, &d) {
+            match render::line(&mut self.vm, &module, &d, self.width) {
                 Ok(line) => out.push(line),
                 Err(e) => {
                     out.extend(self.failed(e));
