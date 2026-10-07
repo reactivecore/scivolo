@@ -52,8 +52,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 class_stats.push(stat);
                 let field = l.tpd.sym(stat).expect("a field's symbol");
                 let memoized = l.fields.get(&field).is_some_and(|&g| g != field);
-                let at = if memoized { l.tpd.span(rhs) } else { l.tpd.span(stat) };
-                let at = if memoized && at.exists() { at.with_point(at.start()) } else { at };
+                let at = match (memoized, l.tpd.span(rhs)) {
+                    (true, s) if s.exists() => s.with_point(s.start()),
+                    (true, s) => s,
+                    (false, _) => l.tpd.span(stat),
+                };
                 let lhs = l.field_ref(field, at);
                 inits.push(assign(l, lhs, rhs, at));
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };

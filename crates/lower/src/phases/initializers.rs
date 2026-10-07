@@ -4,21 +4,26 @@
 
 use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
-use crate::Lower;
 use crate::symbols::{has, is_module_class};
+use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{LAZY, MUTABLE};
+use tasty::tags::{FINAL, LAZY, MUTABLE, PRIVATE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the references to the parameter fields of class definition `td` in its field
 /// initializers and statements refer to the constructor's parameters of their names; the
 /// parameter fields referenced where no constructor parameter can stand for them.
-pub fn transform(l: &mut Lower, td: TNodeId) -> FxHashSet<SymbolId> {
+pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return FxHashSet::default() };
+    let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(FxHashSet::default()) };
     let stats = l.tpd.items(body).to_vec();
+    for &stat in &stats {
+        if l.tpd.sym(stat).is_some_and(|s| is_param_accessor(l, s) && has(l.u, s, MUTABLE)) {
+            return unsupported(l.tpd.span(stat), "mutable class parameters");
+        }
+    }
     let retained = retained(l, class, &stats);
     let params = constructor_params(l, constr);
     for stat in stats {
@@ -29,6 +34,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> FxHashSet<SymbolId> {
         };
         for t in subtrees(l.tpd, root) {
             let Some(field) = field_ref(l, class, t) else { continue };
+            if matches!(l.tpd.tree(t), Tree::Select { .. }) && !is_effectively_final(l, class, field) {
+                return unsupported(
+                    l.tpd.span(t),
+                    "overridable class parameters selected on this in the constructor",
+                );
+            }
             let Some(param) = params.iter().copied().find(|&p| l.u.symbol(p).name == l.u.symbol(field).name)
             else {
                 continue;
@@ -37,7 +48,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> FxHashSet<SymbolId> {
             l.copy_node(t, ident);
         }
     }
-    retained
+    Ok(retained)
+}
+
+/// Whether member `s` of class `class` cannot be overridden.
+fn is_effectively_final(l: &Lower, class: SymbolId, s: SymbolId) -> bool {
+    has(l.u, s, PRIVATE) || has(l.u, s, FINAL) || has(l.u, class, FINAL) || is_module_class(l.u, class)
 }
 
 /// The value parameters of constructor `constr`.

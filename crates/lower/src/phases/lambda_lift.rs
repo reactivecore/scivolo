@@ -6,9 +6,8 @@
 use super::captures::dependencies;
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
-use crate::Lower;
-use crate::Result;
 use crate::symbols::{has, is_module_class, is_static};
+use crate::{Lower, Result};
 use tasty::tags::FIELDaccessor;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};

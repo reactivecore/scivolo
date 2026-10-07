@@ -32,6 +32,11 @@ const CASES: &[(&str, &str)] = &[
         "branches of arrays and other erased classes",
     ),
     ("object O { private val x = \"a\" }", "private values used only in the constructor"),
+    ("class A(var p: Int) { println(p) }", "mutable class parameters"),
+    (
+        "class A(val x: Int) { println(this.x) }",
+        "overridable class parameters selected on this in the constructor",
+    ),
     ("object O { val u = () }", "fields of type Unit"),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
