@@ -74,14 +74,14 @@ impl Vm {
         let _running = self.callbacks.enter(vm);
         let main = move |vm: &mut Vm| {
             body(vm).map_err(|u| match u.thrown() {
-                Some(exc) => VmError::Uncaught(vm.describe_throwable(exc)).into(),
+                Some(exc) => VmError::Uncaught(vm.thrown(exc)).into(),
                 None => u,
             })
         };
         match self.run_threads(main) {
             Ok(()) => Ok(()),
             Err(u) => match u.into_inner() {
-                interp::Unwound::Throw(exc) => Err(VmError::Uncaught(self.describe_throwable(exc))),
+                interp::Unwound::Throw(exc) => Err(VmError::Uncaught(self.thrown(exc))),
                 interp::Unwound::Fatal(e) => Err(e),
             },
         }

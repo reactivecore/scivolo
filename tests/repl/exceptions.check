@@ -3,12 +3,52 @@ def boom(): Int
 
 scala> boom()
 java.lang.IllegalStateException: boom
+  at rs$line$1$.boom(rs$line$1:1)
+  ... 1 elided
 
 scala> val ok = 1
 val ok: Int = 1
 
 scala> val v: Int = boom()
 java.lang.IllegalStateException: boom
+  at rs$line$1$.boom(rs$line$1:1)
+  ... 1 elided
 
 scala> ok + 1
 val res1: Int = 2
+
+scala> def outer(): Int = inner() + 1
+     | def inner(): Int = boom()
+def outer(): Int
+def inner(): Int
+
+scala> outer()
+java.lang.IllegalStateException: boom
+  at rs$line$1$.boom(rs$line$1:1)
+  at rs$line$6$.inner(rs$line$6:2)
+  at rs$line$6$.outer(rs$line$6:1)
+  ... 1 elided
+
+scala> val unshowable = new scala.collection.immutable.ArraySeq.ofInt(null)
+java.lang.NullPointerException
+  at java.lang.reflect.Array$.getLength(Array.scala:63)
+  at java.lang.reflect.Array.getLength(Array.scala:60)
+  at scala.runtime.ScalaRunTime$.array_length(ScalaRunTime.scala:110)
+  at scala.collection.ArrayOps$ArrayIterator.<init>(ArrayOps.scala:126)
+  at scala.collection.immutable.ArraySeq$ofInt.iterator(ArraySeq.scala:514)
+  at scala.runtime.ScalaRunTime$.inner$1(ScalaRunTime.scala:279)
+  at scala.runtime.ScalaRunTime$.stringOf(ScalaRunTime.scala:287)
+  at rs$line$8$.unshowable$show(rs$line$8:1)
+
+scala> ???
+scala.NotImplementedError: an implementation is missing
+  at scala.Predef$.$qmark$qmark$qmark(Predef.scala:396)
+  ... 1 elided
+
+scala> throw new Exception(null: String, new IllegalStateException("inner"))
+java.lang.Exception: java.lang.IllegalStateException: inner
+  ... 1 elided
+
+scala> throw new Exception(null: String, new IllegalStateException())
+java.lang.Exception: java.lang.IllegalStateException
+  ... 1 elided

@@ -5,10 +5,12 @@ mod commands;
 mod earlier;
 mod imports;
 mod input;
+mod line_names;
 mod render;
 mod report;
 mod session;
 mod show_methods;
+mod trace;
 mod value;
 mod wrap;
 

@@ -15,11 +15,13 @@ mod rtti;
 mod session;
 mod stack;
 mod threads;
+mod throwable;
 mod world;
 
 pub use classpath::{Classpath, nir_table};
 pub use error::VmError;
 pub use natives::exit_immediately;
+pub use throwable::{Frame, Thrown};
 pub use world::World;
 
 use class::Classes;

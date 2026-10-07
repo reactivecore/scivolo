@@ -19,12 +19,15 @@ val res1: Null = null
 
 scala> ???
 scala.NotImplementedError: an implementation is missing
+  at scala.Predef$.$qmark$qmark$qmark(Predef.scala:396)
+  ... 1 elided
 
 scala> 3
 val res3: Int = 3
 
 scala> throw new RuntimeException("x")
 java.lang.RuntimeException: x
+  ... 1 elided
 
 scala> 4
 val res5: Int = 4
@@ -59,6 +62,8 @@ val q: Int = 1
 
 scala> unit(); ???
 scala.NotImplementedError: an implementation is missing
+  at scala.Predef$.$qmark$qmark$qmark(Predef.scala:396)
+  ... 1 elided
 
 scala> 8
 val res12: Int = 8

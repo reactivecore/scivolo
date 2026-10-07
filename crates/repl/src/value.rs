@@ -1,9 +1,8 @@
 //! Values as the REPL prints them: `ScalaRunTime.stringOf`'s text, quoted for strings and
 //! characters and suffixed for `Long` and `Float` as pprint does, without the wrapper prefix.
 
+use crate::line_names::PREFIX as WRAPPER_PREFIX;
 use tasty::Erased;
-
-const WRAPPER_PREFIX: &str = "rs$line$";
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Quote {
