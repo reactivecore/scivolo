@@ -32,3 +32,4 @@ unitfields
 nested
 tryfinally
 namedargs
+superargs
