@@ -1,7 +1,7 @@
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;
-use crate::symbols::{is_class, is_static_module, is_trait};
+use crate::symbols::{is_class, is_module_class, is_static_module, is_trait};
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
@@ -31,7 +31,14 @@ impl Gen<'_, '_> {
             DefnKind::Class { parent: Some(self.class_parent(sym)), traits }
         };
         self.defns.push(Defn { name, attrs, pos, kind });
-        self.gen_class_fields(sym, pos);
+        if is_module_class(self.l.u, sym) {
+            self.gen_lazy_handle_fields(sym, pos);
+        }
+        self.gen_lazy_handle_accessors(sym, pos);
+        let Tree::TypeDef { rhs: template, .. } = *self.l.tpd.tree(td) else {
+            unreachable!("a class definition")
+        };
+        self.gen_class_fields(sym, template, pos);
         self.lambdas = 0;
         self.gen_methods(td)?;
         let closures = std::mem::take(&mut self.closures);

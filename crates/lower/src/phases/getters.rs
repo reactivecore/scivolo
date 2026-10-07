@@ -47,7 +47,14 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             return unsupported(span, "traits with initialization");
         }
         if has(l.u, sym, LAZY) {
-            return unsupported(span, "lazy values");
+            let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
+            l.u.set_flags(sym, flags);
+            if let (Some(class), Some(rhs)) = (owner, rhs) {
+                super::lazy_vals::define_init(l, class, sym, rhs);
+            }
+            let paramss = l.tpd.clauses(&[]);
+            l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
+            continue;
         }
         if rhs.is_none() && !is_param_accessor(l, sym) {
             return unsupported(span, "abstract values");

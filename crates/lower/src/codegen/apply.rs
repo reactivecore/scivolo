@@ -172,7 +172,11 @@ impl Gen<'_, '_> {
             return unsupported(span, "a call with several argument lists");
         }
         let mut out = Vec::new();
-        for (&a, param) in args.iter().zip(params) {
+        for (i, (&a, param)) in args.iter().zip(params).enumerate() {
+            if i == 0 && sym == self.l.defs.lazy_vals.obj_cas {
+                out.push(self.gen_field_ptr(a)?);
+                continue;
+            }
             let v = self.gen_expr(a)?;
             self.check_conforms(v, param, self.l.tpd.span(a))?;
             out.push(v);

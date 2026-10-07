@@ -6,7 +6,7 @@ use super::getters::{is_const_final, is_setter};
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
-use tasty::tags::{FIELDaccessor, LOCAL, MUTABLE, PRIVATE};
+use tasty::tags::{FIELDaccessor, LAZY, LOCAL, MUTABLE, PRIVATE};
 use tasty::{Erased, Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -32,7 +32,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             stats.push(stat);
             continue;
         }
-        if is_const_final(l, accessor) {
+        if is_const_final(l, accessor) || has(l.u, accessor, LAZY) {
             stats.push(stat);
             continue;
         }

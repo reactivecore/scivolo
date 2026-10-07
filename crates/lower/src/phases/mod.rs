@@ -22,6 +22,9 @@ mod getters;
 mod initializers;
 mod interpolators;
 mod lambda_lift;
+mod lazy_init;
+mod lazy_trees;
+pub(crate) mod lazy_vals;
 mod lifted;
 mod literals;
 mod memoize;
@@ -74,6 +77,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let concrete = mixin::methods_with_body(l, &classes, true);
     for &td in &classes {
         mixin::transform(l, td, &unit_classes, &concrete)?;
+    }
+    for &td in &classes {
+        lazy_vals::transform(l, td)?;
     }
     for &td in &classes {
         memoize::transform(l, td)?;

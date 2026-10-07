@@ -8,7 +8,7 @@ use super::lifted::{Method, lift, methods};
 use super::walk::children;
 use crate::symbols::{has, is_module_class, is_static};
 use crate::{Lower, Result};
-use tasty::tags::FIELDaccessor;
+use tasty::tags::{FIELDaccessor, LAZY};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -102,7 +102,7 @@ fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
     let (mut functions, mut roots) = (Vec::new(), Vec::new());
     for &stat in &stats {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
-            (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor));
+            (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY));
         let first = functions.len();
         let root = match *l.tpd.tree(stat) {
             Tree::DefDef { rhs: Some(rhs), .. } => rhs,

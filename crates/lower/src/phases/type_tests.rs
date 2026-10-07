@@ -149,7 +149,7 @@ fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
 }
 
 /// The box class of the primitive of erased letter `c`.
-fn boxed_class(c: char) -> Option<&'static str> {
+pub fn boxed_class(c: char) -> Option<&'static str> {
     Some(match c {
         'z' => "java.lang.Boolean",
         'c' => "java.lang.Character",
