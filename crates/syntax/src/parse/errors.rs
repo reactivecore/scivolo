@@ -40,7 +40,7 @@ impl Parser<'_> {
     pub fn incomplete_input_error(&mut self, msg: impl Into<String>) {
         if !self.gave_up && Some(self.offset()) != self.last_error_offset {
             let o = self.offset();
-            self.s.diags.error(o, msg);
+            self.s.diags.incomplete_input_error(o, msg);
         }
     }
 

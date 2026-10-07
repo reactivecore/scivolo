@@ -55,7 +55,8 @@ impl Scanner<'_> {
                     self.cur.token = Token::ColonFollow;
                 }
             }
-            Token::RBrace | Token::RParen | Token::RBracket | Token::Eof => self.close_indented(),
+            Token::RBrace | Token::RParen | Token::RBracket => self.close_indented(),
+            Token::Eof if !self.source.maybe_incomplete => self.close_indented(),
             _ => {}
         }
     }

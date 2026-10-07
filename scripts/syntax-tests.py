@@ -45,11 +45,11 @@ def write_list(filter_):
 
 
 def split(output):
-    """{path relative to tests/: record text} from dump or oracle output."""
+    """{path relative to tests/: record text} from dump or oracle output, recorded in any checkout."""
     records = {}
     for chunk in output.split("== file ")[1:]:
         path, _, body = chunk.partition("\n")
-        records[str(Path(path).relative_to(TESTS))] = body
+        records[path.split("ref/dotty/tests/", 1)[-1]] = body
     return records
 
 

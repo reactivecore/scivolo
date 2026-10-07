@@ -27,6 +27,8 @@ pub struct Diagnostic {
     /// Where the `^` goes; `None` for a diagnostic without a position.
     pub offset: Option<Offset>,
     pub message: String,
+    /// Whether the error is about input ending where more was expected.
+    pub incomplete: bool,
 }
 
 impl Diagnostic {
@@ -47,13 +49,25 @@ impl Diagnostics {
     }
 
     pub fn error_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<String>) {
-        let message = message.into();
-        self.items.push(Diagnostic { level: Level::Error, start, end, offset: Some(offset), message });
+        self.push(Level::Error, start, end, Some(offset), message.into());
     }
 
     pub fn error_unpositioned(&mut self, message: impl Into<String>) {
+        self.push(Level::Error, 0, 0, None, message.into());
+    }
+
+    /// An error at `offset` about input ending where more was expected.
+    pub fn incomplete_input_error(&mut self, offset: Offset, message: impl Into<String>) {
         let message = message.into();
-        self.items.push(Diagnostic { level: Level::Error, start: 0, end: 0, offset: None, message });
+        let d = Diagnostic {
+            level: Level::Error,
+            start: offset,
+            end: offset,
+            offset: Some(offset),
+            message,
+            incomplete: true,
+        };
+        self.items.push(d);
     }
 
     pub fn warning(&mut self, offset: Offset, message: impl Into<String>) {
@@ -61,12 +75,22 @@ impl Diagnostics {
     }
 
     pub fn warning_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<String>) {
-        let message = message.into();
-        self.items.push(Diagnostic { level: Level::Warning, start, end, offset: Some(offset), message });
+        self.push(Level::Warning, start, end, Some(offset), message.into());
+    }
+
+    fn push(&mut self, level: Level, start: Offset, end: Offset, offset: Option<Offset>, message: String) {
+        self.items.push(Diagnostic { level, start, end, offset, message, incomplete: false });
     }
 
     pub fn has_errors(&self) -> bool {
         self.items.iter().any(|d| d.level == Level::Error)
+    }
+
+    /// Whether the only errors are incomplete-input errors, and there is one (dotty's
+    /// `ParseResult.isIncomplete`).
+    pub fn is_incomplete(&self) -> bool {
+        let errors = || self.items.iter().filter(|d| d.level == Level::Error);
+        errors().any(|d| d.incomplete) && errors().all(|d| d.incomplete)
     }
 
     /// The diagnostics dotty's reporter shows: one per position unless of higher severity
