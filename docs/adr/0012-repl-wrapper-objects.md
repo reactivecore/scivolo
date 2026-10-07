@@ -26,7 +26,8 @@ top-level name, and the collector serves one VM per process.
   names never clash in the VM; the `res` index advances once an input parses, also when its
   typing fails, and the `res` values of type `Unit` give their indices back once the module
   was constructed, as in dotty's `renderDefinitions`. Only inputs whose module was constructed
-  are imported later.
+  are imported later. Output shows `rs$line$N` less the index at the last `:reset`, so the
+  user's numbers restart at 1 as in dotty.
 
 ## Consequences
 - The typer and the lowering need no REPL mode.
@@ -37,4 +38,4 @@ top-level name, and the collector serves one VM per process.
   for a wildcard import, where dotty's nested contexts pick the definition.
 - Values print as `stringOf` does, not as pprint: products and collections of strings differ.
 - Traces show the interpreter's frames; `... N elided` counts the wrapper frames cut, not the
-  JVM's reflection frames.
+  JVM's reflection frames. Causes and suppressed exceptions are not printed.

@@ -5,7 +5,7 @@ use crate::commands::{self, Command};
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
 use crate::render::Definition;
-use crate::{imports, render, report, trace, wrap};
+use crate::{imports, line_names, render, report, trace, wrap};
 use libimage::Image;
 use lower::NirFile;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -35,6 +35,8 @@ pub struct Session {
     fresh: FreshNames,
     /// The index of the last wrapper object; it grows across resets.
     line: u32,
+    /// `line` at the last reset.
+    base: u32,
     /// The next free `res` index.
     res: u32,
     /// The earlier inputs that ran.
@@ -49,7 +51,7 @@ impl Session {
         let (names, fresh) = (Names::default(), FreshNames::default());
         let (u, units) = (Universe::open_image(image), Units::default());
         let earlier = Vec::new();
-        Ok(Session { vm, image, u, units, names, fresh, line: 0, res: 0, earlier, exit: None })
+        Ok(Session { vm, image, u, units, names, fresh, line: 0, base: 0, res: 0, earlier, exit: None })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -58,6 +60,7 @@ impl Session {
         self.units = Units::default();
         self.names = Names::default();
         self.fresh = FreshNames::default();
+        self.base = self.line;
         self.res = 0;
         self.earlier.clear();
     }
@@ -84,12 +87,12 @@ impl Session {
                 vec![report::internal(panic.as_ref()), RESETTING.to_owned()]
             }
         };
-        out.iter().flat_map(|s| s.lines()).map(str::to_owned).collect()
+        out.iter().flat_map(|s| s.lines()).map(|l| line_names::shown(l, self.base)).collect()
     }
 
     /// Compiles input `text` into a unit to run, or the lines it prints instead.
     fn compile(&mut self, text: &str) -> Result<Unit, Vec<String>> {
-        let name = format!("rs$line${}", self.line + 1);
+        let name = format!("{}{}", line_names::PREFIX, self.line + 1);
         match input::classify(&name, text, &mut self.names, &mut self.fresh) {
             Input::Empty => Err(Vec::new()),
             Input::Command(c) => Err(self.command(c)),
@@ -116,7 +119,7 @@ impl Session {
     /// Types and lowers the statements of one input.
     fn lower(&mut self, mut parsed: Parsed) -> Result<Unit, Vec<String>> {
         self.line += 1;
-        let object = format!("rs$line${}", self.line);
+        let object = format!("{}{}", line_names::PREFIX, self.line);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let prelude = earlier::prelude(&self.earlier);
         let wrapped = wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh)?;

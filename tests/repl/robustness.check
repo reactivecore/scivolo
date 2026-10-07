@@ -43,12 +43,12 @@ def boom(): Int
 
 scala> boom()
 java.lang.IllegalStateException: boom
-  at rs$line$66$.boom(rs$line$66:1)
+  at rs$line$10$.boom(rs$line$10:1)
   ... 1 elided
 
 scala> val w = 1; val v = boom()
 java.lang.IllegalStateException: boom
-  at rs$line$66$.boom(rs$line$66:1)
+  at rs$line$10$.boom(rs$line$10:1)
   ... 1 elided
 
 scala> w

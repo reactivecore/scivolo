@@ -1,12 +1,11 @@
 //! The top-level imports of an input as source text for later inputs, a path that starts at a
 //! definition of an input qualified by its wrapper object: `import rs$line$1.s.length`.
 
+use crate::line_names::PREFIX as WRAPPER_PREFIX;
 use syntax::source::SourceFile;
 use tasty::{Kind, Universe};
 use typer::Typed;
 use typer::tpd::{TNodeId, Tree};
-
-const WRAPPER_PREFIX: &str = "rs$line$";
 
 /// The imports in wrapper template `template` of `typed`, as source text with `import` in front.
 pub fn imports(u: &Universe, typed: &Typed, template: TNodeId, source: &SourceFile) -> Vec<String> {

@@ -5,6 +5,7 @@ mod commands;
 mod earlier;
 mod imports;
 mod input;
+mod line_names;
 mod render;
 mod report;
 mod session;
