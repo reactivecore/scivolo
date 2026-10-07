@@ -31,7 +31,7 @@ impl Universe {
         self.symbols[sym.0 as usize].flags = flags;
     }
 
-    /// Records whether `sym`, a method or value defined outside TASTy, is abstract.
+    /// Records whether `sym`, a term defined outside TASTy, is abstract.
     pub fn set_deferred(&mut self, sym: SymbolId, deferred: bool) {
         if deferred {
             self.deferred.insert(sym);

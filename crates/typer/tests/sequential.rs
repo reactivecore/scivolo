@@ -125,6 +125,11 @@ fn deferred_members_of_earlier_units() {
     let b = u.decl(t, "b").expect("a lookup")[0];
     assert!(u.is_deferred(a));
     assert!(!u.is_deferred(b));
+    let line2 = u.decl(root, "rs$line$2$").expect("a lookup");
+    let line2 = *line2.iter().find(|&&c| u.symbol(c).kind == Kind::Class).expect("the module class");
+    let c = u.decl(line2, "C").expect("a lookup")[0];
+    let c_a = u.decl(c, "a").expect("a lookup")[0];
+    assert!(!u.is_deferred(c_a));
 }
 
 #[test]
