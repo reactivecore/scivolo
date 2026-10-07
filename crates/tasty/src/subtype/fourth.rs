@@ -50,11 +50,11 @@ impl Cmp<'_> {
         self.either(|s| s.recur(x, b), |s| s.recur(y, b))
     }
 
-    /// `a <: b` for a singleton `a`: the same path, `a`'s underlying path (dotty's `underlying`),
-    /// or `a` widened.
+    /// `a <: b` for a singleton `a`: the same atom or path, `a`'s underlying path (dotty's
+    /// `underlying`), or `a` widened.
     fn below_singleton(&mut self, a: TypeId, b: TypeId) -> bool {
         let path = matches!(self.u.types().get(b), Type::TermRef(..) | Type::This(_) | Type::Sym(..));
-        if path && self.same_path(a, b) {
+        if path && (self.compare_atoms(a, b, true) == Some(true) || self.same_path(a, b)) {
             return true;
         }
         if path

@@ -153,6 +153,62 @@ fn subtyping_matches_dotc() {
 }
 
 #[test]
+fn unions_of_singletons_compare_by_atoms() {
+    let Some(mut u) = universe() else { return };
+    let dotc = [
+        ("1", "1 | 2", true),
+        ("3", "1 | 2", false),
+        ("1 | 2", "1 | 2 | 3", true),
+        ("1 | 2 | 3", "1 | 2", false),
+        ("1 | 2", "2 | 1", true),
+        ("1 | 2", "scala.Int", true),
+        ("scala.Int", "1 | 2", false),
+        ("scala.Nothing", "1 | 2", true),
+        ("scala.Nothing | 1", "1 | 2", true),
+        ("1", "scala.Int | java.lang.String", true),
+        ("1 | 2", "1 | scala.Int", true),
+        ("scala.Int | java.lang.String", "java.lang.String | scala.Int", true),
+        ("\"a\" | 1", "\"a\" | 1 | 2", true),
+        ("\"b\"", "\"a\" | 1", false),
+        ("oracle.a.v.type", "oracle.a.v.type | 1", true),
+        ("oracle.a.v.type", "oracle.b.v.type | 1", false),
+        ("oracle.a.v.type | 1", "oracle.a.v.type | 1 | 2", true),
+        ("oracle.a.type | oracle.b.type", "oracle.b.type | oracle.a.type", true),
+        ("scala.Null", "oracle.a.v.type | 1", false),
+        ("oracle.a.T", "1 | 2", false),
+        ("oracle.O.type", "oracle.O.type | 1", true),
+    ];
+    for (a, b, expected) in dotc {
+        let (ta, tb) = (parse(&mut u, a), parse(&mut u, b));
+        assert_eq!(u.is_subtype(ta, tb), expected, "{a} <: {b}");
+    }
+}
+
+#[test]
+fn paths_to_one_value_are_one_atom() {
+    let Some(mut u) = universe() else { return };
+    let none_ref = parse(&mut u, "scala.None.type");
+    let scala = path_prefix(&mut u, "scala");
+    let none = u.resolve(scala, "None", false).unwrap();
+    let none_sym = u.intern_type(Type::Sym(None, none));
+    let oracle = path_prefix(&mut u, "oracle");
+    let o = u.resolve(oracle, "O", false).unwrap();
+    let o_class = u.module_class(o).unwrap();
+    let o_class = u.intern_type(Type::Sym(None, o_class));
+    let o_this = u.intern_type(Type::This(o_class));
+    let pairs =
+        [(none_sym, "scala.None.type | 1"), (o_this, "oracle.O.type | 1"), (o_this, "1 | oracle.O.type")];
+    for (a, b) in pairs {
+        let tb = parse(&mut u, b);
+        assert!(u.is_subtype(a, tb), "{} <: {b}", u.show(a));
+    }
+    let one = parse(&mut u, "1");
+    let union = u.intern_type(Type::Or(none_sym, one));
+    assert!(u.is_subtype(none_ref, union));
+    assert!(!u.is_subtype(o_this, union));
+}
+
+#[test]
 fn outer_this_types_are_seen_from_the_prefix() {
     let Some(mut u) = universe() else { return };
     let outer = named_type(&mut u, "oracle.Outer");
@@ -229,7 +285,10 @@ fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
                 if sub[i][k] && sub[j][k] && !u.is_subtype(lub, types[k]) {
                     wrong.push(format!("lub of {pair}, {}, is not below {}", u.show(lub), names[k]));
                 }
-                if sub[k][i] && sub[k][j] && !u.is_subtype(types[k], glb) {
+                // `Null` is below a nullable singleton but not below a union of intersections
+                // with it, as in dotc.
+                let null = names[k] == "scala.Null";
+                if sub[k][i] && sub[k][j] && !null && !u.is_subtype(types[k], glb) {
                     wrong.push(format!("glb of {pair}, {}, is not above {}", u.show(glb), names[k]));
                 }
             }

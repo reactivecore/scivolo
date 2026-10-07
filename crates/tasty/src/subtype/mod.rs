@@ -2,6 +2,8 @@
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 
 mod applied;
+mod atoms;
+mod atoms_lub;
 mod binders;
 mod first;
 mod fourth;
@@ -11,6 +13,7 @@ mod lub;
 mod null;
 mod refined;
 mod refs;
+mod singletons;
 mod third;
 
 use crate::types::{TypeId, VarId};

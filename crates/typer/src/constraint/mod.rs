@@ -2,9 +2,6 @@
 //! without the ordering between variables), with an undo log for `either` and failed
 //! comparisons.
 
-mod atoms;
-
-use atoms::atoms_lub;
 use tasty::{ANY, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 #[derive(Clone, Copy)]
@@ -105,21 +102,22 @@ impl TypeVars for Constraint {
             return self.satisfiable(u, lo, t);
         }
         let incoming_union = matches!(u.types().get(lo), Type::Or(..));
-        let (lo, soft) = if let Some(joined) = atoms_lub(u, e.lo, lo) {
-            (joined, e.soft || joined != e.lo && joined != lo)
+        let (lo, unchecked, soft) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
+            (joined, lo, e.soft || joined != e.lo && joined != lo)
         } else if u.is_subtype(lo, e.lo) {
-            (e.lo, e.soft)
+            (e.lo, e.lo, e.soft)
         } else if u.is_subtype(e.lo, lo) {
-            (lo, false)
+            (lo, lo, false)
         } else {
-            (u.lub(e.lo, lo), true)
+            let lub = u.lub(e.lo, lo);
+            (lub, lub, true)
         };
         if let Type::Var(w) = *u.types().get(e.hi)
             && !self.propagated(u, w, lo, true)
         {
             return false;
         }
-        if !self.satisfiable(u, lo, e.hi) {
+        if !self.satisfiable(u, unchecked, e.hi) {
             return false;
         }
         self.set(v, lo, e.hi, soft);

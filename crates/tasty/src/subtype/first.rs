@@ -85,7 +85,10 @@ impl Cmp<'_> {
                 _ => true,
             },
             Type::And(x, y) if x == y => self.recur(x, b),
-            Type::Or(x, y) => self.recur(x, b) && self.recur(y, b),
+            Type::Or(x, y) => match self.compare_atoms(a, b, false) {
+                Some(decided) => decided,
+                None => self.recur(x, b) && self.recur(y, b),
+            },
             Type::Annotated(p, _) => self.recur(p, b),
             _ => self.third_try(a, b),
         }
