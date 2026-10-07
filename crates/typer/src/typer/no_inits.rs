@@ -60,7 +60,6 @@ impl Typer<'_> {
         }
         let ctor = self.syms.by_tree[&constr];
         let flags = self.syms.flags[&ctor].or(f::STABLE_REALIZABLE);
-        self.syms.flags.insert(ctor, flags);
-        self.u.set_flags(ctor, crate::symbols::pickled(flags, true));
+        self.syms.set_flags(self.u, ctor, flags);
     }
 }

@@ -23,7 +23,7 @@ mod variance;
 use crate::library::Library;
 use crate::types::{TypeId, Types};
 use crate::{Ast, NodeId};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
 pub use builtin::{ANY, Builtins, NOTHING};
@@ -53,6 +53,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The abstract methods and values among the symbols defined outside TASTy.
+    deferred: FxHashSet<SymbolId>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
