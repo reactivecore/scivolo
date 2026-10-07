@@ -99,6 +99,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     stats.extend(inits);
     let block_span = stats.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
     let block_span = block_span.map_or(span, |s| s.with_point(s.start()));
+    let at = block_span.start_pos();
+    let proxies: Vec<_> =
+        l.proxies.iter().copied().filter(|&(f, _)| l.u.symbol(f).owner == Some(class)).collect();
+    let mut inits = Vec::new();
+    for (field, param) in proxies {
+        let lhs = l.field_ref(field, at);
+        let value = l.ident(param, at);
+        inits.push(assign(l, lhs, value, at));
+    }
+    let stats: Vec<TNodeId> = inits.into_iter().chain(stats).collect();
     let unit = l.unit_literal(block_span);
     let rhs = l.block(&stats, unit, block_span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };

@@ -7,7 +7,7 @@ use crate::symbols::{has, is_class, is_module_class};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Sets the captured values and `this` of `functions` of `class`, whose methods have the bodies
@@ -30,6 +30,9 @@ pub fn dependencies(
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
             (Tree::This { .. }, _) => functions[i].this = true,
+            (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains(c)) => {
+                functions[i].this = true
+            }
             (Tree::Ident { .. }, Some(s)) => {
                 if let Some(j) = functions.iter().position(|f| f.sym == s) {
                     match called.iter_mut().find(|(c, _)| *c == i) {

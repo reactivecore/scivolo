@@ -39,6 +39,12 @@ const CASES: &[(&str, &str)] = &[
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
     ("class A { object B }", "objects in classes"),
     ("class A { class B }", "classes in classes and traits"),
+    ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
+    ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
+    (
+        "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
+        "local classes using the enclosing instance",
+    ),
     (
         "abstract class A { def u: Unit }; class B extends A { val u: Unit = () }",
         "values of type Unit overriding",

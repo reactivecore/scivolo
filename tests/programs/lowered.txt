@@ -35,3 +35,4 @@ namedargs
 superargs
 lazyvals
 arrows
+localclasses

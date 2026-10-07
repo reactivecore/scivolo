@@ -27,6 +27,9 @@ mod lazy_trees;
 pub(crate) mod lazy_vals;
 mod lifted;
 mod literals;
+mod local_classes;
+mod local_free;
+mod local_lift;
 mod memoize;
 mod methods;
 mod mirrors;
@@ -64,6 +67,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
     }
+    local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {
         value_classes::transform(l, td)?;
@@ -91,21 +95,17 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The class definitions of unit `root`, each before the classes it contains.
+/// The class definitions of unit `root`, local ones too, each before the classes it contains.
 fn class_defs(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
     let mut out = Vec::new();
     let mut todo = vec![root];
     while let Some(t) = todo.pop() {
         match *tpd.tree(t) {
-            Tree::PackageDef { stats, .. } => todo.extend(tpd.items(stats).iter().rev()),
-            Tree::TypeDef { rhs, .. } => {
-                if let Tree::Template { body, .. } = *tpd.tree(rhs) {
-                    out.push(t);
-                    todo.extend(tpd.items(body).iter().rev());
-                }
-            }
+            Tree::TypeDef { rhs, .. } if !matches!(tpd.tree(rhs), Tree::Template { .. }) => continue,
+            Tree::TypeDef { .. } => out.push(t),
             _ => {}
         }
+        todo.extend(walk::children(tpd, t).into_iter().rev());
     }
     out
 }
