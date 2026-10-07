@@ -14,7 +14,7 @@ scala> P(1, 2)
 val res2: P = P(x = 1, y = 2)
 
 scala> P(1, 2).copy(y = 5)
--- unsupported: default arguments needing lifting
+val res3: P = P(x = 1, y = 5)
 
 scala> P(3, 4) match { case P(a, b) => a + b }
 val res4: Int = 7
