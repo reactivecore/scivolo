@@ -17,10 +17,8 @@ top-level name, and the collector serves one VM per process.
   again as a term or as a type, since imports in one package body share a scope and would be
   ambiguous. An import path that starts at a definition of an input is kept qualified by its
   wrapper (`import rs$line$1.s.length`), so that hiding `s` later does not break it.
-- Values are shown by a synthesized `def x$show: String = ScalaRunTime.stringOf(x, 1000)` per
-  value, typed with the input; the VM calls it after constructing the module. Strings, characters,
-  `Long` and `Float` are quoted and suffixed by the erasure of the static type, where dotty's
-  pprint goes by the runtime class (`val a: Any = "a"` prints unquoted).
+- Values are shown by a synthesized show method per value, typed with the input, which the VM
+  calls after constructing the module; how they print is ADR 0014.
 - Values of an inferred type `Unit` stay fields of the wrapper and are not printed.
 - The wrapper index `N` always advances, also after a failed input, and across `:reset`, so
   names never clash in the VM; the `res` index advances once an input parses, also when its
@@ -36,6 +34,5 @@ top-level name, and the collector serves one VM per process.
   input defines the term `x` alone, where dotty keeps it.
 - A later definition of a name an earlier user import brings is ambiguous, as in dotty, but
   for a wildcard import, where dotty's nested contexts pick the definition.
-- Values print as `stringOf` does, not as pprint: products and collections of strings differ.
 - Traces show the interpreter's frames; `... N elided` counts the wrapper frames cut, not the
   JVM's reflection frames. Causes and suppressed exceptions are not printed.

@@ -30,7 +30,7 @@ fn run() -> Result<(), String> {
     let image = libs::image(&jars).map_err(|e| e.to_string())?;
     let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
     let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    let mut session = Session::new(vm, image).map_err(|e| e.to_string())?;
+    let mut session = Session::new(vm, image, 80).map_err(|e| e.to_string())?;
     session.watch_interrupts().map_err(|e| e.to_string())?;
 
     assert_stopped(&interrupted(&mut session, "while true do ()"));

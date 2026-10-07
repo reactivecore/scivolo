@@ -22,7 +22,8 @@ pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
     let image = crate::libs::image(&jars).map_err(|e| format!("the REPL needs the library image: {e}"))?;
     let classpath = Classpath::with_image(cp, image).map_err(|e| e.to_string())?;
     let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    let mut session = Session::new(vm, image).map_err(|e| e.to_string())?;
+    let width = std::env::var("COLUMNS").ok().and_then(|c| c.parse().ok()).filter(|&w| w > 0).unwrap_or(80);
+    let mut session = Session::new(vm, image, width).map_err(|e| e.to_string())?;
     session.watch_interrupts().map_err(|e| e.to_string())?;
     let read = match std::io::stdin().is_terminal() {
         true => interactive(&mut session),

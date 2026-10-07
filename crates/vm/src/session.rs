@@ -7,6 +7,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 const RUNTIME: &str = "scala.scalanative.runtime.package$";
+const SHOW: &str = "scalai.repl.Show$";
 
 impl Vm {
     /// Runs `main(args)` of the top-level object or class `entry` on the main green thread as a
@@ -43,19 +44,28 @@ impl Vm {
         self.run_main_thread(move |vm| vm.module(top).map(drop))
     }
 
-    /// What the no-argument method `method` of module `module`, returning a `java.lang.String`,
-    /// returns.
-    pub fn call_string(&mut self, module: &str, method: &str) -> Result<String, VmError> {
+    /// What the no-argument method `method` of module `module`, returning a `java.lang.Object`,
+    /// returns, as the REPL prints it: `scalai.repl.Show(value, width, height, offset)`.
+    pub fn show_value(
+        &mut self,
+        module: &str,
+        method: &str,
+        [width, height, offset]: [i32; 3],
+    ) -> Result<String, VmError> {
         let top = self.world.top(module);
         let mut sig = String::from("D");
         nir::sig::ident(&mut sig, method);
-        sig.push_str("L16java.lang.StringEO");
+        sig.push_str("L16java.lang.ObjectEO");
         let f = self.world.member(top, &sig);
+        let show = self.world.top(SHOW);
+        let apply = self.world.member(show, "D5applyL16java.lang.ObjectiiiL16java.lang.StringEO");
         let out = Rc::new(Cell::new(String::new()));
         let result = out.clone();
         self.run_main_thread(move |vm| {
+            let show = vm.module(show)? as u64;
             let obj = vm.module(top)? as u64;
-            let s = vm.call_global(f, &[obj])?;
+            let value = vm.call_global(f, &[obj])?;
+            let s = vm.call_global(apply, &[show, value, width as u64, height as u64, offset as u64])?;
             result.set(vm.read_string(s as usize)?);
             Ok(())
         })?;

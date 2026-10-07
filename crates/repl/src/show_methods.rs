@@ -1,4 +1,4 @@
-//! A method `<name>$show: String` per value of an input, whose result the REPL prints.
+//! A method `<name>$show: Any` per value of an input, whose result the REPL prints.
 
 use syntax::ast::flags::LAZY;
 use syntax::ast::{Ast, NodeId, Tree};
@@ -23,7 +23,7 @@ pub fn source(ast: &Ast, names: &Names, stats: &[NodeId]) -> String {
         .into_iter()
         .map(|n| {
             let n = names.text(n);
-            format!("def `{n}{SUFFIX}`: String = _root_.scala.runtime.ScalaRunTime.stringOf(`{n}`, 1000)\n")
+            format!("def `{n}{SUFFIX}`: _root_.scala.Any = `{n}`\n")
         })
         .collect()
 }

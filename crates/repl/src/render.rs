@@ -1,18 +1,21 @@
 //! The definitions of an input as dotty's `Rendering` prints them: `val x: Int = 1`,
 //! `def f(x: Int): Int`, `// defined class C`.
 
+use crate::line_names::PREFIX as WRAPPER_PREFIX;
 use crate::show_methods::SUFFIX;
-use crate::value::{self, Quote};
 use tasty::tags::{ARTIFACT, LAZY, OBJECT, PRIVATE, SYNTHETIC};
 use tasty::{Erased, Kind, SymbolId, Universe};
 use typer::Typed;
 use typer::tpd::{TNodeId, Tree};
 use vm::{Vm, VmError};
 
-/// A definition to print: its text, and for a value the show method and quoting of its value.
+/// How many lines a value prints at most, as dotty's `-Xrepl-print-height`.
+const HEIGHT: i32 = 50;
+
+/// A definition to print: its text, and for a value the show method of its value.
 pub struct Definition {
     text: String,
-    show: Option<(String, Quote)>,
+    show: Option<String>,
 }
 
 /// The definitions of module class `module` but `unprinted`, in source order.
@@ -57,7 +60,8 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     let s = u.symbol(d);
     let (name, kind, flags) = (s.name.clone(), s.kind, s.flags);
     let hidden = [PRIVATE, SYNTHETIC, ARTIFACT].iter().any(|&f| flags.has(f));
-    if hidden || name.ends_with(SUFFIX) || name.starts_with('<') || name.ends_with("_=") {
+    let special = name.strip_prefix('<').is_some_and(|n| n.starts_with(char::is_alphabetic));
+    if hidden || special || name.ends_with(SUFFIX) || name.ends_with("_=") {
         return None;
     }
     let text = |text: String| Some(Definition { text, show: None });
@@ -69,8 +73,7 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
         Kind::Val | Kind::Param if flags.has(LAZY) => text(u.show_def(d)),
         Kind::Val | Kind::Param => {
             let info = u.info(d);
-            let quote = value::quote(&u.erase(info));
-            let show = Some((tasty::encode(&format!("{name}{SUFFIX}")), quote));
+            let show = Some(tasty::encode(&format!("{name}{SUFFIX}")));
             let text = match name.strip_suffix("$assign") {
                 Some(var) => format!("{var}: {}", u.show_user(info)),
                 None => u.show_def(d),
@@ -82,9 +85,31 @@ fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {
     }
 }
 
-/// The line that prints definition `d` of module `module`, running its show method.
-pub fn line(vm: &mut Vm, module: &str, d: &Definition) -> Result<String, VmError> {
-    let Some((method, quote)) = &d.show else { return Ok(d.text.clone()) };
-    let shown = vm.call_string(module, method)?;
-    Ok(format!("{} = {}", d.text, value::render(&shown, *quote)))
+/// The text that prints definition `d` of module `module` in `width` columns, running its show
+/// method.
+pub fn line(vm: &mut Vm, module: &str, d: &Definition, width: i32) -> Result<String, VmError> {
+    let Some(method) = &d.show else { return Ok(d.text.clone()) };
+    let prefix = format!("{} = ", d.text);
+    let offset = prefix.lines().last().unwrap_or_default().chars().count() as i32;
+    let shown = vm.show_value(module, method, [width, HEIGHT, offset])?;
+    Ok(format!("{prefix}{}", strip_wrapper(&shown)))
+}
+
+/// `s` without a leading wrapper name `rs$line$N.` or `rs$line$N$` (dotty's `stripReplPrefix`).
+fn strip_wrapper(s: &str) -> &str {
+    match s.strip_prefix(WRAPPER_PREFIX) {
+        Some(rest) => rest.trim_start_matches(|c: char| c.is_ascii_digit() || c == '$'),
+        None => s,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::strip_wrapper;
+
+    #[test]
+    fn strips_the_wrapper_name() {
+        assert_eq!(strip_wrapper("rs$line$3$C@1f"), "C@1f");
+        assert_eq!(strip_wrapper("List(rs$line$3$C@1f)"), "List(rs$line$3$C@1f)");
+    }
 }

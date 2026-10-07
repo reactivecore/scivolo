@@ -36,9 +36,8 @@ java.lang.NullPointerException
   at scala.runtime.ScalaRunTime$.array_length(ScalaRunTime.scala:110)
   at scala.collection.ArrayOps$ArrayIterator.<init>(ArrayOps.scala:126)
   at scala.collection.immutable.ArraySeq$ofInt.iterator(ArraySeq.scala:514)
-  at scala.runtime.ScalaRunTime$.inner$1(ScalaRunTime.scala:279)
-  at scala.runtime.ScalaRunTime$.stringOf(ScalaRunTime.scala:287)
-  at rs$line$8$.unshowable$show(rs$line$8:1)
+  at scalai.repl.Show$.treeify(Show.scala:66)
+  at scalai.repl.Show$.apply(Show.scala:19)
 
 scala> ???
 scala.NotImplementedError: an implementation is missing
