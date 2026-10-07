@@ -46,25 +46,37 @@ impl fmt::Display for Thrown {
 impl Vm {
     /// Throwable `exc`; no frames if its stack trace cannot be read.
     pub fn thrown(&mut self, exc: usize) -> Thrown {
-        self.thrown_after(exc, &mut vec![exc])
+        let mut seen = self.seen(exc);
+        let thrown = self.thrown_after(exc, &mut seen);
+        std::hint::black_box(seen.blob);
+        thrown
+    }
+
+    /// The set of throwables holding only `exc`.
+    fn seen(&mut self, exc: usize) -> Seen {
+        let mut seen = Seen { blob: self.blob(8 * MAX_THROWABLES).unwrap_or(0), len: 0 };
+        seen.insert(exc);
+        seen
     }
 
     /// Throwable `exc`, without the causes and suppressed exceptions in `seen`, which it extends.
-    fn thrown_after(&mut self, exc: usize, seen: &mut Vec<usize>) -> Thrown {
+    fn thrown_after(&mut self, exc: usize, seen: &mut Seen) -> Thrown {
         let description = self.describe_throwable(exc);
         let classes = std::iter::successors(Some(self.class_of(exc)), |&c| self.class(c).parent)
             .map(|c| self.class_name(c).to_owned())
             .collect();
-        let header = self.header(exc, &mut Vec::new());
+        let mut chain = self.seen(exc);
+        let header = self.header(exc, &mut chain);
+        std::hint::black_box(chain.blob);
         let frames = self.stack_trace(exc).unwrap_or_default();
         let cause = self.call_getter(exc, "getCause", THROWABLE).unwrap_or(0) as usize;
-        let cause = unseen(cause, seen).map(|c| Box::new(self.thrown_after(c, seen)));
+        let cause = seen.insert(cause).then(|| Box::new(self.thrown_after(cause, seen)));
         let suppressed = self.suppressed(exc, seen);
         std::hint::black_box(exc);
         Thrown { description, classes, header, frames, cause, suppressed }
     }
 
-    fn suppressed(&mut self, exc: usize, seen: &mut Vec<usize>) -> Vec<Thrown> {
+    fn suppressed(&mut self, exc: usize, seen: &mut Seen) -> Vec<Thrown> {
         let arr = self.call_getter(exc, "getSuppressed", "LAL19java.lang.Throwable_").unwrap_or(0) as usize;
         if arr == 0 {
             return Vec::new();
@@ -72,7 +84,8 @@ impl Vm {
         let len: i32 = heap::read(arr + ARRAY_LENGTH);
         let mut out = Vec::new();
         for i in 0..len as usize {
-            if let Some(s) = unseen(heap::read(arr + ARRAY_HEADER as usize + 8 * i), seen) {
+            let s = heap::read(arr + ARRAY_HEADER as usize + 8 * i);
+            if seen.insert(s) {
                 out.push(self.thrown_after(s, seen));
             }
         }
@@ -87,15 +100,13 @@ impl Vm {
     }
 
     /// The header of `exc` as dotty's `StackTraceOps` prints it; `seen` holds the throwables
-    /// whose header is being built.
-    fn header(&mut self, exc: usize, seen: &mut Vec<usize>) -> String {
-        seen.push(exc);
+    /// whose header is being built, `exc` included.
+    fn header(&mut self, exc: usize, seen: &mut Seen) -> String {
         let name = self.runtime_class_name(exc);
         let text = match self.call_getter(exc, "getMessage", STRING).unwrap_or(0) as usize {
             0 => match self.call_getter(exc, "getCause", THROWABLE).unwrap_or(0) as usize {
-                0 => None,
-                cause if seen.contains(&cause) => None,
-                cause => Some(self.header(cause, seen)),
+                cause if seen.insert(cause) => Some(self.header(cause, seen)),
+                _ => None,
             },
             msg => self.read_string(msg).ok(),
         };
@@ -156,11 +167,22 @@ impl Vm {
     }
 }
 
-/// `exc`, now in `seen`, unless it is null, already in `seen` or `seen` is full.
-fn unseen(exc: usize, seen: &mut Vec<usize>) -> Option<usize> {
-    if exc == 0 || seen.contains(&exc) || seen.len() >= MAX_THROWABLES {
-        return None;
+/// A set of at most `MAX_THROWABLES` throwables, kept in a blob the collector scans; full if the
+/// blob could not be allocated.
+struct Seen {
+    blob: usize,
+    len: usize,
+}
+
+impl Seen {
+    /// Adds `exc` unless it is null, already in the set or the set is full; whether it did.
+    fn insert(&mut self, exc: usize) -> bool {
+        let full = self.blob == 0 || self.len == MAX_THROWABLES;
+        if exc == 0 || full || (0..self.len).any(|i| heap::read::<usize>(self.blob + 8 * i) == exc) {
+            return false;
+        }
+        heap::write(self.blob + 8 * self.len, exc);
+        self.len += 1;
+        true
     }
-    seen.push(exc);
-    Some(exc)
 }

@@ -28,7 +28,7 @@ impl Universe {
         Printer::new(self).def(s)
     }
 
-    /// Module class `s` as the REPL shows a reference to it through its owner's `this`, with the
+    /// Static module class `s` as the REPL shows a reference to it through its owner's `this`, with the
     /// qualified name of that owner after any REPL wrapper object: `scala.util.Try`, `None`.
     pub fn show_module_class(&mut self, s: SymbolId) -> String {
         let full = Printer::new(self).owner_path(s).full;

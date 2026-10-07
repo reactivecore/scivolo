@@ -79,11 +79,14 @@ impl Session {
             _ => None,
         };
         Some(match class {
-            Some(c) if self.u.symbol(c).kind == Kind::Class && self.u.symbol(c).flags.has(OBJECT) => {
-                self.u.show_module_class(c)
-            }
+            Some(c) if self.is_static_module_class(c) => self.u.show_module_class(c),
             _ => self.u.show_user(t),
         })
+    }
+
+    fn is_static_module_class(&self, c: SymbolId) -> bool {
+        let s = self.u.symbol(c);
+        s.kind == Kind::Class && s.flags.has(OBJECT) && self.u.is_static_symbol(c)
     }
 
     /// Whether `sym` is a show method or a variable's setter.
