@@ -46,6 +46,24 @@ scala> :type def f(x: Int) = x
 scala> :type class A
 A
 
+scala> :type var v = 2
+Int
+
+scala> :type type X = Int
+X
+
+scala> object P
+// defined object P
+
+scala> :type val q = P
+P
+
+scala> :type scala.util.Try
+scala.util.Try
+
+scala> :type object O
+O
+
 scala> :type 1 +
 1:4: error: expression expected but eof found
 

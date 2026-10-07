@@ -6,7 +6,8 @@ use crate::commands::{self, Command};
 use crate::input::{self, Input};
 use crate::report;
 use crate::show_methods::SUFFIX;
-use tasty::{Kind, Type};
+use tasty::tags::{FIELDaccessor, MUTABLE, OBJECT};
+use tasty::{Kind, SymbolId, Type};
 use typer::Typed;
 use typer::tpd::{TNodeId, Tree};
 
@@ -56,19 +57,39 @@ impl Session {
         self.last_type(&typed, template, expression.as_deref()).into_iter().collect()
     }
 
-    /// The widened type of the last definition of wrapper template `template`; of its right-hand
-    /// side if it is value `expression`, which an expression became.
+    /// The widened type of the last definition of wrapper template `template`, setters and show
+    /// methods aside; of its right-hand side if it is value `expression`, which an expression
+    /// became.
     fn last_type(&mut self, typed: &Typed, template: TNodeId, expression: Option<&str>) -> Option<String> {
         let Tree::Template { body, .. } = *typed.tpd.tree(template) else { return None };
         let defs = typed.tpd.items(body).iter().rev().filter_map(|&s| Some((s, typed.tpd.sym(s)?)));
-        let (last, sym) = defs.into_iter().find(|&(_, sym)| !self.u.symbol(sym).name.ends_with(SUFFIX))?;
+        let (last, sym) = defs.into_iter().find(|&(_, sym)| !self.generated(sym))?;
         let is_expression = expression == Some(self.u.symbol(sym).name.as_str());
         let t = match *typed.tpd.tree(last) {
             Tree::ValDef { rhs: Some(rhs), .. } if is_expression => typed.tpd.tpe(rhs),
-            _ if self.u.symbol(sym).kind == Kind::Class => self.u.intern_type(Type::Sym(None, sym)),
+            _ if matches!(self.u.symbol(sym).kind, Kind::Class | Kind::Type) => {
+                self.u.intern_type(Type::Sym(None, sym))
+            }
             _ => self.u.info(sym),
         };
         let t = self.u.widen(t);
-        Some(self.u.show_user(t))
+        let class = match self.u.types().get(t).clone() {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+            _ => None,
+        };
+        Some(match class {
+            Some(c) if self.u.symbol(c).kind == Kind::Class && self.u.symbol(c).flags.has(OBJECT) => {
+                self.u.show_module_class(c)
+            }
+            _ => self.u.show_user(t),
+        })
+    }
+
+    /// Whether `sym` is a show method or a variable's setter.
+    fn generated(&self, sym: SymbolId) -> bool {
+        let s = self.u.symbol(sym);
+        s.name.ends_with(SUFFIX)
+            || (s.kind == Kind::Def && s.flags.has(FIELDaccessor) && s.flags.has(MUTABLE))
     }
 }

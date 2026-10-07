@@ -25,8 +25,8 @@ const MAX_THROWABLES: usize = 64;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Thrown {
     pub description: String,
-    /// The runtime class name.
-    pub class: String,
+    /// The names of its class and of that class's superclasses, innermost first.
+    pub classes: Vec<String>,
     /// The class name, then `: ` and the message or else the cause's header, if there is one.
     pub header: String,
     pub frames: Vec<Frame>,
@@ -52,14 +52,16 @@ impl Vm {
     /// Throwable `exc`, without the causes and suppressed exceptions in `seen`, which it extends.
     fn thrown_after(&mut self, exc: usize, seen: &mut Vec<usize>) -> Thrown {
         let description = self.describe_throwable(exc);
-        let class = self.runtime_class_name(exc);
+        let classes = std::iter::successors(Some(self.class_of(exc)), |&c| self.class(c).parent)
+            .map(|c| self.class_name(c).to_owned())
+            .collect();
         let header = self.header(exc, &mut Vec::new());
         let frames = self.stack_trace(exc).unwrap_or_default();
         let cause = self.call_getter(exc, "getCause", THROWABLE).unwrap_or(0) as usize;
         let cause = unseen(cause, seen).map(|c| Box::new(self.thrown_after(c, seen)));
         let suppressed = self.suppressed(exc, seen);
         std::hint::black_box(exc);
-        Thrown { description, class, header, frames, cause, suppressed }
+        Thrown { description, classes, header, frames, cause, suppressed }
     }
 
     fn suppressed(&mut self, exc: usize, seen: &mut Vec<usize>) -> Vec<Thrown> {

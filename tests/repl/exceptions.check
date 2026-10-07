@@ -111,3 +111,10 @@ java.lang.Exception: d
   ... 1 elided
 Caused by: java.lang.Exception: c
   ... 1 more
+
+scala> class Wrapper(c: Throwable) extends java.util.concurrent.ExecutionException(c)
+// defined class Wrapper
+
+scala> throw new Wrapper(new IllegalStateException("sub"))
+java.lang.IllegalStateException: sub
+  ... 1 elided

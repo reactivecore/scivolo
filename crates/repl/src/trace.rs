@@ -25,7 +25,7 @@ pub fn lines(t: &Thrown) -> Vec<String> {
 
 fn root_cause(t: &Thrown) -> &Thrown {
     match &t.cause {
-        Some(cause) if WRAPPERS.contains(&t.class.as_str()) => root_cause(cause),
+        Some(cause) if t.classes.iter().any(|c| WRAPPERS.contains(&c.as_str())) => root_cause(cause),
         _ => t,
     }
 }
@@ -72,8 +72,9 @@ mod tests {
     }
 
     fn thrown(class: &str, frames: Vec<Frame>) -> Thrown {
-        let (description, class, header) = (class.to_owned(), class.to_owned(), class.to_owned());
-        Thrown { description, class, header, frames, cause: None, suppressed: Vec::new() }
+        let (description, header) = (class.to_owned(), class.to_owned());
+        let classes = vec![class.to_owned(), "java.lang.Throwable".to_owned()];
+        Thrown { description, classes, header, frames, cause: None, suppressed: Vec::new() }
     }
 
     fn init() -> Frame {
@@ -140,7 +141,8 @@ mod tests {
 
     #[test]
     fn reports_the_cause_of_a_wrapper() {
-        let mut t = thrown("java.util.concurrent.ExecutionException", vec![init()]);
+        let mut t = thrown("Sub", vec![init()]);
+        t.classes.insert(1, "java.util.concurrent.ExecutionException".to_owned());
         t.cause = Some(Box::new(thrown("C", vec![init()])));
         assert_eq!(lines(&t), ["C", "  ... 1 elided"]);
     }

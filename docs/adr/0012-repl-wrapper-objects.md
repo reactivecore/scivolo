@@ -33,13 +33,11 @@ top-level name, and the collector serves one VM per process.
 ## Consequences
 - The typer and the lowering need no REPL mode.
 - A module whose constructor threw stays cached in the VM.
-- The universe keeps the symbols of `:type` wrappers. `:type object O` prints `O.type` where
-  dotty prints `O`.
+- The universe keeps the symbols of `:type` wrappers.
 - `x as _` hides both kinds: an input defining a type and a term `x` loses the type once a later
   input defines the term `x` alone, where dotty keeps it.
 - A later definition of a name an earlier user import brings is ambiguous, as in dotty, but
   for a wildcard import, where dotty's nested contexts pick the definition.
 - Traces show the interpreter's frames; `... N elided` and `... N more` count those, not the
-  JVM's reflection frames. A trace holds at most 64 throwables. The wrappers dotty's `rootCause`
-  unwraps are matched by class name, so their subclasses are not unwrapped, and a throwable met
-  before is left out also when it was only met as such an unwrapped wrapper.
+  JVM's reflection frames. A trace holds at most 64 throwables. A throwable met before is left
+  out also when it was only met as a wrapper dotty's `rootCause` unwraps.

@@ -27,6 +27,19 @@ impl Universe {
     pub fn show_def(&mut self, s: SymbolId) -> String {
         Printer::new(self).def(s)
     }
+
+    /// Module class `s` as the REPL shows a reference to it through its owner's `this`, with the
+    /// qualified name of that owner after any REPL wrapper object: `scala.util.Try`, `None`.
+    pub fn show_module_class(&mut self, s: SymbolId) -> String {
+        let full = Printer::new(self).owner_path(s).full;
+        let owner = match full.rfind("rs$line$") {
+            Some(at) => full[at..].split_once('.').map_or("", |(_, rest)| rest).to_owned(),
+            None => full,
+        };
+        let name = self.symbol(s).name.clone();
+        let prefix = prefix::prefix_text(prefix::Path { shown: owner.clone(), full: owner });
+        format!("{prefix}{}", name.strip_suffix('$').unwrap_or(&name))
+    }
 }
 
 pub struct Printer<'u> {
