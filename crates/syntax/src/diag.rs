@@ -19,30 +19,39 @@ pub enum Level {
     Error,
 }
 
-/// A message as dotty's `Message` class tells it: text, `errorId` number, `kind` and whether
-/// `explain` is non-empty; plain text has no id and no kind.
-#[derive(Clone, Debug, Default)]
-pub struct Message {
-    pub text: String,
-    pub code: Option<u16>,
+/// What dotty's `Message` class tells besides the text: the `ErrorMessageID` number, the
+/// `MessageKind` and whether `explain` is non-empty.
+#[derive(Clone, Copy, Debug)]
+pub struct MessageId {
+    pub code: u16,
     pub kind: &'static str,
     pub explained: bool,
+}
+
+/// A message's text, and its id; plain text has none (`NoExplanationID`, `NoKind`).
+#[derive(Clone, Debug)]
+pub struct Message {
+    pub text: String,
+    pub id: Option<MessageId>,
 }
 
 impl Message {
     /// A `SyntaxMsg` with error id `code` and an explanation.
     pub fn syntax(code: u16, text: impl Into<String>) -> Self {
-        Message { text: text.into(), code: Some(code), kind: "Syntax", explained: true }
+        Message { text: text.into(), id: Some(MessageId { code, kind: "Syntax", explained: true }) }
     }
 
-    pub fn without_explanation(self) -> Self {
-        Message { explained: false, ..self }
+    pub fn without_explanation(mut self) -> Self {
+        if let Some(id) = &mut self.id {
+            id.explained = false;
+        }
+        self
     }
 }
 
 impl From<String> for Message {
     fn from(text: String) -> Self {
-        Message { text, ..Default::default() }
+        Message { text, id: None }
     }
 }
 
@@ -60,12 +69,7 @@ pub struct Diagnostic {
     /// Where the `^` goes; `None` for a diagnostic without a position.
     pub offset: Option<Offset>,
     pub message: String,
-    /// dotty's `ErrorMessageID` number, `None` for `NoExplanationID`.
-    pub code: Option<u16>,
-    /// dotty's `MessageKind` text, empty for `NoKind`.
-    pub kind: &'static str,
-    /// Whether dotty has a longer explanation of the message.
-    pub explained: bool,
+    pub id: Option<MessageId>,
     /// Whether the error is about input ending where more was expected.
     pub incomplete: bool,
 }
@@ -83,9 +87,8 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
-    /// An error with plain text `message` at `offset`.
-    pub fn error(&mut self, offset: Offset, message: impl Into<String>) {
-        self.error_at(offset, offset, offset, message.into());
+    pub fn error(&mut self, offset: Offset, message: impl Into<Message>) {
+        self.error_at(offset, offset, offset, message);
     }
 
     pub fn error_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<Message>) {
@@ -118,8 +121,8 @@ impl Diagnostics {
         m: Message,
         incomplete: bool,
     ) {
-        let Message { text: message, code, kind, explained } = m;
-        self.items.push(Diagnostic { level, start, end, offset, message, code, kind, explained, incomplete });
+        let Message { text: message, id } = m;
+        self.items.push(Diagnostic { level, start, end, offset, message, id, incomplete });
     }
 
     pub fn has_errors(&self) -> bool {

@@ -186,7 +186,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Report an error and make the current token erroneous.
-    fn error(&mut self, message: impl Into<String>, offset: Offset) {
+    fn error(&mut self, message: impl Into<Message>, offset: Offset) {
         self.diags.error(offset, message);
         self.cur.token = Token::Error;
     }

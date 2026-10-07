@@ -12,18 +12,20 @@ pub fn syntax_errors(source: &SourceFile, diags: &Diagnostics, width: usize) -> 
     boxes(source, &diags.unique(), width)
 }
 
-/// The diagnostics of an input that does not compile, then their count.
+/// The diagnostics of an input that does not compile, errors before warnings, then their count.
 pub fn compile_errors(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
-    let shown = diags.unique();
+    let mut shown = diags.unique();
+    shown.sort_by_key(|d| d.level != Level::Error);
     let mut out = boxes(source, &shown, width);
     out.extend(count(&shown, Level::Warning, "warning"));
     out.extend(count(&shown, Level::Error, "error"));
     out
 }
 
-/// The warnings of an input that compiles: their count, then the warnings.
+/// The warnings of an input that compiles: their count, then the warnings in source order.
 pub fn warnings(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
-    let shown = diags.unique();
+    let mut shown = diags.unique();
+    shown.sort_by_key(|d| d.offset);
     let mut out: Vec<String> = count(&shown, Level::Warning, "warning").into_iter().collect();
     out.extend(boxes(source, &shown, width));
     out

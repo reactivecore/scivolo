@@ -20,7 +20,7 @@ pub fn lines(source: &SourceFile, d: &Diagnostic, width: usize) -> Vec<String> {
             3
         }
     };
-    if d.explained {
+    if d.id.is_some_and(|id| id.explained) {
         let bar = bar(gutter);
         out.push(bar.clone());
         out.push(format!("{bar} longer explanation available when compiling with `-explain`"));
@@ -30,10 +30,11 @@ pub fn lines(source: &SourceFile, d: &Diagnostic, width: usize) -> Vec<String> {
 
 /// `-- [E018] Syntax Error: ----`, the title padded with dashes to `width`.
 fn title(d: &Diagnostic, width: usize) -> String {
-    let id = d.code.map(|c| format!("[E{c:03}] ")).unwrap_or_default();
     let level = if d.level == Level::Error { "Error" } else { "Warning" };
-    let kind = if d.kind.is_empty() { level.to_owned() } else { format!("{} {level}", d.kind) };
-    let title = format!("{id}{kind}:");
+    let title = match d.id {
+        Some(id) => format!("[E{:03}] {} {level}:", id.code, id.kind),
+        None => format!("{level}:"),
+    };
     format!("-- {title} {}", "-".repeat(width.saturating_sub(title.chars().count() + 4)))
 }
 
@@ -59,8 +60,8 @@ fn positioned(
         lines.into_iter().partition(|&l| source.line_to_offset(l) <= point);
     let mut texts = slice_lines(source, start, end).into_iter();
     let shown = |l: usize, text: &str| format!("{:>w$} |{text}", l + 1, w = gutter - 2);
-    let mut out: Vec<String> = before.iter().map(|&l| shown(l, texts.next().unwrap_or(""))).collect();
-    let after: Vec<(usize, &str)> = after.iter().map(|&l| (l, texts.next().unwrap_or(""))).collect();
+    let mut out: Vec<String> = before.into_iter().zip(&mut texts).map(|(l, text)| shown(l, text)).collect();
+    let after: Vec<(usize, &str)> = after.into_iter().zip(texts).collect();
     let bar = bar(gutter);
     let carets =
         if start_line == end_line { column(source, end).saturating_sub(column(source, start)) } else { 1 };

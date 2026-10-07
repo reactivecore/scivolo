@@ -14,7 +14,7 @@ impl Parser<'_> {
             if matches!(self.s.names.text(name), "<init>" | "<clinit>") {
                 let o = self.offset();
                 let msg = "Illegal backquoted identifier: `<init>` and `<clinit>` are forbidden";
-                self.s.diags.error_at(o, o, o, Message::syntax(230, msg));
+                self.s.diags.error(o, Message::syntax(230, msg));
             }
             self.next();
             TName { name, is_type: false }

@@ -73,7 +73,7 @@ impl Parser<'_> {
             _ => {
                 let o = self.offset();
                 let msg = Message::syntax(16, "Error in interpolated string: identifier or block expected");
-                self.s.diags.error_at(o, o, o, msg);
+                self.s.diags.error(o, msg);
                 return self.empty_tree();
             }
         };
