@@ -30,6 +30,10 @@ impl Printer<'_> {
                 self.out.push_str(&shown);
             }
             Tree::New { tpt } | Tree::Labeled { expr: tpt } => self.node(tpt),
+            Tree::NamedArg { name, arg } => {
+                self.name(name);
+                self.node(arg);
+            }
             Tree::Closure { env, meth, tpt } => {
                 self.list(env);
                 self.node(meth);

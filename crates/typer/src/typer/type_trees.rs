@@ -22,6 +22,13 @@ impl Typer<'_> {
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 let tycon = self.tpd.tpe(tpt);
+                if self
+                    .tpd
+                    .sym(tpt)
+                    .is_some_and(|s| self.u.full_name(s).starts_with("scala.compiletime.ops."))
+                {
+                    return self.unsupported(id, "compile-time operation type");
+                }
                 if self.type_arity(tycon) != typed_args.len() {
                     return self.unsupported(id, "wrong number of type arguments");
                 }

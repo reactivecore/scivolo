@@ -19,6 +19,7 @@ pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         | Tree::SingletonTypeTree { reference: a }
         | Tree::ByNameTypeTree { result: a }
         | Tree::Bind { body: a, .. }
+        | Tree::NamedArg { arg: a, .. }
         | Tree::TypeDef { rhs: a, .. } => out.push(a),
         Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
             out.push(fun);

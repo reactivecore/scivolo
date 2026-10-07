@@ -47,6 +47,7 @@ impl Typer<'_> {
         match self.tpd.tree(tree).clone() {
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } | T::Super { .. } => PURE_PATH,
             T::New { .. } | T::Closure { .. } => PURE,
+            T::NamedArg { arg, .. } => self.expr_purity(arg),
             T::Ident { .. } => self.ref_purity(tree),
             T::Select { qualifier, .. } => self.ref_purity(tree) & self.expr_purity(qualifier),
             T::TypeApply { fun, .. } if self.is_method_typed(tree) => self.expr_purity(fun),
