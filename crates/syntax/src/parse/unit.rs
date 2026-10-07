@@ -16,6 +16,14 @@ impl Parser<'_> {
         t
     }
 
+    /// Parse the whole source as block statements, as dotty's REPL does (`ParseResult.parseStats`);
+    /// `s.diags.is_incomplete()` then tells whether the input ended where more was expected.
+    pub fn parse_stats(&mut self) -> Vec<NodeId> {
+        let stats = self.block_stat_seq();
+        self.accept(Token::Eof);
+        stats
+    }
+
     /// `{package QualId semi} TopStatSeq`.
     fn compilation_unit(&mut self) -> NodeId {
         let stats = self.check_no_escaping_placeholders(|p| p.top_stats());

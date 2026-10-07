@@ -8,9 +8,16 @@ pub struct SourceFile {
     pub text: String,
     /// The offset of every line start, then the text length as a sentinel.
     line_starts: Vec<Offset>,
+    /// Whether the text may be a prefix of the input, so EOF closes no indented region.
+    pub maybe_incomplete: bool,
 }
 
 impl SourceFile {
+    /// A source whose text may be a prefix of the input, as REPL lines are.
+    pub fn maybe_incomplete(name: impl Into<String>, text: impl Into<String>) -> Self {
+        Self { maybe_incomplete: true, ..Self::new(name, text) }
+    }
+
     pub fn new(name: impl Into<String>, text: impl Into<String>) -> Self {
         let text = text.into();
         let bytes = text.as_bytes();
@@ -26,7 +33,7 @@ impl SourceFile {
             }
         }
         line_starts.push(text.len() as Offset);
-        Self { name: name.into(), text, line_starts }
+        Self { name: name.into(), text, line_starts, maybe_incomplete: false }
     }
 
     pub fn len(&self) -> Offset {

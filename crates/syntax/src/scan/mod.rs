@@ -193,7 +193,7 @@ impl<'a> Scanner<'a> {
 
     /// Report an error at the end of the input and end the token stream.
     fn incomplete_input_error(&mut self, message: impl Into<String>) {
-        self.diags.error(self.cur.offset, message);
+        self.diags.incomplete_input_error(self.cur.offset, message);
         self.cur.token = Token::Eof;
     }
 }
