@@ -61,9 +61,15 @@ impl Universe {
             return None;
         }
         if self.symbol(s).kind != Kind::Class {
-            let dealiased = match args.is_empty() {
-                true => self.info(s),
-                false => self.expand(tycon, &args)?,
+            let term = self.symbol(s).kind.is_term();
+            let dealiased = match (args.is_empty(), prefix) {
+                (true, Some(p)) if term => self.member_info(p, s),
+                (true, _) => self.info(s),
+                (false, _) => self.expand(tycon, &args)?,
+            };
+            let dealiased = match *self.types().get(dealiased) {
+                Type::ByName(r) if term => r,
+                _ => dealiased,
             };
             return self.base_type_within(dealiased, base, depth);
         }

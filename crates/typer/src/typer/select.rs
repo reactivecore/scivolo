@@ -17,7 +17,7 @@ impl Typer<'_> {
                 let widened = self.u.widen(t);
                 self.type_members(widened, name)
             }
-            Type::Sym(_, s) => match self.u.symbol(s).kind {
+            Type::Sym(prefix, s) => match self.u.symbol(s).kind {
                 Kind::Package => self.u.decl(s, name).unwrap_or_default(),
                 Kind::Class => self.class_members(s, name),
                 Kind::Val if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => {
@@ -25,7 +25,14 @@ impl Typer<'_> {
                 }
                 _ => {
                     self.complete(s);
-                    let info = self.u.info(s);
+                    let info = match prefix {
+                        Some(p) if !self.is_type_symbol(s) => self.u.member_info(p, s),
+                        _ => self.u.info(s),
+                    };
+                    let info = match *self.u.types().get(info) {
+                        Type::ByName(r) => r,
+                        _ => info,
+                    };
                     self.type_members(info, name)
                 }
             },
@@ -126,6 +133,11 @@ impl Typer<'_> {
                 .collect();
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
+            }
+            if matches!(pt, Pt::Fun(_))
+                && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
+            {
+                return proxy;
             }
             if let Some(case) = self.widened_enum_case(qual) {
                 qual = case;
