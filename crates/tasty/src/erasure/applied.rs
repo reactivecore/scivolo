@@ -28,12 +28,29 @@ impl Universe {
             },
             Some("scala.|") if args.len() == 2 => self.erase_or(args[0], args[1]),
             Some("scala.&") if args.len() == 2 => self.erase_and(args[0], args[1]),
-            Some(_) => self.erase(tycon),
+            Some(_) => match self.generic_underlying(tycon, args) {
+                Some(arg) => match self.erase_boxed(arg) {
+                    Erased::Prim(c) => super::special::boxed(c),
+                    e => e,
+                },
+                None => self.erase(tycon),
+            },
             None => match self.expand(tycon, args) {
                 Some(t) => self.erase(t),
                 None => self.erase(tycon),
             },
         }
+    }
+
+    /// The argument of `tycon[args]`, a value class whose underlying value has the type of one of
+    /// its type parameters, for that parameter (dotty's `eraseDerivedValueClass`).
+    fn generic_underlying(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let class = self.class_symbol(tycon)?;
+        let value = self.underlying(class)?;
+        let info = self.info(value);
+        let param = self.referenced(info).filter(|&p| self.symbol(p).kind == Kind::TypeParam)?;
+        let i = self.type_params(class).iter().position(|&p| p == param)?;
+        args.get(i).copied()
     }
 
     /// `Array[elem]`: `Object` for a generic element or a wildcard bounded by `Unit`, else an
