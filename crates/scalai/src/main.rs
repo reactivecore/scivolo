@@ -8,13 +8,15 @@ use vm::{Classpath, Vm, VmError};
 
 /// Runs a Scala program: a main class on the classpath, a Scala file or a script.
 ///
-/// Environment: SCALAI_TIMEOUT stops the program after that many seconds (exit 124);
-/// SCALAI_PROFILE prints the most called methods to stderr.
+/// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
+/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_SCALA_CLI names the
+/// scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit 124);
+/// SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr.
 #[derive(Parser)]
 #[command(name = "scalai", override_usage = "scalai [OPTIONS] <TARGET> [ARGS]...")]
 struct Cli {
     /// A directory or jar of NIR files and resources.
-    #[arg(long = "cp", value_name = "DIR_OR_JAR")]
+    #[arg(long, value_name = "DIR_OR_JAR")]
     cp: Vec<PathBuf>,
     /// The main class of FILE.scala, when it has several.
     #[arg(long, value_name = "CLASS")]
@@ -28,9 +30,8 @@ struct Cli {
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
-    let Cli { mut cp, main: chosen, mut command } = Cli::parse();
-    let rest = command.split_off(1);
-    let target = command.remove(0);
+    let Cli { mut cp, main: chosen, command: mut rest } = Cli::parse();
+    let target = rest.remove(0);
     let main_class = if script::is_source(&target) {
         match script::main_of(&target, chosen) {
             Ok((classes, main)) => {

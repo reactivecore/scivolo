@@ -11,7 +11,7 @@ use tasty::Universe;
 struct Cli {
     /// The Scala file.
     file: String,
-    /// The directory the NIR files replace.
+    /// The directory to write the NIR files to, emptied first.
     out_dir: PathBuf,
 }
 
