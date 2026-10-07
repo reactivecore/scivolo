@@ -33,7 +33,7 @@ impl Gen<'_, '_> {
         let anon = format!("{}$$Lambda${}", self.pool.top_name(top), self.lambdas);
         let anon = self.pool.top(&anon);
         let env = self.l.tpd.items(env).to_vec();
-        let mut captures: Vec<TypeId> = env.iter().map(|&e| self.gen_type(self.l.tpd.tpe(e))).collect();
+        let mut captures: Vec<TypeId> = env.iter().map(|&e| self.value_type(self.l.tpd.tpe(e))).collect();
         if instance {
             captures.insert(0, self.class_ref(class));
         }

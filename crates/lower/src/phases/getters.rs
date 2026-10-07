@@ -55,10 +55,14 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             continue;
         }
         let info = l.u.info(sym);
+        let erased = l.u.erase(info);
         if (private_local || is_param_accessor(l, sym))
-            && matches!(l.u.erase(info), Erased::Unit | Erased::Null | Erased::Nothing)
+            && matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing)
         {
             return unsupported(span, "parameters and private local fields of type Unit, Null or Nothing");
+        }
+        if erased == Erased::Unit && overrides(l, sym) {
+            return unsupported(span, "values of type Unit overriding members");
         }
         if private_local {
             if !is_param_accessor(l, sym) && !in_methods.contains(&sym) {
@@ -102,6 +106,14 @@ pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// Whether a base class of value `s`'s class has a member of its name.
+fn overrides(l: &mut Lower, s: SymbolId) -> bool {
+    let Some(class) = l.u.symbol(s).owner else { return false };
+    let name = l.u.symbol(s).name.clone();
+    let bases = l.u.linearization(class);
+    bases[1..].iter().any(|&b| l.u.decl(b, &name).is_ok_and(|d| !d.is_empty()))
 }
 
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).

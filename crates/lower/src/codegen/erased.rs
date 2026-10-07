@@ -53,6 +53,14 @@ impl Gen<'_, '_> {
         self.erased(&e)
     }
 
+    /// The NIR type of a value of type `t`: its erasure, `BoxedUnit` for `Unit`.
+    pub fn value_type(&mut self, t: tasty::TypeId) -> TypeId {
+        match self.l.u.erase(t) {
+            Erased::Unit => self.erased(&Erased::Class("scala.runtime.BoxedUnit".into())),
+            e => self.erased(&e),
+        }
+    }
+
     /// The reference type of class `c`.
     pub fn class_ref(&mut self, c: SymbolId) -> TypeId {
         let name = self.type_name(c);

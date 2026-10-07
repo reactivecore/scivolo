@@ -38,6 +38,10 @@ const CASES: &[(&str, &str)] = &[
         "overridable class parameters selected on this in the constructor",
     ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
+    (
+        "abstract class A { def u: Unit }; class B extends A { val u: Unit = () }",
+        "values of type Unit overriding",
+    ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
