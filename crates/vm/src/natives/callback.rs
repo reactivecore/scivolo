@@ -52,7 +52,7 @@ fn dispatch(slot: usize, args: [u64; MAX_ARITY]) -> u64 {
     // the VM stays in place; C calls back only while the VM waits inside the foreign call, so
     // its own `&mut` borrow is not used until this call returns.
     let vm = unsafe { &mut *vm };
-    match vm.call(s.f, &values[..s.arity]) {
+    match vm.call_from_c(s.f, &values[..s.arity]) {
         Ok(v) => v,
         Err(u) => match u.into_inner() {
             Unwound::Throw(exc) => {

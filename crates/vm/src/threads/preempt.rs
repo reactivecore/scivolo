@@ -2,13 +2,9 @@
 //! SIGINT (ADR 0013).
 
 use super::{ThreadId, Wait};
-use crate::interp::Flow;
+use crate::interp::{Flow, FuncId};
 use crate::{Vm, VmError, natives};
-use std::cmp::Reverse;
 use std::time::{Duration, Instant};
-
-/// Calls and loop back-edges between checks whether another thread should run.
-const TICKS: u32 = 20_000;
 
 /// The longest the idle scheduler waits before looking for a SIGINT.
 const SIGNAL_SLICE: Duration = Duration::from_millis(100);
@@ -22,43 +18,27 @@ pub struct Interrupts {
     signals: u32,
     /// Whether the main thread is to throw `ThreadDeath` at its next safepoint.
     stop: bool,
+    /// C callbacks the main thread runs, which an exception must not leave.
+    callbacks: u32,
 }
 
 impl Vm {
     /// Blocks the running thread for `why` until another thread wakes it (`true`) or
     /// `deadline` passes (`false`); returns `false` at once outside green threads.
     pub fn block(&mut self, why: Wait, deadline: Option<Instant>) -> bool {
-        let s = &mut self.threads.sched;
-        let id = s.current;
-        let info = &mut s.info[id];
-        info.blocked = Some(why);
-        info.woken = false;
-        info.generation += 1;
-        let generation = info.generation;
-        if !self.suspend_after(deadline.map(|d| (d, generation))) {
+        self.threads.sched.block_current(why, deadline);
+        let id = self.threads.sched.current;
+        if !self.suspend_thread() {
             self.threads.sched.info[id].blocked = None;
             return false;
         }
         self.threads.sched.info[id].woken
     }
 
-    fn suspend_after(&mut self, timer: Option<(Instant, u64)>) -> bool {
-        if let Some((deadline, generation)) = timer {
-            let s = &mut self.threads.sched;
-            s.timers.push(Reverse((deadline, s.current, generation)));
-        }
-        self.suspend_thread()
-    }
-
     /// Lets every other runnable thread run before the running one continues.
     pub fn yield_now(&mut self) {
-        let s = &mut self.threads.sched;
-        s.poll();
-        if !s.queue.is_empty() {
-            s.queue.push_back(s.current);
-            if !self.suspend_thread() {
-                self.threads.sched.queue.pop_back();
-            }
+        if self.threads.sched.requeue_current() && !self.suspend_thread() {
+            self.threads.sched.unqueue_current();
         }
     }
 
@@ -66,9 +46,7 @@ impl Vm {
     /// threads run and stops the main thread if asked to.
     #[inline]
     pub fn tick(&mut self) -> Flow<()> {
-        let s = &mut self.threads.sched;
-        s.ticks = s.ticks.wrapping_sub(1);
-        if s.ticks > TICKS {
+        if self.threads.sched.tick() {
             return self.preempt();
         }
         Ok(())
@@ -76,37 +54,50 @@ impl Vm {
 
     #[cold]
     fn preempt(&mut self) -> Flow<()> {
-        self.threads.sched.ticks = TICKS;
         self.poll_signals();
         self.yield_now();
         self.safepoint()
     }
 
-    /// Throws `ThreadDeath` in the main thread if a SIGINT asked to stop it.
+    /// Throws `ThreadDeath` in the main thread if a SIGINT asked to stop it and it runs no C
+    /// callback.
     fn safepoint(&mut self) -> Flow<()> {
         let i = &mut self.threads.interrupts;
-        if !i.stop || self.threads.sched.current != i.main {
+        if !i.stop || self.threads.sched.current != i.main || i.callbacks > 0 {
             return Ok(());
         }
         i.stop = false;
         self.throw_new("java.lang.ThreadDeath").map(drop)
     }
 
-    /// Takes a SIGINT: the first asks the main thread to stop and wakes it if it sleeps, parks
-    /// or waits; the second ends the process.
+    /// Calls `f` for C; the main thread is not stopped until it returns.
+    pub fn call_from_c(&mut self, f: FuncId, args: &[u64]) -> Flow {
+        let main = u32::from(self.threads.sched.current == self.threads.interrupts.main);
+        self.threads.interrupts.callbacks += main;
+        let result = self.call(f, args);
+        self.threads.interrupts.callbacks -= main;
+        result
+    }
+
+    /// Takes the SIGINTs: the first asks the main thread to stop and wakes it if it sleeps,
+    /// parks or waits; the second ends the process.
     pub fn poll_signals(&mut self) {
         let i = &mut self.threads.interrupts;
-        if !i.watching || !natives::take_sigint() {
+        if !i.watching {
             return;
         }
-        i.signals += 1;
+        let taken = natives::take_sigint();
+        if taken == 0 {
+            return;
+        }
+        i.signals += taken;
         if i.signals > 1 {
             eprintln!("scalai: terminating");
             natives::exit_immediately(130);
         }
         i.stop = true;
         let main = i.main;
-        self.threads.sched.ticks = 0;
+        self.threads.sched.expire_ticks();
         natives::interrupt_thread(self, main);
     }
 

@@ -124,6 +124,16 @@ impl Vm {
         }
     }
 
+    /// Releases the monitors thread `id`, which ended, still holds.
+    pub fn release_monitors_of(&mut self, id: ThreadId) {
+        let monitors = &self.threads.monitors.0;
+        let held: Vec<usize> =
+            monitors.iter().filter(|(_, m)| m.owner == Some(id)).map(|(&o, _)| o).collect();
+        for obj in held {
+            self.release(obj);
+        }
+    }
+
     /// Hands `obj`'s monitor, no longer held, to the next entering thread, or frees it.
     fn release(&mut self, obj: usize) {
         let m = self.threads.monitors.0.get_mut(&obj).expect("a monitor");

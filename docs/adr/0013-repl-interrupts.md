@@ -22,6 +22,8 @@ already counts calls and loop back-edges to preempt (ADR 0003).
 
 ## Consequences
 - A `ThreadDeath` thrown at a loop back-edge leaves its method without running that method's
-  own handlers; callers' handlers and `finally` blocks run.
-- A main thread blocked on a contended monitor or in blocking C I/O stops only after the wait.
+  own handlers; callers' handlers and `finally` blocks run. A thread that ends releases the
+  monitors it still holds.
+- A main thread blocked on a contended monitor or in blocking C I/O stops only after the wait,
+  one inside a C callback only after the callback returns.
 - Background green threads keep running.

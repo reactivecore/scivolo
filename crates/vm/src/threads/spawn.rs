@@ -75,6 +75,7 @@ impl Vm {
 
     /// Forgets thread `id`, whose body has returned.
     pub fn thread_ended(&mut self, id: ThreadId) {
+        self.release_monitors_of(id);
         let native = self.threads.sched.end(id);
         if self.threads.by_native.get(&native) == Some(&id) {
             self.threads.by_native.remove(&native);

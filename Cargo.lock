@@ -397,6 +397,7 @@ name = "scalai"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libc",
  "libimage",
  "lower",
  "nir",

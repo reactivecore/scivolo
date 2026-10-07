@@ -6,6 +6,9 @@ use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
 use std::time::{Duration, Instant};
 
+/// Calls and loop back-edges between checks whether another thread should run.
+const TICKS: u32 = 20_000;
+
 /// What the scheduler does next.
 pub enum Next {
     Run(ThreadId),
@@ -30,13 +33,12 @@ pub enum Wait {
 
 #[derive(Default)]
 pub struct Sched {
-    pub queue: VecDeque<ThreadId>,
-    pub timers: BinaryHeap<Reverse<(Instant, ThreadId, u64)>>,
+    queue: VecDeque<ThreadId>,
+    timers: BinaryHeap<Reverse<(Instant, ThreadId, u64)>>,
     pub info: Vec<Info>,
     pub current: ThreadId,
     live: usize,
-    /// Calls and loop back-edges left until the next preemption check.
-    pub ticks: u32,
+    ticks: u32,
     pub io: Io,
 }
 
@@ -53,7 +55,7 @@ pub struct Info {
     pub woken: bool,
     /// Tells a blocked thread's timer from the timers of its earlier blocks; it keeps counting
     /// when the id is reused.
-    pub generation: u64,
+    generation: u64,
     /// The thread's `NativeThread` object.
     pub native: usize,
 }
@@ -97,8 +99,51 @@ impl Sched {
         self.info[id].blocked == Some(why) && self.wake(id)
     }
 
+    /// Marks the running thread blocked for `why` until woken or past `deadline`.
+    pub fn block_current(&mut self, why: Wait, deadline: Option<Instant>) {
+        let id = self.current;
+        let info = &mut self.info[id];
+        info.blocked = Some(why);
+        info.woken = false;
+        info.generation += 1;
+        if let Some(deadline) = deadline {
+            self.timers.push(Reverse((deadline, id, info.generation)));
+        }
+    }
+
+    /// Queues the running thread behind the runnable ones; `false` if none is runnable.
+    pub fn requeue_current(&mut self) -> bool {
+        self.poll();
+        if self.queue.is_empty() {
+            return false;
+        }
+        self.queue.push_back(self.current);
+        true
+    }
+
+    /// Takes back the thread `requeue_current` queued.
+    pub fn unqueue_current(&mut self) {
+        self.queue.pop_back();
+    }
+
+    /// Counts a call or loop back-edge; `true` once every `TICKS` of them.
+    #[inline]
+    pub fn tick(&mut self) -> bool {
+        self.ticks = self.ticks.wrapping_sub(1);
+        if self.ticks > TICKS {
+            self.ticks = TICKS;
+            return true;
+        }
+        false
+    }
+
+    /// Makes the next `tick` return `true`.
+    pub fn expire_ticks(&mut self) {
+        self.ticks = 0;
+    }
+
     /// Makes runnable the threads whose deadline passed or whose blocking call finished.
-    pub fn poll(&mut self) {
+    fn poll(&mut self) {
         let now = Instant::now();
         while let Some(&Reverse((deadline, id, generation))) = self.timers.peek() {
             if deadline > now {

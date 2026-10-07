@@ -14,7 +14,6 @@ pub fn watch_sigint() -> Result<(), String> {
     // SAFETY: an all-zero `sigaction` is a valid value: no flags and an empty mask.
     let mut action: libc::sigaction = unsafe { std::mem::zeroed() };
     action.sa_sigaction = on_sigint as extern "C" fn(libc::c_int) as libc::sighandler_t;
-    action.sa_flags = 0;
     // SAFETY: `action` is initialized, its handler only touches an atomic, which is
     // async-signal-safe, and a null old action is allowed.
     if unsafe { libc::sigaction(libc::SIGINT, &action, std::ptr::null_mut()) } != 0 {
@@ -23,7 +22,7 @@ pub fn watch_sigint() -> Result<(), String> {
     Ok(())
 }
 
-/// Whether a SIGINT arrived since the last call.
-pub fn take_sigint() -> bool {
-    PENDING.swap(0, Ordering::Relaxed) > 0
+/// The SIGINTs that arrived since the last call.
+pub fn take_sigint() -> u32 {
+    PENDING.swap(0, Ordering::Relaxed)
 }

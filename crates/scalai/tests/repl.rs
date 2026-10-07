@@ -4,9 +4,9 @@
 #[path = "../src/libs.rs"]
 mod libs;
 
-use std::io::Write;
+use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Command, Stdio};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 const INPUT: &str = "1 + 1
 def twice(x: Int): Int =
@@ -92,6 +92,54 @@ fn piped_line_endings() {
     let (code, out, _, _) = repl_with(b"val s = \"\xff\"\ns.length\n", &[]);
     assert_eq!(out, "val s: String = \"\u{fffd}\"\nval res0: Int = 1\n");
     assert_eq!(code, Some(0));
+}
+
+const SPIN: &str = "def spin(): Unit = while true do ()
+{ println(\"looping\"); while true do try spin() catch { case _: ThreadDeath => println(\"caught\") } }
+";
+
+/// The exit code and stdout of `scalai` reading `input` and, once it printed `looping`, getting
+/// `signals` SIGINTs 300 ms apart and reading `rest`.
+fn interrupted(input: &str, signals: usize, rest: &str) -> (Option<i32>, String) {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_scalai"))
+        .env("SCALAI_TIMEOUT", "300")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+        .unwrap();
+    let mut stdin = child.stdin.take().unwrap();
+    stdin.write_all(input.as_bytes()).unwrap();
+    let mut stdout = BufReader::new(child.stdout.take().unwrap());
+    let mut out = String::new();
+    while !out.contains("looping\n") {
+        assert!(stdout.read_line(&mut out).unwrap() > 0, "{out}");
+    }
+    for _ in 0..signals {
+        std::thread::sleep(Duration::from_millis(300));
+        // SAFETY: `kill` has no memory preconditions; the child has not been waited for.
+        assert_eq!(unsafe { libc::kill(child.id() as libc::pid_t, libc::SIGINT) }, 0);
+    }
+    let _ = stdin.write_all(rest.as_bytes());
+    drop(stdin);
+    stdout.read_to_string(&mut out).unwrap();
+    (child.wait().unwrap().code(), out)
+}
+
+#[test]
+fn ctrl_c_stops_the_input() {
+    if libs_missing() {
+        return;
+    }
+    let (code, out) = interrupted("println(\"looping\"); while true do ()\n", 1, "1 + 1\n");
+    let mut lines = out.lines();
+    assert_eq!(lines.next(), Some("looping"));
+    assert!(lines.next().is_some_and(|l| l.starts_with("java.lang.ThreadDeath")), "{out}");
+    assert!(lines.last().is_some_and(|l| l.ends_with(": Int = 2")), "{out}");
+    assert_eq!(code, Some(0));
+    let (code, out) = interrupted(SPIN, 2, "1 + 1\n");
+    assert_eq!(out, "def spin(): Unit\nlooping\ncaught\n");
+    assert_eq!(code, Some(130));
 }
 
 #[test]
