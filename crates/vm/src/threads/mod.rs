@@ -4,12 +4,16 @@
 
 mod io;
 mod monitors;
+mod preempt;
 mod roots;
 mod sched;
 mod spawn;
 
 pub use monitors::Monitors;
 pub use sched::{Sched, Wait};
+
+use preempt::Interrupts;
+use sched::Next;
 
 use crate::heap::ThreadRoots;
 use crate::interp::{Flow, StackGuard};
@@ -42,6 +46,7 @@ pub struct Threads {
     cells: Vec<usize>,
     /// Modules under construction: the constructing thread and the threads waiting for it.
     pub initializing: FxHashMap<nir::GlobalId, (ThreadId, Vec<ThreadId>)>,
+    interrupts: Interrupts,
 }
 
 struct GreenThread {
@@ -90,9 +95,15 @@ impl Vm {
 
     /// Runs threads until thread `main` ends, and returns its result.
     fn schedule(&mut self, main: ThreadId) -> Flow<()> {
+        self.threads.interrupts.main = main;
         loop {
-            let Some(id) = self.threads.sched.next() else {
-                return Err(VmError::Unsupported("deadlock: every thread waits forever".into()).into());
+            self.poll_signals();
+            let id = match self.threads.sched.next(self.signal_slice()) {
+                Next::Run(id) => id,
+                Next::Waited => continue,
+                Next::Deadlock => {
+                    return Err(VmError::Unsupported("deadlock: every thread waits forever".into()).into());
+                }
             };
             self.threads.sched.current = id;
             let Some(result) = self.resume_thread(id) else { continue };

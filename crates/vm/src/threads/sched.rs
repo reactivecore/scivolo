@@ -1,14 +1,19 @@
-//! The scheduler: a run queue of green threads, timers, and blocking, waking and preemption.
+//! The scheduler: a run queue of green threads, their timers and waking.
 
 use super::ThreadId;
 use super::io::Io;
-use crate::Vm;
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, VecDeque};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
-/// Calls and loop back-edges between checks whether another thread should run.
-const TICKS: u32 = 20_000;
+/// What the scheduler does next.
+pub enum Next {
+    Run(ThreadId),
+    /// A wait ended at its slice with no thread runnable.
+    Waited,
+    /// Every thread waits without a deadline.
+    Deadlock,
+}
 
 /// What a blocked thread waits for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -25,12 +30,13 @@ pub enum Wait {
 
 #[derive(Default)]
 pub struct Sched {
-    queue: VecDeque<ThreadId>,
-    timers: BinaryHeap<Reverse<(Instant, ThreadId, u64)>>,
+    pub queue: VecDeque<ThreadId>,
+    pub timers: BinaryHeap<Reverse<(Instant, ThreadId, u64)>>,
     pub info: Vec<Info>,
     pub current: ThreadId,
     live: usize,
-    ticks: u32,
+    /// Calls and loop back-edges left until the next preemption check.
+    pub ticks: u32,
     pub io: Io,
 }
 
@@ -47,7 +53,7 @@ pub struct Info {
     pub woken: bool,
     /// Tells a blocked thread's timer from the timers of its earlier blocks; it keeps counting
     /// when the id is reused.
-    generation: u64,
+    pub generation: u64,
     /// The thread's `NativeThread` object.
     pub native: usize,
 }
@@ -92,7 +98,7 @@ impl Sched {
     }
 
     /// Makes runnable the threads whose deadline passed or whose blocking call finished.
-    fn poll(&mut self) {
+    pub fn poll(&mut self) {
         let now = Instant::now();
         while let Some(&Reverse((deadline, id, generation))) = self.timers.peek() {
             if deadline > now {
@@ -110,13 +116,13 @@ impl Sched {
         }
     }
 
-    /// The next thread to run, waiting for a timer or a blocking call if none is runnable;
-    /// `None` when every thread waits without a deadline.
-    pub fn next(&mut self) -> Option<ThreadId> {
+    /// The next thread to run, waiting for a timer or a blocking call if none is runnable; a
+    /// wait longer than `slice` ends early with `Next::Waited`.
+    pub fn next(&mut self, slice: Option<Duration>) -> Next {
         loop {
             self.poll();
             if let Some(id) = self.queue.pop_front() {
-                return Some(id);
+                return Next::Run(id);
             }
             while let Some(&Reverse((_, id, generation))) = self.timers.peek() {
                 let info = &self.info[id];
@@ -125,67 +131,24 @@ impl Sched {
                 }
                 self.timers.pop();
             }
-            let timeout =
+            let timer =
                 self.timers.peek().map(|Reverse((d, ..))| d.saturating_duration_since(Instant::now()));
-            match (timeout, self.io.busy()) {
-                (None, false) => return None,
-                (Some(t), false) => std::thread::sleep(t),
-                (timeout, true) => {
-                    if let Some(id) = self.io.wait(timeout) {
-                        self.wake(id);
-                    }
-                }
+            let busy = self.io.busy();
+            if timer.is_none() && !busy {
+                return Next::Deadlock;
             }
-        }
-    }
-}
-
-impl Vm {
-    /// Blocks the running thread for `why` until another thread wakes it (`true`) or
-    /// `deadline` passes (`false`); returns `false` at once outside green threads.
-    pub fn block(&mut self, why: Wait, deadline: Option<Instant>) -> bool {
-        let s = &mut self.threads.sched;
-        let id = s.current;
-        let info = &mut s.info[id];
-        info.blocked = Some(why);
-        info.woken = false;
-        info.generation += 1;
-        let generation = info.generation;
-        if !self.suspend_after(deadline.map(|d| (d, generation))) {
-            self.threads.sched.info[id].blocked = None;
-            return false;
-        }
-        self.threads.sched.info[id].woken
-    }
-
-    fn suspend_after(&mut self, timer: Option<(Instant, u64)>) -> bool {
-        if let Some((deadline, generation)) = timer {
-            let s = &mut self.threads.sched;
-            s.timers.push(Reverse((deadline, s.current, generation)));
-        }
-        self.suspend_thread()
-    }
-
-    /// Lets every other runnable thread run before the running one continues.
-    pub fn yield_now(&mut self) {
-        let s = &mut self.threads.sched;
-        s.poll();
-        if !s.queue.is_empty() {
-            s.queue.push_back(s.current);
-            if !self.suspend_thread() {
-                self.threads.sched.queue.pop_back();
+            let timeout = match slice {
+                Some(s) => Some(timer.map_or(s, |t| t.min(s))),
+                None => timer,
+            };
+            if !busy {
+                std::thread::sleep(timeout.unwrap_or_default());
+            } else if let Some(id) = self.io.wait(timeout) {
+                self.wake(id);
             }
-        }
-    }
-
-    /// Counts a call or loop back-edge, and lets other threads run every `TICKS` of them.
-    #[inline]
-    pub fn tick(&mut self) {
-        let s = &mut self.threads.sched;
-        s.ticks = s.ticks.wrapping_sub(1);
-        if s.ticks > TICKS {
-            s.ticks = TICKS;
-            self.yield_now();
+            if slice.is_some() {
+                return Next::Waited;
+            }
         }
     }
 }

@@ -65,6 +65,11 @@ impl Session {
         self.earlier.clear();
     }
 
+    /// Makes Ctrl-C stop the running input instead of ending the process.
+    pub fn watch_interrupts(&mut self) -> Result<(), VmError> {
+        self.vm.watch_interrupts()
+    }
+
     /// The exit code an input ended the session with: 0 after `:quit`, `n` after `sys.exit(n)`.
     pub fn exit(&self) -> Option<i32> {
         self.exit
@@ -153,6 +158,7 @@ impl Session {
                 return vec![e.to_string()];
             }
         }
+        self.vm.clear_interrupts();
         if let Err(e) = self.vm.eval_module(&module) {
             return self.failed(e);
         }

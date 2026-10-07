@@ -23,6 +23,7 @@ pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
     let classpath = Classpath::with_image(cp, image).map_err(|e| e.to_string())?;
     let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let mut session = Session::new(vm, image).map_err(|e| e.to_string())?;
+    session.watch_interrupts().map_err(|e| e.to_string())?;
     let read = match std::io::stdin().is_terminal() {
         true => interactive(&mut session),
         false => piped(&mut session),
@@ -89,7 +90,7 @@ fn interactive(session: &mut Session) -> Result<(), String> {
                     return Ok(());
                 }
             }
-            Err(ReadlineError::Interrupted) => {}
+            Err(ReadlineError::Interrupted | ReadlineError::Signal(_)) => {}
             Err(ReadlineError::Eof) => return Ok(()),
             Err(e) => return Err(format!("terminal: {e}")),
         }
