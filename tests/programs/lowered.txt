@@ -36,3 +36,4 @@ superargs
 lazyvals
 arrows
 localclasses
+listliterals

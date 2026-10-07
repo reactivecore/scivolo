@@ -7,6 +7,7 @@ mod interfaces;
 mod lazy_vals;
 mod patmat;
 mod refs;
+mod sequences;
 mod strings;
 
 pub use case_classes::CaseClasses;
@@ -15,6 +16,7 @@ pub use interfaces::{procedure, specialized, specialized_apply};
 pub use lazy_vals::LazyVals;
 pub use patmat::Patmat;
 pub use refs::{Ref, ref_class};
+pub use sequences::Sequences;
 pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
@@ -43,6 +45,7 @@ pub struct Definitions {
     pub patmat: Patmat,
     pub case_classes: CaseClasses,
     pub lazy_vals: LazyVals,
+    pub sequences: Sequences,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
     /// `Any.asInstanceOf`.
@@ -96,6 +99,7 @@ impl Definitions {
             patmat: Patmat::new(u, b.any, b.object)?,
             case_classes: CaseClasses::new(u, b.any, b.object, equality.statics)?,
             lazy_vals: LazyVals::new(u, b.object)?,
+            sequences: Sequences::new(u)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })

@@ -91,7 +91,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "type applications without a call");
         }
         let (erased_from, erased_to) = (erased_type(self.l, qualifier), self.l.u.erase(self.l.tpd.tpe(t)));
-        let subtype = conforms(self.l, &erased_from, &erased_to);
+        let subtype = conforms(self.l, &erased_from, &erased_to) && !self.l.explicit_casts.contains(&t);
         let value = self.gen_expr(qualifier)?;
         let saved = self.at_span(span);
         let (from, to) = (self.val_ty(value), self.gen_type(self.l.tpd.tpe(t)));

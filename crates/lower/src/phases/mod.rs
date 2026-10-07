@@ -2,6 +2,7 @@
 
 pub(crate) mod adapt;
 mod adapted;
+mod array_apply;
 mod bridges;
 mod build;
 mod by_name;
@@ -76,6 +77,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }
+    array_apply::transform(l, &classes);
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
     for &td in &classes {
         mixin::transform(l, td, &unit_classes)?;

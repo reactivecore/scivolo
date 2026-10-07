@@ -56,6 +56,8 @@ pub struct Lower<'a> {
     /// The fields of lifted local classes holding the values they capture, each with the
     /// constructor parameter setting it.
     proxies: Vec<(SymbolId, SymbolId)>,
+    /// The casts phases make that codegen keeps even to a supertype (dotty's `cast`).
+    explicit_casts: FxHashSet<TNodeId>,
     /// The local classes lifted out of blocks.
     local_classes: FxHashSet<SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
@@ -87,6 +89,7 @@ pub fn lower(
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),
         local_classes: FxHashSet::default(),
+        explicit_casts: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
