@@ -6,6 +6,18 @@ case object Single
 case class Shown(n: Int):
   override def toString: String = "Shown!" + n
 final case class Fin(v: Int)
+trait Named:
+  override def equals(o: Any) = true
+case class InTrait(x: Int) extends Named
+abstract class Base:
+  override def equals(o: Any) = true
+case class InBase(x: Int) extends Base
+case class Prefixed(x: Int):
+  override val productPrefix: String = "Pre"
+final case class OwnCanEqual(x: Int):
+  override def canEqual(o: Any) = true
+case class Checked(x: Int):
+  override def canEqual(o: Any) = o.isInstanceOf[Checked]
 
 @main def caseclasses(): Unit =
   val p = P(1, "a")
@@ -30,3 +42,8 @@ final case class Fin(v: Int)
   println(Single.productArity)
   println(Shown(3))
   println(Fin(2) == Fin(2))
+  println(InTrait(1) == InTrait(2))
+  println(InBase(1) == InBase(2))
+  println(Prefixed(1))
+  println(OwnCanEqual(1) == OwnCanEqual(1))
+  println(Checked(1) == Checked(1))

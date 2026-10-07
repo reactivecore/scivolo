@@ -36,15 +36,16 @@ pub fn case_members(
     ];
     let focus = Span::new(span.point(), span.point(), span.point());
     let mut out = Vec::new();
+    let can_equal = existing_def(l, class, cc.can_equal, concrete);
     for sym in members {
-        if module && sym == l.defs.equality.any_equals || existing_def(l, class, sym, concrete) {
+        if module && sym == l.defs.equality.any_equals || existing_def(l, class, sym, concrete).is_some() {
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
         let info = l.u.info(sym);
         let mut locals = Vec::new();
         let (method, def) = l.method_like(class, sym, flags, info, focus, |l, args, _| {
-            body(l, class, sym, args, &mut locals)
+            body(l, class, sym, args, can_equal, &mut locals)
         })?;
         for local in locals {
             l.u.set_owner(local, method);
@@ -55,13 +56,14 @@ pub fn case_members(
     Ok(out)
 }
 
-/// The body of synthetic member `sym` of `class` with parameters `args`; the locals it defines
-/// go to `locals`.
+/// The body of synthetic member `sym` of `class` with parameters `args`, `can_equal` the
+/// `canEqual` the class has; the locals it defines go to `locals`.
 fn body(
     l: &mut Lower,
     class: SymbolId,
     sym: SymbolId,
     args: &[TNodeId],
+    can_equal: Option<SymbolId>,
     locals: &mut Vec<SymbolId>,
 ) -> TNodeId {
     let cc = l.defs.case_classes;
@@ -69,7 +71,9 @@ fn body(
     let own_name = own_name(l, class);
     match sym {
         _ if sym == cc.hash_code => l.hash_code_body(class, &accessors, &own_name, locals),
-        _ if sym == l.defs.equality.any_equals => l.equals_body(class, &accessors, args[0], locals),
+        _ if sym == l.defs.equality.any_equals => {
+            l.equals_body(class, &accessors, args[0], can_equal, locals)
+        }
         _ if sym == cc.to_string && is_module_class(l.u, class) => l.string_literal(&own_name),
         _ if sym == cc.to_string => {
             let run_time = l.ident(cc.scala_run_time, Span::NONE);
@@ -139,18 +143,35 @@ fn own_name(l: &Lower, class: SymbolId) -> String {
     name.strip_suffix('$').unwrap_or(name).to_owned()
 }
 
-/// Whether `class` has or inherits an implementation of `sym` other than `sym` (dotty's
-/// `existingDef`): the first method of its name and erased parameters in its linearization.
-fn existing_def(l: &mut Lower, class: SymbolId, sym: SymbolId, concrete: &FxHashSet<SymbolId>) -> bool {
+/// The implementation of `sym` other than `sym` that `class` has or inherits (dotty's
+/// `existingDef`): the first concrete method or value of its name and erased parameters in its
+/// linearization.
+pub fn existing_def(
+    l: &mut Lower,
+    class: SymbolId,
+    sym: SymbolId,
+    concrete: &FxHashSet<SymbolId>,
+) -> Option<SymbolId> {
     let name = l.u.symbol(sym).name.clone();
     let params = l.u.erased_method(sym).0;
     for base in l.u.linearization(class) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
-            if l.u.symbol(other).kind != Kind::Def || l.u.erased_method(other).0 != params {
+            let member = matches!(l.u.symbol(other).kind, Kind::Def | Kind::Val);
+            if !member || l.u.erased_method(other).0 != params {
                 continue;
             }
-            return other != sym && (concrete.contains(&other) || l.u.body(other).is_some());
+            if other == sym {
+                return None;
+            }
+            let library = l.u.symbol(other).tree.is_some();
+            let has_body = match l.u.symbol(other).kind {
+                Kind::Val => !library || l.u.body(other).is_some(),
+                _ => concrete.contains(&other) || library && l.u.body(other).is_some(),
+            };
+            if has_body {
+                return Some(other);
+            }
         }
     }
-    false
+    None
 }

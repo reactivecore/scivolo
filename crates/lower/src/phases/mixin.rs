@@ -54,12 +54,16 @@ pub fn transform(
             return unsupported(span, "traits with initialization");
         }
         let library = !unit_classes.contains(&mixin);
+        let decls = l.u.decls(mixin).unwrap_or_default();
+        if library && decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
+            return unsupported(span, "generic library traits as parents");
+        }
         for meth in l.u.decls(mixin).unwrap_or_default() {
             let has_body = match library {
                 true => l.u.body(meth).is_some() && !has(l.u, meth, INLINE),
                 false => concrete.contains(&meth),
             };
-            if has_body && needs_forwarder(l, class, meth) {
+            if has_body && needs_forwarder(l, class, meth, concrete) {
                 forwarders.push(forwarder(l, class, mixin, meth, span)?);
             }
         }
@@ -83,9 +87,10 @@ fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     out
 }
 
-/// Whether `meth` is a method `class` inherits as it is: the first non-private method or value
-/// of its name and erased signature in the linearization of `class`.
-fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
+/// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
+/// or value of its name and erased signature in the linearization of `class`, `concrete` the
+/// methods of the unit with a body.
+fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, concrete: &FxHashSet<SymbolId>) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
         || is_constructor(l.u, meth)
@@ -100,7 +105,12 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
         for other in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(other);
             let member = matches!(s.kind, Kind::Def | Kind::Val) && !has(l.u, other, PRIVATE);
-            if member && l.u.erased_method(other) == signature {
+            let library = s.tree.is_some();
+            let deferred = match library {
+                true => l.u.body(other).is_none(),
+                false => s.kind == Kind::Def && !concrete.contains(&other) && !has(l.u, other, FIELDaccessor),
+            };
+            if member && !deferred && l.u.erased_method(other) == signature {
                 return other == meth;
             }
         }

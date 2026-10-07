@@ -38,6 +38,10 @@ const CASES: &[(&str, &str)] = &[
         "bridges in traits",
     ),
     ("case class C[T](x: T)", "generic case classes"),
+    (
+        "class V(val n: Int) extends Ordered[V] { def compare(that: V) = n - that.n }",
+        "generic library traits",
+    ),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
 ];
 

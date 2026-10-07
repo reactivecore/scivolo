@@ -2,7 +2,7 @@
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 
 use super::Gen;
-use crate::symbols::{is_java_static, is_trait};
+use crate::symbols::{is_java_static, is_package_object, is_trait};
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Defn, DefnKind, GlobalId, Op, Type, TypeId, Val, ValId};
@@ -67,7 +67,17 @@ impl Gen<'_, '_> {
         let alloc = self.emit(Op::Classalloc { name: anon, zone: None });
         let mut args = vec![alloc];
         if instance {
-            args.push(self.m.this.expect("`this` of a method"));
+            let this = match is_package_object(self.l.u, class) {
+                true => {
+                    let scope = self.m.scopes.iter().find(|s| s.id == self.m.scope).map(|s| s.pos);
+                    let outer = self.at(scope.unwrap_or(self.m.pos));
+                    let module = self.gen_module(class);
+                    self.m.pos = outer;
+                    module
+                }
+                false => self.m.this.expect("`this` of a method"),
+            };
+            args.push(this);
         }
         for e in env {
             args.push(self.gen_expr(e)?);

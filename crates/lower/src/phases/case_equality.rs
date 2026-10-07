@@ -2,7 +2,7 @@
 
 use super::casts::cast;
 use crate::Lower;
-use crate::definitions::{symbol, type_ref};
+use crate::definitions::{primitive_class_name, symbol, type_ref};
 use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
@@ -10,13 +10,15 @@ use tasty::{Erased, Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Lower<'_> {
-    /// `(this eq that) || that match { case x$0 @ (_: C) => this.a == x$0.a && ... && x$0.canEqual(this); case _ => false }`.
-    /// Its local, owned by `class` until its method exists, goes to `locals`.
+    /// `(this eq that) || that match { case x$0 @ (_: C) => this.a == x$0.a && ... && x$0.canEqual(this); case _ => false }`,
+    /// calling `can_equal`, the `canEqual` the class has, if any. Its local, owned by `class`
+    /// until its method exists, goes to `locals`.
     pub fn equals_body(
         &mut self,
         class: SymbolId,
         accessors: &[SymbolId],
         that: TNodeId,
+        can_equal: Option<SymbolId>,
         locals: &mut Vec<SymbolId>,
     ) -> TNodeId {
         let cc = self.defs.case_classes;
@@ -33,7 +35,15 @@ impl Lower<'_> {
         let mut sorted = accessors.to_vec();
         sorted.sort_by_key(|&a| {
             let info = self.u.info(a);
-            !matches!(self.u.erase(info), Erased::Prim(_))
+            let symbol = match *self.u.types().get(info) {
+                tasty::Type::Sym(_, s) => Some(s),
+                _ => None,
+            };
+            let primitive = symbol.is_some_and(|s| {
+                let name = self.u.full_name(s);
+                "zcbsijfd".chars().any(|p| primitive_class_name(p).as_deref() == Some(name.as_str()))
+            });
+            !primitive
         });
         let comparisons: Vec<TNodeId> = sorted
             .iter()
@@ -49,10 +59,10 @@ impl Lower<'_> {
             true => self.boolean_literal(true),
             false => self.reduce_balanced(&comparisons, self.defs.patmat.and),
         };
-        if !has(self.u, class, FINAL) {
+        if !has(self.u, class, FINAL) || can_equal.is_some() {
             let other = self.ident(that_as_class, Span::NONE);
             let this = self.this(class, Span::NONE);
-            let can_equal = self.call(other, cc.can_equal, &[this]);
+            let can_equal = self.call(other, can_equal.unwrap_or(cc.can_equal), &[this]);
             rhs = self.call(rhs, self.defs.patmat.and, &[can_equal]);
         }
         let matching = Tree::CaseDef { pat: pattern, guard: None, body: rhs };
