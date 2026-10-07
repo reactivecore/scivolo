@@ -5,20 +5,13 @@
 use crate::definitions::type_ref;
 use crate::symbols::{has, is_module_class};
 use crate::{Lower, Result};
-use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{CASE, CASEaccessor, OVERRIDE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-/// The synthetic members of case class or object `class`, at `span`'s point; `concrete` the
-/// methods of the unit with a body.
-pub fn case_members(
-    l: &mut Lower,
-    class: SymbolId,
-    span: Span,
-    concrete: &FxHashSet<SymbolId>,
-) -> Result<Vec<TNodeId>> {
+/// The synthetic members of case class or object `class`, at `span`'s point.
+pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
     if !has(l.u, class, CASE) {
         return Ok(Vec::new());
     }
@@ -36,9 +29,9 @@ pub fn case_members(
     ];
     let focus = Span::new(span.point(), span.point(), span.point());
     let mut out = Vec::new();
-    let can_equal = existing_def(l, class, cc.can_equal, concrete);
+    let can_equal = existing_def(l, class, cc.can_equal);
     for sym in members {
-        if module && sym == l.defs.equality.any_equals || existing_def(l, class, sym, concrete).is_some() {
+        if module && sym == l.defs.equality.any_equals || existing_def(l, class, sym).is_some() {
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
@@ -147,12 +140,7 @@ fn own_name(l: &Lower, class: SymbolId) -> String {
 /// The implementation of `sym` other than `sym` that `class` has or inherits (dotty's
 /// `existingDef`): the first concrete method or value of its name and erased parameters in its
 /// linearization.
-pub fn existing_def(
-    l: &mut Lower,
-    class: SymbolId,
-    sym: SymbolId,
-    concrete: &FxHashSet<SymbolId>,
-) -> Option<SymbolId> {
+pub fn existing_def(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<SymbolId> {
     let name = l.u.symbol(sym).name.clone();
     let params = l.u.erased_method(sym).0;
     for base in l.u.linearization(class) {
@@ -164,12 +152,7 @@ pub fn existing_def(
             if other == sym {
                 return None;
             }
-            let library = l.u.symbol(other).tree.is_some();
-            let has_body = match l.u.symbol(other).kind {
-                Kind::Val => !library || l.u.body(other).is_some(),
-                _ => concrete.contains(&other) || library && l.u.body(other).is_some(),
-            };
-            if has_body {
+            if super::mixin::has_body(l, other) {
                 return Some(other);
             }
         }

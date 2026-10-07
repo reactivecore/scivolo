@@ -9,6 +9,14 @@ use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
+/// Whether member `s` has a body: in its TASTy for the library's, else unless deferred.
+pub fn has_body(l: &mut Lower, s: SymbolId) -> bool {
+    match l.u.symbol(s).tree.is_some() {
+        true => l.u.body(s).is_some(),
+        false => !l.u.is_deferred(s),
+    }
+}
+
 /// The methods of the unit's classes that have a body if `with_body`, else those without.
 pub fn methods_with_body(l: &Lower, classes: &[TNodeId], with_body: bool) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
@@ -26,12 +34,7 @@ pub fn methods_with_body(l: &Lower, classes: &[TNodeId], with_body: bool) -> FxH
     out
 }
 
-pub fn transform(
-    l: &mut Lower,
-    td: TNodeId,
-    unit_classes: &[SymbolId],
-    concrete: &FxHashSet<SymbolId>,
-) -> Result<()> {
+pub fn transform(l: &mut Lower, td: TNodeId, unit_classes: &[SymbolId]) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
@@ -59,11 +62,7 @@ pub fn transform(
             return unsupported(span, "generic library traits as parents");
         }
         for meth in l.u.decls(mixin).unwrap_or_default() {
-            let has_body = match library {
-                true => l.u.body(meth).is_some() && !has(l.u, meth, INLINE),
-                false => concrete.contains(&meth),
-            };
-            if has_body && needs_forwarder(l, class, meth, concrete) {
+            if has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth) {
                 forwarders.push(forwarder(l, class, mixin, meth, span)?);
             }
         }
@@ -88,9 +87,8 @@ fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
 }
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
-/// or value of its name and erased signature in the linearization of `class`, `concrete` the
-/// methods of the unit with a body.
-fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, concrete: &FxHashSet<SymbolId>) -> bool {
+/// or value of its name and erased signature in the linearization of `class`.
+fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
         || is_constructor(l.u, meth)
@@ -105,10 +103,9 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, concrete: &Fx
         for other in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(other);
             let member = matches!(s.kind, Kind::Def | Kind::Val) && !has(l.u, other, PRIVATE);
-            let library = s.tree.is_some();
-            let deferred = match library {
+            let deferred = match s.tree.is_some() {
                 true => l.u.body(other).is_none(),
-                false => s.kind == Kind::Def && !concrete.contains(&other) && !has(l.u, other, FIELDaccessor),
+                false => s.kind == Kind::Def && !has(l.u, other, FIELDaccessor) && !has_body(l, other),
             };
             if member && !deferred && l.u.erased_method(other) == signature {
                 return other == meth;

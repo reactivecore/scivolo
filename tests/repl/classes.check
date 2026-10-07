@@ -80,3 +80,12 @@ val res14: C = C(a)
 
 scala> new C("b").s
 val res15: String = "b"
+
+scala> trait Pretty { override def toString = "pretty" }
+// defined trait Pretty
+
+scala> case class Q(a: Int, b: Int) extends Pretty
+// defined case class Q
+
+scala> Q(1, 2).toString
+val res16: String = "pretty"
