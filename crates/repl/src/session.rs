@@ -5,7 +5,7 @@ use crate::commands::{self, Command};
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
 use crate::render::Definition;
-use crate::{imports, render, report, wrap};
+use crate::{imports, render, report, trace, wrap};
 use libimage::Image;
 use lower::NirFile;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -171,7 +171,7 @@ impl Session {
     /// What a run that failed with `e` prints.
     fn failed(&mut self, e: VmError) -> Vec<String> {
         match e {
-            VmError::Uncaught(exc) => vec![exc],
+            VmError::Uncaught(exc) => trace::lines(&exc),
             VmError::Exit(code) => {
                 self.exit = Some(code);
                 Vec::new()

@@ -115,18 +115,6 @@ impl Vm {
         argv
     }
 
-    /// `toString()` of throwable `exc`, or its class name if that fails too.
-    pub fn describe_throwable(&mut self, exc: usize) -> String {
-        let name = self.class_name(self.class_of(exc)).to_owned();
-        let sig = nir::StrId(self.world.pool.strings.intern("D8toStringL16java.lang.StringEO".into()));
-        let text = self
-            .virtual_method(exc, sig)
-            .and_then(|f| self.call(f, &[exc as u64]))
-            .ok()
-            .and_then(|s| self.read_string(s as usize).ok());
-        text.unwrap_or(name)
-    }
-
     /// The contents of the `java.lang.String` at `obj`.
     pub fn read_string(&mut self, obj: usize) -> Result<String, VmError> {
         if obj == 0 {

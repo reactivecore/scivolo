@@ -1,3 +1,4 @@
+use crate::throwable::Thrown;
 use crate::world::LoadError;
 use std::fmt;
 
@@ -5,7 +6,7 @@ use std::fmt;
 pub enum VmError {
     Load(LoadError),
     Unsupported(String),
-    Uncaught(String),
+    Uncaught(Thrown),
     /// A static initializer threw this exception object.
     Initializer(usize),
     Exit(i32),

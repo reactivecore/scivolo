@@ -36,3 +36,5 @@ top-level name, and the collector serves one VM per process.
 - A later definition of a name an earlier user import brings is ambiguous, as in dotty, but
   for a wildcard import, where dotty's nested contexts pick the definition.
 - Values print as `stringOf` does, not as pprint: products and collections of strings differ.
+- Traces show the interpreter's frames; `... N elided` counts the wrapper frames cut, not the
+  JVM's reflection frames.
