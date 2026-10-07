@@ -27,6 +27,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         }
     }
     for &t in trees.iter().rev() {
+        if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
+            l.copy_node(t, arg);
+        }
         const_to_literal(l, t);
     }
 }
