@@ -4,6 +4,7 @@ use super::super::Parser;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{NodeId, Span, TName, Tree};
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -92,7 +93,7 @@ impl Parser<'_> {
             Tree::ByNameTypeTree { result } => {
                 let span = self.ast.span(t);
                 let msg = format!("By-name parameter type => {} not allowed here.", self.source_text(result));
-                self.syntax_error_span(msg, span);
+                self.syntax_error_span(Message::syntax(22, msg), span);
                 result
             }
             Tree::ValDef { name, tpt, .. } => {
@@ -119,16 +120,16 @@ impl Parser<'_> {
             }
             Token::ForSome => {
                 let o = self.offset();
-                self.syntax_error(
-                    "Existential types are no longer supported -\nuse a wildcard or dependent type instead",
-                    o,
-                );
+                let msg =
+                    "Existential types are no longer supported -\nuse a wildcard or dependent type instead";
+                self.syntax_error(Message::syntax(34, msg), o);
                 t
             }
             _ => {
                 let with_mods = matches!(self.ast.tree(t), Tree::Function { mods: Some(_), .. });
                 if ft.erased.contains(&true) && !with_mods {
                     let msg = "Types with erased keyword can only be function types `(erased ...) => ...`";
+                    let msg = Message::syntax(143, msg).without_explanation();
                     self.syntax_error_span(msg, Span::synthetic(ft.start, ft.start + 8));
                 }
                 t

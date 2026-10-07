@@ -109,7 +109,7 @@ impl Parser<'_> {
             return t;
         }
         let span = self.ast.span(t);
-        self.syntax_error_span("Unbound wildcard type", span);
+        self.syntax_error_span(crate::diag::Message::syntax(35, "Unbound wildcard type"), span);
         let any = self.type_name("Any");
         self.scala_dot(any)
     }

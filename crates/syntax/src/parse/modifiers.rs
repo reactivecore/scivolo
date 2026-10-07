@@ -4,7 +4,7 @@ use crate::ast::Span;
 use crate::ast::flags::{self, FlagSet};
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::config::Features;
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::token::Token;
 use crate::token::sets::{ACCESS_MODIFIER_TOKENS, LOCAL_MODIFIER_TOKENS, TokenSet};
 
@@ -80,7 +80,7 @@ impl Parser<'_> {
         let m = Mod { kind, span };
         if mods.is_one_of(kind.flags()) {
             let msg = format!("Repeated modifier {}", kind.flags().flags_string());
-            self.syntax_error_span(msg, span);
+            self.syntax_error_span(Message::syntax(15, msg), span);
         }
         self.add_mod(mods, m)
     }
@@ -125,7 +125,7 @@ impl Parser<'_> {
         }
         if mods.is(flags::LOCAL) || mods.private_within.is_some() {
             let o = self.offset();
-            self.syntax_error("Duplicate private/protected modifier", o);
+            self.syntax_error(Message::syntax(87, "Duplicate private/protected modifier"), o);
         }
         let start = self.offset();
         let mods = self.in_brackets(|p| {

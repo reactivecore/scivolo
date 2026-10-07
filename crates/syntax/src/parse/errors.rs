@@ -2,12 +2,14 @@
 
 use super::Parser;
 use crate::ast::{NodeId, Span, Tree};
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
+use crate::token::sets::KEYWORDS;
 
 impl Parser<'_> {
     /// Report an error at `offset` unless one was reported there or later already.
-    pub fn syntax_error(&mut self, msg: impl Into<String>, offset: Offset) {
+    pub fn syntax_error(&mut self, msg: impl Into<Message>, offset: Offset) {
         if self.last_error_offset.is_some_and(|l| offset <= l) {
             return;
         }
@@ -22,7 +24,7 @@ impl Parser<'_> {
     }
 
     /// Report an error at `span`, unless the parser gave up on the source.
-    pub fn syntax_error_span(&mut self, msg: impl Into<String>, span: Span) {
+    pub fn syntax_error_span(&mut self, msg: impl Into<Message>, span: Span) {
         if self.gave_up {
             return;
         }
@@ -33,11 +35,11 @@ impl Parser<'_> {
         }
     }
 
-    pub fn warning(&mut self, msg: impl Into<String>, offset: Offset) {
+    pub fn warning(&mut self, msg: impl Into<Message>, offset: Offset) {
         self.s.diags.warning(offset, msg);
     }
 
-    pub fn incomplete_input_error(&mut self, msg: impl Into<String>) {
+    pub fn incomplete_input_error(&mut self, msg: impl Into<Message>) {
         if !self.gave_up && Some(self.offset()) != self.last_error_offset {
             let o = self.offset();
             self.s.diags.incomplete_input_error(o, msg);
@@ -45,7 +47,7 @@ impl Parser<'_> {
     }
 
     /// At EOF an incomplete-input error, else a syntax error and a skip to a safe point.
-    pub fn syntax_error_or_incomplete(&mut self, msg: impl Into<String>, offset: Offset) {
+    pub fn syntax_error_or_incomplete(&mut self, msg: impl Into<Message>, offset: Offset) {
         if self.tok() == Token::Eof {
             self.incomplete_input_error(msg);
         } else {
@@ -54,7 +56,7 @@ impl Parser<'_> {
         }
     }
 
-    pub fn syntax_error_or_incomplete_span(&mut self, msg: impl Into<String>, span: Span) {
+    pub fn syntax_error_or_incomplete_span(&mut self, msg: impl Into<Message>, span: Span) {
         if self.tok() == Token::Eof {
             self.incomplete_input_error(msg);
         } else {
@@ -69,25 +71,26 @@ impl Parser<'_> {
     }
 
     /// dotty's `ExpectedTokenButFound` message.
-    pub fn expected_but_found(expected: Token, found: Token, prefix: &str, suffix: &str) -> String {
-        let expected = match expected {
-            Token::Identifier | Token::BackquotedIdent => "an identifier".to_string(),
-            t => t.display(),
-        };
-        format!("{prefix}{expected} expected, but {} found{suffix}", found.display())
+    pub fn expected_but_found(expected: Token, found: Token, prefix: &str, suffix: &str) -> Message {
+        let ident = matches!(expected, Token::Identifier | Token::BackquotedIdent);
+        let expected_text = if ident { "an identifier".to_string() } else { expected.display() };
+        let text = format!("{prefix}{expected_text} expected, but {} found{suffix}", found.display());
+        let msg = Message::syntax(40, text);
+        if ident && KEYWORDS.contains(found) { msg } else { msg.without_explanation() }
     }
 
     /// dotty's `ExpectedTokenButFoundSoftKeyword` message.
-    pub fn expected_but_found_soft(expected: Token, found: Token, soft: &str, advice: &str) -> String {
+    pub fn expected_but_found_soft(expected: Token, found: Token, soft: &str, advice: &str) -> Message {
         let ident = |t| matches!(t, Token::Identifier | Token::BackquotedIdent);
         let expected_text = if ident(expected) { "an identifier".to_string() } else { expected.display() };
         let what =
             if ident(found) || expected == Token::ColonOp { "an identifier" } else { "the soft keyword" };
         let addendum = if advice.is_empty() { String::new() } else { format!("\n{advice}") };
-        format!(
+        let text = format!(
             "{expected_text} expected, but {} found\nThe soft keyword `{soft}` was taken as {what} in this context.{addendum}",
             found.display()
-        )
+        );
+        Message::syntax(40, text)
     }
 
     /// Consume `token`, or report that it is missing; return the offset of the current token.

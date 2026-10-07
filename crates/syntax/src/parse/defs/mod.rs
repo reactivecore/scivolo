@@ -69,7 +69,10 @@ impl Parser<'_> {
         if let Some(name) = checked {
             let text = self.s.names.text(name.name);
             if !text.is_empty() && !text.starts_with(crate::scan::is_operator_part) && text.ends_with(':') {
-                let msg = format!("name `{text}` should be enclosed in backticks");
+                let msg = crate::diag::Message::syntax(
+                    228,
+                    format!("name `{text}` should be enclosed in backticks"),
+                );
                 let point = self.ast.span(md).point();
                 self.warning(msg, point);
             }

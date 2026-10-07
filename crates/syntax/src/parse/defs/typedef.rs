@@ -73,7 +73,8 @@ impl Parser<'_> {
                 self.type_and_ctx_bounds(tname)
             }
             _ => {
-                let msg = format!("=, >:, or <: expected, but {} found", self.tok().display());
+                let text = format!("=, >:, or <: expected, but {} found", self.tok().display());
+                let msg = crate::diag::Message::syntax(95, text);
                 self.syntax_error_or_incomplete(msg, self.offset());
                 return self.empty_tree();
             }

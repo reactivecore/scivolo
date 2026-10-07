@@ -33,7 +33,7 @@ impl Parser<'_> {
                 ("which is left-associative", "which is right-associative")
             };
             let msg = format!("{op1} ({a1}) and {op2} ({a2}) have same precedence and may not be mixed");
-            self.syntax_error(msg, offset);
+            self.syntax_error(crate::diag::Message::syntax(41, msg), offset);
         }
     }
 
@@ -91,6 +91,7 @@ impl Parser<'_> {
                 "Deprecated syntax: infix named arguments lists are deprecated; since 3.7 it is interpreted as a single named tuple argument.\nTo avoid this warning, either remove the argument names or use dotted selection.{}",
                 rewrite_notice("This", "3.7-migration", "")
             );
+            let msg = crate::diag::Message::syntax(204, msg).without_explanation();
             let span = self.ast.span(right);
             self.error_or_migration_warning(msg, span, Migration::AmbiguousNamedTupleSyntax);
         }

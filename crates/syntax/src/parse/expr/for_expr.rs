@@ -160,7 +160,8 @@ impl Parser<'_> {
             self.ast.node(Tree::ForDo { enums: enums_list, body })
         } else {
             if !wrapped {
-                self.syntax_error_or_incomplete("yield or do expected", self.offset());
+                let msg = crate::diag::Message::syntax(20, "yield or do expected");
+                self.syntax_error_or_incomplete(msg, self.offset());
             }
             let body = self.expr();
             self.ast.node(Tree::ForDo { enums: enums_list, body })

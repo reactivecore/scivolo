@@ -10,6 +10,7 @@ use crate::{imports, line_names, render, report, trace, wrap};
 use libimage::Image;
 use lower::NirFile;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
 use typer::tpd::TNodeId;
@@ -26,6 +27,8 @@ struct Unit {
     earlier: Earlier,
     /// How many `res` values of type `Unit` it defines, whose indices a run gives back.
     unit_res: u32,
+    /// The lines of its warnings, printed before it runs.
+    warnings: Vec<String>,
 }
 
 pub struct Session {
@@ -103,11 +106,11 @@ impl Session {
     /// Compiles input `text` into a unit to run, or the lines it prints instead.
     fn compile(&mut self, text: &str) -> Result<Unit, Vec<String>> {
         let name = format!("{}{}", line_names::PREFIX, self.line + 1);
-        match input::classify(&name, text, &mut self.names, &mut self.fresh) {
+        match input::classify(&name, text, &mut self.names, &mut self.fresh, self.width as usize) {
             Input::Empty => Err(Vec::new()),
             Input::Command(c) => Err(self.command(c)),
             Input::Errors(errors) => Err(errors),
-            Input::Stats(parsed) => self.lower(parsed),
+            Input::Stats(parsed) => self.lower(*parsed),
         }
     }
 
@@ -125,7 +128,8 @@ impl Session {
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
         let earlier = Earlier { object, imports, members };
-        Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units) })
+        let warnings = report::warnings(&parsed.source, &parsed.diags, self.width as usize);
+        Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units), warnings })
     }
 
     /// The statements of `parsed` typed as the body of wrapper object `object`, with the
@@ -133,16 +137,20 @@ impl Session {
     fn typed(&mut self, parsed: &mut Parsed, object: &str) -> Result<(Typed, TNodeId), Vec<String>> {
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let prelude = earlier::prelude(&self.earlier);
-        let wrapped = wrap::wrap(parsed, object, self.res, &prelude, names, fresh)?;
+        let width = self.width as usize;
+        let Some(wrapped) = wrap::wrap(parsed, object, self.res, &prelude, names, fresh) else {
+            return Err(parsed.errors(Diagnostics::default(), width));
+        };
         self.res = wrapped.next_res;
         let features = parsed.cfg.features;
         let typed =
             self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, features);
-        let typed = match typed {
+        let mut typed = match typed {
             Ok(typed) => typed,
-            Err(Fallback::Errors(diags)) => return Err(report::diagnostics(&parsed.source, &diags)),
+            Err(Fallback::Errors(diags)) => return Err(parsed.errors(diags, width)),
             Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
         };
+        parsed.diags.items.append(&mut typed.diags.items);
         match wrap::template(&self.u, &typed, &format!("{object}$")) {
             Some(template) => Ok((typed, template)),
             None => Err(vec![report::unsupported("a wrapper object without a template")]),
@@ -151,19 +159,20 @@ impl Session {
 
     /// Loads and runs `unit`; the lines it prints.
     fn run(&mut self, unit: Unit) -> Vec<String> {
-        let Unit { module, files, defs, earlier, unit_res } = unit;
+        let Unit { module, files, defs, earlier, unit_res, warnings: mut out } = unit;
         for f in files {
             if let Err(e) = self.vm.add_nir(&f.name, f.bytes) {
-                return vec![e.to_string()];
+                out.push(e.to_string());
+                return out;
             }
         }
         self.vm.clear_interrupts();
         if let Err(e) = self.vm.eval_module(&module) {
-            return self.failed(e);
+            out.extend(self.failed(e));
+            return out;
         }
         self.res -= unit_res;
         self.earlier.push(earlier);
-        let mut out = Vec::new();
         for d in defs {
             match render::line(&mut self.vm, &module, &d, self.width) {
                 Ok(line) => out.push(line),

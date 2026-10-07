@@ -2,6 +2,7 @@
 
 use super::Parser;
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -12,7 +13,8 @@ impl Parser<'_> {
             let name = self.s.cur.name.expect("an identifier has a name");
             if matches!(self.s.names.text(name), "<init>" | "<clinit>") {
                 let o = self.offset();
-                self.s.diags.error(o, "Illegal backquoted identifier: `<init>` and `<clinit>` are forbidden");
+                let msg = "Illegal backquoted identifier: `<init>` and `<clinit>` are forbidden";
+                self.s.diags.error_at(o, o, o, Message::syntax(230, msg));
             }
             self.next();
             TName { name, is_type: false }
@@ -157,7 +159,7 @@ impl Parser<'_> {
             }
             _ => {
                 let span = self.ast.span(t);
-                self.syntax_error_span("identifier expected", span);
+                self.syntax_error_span(Message::syntax(25, "identifier expected"), span);
                 t
             }
         }

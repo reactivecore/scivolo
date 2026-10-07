@@ -42,7 +42,9 @@ impl Parser<'_> {
             {
                 for &cb in self.ast.items(cx_bounds).to_vec().iter() {
                     let span = self.ast.span(cb);
-                    self.syntax_error_span("Context bounds are not allowed in this position", span);
+                    let msg = "Context bounds are not allowed in this position";
+                    let msg = crate::diag::Message::syntax(214, msg).without_explanation();
+                    self.syntax_error_span(msg, span);
                 }
                 b
             }

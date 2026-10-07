@@ -128,7 +128,11 @@ impl Scanner<'_> {
         } else if self.regions.get(r).kind == RegionKind::InBraces
             && !CLOSING_REGION_TOKENS.contains(self.cur.token)
         {
-            self.diags.warning(self.cur.offset, "Line is indented too far to the left, or a '}' is missing");
+            let msg = crate::diag::Message::syntax(
+                229,
+                "Line is indented too far to the left, or a '}' is missing",
+            );
+            self.diags.warning(self.cur.offset, msg);
         }
     }
 

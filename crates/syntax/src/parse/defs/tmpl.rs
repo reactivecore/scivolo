@@ -47,7 +47,8 @@ impl Parser<'_> {
             }
             _ => {
                 let start = self.last_offset();
-                self.syntax_error_or_incomplete("Expected start of definition", self.offset());
+                let msg = crate::diag::Message::syntax(88, "Expected start of definition");
+                self.syntax_error_or_incomplete(msg, self.offset());
                 match *self.ast.items(mods.annotations) {
                     [head] => head,
                     [] => self.empty_tree(),

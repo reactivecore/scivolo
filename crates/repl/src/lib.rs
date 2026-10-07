@@ -2,6 +2,7 @@
 //! object and run in one VM (ADR 0012).
 
 mod commands;
+mod diagnostic;
 mod earlier;
 mod imports;
 mod input;

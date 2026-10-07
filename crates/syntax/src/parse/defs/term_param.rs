@@ -91,7 +91,7 @@ impl Parser<'_> {
         let name = self.param_name();
         if self.tok() == Token::Arrow && owner.is_class() && !mods.is(flags::LOCAL) {
             let what = if mods.is(flags::MUTABLE) { "var" } else { "val" };
-            let msg = format!("{what} parameters may not be call-by-name");
+            let msg = crate::diag::Message::syntax(55, format!("{what} parameters may not be call-by-name"));
             let o = self.offset();
             self.syntax_error(msg, o);
         }

@@ -53,7 +53,8 @@ impl Parser<'_> {
                     let msg = "`_*` can be used only for last argument of method application.\nIt is no longer allowed in operands of infix operations.";
                     self.migration_error(msg, uscore, Migration::Scala2to3);
                 } else {
-                    self.syntax_error("* can be used only for last argument", uscore);
+                    let msg = crate::diag::Message::syntax(31, "* can be used only for last argument");
+                    self.syntax_error(msg, uscore);
                 }
                 let star = self.type_name("_*");
                 let id = self.ast.node(Tree::Ident { name: star });

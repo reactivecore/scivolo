@@ -138,7 +138,8 @@ impl Parser<'_> {
         }
         if DCL_INTRO_TOKENS.contains(self.tok()) && self.tok() != Token::Given {
             let o = self.offset();
-            self.syntax_error("The final modifier is not allowed on local definitions", o);
+            let msg = "The final modifier is not allowed on local definitions";
+            self.syntax_error(crate::diag::Message::syntax(200, msg).without_explanation(), o);
         }
         self.tmpl_def(start, mods)
     }

@@ -1,21 +1,43 @@
-//! Errors as output lines: `<line>:<col>: error: <message>`, `-- unsupported: <what>`,
+//! What an input prints instead of or before its values: diagnostics in dotty's boxes, with the
+//! count of warnings and errors as dotty's REPL prints it; `-- unsupported: <what>`,
 //! `-- internal error: <panic>`.
 
+use crate::diagnostic;
 use std::any::Any;
-use syntax::diag::{Diagnostics, Level};
-use syntax::source::{Offset, SourceFile};
+use syntax::diag::{Diagnostic, Diagnostics, Level};
+use syntax::source::SourceFile;
 
-/// The errors of `diags`, positioned in `source`.
-pub fn diagnostics(source: &SourceFile, diags: &Diagnostics) -> Vec<String> {
-    let errors = diags.unique().into_iter().filter(|d| d.level == Level::Error);
-    errors.map(|d| error(source, d.offset, &d.message)).collect()
+/// The diagnostics of an input that does not parse: no count.
+pub fn syntax_errors(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
+    boxes(source, &diags.unique(), width)
 }
 
-fn error(source: &SourceFile, at: Option<Offset>, message: &str) -> String {
-    match at.filter(|&o| o <= source.len()) {
-        Some(o) => format!("{}:{}: error: {message}", source.offset_to_line(o) + 1, source.column(o) + 1),
-        None => format!("error: {message}"),
-    }
+/// The diagnostics of an input that does not compile, then their count.
+pub fn compile_errors(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
+    let shown = diags.unique();
+    let mut out = boxes(source, &shown, width);
+    out.extend(count(&shown, Level::Warning, "warning"));
+    out.extend(count(&shown, Level::Error, "error"));
+    out
+}
+
+/// The warnings of an input that compiles: their count, then the warnings.
+pub fn warnings(source: &SourceFile, diags: &Diagnostics, width: usize) -> Vec<String> {
+    let shown = diags.unique();
+    let mut out: Vec<String> = count(&shown, Level::Warning, "warning").into_iter().collect();
+    out.extend(boxes(source, &shown, width));
+    out
+}
+
+fn boxes(source: &SourceFile, shown: &[&Diagnostic], width: usize) -> Vec<String> {
+    shown.iter().flat_map(|d| diagnostic::lines(source, d, width)).collect()
+}
+
+/// `1 error found`, `2 warnings found`; `None` for none.
+fn count(shown: &[&Diagnostic], level: Level, what: &str) -> Option<String> {
+    let n = shown.iter().filter(|d| d.level == level).count();
+    let plural = if n == 1 { "" } else { "s" };
+    (n > 0).then(|| format!("{n} {what}{plural} found"))
 }
 
 pub fn unsupported(what: &str) -> String {

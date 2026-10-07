@@ -57,7 +57,7 @@ impl Parser<'_> {
         } else {
             if !self.is_expr_intro() {
                 let l = self.last_offset();
-                self.syntax_error("Missing return type", l);
+                self.syntax_error(crate::diag::Message::syntax(19, "Missing return type"), l);
             }
             self.accept(Token::Equals);
             Some(self.expr())
@@ -90,7 +90,8 @@ impl Parser<'_> {
             })
         });
         if bad_first {
-            let msg = "Auxiliary constructor needs non-implicit parameter list";
+            let msg =
+                crate::diag::Message::syntax(26, "Auxiliary constructor needs non-implicit parameter list");
             match self.tok() {
                 Token::LBracket => {
                     let o = self.offset();

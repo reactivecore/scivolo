@@ -4,6 +4,7 @@
 use super::Parser;
 use crate::ast::NodeId;
 use crate::config::Features;
+use crate::diag::Message;
 use crate::token::Token;
 use crate::token::sets::{CAN_START_EXPR_TOKENS3, MUST_START_STAT_TOKENS};
 
@@ -49,13 +50,13 @@ impl Parser<'_> {
                     } else {
                         ""
                     };
-                    format!("end of {what} expected but {} found{extra}", found.display())
+                    format!("end of {what} expected but {} found{extra}", found.display()).into()
                 } else if stat_follows {
-                    "this kind of statement is not allowed here".to_string()
+                    Message::syntax(103, "this kind of statement is not allowed here")
                 } else {
                     let addendum =
                         if self.is_modifier() { ": this modifier is not allowed here" } else { "" };
-                    format!("Illegal start of {what}{addendum}")
+                    Message::syntax(103, format!("Illegal start of {what}{addendum}"))
                 };
                 let o = self.offset();
                 self.syntax_error(msg, o);
@@ -76,7 +77,8 @@ impl Parser<'_> {
         let r = f(self);
         if let Some(&vd) = self.placeholder_params.last() {
             let span = self.ast.span(vd);
-            self.syntax_error_span("Unbound placeholder parameter; incorrect use of _", span);
+            let msg = "Unbound placeholder parameter; incorrect use of _";
+            self.syntax_error_span(Message::syntax(17, msg), span);
         }
         self.placeholder_params = saved;
         for unit_level in [Features::CAPTURE_CHECKING, Features::PURE_FUNCTIONS] {

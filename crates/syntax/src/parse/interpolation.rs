@@ -3,6 +3,7 @@
 use super::{Location, Parser};
 use crate::ast::constant::Constant;
 use crate::ast::{NodeId, Span, TName, Tree};
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -40,7 +41,7 @@ impl Parser<'_> {
                 self.at_span(Span::new(start, end, start), t)
             }
             _ => {
-                self.syntax_error_or_incomplete("Illegal literal", self.offset());
+                self.syntax_error_or_incomplete(Message::syntax(28, "Illegal literal"), self.offset());
                 let t = self.ast.node(Tree::Literal { value: Constant::Null });
                 self.at_span1(start, t)
             }
@@ -71,7 +72,8 @@ impl Parser<'_> {
             Token::LBrace => self.expr(),
             _ => {
                 let o = self.offset();
-                self.s.diags.error(o, "Error in interpolated string: identifier or block expected");
+                let msg = Message::syntax(16, "Error in interpolated string: identifier or block expected");
+                self.s.diags.error_at(o, o, o, msg);
                 return self.empty_tree();
             }
         };

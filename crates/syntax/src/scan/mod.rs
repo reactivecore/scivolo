@@ -24,7 +24,7 @@ pub use region::{RegionId, RegionKind, Regions};
 pub use token_data::TokenData;
 
 use crate::config::Config;
-use crate::diag::Diagnostics;
+use crate::diag::{Diagnostics, Message};
 use crate::names::Names;
 use crate::source::{Offset, SourceFile};
 use crate::token::Token;
@@ -192,7 +192,7 @@ impl<'a> Scanner<'a> {
     }
 
     /// Report an error at the end of the input and end the token stream.
-    fn incomplete_input_error(&mut self, message: impl Into<String>) {
+    fn incomplete_input_error(&mut self, message: impl Into<Message>) {
         self.diags.incomplete_input_error(self.cur.offset, message);
         self.cur.token = Token::Eof;
     }

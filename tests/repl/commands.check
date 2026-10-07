@@ -65,7 +65,12 @@ scala> :type object O
 O
 
 scala> :type 1 +
-1:4: error: expression expected but eof found
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |1 +
+  |   ^
+  |   expression expected but eof found
+  |
+  | longer explanation available when compiling with `-explain`
 
 scala> :type
 :type <expression>

@@ -3,7 +3,7 @@
 //! package, after the imports of earlier lines; then desugared.
 
 use crate::input::Parsed;
-use crate::{report, show_methods};
+use crate::show_methods;
 use syntax::ast::{Ast, NodeId, Span, TName, Tree};
 use syntax::desugar::Desugar;
 use syntax::diag::Diagnostics;
@@ -22,7 +22,8 @@ pub struct Wrapped {
 }
 
 /// `parsed` as the unit of `object`, after the import statements `prelude`, with `res` the next
-/// free `res` index.
+/// free `res` index; `None` after desugaring errors. The desugaring's diagnostics join those of
+/// `parsed`.
 pub fn wrap(
     parsed: &mut Parsed,
     object: &str,
@@ -30,7 +31,7 @@ pub fn wrap(
     prelude: &str,
     names: &mut Names,
     fresh: &mut FreshNames,
-) -> Result<Wrapped, Vec<String>> {
+) -> Option<Wrapped> {
     let mut next_res = res;
     let ast = &mut parsed.ast;
     let stats = definitions(ast, names, &parsed.stats, &mut next_res);
@@ -52,10 +53,9 @@ pub fn wrap(
     let package = ast.node(Tree::PackageDef { pid, stats });
     let mut diags = Diagnostics::default();
     let root = Desugar::new(ast, names, &mut diags, fresh, &parsed.source, parsed.cfg).unit(package);
-    if diags.has_errors() {
-        return Err(report::diagnostics(&parsed.source, &diags));
-    }
-    Ok(Wrapped { root, next_res })
+    let failed = diags.has_errors();
+    parsed.diags.items.extend(diags.items);
+    (!failed).then_some(Wrapped { root, next_res })
 }
 
 /// The template of the class definition of `module` in `typed`.

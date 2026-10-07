@@ -173,11 +173,13 @@ impl Parser<'_> {
             let next_width = self.s.indent_width(self.s.next.offset);
             if !next_width.lt(&start_width) {
                 let msg = if start_width.le(&next_width) {
-                    "Line is indented too far to the right, or a '{' is missing before:\n\n".to_string()
+                    let text = "Line is indented too far to the right, or a '{' is missing before:\n\n";
+                    crate::diag::Message::syntax(229, text)
                 } else {
                     format!(
                         "Incompatible combinations of tabs and spaces in indentation prefixes.\nPrevious indent : {start_width}\nLatest indent   : {next_width}"
                     )
+                    .into()
                 };
                 let o = self.s.next.offset;
                 self.warning(msg, o);
