@@ -15,9 +15,20 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let bases = l.u.linearization(class);
-    check_inherited(l, class, &bases, deferred, span)?;
     let mut stats = l.tpd.items(body).to_vec();
     let mut bridged: Vec<(String, Vec<Erased>, Erased)> = Vec::new();
+    for (member, implementation) in inherited_pairs(l, class, &bases, deferred) {
+        let (params, result) = l.u.erased_method(member);
+        let signature = (l.u.symbol(member).name.clone(), params, result);
+        if bridged.contains(&signature) {
+            continue;
+        }
+        if is_trait(l.u, class) {
+            return unsupported(span, "bridges in traits");
+        }
+        bridged.push(signature);
+        stats.push(bridge(l, class, implementation, member, span)?);
+    }
     for stat in l.tpd.items(body).to_vec() {
         let (Tree::DefDef { rhs: Some(_), .. }, Some(m)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
             continue;
@@ -57,17 +68,18 @@ fn is_member(l: &Lower, s: SymbolId) -> bool {
     matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !is_constructor(l.u, s)
 }
 
-/// Fails if a member of a trait `class` mixes in is implemented by an inherited member of
-/// another erased result type, which needs a bridge `Bridges` makes from inherited pairs.
-fn check_inherited(
+/// The members of the traits `class` mixes in that an inherited member of another erased
+/// result type implements, each with that implementation: the pairs `Bridges` bridges in
+/// `class`.
+fn inherited_pairs(
     l: &mut Lower,
     class: SymbolId,
     bases: &[SymbolId],
     deferred: &FxHashSet<SymbolId>,
-    span: syntax::ast::Span,
-) -> Result<()> {
+) -> Vec<(SymbolId, SymbolId)> {
     let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
     let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
+    let mut out = Vec::new();
     for &base in bases[1..].iter().filter(|b| !inherited.contains(b)) {
         let decls: Vec<SymbolId> = l.u.decls(base).unwrap_or_default();
         let members: Vec<SymbolId> = decls.into_iter().filter(|&d| is_member(l, d)).collect();
@@ -76,18 +88,23 @@ fn check_inherited(
             let (params, result) = l.u.erased_method(d);
             let implementation = bases.iter().find_map(|&b| {
                 let found = l.u.decl(b, &name).unwrap_or_default();
-                found
-                    .into_iter()
-                    .find(|&o| is_member(l, o) && !deferred.contains(&o) && l.u.erased_method(o).0 == params)
+                found.into_iter().find(|&o| {
+                    is_member(l, o) && !is_deferred(l, deferred, o) && l.u.erased_method(o).0 == params
+                })
             });
             let Some(implementation) = implementation else { continue };
             let inherited_impl = l.u.symbol(implementation).owner != Some(class);
             if inherited_impl && l.u.erased_method(implementation).1 != result {
-                return unsupported(span, "bridges for inherited members");
+                out.push((d, implementation));
             }
         }
     }
-    Ok(())
+    out
+}
+
+/// Whether method `m` has no body: one of the unit's in `deferred`, or the library's.
+fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
+    deferred.contains(&m) || l.u.symbol(m).tree.is_some() && l.u.body(m).is_none()
 }
 
 /// `def m(params): R = this.m(params)` with the type of `other` that `m` overrides.

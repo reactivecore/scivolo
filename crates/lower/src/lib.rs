@@ -47,8 +47,6 @@ pub struct Lower<'a> {
     fields: FxHashMap<SymbolId, SymbolId>,
     /// The bridges `Bridges` made and the `$adapted` methods of lambdas.
     bridges: FxHashSet<SymbolId>,
-    /// The numbers of the names `LambdaLift` made in the unit, by prefix.
-    lifted_names: FxHashMap<String, u32>,
     /// The extension methods entered for the methods of value classes.
     extensions: FxHashMap<SymbolId, SymbolId>,
 }
@@ -72,7 +70,6 @@ pub fn lower(
         defs,
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),
-        lifted_names: FxHashMap::default(),
         extensions: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;

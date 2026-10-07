@@ -49,6 +49,9 @@ trait T:
 class TI extends T
 
 @main def localdefs(): Unit =
+  def inc(n: Int) = n + 1
+  val g = (n: Int) => inc(n)
+  println(g(1))
   println(D.plain(3))
   println(D.recursive(5))
   println(D.capturing(10))

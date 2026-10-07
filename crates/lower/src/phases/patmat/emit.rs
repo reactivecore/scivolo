@@ -6,7 +6,7 @@ use super::Translator;
 use super::plan::{Plan, PlanId, Test};
 use crate::definitions::type_ref;
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -87,36 +87,15 @@ impl Translator<'_, '_> {
         let Plan::Test { test, scrutinee, span, .. } = *self.plan(p) else { unreachable!("a test") };
         let cond = match test {
             Test::Guard => scrutinee,
-            Test::Equal(tree) => self.equal(tree, scrutinee),
+            Test::Equal(tree) => self.l.equal(tree, scrutinee),
             Test::Type(tpt) => self.type_test(scrutinee, tpt),
         };
         self.l.with_span(cond, span)
     }
 
-    /// `lhs == rhs`, with the `==` of `lhs`'s class taking `rhs`'s class if any, else `Any`'s.
-    fn equal(&mut self, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
-        let class = self.class_of(self.l.tpd.tpe(lhs));
-        let arg = self.class_of(self.l.tpd.tpe(rhs));
-        let eq = class
-            .and_then(|c| self.l.u.decl(c, "==").ok())
-            .and_then(|eqs| eqs.into_iter().find(|&m| self.single_param_class(m) == arg))
-            .unwrap_or(self.l.defs.patmat.any_eq);
-        self.call(lhs, eq, &[rhs])
-    }
-
     /// `a && b`.
     fn and(&mut self, a: TNodeId, b: TNodeId) -> TNodeId {
-        self.call(a, self.l.defs.patmat.and, &[b])
-    }
-
-    /// `qual.m(args)`, of a method `m` with one parameter list.
-    pub fn call(&mut self, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNodeId {
-        let fun = self.l.select(qual, m, Span::NONE);
-        let fun = self.l.positioned(fun);
-        let info = self.l.u.info(m);
-        let Type::Method { result, .. } = *self.l.u.types().get(info) else { unreachable!("a method") };
-        let apply = self.l.apply(fun, args, result, Span::NONE);
-        self.l.positioned(apply)
+        self.l.call(a, self.l.defs.patmat.and, &[b])
     }
 
     /// The definition of variable `sym` with its initializer, at the variable.

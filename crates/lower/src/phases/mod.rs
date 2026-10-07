@@ -5,8 +5,12 @@ mod adapted;
 mod bridges;
 mod build;
 mod by_name;
+mod calls;
 mod captured_vars;
 mod captures;
+mod case_equality;
+mod case_hash;
+mod case_members;
 pub(crate) mod casts;
 mod closures;
 mod constructors;
@@ -18,8 +22,10 @@ mod getters;
 mod interpolators;
 mod lambda_lift;
 mod lifted;
+mod literals;
 mod memoize;
 mod methods;
+mod mirrors;
 mod mixin;
 mod patmat;
 mod repeated;
@@ -36,8 +42,9 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
+    let concrete = mixin::methods_with_body(l, &classes, true);
     for &td in &classes {
-        synthetic::add_synthetic_members(l, td)?;
+        synthetic::add_synthetic_members(l, td, &concrete)?;
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);

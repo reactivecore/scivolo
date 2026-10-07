@@ -71,11 +71,10 @@ pub fn name_proxies(l: &mut Lower, proxies: &[SymbolId]) {
     }
 }
 
-/// `base$N`, `N` counting the names made from `base` in the unit.
+/// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
 pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let n = l.lifted_names.entry(base.to_owned()).or_insert(0);
-    *n += 1;
-    format!("{base}${n}")
+    let name = l.fresh.next(l.names, &format!("{base}$"));
+    l.names.text(name).to_owned()
 }
 
 /// The indices of `functions`, each after the functions in it.

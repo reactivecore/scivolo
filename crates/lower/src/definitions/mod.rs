@@ -1,12 +1,14 @@
 //! The library symbols the lowering refers to by name (dotty's `Definitions`, nscplugin's
 //! `NirDefinitions`).
 
+mod case_classes;
 mod equality;
 mod interfaces;
 mod patmat;
 mod refs;
 mod strings;
 
+pub use case_classes::CaseClasses;
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_apply};
 pub use patmat::Patmat;
@@ -37,6 +39,7 @@ pub struct Definitions {
     pub equality: Equality,
     pub strings: Strings,
     pub patmat: Patmat,
+    pub case_classes: CaseClasses,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
     /// `Any.asInstanceOf`.
@@ -75,6 +78,7 @@ impl Definitions {
             primitives.push(Primitive { letter, module, box_method, unbox_method });
         }
         let b = u.builtins();
+        let equality = Equality::new(u, b.any, b.object, runtime)?;
         Ok(Definitions {
             object: b.object,
             any: b.any,
@@ -84,9 +88,10 @@ impl Definitions {
             module_serialization_proxy_ctor: member(u, proxy, "<init>", Kind::Def)?,
             primitives,
             boxed_unit_unit: boxed_unit_unit(u, runtime),
-            equality: Equality::new(u, b.any, b.object, runtime)?,
+            equality,
             strings: Strings::new(u)?,
             patmat: Patmat::new(u, b.any, b.object)?,
+            case_classes: CaseClasses::new(u, b.any, b.object, equality.statics)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
         })

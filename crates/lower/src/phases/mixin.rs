@@ -1,11 +1,11 @@
 //! dotty's `Mixin` for traits without initialization: a trait keeps its constructor, which
-//! becomes `$init$` without a body; a class gets, for each concrete trait method it inherits, a
-//! forwarder calling that method on `super`.
+//! becomes `$init$` without a body; a class gets, for each concrete method it inherits from a
+//! trait of the unit or the library, a forwarder calling that method on `super`.
 
 use crate::symbols::{has, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, PRIVATE};
+use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -50,14 +50,20 @@ pub fn transform(
     }
     let mut forwarders = Vec::new();
     for mixin in mixins(l, class) {
-        if !unit_classes.contains(&mixin) {
-            return unsupported(span, "library traits as parents");
-        }
         if !l.u.no_inits(mixin) {
             return unsupported(span, "traits with initialization");
         }
+        let library = !unit_classes.contains(&mixin);
+        let decls = l.u.decls(mixin).unwrap_or_default();
+        if library && decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
+            return unsupported(span, "generic library traits as parents");
+        }
         for meth in l.u.decls(mixin).unwrap_or_default() {
-            if concrete.contains(&meth) && needs_forwarder(l, class, meth) {
+            let has_body = match library {
+                true => l.u.body(meth).is_some() && !has(l.u, meth, INLINE),
+                false => concrete.contains(&meth),
+            };
+            if has_body && needs_forwarder(l, class, meth, concrete) {
                 forwarders.push(forwarder(l, class, mixin, meth, span)?);
             }
         }
@@ -65,8 +71,8 @@ pub fn transform(
     if forwarders.is_empty() {
         return Ok(());
     }
-    let mut stats = l.tpd.items(body).to_vec();
-    stats.extend(forwarders);
+    let mut stats = forwarders;
+    stats.extend_from_slice(l.tpd.items(body));
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
@@ -81,9 +87,10 @@ fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     out
 }
 
-/// Whether `meth` is a method `class` inherits as it is: the first non-private method or value
-/// of its name and erased parameters in the linearization of `class`.
-fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
+/// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
+/// or value of its name and erased signature in the linearization of `class`, `concrete` the
+/// methods of the unit with a body.
+fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId, concrete: &FxHashSet<SymbolId>) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
         || is_constructor(l.u, meth)
@@ -93,12 +100,17 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
         return false;
     }
     let name = m.name.clone();
-    let params = l.u.erased_method(meth).0;
+    let signature = l.u.erased_method(meth);
     for base in l.u.linearization(class) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(other);
             let member = matches!(s.kind, Kind::Def | Kind::Val) && !has(l.u, other, PRIVATE);
-            if member && l.u.erased_method(other).0 == params {
+            let library = s.tree.is_some();
+            let deferred = match library {
+                true => l.u.body(other).is_none(),
+                false => s.kind == Kind::Def && !concrete.contains(&other) && !has(l.u, other, FIELDaccessor),
+            };
+            if member && !deferred && l.u.erased_method(other) == signature {
                 return other == meth;
             }
         }
