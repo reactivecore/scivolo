@@ -21,10 +21,12 @@ top-level name, and the collector serves one VM per process.
   value, typed with the input; the VM calls it after constructing the module. Strings, characters,
   `Long` and `Float` are quoted and suffixed by the erasure of the static type, where dotty's
   pprint goes by the runtime class (`val a: Any = "a"` prints unquoted).
-- `res` values of type `Unit` or `Nothing` become statements of the wrapper after typing.
+- Values of an inferred type `Unit` stay fields of the wrapper and are not printed.
 - The wrapper index `N` always advances, also after a failed input, and across `:reset`, so
-  names never clash in the VM; the `res` index advances once an input compiles. Only inputs
-  whose module was constructed are imported later.
+  names never clash in the VM; the `res` index advances once an input parses, also when its
+  typing fails, and the `res` values of type `Unit` give their indices back once the module
+  was constructed, as in dotty's `renderDefinitions`. Only inputs whose module was constructed
+  are imported later.
 
 ## Consequences
 - The typer and the lowering need no REPL mode.

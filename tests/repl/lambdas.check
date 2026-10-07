@@ -1,0 +1,8 @@
+scala> def g = (x: Int) => x * 2
+def g: Int => Int
+
+scala> g(3)
+val res0: Int = 6
+
+scala> List(1, 2).map(x => x + 1)
+val res1: List[Int] = List(2, 3)

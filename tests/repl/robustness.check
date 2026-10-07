@@ -51,7 +51,7 @@ scala> w
 -- unsupported: unresolved name w
 
 scala> if true then { val q = 1; q.toString } else ""
-val res3: String = "1"
+val res4: String = "1"
 
 scala> if true then { val q = 1; () } else ()
 
@@ -59,7 +59,7 @@ scala> ???
 scala.NotImplementedError: an implementation is missing
 
 scala> 2; ()
-val res4: Int = 2
+val res6: Int = 2
 
 scala> 3
-val res5: Int = 3
+val res7: Int = 3

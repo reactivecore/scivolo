@@ -9,7 +9,6 @@ mod render;
 mod report;
 mod session;
 mod show_methods;
-mod unit_results;
 mod value;
 mod wrap;
 
