@@ -18,7 +18,9 @@ def records(text):
     out = {}
     for chunk in text.split("== file ")[1:]:
         path, _, body = chunk.partition("\n")
-        out[path.strip()] = body.split("\n")[0]
+        lines = body.split("\n")
+        errors = [l for l in lines[1:] if l.startswith("== E ")]
+        out[path.strip()] = (lines[0], errors)
     return out
 
 
@@ -37,11 +39,14 @@ def main(files):
         ours_out = ""
     expected, actual = records(oracle.stdout), records(ours_out)
     for p in paths:
-        e, r = expected.get(p, "== no oracle output"), actual.get(p, "== no output (crash or timeout)")
+        e, errors = expected.get(p, ("== no oracle output", []))
+        r, _ = actual.get(p, ("== no output (crash or timeout)", []))
         name = Path(p).name
         (WORK / f"{name}.dotty").write_text(e.replace(" (", "\n("))
         (WORK / f"{name}.ours").write_text(r.replace(" (", "\n("))
-        if e == r:
+        if errors and not r.startswith("=="):
+            print(f"{name}: accepted, dotty reports {errors[0][3:]}")
+        elif e == r:
             print(f"{name}: same")
         elif r.startswith("=="):
             print(f"{name}: {r}")

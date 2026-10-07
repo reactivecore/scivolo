@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{SymbolId, Type};
+use tasty::SymbolId;
 
 impl Typer<'_> {
     /// The parent trees of class `cls`: those of `parents` typed in `ctx` without the duplicates
@@ -35,7 +35,7 @@ impl Typer<'_> {
                 rest = &rest[k + 1..];
             } else {
                 let tpt = self.type_tree(t, name_span, false);
-                out.push(self.ensure_constr_call(cls, tpt));
+                out.push(self.ensure_constr_call(cls, tpt, super_ctx));
             }
         }
         out.extend_from_slice(rest);
@@ -82,40 +82,44 @@ impl Typer<'_> {
             return self.typed(parent, Pt::Any, ctx);
         }
         let tpt = self.typed_type(parent, ctx);
-        self.ensure_constr_call(cls, tpt)
+        self.ensure_constr_call(cls, tpt, ctx)
     }
 
-    /// The constructor of class `c` that takes one empty parameter list, if it has one.
-    fn nullary_constructor(&mut self, c: SymbolId) -> Option<SymbolId> {
-        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
-        ctors.into_iter().find(|&ctor| {
-            self.complete(ctor);
-            let info = self.u.info(ctor);
-            matches!(self.u.types().get(info), Type::Method { params, result, .. }
-                if params.is_empty() && !matches!(self.u.types().get(*result), Type::Method { .. } | Type::Poly { .. }))
-        })
-    }
-
-    /// `new P()` for parent type tree `parent` of class `cls` if `P` is a class and `cls` is not
-    /// a trait (dotty's `ensureConstrCall`).
-    fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId) -> TNodeId {
+    /// `new P()` for parent type tree `parent` of class `cls`, typed in `ctx`, if `P` is a class
+    /// and `cls` is not a trait (dotty's `ensureConstrCall`).
+    fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(parent);
         let Some(psym) = self.u.class_symbol(tpe) else { return parent };
         if self.is_trait(cls) || self.is_trait(psym) {
             return parent;
         }
-        let span = self.tpd.span(parent).to_synthetic();
-        let Some(ctor) = self.nullary_constructor(psym) else {
-            self.unsupported_at(span, "parent constructor with arguments");
-            return parent;
-        };
-        let new = self.tpd.node(T::New { tpt: parent }, span, Some(tpe), None);
-        let sel_tpe = self.u.intern_type(Type::Sym(Some(tpe), ctor));
-        let name = TName { name: self.name("<init>"), is_type: false };
-        let sel = self.tpd.node(T::Select { qualifier: new, name }, span, Some(sel_tpe), Some(ctor));
-        let args = self.tpd.list(&[]);
-        let result = self.method_info(sel_tpe).map_or(tpe, |i| self.u.result_type(i));
-        let apply_tpe = self.constructor_result(ctor, tpe, result);
-        self.tpd.node(T::Apply { fun: sel, args }, span, Some(apply_tpe), None)
+        let span = self.tpd.span(parent);
+        let synthetic = span.to_synthetic();
+        let splice = self.ast.node(Tree::TypeTree);
+        self.ast.with_span(splice, span);
+        self.splices.insert(splice, parent);
+        let new = self.ast.node(Tree::New { tpt: splice });
+        self.ast.with_span(new, synthetic);
+        let init = TName { name: self.name("<init>"), is_type: false };
+        let select = self.ast.node(Tree::Select { qualifier: new, name: init });
+        self.ast.with_span(select, synthetic);
+        let args = self.ast.list(&[]);
+        let apply = self.ast.node(Tree::Apply { fun: select, args });
+        self.ast.with_span(apply, synthetic);
+        let call = self.typed(apply, Pt::Any, ctx);
+        self.type_args_at(call, span.start_pos());
+        call
+    }
+
+    /// Moves the inferred type arguments of constructor call `call` to `at`.
+    fn type_args_at(&mut self, call: TNodeId, at: Span) {
+        let mut fun = call;
+        while let T::Apply { fun: f, .. } = *self.tpd.tree(fun) {
+            fun = f;
+        }
+        let T::TypeApply { args, .. } = *self.tpd.tree(fun) else { return };
+        for a in self.tpd.items(args).to_vec() {
+            self.tpd.get_mut(a).span = at;
+        }
     }
 }

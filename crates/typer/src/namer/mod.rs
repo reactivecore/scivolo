@@ -4,6 +4,7 @@ mod annotations;
 mod checks;
 mod complete;
 mod defaults;
+mod inheritance;
 mod inherited;
 mod params;
 

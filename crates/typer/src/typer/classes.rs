@@ -52,6 +52,8 @@ impl Typer<'_> {
         }
         self.u.set_parents(cls, parents);
         self.check_member_classes(cls, rhs);
+        self.check_enum_case_refs(&t.body);
+        self.check_module_owner(cls, rhs);
         let no_inits = self.has_no_inits(&t.parents, &t.body);
         self.syms.no_inits.insert(cls, no_inits);
         self.set_stable_constructor(cls, t.constr);

@@ -165,28 +165,4 @@ impl Typer<'_> {
             decls.iter().any(|&d| self.u.symbol(d).kind == Kind::Class && self.u.symbol(d).name == name)
         })
     }
-
-    /// Checks the parent types of class `cls` with template `rhs`: no value class, no `Dynamic`,
-    /// no final class, no sealed class of the library, no cycle.
-    pub fn check_parents(&mut self, cls: SymbolId, rhs: NodeId, parents: &[tasty::TypeId]) {
-        let any_val = self.u.builtins().any_val;
-        for &p in parents {
-            let Some(c) = self.u.class_symbol(p) else { continue };
-            let flags = self.u.symbol(c).flags;
-            let what = if c == cls || self.u.derives_from(c, cls) {
-                "cyclic inheritance"
-            } else if Some(c) == any_val {
-                "value class"
-            } else if self.u.full_name(c) == "scala.Dynamic" {
-                "Dynamic"
-            } else if flags.has(tasty::tags::FINAL) || flags.has(tasty::tags::OBJECT) {
-                "extending a final class"
-            } else if flags.has(tasty::tags::SEALED) && !self.syms.flags.contains_key(&c) {
-                "extending a sealed class of the library"
-            } else {
-                continue;
-            };
-            self.unsupported(rhs, what);
-        }
-    }
 }

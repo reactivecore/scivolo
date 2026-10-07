@@ -17,6 +17,7 @@ mod control;
 mod defs;
 mod derived;
 mod dispatch;
+mod enum_case_refs;
 mod enum_cases;
 mod equality;
 mod eta;
