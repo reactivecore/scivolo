@@ -30,11 +30,12 @@ impl Translator<'_, '_> {
         self.l.positioned(select)
     }
 
-    /// The selectors `_1`, `_2`… of type `tpe` if it is a product (dotty's `productSelectors`).
-    pub fn product_selectors(&mut self, tpe: TypeId) -> Vec<SymbolId> {
-        let product = self.l.defs.case_classes.product;
-        let derives_product = self.l.class_of(tpe).is_some_and(|c| self.l.u.derives_from(c, product));
-        if !derives_product {
+    /// The selectors `_1`, `_2`… of type `tpe`, none unless it is a product if `product` (dotty's
+    /// `productSelectors`, `productArity`).
+    pub fn product_selectors(&mut self, tpe: TypeId, product: bool) -> Vec<SymbolId> {
+        let product_class = self.l.defs.case_classes.product;
+        let derives_product = self.l.class_of(tpe).is_some_and(|c| self.l.u.derives_from(c, product_class));
+        if product && !derives_product {
             return Vec::new();
         }
         let mut out = Vec::new();
@@ -44,13 +45,19 @@ impl Translator<'_, '_> {
         out
     }
 
-    /// The method or value of type `tpe`'s class or its bases named `name`.
+    /// The parameterless method or the value of type `tpe`'s class or its bases named `name`.
     pub fn member_named(&mut self, tpe: TypeId, name: &str) -> Option<SymbolId> {
         let class = self.l.class_of(tpe)?;
         for base in self.l.u.linearization(class) {
             let found = self.l.u.decl(base, name).unwrap_or_default();
-            let member =
-                |m: &SymbolId| matches!(self.l.u.symbol(*m).kind, Kind::Def | Kind::Val | Kind::Param);
+            let member = |m: &SymbolId| match self.l.u.symbol(*m).kind {
+                Kind::Val | Kind::Param => true,
+                Kind::Def => {
+                    let info = self.l.u.info(*m);
+                    !matches!(self.l.u.types().get(info), Type::Method { params, .. } if !params.is_empty())
+                }
+                _ => false,
+            };
             if let Some(m) = found.into_iter().find(member) {
                 return Some(m);
             }

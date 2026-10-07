@@ -44,6 +44,13 @@ object E:
     case Split(k, v) => k + "=" + v
     case _ => "none"
   def mixed(c: Boolean): Any = if c then 1 else "s"
+  def shapes(x: Int): Any = x match
+    case 1 => Circle(1.0)
+    case 2 => Rect(1.0, 2.0)
+    case _ => Empty
+  def options(x: Int): Any = x match
+    case 1 => Some(1)
+    case _ => None
   def bound(x: Any): String = x match
     case p @ P(1, _) => "one " + p
     case _ => "other"
@@ -66,3 +73,5 @@ object E:
   println(E.split("kv"))
   println(E.bound(P(1, "o")))
   println(E.mixed(false))
+  println(E.shapes(2))
+  println(E.options(2))

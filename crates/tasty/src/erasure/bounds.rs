@@ -60,13 +60,16 @@ impl Universe {
 
     /// The erasure of `a | b`: the other side for `Nothing`, and for `Null` beside a reference;
     /// one side if both erase alike; an array of the joined elements; the closest common base
-    /// class; else `Object`.
+    /// class of the erased sides; else `Object`.
     pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
         let (ea, eb) = (self.erase(a), self.erase(b));
-        if let (Erased::Class(_), Erased::Class(_)) = (&ea, &eb)
+        if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
             && ea != eb
-            && let (Some(ca), Some(cb)) = (self.erased_class(a), self.erased_class(b))
         {
+            let (ra, rb) = (self.class_ref(na), self.class_ref(nb));
+            let (Some(ca), Some(cb)) = (self.class_symbol(ra), self.class_symbol(rb)) else {
+                return object();
+            };
             return match self.common_base(ca, cb) {
                 Some(base) => {
                     let base = self.intern_type(Type::Sym(None, base));
