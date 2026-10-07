@@ -110,6 +110,13 @@ impl Typer<'_> {
         typed
     }
 
+    /// Whether `s` is the setter desugaring gives a variable, which a block does not define
+    /// (dotty's `isSetterNeeded` for a local owner).
+    fn is_setter(&self, s: NodeId) -> bool {
+        matches!(*self.ast.tree(s), Tree::DefDef { mods, .. }
+            if self.ast.modifiers(mods).flags.is_all_of(syntax::ast::flags::ACCESSOR.or(syntax::ast::flags::MUTABLE)))
+    }
+
     pub fn typed_block(
         &mut self,
         id: NodeId,
@@ -120,7 +127,8 @@ impl Typer<'_> {
     ) -> TNodeId {
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let bctx = Ctx { level, ..ctx };
-        let stat_ids = self.ast.items(stats).to_vec();
+        let stat_ids: Vec<NodeId> =
+            self.ast.items(stats).iter().copied().filter(|&s| !self.is_setter(s)).collect();
         self.index(&stat_ids, bctx);
         let typed = self.typed_stats(&stat_ids, bctx);
         let expr_ctx = stat_ids.iter().fold(bctx, |c, &s| self.after_stat(s, c));

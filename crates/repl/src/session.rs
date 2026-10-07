@@ -125,7 +125,8 @@ impl Session {
         let wrapped = wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh)?;
         self.res = wrapped.next_res;
         let features = parsed.cfg.features;
-        let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features);
+        let typed =
+            self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, features);
         let mut typed = match typed {
             Ok(typed) => typed,
             Err(Fallback::Errors(diags)) => return Err(report::diagnostics(&parsed.source, &diags)),

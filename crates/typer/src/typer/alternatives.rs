@@ -124,9 +124,30 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether a method named as `s` in its owner has default arguments.
-    fn has_defaults(&mut self, s: SymbolId) -> bool {
+    /// Whether method `s` or a method it overrides has default arguments (dotty's
+    /// `hasDefaultParams`).
+    pub fn has_defaults(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
+        if self.declares_defaults(owner, s) {
+            return true;
+        }
+        if self.u.symbol(owner).kind != Kind::Class {
+            return false;
+        }
+        let name = self.u.symbol(s).name.clone();
+        let site = crate::defn::type_ref(self.u, owner);
+        for base in self.u.linearization(owner).into_iter().skip(1) {
+            for m in self.u.decl(base, &name).unwrap_or_default() {
+                if self.same_member(site, m, s) && self.declares_defaults(base, m) {
+                    return true;
+                }
+            }
+        }
+        false
+    }
+
+    /// Whether `owner` declares default getters of method `s`, a member of it.
+    fn declares_defaults(&mut self, owner: SymbolId, s: SymbolId) -> bool {
         let prefix = format!("{}$default$", self.u.symbol(s).name);
         let decls = self.u.decls(owner).unwrap_or_default();
         decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))

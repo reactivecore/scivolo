@@ -30,7 +30,7 @@ fn type_unit(u: &mut Universe, units: &mut Units, name: &str, text: &str) -> Res
     let cfg = p.s.cfg;
     let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(root);
     assert!(!p.s.diags.has_errors(), "syntax errors in {name}");
-    match units.type_unit(u, &mut p.ast, p.s.names, root, cfg.features) {
+    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
         Ok(_) => Ok(()),
         Err(Fallback::Unsupported { what, .. }) => Err(format!("unsupported {what}")),
         Err(Fallback::Errors(d)) => {

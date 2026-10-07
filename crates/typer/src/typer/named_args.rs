@@ -6,7 +6,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::{NodeId, Tree};
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// The arguments of a call aligned with the parameters, `None` where one gets none.
 pub type Aligned = Vec<Option<NodeId>>;
@@ -115,18 +115,21 @@ impl Typer<'_> {
         }
     }
 
-    /// The arguments `aligned` of call `f` of `method` typed against `formals`, a missing one
-    /// its default; `Err` where dotty would lift the function or the arguments.
+    /// Call `f` of `method` and its arguments `aligned`, typed against `formals`, the types of
+    /// `params`, a missing one its default, with the definitions lifted out of them (dotty's
+    /// `TypedApply` with `liftFun` and `liftArgs`).
     pub fn typed_aligned_args(
         &mut self,
-        f: TNodeId,
-        method: Option<SymbolId>,
+        (mut f, method): (TNodeId, Option<SymbolId>),
         (args, aligned): (&[NodeId], &Aligned),
-        formals: &[TypeId],
+        (params, formals): (&[(String, TypeId)], &[TypeId]),
         ctx: Ctx,
-    ) -> Result<Vec<TNodeId>, &'static str> {
-        if aligned.contains(&None) && self.needs_lift_for_defaults(f) {
-            return Err("default arguments needing lifting");
+    ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
+        let complex = method.is_some_and(|m| self.has_defaults(m));
+        let mut defs = Vec::new();
+        let lifted_fun = aligned.contains(&None);
+        if lifted_fun {
+            f = self.lift_app(&mut defs, f, true, ctx)?;
         }
         let mut typed = Vec::new();
         let mut safe = true;
@@ -154,8 +157,20 @@ impl Typer<'_> {
         let given = aligned.iter().rposition(Option::is_some).map_or(0, |i| i + 1);
         let in_order = given == args.len() && aligned[..given].iter().zip(args).all(|(a, b)| *a == Some(*b));
         if !in_order && !safe {
-            return Err("reordered arguments needing lifting");
+            if !lifted_fun {
+                f = self.lift_app(&mut defs, f, complex, ctx)?;
+            }
+            let mut arg_defs = Vec::new();
+            typed = self.lift_args(&mut arg_defs, params, &typed, complex, ctx);
+            let position =
+                |i: usize| aligned[i].and_then(|a| args.iter().position(|&b| b == a)).unwrap_or(args.len());
+            arg_defs.sort_by_key(|&(i, _)| position(i));
+            defs.extend(arg_defs.into_iter().map(|(_, d)| d));
         }
-        Ok(typed)
+        let curried = self.result_of(f).is_some_and(|r| matches!(self.u.types().get(r), Type::Method { .. }));
+        if !defs.is_empty() && curried {
+            return Err("lifted call of a curried method");
+        }
+        Ok((f, typed, defs))
     }
 }

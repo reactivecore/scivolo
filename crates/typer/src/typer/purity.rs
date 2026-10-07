@@ -74,7 +74,7 @@ impl Typer<'_> {
 
     fn stat_purity(&mut self, s: TNodeId) -> u8 {
         match *self.tpd.tree(s) {
-            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => PURE_PATH,
+            T::DefDef { .. } | T::TypeDef { .. } | T::Import { .. } => PURE,
             T::ValDef { rhs, .. } => {
                 let mutable =
                     self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(tasty::tags::MUTABLE));

@@ -6,7 +6,7 @@ use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether type `t` refers to one of `syms`.
-    fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
+    pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
         self.u.map_type(t, &mut |u, part| {
             if let Type::Sym(_, s) = u.types().get(part)
