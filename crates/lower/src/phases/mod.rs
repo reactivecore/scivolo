@@ -19,6 +19,7 @@ mod erased_branches;
 mod erasure;
 mod first_transform;
 mod getters;
+mod initializers;
 mod interpolators;
 mod lambda_lift;
 mod lifted;
@@ -49,7 +50,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
-        getters::transform(l, td)?;
+        let retained = initializers::transform(l, td)?;
+        getters::transform(l, td, &retained)?;
     }
     for &td in &classes {
         getters::setter_calls(l, td)?;

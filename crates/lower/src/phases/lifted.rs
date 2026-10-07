@@ -61,6 +61,7 @@ pub fn lift(
                 Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
                 None => format!("{}$", l.u.symbol(o).name),
             },
+            Some(o) if f.ctor && l.u.symbol(o).owner == Some(class) => "$init$$".to_owned(),
             _ => String::new(),
         };
         let name = match f.closure {
