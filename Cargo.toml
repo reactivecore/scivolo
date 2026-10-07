@@ -13,6 +13,7 @@ hashbrown = { version = "0.17", default-features = false }
 libimage = { path = "crates/libimage" }
 nir = { path = "crates/nir" }
 rustc-hash = "2"
+rustyline = { version = "18", default-features = false, features = ["with-file-history"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 
 [workspace.lints.rust]

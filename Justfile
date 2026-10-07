@@ -29,6 +29,11 @@ run name *args: release
 script file *args: release
     {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}
 
+# Start the REPL in the release build.
+[no-cd]
+repl *args: release
+    {{ justfile_directory() }}/target/release/scalai {{ args }}
+
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
     #!/usr/bin/env bash
