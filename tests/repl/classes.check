@@ -34,19 +34,16 @@ val res6: Int = 1
 scala> object Counter { var n = 0 }
 // defined object Counter
 
-scala> Counter.n += 1
--- unsupported: assignment operator on a complex prefix
-
 scala> Counter.n = Counter.n + 1
 
 scala> Counter.n
-val res8: Int = 1
+val res7: Int = 1
 
 scala> class E extends C(5) { override def toString = s"E($n)" }
 // defined class E
 
 scala> new E
-val res9: E = E(5)
+val res8: E = E(5)
 
 scala> val p = P(1, 2)
 val p: P = P(1,2)
@@ -64,7 +61,7 @@ scala> def g(a: Int = 1, b: String = "x") = s"$a$b"
 def g(a: Int, b: String): String
 
 scala> g()
-val res12: String = "1x"
+val res11: String = "1x"
 
 scala> g(b = "y")
 -- unsupported: NamedArg in an expression
@@ -79,7 +76,7 @@ scala> class C(val s: String) { override def toString = s"C($s)" }
 // defined class C
 
 scala> C("a")
-val res15: C = C(a)
+val res14: C = C(a)
 
 scala> new C("b").s
-val res16: String = "b"
+val res15: String = "b"

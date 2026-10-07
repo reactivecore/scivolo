@@ -6,3 +6,9 @@ scala> lazy val l = 1
 
 scala> val y = 2
 val y: Int = 2
+
+scala> object Counter { var n = 0 }
+// defined object Counter
+
+scala> Counter.n += 1
+-- unsupported: assignment operator on a complex prefix

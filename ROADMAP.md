@@ -182,10 +182,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    defined in one input are used, extended, matched on and redefined in later
    ones, as are methods with default arguments (`tests/repl/classes.check`);
    case class values print without field names. Lazy vals, enums, sealed
-   companions and class parameters in super calls wait for the lowering, as
-   do named arguments; some adaptations and overloads, compound assignment to
-   a selection, defaults on an impure prefix, and dotty's messages for
-   unresolved names, for the typer.
+   companions, mutable class parameters and class parameters in super calls
+   wait for the lowering, as do named arguments; generic case classes, some
+   adaptations and overloads, compound assignment to a selection, defaults
+   needing lifting, and dotty's messages for unresolved names, for the typer.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved.
