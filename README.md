@@ -97,6 +97,7 @@ just libs                       # or copy them from the Coursier cache
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
 just script FILE.sc ARGS        # run a script, compiled through scala-cli unless cached
+just repl                       # the REPL: `scalai` without a target
 just check                      # every test program against its .check file, with timings
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 just program-update NAME        # compile tests/programs/NAME with Scala Native (NIR + .check)

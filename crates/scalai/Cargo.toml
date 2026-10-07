@@ -8,6 +8,8 @@ publish = false
 clap.workspace = true
 libimage.workspace = true
 nir.workspace = true
+repl = { path = "../repl" }
+rustyline.workspace = true
 vm = { path = "../vm" }
 
 [dev-dependencies]
