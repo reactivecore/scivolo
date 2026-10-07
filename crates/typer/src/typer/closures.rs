@@ -20,6 +20,10 @@ impl Typer<'_> {
         let (expected, sam) = match pt {
             Pt::Type(p) => match self.function_parts(p, n) {
                 Some(parts) => (Some(parts), None),
+                None if self.has_proto_wildcard(p) => {
+                    return self
+                        .unsupported(id, "function against an underspecified single abstract method type");
+                }
                 None => match self.sam_parts(p, n) {
                     Ok(Some(s)) => (Some((s.params, s.result)), Some(s.parent)),
                     Ok(None) => (None, None),
@@ -118,6 +122,16 @@ impl Typer<'_> {
         fun_args.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
+    }
+
+    /// Whether `t` has a part left open by an expected type (dotty's `WildcardType`).
+    fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            found |= matches!(u.types().get(part), Type::Wildcard(_));
+            None
+        });
+        found
     }
 
     /// Whether `t` has a wildcard type argument or is one.
