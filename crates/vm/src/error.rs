@@ -6,7 +6,7 @@ use std::fmt;
 pub enum VmError {
     Load(LoadError),
     Unsupported(String),
-    Uncaught(Thrown),
+    Uncaught(Box<Thrown>),
     /// A static initializer threw this exception object.
     Initializer(usize),
     Exit(i32),

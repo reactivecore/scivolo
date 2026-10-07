@@ -1,7 +1,8 @@
 //! A REPL session: one universe of symbols and one VM across the inputs, each input compiled
 //! into wrapper object `rs$line$<N>` and run.
 
-use crate::commands::{self, Command};
+mod command;
+
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
 use crate::render::Definition;
@@ -11,7 +12,8 @@ use lower::NirFile;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
-use typer::{Fallback, Units};
+use typer::tpd::TNodeId;
+use typer::{Fallback, Typed, Units};
 use vm::{Vm, VmError};
 
 const RESETTING: &str = "Resetting REPL state.";
@@ -109,49 +111,42 @@ impl Session {
         }
     }
 
-    fn command(&mut self, c: Command) -> Vec<String> {
-        match c {
-            Command::Quit => {
-                self.exit = Some(0);
-                Vec::new()
-            }
-            Command::Help => vec![commands::HELP.to_owned()],
-            Command::Reset(_) => {
-                self.reset();
-                vec![RESETTING.to_owned()]
-            }
-            Command::Unknown(name) => vec![commands::unknown(&name)],
-        }
-    }
-
     /// Types and lowers the statements of one input.
     fn lower(&mut self, mut parsed: Parsed) -> Result<Unit, Vec<String>> {
         self.line += 1;
         let object = format!("{}{}", line_names::PREFIX, self.line);
-        let (names, fresh) = (&mut self.names, &mut self.fresh);
-        let prelude = earlier::prelude(&self.earlier);
-        let wrapped = wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh)?;
-        self.res = wrapped.next_res;
-        let features = parsed.cfg.features;
-        let typed =
-            self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, features);
-        let mut typed = match typed {
-            Ok(typed) => typed,
-            Err(Fallback::Errors(diags)) => return Err(report::diagnostics(&parsed.source, &diags)),
-            Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
-        };
         let module = format!("{object}$");
-        let Some(template) = wrap::template(&self.u, &typed, &module) else {
-            return Err(vec![report::unsupported("a wrapper object without a template")]);
-        };
+        let (mut typed, template) = self.typed(&mut parsed, &object)?;
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
         let units = render::inferred_units(&mut self.u, &typed, template);
         let defs = render::definitions(&mut self.u, &module, &units);
         let members = earlier::members(&mut self.u, &module);
+        let (names, fresh) = (&mut self.names, &mut self.fresh);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
         let earlier = Earlier { object, imports, members };
         Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units) })
+    }
+
+    /// The statements of `parsed` typed as the body of wrapper object `object`, with the
+    /// wrapper's template; the `res` index advances past them once they are wrapped.
+    fn typed(&mut self, parsed: &mut Parsed, object: &str) -> Result<(Typed, TNodeId), Vec<String>> {
+        let (names, fresh) = (&mut self.names, &mut self.fresh);
+        let prelude = earlier::prelude(&self.earlier);
+        let wrapped = wrap::wrap(parsed, object, self.res, &prelude, names, fresh)?;
+        self.res = wrapped.next_res;
+        let features = parsed.cfg.features;
+        let typed =
+            self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, features);
+        let typed = match typed {
+            Ok(typed) => typed,
+            Err(Fallback::Errors(diags)) => return Err(report::diagnostics(&parsed.source, &diags)),
+            Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
+        };
+        match wrap::template(&self.u, &typed, &format!("{object}$")) {
+            Some(template) => Ok((typed, template)),
+            None => Err(vec![report::unsupported("a wrapper object without a template")]),
+        }
     }
 
     /// Loads and runs `unit`; the lines it prints.
