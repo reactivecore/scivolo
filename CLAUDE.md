@@ -42,8 +42,8 @@ Rationale goes in `docs/adr/`, one decision per file.
   stacks and green-thread coroutines), and `natives/ffi/` and
   `natives/callback.rs` (the C boundary); outside it, only in
   `crates/libimage/src/image.rs` (maps the library image). The callback
-  slot table (ADR 0002) and the collector (ADR 0004) are the only state
-  outside `Vm`.
+  slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
+  (ADR 0013) are the only state outside `Vm`.
 - Documentation is short: one home per fact.
 - Code or ideas taken from elsewhere get an entry in `acknowledges.md`.
 

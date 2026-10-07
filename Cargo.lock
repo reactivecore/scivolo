@@ -358,6 +358,7 @@ dependencies = [
 name = "repl"
 version = "0.1.0"
 dependencies = [
+ "libc",
  "libimage",
  "lower",
  "syntax",
@@ -396,6 +397,7 @@ name = "scalai"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libc",
  "libimage",
  "lower",
  "nir",

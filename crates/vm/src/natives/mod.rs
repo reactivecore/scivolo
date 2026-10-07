@@ -14,8 +14,12 @@ mod threads;
 mod unwind;
 
 pub use callback::Callbacks;
-pub use ffi::{Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol};
+pub use ffi::{
+    Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, take_sigint,
+    watch_sigint,
+};
 pub use resources::Resources;
+pub use threads::interrupt_thread;
 pub use unwind::StackWalk;
 
 use crate::interp::Flow;

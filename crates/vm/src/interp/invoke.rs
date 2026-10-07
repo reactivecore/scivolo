@@ -23,7 +23,7 @@ impl Vm {
             return self.stack_overflow();
         }
         self.count_call(f, &callee);
-        self.tick();
+        self.tick()?;
         let mark = self.frames.mark();
         let frame = self.push_frame(&callee)?;
         for (i, &p) in callee.params.iter().enumerate() {

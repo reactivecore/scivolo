@@ -10,7 +10,7 @@ impl Vm {
         if self.heap.take_weak_refs_collected() {
             self.run_weak_handler()?;
         }
-        self.tick();
+        self.tick()?;
         let mark = self.frames.mark();
         let slots = self.push_frame(code)?;
         for (i, &p) in code.params.iter().enumerate() {
@@ -176,7 +176,7 @@ impl Vm {
             };
             let target = self.jump(code, slots, next)?;
             if target <= pc {
-                self.tick();
+                self.tick()?;
             }
             pc = target;
         }

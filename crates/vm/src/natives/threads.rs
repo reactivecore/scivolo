@@ -3,7 +3,7 @@
 
 use super::NativeFn;
 use crate::interp::Flow;
-use crate::threads::Wait;
+use crate::threads::{ThreadId, Wait};
 use crate::{Vm, heap};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -107,7 +107,17 @@ fn park(vm: &mut Vm, args: &[u64]) -> Flow {
 /// Gives `native`'s thread a park permit and wakes it from parking or, for an interrupt, from
 /// sleeping or waiting.
 fn unpark(vm: &mut Vm, native: usize, interrupt: bool) {
-    let Some(&id) = vm.threads.by_native.get(&native) else { return };
+    if let Some(&id) = vm.threads.by_native.get(&native) {
+        wake_parked(vm, id, interrupt);
+    }
+}
+
+/// Wakes thread `id` from parking, sleeping or waiting, without setting `Thread.interrupted`.
+pub fn interrupt_thread(vm: &mut Vm, id: ThreadId) {
+    wake_parked(vm, id, true);
+}
+
+fn wake_parked(vm: &mut Vm, id: ThreadId, interrupt: bool) {
     let info = &mut vm.threads.sched.info[id];
     info.permit = true;
     info.interrupt |= interrupt;

@@ -13,6 +13,7 @@ rustyline.workspace = true
 vm = { path = "../vm" }
 
 [dev-dependencies]
+libc = "0.2"
 lower = { path = "../lower" }
 syntax = { path = "../syntax" }
 tasty = { path = "../tasty" }

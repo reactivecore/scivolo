@@ -2,9 +2,11 @@
 //! integer and eight floating-point arguments passed in registers.
 
 mod dl;
+mod sigint;
 pub mod variadic;
 
 pub use dl::{extern_fn, load_runtime, symbol};
+pub use sigint::{take_sigint, watch_sigint};
 
 use crate::Vm;
 use crate::interp::Flow;
