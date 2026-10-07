@@ -4,12 +4,26 @@
 use crate::commands::{self, Command};
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
+use crate::render::Definition;
 use crate::{imports, render, report, unit_results, wrap};
 use libimage::Image;
+use lower::NirFile;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
 use typer::{Fallback, Units};
 use vm::{Vm, VmError};
+
+const RESETTING: &str = "Resetting REPL state.";
+
+/// A compiled input: its wrapper module, NIR files and definitions to print.
+struct Unit {
+    module: String,
+    files: Vec<NirFile>,
+    defs: Vec<Definition>,
+    earlier: Earlier,
+    next_res: u32,
+}
 
 pub struct Session {
     vm: Vm,
@@ -57,16 +71,30 @@ impl Session {
         self.vm.shutdown()
     }
 
-    /// Evaluates input `text`; the lines it prints.
+    /// Evaluates input `text`; the lines it prints. A panic while compiling the input is reported
+    /// as an internal error and resets the session; a panic while running it is passed on.
     pub fn eval(&mut self, text: &str) -> Vec<String> {
-        let name = format!("rs$line${}", self.line + 1);
-        let out = match input::classify(&name, text, &mut self.names, &mut self.fresh) {
-            Input::Empty => Vec::new(),
-            Input::Command(c) => self.command(c),
-            Input::Errors(errors) => errors,
-            Input::Stats(parsed) => self.run(parsed),
+        let compiled = catch_unwind(AssertUnwindSafe(|| self.compile(text)));
+        let out = match compiled {
+            Ok(Ok(unit)) => self.run(unit),
+            Ok(Err(out)) => out,
+            Err(panic) => {
+                self.reset();
+                vec![report::internal(panic.as_ref()), RESETTING.to_owned()]
+            }
         };
         out.iter().flat_map(|s| s.lines()).map(str::to_owned).collect()
+    }
+
+    /// Compiles input `text` into a unit to run, or the lines it prints instead.
+    fn compile(&mut self, text: &str) -> Result<Unit, Vec<String>> {
+        let name = format!("rs$line${}", self.line + 1);
+        match input::classify(&name, text, &mut self.names, &mut self.fresh) {
+            Input::Empty => Err(Vec::new()),
+            Input::Command(c) => Err(self.command(c)),
+            Input::Errors(errors) => Err(errors),
+            Input::Stats(parsed) => self.lower(parsed),
+        }
     }
 
     fn command(&mut self, c: Command) -> Vec<String> {
@@ -78,52 +106,53 @@ impl Session {
             Command::Help => vec![commands::HELP.to_owned()],
             Command::Reset(_) => {
                 self.reset();
-                vec!["Resetting REPL state.".to_owned()]
+                vec![RESETTING.to_owned()]
             }
             Command::Unknown(name) => vec![commands::unknown(&name)],
         }
     }
 
-    /// Compiles and runs the statements of one input.
-    fn run(&mut self, mut parsed: Parsed) -> Vec<String> {
+    /// Types and lowers the statements of one input.
+    fn lower(&mut self, mut parsed: Parsed) -> Result<Unit, Vec<String>> {
         self.line += 1;
         let object = format!("rs$line${}", self.line);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let prelude = earlier::prelude(&self.earlier);
-        let wrapped = match wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh) {
-            Ok(w) => w,
-            Err(errors) => return errors,
-        };
+        let wrapped = wrap::wrap(&mut parsed, &object, self.res, &prelude, names, fresh)?;
         let features = parsed.cfg.features;
         let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, names, wrapped.root, features);
         let mut typed = match typed {
             Ok(typed) => typed,
-            Err(Fallback::Errors(diags)) => return report::diagnostics(&parsed.source, &diags),
-            Err(Fallback::Unsupported { what, .. }) => return vec![report::unsupported(&what)],
+            Err(Fallback::Errors(diags)) => return Err(report::diagnostics(&parsed.source, &diags)),
+            Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
         };
         let module = format!("{object}$");
         let Some(template) = unit_results::wrapper_template(&self.u, &typed, &module) else {
-            return vec![report::unsupported("a wrapper object without a template")];
+            return Err(vec![report::unsupported("a wrapper object without a template")]);
         };
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
         let unit_res = unit_results::drop(&mut self.u, &mut typed, template);
         let defs = render::definitions(&mut self.u, &module);
         let members = earlier::members(&mut self.u, &module);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
-        let files = match lowered {
-            Ok(files) => files,
-            Err(e) => return vec![report::unsupported(&e.what)],
-        };
+        let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
+        let earlier = Earlier { object, imports, members };
+        Ok(Unit { module, files, defs, earlier, next_res: wrapped.next_res - unit_res })
+    }
+
+    /// Loads and runs `unit`; the lines it prints.
+    fn run(&mut self, unit: Unit) -> Vec<String> {
+        let Unit { module, files, defs, earlier, next_res } = unit;
         for f in files {
             if let Err(e) = self.vm.add_nir(&f.name, f.bytes) {
                 return vec![e.to_string()];
             }
         }
-        self.res = wrapped.next_res - unit_res;
+        self.res = next_res;
         if let Err(e) = self.vm.eval_module(&module) {
             return self.failed(e);
         }
-        self.earlier.push(Earlier { object, imports, members });
+        self.earlier.push(earlier);
         let mut out = Vec::new();
         for d in defs {
             match render::line(&mut self.vm, &module, &d) {

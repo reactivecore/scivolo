@@ -3,7 +3,6 @@ mod repl;
 mod script;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
-use libimage::Image;
 use std::path::PathBuf;
 use std::process::ExitCode;
 use vm::{Classpath, Vm, VmError};
@@ -14,7 +13,8 @@ use vm::{Classpath, Vm, VmError};
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
 /// SCALAI_CACHE holds the library image, compiled scripts and the REPL history; SCALAI_SCALA_CLI
 /// names the scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit
-/// 124); SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr.
+/// 124); SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr;
+/// RUST_BACKTRACE prints panics in full.
 #[derive(Parser)]
 #[command(name = "scalai", override_usage = "scalai [OPTIONS] [TARGET] [ARGS]...")]
 struct Cli {
@@ -57,18 +57,29 @@ fn main() -> ExitCode {
             vm::exit_immediately(124);
         });
     }
+    let default_hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| match std::env::var_os("RUST_BACKTRACE") {
+        Some(_) => default_hook(info),
+        None => eprintln!("scalai: panic at {}", info.location().map_or("?".into(), |l| l.to_string())),
+    }));
     let thread = std::thread::Builder::new().stack_size(STACK).spawn(move || match main_class {
         Some(main_class) => run(cp, &main_class, &rest),
         None => repl::run(&cp),
     });
-    match thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|_| "interpreter panicked".into()))
-    {
+    let joined = thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|p| panicked(p.as_ref())));
+    match joined {
         Ok(Ok(code)) => ExitCode::from(code as u8),
         Ok(Err(e)) | Err(e) => {
             eprintln!("scalai: {e}");
             ExitCode::FAILURE
         }
     }
+}
+
+/// The error for a panic with payload `panic`.
+fn panicked(panic: &(dyn std::any::Any + Send)) -> String {
+    let what = panic.downcast_ref::<String>().map(String::as_str).or(panic.downcast_ref::<&str>().copied());
+    format!("internal error: {}", what.unwrap_or("panic"))
 }
 
 /// The main class of `target` given `--main` `chosen`; a source file's classes join `cp`.
@@ -84,22 +95,17 @@ fn target_class(target: String, chosen: Option<String>, cp: &mut Vec<PathBuf>) -
     }
 }
 
-/// A VM over `cp` and the library jars, and their image if there is one.
-fn vm(cp: &[PathBuf]) -> Result<(Vm, Option<&'static Image>), String> {
+fn run(mut cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<i32, String> {
     let jars = libs::jars()?;
-    let (classpath, image) = match libs::image(&jars).and_then(|i| Ok((Classpath::with_image(cp, i)?, i))) {
-        Ok((c, image)) => (c, Some(image)),
+    let classpath = match libs::image(&jars).and_then(|image| Classpath::with_image(&cp, image)) {
+        Ok(c) => c,
         Err(e) => {
             eprintln!("scalai: no library image ({e}); reading the jars");
-            let all: Vec<PathBuf> = cp.iter().cloned().chain(jars).collect();
-            (Classpath::open(&all).map_err(|e| e.to_string())?, None)
+            cp.extend(jars);
+            Classpath::open(&cp).map_err(|e| e.to_string())?
         }
     };
-    Ok((Vm::new(classpath).map_err(|e| e.to_string())?, image))
-}
-
-fn run(cp: Vec<PathBuf>, main_class: &str, args: &[String]) -> Result<i32, String> {
-    let (mut vm, _) = vm(&cp)?;
+    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let result = vm.run_main(main_class, args);
     if std::env::var_os("SCALAI_PROFILE").is_some() {
         for (calls, name) in vm.profile_report(30) {

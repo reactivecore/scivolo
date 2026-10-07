@@ -82,10 +82,11 @@ impl<'u> Printer<'u> {
             Type::Refined(..) => self.refined(t, prec),
             Type::Rec(_, p) => self.text(p, prec),
             Type::RecThis(_) => "this".into(),
-            Type::Lambda { .. } if let Some(tycon) = self.eta_contracted(t) => self.text(tycon, prec),
-            Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. } => {
-                paren(GLOBAL, prec, self.lambda(t))
-            }
+            Type::Lambda { .. } => match self.eta_contracted(t) {
+                Some(tycon) => self.text(tycon, prec),
+                None => paren(GLOBAL, prec, self.lambda(t)),
+            },
+            Type::Method { .. } | Type::Poly { .. } => paren(GLOBAL, prec, self.lambda(t)),
             Type::Param(b, i) => self.param(b, i),
             Type::Match(bound) => self.text(bound, prec),
             Type::Constant(crate::tags::CLASSconst, bits) => {
