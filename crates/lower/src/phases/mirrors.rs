@@ -42,10 +42,6 @@ pub fn mirror_support(
     if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) {
         return Ok(None);
     }
-    let decls = l.u.decls(linked).unwrap_or_default();
-    if decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
-        return unsupported(span, "generic case classes");
-    }
     mono_type(l, class, linked);
     let focus = Span::new(span.point(), span.point(), span.point());
     let from_product = from_product(l, class, linked, focus)?;
