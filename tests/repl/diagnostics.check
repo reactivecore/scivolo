@@ -121,11 +121,11 @@ scala> 1
 scala> val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
 -- Error: ----------------------------------------------------------------------
 1 |val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
-  |                        ^
+  |                        ^^^^^^^^^^^
   |                        number too large
 -- Error: ----------------------------------------------------------------------
 1 |val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
-  |                                                  ^
+  |                                                  ^^^^^^^^^^^
   |                                                  number too large
 2 errors found
 
@@ -134,7 +134,7 @@ scala> val k = 1
      |   12345678901
 -- Error: ----------------------------------------------------------------------
 3 |  12345678901
-  |  ^
+  |  ^^^^^^^^^^^
   |  number too large
 1 error found
 
@@ -247,7 +247,7 @@ scala> val s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 scala> val a$b = 1; val c: Int = 12345678901
 -- Error: ----------------------------------------------------------------------
 1 |val a$b = 1; val c: Int = 12345678901
-  |                          ^
+  |                          ^^^^^^^^^^^
   |                          number too large
 -- [E230] Syntax Warning: ------------------------------------------------------
 1 |val a$b = 1; val c: Int = 12345678901
