@@ -152,7 +152,8 @@ impl Typer<'_> {
         self.inherits_nothing(owner) && self.leads_to(rhs, id)
     }
 
-    /// Whether `sym` is no default getter and no base class of its owner declares its name.
+    /// Whether `sym` is no default getter and no base class of its owner declares its name, with
+    /// the owner and its base classes completed.
     fn inherits_nothing(&mut self, sym: SymbolId) -> bool {
         let name = self.u.symbol(sym).name.clone();
         if name.contains("$default$") {
@@ -161,8 +162,15 @@ impl Typer<'_> {
         let Some(cls) = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) else {
             return true;
         };
+        let completed = |t: &mut Self, c: SymbolId| {
+            t.complete(c);
+            !matches!(t.syms.completions.get(&c), Some(Completion::Completing(_)))
+        };
+        if !completed(self, cls) {
+            return false;
+        }
         let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
-        bases.into_iter().all(|b| self.u.decl(b, &name).is_ok_and(|d| d.is_empty()))
+        bases.into_iter().all(|b| completed(self, b) && self.u.decl(b, &name).is_ok_and(|d| d.is_empty()))
     }
 
     fn leads_to(&self, from: NodeId, id: NodeId) -> bool {

@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -100,7 +100,10 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
-        let erroneous = typed_args.iter().any(|&a| self.is_error(a));
+        let erroneous = typed_args.iter().any(|&a| {
+            let tpe = self.zonk(self.tpd.tpe(a));
+            *self.u.types().get(tpe) == Type::Error
+        });
         if let Some(elem) = repeated {
             let arg = match seq_arg {
                 Some(a) => self.sequence_arg(a, elem, ctx),
@@ -170,22 +173,5 @@ impl Typer<'_> {
     fn is_sequence_arg(&self, a: NodeId) -> bool {
         let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
-    }
-
-    /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
-    /// method `method`.
-    fn mentions_params(&mut self, t: TypeId, binder: tasty::Binder, method: Option<SymbolId>) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
-                Type::Param(b, _) if b == binder => found = true,
-                Type::Sym(_, s) if u.symbol(s).kind == Kind::Param && method.is_some() => {
-                    found |= u.symbol(s).owner == method;
-                }
-                _ => {}
-            }
-            None
-        });
-        found
     }
 }

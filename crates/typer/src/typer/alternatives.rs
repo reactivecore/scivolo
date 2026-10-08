@@ -159,14 +159,4 @@ impl Typer<'_> {
         let decls = self.u.decls(owner).unwrap_or_default();
         decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))
     }
-
-    /// Whether parameter type `p` is by-name or refers to a parameter.
-    pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = false;
-        self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
-            None
-        });
-        special
-    }
 }
