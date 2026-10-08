@@ -105,15 +105,8 @@ impl Gen<'_, '_> {
         let module = self.gen_module(module_class);
         let result = self.call_method(m, true, module, values);
         self.ret(result);
-        let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
-        let body = Body {
-            insts: m.buf.insts,
-            positions: m.buf.positions,
-            local_names: Vec::new(),
-            scopes: vec![LexicalScope { id: 0, parent: 0, pos: self.no_pos }],
-        };
         let ty = self.ty(Type::Function(args[1..].to_vec(), ret));
-        Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty, body } }
+        self.static_define(name, ty, pos)
     }
 
     /// `static def f(): T = C.f` for static field `f` of type `ty` of object class `c`.
@@ -125,6 +118,13 @@ impl Gen<'_, '_> {
         let name = self.field_name(f);
         let value = self.emit(Op::Fieldload { ty, obj, name });
         self.ret(value);
+        let name = self.static_member_name(f, Some(c));
+        let fun = self.ty(Type::Function(Vec::new(), ty));
+        self.static_define(name, fun, pos)
+    }
+
+    /// The inline-hinted static method `name` of type `ty` whose body the current method holds.
+    fn static_define(&mut self, name: GlobalId, ty: nir::TypeId, pos: PosId) -> Defn {
         let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
         let body = Body {
             insts: m.buf.insts,
@@ -132,8 +132,6 @@ impl Gen<'_, '_> {
             local_names: Vec::new(),
             scopes: vec![LexicalScope { id: 0, parent: 0, pos: self.no_pos }],
         };
-        let name = self.static_member_name(f, Some(c));
-        let fun = self.ty(Type::Function(Vec::new(), ty));
-        Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty: fun, body } }
+        Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty, body } }
     }
 }

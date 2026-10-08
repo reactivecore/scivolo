@@ -1,4 +1,4 @@
-//! dotty's `SelectStatic` for static fields: `qual.f` becomes `f` if `qual` is a path of static
+//! dotty's `SelectStatic` for enum cases: `qual.f` becomes `f` if `qual` is a path of static
 //! objects, else `{ qual; f }`, without a span; the enclosing tree is copied as dotty's tree
 //! copiers do, which gives it one.
 
@@ -6,7 +6,8 @@ use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::{has, is_module, is_static};
 use syntax::ast::Span;
-use tasty::tags::STATIC;
+use tasty::tags::{ENUM, STATIC};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) {
@@ -14,9 +15,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         let mut changed = false;
         for c in children(l.tpd, parent) {
             let Tree::Select { qualifier, .. } = *l.tpd.tree(c) else { continue };
-            let Some(f) = l.tpd.sym(c).filter(|&f| has(l.u, f, STATIC) && l.fields.contains_key(&f)) else {
-                continue;
-            };
+            let Some(f) = l.tpd.sym(c).filter(|&f| is_static_enum_value(l, f)) else { continue };
             let tpe = l.tpd.tpe(c);
             let r = l.ident(f, Span::NONE);
             l.tpd.get_mut(r).tpe = Some(tpe);
@@ -36,6 +35,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             l.with_span(parent, span);
         }
     }
+}
+
+/// Whether `f` is the static field of an enum case.
+pub fn is_static_enum_value(l: &Lower, f: SymbolId) -> bool {
+    l.u.symbol(f).kind == Kind::Val && has(l.u, f, STATIC) && has(l.u, f, ENUM)
 }
 
 /// Whether `t` is a path of static objects (dotty's `isStaticOwnerRef`).

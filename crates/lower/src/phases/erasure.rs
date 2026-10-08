@@ -1,7 +1,7 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, array_op, is_parameterless_ref};
+use super::adapt::{adapt, applied_to_none, array_op, erased_type, is_parameterless_ref};
 use super::casts::{is_cast, receiver_type};
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
@@ -60,6 +60,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
             if l.tpd.sym(fun) == Some(l.defs.array_clone) {
+                let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
+                if !matches!(erased_type(l, qualifier), Erased::Array(_)) {
+                    return unsupported(l.tpd.span(t), "`clone` of a generic array");
+                }
                 l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
             }
             let params = match array_op(l, fun) {

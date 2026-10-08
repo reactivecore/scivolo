@@ -2,6 +2,7 @@
 //! applied, values boxed, unboxed or cast.
 
 use super::casts::{cast, conforms};
+use super::select_static::is_static_enum_value;
 use crate::Lower;
 use crate::symbols::{has, is_class, is_constructor, is_java_static, is_module};
 use syntax::ast::Span;
@@ -20,6 +21,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         && in_class
         && !is_module(l.u, s)
         && !l.fields.contains_key(&s)
+        && !is_static_enum_value(l, s)
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;
     let info = l.u.info(s);
