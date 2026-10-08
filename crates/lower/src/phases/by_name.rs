@@ -4,6 +4,7 @@
 //! a by-name parameter `x` becomes `x.apply()`.
 
 use super::adapt::from_start;
+use super::getters::is_param_accessor;
 use super::walk::children;
 use crate::Lower;
 use crate::definitions::symbol;
@@ -32,7 +33,8 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId, passed: &mut Fx
             .iter()
             .enumerate()
             .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-                Some(Type::ByName(_)) if by_name_ref(l, a) => {
+                Some(Type::ByName(_)) if by_name_ref(l, strip_typed(l, a)) => {
+                    let a = strip_typed(l, a);
                     passed.insert(a);
                     a
                 }
@@ -61,11 +63,27 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId, passed: &mut Fx
     }
 }
 
+/// Whether `s` is a by-name parameter, of a method or a class (dotty's `exprBecomesFunction`).
+pub fn is_by_name_param(l: &mut Lower, s: SymbolId) -> bool {
+    let param =
+        l.u.symbol(s).kind == Kind::Param || l.u.symbol(s).kind == Kind::Val && is_param_accessor(l, s);
+    let info = l.u.info(s);
+    param && matches!(l.u.types().get(info), Type::ByName(_))
+}
+
 /// Whether `t` refers to a by-name parameter.
 fn by_name_ref(l: &mut Lower, t: TNodeId) -> bool {
-    let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else { return false };
-    let info = l.u.info(s);
-    l.u.symbol(s).kind == Kind::Param && matches!(l.u.types().get(info), Type::ByName(_))
+    let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+        return false;
+    };
+    is_by_name_param(l, s)
+}
+
+fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
+    while let Tree::Typed { expr, .. } = *l.tpd.tree(t) {
+        t = expr;
+    }
+    t
 }
 
 /// Makes reference `t` to by-name parameter `x: => T` the call `x.apply()` of type `T`.
@@ -74,7 +92,9 @@ fn apply_reference(l: &mut Lower, t: TNodeId) {
     let span = l.tpd.span(t);
     let info = l.u.info(x);
     let Type::ByName(result) = *l.u.types().get(info) else { unreachable!("a by-name type") };
-    let qual = l.ident(x, span);
+    let n = l.tpd.get(t);
+    let (tree, tpe) = (n.tree.clone(), n.tpe);
+    let qual = l.tpd.node(tree, span, tpe, Some(x));
     let function = l.u.class_ref("scala.Function0");
     let class = l.u.class_symbol(function).expect("`Function0`");
     let apply = l.u.decl(class, "apply").unwrap_or_default();

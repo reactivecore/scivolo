@@ -1,12 +1,16 @@
 //! dotty's `EtaReduce`: `{ def $anonfun(x1, ..., xN) = f.apply(x1, ..., xN); closure($anonfun) }`
-//! becomes `f` if `f` is a pure path of a function type conforming to the closure's and no `xi`
-//! is primitive, which erasure would box in the call.
+//! becomes `f` if `f` is a pure path, not a getter call, of a function type conforming to the
+//! closure's, unless erasure gives the closure a specialized interface: some `xi` primitive, or a
+//! `Unit` result of a function literal.
 
+use super::by_name::is_by_name_param;
 use super::casts::conforms;
 use super::first_transform::is_pure;
 use super::walk::subtrees;
 use crate::Lower;
-use tasty::{Erased, Kind, SymbolId, Type};
+use crate::symbols::{has, is_class, is_module, is_trait};
+use tasty::tags::{LAZY, LOCAL, PRIVATE};
+use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Reduces the eta expansions in class definition `td`.
@@ -27,8 +31,13 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     else {
         return None;
     };
-    let Tree::Closure { meth: closure_meth, .. } = *l.tpd.tree(expr) else { return None };
+    let Tree::Closure { meth: closure_meth, tpt, .. } = *l.tpd.tree(expr) else { return None };
     if l.tpd.sym(closure_meth) != Some(meth) || l.u.symbol(meth).name != "$anonfun" {
+        return None;
+    }
+    let meth_info = l.u.info(meth);
+    let result = l.u.result_type(meth_info);
+    if tpt.is_none() && l.u.erase(result) == Erased::Unit {
         return None;
     }
     let Tree::Apply { fun, args } = *l.tpd.tree(rhs) else { return None };
@@ -48,7 +57,8 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
         })
         .collect();
     let own_param = l.tpd.sym(f).is_some_and(|s| l.u.symbol(s).owner == Some(meth));
-    if params != args || params.contains(&None) || own_param || !is_pure(l, f) {
+    let getter = l.tpd.sym(f).is_some_and(|s| has_getter(l, s));
+    if params != args || params.contains(&None) || own_param || getter || !is_pure(l, f) {
         return None;
     }
     let boxed = params.iter().flatten().any(|&p| {
@@ -63,17 +73,28 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     conforms(l, &from, &to).then_some(f)
 }
 
+/// Whether value `s` of a class is read by a getter call (dotty's `Getters`): not a parameter, an
+/// object, nor a private local non-lazy field of a class.
+fn has_getter(l: &Lower, s: SymbolId) -> bool {
+    let Some(owner) = l.u.symbol(s).owner else { return false };
+    if l.u.symbol(s).kind != Kind::Val || !is_class(l.u, owner) || is_module(l.u, s) {
+        return false;
+    }
+    let field = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL) && !has(l.u, s, LAZY) && !is_trait(l.u, owner);
+    !field
+}
+
 /// The erased `FunctionN` class of `f`'s type, a by-name parameter's `Function0`; `None` if not a
 /// function type.
 fn function_erasure(l: &mut Lower, f: TNodeId) -> Option<Erased> {
     let s = l.tpd.sym(f)?;
-    let info = l.u.info(s);
-    if l.u.symbol(s).kind == Kind::Param && matches!(l.u.types().get(info), Type::ByName(_)) {
+    if is_by_name_param(l, s) {
         return Some(Erased::Class("scala.Function0".into()));
     }
+    let info = l.u.info(s);
     let tpe = l.u.widen(info);
     let class = l.u.class_symbol(tpe)?;
     let name = l.u.full_name(class);
-    let function = name.strip_prefix("scala.Function").is_some_and(|n| n.parse::<u8>().is_ok());
-    function.then(|| l.u.erase(tpe))
+    let arity = name.strip_prefix("scala.Function").or_else(|| name.strip_prefix("scala.ContextFunction"));
+    arity.is_some_and(|n| n.parse::<u8>().is_ok()).then(|| l.u.erase(tpe))
 }
