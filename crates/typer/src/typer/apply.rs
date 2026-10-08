@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -16,6 +16,7 @@ impl Typer<'_> {
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
+            Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -99,7 +100,10 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
-        let span = self.ast.span(id);
+        let erroneous = typed_args.iter().any(|&a| {
+            let tpe = self.zonk(self.tpd.tpe(a));
+            *self.u.types().get(tpe) == Type::Error
+        });
         if let Some(elem) = repeated {
             let arg = match seq_arg {
                 Some(a) => self.sequence_arg(a, elem, ctx),
@@ -121,9 +125,9 @@ impl Typer<'_> {
         while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
             callee = fun;
         }
-        let callee_tpe = self.tpd.tpe(callee);
         let partial = matches!(self.u.types().get(result), Type::Method { .. });
-        let tpe = match self.u.types().get(callee_tpe).clone() {
+        let tpe = match self.u.types().get(self.tpd.tpe(callee)).clone() {
+            _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
@@ -136,7 +140,7 @@ impl Typer<'_> {
             _ => self.simplified(result),
         };
         let args = self.tpd.list(&typed_args);
-        let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
+        let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
         match self.widen_enum_case(apply, method, pt) {
             Ok(tree) => self.wrap_defs(lifted, tree),
@@ -169,32 +173,5 @@ impl Typer<'_> {
     fn is_sequence_arg(&self, a: NodeId) -> bool {
         let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
-    }
-
-    /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of
-    /// method `method`.
-    fn mentions_params(&mut self, t: TypeId, binder: tasty::Binder, method: Option<SymbolId>) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            match *u.types().get(part) {
-                Type::Param(b, _) if b == binder => found = true,
-                Type::Sym(_, s) if u.symbol(s).kind == Kind::Param && method.is_some() => {
-                    found |= u.symbol(s).owner == method;
-                }
-                _ => {}
-            }
-            None
-        });
-        found
-    }
-
-    /// Whether parameter type `p` is by-name or refers to a parameter.
-    pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = false;
-        self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
-            None
-        });
-        special
     }
 }

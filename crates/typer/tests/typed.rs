@@ -1,5 +1,6 @@
-//! Typing small inputs in `tests/typed`, against dotty 3.9.0's typed trees recorded next to
-//! each in a `.check` file (`just typer-checks`); `just typer-report` compares on dotty's tests.
+//! Typing small inputs in `tests/typed`, against dotty 3.9.0's output recorded next to each in a
+//! `.check` file (`just typer-checks`): the typed trees, or only the diagnostics of an input with
+//! errors; `just typer-report` compares on dotty's tests.
 
 use std::path::Path;
 use syntax::source::SourceFile;
@@ -17,7 +18,7 @@ fn typed(u: &mut Universe, path: &Path) -> String {
 }
 
 #[test]
-fn typed_trees_match_dotty() {
+fn typed_trees_and_diagnostics_match_dotty() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let jars = library_jars(&root.join("../../ref/libs"));
     if let Some(missing) = jars.iter().find(|j| !j.exists()) {
@@ -34,6 +35,13 @@ fn typed_trees_match_dotty() {
     for input in inputs {
         let mut u = Universe::open(&jars).expect("the library");
         let expected = std::fs::read_to_string(input.with_extension("check")).expect("a .check file");
-        assert_eq!(typed(&mut u, &input), expected, "{}", input.display());
+        let actual = typed(&mut u, &input);
+        if expected.contains("\n== E ") {
+            let diagnostics =
+                |s: &str| s.lines().filter(|l| l.starts_with("== ")).collect::<Vec<_>>().join("\n");
+            assert_eq!(diagnostics(&actual), diagnostics(&expected), "{}", input.display());
+        } else {
+            assert_eq!(actual, expected, "{}", input.display());
+        }
     }
 }

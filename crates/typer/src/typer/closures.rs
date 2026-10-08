@@ -14,6 +14,7 @@ impl Typer<'_> {
     pub fn typed_function(&mut self, id: NodeId, args: List, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let params = self.ast.items(args).to_vec();
         let n = params.len();
+        let pt = self.instantiated_pt(id, (&params, body), pt);
         if let Some(untupled) = self.untupled_function(id, args, body, pt, ctx) {
             return untupled;
         }
@@ -45,23 +46,26 @@ impl Typer<'_> {
         let mut entries = Vec::new();
         let mut param_trees = Vec::new();
         let mut param_types = Vec::new();
+        let mut missing = false;
         for (i, &p) in params.iter().enumerate() {
             let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "function parameter");
             };
-            let declared = !matches!(self.ast.tree(tpt), Tree::TypeTree) || self.splices.contains_key(&tpt);
-            let tpt = if declared {
+            let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
-            } else {
-                let Some(formal) = expected.as_ref().map(|(ps, _)| ps[i]) else {
-                    return self.unsupported(p, "function parameter without a type");
-                };
-                let formal = match self.fully_defined(formal) {
+            } else if let Some((formals, _)) = &expected {
+                let formal = match self.fully_defined(formals[i]) {
                     Ok(t) if !self.has_wildcard(t) => t,
                     Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
                     Err(what) => return self.unsupported(p, what),
                 };
                 self.type_tree(formal, self.ast.span(p).end_pos(), true)
+            } else {
+                let Some(error) = self.missing_param_type((id, p), (&params, body), pt, ctx) else {
+                    return self.unsupported(p, "function parameter without a type");
+                };
+                missing = true;
+                error
             };
             let tpe = self.tpd.tpe(tpt);
             let text = self.text(name.name).to_owned();
@@ -71,12 +75,11 @@ impl Typer<'_> {
             self.syms.closure_syms.push(sym);
             entries.push((text, sym));
             param_types.push(tpe);
-            param_trees.push(self.tpd.node(
-                T::ValDef { name, tpt, rhs: None },
-                self.ast.span(p),
-                None,
-                Some(sym),
-            ));
+            let def = T::ValDef { name, tpt, rhs: None };
+            param_trees.push(self.tpd.node(def, self.ast.span(p), None, Some(sym)));
+        }
+        if missing {
+            return self.error_tree(self.ast.span(id));
         }
         let names: Vec<String> = entries.iter().map(|(n, _)| n.clone()).collect();
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();

@@ -21,3 +21,22 @@ val x: Int = 1
 
 scala> y
 -- unsupported: unresolved name y
+
+scala> List(1,2,3,4,5).fold((a,b) => (a+b))
+-- [E081] Type Error: ----------------------------------------------------------
+1 |List(1,2,3,4,5).fold((a,b) => (a+b))
+  |                      ^
+  |                      Missing parameter type
+  |
+  |                      I could not infer the type of the parameter a
+  |                      Expected type for the whole anonymous function:
+  |                        Int
+-- [E081] Type Error: ----------------------------------------------------------
+1 |List(1,2,3,4,5).fold((a,b) => (a+b))
+  |                        ^
+  |                        Missing parameter type
+  |
+  |                        I could not infer the type of the parameter b
+  |                        Expected type for the whole anonymous function:
+  |                          Int
+2 errors found

@@ -3,6 +3,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName};
+use syntax::diag::Message;
 use tasty::Type;
 
 impl Typer<'_> {
@@ -19,15 +20,21 @@ impl Typer<'_> {
         }
     }
 
-    pub fn error(&mut self, id: NodeId, msg: impl Into<String>) -> TNodeId {
+    pub fn error(&mut self, id: NodeId, msg: impl Into<Message>) -> TNodeId {
         let span = self.ast.span(id);
-        self.diags.error_at(span.start(), span.end(), span.point(), msg.into());
+        self.diags.error_at(span.start(), span.end(), span.point(), msg);
         self.error_tree(span)
     }
 
-    fn error_tree(&mut self, span: Span) -> TNodeId {
+    pub fn error_tree(&mut self, span: Span) -> TNodeId {
         let name = TName { name: self.name("<error>"), is_type: false };
         let tpe = self.u.intern_type(Type::Error);
         self.tpd.node(T::Ident { name }, span, Some(tpe), None)
+    }
+
+    /// Whether the type of tree `t`, widened, is the error type.
+    pub fn is_error(&mut self, t: TNodeId) -> bool {
+        let tpe = self.u.widen(self.tpd.tpe(t));
+        *self.u.types().get(tpe) == Type::Error
     }
 }
