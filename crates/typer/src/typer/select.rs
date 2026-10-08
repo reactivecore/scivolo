@@ -71,7 +71,12 @@ impl Typer<'_> {
                 }
                 let mut overridden = None;
                 for (k, &o) in out.iter().enumerate() {
-                    if !self.is_type_symbol(o) && self.same_member(site, o, m) {
+                    let def_with_params = match (self.u.symbol(o).kind, self.u.symbol(m).kind) {
+                        (Kind::Val, Kind::Def) => self.has_params(m),
+                        (Kind::Def, Kind::Val) => self.has_params(o),
+                        _ => false,
+                    };
+                    if !self.is_type_symbol(o) && !def_with_params && self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }

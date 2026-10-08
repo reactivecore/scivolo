@@ -6,7 +6,7 @@ use super::Typer;
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
-use tasty::{SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through an
@@ -97,6 +97,40 @@ impl Typer<'_> {
             all &= self.compatible(a, p, views, ctx)?;
         }
         Some(all)
+    }
+
+    /// `param_types` of `alt` with its type parameters, if any, replaced by fresh abstract types
+    /// within their bounds (dotty's `newTypeParams` in `isAsGood`).
+    pub fn rigid_param_types(
+        &mut self,
+        alt: SymbolId,
+        prefix: Option<TypeId>,
+    ) -> Option<(Vec<TypeId>, bool)> {
+        let tpe = self.u.intern_type(Type::Sym(prefix, alt));
+        let info = self.method_info(tpe)?;
+        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+            return self.param_types(alt, prefix, false);
+        };
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let mut syms: Vec<SymbolId> = Vec::new();
+        for n in &names {
+            let s = self.syms.define(self.u, n, Kind::TypeParam, alt, syntax::ast::flags::TYPE_PARAM);
+            self.u.unenter(s);
+            syms.push(s);
+        }
+        let refs: Vec<TypeId> = syms.iter().map(|&s| self.u.intern_type(Type::Sym(None, s))).collect();
+        for (&(_, bounds), &s) in params.iter().zip(&syms) {
+            let bounds = self.instantiate_poly(bounds, binder, &names, &refs, Some(alt));
+            self.u.set_info(s, bounds);
+        }
+        let info = self.instantiate_poly(result, binder, &names, &refs, Some(alt));
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+        let elem = types.last().and_then(|&p| self.repeated_elem(p));
+        if let Some(e) = elem {
+            *types.last_mut().expect("a parameter") = e;
+        }
+        Some((types, elem.is_some()))
     }
 
     /// The parameter types of the first clause of `alt` seen from `prefix`, a repeated one as its
