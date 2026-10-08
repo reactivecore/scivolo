@@ -40,6 +40,11 @@ impl Universe {
         }
     }
 
+    /// Records that class `c`, defined outside TASTy, has initialization code.
+    pub fn set_inits(&mut self, c: SymbolId) {
+        self.with_inits.insert(c);
+    }
+
     /// Whether `sym` is a method or value defined outside TASTy without a body; `false` for
     /// the library's symbols, whose bodies `body` gives.
     pub fn is_deferred(&self, sym: SymbolId) -> bool {

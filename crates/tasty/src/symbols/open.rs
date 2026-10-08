@@ -33,6 +33,7 @@ impl Universe {
             parents: FxHashMap::default(),
             linearizations: FxHashMap::default(),
             deferred: Default::default(),
+            with_inits: Default::default(),
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,

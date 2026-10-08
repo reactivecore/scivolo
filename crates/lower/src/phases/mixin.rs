@@ -1,7 +1,9 @@
-//! dotty's `Mixin` for traits without initialization: a trait keeps its constructor, which
-//! becomes `$init$` without a body; a class gets, for each concrete method it inherits from a
-//! trait of the unit or the library, a forwarder calling that method on `super`.
+//! dotty's `Mixin`: a trait's constructor becomes `$init$`, its values deferred accessors
+//! (`trait_fields.rs`); a class gets the members its traits' values need and, for each concrete
+//! method it inherits from a trait of the unit or the library, a forwarder calling that method
+//! on `super`.
 
+use super::trait_fields::{mixed_in, trait_defs};
 use crate::symbols::{has, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
@@ -34,32 +36,33 @@ pub fn methods_with_body(l: &Lower, classes: &[TNodeId], with_body: bool) -> FxH
     out
 }
 
-pub fn transform(l: &mut Lower, td: TNodeId, unit_classes: &[SymbolId]) -> Result<()> {
+pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     if is_trait(l.u, class) {
-        if !l.u.no_inits(class)
-            || l.tpd.items(body).iter().any(|&s| !matches!(l.tpd.tree(s), Tree::DefDef { .. }))
-        {
-            return unsupported(span, "traits with initialization");
-        }
         if !matches!(*l.tpd.tree(constr), Tree::DefDef { paramss, .. } if l.tpd.clause_items(paramss).iter().all(|c| c.is_empty()))
         {
             return unsupported(span, "trait parameters");
         }
+        let stats = trait_defs(l, td);
+        let body = l.tpd.list(&stats);
+        l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
         return Ok(());
     }
     let mut forwarders = Vec::new();
     for mixin in mixins(l, class) {
-        if !l.u.no_inits(mixin) {
-            return unsupported(span, "traits with initialization");
+        let library = l.u.symbol(mixin).tree.is_some();
+        if library && !l.u.no_inits(mixin) {
+            return unsupported(span, "library traits with initialization");
         }
-        let library = !unit_classes.contains(&mixin);
         let decls = l.u.decls(mixin).unwrap_or_default();
         if library && decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
             return unsupported(span, "generic library traits as parents");
+        }
+        if !library {
+            forwarders.extend(mixed_in(l, class, mixin, span)?);
         }
         for meth in l.u.decls(mixin).unwrap_or_default() {
             if has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth) {
@@ -74,6 +77,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, unit_classes: &[SymbolId]) -> Resul
     stats.extend_from_slice(l.tpd.items(body));
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
+    l.recopy(template);
     Ok(())
 }
 

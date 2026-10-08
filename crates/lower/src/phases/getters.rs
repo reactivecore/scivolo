@@ -43,8 +43,9 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             kept.pop();
             continue;
         }
-        if owner.is_some_and(|o| is_trait(l.u, o)) {
-            return unsupported(span, "traits with initialization");
+        let in_trait = owner.is_some_and(|o| is_trait(l.u, o));
+        if in_trait && has(l.u, sym, LAZY) {
+            return unsupported(span, "lazy values in traits");
         }
         if has(l.u, sym, LAZY) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
@@ -63,7 +64,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.fields.insert(sym, sym);
             continue;
         }
-        let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL);
+        let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) && !in_trait;
         if private_local && is_param_accessor(l, sym) && !retained.contains(&sym) {
             kept.pop();
             l.u.unenter(sym);

@@ -43,3 +43,4 @@ seqpatterns
 emptyliterals
 genericcases
 bynameparams
+traitvals

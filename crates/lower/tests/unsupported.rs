@@ -52,7 +52,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
-    ("trait T { val x = \"a\" }", "traits with initialization"),
+    ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
     (
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",

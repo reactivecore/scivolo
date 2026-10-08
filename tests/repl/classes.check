@@ -95,3 +95,12 @@ val res17: Color = Green
 
 scala> Counter.n
 val res18: Int = 5
+
+scala> trait Tv { val tx = 1; var ty = 2 }
+// defined trait Tv
+
+scala> object Ov extends Tv
+// defined object Ov
+
+scala> Ov.tx + Ov.ty
+val res19: Int = 3

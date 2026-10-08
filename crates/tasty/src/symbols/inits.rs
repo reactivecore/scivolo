@@ -11,9 +11,10 @@ use crate::{Ast, NodeId, View, view};
 impl Universe {
     /// Whether class `c` has no initialization code: a trait whose body defines only methods,
     /// lazy or abstract values, types and classes; a class that also calls no parent
-    /// constructor with arguments. Classes without TASTy (`Any`, `Object`, …) have none.
+    /// constructor with arguments. Classes without TASTy (`Any`, `Object`, a script's) have none
+    /// unless `set_inits` recorded some.
     pub fn no_inits(&self, c: SymbolId) -> bool {
-        let Some((file, typedef)) = self.symbol(c).tree else { return true };
+        let Some((file, typedef)) = self.symbol(c).tree else { return !self.with_inits.contains(&c) };
         let (ast, _) = self.file(file);
         let Some(&template) = ast.kids(typedef).first() else { return true };
         if ast.tag(template) != TEMPLATE {
