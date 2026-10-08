@@ -71,6 +71,17 @@ fn second_unit_imports_the_first() {
 }
 
 #[test]
+fn long_argument_lists_of_constants() {
+    let Some(mut u) = universe() else { return };
+    let ints: Vec<String> = (0..1000).map(|i| i.to_string()).collect();
+    let strings: Vec<String> = (0..1000).map(|i| format!("\"s{i}\"")).collect();
+    let line = format!("val xs = List({}); val ys = Seq({})", ints.join(", "), strings.join(", "));
+    type_lines(&mut u, &[&line]);
+    assert_eq!(member_type(&mut u, "rs$line$1", "xs"), "scala.collection.immutable.List[Int]");
+    assert_eq!(member_type(&mut u, "rs$line$1", "ys"), "scala.collection.immutable.Seq[String]");
+}
+
+#[test]
 fn classes_of_earlier_units() {
     let Some(mut u) = universe() else { return };
     type_lines(

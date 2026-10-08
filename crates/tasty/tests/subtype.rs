@@ -3,7 +3,7 @@
 //! `fixtures/subtype/Prelude.scala`.
 
 use std::path::Path;
-use tasty::{ANY, Kind, NOTHING, Type, TypeId, Universe};
+use tasty::{ANY, Binder, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Type, TypeId, Universe};
 
 fn universe() -> Option<Universe> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -153,6 +153,146 @@ fn subtyping_matches_dotc() {
 }
 
 #[test]
+fn unions_of_singletons_compare_by_atoms() {
+    let Some(mut u) = universe() else { return };
+    let dotc = [
+        ("1", "1 | 2", true),
+        ("3", "1 | 2", false),
+        ("1 | 2", "1 | 2 | 3", true),
+        ("1 | 2 | 3", "1 | 2", false),
+        ("1 | 2", "2 | 1", true),
+        ("1 | 2", "scala.Int", true),
+        ("scala.Int", "1 | 2", false),
+        ("scala.Nothing", "1 | 2", true),
+        ("scala.Nothing | 1", "1 | 2", true),
+        ("1", "scala.Int | java.lang.String", true),
+        ("1 | 2", "1 | scala.Int", true),
+        ("scala.Int | java.lang.String", "java.lang.String | scala.Int", true),
+        ("\"a\" | 1", "\"a\" | 1 | 2", true),
+        ("\"b\"", "\"a\" | 1", false),
+        ("oracle.a.v.type", "oracle.a.v.type | 1", true),
+        ("oracle.a.v.type", "oracle.b.v.type | 1", false),
+        ("oracle.a.v.type | 1", "oracle.a.v.type | 1 | 2", true),
+        ("oracle.a.type | oracle.b.type", "oracle.b.type | oracle.a.type", true),
+        ("scala.Null", "oracle.a.v.type | 1", false),
+        ("oracle.a.T", "1 | 2", false),
+        ("oracle.O.type", "oracle.O.type | 1", true),
+    ];
+    for (a, b, expected) in dotc {
+        let (ta, tb) = (parse(&mut u, a), parse(&mut u, b));
+        assert_eq!(u.is_subtype(ta, tb), expected, "{a} <: {b}");
+    }
+}
+
+#[test]
+fn paths_to_one_value_are_one_atom() {
+    let Some(mut u) = universe() else { return };
+    let none_ref = parse(&mut u, "scala.None.type");
+    let scala = path_prefix(&mut u, "scala");
+    let none = u.resolve(scala, "None", false).unwrap();
+    let none_sym = u.intern_type(Type::Sym(None, none));
+    let oracle = path_prefix(&mut u, "oracle");
+    let o = u.resolve(oracle, "O", false).unwrap();
+    let o_class = u.module_class(o).unwrap();
+    let o_class = u.intern_type(Type::Sym(None, o_class));
+    let o_this = u.intern_type(Type::This(o_class));
+    let pairs =
+        [(none_sym, "scala.None.type | 1"), (o_this, "oracle.O.type | 1"), (o_this, "1 | oracle.O.type")];
+    for (a, b) in pairs {
+        let tb = parse(&mut u, b);
+        assert!(u.is_subtype(a, tb), "{} <: {b}", u.show(a));
+    }
+    let one = parse(&mut u, "1");
+    let union = u.intern_type(Type::Or(none_sym, one));
+    assert!(u.is_subtype(none_ref, union));
+    assert!(!u.is_subtype(o_this, union));
+}
+
+fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeId) -> SymbolId {
+    let flags = Flags::default();
+    let (target, tree, decls) = (None, None, Vec::new());
+    let s = u.define(Symbol {
+        name: name.into(),
+        kind,
+        owner: Some(owner),
+        flags,
+        target,
+        is_extern: false,
+        decls,
+        tree,
+    });
+    u.set_info(s, info);
+    s
+}
+
+#[test]
+fn bounds_locals_and_this_as_atoms() {
+    let Some(mut u) = universe() else { return };
+    let (root, int, one) = (u.root(), parse(&mut u, "scala.Int"), parse(&mut u, "1"));
+    let sym = |u: &mut Universe, prefix, s| u.intern_type(Type::Sym(prefix, s));
+    let or = |u: &mut Universe, a, b| u.intern_type(Type::Or(a, b));
+    let a = parse(&mut u, "oracle.a.type");
+    let below_a = u.intern_type(Type::Bounds(NOTHING, a));
+    let t = define(&mut u, "T", Kind::Type, root, below_a);
+    let t = sym(&mut u, None, t);
+    let (any_bounds, below_one) =
+        (u.intern_type(Type::Bounds(NOTHING, ANY)), u.intern_type(Type::Bounds(NOTHING, one)));
+    let binder = Binder(FileId(u32::MAX), 0);
+    let lambda =
+        u.intern_type(Type::Lambda { binder, params: vec![("X".into(), any_bounds)], result: below_one });
+    let f = define(&mut u, "F", Kind::Type, root, lambda);
+    let f = sym(&mut u, None, f);
+    let f_int = u.intern_type(Type::Applied(f, vec![int]));
+    let m = define(&mut u, "m", Kind::Def, root, int);
+    let (p, q) = (define(&mut u, "p", Kind::Param, m, int), define(&mut u, "q", Kind::Param, m, int));
+    let (p, q) = (sym(&mut u, None, p), sym(&mut u, None, q));
+    let a_or_1 = or(&mut u, a, one);
+    let (q_or_1, p_or_1) = (or(&mut u, q, one), or(&mut u, p, one));
+    let two = parse(&mut u, "2");
+    let (f_int_or_2, one_or_2) = (or(&mut u, f_int, two), or(&mut u, one, two));
+    let boxed = named_type(&mut u, "oracle.Box");
+    let box_this = u.intern_type(Type::This(boxed));
+    let v = u.member_of_type(boxed, "v")[0];
+    let (this_v, v) = (sym(&mut u, Some(box_this), v), sym(&mut u, None, v));
+    let v_or_1 = or(&mut u, v, one);
+    assert!(!u.is_subtype(a, t));
+    assert!(u.is_subtype(t, a_or_1));
+    assert!(u.is_subtype(f_int_or_2, one_or_2));
+    assert!(!u.is_subtype(p, q_or_1));
+    assert!(u.is_subtype(p, p_or_1));
+    assert!(!u.is_subtype(box_this, a_or_1));
+    assert!(u.is_subtype(this_v, v_or_1));
+}
+
+#[test]
+fn union_parts_with_class_symbol_nothing_have_no_atoms() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let (one, one_or_2) = (parse(&mut u, "1"), parse(&mut u, "1 | 2"));
+    let sym = |u: &mut Universe, s| u.intern_type(Type::Sym(None, s));
+    let or_1 = |u: &mut Universe, a| u.intern_type(Type::Or(a, one));
+    let (below_nothing, unbounded) =
+        (u.intern_type(Type::Bounds(NOTHING, NOTHING)), u.intern_type(Type::Bounds(NOTHING, ANY)));
+    let (s, x) = (
+        define(&mut u, "S", Kind::Type, root, below_nothing),
+        define(&mut u, "X", Kind::Type, root, unbounded),
+    );
+    let (s, x) = (sym(&mut u, s), sym(&mut u, x));
+    let below_s = u.intern_type(Type::Bounds(NOTHING, s));
+    let t = define(&mut u, "T", Kind::Type, root, below_s);
+    let t = sym(&mut u, t);
+    let n = define(&mut u, "n", Kind::Val, root, NOTHING);
+    let n = sym(&mut u, n);
+    let nothing_and_x = u.intern_type(Type::And(NOTHING, x));
+    for part in [nothing_and_x, t, n] {
+        let union = or_1(&mut u, part);
+        assert!(u.is_subtype(union, one_or_2), "{} <: 1 | 2", u.show(union));
+    }
+    let x_or_1 = or_1(&mut u, x);
+    assert!(!u.is_subtype(x_or_1, one_or_2));
+}
+
+#[test]
 fn outer_this_types_are_seen_from_the_prefix() {
     let Some(mut u) = universe() else { return };
     let outer = named_type(&mut u, "oracle.Outer");
@@ -229,7 +369,10 @@ fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
                 if sub[i][k] && sub[j][k] && !u.is_subtype(lub, types[k]) {
                     wrong.push(format!("lub of {pair}, {}, is not below {}", u.show(lub), names[k]));
                 }
-                if sub[k][i] && sub[k][j] && !u.is_subtype(types[k], glb) {
+                // `Null` is below a nullable singleton but not below a union of intersections
+                // with it, as in dotc.
+                let null = names[k] == "scala.Null" && matches!(u.types().get(glb), Type::Or(..));
+                if sub[k][i] && sub[k][j] && !null && !u.is_subtype(types[k], glb) {
                     wrong.push(format!("glb of {pair}, {}, is not above {}", u.show(glb), names[k]));
                 }
             }

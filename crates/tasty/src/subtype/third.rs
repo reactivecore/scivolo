@@ -27,7 +27,10 @@ impl Cmp<'_> {
                     None => self.fourth_try(a, b),
                 },
             },
-            Type::Or(x, y) => self.below_union(a, b, x, y),
+            Type::Or(x, y) => match self.compare_atoms(a, b, false) {
+                Some(decided) => decided,
+                None => self.below_union(a, b, x, y),
+            },
             Type::Method { params: p2, result: r2, implicit: i2, .. } => {
                 match self.u.types().get(a).clone() {
                     Type::Method { params: p1, result: r1, implicit: i1, .. } => {

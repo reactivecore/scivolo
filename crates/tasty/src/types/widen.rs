@@ -16,30 +16,39 @@ impl Universe {
     /// underlying types, repeatedly.
     pub fn widen(&mut self, mut t: TypeId) -> TypeId {
         for _ in 0..MAX_STEPS {
-            let next = match self.types().get(t).clone() {
-                Type::TermRef(p, n) => match self.resolve(p, &n, false) {
-                    Some(s) => self.term_type(Some(p), s),
-                    None => return t,
-                },
-                Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
-                    self.term_type(p, s)
-                }
-                Type::Constant(CLASSconst, bits) => {
-                    let class = self.class_ref("java.lang.Class");
-                    self.intern_type(Type::Applied(class, vec![TypeId(bits as u32)]))
-                }
-                Type::Constant(tag, _) => self.constant_type(tag),
-                Type::Str(_) => self.constant_type(STRINGconst),
-                Type::ByName(r) => r,
-                Type::This(c) => match self.class_symbol(c) {
-                    Some(c) => self.this_type(c),
-                    None => return t,
-                },
-                _ => return t,
+            let next = match *self.types().get(t) {
+                Type::ByName(r) => Some(r),
+                _ => self.widen_once(t),
             };
+            let Some(next) = next else { return t };
             t = next;
         }
         t
+    }
+
+    /// The underlying type of singleton type, constant or `this` `t`; `None` for other types
+    /// and unresolved paths.
+    pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
+        Some(match self.types().get(t).clone() {
+            Type::TermRef(p, n) => {
+                let s = self.resolve(p, &n, false)?;
+                self.term_type(Some(p), s)
+            }
+            Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
+                self.term_type(p, s)
+            }
+            Type::Constant(CLASSconst, bits) => {
+                let class = self.class_ref("java.lang.Class");
+                self.intern_type(Type::Applied(class, vec![TypeId(bits as u32)]))
+            }
+            Type::Constant(tag, _) => self.constant_type(tag),
+            Type::Str(_) => self.constant_type(STRINGconst),
+            Type::This(c) => {
+                let c = self.class_symbol(c)?;
+                self.this_type(c)
+            }
+            _ => return None,
+        })
     }
 
     /// `t` with aliases followed and applied type lambdas reduced, repeatedly; an alias's
