@@ -10,12 +10,12 @@ use typer::tpd::{TNodeId, Tree};
 
 /// The local values of the enclosing methods a local class uses.
 pub struct Free {
-    /// All, in the order defined.
+    /// All: those its constructor uses, then the others its methods use, each in the order used.
     pub values: Vec<SymbolId>,
-    /// Those its methods use, which need fields.
+    /// Those its methods use, in the order used, which need fields.
     pub in_methods: Vec<SymbolId>,
-    /// Whether its methods use them all, which names their fields before the parameters.
-    pub methods_first: bool,
+    /// Whether its constructor uses some, which names the parameters first.
+    pub constructor_first: bool,
 }
 
 pub fn is_term(l: &Lower, s: SymbolId) -> bool {
@@ -65,7 +65,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let l: &Lower = l;
     let static_outer =
         is_module_class(l.u, outer) && is_static(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
-    let mut free = Free { values: Vec::new(), in_methods: Vec::new(), methods_first: false };
+    let mut free = Free { values: Vec::new(), in_methods: Vec::new(), constructor_first: false };
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
         let inner = in_method || matches!(l.tpd.tree(t), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(t));
@@ -91,19 +91,20 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
                 if has(l.u, s, MUTABLE) {
                     return unsupported(span, "local classes capturing variables");
                 }
-                if !free.values.contains(&s) {
-                    free.values.push(s);
-                }
-                if in_method && !free.in_methods.contains(&s) {
-                    free.in_methods.push(s);
+                let refs = if in_method { &mut free.in_methods } else { &mut free.values };
+                if !refs.contains(&s) {
+                    refs.push(s);
                 }
             }
             _ => {}
         }
     }
-    free.values.sort_by_key(|s| s.0);
-    free.in_methods.sort_by_key(|s| s.0);
-    free.methods_first = free.values.len() == free.in_methods.len();
+    free.constructor_first = !free.values.is_empty();
+    for &s in &free.in_methods {
+        if !free.values.contains(&s) {
+            free.values.push(s);
+        }
+    }
     Ok(free)
 }
 

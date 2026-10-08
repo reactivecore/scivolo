@@ -1,5 +1,6 @@
-//! Fields: a `var` per field of a class, loads and stores (nscplugin's `genClassFields`,
-//! `genFieldName`, and the field cases of `genSelect` and `genAssign`).
+//! Fields: a `var` per field of a class and a static getter per static one, loads and stores
+//! (nscplugin's `genClassFields`, `genFieldName`, and the field cases of `genSelect` and
+//! `genAssign`).
 
 use super::Gen;
 use crate::symbols::{has, is_static_module};
@@ -8,7 +9,7 @@ use nir::sig::{Scope, Sig};
 use nir::{Attr, Defn, DefnKind, GlobalId, Op, PosId, Val, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::{MUTABLE, PRIVATE};
+use tasty::tags::{MUTABLE, PRIVATE, STATIC};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -42,6 +43,10 @@ impl Gen<'_, '_> {
             let rhs = self.val(Val::Zero(ty));
             let name = self.field_name(f);
             self.defns.push(Defn { name, attrs, pos, kind: DefnKind::Var { ty, rhs } });
+            if has(self.l.u, f, STATIC) {
+                let getter = self.static_getter(f, c, ty, pos);
+                self.defns.push(getter);
+            }
         }
     }
 
@@ -59,6 +64,9 @@ impl Gen<'_, '_> {
 
     /// The value of field `f` of `qual`, or of `this` for an identifier.
     pub fn gen_field_load(&mut self, t: TNodeId, f: SymbolId, qual: Option<TNodeId>) -> Result<ValId> {
+        if has(self.l.u, f, STATIC) {
+            return self.gen_apply_static(f, None, &[], self.l.tpd.span(t));
+        }
         let ty = self.gen_type(self.l.tpd.tpe(t));
         let obj = self.field_owner(f, qual, self.l.tpd.span(t))?;
         let name = self.field_name(f);
@@ -82,6 +90,7 @@ impl Gen<'_, '_> {
     fn field_owner(&mut self, f: SymbolId, qual: Option<TNodeId>, span: Span) -> Result<ValId> {
         let owner = self.l.u.symbol(f).owner.expect("a field's class");
         match qual {
+            _ if has(self.l.u, f, STATIC) => Ok(self.gen_module(owner)),
             Some(q) if matches!(self.l.tpd.tree(q), Tree::This { .. }) => self.gen_expr(q),
             _ if is_static_module(self.l.u, owner) => Ok(self.gen_module(owner)),
             Some(q) => self.gen_expr(q),

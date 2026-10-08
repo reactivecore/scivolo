@@ -1,7 +1,7 @@
-//! dotty's `Bridges` for result types: a concrete method of a class overriding a member with the
-//! same erased parameters but another erased result type gets a bridge of the member's type
-//! that calls it.
+//! dotty's `Bridges`: a concrete method of a class overriding a member of another erasure gets a
+//! bridge of the member's type that calls it, its arguments cast where their erasures differ.
 
+use super::casts::cast;
 use crate::symbols::{has, is_class, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
@@ -15,6 +15,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let bases = l.u.linearization(class);
+    let site = l.u.this_type(class);
     let mut stats = l.tpd.items(body).to_vec();
     let mut bridged: Vec<(String, Vec<Erased>, Erased)> = Vec::new();
     for (member, implementation) in inherited_pairs(l, class, &bases, deferred) {
@@ -45,7 +46,11 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
                 }
                 let (other_params, other_result) = l.u.erased_method(other);
                 let signature = (name.clone(), other_params.clone(), other_result.clone());
-                if other_params != params || other_result == result || bridged.contains(&signature) {
+                let same_params = other_params == params;
+                if same_params && other_result == result || bridged.contains(&signature) {
+                    continue;
+                }
+                if !same_params && (other_params.len() != params.len() || !l.u.matches(site, m, other)) {
                     continue;
                 }
                 if is_trait(l.u, class) {
@@ -122,10 +127,16 @@ fn bridge(
     for tag in [FIELDaccessor, PARAMsetter, CASEaccessor, LAZY, OBJECT] {
         flags = flags.without(tag);
     }
+    let (params, other_params) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
     let (sym, def) = l.method_like(class, m, flags, info, span, |l, args, _| {
+        let args: Vec<TNodeId> = args
+            .iter()
+            .zip(params.iter().zip(&other_params))
+            .map(|(&a, (p, o))| if p == o { a } else { cast(l, a, p) })
+            .collect();
         let this = l.this(class, span);
         let fun = l.select(this, m, span);
-        l.apply(fun, args, m_result, span)
+        l.apply(fun, &args, m_result, span)
     })?;
     l.bridges.insert(sym);
     Ok(def)

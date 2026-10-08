@@ -2,12 +2,13 @@
 //! `C.this`.
 
 use super::Gen;
-use crate::symbols::{is_module, is_module_class, is_package_object, is_static};
+use crate::phases::select_static::is_static_owner_ref;
+use crate::symbols::{is_module_class, is_package_object};
 use crate::{Result, unsupported};
 use nir::{Op, ValId};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
     /// The instance of object `sym`, its value or its class.
@@ -21,7 +22,7 @@ impl Gen<'_, '_> {
     /// start for a path of static objects, else `{ qual; sym }`.
     pub fn gen_nested_module(&mut self, t: TNodeId, sym: SymbolId, qual: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
-        if self.is_static_owner_ref(qual) {
+        if is_static_owner_ref(self.l, qual) {
             let saved = self.at_span(if span.exists() { span.with_point(span.start()) } else { span });
             let v = self.gen_module(sym);
             self.m.pos = saved;
@@ -36,17 +37,6 @@ impl Gen<'_, '_> {
         self.m.pos = saved;
         self.m.scope = scope;
         Ok(v)
-    }
-
-    /// Whether `t` is a path of static objects (dotty's `SelectStatic.isStaticOwnerRef`).
-    fn is_static_owner_ref(&mut self, t: TNodeId) -> bool {
-        let prefix = match *self.l.tpd.tree(t) {
-            Tree::Ident { .. } => true,
-            Tree::Select { qualifier, .. } => self.is_static_owner_ref(qualifier),
-            _ => false,
-        };
-        let Some(s) = self.l.tpd.sym(t).filter(|&s| prefix && is_module(self.l.u, s)) else { return false };
-        self.l.u.module_class(s).is_some_and(|c| is_static(self.l.u, c))
     }
 
     pub fn gen_this(&mut self, t: TNodeId) -> Result<ValId> {

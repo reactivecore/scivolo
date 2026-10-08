@@ -1,6 +1,7 @@
 //! Expressions (nscplugin's `ExprBuffer.genExpr` and the trees without calls).
 
 use super::Gen;
+use crate::phases::select_static::is_static_enum_value;
 use crate::symbols::{has, is_module};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
@@ -76,6 +77,8 @@ impl Gen<'_, '_> {
             v
         } else if self.is_field(sym) {
             self.gen_field_load(t, sym, None)?
+        } else if is_static_enum_value(self.l, sym) {
+            self.gen_apply_static(sym, None, &[], span)?
         } else {
             return unsupported(span, format!("a reference to {}", self.l.u.symbol(sym).name));
         };

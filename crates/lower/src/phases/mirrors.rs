@@ -3,12 +3,13 @@
 //! `Mirror.Singleton`.
 
 use super::case_members::case_accessors;
+use super::enum_values::is_enum_value;
 use super::lambda_lift::fresh;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{companion_class, has, is_module_class};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, CASE, SEALED, SYNTHETIC};
+use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -18,16 +19,25 @@ pub fn mirror_support(
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
+    let cc = l.defs.case_classes;
+    if is_enum_value(l, class) {
+        return Ok(Some((cc.mirror_singleton, Vec::new())));
+    }
     if !is_module_class(l.u, class) {
         return Ok(None);
     }
-    let cc = l.defs.case_classes;
     if has(l.u, class, CASE) {
         return Ok(Some((cc.mirror_singleton, Vec::new())));
     }
     let Some(linked) = companion_class(l.u, class) else { return Ok(None) };
+    if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
+        mono_type(l, class, linked);
+        let focus = Span::new(span.point(), span.point(), span.point());
+        let ordinal = ordinal(l, class, linked, focus)?;
+        return Ok(Some((cc.mirror_sum, vec![ordinal])));
+    }
     if has(l.u, linked, SEALED) {
-        return unsupported(span, "companions of sealed classes");
+        return unsupported(span, "companions of sealed classes other than enums");
     }
     if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) {
         return Ok(None);
@@ -36,9 +46,19 @@ pub fn mirror_support(
     if decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
         return unsupported(span, "generic case classes");
     }
+    mono_type(l, class, linked);
     let focus = Span::new(span.point(), span.point(), span.point());
     let from_product = from_product(l, class, linked, focus)?;
     Ok(Some((cc.mirror_product, vec![from_product])))
+}
+
+/// `type MirroredMonoType = C` in object class `class` for its companion class `linked`.
+fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
+    let alias = symbol("MirroredMonoType", Kind::Type, class, Flags::default().with(SYNTHETIC));
+    let alias = l.u.define(alias);
+    let linked = type_ref(l.u, linked);
+    let info = l.u.intern_type(Type::Alias(linked));
+    l.u.set_info(alias, info);
 }
 
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
@@ -95,6 +115,26 @@ fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Spa
     for local in locals {
         l.u.set_owner(local, method);
     }
+    l.tpd.get_mut(def).span = Span::NONE;
+    Ok(l.with_span(def, focus))
+}
+
+/// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
+fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
+    let cc = l.defs.case_classes;
+    let param = type_ref(l.u, enum_class);
+    let int = l.u.class_ref("scala.Int");
+    let binder = l.u.fresh_binder();
+    let params = vec![("x$0".into(), param)];
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: int, implicit: false, contextual: false });
+    let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
+    let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
+    let flags = Flags::default().with(SYNTHETIC);
+    let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
+        let x = l.copy_ident(args[0]);
+        l.call(x, cc.enum_ordinal, &[])
+    })?;
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(l.with_span(def, focus))
 }

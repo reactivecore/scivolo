@@ -67,10 +67,10 @@ scala> g(b = "y")
 val res12: String = "1y"
 
 scala> enum Color { case Red, Green }
--- unsupported: companions of sealed classes
+// defined class Color
 
 scala> Color.Green
--- unsupported: unresolved name Color
+val res13: Color = Green
 
 scala> class C(val s: String) { override def toString = s"C($s)" }
 // defined class C
@@ -89,3 +89,9 @@ scala> case class Q(a: Int, b: Int) extends Pretty
 
 scala> Q(1, 2).toString
 val res16: String = "pretty"
+
+scala> { Counter.n = 5; Color }.Green
+val res17: Color = Green
+
+scala> Counter.n
+val res18: Int = 5

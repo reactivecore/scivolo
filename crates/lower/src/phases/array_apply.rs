@@ -1,12 +1,11 @@
-//! dotty's `ArrayApply`: `Array(xs*)` with a class tag of a class literal, and `Array(x, xs*)`,
-//! become array literals; `List(xs*)` and `Seq(xs*)` become `::` cells ending in `Nil`, within a
-//! budget of 8 elements over nested calls.
+//! dotty's `ArrayApply`: array literals for `Array(..)` (`array_literals.rs`); `List(xs*)` and
+//! `Seq(xs*)` become `::` cells ending in `Nil`, within a budget of 8 elements over nested calls.
 
 use super::adapt::adapt;
+use super::array_literals::array_literal;
 use super::casts::cast;
 use super::walk::children;
 use crate::Lower;
-use crate::symbols::is_module;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, Type};
@@ -84,7 +83,7 @@ const SEQ_MODULES: [&str; 5] = [
 ];
 
 /// The method `t` applies, and the receiver of the innermost application.
-fn applied(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
+pub fn applied(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
     let mut fun = t;
     loop {
         match *l.tpd.tree(fun) {
@@ -110,7 +109,7 @@ fn seq_elems(l: &Lower, t: TNodeId) -> Option<Vec<TNodeId>> {
 }
 
 /// The symbol receiver `qual` refers to, through a getter call.
-fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
+pub fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
     let qual = strip_typed(l, qual);
     match *l.tpd.tree(qual) {
         Tree::Apply { fun, args } if l.tpd.items(args).is_empty() => l.tpd.sym(fun),
@@ -120,7 +119,7 @@ fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
 
 /// The array literal a `ScalaRunTime.wrapXArray` call `t` wraps (dotty's `WrapArrayMethods`),
 /// or a `genericWrapArray` call an empty one.
-fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
+pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     let t = strip_typed(l, t);
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
     let m = l.tpd.sym(fun)?;
@@ -137,7 +136,7 @@ fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
     (wrap || generic).then_some(literal)
 }
 
-fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
+pub fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
     while let Tree::Typed { expr, .. } = *l.tpd.tree(t) {
         t = expr;
     }
@@ -164,50 +163,4 @@ fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) {
     let consed = l.positioned(consed);
     l.copy_node(t, consed);
     l.explicit_casts.insert(t);
-}
-
-/// The array literal for `Array.apply` call `t`, if it applies one.
-fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
-    let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
-    let (m, qual) = applied(l, t)?;
-    let module = qualifier_symbol(l, qual).filter(|&q| is_module(l.u, q))?;
-    if l.u.symbol(m).name != "apply" || l.u.full_name(module) != "scala.Array" {
-        return None;
-    }
-    match *l.tpd.items(args) {
-        [seq, tag] if is_class_tag_of_literal(l, tag) => wrapped_literal(l, seq),
-        [first, seq] => {
-            let literal = wrapped_literal(l, seq)?;
-            let Tree::SeqLiteral { elems, elemtpt } = *l.tpd.tree(literal) else { return None };
-            let all: Vec<TNodeId> =
-                std::iter::once(first).chain(l.tpd.items(elems).iter().copied()).collect();
-            let elems = l.tpd.list(&all);
-            let tpe = l.tpd.tpe(literal);
-            Some(l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, l.tpd.span(literal), Some(tpe), None))
-        }
-        _ => None,
-    }
-}
-
-/// Whether `t` is `ClassTag.apply(classOf[C])` or a `ClassTag` of a primitive (dotty's
-/// `elideClassTag`).
-fn is_class_tag_of_literal(l: &Lower, t: TNodeId) -> bool {
-    let t = strip_typed(l, t);
-    let Some((m, _)) = applied(l, t).or_else(|| Some((l.tpd.sym(t)?, t))) else { return false };
-    let Some(owner) = l.u.symbol(m).owner else { return false };
-    if l.u.full_name(owner) != "scala.reflect.ClassTag$" {
-        return false;
-    }
-    let name = l.u.symbol(m).name.as_str();
-    if name != "apply" {
-        return ["Byte", "Short", "Char", "Int", "Long", "Float", "Double", "Boolean", "Unit"]
-            .contains(&name);
-    }
-    let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return false };
-    let &[runtime_class] = l.tpd.items(args) else { return false };
-    match *l.tpd.tree(runtime_class) {
-        Tree::ClassLiteral { .. } => true,
-        Tree::TypeApply { fun, .. } => l.tpd.sym(fun).is_some_and(|s| l.u.symbol(s).name == "classOf"),
-        _ => false,
-    }
 }

@@ -13,44 +13,78 @@ use typer::tpd::{TNodeId, Tree};
 
 /// Lifts the local classes among `classes` out of the blocks of unit `root`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<()> {
+    let mut locals = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         let Some(owner) = l.u.symbol(class).owner.filter(|&o| is_term(l, o)) else { continue };
         let outer = enclosing_class(l, owner);
         let free = free_values(l, td, class, outer)?;
+        locals.push((td, class, outer, free));
+    }
+    let proxies = make_proxies(l, &locals);
+    for ((td, class, outer, free), (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
-        let fields = add_proxies(l, td, class, &free, &spans);
+        add_proxies(l, td, class, &free, (&fields, &params), &spans);
         pass_values(l, root, class, &free, &fields)?;
         lift(l, root, td, class, outer);
     }
     Ok(())
 }
 
-/// Adds to class definition `td` a leading constructor parameter for each value of `free` and a
-/// private field, at the value's definition span of `spans`, for each its methods use; makes the
-/// references to them in its methods read the fields and elsewhere the parameters; the fields.
-fn add_proxies(l: &mut Lower, td: TNodeId, class: SymbolId, free: &Free, spans: &[Span]) -> Vec<SymbolId> {
+/// The fields and constructor parameters standing for the values each local class of `locals`
+/// uses, named in the order dotty's `LambdaLift` names them: those of each class and of each
+/// constructor using values itself in definition order, then those of the other constructors.
+fn make_proxies(
+    l: &mut Lower,
+    locals: &[(TNodeId, SymbolId, SymbolId, Free)],
+) -> Vec<(Vec<SymbolId>, Vec<SymbolId>)> {
+    let fields = |l: &mut Lower, class: SymbolId, free: &Free| -> Vec<SymbolId> {
+        let flags = Flags::default().with(PRIVATE).with(LOCAL);
+        free.in_methods.iter().map(|&v| proxy(l, v, class, Kind::Val, flags)).collect()
+    };
+    let params = |l: &mut Lower, td: TNodeId, free: &Free| -> Vec<SymbolId> {
+        let ctor = constructor(l, td);
+        free.values.iter().map(|&v| proxy(l, v, ctor, Kind::Param, Flags::default())).collect()
+    };
+    let mut out = Vec::new();
+    for &(td, class, _, ref free) in locals {
+        let ps = if free.constructor_first { params(l, td, free) } else { Vec::new() };
+        out.push((fields(l, class, free), ps));
+    }
+    for (&(td, _, _, ref free), (_, ps)) in locals.iter().zip(&mut out) {
+        if !free.constructor_first {
+            *ps = params(l, td, free);
+        }
+    }
+    out
+}
+
+/// The symbol of the constructor of class definition `td`.
+fn constructor(l: &Lower, td: TNodeId) -> SymbolId {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+    let Tree::Template { constr, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+    l.tpd.sym(constr).expect("a constructor's symbol")
+}
+
+/// Adds to class definition `td` a leading constructor parameter of `params` for each value of
+/// `free` and a private field of `fields`, at the value's definition span of `spans`, for each its
+/// methods use; makes the references to them in its methods read the fields and elsewhere the
+/// parameters.
+fn add_proxies(
+    l: &mut Lower,
+    td: TNodeId,
+    class: SymbolId,
+    free: &Free,
+    (fields, params): (&[SymbolId], &[SymbolId]),
+    spans: &[Span],
+) {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
         unreachable!("a template")
     };
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
-    let make_fields = |l: &mut Lower| -> Vec<SymbolId> {
-        let flags = Flags::default().with(PRIVATE).with(LOCAL);
-        free.in_methods.iter().map(|&v| proxy(l, v, class, Kind::Val, flags)).collect()
-    };
-    let make_params = |l: &mut Lower| -> Vec<SymbolId> {
-        free.values.iter().map(|&v| proxy(l, v, ctor, Kind::Param, Flags::default())).collect()
-    };
-    let (fields, params) = if free.methods_first {
-        let fields = make_fields(l);
-        (fields, make_params(l))
-    } else {
-        let params = make_params(l);
-        (make_fields(l), params)
-    };
     let mut field_defs = Vec::new();
-    for ((&v, &field), &at) in free.in_methods.iter().zip(&fields).zip(spans) {
+    for ((&v, &field), &at) in free.in_methods.iter().zip(fields).zip(spans) {
         l.fields.insert(field, field);
         let name = l.term_name(&l.u.symbol(field).name.clone());
         let info = l.u.info(v);
@@ -59,22 +93,21 @@ fn add_proxies(l: &mut Lower, td: TNodeId, class: SymbolId, free: &Free, spans: 
         let i = free.values.iter().position(|&w| w == v).expect("a free value");
         l.proxies.push((field, params[i]));
     }
-    add_params(l, constr, ctor, &params);
+    add_params(l, constr, ctor, params);
     for parent in l.tpd.items(parents).to_vec() {
-        redirect(l, parent, &free.values, &params, None);
+        redirect(l, parent, &free.values, params, None);
     }
     for stat in l.tpd.items(body).to_vec() {
         match l.tpd.tree(stat) {
             Tree::DefDef { .. } if is_method(l, l.tpd.sym(stat)) => {
-                redirect(l, stat, &free.in_methods, &fields, Some(class))
+                redirect(l, stat, &free.in_methods, fields, Some(class))
             }
-            _ => redirect(l, stat, &free.values, &params, None),
+            _ => redirect(l, stat, &free.values, params, None),
         }
     }
     let stats: Vec<TNodeId> = field_defs.into_iter().chain(l.tpd.items(body).iter().copied()).collect();
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-    fields
 }
 
 /// Puts `params` first in the first parameter clause of constructor `constr` of `ctor`.
