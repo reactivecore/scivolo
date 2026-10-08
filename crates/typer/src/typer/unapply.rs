@@ -25,14 +25,19 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let Pt::Type(sel) = pt else { return Err("extractor without expected type") };
         let arg_ids = self.ast.items(args).to_vec();
-        if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. } | Tree::Typed { .. })) {
-            return Err("named or sequence pattern");
+        let other_typed = |t: &Self, a| matches!(t.ast.tree(a), Tree::Typed { .. }) && !t.is_seq_wildcard(a);
+        if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }) || other_typed(self, a))
+        {
+            return Err("named or typed pattern");
         }
         if !matches!(self.ast.tree(fun), Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. })
         {
             return Err("extractor with type arguments");
         }
-        let unapp = self.unapply_fun(fun, ctx)?;
+        let (unapp, seq) = self.unapply_fun(fun, ctx)?;
+        if !seq && arg_ids.iter().any(|&a| self.is_seq_wildcard(a)) {
+            return Err("sequence wildcard of an extractor without unapplySeq");
+        }
         let vars = self.constraint.count();
         let unapp = self.with_type_vars(unapp)?;
         let fun_tpe = self.tpd.tpe(unapp);
@@ -49,9 +54,17 @@ impl Typer<'_> {
             return Err("extractor of a type that needs a type test");
         }
         let result = self.zonk(result);
-        let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
-        let patterns: Vec<TNodeId> =
-            arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed(a, Pt::Type(t), ctx)).collect();
+        let patterns: Vec<TNodeId> = if seq {
+            let get = self.get_match(result)?.ok_or("sequence extractor result type")?;
+            let elem = self.seq_elem_type(get).ok_or("sequence extractor result type")?;
+            if matches!(self.u.types().get(elem), Type::Bounds(..)) {
+                return Err("sequence extractor of a wildcard element type");
+            }
+            self.typed_seq_patterns(&arg_ids, elem, ctx)?
+        } else {
+            let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
+            arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed(a, Pt::Type(t), ctx)).collect()
+        };
         let (implicits, patterns) = (self.tpd.list(&[]), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
@@ -63,18 +76,41 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
     }
 
-    /// `qual.unapply` for extractor `qual`, typed as an expression.
-    fn unapply_fun(&mut self, qual: NodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let name = TName { name: self.name("unapply"), is_type: false };
-        let select = self.ast.node(Tree::Select { qualifier: qual, name });
-        let span = self.ast.span(qual);
-        self.ast.with_span(select, Span::synthetic(span.start(), span.end()));
+    /// `qual.unapply` for extractor `qual`, typed as an expression, or `qual.unapplySeq` if it
+    /// has no `unapply`; whether it is `unapplySeq`.
+    fn unapply_fun(&mut self, qual: NodeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
-        let unapp = self.typed_select(select, qual, name, Pt::Any, ctx.with_mode(Mode::NONE));
+        let ctx = ctx.with_mode(Mode::NONE);
+        let typed = self.typed(qual, Pt::Any, ctx);
+        let tpe = self.tpd.tpe(typed);
+        let tpe = self.widen_if_unstable(tpe);
+        let seq = self.members_found(tpe, "unapply", false).is_none()
+            && self.members_found(tpe, "unapplySeq", false).is_some();
+        if seq && (self.extension_visible("unapply", ctx) || self.unit_defines_extension("unapply")) {
+            return Err("extension method");
+        }
+        let span = self.ast.span(qual);
+        let splice = self.ast.node(Tree::TypeTree);
+        self.ast.with_span(splice, span);
+        self.splices.insert(splice, typed);
+        let name = TName { name: self.name(if seq { "unapplySeq" } else { "unapply" }), is_type: false };
+        let select = self.ast.node(Tree::Select { qualifier: splice, name });
+        self.ast.with_span(select, Span::synthetic(span.start(), span.end()));
+        let unapp = self.typed_select(select, splice, name, Pt::Any, ctx);
         if self.unsupported != unsupported {
             return Err("extractor outside the subset");
         }
-        Ok(unapp)
+        Ok((unapp, seq))
+    }
+
+    /// Whether a package object of the unit defines an extension method named `name`.
+    fn unit_defines_extension(&mut self, name: &str) -> bool {
+        let objects: Vec<_> =
+            self.syms.flags.keys().copied().filter(|&s| self.is_package_object(s)).collect();
+        objects.into_iter().any(|c| {
+            let members = self.class_members(c, name);
+            members.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
+        })
     }
 
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
@@ -120,71 +156,5 @@ impl Typer<'_> {
             self.instantiate_var(v, from_below)?;
         }
         Ok(self.zonk(arg_type))
-    }
-
-    /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
-    /// `UnapplyArgs.argTypes` for `unapply`).
-    fn unapply_arg_types(&mut self, result: TypeId, n: usize) -> Result<Vec<TypeId>, &'static str> {
-        let types = if n > 0
-            && self.derives_from_named(result, "scala.Product")
-            && self.product_selectors(result)?.len() == n
-        {
-            self.product_selectors(result)?
-        } else if let Some(get) = self.get_match(result)? {
-            let sels = if n > 1 && !self.derives_from_named(get, "scala.collection.Seq") {
-                self.product_selectors(get)?
-            } else {
-                Vec::new()
-            };
-            if sels.len() == n { sels } else { vec![get] }
-        } else if self.derives_from_named(result, "scala.Boolean") {
-            Vec::new()
-        } else {
-            return Err("extractor result type");
-        };
-        if types.len() != n {
-            return Err("wrong number of patterns");
-        }
-        Ok(types)
-    }
-
-    /// The types of the product selectors `_1`, `_2`, ... of `t`.
-    fn product_selectors(&mut self, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
-        let mut out = Vec::new();
-        while let Some(s) = self.extractor_member(t, &format!("_{}", out.len() + 1))? {
-            out.push(s);
-        }
-        Ok(out)
-    }
-
-    /// The type of `get` if `t` has it and a `Boolean` member `isEmpty`.
-    fn get_match(&mut self, t: TypeId) -> Result<Option<TypeId>, &'static str> {
-        let empty = self.extractor_member(t, "isEmpty")?;
-        if !empty.is_some_and(|e| self.derives_from_named(e, "scala.Boolean")) {
-            return Ok(None);
-        }
-        self.extractor_member(t, "get")
-    }
-
-    /// The type of parameterless member `name` of `t` (dotty's `extractorMemberType`).
-    fn extractor_member(&mut self, t: TypeId, name: &str) -> Result<Option<TypeId>, &'static str> {
-        let Some(found) = self.members_found(t, name, false) else { return Ok(None) };
-        let [sym] = found.syms[..] else { return Err("overloaded extractor member") };
-        let tpe = self.ref_type(Some(t), sym);
-        let info = self.method_info(tpe).unwrap_or(tpe);
-        Ok(match *self.u.types().get(info) {
-            Type::Method { .. } | Type::Poly { .. } => None,
-            Type::ByName(r) => Some(r),
-            _ => Some(info),
-        })
-    }
-
-    fn derives_from_named(&mut self, t: TypeId, class: &str) -> bool {
-        let base = self.resolve_full_name(class, true);
-        let t = self.u.widen(t);
-        match (self.u.class_symbol(t), base) {
-            (Some(c), Some(b)) => self.u.derives_from(c, b),
-            _ => false,
-        }
     }
 }

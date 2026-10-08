@@ -162,7 +162,7 @@ impl Typer<'_> {
     pub fn typed_alternative(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let ids = self.ast.items(trees).to_vec();
         let typed: Vec<TNodeId> = ids.iter().map(|&t| self.typed(t, pt, ctx)).collect();
-        if typed.iter().any(|&t| matches!(self.tpd.tree(t), T::Bind { .. })) {
+        if typed.iter().any(|&t| self.binds_variable(t)) {
             return self.unsupported(id, "variable in an alternative");
         }
         let tpe = typed.iter().fold(NOTHING, |acc, &t| {
@@ -172,5 +172,11 @@ impl Typer<'_> {
         let trees = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
+    }
+
+    /// Whether pattern `t` or a pattern inside it binds a variable.
+    fn binds_variable(&self, t: TNodeId) -> bool {
+        matches!(self.tpd.tree(t), T::Bind { .. })
+            || self.tpd.children(t).into_iter().any(|c| self.binds_variable(c))
     }
 }

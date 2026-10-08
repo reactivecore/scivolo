@@ -65,7 +65,7 @@ impl Typer<'_> {
     }
 
     /// `<repeated>[elem]`.
-    fn repeated_type(&mut self, elem: TypeId) -> TypeId {
+    pub fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let class = self.repeated_class();
         let class = crate::defn::type_ref(self.u, class);
         self.u.intern_type(Type::Applied(class, vec![elem]))
