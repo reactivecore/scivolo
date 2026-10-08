@@ -82,7 +82,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
 
 /// Whether evaluating `t` has no effect (dotty's `isPureExpr` for paths): `this`, an object,
 /// a parameter or a stable value, through stable selections.
-fn is_pure(l: &Lower, t: TNodeId) -> bool {
+pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
     let stable = |s| {
         let sym = l.u.symbol(s);
         is_module(l.u, s)

@@ -51,7 +51,6 @@ const CASES: &[(&str, &str)] = &[
         "values of type Unit overriding",
     ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
-    ("object O { def f(x: => String): String = x }", "by-name parameters"),
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
     ("trait T { val x = \"a\" }", "traits with initialization"),
     (

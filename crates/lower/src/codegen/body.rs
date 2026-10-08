@@ -5,7 +5,7 @@ use super::Gen;
 use super::dead::remove_dead_blocks;
 use super::method::Method;
 use crate::phases::walk::children;
-use crate::symbols::{has, has_by_name_params, is_extern, is_java_static};
+use crate::symbols::{has, is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Op, Param, Type, Val, ValId};
 use syntax::ast::Span;
@@ -42,9 +42,6 @@ impl Gen<'_, '_> {
         }
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");
-        }
-        if has_by_name_params(self.l.u, sym) {
-            return unsupported(span, "by-name parameters");
         }
         Ok(())
     }

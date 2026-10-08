@@ -20,6 +20,7 @@ mod enum_values;
 mod envelope;
 mod erased_branches;
 mod erasure;
+mod eta_reduce;
 mod first_transform;
 mod getters;
 mod initializers;
@@ -70,6 +71,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         by_name::transform(l, td);
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
+    }
+    for &td in &classes {
+        eta_reduce::transform(l, td);
     }
     local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;
