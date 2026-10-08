@@ -38,3 +38,4 @@ arrows
 localclasses
 listliterals
 enums
+enumcases
