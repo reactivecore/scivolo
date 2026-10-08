@@ -49,7 +49,9 @@ Apache-2.0. Rust translations of:
 - `crates/repl`, from `repl/` (scala3-repl): `ReplPhase` (wrapping, `res` names),
   `ParseResult` (commands, help text, incomplete input), `Rendering` and `ReplDriver`
   (definitions shown), `ReplBytecodeAnalysis` (the synthesized `toString` test in
-  `crates/vm/src/natives/repl.rs`); the transcript format of `compiler/test-resources/repl`.
+  `crates/vm/src/natives/repl.rs`); the transcript format of `compiler/test-resources/repl`;
+  from the compiler, `reporting/MessageRendering` (diagnostic boxes) and the `ErrorMessageID`
+  numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`).
 
 ### [PPrint](https://github.com/com-lihaoyi/PPrint) by Li Haoyi, as vendored by dotty 3.9.0
 

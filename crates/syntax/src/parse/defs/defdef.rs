@@ -3,7 +3,7 @@ use crate::ast::constant::Constant;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, List, NodeId, Tree};
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::parse::Parser;
 use crate::parse::migration::Migration;
 use crate::source::Offset;
@@ -57,7 +57,7 @@ impl Parser<'_> {
         } else {
             if !self.is_expr_intro() {
                 let l = self.last_offset();
-                self.syntax_error("Missing return type", l);
+                self.syntax_error(Message::syntax(19, "Missing return type"), l);
             }
             self.accept(Token::Equals);
             Some(self.expr())
@@ -90,7 +90,7 @@ impl Parser<'_> {
             })
         });
         if bad_first {
-            let msg = "Auxiliary constructor needs non-implicit parameter list";
+            let msg = Message::syntax(26, "Auxiliary constructor needs non-implicit parameter list");
             match self.tok() {
                 Token::LBracket => {
                     let o = self.offset();

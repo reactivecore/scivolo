@@ -2,9 +2,15 @@ use super::super::{Location, Parser};
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
+use crate::diag::Message;
 use crate::token::Token;
 
 impl Parser<'_> {
+    /// dotty's `IllegalStartSimpleExpr` message.
+    fn illegal_start_simple_expr(tok: Token) -> Message {
+        Message::syntax(18, format!("expression expected but {} found", tok.show()))
+    }
+
     pub fn simple_expr(&mut self, location: Location) -> NodeId {
         let mut can_apply = true;
         let t = match self.tok() {
@@ -48,12 +54,12 @@ impl Parser<'_> {
                     self.literal(start, false, false)
                 } else if matches!(tok, Token::ColonOp | Token::ColonFollow | Token::ColonEol) {
                     let o = self.offset();
-                    self.syntax_error(format!("expression expected but {} found", tok.show()), o);
+                    self.syntax_error(Self::illegal_start_simple_expr(tok), o);
                     self.next();
                     self.simple_expr(location)
                 } else {
                     let start = self.last_offset();
-                    let msg = format!("expression expected but {} found", tok.show());
+                    let msg = Self::illegal_start_simple_expr(tok);
                     let at = self.expected_offset();
                     self.syntax_error_or_incomplete(msg, at);
                     self.error_term_tree(start)
@@ -75,7 +81,7 @@ impl Parser<'_> {
                         && digits.starts_with('-')
                     {
                         let start = self.ast.span(t).start();
-                        self.warning("Illegal literal", start);
+                        self.warning(Message::syntax(28, "Illegal literal"), start);
                     }
                     self.next();
                     t = self.selector_or_match(t);

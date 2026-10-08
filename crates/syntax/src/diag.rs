@@ -19,6 +19,48 @@ pub enum Level {
     Error,
 }
 
+/// What dotty's `Message` class tells besides the text: the `ErrorMessageID` number, the
+/// `MessageKind` and whether `explain` is non-empty.
+#[derive(Clone, Copy, Debug)]
+pub struct MessageId {
+    pub code: u16,
+    pub kind: &'static str,
+    pub explained: bool,
+}
+
+/// A message's text, and its id; plain text has none (`NoExplanationID`, `NoKind`).
+#[derive(Clone, Debug)]
+pub struct Message {
+    pub text: String,
+    pub id: Option<MessageId>,
+}
+
+impl Message {
+    /// A `SyntaxMsg` with error id `code` and an explanation.
+    pub fn syntax(code: u16, text: impl Into<String>) -> Self {
+        Message { text: text.into(), id: Some(MessageId { code, kind: "Syntax", explained: true }) }
+    }
+
+    pub fn without_explanation(mut self) -> Self {
+        if let Some(id) = &mut self.id {
+            id.explained = false;
+        }
+        self
+    }
+}
+
+impl From<String> for Message {
+    fn from(text: String) -> Self {
+        Message { text, id: None }
+    }
+}
+
+impl From<&str> for Message {
+    fn from(text: &str) -> Self {
+        text.to_string().into()
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Diagnostic {
     pub level: Level,
@@ -27,6 +69,7 @@ pub struct Diagnostic {
     /// Where the `^` goes; `None` for a diagnostic without a position.
     pub offset: Option<Offset>,
     pub message: String,
+    pub id: Option<MessageId>,
     /// Whether the error is about input ending where more was expected.
     pub incomplete: bool,
 }
@@ -44,42 +87,42 @@ pub struct Diagnostics {
 }
 
 impl Diagnostics {
-    pub fn error(&mut self, offset: Offset, message: impl Into<String>) {
+    pub fn error(&mut self, offset: Offset, message: impl Into<Message>) {
         self.error_at(offset, offset, offset, message);
     }
 
-    pub fn error_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<String>) {
-        self.push(Level::Error, start, end, Some(offset), message.into());
+    pub fn error_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<Message>) {
+        self.push(Level::Error, start, end, Some(offset), message.into(), false);
     }
 
-    pub fn error_unpositioned(&mut self, message: impl Into<String>) {
-        self.push(Level::Error, 0, 0, None, message.into());
+    pub fn error_unpositioned(&mut self, message: impl Into<Message>) {
+        self.push(Level::Error, 0, 0, None, message.into(), false);
     }
 
     /// An error at `offset` about input ending where more was expected.
-    pub fn incomplete_input_error(&mut self, offset: Offset, message: impl Into<String>) {
-        let message = message.into();
-        let d = Diagnostic {
-            level: Level::Error,
-            start: offset,
-            end: offset,
-            offset: Some(offset),
-            message,
-            incomplete: true,
-        };
-        self.items.push(d);
+    pub fn incomplete_input_error(&mut self, offset: Offset, message: impl Into<Message>) {
+        self.push(Level::Error, offset, offset, Some(offset), message.into(), true);
     }
 
-    pub fn warning(&mut self, offset: Offset, message: impl Into<String>) {
+    pub fn warning(&mut self, offset: Offset, message: impl Into<Message>) {
         self.warning_at(offset, offset, offset, message);
     }
 
-    pub fn warning_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<String>) {
-        self.push(Level::Warning, start, end, Some(offset), message.into());
+    pub fn warning_at(&mut self, start: Offset, end: Offset, offset: Offset, message: impl Into<Message>) {
+        self.push(Level::Warning, start, end, Some(offset), message.into(), false);
     }
 
-    fn push(&mut self, level: Level, start: Offset, end: Offset, offset: Option<Offset>, message: String) {
-        self.items.push(Diagnostic { level, start, end, offset, message, incomplete: false });
+    fn push(
+        &mut self,
+        level: Level,
+        start: Offset,
+        end: Offset,
+        offset: Option<Offset>,
+        m: Message,
+        incomplete: bool,
+    ) {
+        let Message { text: message, id } = m;
+        self.items.push(Diagnostic { level, start, end, offset, message, id, incomplete });
     }
 
     pub fn has_errors(&self) -> bool {

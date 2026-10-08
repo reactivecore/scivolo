@@ -3,6 +3,7 @@ use crate::ast::constant::Constant;
 use crate::ast::from_digits;
 use crate::ast::tree::NumberKind;
 use crate::ast::{NodeId, Tree};
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 use crate::token::sets::NUMERIC_LIT_TOKENS;
@@ -53,7 +54,7 @@ impl Parser<'_> {
         let negated = start < self.offset();
         if !in_type_or_singleton {
             if negated && start < self.offset() - 1 {
-                self.warning("Illegal literal", start);
+                self.warning(Message::syntax(28, "Illegal literal"), start);
             }
             let kind = match token {
                 Token::IntLit => Some(NumberKind::Whole(self.s.cur.base)),
@@ -79,7 +80,10 @@ impl Parser<'_> {
             Token::True => Ok(Constant::Boolean(true)),
             Token::False => Ok(Constant::Boolean(false)),
             Token::Null => Ok(Constant::Null),
-            _ => Err("Illegal literal"),
+            _ => {
+                self.syntax_error_or_incomplete(Message::syntax(28, "Illegal literal"), self.offset());
+                Ok(Constant::Null)
+            }
         };
         let value = value.unwrap_or_else(|msg| {
             self.syntax_error_or_incomplete(msg, self.offset());

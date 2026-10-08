@@ -4,7 +4,7 @@
 use super::Parser;
 use crate::ast::Span;
 use crate::config::SourceVersion as V;
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 
 /// A legacy construct and the source versions that warn about it and reject it.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -84,22 +84,22 @@ impl Parser<'_> {
 
     /// Report `msg` as an error, a migration warning or a warning, depending on the source
     /// version and when `m` became legacy syntax.
-    pub fn error_or_migration_warning(&mut self, msg: impl Into<String>, span: Span, m: Migration) {
+    pub fn error_or_migration_warning(&mut self, msg: impl Into<Message>, span: Span, m: Migration) {
         let version = self.s.cfg.source_version;
         let (warn_from, error_from) = m.versions();
         if let Some(error_from) = error_from.filter(|&e| version.is_at_least(e)) {
             if version != error_from.migrating_variant() {
                 self.syntax_error_span(msg, span);
             } else {
-                self.s.diags.warning(span.point(), msg);
+                self.s.diags.warning_at(span.start(), span.end(), span.point(), msg);
             }
         } else if version.is_at_least(warn_from) {
-            self.s.diags.warning(span.point(), msg);
+            self.s.diags.warning_at(span.start(), span.end(), span.point(), msg);
         }
     }
 
     /// `error_or_migration_warning` at a single offset.
-    pub fn migration_error(&mut self, msg: impl Into<String>, offset: u32, m: Migration) {
+    pub fn migration_error(&mut self, msg: impl Into<Message>, offset: u32, m: Migration) {
         self.error_or_migration_warning(msg, Span::at(offset), m);
     }
 }

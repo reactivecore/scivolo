@@ -3,6 +3,7 @@
 use super::Parser;
 use super::migration::Migration;
 use crate::ast::{NodeId, Span, Tree};
+use crate::diag::Message;
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -11,7 +12,7 @@ impl Parser<'_> {
         let t = self.annot_type1();
         let t = if self.is_wildcard_type(t) {
             let span = self.ast.span(t);
-            self.syntax_error_span("Unbound wildcard type", span);
+            self.syntax_error_span(Message::syntax(35, "Unbound wildcard type"), span);
             let error = self.type_name("<error>");
             self.ast.node(Tree::Ident { name: error })
         } else {
@@ -126,7 +127,8 @@ impl Parser<'_> {
         let r = self.in_braces_or_indented(|p| p.template_stat_seq());
         if self.tok() == Token::With && parents.is_empty() {
             let o = self.offset();
-            self.syntax_error("Early definitions are not supported; use trait parameters instead", o);
+            let msg = "Early definitions are not supported; use trait parameters instead";
+            self.syntax_error(Message::syntax(9, msg), o);
             self.next();
             let c = self.empty_constructor();
             self.template(c, false);
@@ -177,7 +179,7 @@ impl Parser<'_> {
                 Token::LBrace.display(),
                 Token::ColonOp.display()
             );
-            self.warning(msg, next);
+            self.warning(Message::syntax(229, msg), next);
         }
     }
 }

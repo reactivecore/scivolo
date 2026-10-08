@@ -1,6 +1,6 @@
 //! The transcripts in `tests/repl/*.check`, in the format of dotty's `test-resources/repl`:
-//! `scala> ` input lines, `     | ` continuation lines, the expected output; blank lines do not
-//! count. All share one session, reset between files.
+//! `scala> ` input lines, `     | ` continuation lines (`     |` an empty one), the expected
+//! output; blank lines do not count. All share one session, reset between files.
 
 #[path = "../../scalai/src/libs.rs"]
 mod libs;
@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use vm::{Classpath, Vm};
 
 const PROMPT: &str = "scala> ";
-const CONTINUATION: &str = "     | ";
+const CONTINUATION: &str = "     |";
 
 fn transcripts() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/repl");
@@ -33,7 +33,7 @@ fn answer(session: &mut Session, expected: &str) -> Vec<String> {
         let mut input = vec![first.to_owned()];
         out.push(line.to_owned());
         while let Some(more) = lines.peek().and_then(|l| l.strip_prefix(CONTINUATION)) {
-            input.push(more.to_owned());
+            input.push(more.strip_prefix(' ').unwrap_or(more).to_owned());
             out.push(lines.next().unwrap().to_owned());
         }
         out.extend(session.eval(&input.join("\n")));

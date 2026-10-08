@@ -2,6 +2,7 @@ use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{Attrs, NodeId, Tree};
+use crate::diag::Message;
 use crate::parse::{Parser, stage};
 use crate::source::Offset;
 use crate::token::Token;
@@ -73,7 +74,8 @@ impl Parser<'_> {
                 self.type_and_ctx_bounds(tname)
             }
             _ => {
-                let msg = format!("=, >:, or <: expected, but {} found", self.tok().display());
+                let text = format!("=, >:, or <: expected, but {} found", self.tok().display());
+                let msg = Message::syntax(95, text);
                 self.syntax_error_or_incomplete(msg, self.offset());
                 return self.empty_tree();
             }

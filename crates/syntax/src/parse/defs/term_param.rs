@@ -6,7 +6,7 @@ use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, TName, Tree};
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::token::Token;
 
 const PARAM_MOD_ADVICE: &str = "It is a keyword only at the beginning of a parameter clause.";
@@ -91,7 +91,7 @@ impl Parser<'_> {
         let name = self.param_name();
         if self.tok() == Token::Arrow && owner.is_class() && !mods.is(flags::LOCAL) {
             let what = if mods.is(flags::MUTABLE) { "var" } else { "val" };
-            let msg = format!("{what} parameters may not be call-by-name");
+            let msg = Message::syntax(55, format!("{what} parameters may not be call-by-name"));
             let o = self.offset();
             self.syntax_error(msg, o);
         }

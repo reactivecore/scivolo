@@ -40,8 +40,9 @@ impl Session {
         }
         let object = self.fresh.next(&mut self.names, PREFIX);
         let object = self.names.text(object).to_owned();
-        let mut parsed = match input::classify(&object, expr, &mut self.names, &mut self.fresh) {
-            Input::Stats(parsed) => parsed,
+        let width = self.width as usize;
+        let mut parsed = match input::classify(&object, expr, &mut self.names, &mut self.fresh, width) {
+            Input::Stats(parsed) => *parsed,
             Input::Errors(errors) => return errors,
             Input::Empty => return vec!["Error: last of empty list".to_owned()],
             Input::Command(_) => return vec![report::unsupported("a command as expression")],

@@ -26,6 +26,9 @@ top-level name, and the collector serves one VM per process.
   was constructed, as in dotty's `renderDefinitions`. Only inputs whose module was constructed
   are imported later. Output shows `rs$line$N` less the index at the last `:reset`, so the
   user's numbers restart at 1 as in dotty.
+- Diagnostics print as dotty's `MessageRendering` draws them without colors, positioned in the
+  input's own text: syntax errors alone, the diagnostics of an input that fails to compile then
+  their count (`1 error found`), and the warnings of one that compiles after their count.
 - `:type` wraps its input like other inputs, but in object `rs$line$type$K`, a fresh name, and
   only types it: it takes no wrapper or `res` index and is never imported. It prints the
   widened type of the last statement, of the expression for one that became a `res` value.

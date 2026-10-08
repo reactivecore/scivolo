@@ -4,6 +4,7 @@ use super::super::Parser;
 use crate::ast::tree::GenCheckMode;
 use crate::ast::{NodeId, Span, Tree};
 use crate::config::SourceVersion;
+use crate::diag::Message;
 use crate::scan::RegionKind;
 use crate::token::Token;
 
@@ -160,7 +161,8 @@ impl Parser<'_> {
             self.ast.node(Tree::ForDo { enums: enums_list, body })
         } else {
             if !wrapped {
-                self.syntax_error_or_incomplete("yield or do expected", self.offset());
+                let msg = Message::syntax(20, "yield or do expected");
+                self.syntax_error_or_incomplete(msg, self.offset());
             }
             let body = self.expr();
             self.ast.node(Tree::ForDo { enums: enums_list, body })

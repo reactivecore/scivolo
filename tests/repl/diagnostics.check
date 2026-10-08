@@ -1,0 +1,259 @@
+scala> val x = List(1, ) ++ Nil
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val x = List(1, ) ++ Nil
+  |                ^
+  |                expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val a = 1
+     | val b = )
+     | val c = 2
+-- [E018] Syntax Error: --------------------------------------------------------
+2 |val b = )
+  |        ^
+  |        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val y = (1,
+     |   2
+-- [E040] Syntax Error: --------------------------------------------------------
+2 |  2
+  |   ^
+  |   ')' expected, but eof found
+
+scala> val x = ); val y = )
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val x = ); val y = )
+  |        ^
+  |        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val x = ); val y = )
+  |                   ^
+  |                   expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> class class
+-- [E040] Syntax Error: --------------------------------------------------------
+1 |class class
+  |      ^^^^^
+  |      an identifier expected, but 'class' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> case class
+-- [E040] Syntax Error: --------------------------------------------------------
+1 |case class
+  |          ^
+  |          an identifier expected, but eof found
+
+scala> 	val t = )
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |	val t = )
+  |	        ^
+  |	        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val 𝐱 = "ä"; val z = )
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val 𝐱 = "ä"; val z = )
+  |                      ^
+  |                      expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val e = 'ab'
+-- Error: ----------------------------------------------------------------------
+1 |val e = 'ab'
+  |        ^
+  |symbol literal 'ab is no longer supported,
+  |use a string literal "ab" or an application Symbol("ab") instead,
+  |or enclose in braces '{ab} if you want a quoted expression.
+  |For now, you can also `import language.deprecated.symbolLiterals` to accept
+  |the idiom, but this possibility might no longer be available in the future.
+-- Error: ----------------------------------------------------------------------
+1 |val e = 'ab'
+  |           ^
+  |           unclosed character literal
+
+scala> val long$name$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = )
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val long$name$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = )
+  |    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  |The identifier `long$name$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val long$name$aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa = )
+  |                                                                                 ^
+  |                                         expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val s = """abc
+-- Error: ----------------------------------------------------------------------
+1 |val s = """abc
+  |        ^
+  |        unclosed multi-line string literal
+
+scala> 1
+     | 2
+     | 3
+     | 4
+     | 5
+     | 6
+     | 7
+     | 8
+     | 9
+     | val z = )
+-- [E018] Syntax Error: --------------------------------------------------------
+10 |val z = )
+   |        ^
+   |        expression expected but ')' found
+   |
+   | longer explanation available when compiling with `-explain`
+
+scala> val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
+-- Error: ----------------------------------------------------------------------
+1 |val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
+  |                        ^^^^^^^^^^^
+  |                        number too large
+-- Error: ----------------------------------------------------------------------
+1 |val l = 1; val m: Int = 12345678901; val n: Int = 98765432109
+  |                                                  ^^^^^^^^^^^
+  |                                                  number too large
+2 errors found
+
+scala> val k = 1
+     | val i: Int =
+     |   12345678901
+-- Error: ----------------------------------------------------------------------
+3 |  12345678901
+  |  ^^^^^^^^^^^
+  |  number too large
+1 error found
+
+scala> val a$d = 1; val c$d = 2
+2 warnings found
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val a$d = 1; val c$d = 2
+  |    ^^^
+  |The identifier `a$d` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val a$d = 1; val c$d = 2
+  |                 ^^^
+  |The identifier `c$d` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+val a$d: Int = 1
+val c$d: Int = 2
+
+scala> try {
+     |   1
+     | }
+1 warning found
+-- [E002] Syntax Warning: ------------------------------------------------------
+1 |try {
+  |^
+  |A try without catch or finally is equivalent to putting
+  |its body in a block; no exceptions are handled.
+  |
+2 |  1
+3 |}
+  |
+  | longer explanation available when compiling with `-explain`
+val res0: Int = 1
+
+scala> try {
+     |
+     |
+     |   1
+     |
+     | }
+1 warning found
+-- [E002] Syntax Warning: ------------------------------------------------------
+1 |try {
+  |^
+  |A try without catch or finally is equivalent to putting
+  |its body in a block; no exceptions are handled.
+  |
+2 |  1
+3 |}
+  |
+  | longer explanation available when compiling with `-explain`
+val res1: Int = 1
+
+scala> try {
+     |   1
+     |   2
+     |   3
+     |   4
+     | }
+1 warning found
+-- [E002] Syntax Warning: ------------------------------------------------------
+1 |try {
+  |^
+  |A try without catch or finally is equivalent to putting
+  |its body in a block; no exceptions are handled.
+  |
+2 |  1
+3 |...
+6 |}
+  |
+  | longer explanation available when compiling with `-explain`
+val res2: Int = 4
+
+scala> try 1 catch {
+     | }
+-- [E001] Syntax Error: --------------------------------------------------------
+2 |}
+  | ^
+  | The catch block does not contain a valid expression, try
+  | adding a case like - case e: Exception => to the block
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> )
+-- [E040] Syntax Error: --------------------------------------------------------
+1 |)
+  |^
+  |eof expected, but ')' found
+
+scala> val q = 1 +
+     |
+     |
+-- [E018] Syntax Error: --------------------------------------------------------
+2 |
+  |^
+  |expression expected but eof found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; val t = )
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val s = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"; val t = )
+  |                                                                                                                  ^
+  |                                         expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> val a$b = 1; val c: Int = 12345678901
+-- Error: ----------------------------------------------------------------------
+1 |val a$b = 1; val c: Int = 12345678901
+  |                          ^^^^^^^^^^^
+  |                          number too large
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val a$b = 1; val c: Int = 12345678901
+  |    ^^^
+  |The identifier `a$b` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+1 warning found
+1 error found

@@ -87,7 +87,7 @@ fn piped_line_endings() {
     let mut lines = out.lines();
     assert_eq!(lines.next(), Some("def inc(x: Int): Int"));
     assert_eq!(lines.next(), Some("val res0: Int = 2"));
-    assert!(lines.next().is_some_and(|l| l.contains("error")), "{out}");
+    assert!(lines.next().is_some_and(|l| l.contains("Syntax Error")), "{out}");
     assert_eq!(code, Some(0));
     let (code, out, _, _) = repl_with(b"val s = \"\xff\"\ns.length\n", &[]);
     assert_eq!(out, "val s: String = \"\u{fffd}\"\nval res0: Int = 1\n");

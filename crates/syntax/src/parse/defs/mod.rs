@@ -16,6 +16,7 @@ use super::Parser;
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, Tree};
 use crate::config::SourceVersion;
+use crate::diag::Message;
 use crate::source::Offset;
 use crate::token::Token;
 
@@ -69,7 +70,7 @@ impl Parser<'_> {
         if let Some(name) = checked {
             let text = self.s.names.text(name.name);
             if !text.is_empty() && !text.starts_with(crate::scan::is_operator_part) && text.ends_with(':') {
-                let msg = format!("name `{text}` should be enclosed in backticks");
+                let msg = Message::syntax(228, format!("name `{text}` should be enclosed in backticks"));
                 let point = self.ast.span(md).point();
                 self.warning(msg, point);
             }

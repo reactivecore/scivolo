@@ -4,7 +4,7 @@ use super::migration::Migration;
 use super::precedence::{is_right_assoc, precedence};
 use super::{Location, ParseKind, Parser};
 use crate::ast::{NodeId, Tree};
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::names::Name;
 use crate::source::Offset;
 use crate::token::Token;
@@ -33,7 +33,7 @@ impl Parser<'_> {
                 ("which is left-associative", "which is right-associative")
             };
             let msg = format!("{op1} ({a1}) and {op2} ({a2}) have same precedence and may not be mixed");
-            self.syntax_error(msg, offset);
+            self.syntax_error(Message::syntax(41, msg), offset);
         }
     }
 
@@ -91,6 +91,7 @@ impl Parser<'_> {
                 "Deprecated syntax: infix named arguments lists are deprecated; since 3.7 it is interpreted as a single named tuple argument.\nTo avoid this warning, either remove the argument names or use dotted selection.{}",
                 rewrite_notice("This", "3.7-migration", "")
             );
+            let msg = Message::syntax(204, msg).without_explanation();
             let span = self.ast.span(right);
             self.error_or_migration_warning(msg, span, Migration::AmbiguousNamedTupleSyntax);
         }

@@ -4,7 +4,7 @@ use super::super::Parser;
 use super::super::migration::Migration;
 use crate::ast::{NodeId, Span, Tree};
 use crate::config::Features;
-use crate::diag::rewrite_notice;
+use crate::diag::{Message, rewrite_notice};
 use crate::token::Token;
 
 impl Parser<'_> {
@@ -41,7 +41,8 @@ impl Parser<'_> {
             return t;
         }
         let notice = rewrite_notice("This construct", "3.4-migration", "");
-        let msg = format!("with as a type operator has been deprecated; use & instead{notice}");
+        let text = format!("with as a type operator has been deprecated; use & instead{notice}");
+        let msg = Message::syntax(3, text);
         self.error_or_migration_warning(
             msg,
             Span::synthetic(with_offset, with_offset + 4),

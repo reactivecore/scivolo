@@ -1,8 +1,17 @@
 scala> val x = )
-1:9: error: expression expected but ')' found
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val x = )
+  |        ^
+  |        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
 
 scala> val i: Int = 12345678901
-1:14: error: number too large
+-- Error: ----------------------------------------------------------------------
+1 |val i: Int = 12345678901
+  |             ^^^^^^^^^^^
+  |             number too large
+1 error found
 
 scala> val x: Int = "a"
 -- unsupported: adaptation

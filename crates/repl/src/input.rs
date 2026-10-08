@@ -5,6 +5,7 @@ use crate::commands::{self, Command};
 use crate::report;
 use syntax::ast::{Ast, NodeId};
 use syntax::config::Config;
+use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
@@ -16,13 +17,23 @@ pub struct Parsed {
     pub stats: Vec<NodeId>,
     /// The settings, with those the input's language imports chose.
     pub cfg: Config,
+    /// The warnings so far.
+    pub diags: Diagnostics,
+}
+
+impl Parsed {
+    /// The lines of the diagnostics so far and `more`, of an input that does not compile.
+    pub fn errors(&mut self, more: Diagnostics, width: usize) -> Vec<String> {
+        self.diags.items.extend(more.items);
+        report::compile_errors(&self.source, &self.diags, width)
+    }
 }
 
 pub enum Input {
     Empty,
     Command(Command),
     Errors(Vec<String>),
-    Stats(Parsed),
+    Stats(Box<Parsed>),
 }
 
 /// Whether `text` ends where more input is expected (dotty's `ParseResult.isIncomplete`).
@@ -37,8 +48,9 @@ pub fn is_incomplete(text: &str) -> bool {
     p.s.diags.is_incomplete()
 }
 
-/// `text` parsed as the input of source `name`, with fresh names from `fresh`.
-pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshNames) -> Input {
+/// `text` parsed as the input of source `name`, with fresh names from `fresh`; errors drawn
+/// `width` columns wide.
+pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshNames, width: usize) -> Input {
     if text.trim().is_empty() {
         return Input::Empty;
     }
@@ -51,14 +63,14 @@ pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshName
     let stats = p.parse_stats();
     *fresh = std::mem::take(&mut p.fresh);
     if p.s.diags.has_errors() {
-        return Input::Errors(report::diagnostics(&source, &p.s.diags));
+        return Input::Errors(report::syntax_errors(&source, &p.s.diags, width));
     }
     if stats.is_empty() {
         return Input::Empty;
     }
-    let (ast, cfg) = (std::mem::take(&mut p.ast), p.s.cfg);
+    let (ast, cfg, diags) = (std::mem::take(&mut p.ast), p.s.cfg, std::mem::take(&mut p.s.diags));
     drop(p);
-    Input::Stats(Parsed { source, ast, stats, cfg })
+    Input::Stats(Box::new(Parsed { source, ast, stats, cfg, diags }))
 }
 
 #[cfg(test)]
@@ -68,7 +80,7 @@ mod tests {
     #[test]
     fn blank_inputs_are_empty() {
         for text in ["", "  \t\n ", "// c", "/* c */ ;"] {
-            let input = classify("t", text, &mut Default::default(), &mut Default::default());
+            let input = classify("t", text, &mut Default::default(), &mut Default::default(), 80);
             assert!(matches!(input, Input::Empty), "{text:?}");
         }
     }

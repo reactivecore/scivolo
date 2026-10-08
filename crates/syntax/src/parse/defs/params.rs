@@ -6,6 +6,7 @@ use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;
 use crate::ast::{List, NodeId, Tree};
 use crate::config::Features;
+use crate::diag::Message;
 use crate::token::Token;
 use crate::token::sets::START_PARAM_TOKENS;
 
@@ -154,13 +155,11 @@ impl Parser<'_> {
             let m = self.ast.modifiers(mods);
             if m.is_one_of(flags::GIVEN_OR_IMPLICIT) {
                 let what = if m.is(flags::GIVEN) { "using" } else { "implicit" };
-                self.syntax_error_span(
-                    format!("repeated parameters are not allowed in a {what} clause"),
-                    span,
-                );
+                let msg = format!("repeated parameters are not allowed in a {what} clause");
+                self.syntax_error_span(Message::syntax(188, msg), span);
             }
             if i + 1 < params.len() {
-                self.syntax_error_span("varargs parameter must come last", span);
+                self.syntax_error_span(Message::syntax(27, "varargs parameter must come last"), span);
             }
         }
     }

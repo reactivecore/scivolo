@@ -2,6 +2,7 @@ use super::super::migration::Migration;
 use super::super::{Location, Parser};
 use crate::ast::modifiers::{Mod, ModKind, Modifiers};
 use crate::ast::{Attrs, NodeId, Span, Tree};
+use crate::diag::Message;
 use crate::names::is_var_pattern_name;
 use crate::token::Token;
 
@@ -47,7 +48,7 @@ impl Parser<'_> {
             _ => {
                 let start = self.last_offset();
                 let at = self.expected_offset();
-                self.syntax_error_or_incomplete("pattern expected", at);
+                self.syntax_error_or_incomplete(Message::syntax(32, "pattern expected"), at);
                 let name = self.term("_");
                 let id = self.ast.node(Tree::Ident { name });
                 let end = self.offset();
@@ -84,8 +85,11 @@ impl Parser<'_> {
                 matches!(self.ast.tree(p), Tree::Ident { .. }) && is_var_pattern_name(&text) && !backquoted;
             if var && text.contains('$') {
                 let shown = if text.len() > 1 { text.strip_suffix('$').unwrap_or(&text) } else { &text };
-                let msg = format!(
-                    "The identifier `{shown}` should not contain `$`, which is reserved for internal compiler use."
+                let msg = Message::syntax(
+                    230,
+                    format!(
+                        "The identifier `{shown}` should not contain `$`, which is reserved for internal compiler use."
+                    ),
                 );
                 let span = self.ast.span(p);
                 self.error_or_migration_warning(msg, span, Migration::IdentifierDollars);

@@ -3,10 +3,18 @@ scala> // only a comment
 scala> /* block */ // and line
 
 scala> :
-1:1: error: Illegal start of statement
+-- [E103] Syntax Error: --------------------------------------------------------
+1 |:
+  |^
+  |Illegal start of statement
+  |
+  | longer explanation available when compiling with `-explain`
 
 scala> import
-1:7: error: an identifier expected, but eof found
+-- [E040] Syntax Error: --------------------------------------------------------
+1 |import
+  |      ^
+  |      an identifier expected, but eof found
 
 scala> import scala.math.{nonexistent}
 -- unsupported: import of a missing member
@@ -36,7 +44,12 @@ scala> val s: S = "a"
 val s: S = "a"
 
 scala> package p
-1:1: error: this kind of statement is not allowed here
+-- [E103] Syntax Error: --------------------------------------------------------
+1 |package p
+  |^^^^^^^
+  |this kind of statement is not allowed here
+  |
+  | longer explanation available when compiling with `-explain`
 
 scala> def boom(): Int = throw new IllegalStateException("boom")
 def boom(): Int
