@@ -2,8 +2,8 @@
 
 use syntax::diag::{Message, MessageId};
 
-fn type_error(code: u16, explained: bool, text: String) -> Message {
-    Message { text, id: Some(MessageId { code, kind: "Type", explained }) }
+fn message(code: u16, kind: &'static str, explained: bool, text: String) -> Message {
+    Message { text, id: Some(MessageId { code, kind, explained }) }
 }
 
 /// `AnonymousFunctionMissingParamType` for parameter `param` of a function written by hand, with
@@ -13,5 +13,11 @@ pub fn missing_parameter_type(param: &str, expected: Option<&str>) -> Message {
         .map_or(String::new(), |e| format!("\nExpected type for the whole anonymous function:\n  {e}"));
     let text =
         format!("Missing parameter type\n\nI could not infer the type of the parameter {param}{expected}");
-    type_error(81, false, text)
+    message(81, "Type", false, text)
+}
+
+/// `MissingIdent` for identifier `name`, a type if `is_type`, with no name to suggest.
+pub fn not_found(name: &str, is_type: bool) -> Message {
+    let kind = if is_type { "type " } else { "" };
+    message(6, "Not Found", true, format!("Not found: {kind}{name}"))
 }

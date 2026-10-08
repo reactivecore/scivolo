@@ -11,7 +11,13 @@ scala> 2
 val res0: Int = 2
 
 scala> x
--- unsupported: unresolved name x
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |x
+  |^
+  |Not found: x
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
 
 scala> def inc(xs: List[Int]) = xs.map(x => x + 2)
 def inc(xs: List[Int]): List[Int]
