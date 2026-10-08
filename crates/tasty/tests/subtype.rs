@@ -233,6 +233,20 @@ fn module_classes_and_this_of_objects_have_the_object_as_atom() {
 }
 
 #[test]
+fn stable_methods_are_atoms() {
+    let Some(mut u) = universe() else { return };
+    let (root, int) = (u.root(), u.class_ref("scala.Int"));
+    let d = define(&mut u, "d", Kind::Def, root, int);
+    u.set_flags(d, Flags::default().with(tasty::tags::STABLE));
+    u.enter(d);
+    let (package, one) = (u.intern_type(Type::Package(root)), parse(&mut u, "1"));
+    let d_ref = u.intern_type(Type::TermRef(package, "d".into()));
+    let d_or_1 = u.intern_type(Type::Or(d_ref, one));
+    let d_sym = u.intern_type(Type::Sym(None, d));
+    assert!(u.is_subtype(d_sym, d_or_1));
+}
+
+#[test]
 fn unions_with_unresolved_parts_compare_by_their_parts() {
     let Some(mut u) = universe() else { return };
     let missing = named_type(&mut u, "oracle.Missing");

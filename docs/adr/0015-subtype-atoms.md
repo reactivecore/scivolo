@@ -25,4 +25,5 @@ never freed.
 ## Consequences
 - An incremental union of N parts interns about N^1.5 distinct union nodes (4.7 million for
   N = 32000), all kept; time grows with them, memory too (1.2 GB for N = 32000).
-- Unions with singletons that are paths are not cached; their atoms are recomputed on use.
+- Unions with a named part (a path, a class, an alias) are not cached; their atoms are
+  recomputed on use.

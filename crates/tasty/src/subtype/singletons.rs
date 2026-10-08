@@ -17,17 +17,18 @@ impl Cmp<'_> {
         };
         match underlying {
             Atoms::Known(r) if self.u.unions().one(&r.hi).is_some() => Atoms::Known(r),
-            Atoms::Unknown if self.is_stable(t) && !self.is_unstable_ref(t) => {
-                Atoms::single(self.normalized(t, depth))
-            }
+            Atoms::Unknown if self.is_stable_ref(t) => Atoms::single(self.normalized(t, depth)),
             other => other.upper(),
         }
     }
 
-    /// Whether `t` refers to a variable, a method that is not stable or a by-name parameter.
-    fn is_unstable_ref(&mut self, t: TypeId) -> bool {
-        let sym = self.named(t).and_then(|n| n.sym);
-        sym.is_some_and(|s| self.u.symbol(s).kind.is_term() && self.is_unstable(s))
+    /// Whether singleton `t` is stable: a term it refers to is no variable, no method that is
+    /// not stable and no by-name parameter.
+    fn is_stable_ref(&mut self, t: TypeId) -> bool {
+        match self.named(t).and_then(|n| n.sym) {
+            Some(s) if self.u.symbol(s).kind.is_term() => !self.is_unstable(s),
+            _ => self.is_stable(t),
+        }
     }
 
     /// The atoms of named type `t`: those below its upper bound, its object for the class of an
