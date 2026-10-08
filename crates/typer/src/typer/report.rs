@@ -31,4 +31,10 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::Error);
         self.tpd.node(T::Ident { name }, span, Some(tpe), None)
     }
+
+    /// Whether the type of tree `t`, widened, is the error type.
+    pub fn is_error(&mut self, t: TNodeId) -> bool {
+        let tpe = self.u.widen(self.tpd.tpe(t));
+        *self.u.types().get(tpe) == Type::Error
+    }
 }

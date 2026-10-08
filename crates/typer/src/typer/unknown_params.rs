@@ -7,7 +7,7 @@ use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
 use tasty::tags::{ABSTRACT, FINAL, OBJECT, SEALED, TRAIT};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether `p` is a parameter without a type.
@@ -136,9 +136,9 @@ impl Typer<'_> {
     }
 
     /// Whether function `id`, typed in `ctx` without an expected type, is where dotty expects
-    /// none either: reached from the right-hand side of the definition being completed through
-    /// blocks, conditionals, cases and function bodies.
-    fn expects_nothing(&self, id: NodeId, ctx: Ctx) -> bool {
+    /// none either: reached from the right-hand side of the definition being completed, one that
+    /// inherits no type, through blocks, conditionals, cases and function bodies.
+    fn expects_nothing(&mut self, id: NodeId, ctx: Ctx) -> bool {
         let mut owner = ctx.owner;
         while self.u.symbol(owner).name == "$anonfun" {
             let Some(o) = self.u.symbol(owner).owner else { return false };
@@ -149,7 +149,20 @@ impl Typer<'_> {
         else {
             return false;
         };
-        self.leads_to(rhs, id)
+        self.inherits_nothing(owner) && self.leads_to(rhs, id)
+    }
+
+    /// Whether `sym` is no default getter and no base class of its owner declares its name.
+    fn inherits_nothing(&mut self, sym: SymbolId) -> bool {
+        let name = self.u.symbol(sym).name.clone();
+        if name.contains("$default$") {
+            return false;
+        }
+        let Some(cls) = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) else {
+            return true;
+        };
+        let bases: Vec<SymbolId> = self.u.linearization(cls).into_iter().skip(1).collect();
+        bases.into_iter().all(|b| self.u.decl(b, &name).is_ok_and(|d| d.is_empty()))
     }
 
     fn leads_to(&self, from: NodeId, id: NodeId) -> bool {

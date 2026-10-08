@@ -16,6 +16,7 @@ impl Typer<'_> {
         self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
+            Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -99,7 +100,7 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
-        let erroneous = typed_args.iter().any(|&a| *self.u.types().get(self.tpd.tpe(a)) == Type::Error);
+        let erroneous = typed_args.iter().any(|&a| self.is_error(a));
         if let Some(elem) = repeated {
             let arg = match seq_arg {
                 Some(a) => self.sequence_arg(a, elem, ctx),
@@ -186,15 +187,5 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// Whether parameter type `p` is by-name or refers to a parameter.
-    pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = false;
-        self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
-            None
-        });
-        special
     }
 }
