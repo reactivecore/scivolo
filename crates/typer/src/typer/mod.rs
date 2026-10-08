@@ -55,6 +55,8 @@ mod type_apply;
 mod type_defs;
 mod type_trees;
 mod unapply;
+mod unapply_results;
+mod unapply_seq;
 mod untupled;
 mod variances;
 mod views;
