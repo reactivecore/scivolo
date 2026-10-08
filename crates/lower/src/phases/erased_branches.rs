@@ -1,6 +1,7 @@
 //! The branches of conditionals, `try`s and switches typed by `Erasure`.
 
 use super::adapt::erased_type;
+use super::casts::type_of;
 use super::erasure::typed;
 use crate::{Lower, Result, unsupported};
 use tasty::Erased;
@@ -70,15 +71,15 @@ pub fn typed_branches(
         }
         let mut lub: Option<tasty::TypeId> = None;
         for class in &classes {
-            let Erased::Class(name) = class else {
+            if !matches!(class, Erased::Class(_)) {
                 return unsupported(l.tpd.span(t), "branches of arrays and other erased classes");
-            };
-            let tpe = l.u.class_ref(name);
+            }
+            let tpe = type_of(l, class);
             lub = Some(match lub {
                 Some(acc) => {
                     let union = l.u.intern_type(tasty::Type::Or(acc, tpe));
-                    let Erased::Class(name) = l.u.erase(union) else { unreachable!("a class lub") };
-                    l.u.class_ref(&name)
+                    let class = l.u.erase(union);
+                    type_of(l, &class)
                 }
                 None => tpe,
             });

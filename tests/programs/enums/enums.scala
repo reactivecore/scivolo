@@ -5,6 +5,10 @@ enum Color:
 enum Planet:
   case Mercury, Venus
 
+object Shapes:
+  enum Shape:
+    case Square, Circle
+
 @main def enums(): Unit =
   println(Color.Green)
   println(Color.Blue.ordinal)
@@ -19,3 +23,4 @@ enum Planet:
     case Color.Red => println("red")
     case Color.Blue => println("blue")
     case _ => println("other")
+  println(Shapes.Shape.fromOrdinal(1))
