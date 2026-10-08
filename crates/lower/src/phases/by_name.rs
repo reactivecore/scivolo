@@ -27,7 +27,7 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
             .iter()
             .enumerate()
             .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-                Some(Type::ByName(_)) => closure(l, a, owner),
+                Some(Type::ByName(result)) => closure(l, a, owner, result),
                 _ => a,
             })
             .collect();
@@ -45,8 +45,13 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
     }
 }
 
-/// The parameter types of the clause the arguments of a call of `fun` are for.
+/// The parameter types of the clause the arguments of a call of `fun` are for, as the call
+/// instantiates them.
 fn formals(l: &mut Lower, mut fun: TNodeId) -> Vec<tasty::TypeId> {
+    let direct = l.u.widen(l.tpd.tpe(fun));
+    if let Type::Method { params, .. } = l.u.types().get(direct) {
+        return params.iter().map(|&(_, p)| p).collect();
+    }
     let mut clause = 0;
     let method = loop {
         match *l.tpd.tree(fun) {
@@ -66,10 +71,11 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> Vec<tasty::TypeId> {
     }
 }
 
-/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the type of `arg`.
-fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId) -> TNodeId {
+/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the by-name
+/// parameter's type `formal`.
+fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
     let span = l.tpd.span(arg);
-    let result = l.u.widen(l.tpd.tpe(arg));
+    let result = l.u.widen(formal);
     let flags = Flags::default().with(SYNTHETIC).with(ARTIFACT);
     let anon = l.u.define(symbol("$anonfun", Kind::Def, owner, flags));
     let binder = l.u.fresh_binder();

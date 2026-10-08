@@ -92,6 +92,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         }
         let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
         l.u.set_flags(sym, flags);
+        if let (Tree::TypeTree { inferred: true }, Some(rhs)) = (l.tpd.tree(tpt), rhs) {
+            let at = l.tpd.span(rhs).start_pos();
+            l.tpd.get_mut(tpt).span = at;
+        }
         let paramss = l.tpd.clauses(&[]);
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
     }

@@ -49,8 +49,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let field_tpt = l.type_tree(info, span);
         let def = Tree::ValDef { name, tpt: field_tpt, rhs };
         stats.push(l.tpd.node(def, span, None, Some(field)));
-        let read_span = rhs.map_or(span, |r| l.tpd.span(r));
-        let read_span = if read_span.exists() { read_span.with_point(read_span.start()) } else { read_span };
+        let tpt_span = l.tpd.span(tpt);
+        let inferred = matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
+        let read_span = match rhs.map(|r| l.tpd.span(r)) {
+            _ if inferred && tpt_span.exists() => tpt_span.end_pos(),
+            Some(r) if r.exists() => r.with_point(r.start()),
+            _ if span.exists() => span.with_point(span.start()),
+            _ => span,
+        };
         let read = match bottom(l, accessor) {
             Some(Erased::Unit) => l.unit_literal(read_span),
             Some(Erased::Null) => l.null_literal(read_span),
