@@ -52,9 +52,8 @@ impl Typer<'_> {
     }
 }
 
-/// Whether the edge from tree `w[0]` to its child `w[1]` leads into a pattern, whose type
-/// variables no scope defines, or to where typing stops after an error, leaving trees dotty
-/// types: the function part of an application, an operand, an assigned variable.
+/// Whether the edge from tree `w[0]` to its child `w[1]` leads into a pattern, the function part
+/// of an application, an operand or an assigned variable.
 fn uncertain_edge(ast: &Ast, w: &[NodeId]) -> bool {
     let child = w[1];
     match *ast.tree(w[0]) {

@@ -3,40 +3,12 @@
 
 use super::Typer;
 use super::imports::ImportEntry;
+use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The root packages of the JDK's modules.
 const JDK_ROOTS: [&str; 8] = ["apple", "com", "java", "javax", "jdk", "netscape", "org", "sun"];
-
-/// The classes of the JDK's `java.lang` (17 to 25), nested ones aside.
-const JAVA_LANG: &str = "AbstractMethodError AbstractStringBuilder Appendable ApplicationShutdownHooks \
-    ArithmeticException ArrayIndexOutOfBoundsException ArrayStoreException AssertionError \
-    AssertionStatusDirectives AutoCloseable BaseVirtualThread Boolean BootstrapMethodError Byte \
-    CharSequence Character CharacterData CharacterData00 CharacterData01 CharacterData02 \
-    CharacterData03 CharacterData0E CharacterDataLatin1 CharacterDataPrivateUse CharacterDataUndefined \
-    CharacterName Class ClassCastException ClassCircularityError ClassFormatError ClassFrameInfo \
-    ClassLoader ClassNotFoundException ClassValue CloneNotSupportedException Cloneable Comparable \
-    Compiler CompoundEnumeration ConditionalSpecialCasing Deprecated Double Enum \
-    EnumConstantNotPresentException Error Exception ExceptionInInitializerError FdLibm Float \
-    FunctionalInterface IO IllegalAccessError IllegalAccessException IllegalArgumentException \
-    IllegalCallerException IllegalMonitorStateException IllegalStateException \
-    IllegalThreadStateException IncompatibleClassChangeError IndexOutOfBoundsException \
-    InheritableThreadLocal InstantiationError InstantiationException Integer InternalError \
-    InterruptedException Iterable LayerInstantiationException LinkageError LiveStackFrame \
-    LiveStackFrameInfo Long MatchException Math Module ModuleLayer NamedPackage \
-    NegativeArraySizeException NoClassDefFoundError NoSuchFieldError NoSuchFieldException \
-    NoSuchMethodError NoSuchMethodException NullPointerException Number NumberFormatException Object \
-    OutOfMemoryError Override Package Process ProcessBuilder ProcessEnvironment ProcessHandle \
-    ProcessHandleImpl ProcessImpl PublicMethods Readable Record ReflectiveOperationException Runnable \
-    Runtime RuntimeException RuntimePermission SafeVarargs ScopedValue SecurityException \
-    SecurityManager Short Shutdown StableValue StackFrameInfo StackOverflowError StackStreamFactory \
-    StackTraceElement StackWalker StrictMath String StringBuffer StringBuilder StringCoding \
-    StringConcatHelper StringIndexOutOfBoundsException StringLatin1 StringTemplate StringUTF16 \
-    SuppressWarnings System Terminator Thread ThreadBuilders ThreadDeath ThreadGroup ThreadLocal \
-    Throwable TypeNotPresentException UnknownError UnsatisfiedLinkError UnsupportedClassVersionError \
-    UnsupportedOperationException VerifyError VersionProps VirtualMachineError VirtualThread Void \
-    WeakPairMap WrongThreadException";
 
 /// The members of `Any`, `AnyRef` and the JDK's `Object`.
 const OBJECT_MEMBERS: &str = "== != ## equals hashCode toString getClass isInstanceOf asInstanceOf eq ne \
@@ -106,11 +78,10 @@ impl Typer<'_> {
         if self.u.symbol(site).kind == Kind::Package {
             if site == self.u.root() {
                 names.extend(JDK_ROOTS.iter().map(|&n| n.to_owned()));
-            } else if full == "java.lang" {
-                names.extend(JAVA_LANG.split_whitespace().map(str::to_owned));
-            } else if is_jdk(&full) {
+            } else if is_jdk(&full) && full != "java.lang" {
                 return None;
             }
+            names.extend(java_classes(&full).map(str::to_owned));
             let decls = self.u.decls(site).ok()?;
             for d in decls {
                 names.push(self.u.symbol(d).name.clone());
@@ -124,7 +95,8 @@ impl Typer<'_> {
         for base in self.u.linearization(site) {
             self.complete(base);
             let full = self.u.full_name(base);
-            if is_jdk(&full) && !KNOWN_JAVA.contains(&&*full) {
+            let unknown_parent = self.u.parents(base).into_iter().any(|p| self.u.class_symbol(p).is_none());
+            if unknown_parent || is_jdk(&full) && !KNOWN_JAVA.contains(&&*full) {
                 return None;
             }
             self.decl_names(base, names)?;
@@ -145,7 +117,7 @@ fn is_jdk(full: &str) -> bool {
 }
 
 /// Whether dotty's `closestTo` keeps candidate `cand` for name `missing`, in UTF-16 units: an edit
-/// distance of at most 3, at most a quarter of both lengths, and below each length.
+/// distance of at most 3, at most a quarter of the summed lengths, and below each length.
 fn close(missing: &[u16], cand: &str) -> bool {
     let cand: Vec<u16> = cand.encode_utf16().collect();
     if cand.len().abs_diff(missing.len()) > 3 {

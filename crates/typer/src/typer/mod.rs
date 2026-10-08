@@ -32,6 +32,7 @@ mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
+mod java_classes;
 mod lift;
 mod literals;
 mod matches;
