@@ -76,6 +76,7 @@ impl Typer<'_> {
                 inst = joined;
             }
             inst = self.without_transparent_traits(inst, hi);
+            inst = self.simplified(inst);
         }
         if self.constraint.soft_lower(v)
             && matches!(self.u.types().get(inst), Type::Or(..))

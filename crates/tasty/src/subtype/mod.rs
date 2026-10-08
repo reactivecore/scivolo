@@ -115,11 +115,23 @@ pub struct Cmp<'a> {
     /// Whether atoms computed since this was last cleared depend on the constraint, on symbols
     /// or on the depth they were reached at.
     provisional: bool,
+    /// How many more steps computing atoms and `Nothing`-ness may take.
+    steps: u32,
 }
+
+/// How many steps computing atoms and `Nothing`-ness may take in one comparison.
+const MAX_STEPS: u32 = 1_000_000;
 
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
-        Cmp { u, vars, frozen: false, depth: 0, pending: FxHashSet::default(), provisional: false }
+        let pending = FxHashSet::default();
+        Cmp { u, vars, frozen: false, depth: 0, pending, provisional: false, steps: MAX_STEPS }
+    }
+
+    /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.
+    fn step(&mut self) -> bool {
+        self.steps = self.steps.saturating_sub(1);
+        self.steps > 0
     }
 
     /// Whether the constraint may only be consulted.

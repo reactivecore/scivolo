@@ -17,4 +17,11 @@ object Main {
   val i: Int | String = if true then 1 else "a"
   val l: List[Int | String] = List(1, "a")
   def m(x: (Dog | Cat) & Animal): String = x.name
+  def c: Boolean = true
+  def n: String = (if c then 1 else 2).toString
+  def o: Int = (try "abc" catch { case _: Exception => "x" }).length
+  def p: Boolean = (if c then 1 else 2) > 0
+  def q(x: Any): Int = x match
+    case y: (Dog | Cat) => y.name.length
+    case _ => 0
 }

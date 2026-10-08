@@ -16,6 +16,7 @@ ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "ref/dotty/tests"
 WORK = ROOT / "tmp/typer/3.9.0"
 DUMP = ROOT / "target/release/typer-dump"
+REPORT_TIMEOUT = 1800
 CORPORA = ("programs", "pos", "neg")
 OUTCOMES = ["passed", "differ", "warnings differ", "rejected", "accepted", "syntax errors", "unsupported",
             "crashed", "skipped"]
@@ -157,8 +158,11 @@ def report(filter_):
         else:
             runnable.append((rel, opts))
     lst = write_list("run.tsv", runnable)
-    out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8",
-                         errors="replace")
+    try:
+        out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8",
+                             errors="replace", timeout=REPORT_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        sys.exit(f"typer-dump did not finish within {REPORT_TIMEOUT} s: a unit hangs")
     actual = split(out.stdout)
     for rel, _ in runnable:
         got = actual.get(rel, "== crash no output")
