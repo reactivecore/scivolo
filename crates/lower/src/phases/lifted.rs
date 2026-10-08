@@ -91,7 +91,8 @@ pub fn lift(
         substitute(l, rhs, &map);
         out.push(def(l, f.def, &methods[i], tpt, rhs));
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
-            out.push(super::adapted::adapted_def(l, f.def, &methods[i], adapted, tpt));
+            let closure = f.closure.unwrap_or(f.def);
+            out.push(super::adapted::adapted_def(l, closure, &methods[i], adapted, tpt));
         }
     }
     Ok((out, deferred))

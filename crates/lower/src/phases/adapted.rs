@@ -23,15 +23,16 @@ pub fn specializable(params: &[Erased], result: &Erased) -> bool {
 }
 
 /// The `$adapted` method calling `method` with its parameters, then `()` boxed if `adapted`
-/// returns an object for a `Unit` result; at the start of `lambda`, of result type tree `tpt`.
+/// returns an object for a `Unit` result; at the start of the lambda's `closure`, of result type
+/// tree `tpt`.
 pub fn adapted_def(
     l: &mut Lower,
-    lambda: TNodeId,
+    closure: TNodeId,
     method: &Method,
     adapted: &Method,
     tpt: TNodeId,
 ) -> TNodeId {
-    let span = from_start(l.tpd.span(lambda));
+    let span = from_start(l.tpd.span(closure));
     let info = l.u.info(adapted.sym);
     let Type::Method { params, result, .. } = l.u.types().get(info).clone() else {
         unreachable!("a method type")

@@ -1,23 +1,28 @@
-//! Arguments to by-name parameters (dotty's `ElimByName`, its calls): `f(e)` for `f(x: => T)`
-//! becomes `f({ def $anonfun(): T = e; closure($anonfun) })`, the closure owned by the
-//! definition the call is in.
+//! dotty's `ElimByName`: `f(e)` for `f(x: => T)` becomes
+//! `f({ def $anonfun(): T = e; closure($anonfun) })`, the closure owned by the definition the
+//! call is in, unless `e` is itself a by-name parameter, passed on as is; any other reference to
+//! a by-name parameter `x` becomes `x.apply()`.
 
 use super::adapt::from_start;
+use super::getters::is_param_accessor;
 use super::walk::children;
 use crate::Lower;
 use crate::definitions::symbol;
+use rustc_hash::FxHashSet;
+use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Wraps the arguments to by-name parameters in class definition `td` in closures.
+/// Rewrites the by-name arguments and references in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    walk(l, td, class, td);
+    walk(l, td, class, td, &mut FxHashSet::default());
 }
 
-/// Wraps the by-name arguments under `t`, `owner` the definition `t` is in.
-fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
+/// Rewrites the by-name arguments and references under `t`, `owner` the definition `t` is in,
+/// except the references in `passed`, which are arguments to by-name parameters.
+fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId, passed: &mut FxHashSet<TNodeId>) {
     if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td {
         return;
     }
@@ -28,6 +33,11 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
             .iter()
             .enumerate()
             .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
+                Some(Type::ByName(_)) if by_name_ref(l, strip_typed(l, a)) => {
+                    let a = strip_typed(l, a);
+                    passed.insert(a);
+                    a
+                }
                 Some(Type::ByName(result)) => {
                     let result = if instantiated { result } else { l.tpd.tpe(a) };
                     closure(l, a, owner, result)
@@ -40,13 +50,59 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
             l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
         }
     }
+    if by_name_ref(l, t) && !passed.contains(&t) {
+        apply_reference(l, t);
+        return;
+    }
     let inner = match (l.tpd.tree(t), l.tpd.sym(t)) {
         (Tree::DefDef { .. } | Tree::ValDef { .. }, Some(s)) => s,
         _ => owner,
     };
     for c in children(l.tpd, t) {
-        walk(l, c, inner, td);
+        walk(l, c, inner, td, passed);
     }
+}
+
+/// Whether `s` is a by-name parameter, of a method or a class (dotty's `exprBecomesFunction`).
+pub fn is_by_name_param(l: &mut Lower, s: SymbolId) -> bool {
+    let param =
+        l.u.symbol(s).kind == Kind::Param || l.u.symbol(s).kind == Kind::Val && is_param_accessor(l, s);
+    let info = l.u.info(s);
+    param && matches!(l.u.types().get(info), Type::ByName(_))
+}
+
+/// Whether `t` refers to a by-name parameter.
+fn by_name_ref(l: &mut Lower, t: TNodeId) -> bool {
+    let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+        return false;
+    };
+    is_by_name_param(l, s)
+}
+
+fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
+    while let Tree::Typed { expr, .. } = *l.tpd.tree(t) {
+        t = expr;
+    }
+    t
+}
+
+/// Makes reference `t` to by-name parameter `x: => T` the call `x.apply()` of type `T`.
+fn apply_reference(l: &mut Lower, t: TNodeId) {
+    let x = l.tpd.sym(t).expect("a by-name parameter");
+    let span = l.tpd.span(t);
+    let info = l.u.info(x);
+    let Type::ByName(result) = *l.u.types().get(info) else { unreachable!("a by-name type") };
+    let n = l.tpd.get(t);
+    let (tree, tpe) = (n.tree.clone(), n.tpe);
+    let qual = l.tpd.node(tree, span, tpe, Some(x));
+    let function = l.u.class_ref("scala.Function0");
+    let class = l.u.class_symbol(function).expect("`Function0`");
+    let apply = l.u.decl(class, "apply").unwrap_or_default();
+    let apply = apply.into_iter().next().expect("`Function0.apply`");
+    let fun = l.select(qual, apply, Span::NONE);
+    let call = l.apply(fun, &[], result, Span::NONE);
+    let call = l.with_span(call, span);
+    l.copy_node(t, call);
 }
 
 /// The parameter types of the clause the arguments of a call of `fun` are for, and whether they
@@ -75,7 +131,8 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     }
 }
 
-/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the widened `formal`.
+/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the widened `formal`,
+/// its target type explicit as dotty's `ByNameFunction`.
 fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
     let span = l.tpd.span(arg);
     let result = l.u.widen(formal);
@@ -96,6 +153,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     let function = l.u.intern_type(Type::Applied(function, vec![result]));
     let meth = l.ident(anon, span);
     let env = l.tpd.list(&[]);
-    let closure = l.tpd.node(Tree::Closure { env, meth, tpt: None }, span.end_pos(), Some(function), None);
+    let target = Some(l.type_tree(function, Span::NONE));
+    let closure = l.tpd.node(Tree::Closure { env, meth, tpt: target }, span.end_pos(), Some(function), None);
     l.block(&[def], closure, span)
 }

@@ -1,7 +1,7 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
 use tasty::tags::{OBJECT, PRIVATE, STATIC, TRAIT};
-use tasty::{Kind, SymbolId, Type, Universe};
+use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
     u.symbol(s).flags.has(tag)
@@ -58,23 +58,6 @@ pub fn is_static(u: &Universe, s: SymbolId) -> bool {
 /// Whether `s` or its owner is Scala Native's `@extern`.
 pub fn is_extern(u: &Universe, s: SymbolId) -> bool {
     u.symbol(s).is_extern || u.symbol(s).owner.is_some_and(|o| u.symbol(o).is_extern)
-}
-
-/// Whether method `m` takes a by-name parameter.
-pub fn has_by_name_params(u: &mut Universe, m: SymbolId) -> bool {
-    let mut t = u.info(m);
-    loop {
-        match u.types().get(t).clone() {
-            Type::Poly { result, .. } => t = result,
-            Type::Method { params, result, .. } => {
-                if params.iter().any(|&(_, p)| matches!(u.types().get(p), Type::ByName(_))) {
-                    return true;
-                }
-                t = result;
-            }
-            _ => return false,
-        }
-    }
 }
 
 /// The class of a package object: `package$` or a source file's `F$package$`.
