@@ -59,6 +59,9 @@ impl Translator<'_, '_> {
         };
         let extractor = extractor.expect("an extractor's symbol");
         let span = self.l.tpd.span(unapp);
+        if self.l.u.symbol(extractor).name == "unapplySeq" {
+            return unsupported(span, "sequence extractors");
+        }
         let owner = self.l.u.symbol(extractor).owner.expect("an extractor's owner");
         let accessors =
             companion_class(self.l.u, owner).map(|c| case_accessors(self.l, c)).unwrap_or_default();
@@ -78,9 +81,6 @@ impl Translator<'_, '_> {
         }
         if self.l.class_of(unapp_type).is_some_and(|c| self.l.u.full_name(c) == "scala.Boolean") {
             return Ok(self.add(Plan::Test { test: Test::Guard, scrutinee: unapp, span, on_success }));
-        }
-        if self.l.u.symbol(extractor).name == "unapplySeq" {
-            return unsupported(span, "sequence extractors");
         }
         let arity = args.len();
         self.let_abstract(unapp, None, |t, result| {
