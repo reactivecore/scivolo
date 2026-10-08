@@ -2,7 +2,8 @@
 //! selectors, `get` of an `isEmpty`/`get` result, Boolean results.
 
 use super::Typer;
-use tasty::{Type, TypeId};
+use crate::symbols::Completion;
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
@@ -66,8 +67,25 @@ impl Typer<'_> {
         let base = self.resolve_full_name(class, true);
         let t = self.u.widen(t);
         match (self.u.class_symbol(t), base) {
-            (Some(c), Some(b)) => self.u.derives_from(c, b),
+            (Some(c), Some(b)) => {
+                self.complete_bases(c);
+                self.u.derives_from(c, b)
+            }
             _ => false,
+        }
+    }
+
+    /// Completes class `c` and the unit's classes among its base classes.
+    fn complete_bases(&mut self, c: SymbolId) {
+        loop {
+            let pending: Vec<SymbolId> = std::iter::once(c)
+                .chain(self.u.linearization(c))
+                .filter(|s| matches!(self.syms.completions.get(s), Some(Completion::Pending { .. })))
+                .collect();
+            if pending.is_empty() {
+                return;
+            }
+            pending.into_iter().for_each(|s| self.complete(s));
         }
     }
 }
