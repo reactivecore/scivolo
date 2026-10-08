@@ -1,6 +1,6 @@
 //! Whether an alternative applies to arguments of given types (dotty's `isApplicableMethodRef`,
-//! `isCompatible`): by subtyping, closures by their single abstract method, and with implicit
-//! conversions, numeric widenings among them, where nothing applies without.
+//! `isCompatible`): by subtyping and numeric widening, closures by their single abstract method,
+//! and with implicit conversions where nothing applies without.
 
 use super::Typer;
 use super::implicits::conversions::Goal;
@@ -21,13 +21,13 @@ impl Typer<'_> {
             Ok(None) => {}
             Err(_) => return None,
         }
-        if !views {
-            return Some(false);
-        }
         if let (Some(a), Some(p)) = (self.value_class(arg), self.value_class(param))
             && super::widening::widens(&a, &p)
         {
             return Some(true);
+        }
+        if !views {
+            return Some(false);
         }
         self.view_exists(arg, param, ctx)
     }

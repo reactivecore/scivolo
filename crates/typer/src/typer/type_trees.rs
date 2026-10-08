@@ -20,7 +20,7 @@ impl Typer<'_> {
                 let tpt = self.typed_type(tpt, ctx);
                 let arg_ids = self.ast.items(args).to_vec();
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
-                let arg_types = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 let tycon = self.tpd.tpe(tpt);
                 if self
                     .tpd
@@ -32,7 +32,16 @@ impl Typer<'_> {
                 if self.type_arity(tycon) != typed_args.len() {
                     return self.unsupported(id, "wrong number of type arguments");
                 }
-                let tpe = self.applied_to(tycon, arg_types);
+                let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
+                    (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
+                    _ => None,
+                };
+                if and_or.is_some() {
+                    for (&a, &t) in arg_ids.iter().zip(&arg_types) {
+                        self.check_simple_kinded(t, a);
+                    }
+                }
+                let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }

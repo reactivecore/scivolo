@@ -101,7 +101,8 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
-        let incoming_union = matches!(u.types().get(lo), Type::Or(..));
+        let widened = u.widen(lo);
+        let incoming_union = matches!(u.types().get(widened), Type::Or(..));
         let (lo, unchecked, soft) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
             (joined, lo, e.soft || joined != e.lo && joined != lo)
         } else if u.is_subtype(lo, e.lo) {

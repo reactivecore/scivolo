@@ -37,7 +37,10 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
         Erased::Array(elem) => format!("{}[]", sig_name(u, t, elem)),
         Erased::Class(binary) => match u.erased_class(t).or_else(|| {
             let widened = u.widen(t);
-            u.erased_class(widened)
+            u.erased_class(widened).or_else(|| {
+                let r = u.class_ref(binary);
+                u.class_symbol(r)
+            })
         }) {
             Some(c) if u.binary_name(c) == *binary => full_name(u, c),
             _ => binary.clone(),

@@ -113,6 +113,29 @@ impl Typer<'_> {
         })
     }
 
+    /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.
+    fn has_abstract_arg(&mut self, t: TypeId) -> bool {
+        let widened = self.u.widen(t);
+        let Type::Applied(_, args) = self.u.types().get(widened).clone() else { return false };
+        let mut found = false;
+        for a in args {
+            self.u.map_type(a, &mut |u, part| {
+                if let Type::Sym(_, s) = *u.types().get(part) {
+                    found |= match u.symbol(s).kind {
+                        tasty::Kind::TypeParam => true,
+                        tasty::Kind::Type => {
+                            let info = u.info(s);
+                            !matches!(u.types().get(info), Type::Alias(_))
+                        }
+                        _ => false,
+                    };
+                }
+                None
+            });
+        }
+        found
+    }
+
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
     /// `sel` if it conforms, else `arg_type` constrained by `sel` and maximized; type variables
     /// from id `vars` on instantiated.
@@ -133,6 +156,9 @@ impl Typer<'_> {
         }
         if !self.conforms(arg_type, sel) {
             self.constraint.rollback(mark);
+            if self.has_abstract_arg(sel) {
+                return Err("pattern constraining type parameters (GADT)");
+            }
         }
         let arg_type = self.zonk(arg_type);
         let variances = self.variances(arg_type, vars);
