@@ -59,6 +59,9 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 let qualifier = typed(l, qualifier, owner.as_ref())?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
+            if l.tpd.sym(fun) == Some(l.defs.array_clone) {
+                l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
+            }
             let params = match array_op(l, fun) {
                 Some((params, _)) => params,
                 None => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),

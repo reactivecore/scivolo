@@ -3,6 +3,7 @@
 pub(crate) mod adapt;
 mod adapted;
 mod array_apply;
+mod array_literals;
 mod bridges;
 mod build;
 mod by_name;
@@ -15,6 +16,7 @@ mod case_members;
 pub(crate) mod casts;
 mod closures;
 mod constructors;
+mod enum_values;
 mod envelope;
 mod erased_branches;
 mod erasure;
@@ -38,6 +40,7 @@ mod mixin;
 mod patmat;
 mod repeated;
 mod returns;
+pub(crate) mod select_static;
 mod sensical;
 mod specialize;
 mod synthetic;
@@ -51,7 +54,7 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
     for &td in &classes {
-        synthetic::add_synthetic_members(l, td)?;
+        synthetic::add_synthetic_members(l, root, td)?;
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
@@ -78,6 +81,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         bridges::transform(l, td, &deferred)?;
     }
     array_apply::transform(l, &classes);
+    for &td in &classes {
+        select_static::transform(l, td);
+    }
     let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
     for &td in &classes {
         mixin::transform(l, td, &unit_classes)?;

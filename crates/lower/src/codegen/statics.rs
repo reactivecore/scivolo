@@ -8,7 +8,7 @@ use crate::symbols::{
     is_static_module, is_trait,
 };
 use crate::{Result, unsupported};
-use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Param, PosId, Type, Val};
+use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use syntax::ast::Span;
 use tasty::tags::{
     FIELDaccessor, INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, STATIC,
@@ -114,5 +114,26 @@ impl Gen<'_, '_> {
         };
         let ty = self.ty(Type::Function(args[1..].to_vec(), ret));
         Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty, body } }
+    }
+
+    /// `static def f(): T = C.f` for static field `f` of type `ty` of object class `c`.
+    pub fn static_getter(&mut self, f: SymbolId, c: SymbolId, ty: nir::TypeId, pos: PosId) -> Defn {
+        self.m = Method::new(None, 0, pos);
+        let entry = self.fresh();
+        self.label(entry, Vec::new());
+        let obj = self.gen_module(c);
+        let name = self.field_name(f);
+        let value = self.emit(Op::Fieldload { ty, obj, name });
+        self.ret(value);
+        let m = std::mem::replace(&mut self.m, Method::new(None, 0, pos));
+        let body = Body {
+            insts: m.buf.insts,
+            positions: m.buf.positions,
+            local_names: Vec::new(),
+            scopes: vec![LexicalScope { id: 0, parent: 0, pos: self.no_pos }],
+        };
+        let name = self.static_member_name(f, Some(c));
+        let fun = self.ty(Type::Function(Vec::new(), ty));
+        Defn { name, attrs: vec![Attr::InlineHint], pos, kind: DefnKind::Define { ty: fun, body } }
     }
 }

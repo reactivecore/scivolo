@@ -4,7 +4,7 @@ use super::Gen;
 use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_private, is_trait};
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
-use tasty::tags::{MACRO, PRIVATE, PROTECTED, STATIC};
+use tasty::tags::{ENUM, MACRO, PRIVATE, PROTECTED, STATIC};
 use tasty::{SymbolId, encode};
 
 /// Classes Scala Native defines under another name, and `Nothing` and `Null`.
@@ -85,7 +85,8 @@ impl Gen<'_, '_> {
         let owner =
             explicit_owner.filter(|&e| e == owner || self.l.u.derives_from(e, owner)).unwrap_or(owner);
         let type_name = self.type_name(owner);
-        let no_forwarders = [PRIVATE, STATIC, PROTECTED, MACRO].iter().any(|&f| has(self.l.u, m, f));
+        let no_forwarders = !has(self.l.u, m, ENUM)
+            && [PRIVATE, STATIC, PROTECTED, MACRO].iter().any(|&f| has(self.l.u, m, f));
         let owner_name = if is_module_class(self.l.u, owner) && no_forwarders {
             type_name
         } else {

@@ -1,5 +1,5 @@
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
-//! value's right-hand side, none for a class parameter's; a private local value stays a field,
+//! value's right-hand side, none for a class parameter's; a static or private local value stays a field,
 //! none for a class parameter only the constructor uses; an assignment to a variable becomes a
 //! call of its setter.
 
@@ -7,7 +7,7 @@ use super::walk::references;
 use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PARAMsetter, PRIVATE};
+use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PARAMsetter, PRIVATE, STATIC};
 use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -58,6 +58,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         }
         if rhs.is_none() && !is_param_accessor(l, sym) {
             return unsupported(span, "abstract values");
+        }
+        if has(l.u, sym, STATIC) {
+            l.fields.insert(sym, sym);
+            continue;
         }
         let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL);
         if private_local && is_param_accessor(l, sym) && !retained.contains(&sym) {

@@ -1,0 +1,50 @@
+//! dotty's `SelectStatic` for static fields: `qual.f` becomes `f` if `qual` is a path of static
+//! objects, else `{ qual; f }`, without a span; the enclosing tree is copied as dotty's tree
+//! copiers do, which gives it one.
+
+use super::walk::{children, subtrees};
+use crate::Lower;
+use crate::symbols::{has, is_module, is_static};
+use syntax::ast::Span;
+use tasty::tags::STATIC;
+use typer::tpd::{TNodeId, Tree};
+
+pub fn transform(l: &mut Lower, td: TNodeId) {
+    for parent in subtrees(l.tpd, td) {
+        let mut changed = false;
+        for c in children(l.tpd, parent) {
+            let Tree::Select { qualifier, .. } = *l.tpd.tree(c) else { continue };
+            let Some(f) = l.tpd.sym(c).filter(|&f| has(l.u, f, STATIC) && l.fields.contains_key(&f)) else {
+                continue;
+            };
+            let tpe = l.tpd.tpe(c);
+            let r = l.ident(f, Span::NONE);
+            l.tpd.get_mut(r).tpe = Some(tpe);
+            let new = if is_static_owner_ref(l, qualifier) {
+                r
+            } else {
+                let block = l.block(&[qualifier], r, Span::NONE);
+                l.positioned(block)
+            };
+            l.copy_node(c, new);
+            changed = true;
+        }
+        if changed {
+            let span = l.tpd.span(parent);
+            l.tpd.get_mut(parent).span = Span::NONE;
+            l.positioned(parent);
+            l.with_span(parent, span);
+        }
+    }
+}
+
+/// Whether `t` is a path of static objects (dotty's `isStaticOwnerRef`).
+pub fn is_static_owner_ref(l: &mut Lower, t: TNodeId) -> bool {
+    let prefix = match *l.tpd.tree(t) {
+        Tree::Ident { .. } => true,
+        Tree::Select { qualifier, .. } => is_static_owner_ref(l, qualifier),
+        _ => false,
+    };
+    let Some(s) = l.tpd.sym(t).filter(|&s| prefix && is_module(l.u, s)) else { return false };
+    l.u.module_class(s).is_some_and(|c| is_static(l.u, c))
+}

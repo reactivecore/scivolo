@@ -31,9 +31,12 @@ pub struct CaseClasses {
     /// `IndexOutOfBoundsException` and its constructor taking an `Int`.
     pub ioobe: SymbolId,
     pub ioobe_ctor: SymbolId,
-    /// `deriving.Mirror.Product`, `deriving.Mirror.Singleton`.
+    /// `deriving.Mirror.Product`, `deriving.Mirror.Singleton`, `deriving.Mirror.Sum`.
     pub mirror_product: SymbolId,
     pub mirror_singleton: SymbolId,
+    pub mirror_sum: SymbolId,
+    /// `reflect.Enum.ordinal`.
+    pub enum_ordinal: SymbolId,
 }
 
 impl CaseClasses {
@@ -94,6 +97,12 @@ impl CaseClasses {
             ioobe_ctor: with_params(u, ioobe, "<init>", 1).and_then(|c| int_param(u, ioobe, c))?,
             mirror_product: member(u, mirror_class, "Product", Kind::Class)?,
             mirror_singleton: member(u, mirror_class, "Singleton", Kind::Class)?,
+            mirror_sum: member(u, mirror_class, "Sum", Kind::Class)?,
+            enum_ordinal: {
+                let reflect = package(u, "scala.reflect")?;
+                let enum_ = member(u, reflect, "Enum", Kind::Class)?;
+                member(u, enum_, "ordinal", Kind::Def)?
+            },
         })
     }
 }

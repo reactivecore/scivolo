@@ -50,6 +50,9 @@ pub struct Definitions {
     pub scala_run_time: SymbolId,
     /// `Any.asInstanceOf`.
     pub as_instance_of: SymbolId,
+    /// `Array.clone` and the `Object.clone` erasure calls instead.
+    pub array_clone: SymbolId,
+    pub object_clone: SymbolId,
 }
 
 /// The primitive value classes of package `scala` and their erased letters.
@@ -102,6 +105,11 @@ impl Definitions {
             sequences: Sequences::new(u)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
+            array_clone: {
+                let array = member(u, scala, "Array", Kind::Class)?;
+                member(u, array, "clone", Kind::Def)?
+            },
+            object_clone: member(u, b.object, "clone", Kind::Def)?,
         })
     }
 

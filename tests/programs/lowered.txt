@@ -37,3 +37,4 @@ lazyvals
 arrows
 localclasses
 listliterals
+enums

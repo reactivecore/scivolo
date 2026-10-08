@@ -9,8 +9,8 @@ const MAX_ALIASES: u32 = 64;
 
 impl Universe {
     /// `t` with references resolved to their symbols, prefixes of classes and type parameters
-    /// dropped, aliases and applied type lambdas expanded, annotations removed and `ImpureX`
-    /// read as `X`.
+    /// dropped, aliases (an abstract type's in its prefix) and applied type lambdas expanded,
+    /// annotations removed and `ImpureX` read as `X`.
     pub fn normalize(&mut self, t: TypeId) -> TypeId {
         self.normalize_within(t, MAX_ALIASES)
     }
@@ -41,19 +41,33 @@ impl Universe {
                 match u.symbol(s).kind {
                     Kind::Class | Kind::TypeParam => Some(u.intern_type(Type::Sym(None, s))),
                     Kind::Type => {
-                        let info = u.info(s);
-                        match u.types().get(info).clone() {
-                            Type::Alias(a) if !matches!(u.types().get(a), Type::Lambda { .. }) => {
-                                Some(u.normalize_within(a, depth))
+                        let a = match u.alias(s) {
+                            Some(a) => a,
+                            None => {
+                                let Type::Sym(Some(prefix), _) = u.types().get(x).clone() else {
+                                    return None;
+                                };
+                                let name = u.symbol(s).name.clone();
+                                let member = u.resolve(prefix, &name, true).filter(|&m| m != s)?;
+                                u.alias(member)?
                             }
-                            _ => None,
-                        }
+                        };
+                        Some(u.normalize_within(a, depth))
                     }
                     _ => None,
                 }
             }
             _ => None,
         })
+    }
+
+    /// The type type alias `s` stands for, unless a type lambda.
+    fn alias(&mut self, s: SymbolId) -> Option<TypeId> {
+        let info = self.info(s);
+        match self.types().get(info) {
+            &Type::Alias(a) if !matches!(self.types().get(a), Type::Lambda { .. }) => Some(a),
+            _ => None,
+        }
     }
 
     /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type
