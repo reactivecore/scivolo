@@ -9,9 +9,20 @@ use crate::{SymbolId, Universe};
 const MAX_UNWRAP: u32 = 16;
 
 impl Universe {
-    /// The erasure of `a & b`: the erasure of the side first in dotty's `compareErasedGlb`.
+    /// The erasure of `a & b`: of the other side if one is `caps.Pure`, else of the side first in
+    /// dotty's `compareErasedGlb`.
     pub fn erase_and(&mut self, a: TypeId, b: TypeId) -> Erased {
-        let first = if self.glb_prefers(a, b) { a } else { b };
+        let pure = |u: &mut Self, t| {
+            let t = u.dealias(t);
+            u.class_symbol(t).is_some_and(|c| u.full_name(c) == "scala.caps.Pure")
+        };
+        let first = if pure(self, a) {
+            b
+        } else if pure(self, b) || self.glb_prefers(a, b) {
+            a
+        } else {
+            b
+        };
         self.erase(first)
     }
 
@@ -49,11 +60,17 @@ impl Universe {
         match e {
             Erased::Array(_) => 0,
             Erased::Prim(_) | Erased::Unit => 1,
-            Erased::Class(c) if c == OBJECT => 4,
-            Erased::Class(_) => match self.erased_class(t) {
-                Some(s) if self.symbol(s).flags.has(TRAIT) => 3,
-                _ => 2,
-            },
+            Erased::Class(c) if c == OBJECT => 2,
+            Erased::Class(name) => {
+                let class = self.erased_class(t).or_else(|| {
+                    let r = self.class_ref(name);
+                    self.class_symbol(r)
+                });
+                match class {
+                    Some(s) if self.symbol(s).flags.has(TRAIT) => 3,
+                    _ => 2,
+                }
+            }
             Erased::Nothing | Erased::Null => 2,
         }
     }

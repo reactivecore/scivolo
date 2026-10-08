@@ -18,7 +18,7 @@ impl Universe {
         let (aw, bw) = (self.super_type(a), self.super_type(b));
         if aw != a || bw != b {
             let (sa, sb) = (self.is_singleton_type(a), self.is_singleton_type(b));
-            let or = |u: &mut Self, x, y| u.intern_type(Type::Or(x, y));
+            let or = |u: &mut Self, x, y| u.lub(x, y);
             let next = if bw == b {
                 or(self, aw, b)
             } else if aw == a {
@@ -87,11 +87,14 @@ impl Universe {
         if self.is_singleton_type(t) {
             return self.widen(t);
         }
-        let Type::Sym(_, s) = *self.types().get(t) else { return t };
+        let Type::Sym(prefix, s) = *self.types().get(t) else { return t };
         if self.symbol(s).kind != Kind::Type {
             return t;
         }
-        let info = self.info(s);
+        let info = match prefix {
+            Some(p) => self.member_info(p, s),
+            None => self.info(s),
+        };
         match *self.types().get(info) {
             Type::Bounds(_, hi) => hi,
             Type::Alias(a) => a,
@@ -104,12 +107,8 @@ impl Universe {
     fn or_base_classes(&mut self, t: TypeId) -> Option<Vec<SymbolId>> {
         match *self.types().get(t) {
             Type::Or(a, b) => {
-                let nothing = Some(self.builtins().nothing);
-                if self.class_symbol(a) == nothing {
-                    return self.or_base_classes(b);
-                }
-                if self.class_symbol(b) == nothing {
-                    return self.or_base_classes(a);
+                if let Some(other) = self.non_bottom_part(a, b) {
+                    return self.or_base_classes(other);
                 }
                 let (xs, ys) = (self.or_base_classes(a)?, self.or_base_classes(b)?);
                 Some(xs.into_iter().filter(|x| ys.contains(x)).collect())
@@ -126,6 +125,9 @@ impl Universe {
     fn or_base_type(&mut self, t: TypeId, c: SymbolId) -> Option<TypeId> {
         match *self.types().get(t) {
             Type::Or(a, b) => {
+                if let Some(other) = self.non_bottom_part(a, b) {
+                    return self.or_base_type(other, c);
+                }
                 let (x, y) = (self.or_base_type(a, c)?, self.or_base_type(b, c)?);
                 self.merged(x, y)
             }
@@ -134,6 +136,22 @@ impl Universe {
                 self.base_type(widened, c)
             }
         }
+    }
+
+    /// The other part of union `a | b` if one part is a bottom type, `Nothing` or `Null`,
+    /// conforming to it.
+    fn non_bottom_part(&mut self, a: TypeId, b: TypeId) -> Option<TypeId> {
+        if self.is_bottom(a) && self.is_subtype(a, b) {
+            return Some(b);
+        }
+        (self.is_bottom(b) && self.is_subtype(b, a)).then_some(a)
+    }
+
+    /// Whether `t` is of class `Nothing` or `Null` (dotty's `isBottomTypeAfterErasure`).
+    fn is_bottom(&mut self, t: TypeId) -> bool {
+        let widened = self.widen(t);
+        let c = self.class_symbol(widened);
+        c.is_some_and(|c| c == self.builtins().nothing || self.full_name(c) == "scala.Null")
     }
 
     /// Applications `x` and `y` of the same class merged, their arguments joined by variance
@@ -163,6 +181,12 @@ impl Universe {
                 Some(self.intern_type(Type::Applied(t1, args)))
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
+            (Type::Sym(..) | Type::TypeRef(..), Type::Sym(..) | Type::TypeRef(..)) => {
+                let c = self.class_symbol(x)?;
+                let static_class = self.symbol(c).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
+                (static_class && self.class_symbol(y) == Some(c) && self.type_params(c).is_empty())
+                    .then_some(x)
+            }
             _ => None,
         }
     }

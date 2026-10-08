@@ -62,15 +62,10 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// `t` without `@uncheckedVariance` annotations (dotty's `TypeOps.simplify` of a term's type).
+    /// `t` without `@uncheckedVariance` annotations, its unions and intersections the lubs and
+    /// glbs of their parts (dotty's `TypeOps.simplify` of a term's type).
     pub fn simplified(&mut self, t: TypeId) -> TypeId {
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Annotated(inner, annot) = *u.types().get(part) else { return None };
-            let class = u.class_symbol(annot);
-            class
-                .is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
-                .then_some(inner)
-        })
+        simplify(self.u, t)
     }
 
     /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
@@ -129,4 +124,24 @@ impl Typer<'_> {
         });
         if again { self.normalized(out) } else { out }
     }
+}
+
+fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        Type::Annotated(inner, annot) => {
+            let class = u.class_symbol(annot);
+            class
+                .is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
+                .then(|| simplify(u, inner))
+        }
+        Type::Or(a, b) => {
+            let (a, b) = (simplify(u, a), simplify(u, b));
+            Some(u.lub(a, b))
+        }
+        Type::And(a, b) => {
+            let (a, b) = (simplify(u, a), simplify(u, b));
+            Some(u.glb(a, b))
+        }
+        _ => None,
+    })
 }

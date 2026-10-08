@@ -4,7 +4,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{NodeId, TName, Tree};
+use syntax::ast::{NodeId, Span, TName, Tree};
 use syntax::names::is_var_pattern_name;
 use tasty::{Kind, Type, TypeId};
 
@@ -14,9 +14,14 @@ impl Typer<'_> {
             && let Tree::Ident { name } = *self.ast.tree(expr)
             && self.is_var_pattern(expr, self.text(name.name))
         {
+            let (outer, inner) = (self.ast.span(id), self.ast.span(tpt));
+            let parens = outer.end().saturating_sub(inner.end());
+            let start = inner.start().saturating_sub(parens);
             let wild = TName { name: self.name("_"), is_type: false };
             let wild = self.ast.node(Tree::Ident { name: wild });
+            self.ast.with_span(wild, Span::at(start));
             let typed = self.ast.node(Tree::Typed { expr: wild, tpt });
+            self.ast.with_span(typed, Span::synthetic(start, outer.end()));
             let mods = self.ast.mods(Modifiers::default());
             let bind = self.ast.node(Tree::Bind { name, body: typed, mods });
             self.ast.with_span(bind, self.ast.span(id));
@@ -24,7 +29,7 @@ impl Typer<'_> {
         }
         let tpt = self.typed_type(tpt, ctx.with_mode(Mode::NONE));
         let tpe = self.tpd.tpe(tpt);
-        if ctx.mode.is(Mode::PATTERN) && !self.is_checkable_class_type(tpe) {
+        if ctx.mode.is(Mode::PATTERN) && !self.is_checkable_type(tpe) {
             return self.unsupported(id, "type pattern needing a type test or type binding");
         }
         let expr = self.typed(expr, Pt::Type(tpe), ctx);
@@ -69,6 +74,14 @@ impl Typer<'_> {
     /// Whether `t` is a class type, possibly applied, without wildcard arguments.
     pub fn is_checkable_class_type(&mut self, t: TypeId) -> bool {
         self.is_class_type(t, false)
+    }
+
+    /// Whether `t` is a checkable class type or a union or intersection of them.
+    fn is_checkable_type(&mut self, t: TypeId) -> bool {
+        match *self.u.types().get(t) {
+            Type::And(a, b) | Type::Or(a, b) => self.is_checkable_type(a) && self.is_checkable_type(b),
+            _ => self.is_checkable_class_type(t),
+        }
     }
 
     /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.

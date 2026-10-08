@@ -99,16 +99,7 @@ impl Typer<'_> {
         let seq = crate::defn::type_ref(self.u, seq_class);
         let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
         let expr = self.typed(expr, super::Pt::Type(seq), ctx);
-        let mut callee = match *self.tpd.tree(expr) {
-            T::Apply { fun, .. } => Some(fun),
-            _ => None,
-        };
-        while let Some(T::TypeApply { fun, .. }) = callee.map(|c| self.tpd.tree(c).clone()) {
-            callee = Some(fun);
-        }
-        let converted = callee
-            .and_then(|c| self.tpd.sym(c))
-            .is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::IMPLICIT));
+        let converted = self.converted_result(expr);
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
         if converted
@@ -127,6 +118,31 @@ impl Typer<'_> {
         let repeated = self.repeated_type(args[0]);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
         self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
+    }
+
+    /// Whether `tree`, or a result of it (a branch, a case, a block's expression), is an implicit
+    /// conversion.
+    fn converted_result(&self, tree: TNodeId) -> bool {
+        match self.tpd.tree(tree).clone() {
+            T::Apply { mut fun, .. } => {
+                while let T::TypeApply { fun: f, .. } = *self.tpd.tree(fun) {
+                    fun = f;
+                }
+                self.tpd.sym(fun).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::IMPLICIT))
+            }
+            T::If { thenp, elsep, .. } => self.converted_result(thenp) || self.converted_result(elsep),
+            T::Block { expr, .. } | T::Typed { expr, .. } => self.converted_result(expr),
+            T::Match { cases, .. } => self.converted_case(cases),
+            T::Try { expr, cases, .. } => self.converted_result(expr) || self.converted_case(cases),
+            _ => false,
+        }
+    }
+
+    fn converted_case(&self, cases: crate::tpd::List) -> bool {
+        self.tpd.items(cases).iter().any(|&c| match *self.tpd.tree(c) {
+            T::CaseDef { body, .. } => self.converted_result(body),
+            _ => false,
+        })
     }
 
     /// Arguments `elems` of element type `elem` passed to a repeated parameter, at `span` if

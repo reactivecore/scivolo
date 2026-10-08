@@ -8,7 +8,7 @@ impl Cmp<'_> {
     /// Whether `t`, reached in `depth` steps that are not unions or intersections, has class
     /// symbol `Nothing`; `None` for a type this comparison does not decide it for.
     pub fn is_nothing(&mut self, t: TypeId, depth: u32) -> Option<bool> {
-        if depth >= MAX_DEPTH {
+        if depth >= MAX_DEPTH || !self.step() {
             self.provisional = true;
             return None;
         }

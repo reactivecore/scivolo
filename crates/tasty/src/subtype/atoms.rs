@@ -67,7 +67,7 @@ impl Cmp<'_> {
 
     /// The atoms of `t`, reached in `depth` steps that are not unions.
     pub fn atoms_at(&mut self, t: TypeId, depth: u32) -> Atoms {
-        if depth >= MAX_DEPTH {
+        if depth >= MAX_DEPTH || !self.step() {
             self.provisional = true;
             return Atoms::Unmodelled;
         }

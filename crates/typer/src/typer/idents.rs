@@ -80,6 +80,9 @@ impl Typer<'_> {
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
         if !self.prefix_is_elidable(tpe, ctx) {
+            if name.is_type {
+                return self.type_tree(tpe, span, false);
+            }
             if let Some(this) = self.module_this(sym, span, ctx) {
                 return this;
             }

@@ -153,8 +153,10 @@ impl Typer<'_> {
             && !matches!(self.tpd.tree(last), T::Closure { .. })
         {
             let last = self.ascribed(last, tpe);
-            return self.tpd.node(T::Block { stats, expr: last }, span, Some(tpe), None);
+            let last_tpe = self.tpd.tpe(last);
+            return self.tpd.node(T::Block { stats, expr: last }, span, Some(last_tpe), None);
         }
+        let tpe = self.simplified(tpe);
         let tpt = self.type_tree(tpe, span.end_pos(), true);
         self.tpd.node(T::Typed { expr, tpt }, span.to_synthetic(), Some(tpe), None)
     }

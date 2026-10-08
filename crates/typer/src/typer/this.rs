@@ -52,8 +52,17 @@ impl Typer<'_> {
     /// Whether a reference of type `tpe` from `ctx` can be an identifier, its prefix implicit.
     pub fn prefix_is_elidable(&mut self, tpe: TypeId, ctx: Ctx) -> bool {
         let Type::Sym(prefix, sym) = *self.u.types().get(tpe) else { return true };
-        if self.is_type_symbol(sym) || self.u.symbol(sym).flags.has(STATIC) {
+        if self.u.symbol(sym).flags.has(STATIC) {
             return true;
+        }
+        if self.is_type_symbol(sym) {
+            return match prefix.map(|p| self.u.types().get(p).clone()) {
+                Some(Type::Sym(_, s)) => {
+                    self.u.symbol(s).flags.has(tasty::tags::OBJECT) && self.is_static_term(s)
+                }
+                Some(Type::TermRef(..)) => false,
+                _ => true,
+            };
         }
         self.term_prefix_is_elidable(prefix, sym, ctx)
     }

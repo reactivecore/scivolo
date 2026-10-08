@@ -2,7 +2,9 @@
 
 mod access;
 mod adapt;
+mod ahead;
 mod alternatives;
+mod and_or_types;
 mod anon_classes;
 mod applicability;
 mod apply;
@@ -34,6 +36,7 @@ mod infer;
 mod lift;
 mod literals;
 mod matches;
+mod members;
 mod named_args;
 mod names;
 mod no_inits;
@@ -131,7 +134,7 @@ impl<'a> Typer<'a> {
         syms.throw_method = syms.throw_method.or_else(|| entered(u, ops?, "throw", Kind::Def));
         syms.repeated_class =
             syms.repeated_class.or_else(|| entered(u, defn.scala, "<repeated>", Kind::Class));
-        Ok(Typer {
+        let mut typer = Typer {
             u,
             ast,
             names,
@@ -151,31 +154,9 @@ impl<'a> Typer<'a> {
             protos: Vec::new(),
             unsupported: None,
             depth: 0,
-        })
-    }
-
-    /// Records `typed` as the tree of `id` typed ahead in `ctx`.
-    pub fn typed_ahead(&mut self, id: NodeId, typed: TNodeId, ctx: Ctx) {
-        let entries = self.ahead.entry(id).or_default();
-        entries.retain(|&(owner, _)| owner != ctx.owner);
-        entries.push((ctx.owner, typed));
-    }
-
-    /// The tree typed for `id` ahead of typing it with the owner of `ctx`, or the typed tree it
-    /// stands for.
-    pub fn ready(&mut self, id: NodeId, ctx: Ctx) -> Option<TNodeId> {
-        if let Some(entries) = self.ahead.get_mut(&id)
-            && let Some(i) = entries.iter().position(|&(owner, _)| owner == ctx.owner)
-        {
-            let (_, t) = entries.remove(i);
-            if entries.is_empty() {
-                self.ahead.remove(&id);
-            }
-            return Some(t);
-        }
-        let &t = self.splices.get(&id)?;
-        self.tpd.get_mut(t).span = self.ast.span(id);
-        Some(t)
+        };
+        typer.enter_and_or();
+        Ok(typer)
     }
 
     pub fn typed(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -191,10 +172,7 @@ impl<'a> Typer<'a> {
         if let Err(what) = self.interpolate(tree, vars) {
             self.unsupported(id, what);
         }
-        if let Some(t) = self.tpd.get(tree).tpe {
-            let t = self.zonk(t);
-            self.tpd.get_mut(tree).tpe = Some(t);
-        }
+        self.settle_type(tree, ctx);
         let tree = self.adapt(tree, pt, ctx);
         self.depth -= 1;
         tree

@@ -60,6 +60,7 @@ impl Typer<'_> {
         let (lo, hi) = self.constraint.bounds(v);
         let (lo, hi) = (self.zonk(lo), self.zonk(hi));
         let mut inst = if from_below { lo } else { hi };
+        inst = self.simplified(inst);
         if from_below && !self.is_singleton(hi) {
             let widened = self.widen_singleton(inst);
             if self.conforms(widened, hi) {
@@ -75,8 +76,12 @@ impl Typer<'_> {
                 inst = joined;
             }
             inst = self.without_transparent_traits(inst, hi);
+            inst = self.simplified(inst);
         }
-        if matches!(self.u.types().get(inst), Type::Or(..)) {
+        if self.constraint.soft_lower(v)
+            && matches!(self.u.types().get(inst), Type::Or(..))
+            && self.u.join(inst).is_none_or(|j| self.conforms(j, hi))
+        {
             return Err("type variable instantiated to a union");
         }
         let mut cyclic = false;

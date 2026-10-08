@@ -31,6 +31,13 @@ impl Typer<'_> {
         let sym = self.syms.by_tree.get(&id).copied();
         if let Some(s) = sym {
             self.complete(s);
+            let info = self.u.info(s);
+            if self.u.symbol(s).kind == tasty::Kind::Type
+                && let Type::Bounds(lo, hi) = *self.u.types().get(info)
+                && !self.u.is_subtype(lo, hi)
+            {
+                return self.unsupported(id, "type member with conflicting bounds");
+            }
         }
         let rhs = self.typed_type(rhs, ctx);
         let span = self.ast.span(id);
