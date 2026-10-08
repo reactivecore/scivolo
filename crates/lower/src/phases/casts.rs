@@ -109,7 +109,9 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Option<
     let owner = l.u.symbol(l.tpd.sym(sel)?).owner.filter(|&o| is_class(l.u, o))?;
     let name = l.u.full_name(owner);
     if name == "scala.Array" {
-        return None;
+        let array = l.u.widen(l.tpd.tpe(qualifier));
+        let e = l.u.erase(array);
+        return matches!(e, Erased::Array(_)).then_some(e);
     }
     let jdk = name.starts_with("java.") || name.starts_with("javax.");
     let hidden =

@@ -23,8 +23,10 @@ object A:
     val d = new Array[Double](2)
     d.update(1, 2.5)
     d(0) + d(1)
+  def id[T](a: Array[T]): Array[T] = a
 
 @main def arrays(): Unit =
   println(A.sum(A.fill(5)))
   println(A.first(A.strings(3)))
   println(A.doubles())
+  println(A.id(A.strings(2)).length)
