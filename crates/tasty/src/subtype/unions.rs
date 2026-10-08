@@ -151,9 +151,8 @@ impl Unions {
         let (na, nb) = (self.items(&pa).len(), self.items(&pb).len());
         let all = self.concat(&pa, &pb);
         let t = match all {
-            _ if na.abs_diff(nb) <= 1 => u.intern_type(Type::Or(a, b)),
-            List::Shared(i, n) => self.built(u, i, 0, n),
-            List::Own(_) => unreachable!("concat shares its result"),
+            List::Shared(i, n) if na.abs_diff(nb) > 1 => self.built(u, i, 0, n),
+            _ => u.intern_type(Type::Or(a, b)),
         };
         self.parts.entry(t).or_insert(all);
         t
