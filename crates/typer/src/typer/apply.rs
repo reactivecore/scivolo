@@ -99,7 +99,7 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
-        let span = self.ast.span(id);
+        let erroneous = typed_args.iter().any(|&a| *self.u.types().get(self.tpd.tpe(a)) == Type::Error);
         if let Some(elem) = repeated {
             let arg = match seq_arg {
                 Some(a) => self.sequence_arg(a, elem, ctx),
@@ -121,9 +121,9 @@ impl Typer<'_> {
         while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
             callee = fun;
         }
-        let callee_tpe = self.tpd.tpe(callee);
         let partial = matches!(self.u.types().get(result), Type::Method { .. });
-        let tpe = match self.u.types().get(callee_tpe).clone() {
+        let tpe = match self.u.types().get(self.tpd.tpe(callee)).clone() {
+            _ if erroneous => self.u.intern_type(Type::Error),
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
@@ -136,7 +136,7 @@ impl Typer<'_> {
             _ => self.simplified(result),
         };
         let args = self.tpd.list(&typed_args);
-        let apply = self.tpd.node(T::Apply { fun: f, args }, span, Some(tpe), None);
+        let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
         match self.widen_enum_case(apply, method, pt) {
             Ok(tree) => self.wrap_defs(lifted, tree),

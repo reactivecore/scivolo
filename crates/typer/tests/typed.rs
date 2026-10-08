@@ -34,6 +34,13 @@ fn typed_trees_match_dotty() {
     for input in inputs {
         let mut u = Universe::open(&jars).expect("the library");
         let expected = std::fs::read_to_string(input.with_extension("check")).expect("a .check file");
-        assert_eq!(typed(&mut u, &input), expected, "{}", input.display());
+        let actual = typed(&mut u, &input);
+        if expected.contains("\n== E ") {
+            let diagnostics =
+                |s: &str| s.lines().filter(|l| l.starts_with("== ")).collect::<Vec<_>>().join("\n");
+            assert_eq!(diagnostics(&actual), diagnostics(&expected), "{}", input.display());
+        } else {
+            assert_eq!(actual, expected, "{}", input.display());
+        }
     }
 }

@@ -40,11 +40,15 @@ def main(files):
     expected, actual = records(oracle.stdout), records(ours_out)
     for p in paths:
         e, errors = expected.get(p, ("== no oracle output", []))
-        r, _ = actual.get(p, ("== no output (crash or timeout)", []))
+        r, our_errors = actual.get(p, ("== no output (crash or timeout)", []))
         name = Path(p).name
         (WORK / f"{name}.dotty").write_text(e.replace(" (", "\n("))
         (WORK / f"{name}.ours").write_text(r.replace(" (", "\n("))
-        if errors and not r.startswith("=="):
+        if our_errors:
+            verdict = "same errors" if our_errors == errors else "errors differ"
+            print(f"{name}: {verdict}" + "".join(f"\n  ours:  {l[3:]}" for l in our_errors if l not in errors)
+                  + "".join(f"\n  dotty: {l[3:]}" for l in errors if l not in our_errors))
+        elif errors and not r.startswith("=="):
             print(f"{name}: accepted, dotty reports {errors[0][3:]}")
         elif e == r:
             print(f"{name}: same")
