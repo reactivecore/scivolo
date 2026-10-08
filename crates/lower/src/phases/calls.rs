@@ -24,13 +24,16 @@ impl Lower<'_> {
 
     /// `lhs == rhs`, with the `==` of `lhs`'s class taking `rhs`'s class if any, else `Any`'s.
     pub fn equal(&mut self, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
+        let eq = self.operator(lhs, "==", rhs).unwrap_or(self.defs.patmat.any_eq);
+        self.call(lhs, eq, &[rhs])
+    }
+
+    /// The operator `op` of `lhs`'s class taking `rhs`'s class.
+    pub fn operator(&mut self, lhs: TNodeId, op: &str, rhs: TNodeId) -> Option<SymbolId> {
         let class = self.class_of(self.tpd.tpe(lhs));
         let arg = self.class_of(self.tpd.tpe(rhs));
-        let eq = class
-            .and_then(|c| self.u.decl(c, "==").ok())
-            .and_then(|eqs| eqs.into_iter().find(|&m| self.single_param_class(m) == arg))
-            .unwrap_or(self.defs.patmat.any_eq);
-        self.call(lhs, eq, &[rhs])
+        let ops = class.and_then(|c| self.u.decl(c, op).ok())?;
+        ops.into_iter().find(|&m| self.single_param_class(m) == arg)
     }
 
     /// `m(args)` of Java static method `m`.

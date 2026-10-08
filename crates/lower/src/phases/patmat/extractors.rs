@@ -1,6 +1,7 @@
 //! Plans of extractor patterns (dotty's `unapplyPlan`, `matchArgsPlan`): the case accessors of a
 //! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, or the `get` of an
-//! option-like one, each component then matched against its argument pattern.
+//! option-like one, each component then matched against its argument pattern; the sequence an
+//! `unapplySeq` returns (`sequences.rs`).
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
@@ -60,7 +61,13 @@ impl Translator<'_, '_> {
         let extractor = extractor.expect("an extractor's symbol");
         let span = self.l.tpd.span(unapp);
         if self.l.u.symbol(extractor).name == "unapplySeq" {
-            return unsupported(span, "sequence extractors");
+            return self.let_abstract(unapp, None, |t, result| {
+                let result_type = t.l.u.info(result);
+                if !t.is_sequence(result_type) {
+                    return unsupported(span, "sequence extractors not returning a sequence");
+                }
+                t.unapply_seq_plan(result, args, on_success)
+            });
         }
         let owner = self.l.u.symbol(extractor).owner.expect("an extractor's owner");
         let accessors =
@@ -122,7 +129,7 @@ impl Translator<'_, '_> {
     }
 
     /// Binds `components` to fresh variables in turn, then matches them against `args`.
-    fn match_args_plan(
+    pub fn match_args_plan(
         &mut self,
         components: &[TNodeId],
         args: &[TNodeId],

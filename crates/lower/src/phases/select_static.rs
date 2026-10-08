@@ -29,10 +29,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             changed = true;
         }
         if changed {
-            let span = l.tpd.span(parent);
-            l.tpd.get_mut(parent).span = Span::NONE;
-            l.positioned(parent);
-            l.with_span(parent, span);
+            l.recopy(parent);
         }
     }
 }

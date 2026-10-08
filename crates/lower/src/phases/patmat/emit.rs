@@ -94,6 +94,7 @@ impl Translator<'_, '_> {
                 self.l.call(scrutinee, self.l.defs.patmat.ne, &[null])
             }
             Test::NonEmpty => self.non_empty(scrutinee),
+            Test::Length { len, exact } => self.length_test(scrutinee, len, exact),
         };
         self.l.with_span(cond, span)
     }

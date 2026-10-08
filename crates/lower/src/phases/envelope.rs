@@ -31,6 +31,15 @@ impl Lower<'_> {
         t
     }
 
+    /// Copies `t` as dotty's tree copiers do after a child changed: its span recomputed from its
+    /// children, assigning spans to those without, then set back with `with_span`.
+    pub fn recopy(&mut self, t: TNodeId) {
+        let span = self.tpd.span(t);
+        self.tpd.get_mut(t).span = Span::NONE;
+        self.positioned(t);
+        self.with_span(t, span);
+    }
+
     /// The union of `start` and the spans of `t`'s children, assigning spans to those without.
     fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
         let parts = children(self.tpd, t);
