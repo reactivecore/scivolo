@@ -34,6 +34,17 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
+/// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
+/// class the selected member is called on.
+fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
+    let owner = receiver_type(l, sel, qualifier);
+    let qualifier = typed(l, qualifier, None)?;
+    Ok(match owner {
+        Some(owner) => adapt(l, qualifier, &owner),
+        None => qualifier,
+    })
+}
+
 /// `t` with its subtrees typed against their erased expected types, then adapted to `pt`.
 pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> {
     let boolean = Erased::Prim('z');
@@ -55,8 +66,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 }
             }
             if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
-                let owner = receiver_type(l, fun, qualifier);
-                let qualifier = typed(l, qualifier, owner.as_ref())?;
+                let qualifier = typed_qualifier(l, fun, qualifier)?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
             if l.tpd.sym(fun) == Some(l.defs.array_clone) {
@@ -77,14 +87,12 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             Some(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
         }
         Tree::Select { qualifier, name } => {
-            let owner = receiver_type(l, t, qualifier);
-            Some(Tree::Select { qualifier: typed(l, qualifier, owner.as_ref())?, name })
+            Some(Tree::Select { qualifier: typed_qualifier(l, t, qualifier)?, name })
         }
         Tree::TypeApply { fun, .. } if !is_test_or_cast(l, t) => return typed(l, fun, pt),
         Tree::TypeApply { fun, args } => {
             if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
-                let owner = receiver_type(l, fun, qualifier);
-                let qualifier = typed(l, qualifier, owner.as_ref())?;
+                let qualifier = typed_qualifier(l, fun, qualifier)?;
                 l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
             }
             Some(Tree::TypeApply { fun, args })

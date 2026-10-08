@@ -40,3 +40,4 @@ listliterals
 enums
 enumcases
 seqpatterns
+emptyliterals

@@ -7,13 +7,18 @@ use nir::{Op, Type, Val, ValId};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Array literal `t` with elements `elems`: allocated from an array value if all elements are
-    /// constants, not all zero; else allocated, then each element but zeros stored.
-    pub fn gen_array_literal(&mut self, t: TNodeId, elems: List) -> Result<ValId> {
+    /// Array literal `t` with elements `elems` of type `elemtpt`: allocated from an array value if
+    /// all elements are constants, not all zero; else allocated, then each element but zeros
+    /// stored.
+    pub fn gen_array_literal(&mut self, t: TNodeId, elems: List, elemtpt: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let ty = self.gen_type(self.l.tpd.tpe(t));
         let Type::Array { elem, .. } = *self.pool.ty(ty) else {
             return unsupported(span, "a sequence literal that is not an array");
+        };
+        let elem = match self.l.u.erase(self.l.tpd.tpe(elemtpt)) {
+            e @ (tasty::Erased::Nothing | tasty::Erased::Null) => self.erased(&e),
+            _ => elem,
         };
         let elems = self.l.tpd.items(elems).to_vec();
         let mut values = Vec::new();

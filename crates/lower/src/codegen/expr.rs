@@ -32,7 +32,7 @@ impl Gen<'_, '_> {
             Tree::Literal { ref value } => self.gen_literal(t, &value.clone()),
             Tree::ClassLiteral { tpe } => self.gen_class_literal(t, tpe),
             Tree::Select { qualifier, .. } => self.gen_select(t, qualifier),
-            Tree::SeqLiteral { elems, .. } => self.gen_array_literal(t, elems),
+            Tree::SeqLiteral { elems, elemtpt } => self.gen_array_literal(t, elems, elemtpt),
             Tree::TypeApply { fun, .. } => self.gen_cast(t, fun),
             Tree::Closure { env, meth, tpt } => self.gen_closure(t, env, meth, tpt),
             Tree::This { .. } => self.gen_this(t),
