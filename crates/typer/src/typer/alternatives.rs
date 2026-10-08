@@ -124,6 +124,13 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether method `s` takes type or value parameters.
+    pub fn has_params(&mut self, s: SymbolId) -> bool {
+        self.complete(s);
+        let info = self.u.info(s);
+        matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+    }
+
     /// Whether method `s` or a method it overrides has default arguments (dotty's
     /// `hasDefaultParams`).
     pub fn has_defaults(&mut self, s: SymbolId) -> bool {

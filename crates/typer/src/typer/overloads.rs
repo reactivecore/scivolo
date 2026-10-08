@@ -45,8 +45,8 @@ impl Typer<'_> {
         } else {
             0
         };
-        let (pa, va) = self.param_types(a, prefix, false)?;
-        let (pb, vb) = self.param_types(b, prefix, false)?;
+        let (pa, va) = self.rigid_param_types(a, prefix)?;
+        let (pb, vb) = self.rigid_param_types(b, prefix)?;
         let wins_a = (!va || vb) && self.applicable(b, prefix, &pa, views, ctx)?;
         let wins_b = (!vb || va) && self.applicable(a, prefix, &pb, views, ctx)?;
         Some(match owner_score {
