@@ -2,6 +2,7 @@
 //! becomes `f({ def $anonfun(): T = e; closure($anonfun) })`, the closure owned by the
 //! definition the call is in.
 
+use super::adapt::from_start;
 use super::walk::children;
 use crate::Lower;
 use crate::definitions::symbol;
@@ -22,12 +23,15 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
     }
     if let Tree::Apply { fun, args } = *l.tpd.tree(t) {
         let old = l.tpd.items(args).to_vec();
-        let formals = formals(l, fun);
+        let (formals, instantiated) = formals(l, fun);
         let new: Vec<TNodeId> = old
             .iter()
             .enumerate()
             .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-                Some(Type::ByName(result)) => closure(l, a, owner, result),
+                Some(Type::ByName(result)) => {
+                    let result = if instantiated { result } else { l.tpd.tpe(a) };
+                    closure(l, a, owner, result)
+                }
                 _ => a,
             })
             .collect();
@@ -45,12 +49,12 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId) {
     }
 }
 
-/// The parameter types of the clause the arguments of a call of `fun` are for, as the call
-/// instantiates them.
-fn formals(l: &mut Lower, mut fun: TNodeId) -> Vec<tasty::TypeId> {
+/// The parameter types of the clause the arguments of a call of `fun` are for, and whether they
+/// are as the call instantiates them rather than as the method declares them.
+fn formals(l: &mut Lower, mut fun: TNodeId) -> (Vec<tasty::TypeId>, bool) {
     let direct = l.u.widen(l.tpd.tpe(fun));
     if let Type::Method { params, .. } = l.u.types().get(direct) {
-        return params.iter().map(|&(_, p)| p).collect();
+        return (params.iter().map(|&(_, p)| p).collect(), true);
     }
     let mut clause = 0;
     let method = loop {
@@ -65,14 +69,13 @@ fn formals(l: &mut Lower, mut fun: TNodeId) -> Vec<tasty::TypeId> {
         match l.u.types().get(t).clone() {
             Type::Poly { result, .. } => t = result,
             Type::Method { result, .. } if clause > 0 => (t, clause) = (result, clause - 1),
-            Type::Method { params, .. } => return params.into_iter().map(|(_, p)| p).collect(),
-            _ => return Vec::new(),
+            Type::Method { params, .. } => return (params.into_iter().map(|(_, p)| p).collect(), false),
+            _ => return (Vec::new(), false),
         }
     }
 }
 
-/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the by-name
-/// parameter's type `formal`.
+/// `{ def $anonfun(): T = arg; closure($anonfun) }` of type `() => T`, `T` the widened `formal`.
 fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) -> TNodeId {
     let span = l.tpd.span(arg);
     let result = l.u.widen(formal);
@@ -88,7 +91,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
     });
     l.u.set_info(anon, info);
     let tpt = l.type_tree(result, span);
-    let def = l.method_def(anon, &[], tpt, arg, span);
+    let def = l.method_def(anon, &[], tpt, arg, from_start(span));
     let function = l.u.class_ref("scala.Function0");
     let function = l.u.intern_type(Type::Applied(function, vec![result]));
     let meth = l.ident(anon, span);

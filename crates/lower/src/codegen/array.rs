@@ -7,8 +7,9 @@ use nir::{Op, Type, Val, ValId};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Array literal `t` with elements `elems` of type `elemtpt`: allocated from an array value if all elements are
-    /// constants, not all zero; else allocated, then each element but zeros stored.
+    /// Array literal `t` with elements `elems` of type `elemtpt`: allocated from an array value if
+    /// all elements are constants, not all zero; else allocated, then each element but zeros
+    /// stored.
     pub fn gen_array_literal(&mut self, t: TNodeId, elems: List, elemtpt: TNodeId) -> Result<ValId> {
         let span = self.l.tpd.span(t);
         let ty = self.gen_type(self.l.tpd.tpe(t));
