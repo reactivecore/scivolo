@@ -4,6 +4,7 @@
 use super::array_apply::{applied, qualifier_symbol, strip_typed, wrapped_literal};
 use crate::Lower;
 use crate::symbols::is_module;
+use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree};
 
 /// The array literal for `Array.apply` call `t`, if it applies one.
@@ -23,7 +24,8 @@ pub fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
                 std::iter::once(first).chain(l.tpd.items(elems).iter().copied()).collect();
             let elems = l.tpd.list(&all);
             let tpe = l.tpd.tpe(literal);
-            Some(l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, l.tpd.span(literal), Some(tpe), None))
+            let all = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, Some(tpe), None);
+            Some(l.positioned(all))
         }
         _ => None,
     }

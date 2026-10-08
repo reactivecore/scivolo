@@ -25,7 +25,10 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
         }
     }
     for &td in classes {
-        for (t, budget, parent) in walk(l, td, &mut budgets).into_iter().rev() {
+        let trees = walk(l, td, &mut budgets);
+        let parents: FxHashMap<TNodeId, TNodeId> =
+            trees.iter().filter_map(|&(t, _, p)| p.map(|p| (t, p))).collect();
+        for (t, budget, _) in trees.into_iter().rev() {
             if let Some(elems) = seq_elems(l, t).filter(|e| budget > 0 || e.is_empty()) {
                 cons(l, t, &elems);
             } else if let Some(literal) = array_literal(l, t) {
@@ -33,8 +36,10 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             } else {
                 continue;
             }
-            if let Some(parent) = parent {
-                l.recopy(parent);
+            let mut ancestor = parents.get(&t);
+            while let Some(&a) = ancestor {
+                l.recopy(a);
+                ancestor = parents.get(&a);
             }
         }
     }

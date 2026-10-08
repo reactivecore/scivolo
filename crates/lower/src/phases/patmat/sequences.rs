@@ -111,7 +111,8 @@ impl Translator<'_, '_> {
         self.method_named(tpe, name).expect("a sequence method")
     }
 
-    /// The method named `name` of type `tpe`'s class or its bases taking at most an `Int`.
+    /// The method named `name` of type `tpe`'s class or its bases taking one `Int`, or nothing
+    /// for `toSeq`.
     fn method_named(&mut self, tpe: TypeId, name: &str) -> Option<SymbolId> {
         let class = self.l.class_of(tpe)?;
         let int = self.l.u.class_ref("scala.Int");
@@ -122,12 +123,18 @@ impl Translator<'_, '_> {
                     continue;
                 }
                 let info = self.l.u.info(m);
-                let params = match self.l.u.types().get(info) {
-                    Type::Method { params, .. } => params.clone(),
-                    _ => Vec::new(),
+                let (params, result) = match self.l.u.types().get(info) {
+                    Type::Method { params, result, .. } => (params.clone(), *result),
+                    _ => (Vec::new(), info),
                 };
-                let int_param = params.len() == 1 && self.l.u.class_symbol(params[0].1) == int;
-                if params.is_empty() || int_param {
+                if matches!(self.l.u.types().get(result), Type::Method { .. }) {
+                    continue;
+                }
+                let fits = match name {
+                    "toSeq" => params.is_empty(),
+                    _ => params.len() == 1 && self.l.u.class_symbol(params[0].1) == int,
+                };
+                if fits {
                     return Some(m);
                 }
             }
