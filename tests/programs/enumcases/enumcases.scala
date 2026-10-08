@@ -4,6 +4,11 @@ enum Shape:
   case Rect(w: Double, h: Double)
   case Empty
 
+  def area: Double = this match
+    case Circle(r) => 3.0 * r * r
+    case Rect(w, h) => w * h
+    case Empty => 0.0
+
 enum Op(val sym: String):
   case Plus extends Op("+")
   case Minus extends Op("-")
@@ -11,6 +16,8 @@ enum Op(val sym: String):
 @main def enumcases(): Unit =
   val s: Shape = Shape.Rect(2, 3)
   println(s)
+  println(s.area)
+  println(Shape.Circle(2).area)
   println(Shape.Circle(1).ordinal)
   println(Shape.Empty)
   println(Shape.Empty.ordinal)
