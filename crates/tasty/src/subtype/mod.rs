@@ -7,14 +7,19 @@ mod atoms_lub;
 mod binders;
 mod first;
 mod fourth;
+mod glb;
 mod hk;
 mod join;
 mod lub;
+mod nothing;
 mod null;
 mod refined;
 mod refs;
 mod singletons;
 mod third;
+mod unions;
+
+pub use unions::Unions;
 
 use crate::types::{TypeId, VarId};
 use crate::{ANY, NOTHING, Universe};
@@ -107,11 +112,14 @@ pub struct Cmp<'a> {
     frozen: bool,
     depth: u32,
     pending: FxHashSet<(TypeId, TypeId)>,
+    /// Whether atoms computed since this was last cleared depend on the constraint, on symbols
+    /// or on the depth they were reached at.
+    provisional: bool,
 }
 
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
-        Cmp { u, vars, frozen: false, depth: 0, pending: FxHashSet::default() }
+        Cmp { u, vars, frozen: false, depth: 0, pending: FxHashSet::default(), provisional: false }
     }
 
     /// Whether the constraint may only be consulted.

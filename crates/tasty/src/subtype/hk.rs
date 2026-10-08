@@ -35,37 +35,36 @@ impl Cmp<'_> {
     /// `a & b`, or `a | b` if not `and`, rebalanced if one side has more than one part more
     /// than the other (dotty's `AndType.balanced`, `OrType.balanced`).
     fn balanced(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
-        let mut parts = Vec::new();
-        self.flattened(a, and, &mut parts);
-        let left = parts.len();
-        self.flattened(b, and, &mut parts);
-        if left.abs_diff(parts.len() - left) <= 1 {
-            return self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b) });
+        if !and {
+            return self.u.union(a, b);
         }
-        self.built(&parts, and)
+        let mut parts = Vec::new();
+        self.flattened(a, &mut parts);
+        let left = parts.len();
+        self.flattened(b, &mut parts);
+        if left.abs_diff(parts.len() - left) <= 1 {
+            return self.u.intern_type(Type::And(a, b));
+        }
+        self.built(&parts)
     }
 
-    fn flattened(&self, t: TypeId, and: bool, out: &mut Vec<TypeId>) {
+    fn flattened(&self, t: TypeId, out: &mut Vec<TypeId>) {
         match *self.u.types().get(t) {
-            Type::And(x, y) if and => {
-                self.flattened(x, and, out);
-                self.flattened(y, and, out);
-            }
-            Type::Or(x, y) if !and => {
-                self.flattened(x, and, out);
-                self.flattened(y, and, out);
+            Type::And(x, y) => {
+                self.flattened(x, out);
+                self.flattened(y, out);
             }
             _ => out.push(t),
         }
     }
 
-    fn built(&mut self, parts: &[TypeId], and: bool) -> TypeId {
+    fn built(&mut self, parts: &[TypeId]) -> TypeId {
         if let [t] = parts {
             return *t;
         }
         let (x, y) = parts.split_at(parts.len() / 2);
-        let (x, y) = (self.built(x, and), self.built(y, and));
-        self.u.intern_type(if and { Type::And(x, y) } else { Type::Or(x, y) })
+        let (x, y) = (self.built(x), self.built(y));
+        self.u.intern_type(Type::And(x, y))
     }
 
     /// `a <: v[args]` for variable constructor `v` without instance: `v` above the constructor

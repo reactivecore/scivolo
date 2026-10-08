@@ -208,6 +208,89 @@ fn paths_to_one_value_are_one_atom() {
     assert!(!u.is_subtype(o_this, union));
 }
 
+#[test]
+fn module_classes_and_this_of_objects_have_the_object_as_atom() {
+    let Some(mut u) = universe() else { return };
+    let none_class = named_type(&mut u, "scala.None$");
+    let none_or_1 = parse(&mut u, "scala.None.type | 1");
+    assert!(u.is_subtype(none_class, none_or_1));
+    let (root, template) = (u.root(), u.intern_type(Type::Other(tasty::tags::TEMPLATE)));
+    let c = define(&mut u, "C", Kind::Class, root, template);
+    let o_class = define(&mut u, "O$", Kind::Class, c, template);
+    let o_class_ref = u.intern_type(Type::Sym(None, o_class));
+    let o = define(&mut u, "O", Kind::Val, c, o_class_ref);
+    let object = Flags::default().with(tasty::tags::OBJECT);
+    u.set_flags(o_class, object);
+    u.set_flags(o, object);
+    let c_ref = u.intern_type(Type::Sym(None, c));
+    let c_this = u.intern_type(Type::This(c_ref));
+    let o_ref = u.intern_type(Type::Sym(Some(c_this), o));
+    let (one, a_or_1) = (parse(&mut u, "1"), parse(&mut u, "oracle.a.type | 1"));
+    let o_or_1 = u.intern_type(Type::Or(o_ref, one));
+    let o_this = u.intern_type(Type::This(o_class_ref));
+    assert!(u.is_subtype(o_this, o_or_1));
+    assert!(!u.is_subtype(o_this, a_or_1));
+}
+
+#[test]
+fn stable_methods_are_atoms() {
+    let Some(mut u) = universe() else { return };
+    let (root, int) = (u.root(), u.class_ref("scala.Int"));
+    let d = define(&mut u, "d", Kind::Def, root, int);
+    u.set_flags(d, Flags::default().with(tasty::tags::STABLE));
+    u.enter(d);
+    let (package, one) = (u.intern_type(Type::Package(root)), parse(&mut u, "1"));
+    let d_ref = u.intern_type(Type::TermRef(package, "d".into()));
+    let d_or_1 = u.intern_type(Type::Or(d_ref, one));
+    let d_sym = u.intern_type(Type::Sym(None, d));
+    assert!(u.is_subtype(d_sym, d_or_1));
+}
+
+#[test]
+fn unions_with_unresolved_parts_compare_by_their_parts() {
+    let Some(mut u) = universe() else { return };
+    let missing = named_type(&mut u, "oracle.Missing");
+    let one = parse(&mut u, "1");
+    let missing_or_1 = u.intern_type(Type::Or(missing, one));
+    assert!(u.is_subtype(missing, missing_or_1));
+    let (zero, one_or_2) = (parse(&mut u, "0"), parse(&mut u, "1 | 2"));
+    let missing_or_0 = u.intern_type(Type::Or(missing, zero));
+    assert!(!u.is_subtype(missing_or_0, one_or_2));
+}
+
+/// A union of integer constants, its parts parenthesized.
+fn shape(u: &Universe, t: TypeId) -> String {
+    match *u.types().get(t) {
+        Type::Or(x, y) => format!("({}|{})", shape(u, x), shape(u, y)),
+        Type::Constant(_, n) => n.to_string(),
+        _ => panic!("{} is not a union of constants", u.show(t)),
+    }
+}
+
+#[test]
+fn unions_of_constants_grow_balanced_as_in_dotc() {
+    let Some(mut u) = universe() else { return };
+    let dotc = [
+        "1",
+        "(1|2)",
+        "((1|2)|3)",
+        "((1|2)|(3|4))",
+        "((1|2)|(3|(4|5)))",
+        "((1|(2|3))|(4|(5|6)))",
+        "((1|(2|3))|((4|5)|(6|7)))",
+        "(((1|2)|(3|4))|((5|6)|(7|8)))",
+        "(((1|2)|(3|4))|((5|6)|(7|(8|9))))",
+    ];
+    let (mut by_lub, mut by_atoms) = (NOTHING, NOTHING);
+    for (i, expected) in dotc.into_iter().enumerate() {
+        let c = parse(&mut u, &(i + 1).to_string());
+        by_lub = u.lub(by_lub, c);
+        by_atoms = if i == 0 { c } else { u.atoms_lub(by_atoms, c).unwrap() };
+        assert_eq!(shape(&u, by_lub), expected);
+        assert_eq!(by_atoms, by_lub, "{expected}");
+    }
+}
+
 fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeId) -> SymbolId {
     let flags = Flags::default();
     let (target, tree, decls) = (None, None, Vec::new());
@@ -369,8 +452,7 @@ fn lub_and_glb_are_least_and_greatest_among_the_fixture_types() {
                 if sub[i][k] && sub[j][k] && !u.is_subtype(lub, types[k]) {
                     wrong.push(format!("lub of {pair}, {}, is not below {}", u.show(lub), names[k]));
                 }
-                // `Null` is below a nullable singleton but not below a union of intersections
-                // with it, as in dotc.
+                // A union glb is not checked against `Null`.
                 let null = names[k] == "scala.Null" && matches!(u.types().get(glb), Type::Or(..));
                 if sub[k][i] && sub[k][j] && !null && !u.is_subtype(types[k], glb) {
                     wrong.push(format!("glb of {pair}, {}, is not above {}", u.show(glb), names[k]));

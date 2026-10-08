@@ -1,11 +1,66 @@
-//! Singleton types, and their normal forms as atoms.
+//! Singleton types, their normal forms as atoms, and the atoms of singletons and named types.
 
+use super::atoms::Atoms;
+use super::refs::Meaning;
 use super::{Cmp, MAX_DEPTH};
 use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId};
 
 impl Cmp<'_> {
+    /// The atoms of singleton `t`: those of its underlying type if it has just one, else `t`
+    /// normalized if it is stable.
+    pub fn singleton_atoms(&mut self, t: TypeId, depth: u32) -> Atoms {
+        let underlying = match self.u.widen_once(t) {
+            Some(w) => self.atoms_at(w, depth),
+            None => Atoms::Unmodelled,
+        };
+        match underlying {
+            Atoms::Known(r) if self.u.unions().one(&r.hi).is_some() => Atoms::Known(r),
+            Atoms::Unknown if self.is_stable_ref(t) => Atoms::single(self.normalized(t, depth)),
+            other => other.upper(),
+        }
+    }
+
+    /// Whether singleton `t` is stable: a term it refers to is no variable, no method that is
+    /// not stable and no by-name parameter.
+    fn is_stable_ref(&mut self, t: TypeId) -> bool {
+        match self.named(t).and_then(|n| n.sym) {
+            Some(s) if self.u.symbol(s).kind.is_term() => !self.is_unstable(s),
+            _ => self.is_stable(t),
+        }
+    }
+
+    /// The atoms of named type `t`: those below its upper bound, its object for the class of an
+    /// object.
+    pub fn named_atoms(&mut self, t: TypeId, depth: u32) -> Atoms {
+        let Some(n) = self.named(t) else { return Atoms::Unmodelled };
+        match n.meaning {
+            Meaning::Abstract(_, hi) => self.atoms_at(hi, depth).upper(),
+            Meaning::Class(c) if self.u.symbol(c).flags.has(OBJECT) => match self.module_of(c) {
+                Some(m) => {
+                    let module = self.u.intern_type(Type::Sym(n.prefix, m));
+                    Atoms::single(self.normalized(module, depth))
+                }
+                None => Atoms::Unmodelled,
+            },
+            Meaning::Class(_) => Atoms::Unknown,
+            _ => Atoms::Unmodelled,
+        }
+    }
+
+    /// The atoms of `tycon[args]`: those below the upper bound of an abstract `tycon`.
+    pub fn applied_atoms(&mut self, tycon: TypeId, args: &[TypeId], depth: u32) -> Atoms {
+        match self.named(tycon).map(|n| n.meaning) {
+            Some(Meaning::Abstract(_, hi)) => {
+                let upper = self.apply(hi, args);
+                self.atoms_at(upper, depth).upper()
+            }
+            Some(Meaning::Class(_)) => Atoms::Unknown,
+            _ => Atoms::Unmodelled,
+        }
+    }
+
     /// Whether `t` is a path, a `this` or a constant.
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
@@ -73,7 +128,16 @@ impl Cmp<'_> {
     /// The object whose class is `class`, if its owner is static.
     fn static_module(&mut self, class: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(class).owner?;
-        if !self.u.symbol(class).flags.has(OBJECT) || !self.is_static_owner(owner) {
+        if !self.is_static_owner(owner) {
+            return None;
+        }
+        self.module_of(class)
+    }
+
+    /// The object whose class is `class`.
+    fn module_of(&mut self, class: SymbolId) -> Option<SymbolId> {
+        let owner = self.u.symbol(class).owner?;
+        if !self.u.symbol(class).flags.has(OBJECT) {
             return None;
         }
         let name = self.u.symbol(class).name.strip_suffix('$')?.to_owned();
