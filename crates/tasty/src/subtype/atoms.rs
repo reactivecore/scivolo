@@ -1,27 +1,40 @@
 //! The singleton types a type consists of (dotty's `Atoms`), and comparisons decided by them
 //! (`compareAtoms`).
-//! Not modelled: the object as atom of its module class, the bounds of binder-bound type
-//! parameters, match type reduction, the declared bound of a type variable without instance
-//! (its atoms are unknown).
 
-use super::refs::Meaning;
+use super::unions::List;
 use super::{Cmp, MAX_DEPTH};
 use crate::NOTHING;
 use crate::types::{Type, TypeId};
-use rustc_hash::FxHashSet;
 
-/// The singletons a type must (`lo`) and may (`hi`) consist of, as lists with repeats; dotty's
-/// `Atoms.Range`, where `None` stands for `Atoms.Unknown`.
-#[derive(Default)]
+/// The singletons a type must (`lo`) and may (`hi`) consist of, with repeats (dotty's
+/// `Atoms.Range`).
+#[derive(Clone, PartialEq, Debug)]
 pub struct Range {
-    pub lo: Vec<TypeId>,
-    pub hi: Vec<TypeId>,
+    pub lo: List,
+    pub hi: List,
 }
 
-impl Range {
-    /// The atoms of a type only known to be among `self.hi`.
-    fn upper(self) -> Range {
-        Range { lo: Vec::new(), hi: self.hi }
+/// The atoms of a type.
+#[derive(Clone, PartialEq, Debug)]
+pub enum Atoms {
+    Known(Range),
+    /// dotty's `Atoms.Unknown`.
+    Unknown,
+    /// Atoms of a type this comparison does not compute; dotty's may be known.
+    Unmodelled,
+}
+
+impl Atoms {
+    pub fn single(t: TypeId) -> Atoms {
+        Atoms::Known(Range { lo: List::Own(vec![t]), hi: List::Own(vec![t]) })
+    }
+
+    /// The atoms of a type known only to be below one with these atoms.
+    pub fn upper(self) -> Atoms {
+        match self {
+            Atoms::Known(r) => Atoms::Known(Range { lo: List::Own(Vec::new()), hi: r.hi }),
+            other => other,
+        }
     }
 }
 
@@ -30,148 +43,137 @@ impl Cmp<'_> {
     /// `known_singletons` and both are the same single atom; false if `a` must have one `b` may
     /// not; `a <: Nothing` if `a`'s are unknown; `None` otherwise.
     pub fn compare_atoms(&mut self, a: TypeId, b: TypeId, known_singletons: bool) -> Option<bool> {
-        let r2 = self.atoms(b)?;
-        let Some(r1) = self.atoms(a) else { return Some(self.recur(a, NOTHING)) };
-        if subset(&r1.hi, &r2.lo) || known_singletons && one(&r2.hi).is_some() && one(&r1.hi) == one(&r2.hi) {
+        let Atoms::Known(r2) = self.atoms(b) else { return None };
+        let r1 = match self.atoms(a) {
+            Atoms::Known(r1) => r1,
+            Atoms::Unknown => return Some(self.recur(a, NOTHING)),
+            Atoms::Unmodelled => return None,
+        };
+        let us = self.u.unions();
+        let single = known_singletons && us.one(&r2.hi).is_some() && us.one(&r1.hi) == us.one(&r2.hi);
+        if single || us.subset(&r1.hi, &r2.lo) {
             Some(true)
-        } else if !subset(&r1.lo, &r2.hi) {
+        } else if !us.subset(&r1.lo, &r2.hi) {
             Some(false)
         } else {
             None
         }
     }
 
-    /// The atoms of `t`, `None` if unknown (dotty's `Type.atoms`).
-    pub fn atoms(&mut self, t: TypeId) -> Option<Range> {
+    /// The atoms of `t` (dotty's `Type.atoms`).
+    pub fn atoms(&mut self, t: TypeId) -> Atoms {
         self.atoms_at(t, 0)
     }
 
     /// The atoms of `t`, reached in `depth` steps that are not unions.
-    fn atoms_at(&mut self, t: TypeId, depth: u32) -> Option<Range> {
-        let mut r = Range::default();
-        self.add_atoms(t, &mut r, depth).then_some(r)
+    pub fn atoms_at(&mut self, t: TypeId, depth: u32) -> Atoms {
+        if depth >= MAX_DEPTH {
+            self.provisional = true;
+            return Atoms::Unmodelled;
+        }
+        match *self.u.types().get(t) {
+            Type::Constant(..) | Type::Str(_) => Atoms::single(t),
+            Type::Or(x, y) => self.or_atoms(t, x, y, depth),
+            _ => self.own_atoms(t, depth + 1),
+        }
     }
 
-    /// Adds the atoms of `t` to `r`; false if they are unknown.
-    fn add_atoms(&mut self, t: TypeId, r: &mut Range, depth: u32) -> bool {
-        match *self.u.types().get(t) {
-            Type::Constant(..) | Type::Str(_) => {
-                r.lo.push(t);
-                r.hi.push(t);
-                true
-            }
-            Type::Or(x, y) => match (self.is_nothing(x, depth), self.is_nothing(y, depth)) {
-                (true, _) => self.add_atoms(y, r, depth),
-                (_, true) => self.add_atoms(x, r, depth),
-                _ => self.add_atoms(x, r, depth) && self.add_atoms(y, r, depth),
-            },
-            _ if depth < MAX_DEPTH => match self.own_atoms(t, depth + 1) {
-                Some(own) => {
-                    r.lo.extend(own.lo);
-                    r.hi.extend(own.hi);
-                    true
-                }
-                None => false,
-            },
-            _ => false,
+    /// The atoms of union `t = x | y`, cached unless provisional.
+    fn or_atoms(&mut self, t: TypeId, x: TypeId, y: TypeId, depth: u32) -> Atoms {
+        if let Some(cached) = self.u.unions().atoms(t) {
+            return cached;
         }
+        let outer = std::mem::replace(&mut self.provisional, false);
+        let (nx, ny) = (self.is_nothing(x, depth), self.is_nothing(y, depth));
+        let atoms = match (nx, ny) {
+            (Some(true), _) => self.atoms_at(y, depth),
+            (_, Some(true)) => self.atoms_at(x, depth),
+            _ => {
+                let (ax, ay) = (self.atoms_at(x, depth), self.atoms_at(y, depth));
+                let (kept_x, kept_y) = (nx == Some(false), ny == Some(false));
+                if kept_x && kept_y {
+                    self.joined(ax, ay, !self.provisional)
+                } else if (kept_x || ay == Atoms::Unknown) && (kept_y || ax == Atoms::Unknown) {
+                    Atoms::Unknown
+                } else {
+                    Atoms::Unmodelled
+                }
+            }
+        };
+        if !self.provisional {
+            self.u.unions().set_atoms(t, atoms.clone());
+        }
+        self.provisional |= outer;
+        atoms
+    }
+
+    /// The atoms of a union of types with atoms `ax` and `ay`, its lists shared if `share`.
+    pub fn joined(&mut self, ax: Atoms, ay: Atoms, share: bool) -> Atoms {
+        let (rx, ry) = match (ax, ay) {
+            (Atoms::Known(rx), Atoms::Known(ry)) => (rx, ry),
+            (Atoms::Unknown, _) | (_, Atoms::Unknown) => return Atoms::Unknown,
+            _ => return Atoms::Unmodelled,
+        };
+        let us = self.u.unions();
+        let lo = us.joined(&rx.lo, &ry.lo, share);
+        let hi = match rx.lo == rx.hi && ry.lo == ry.hi {
+            true => lo.clone(),
+            false => us.joined(&rx.hi, &ry.hi, share),
+        };
+        Atoms::Known(Range { lo, hi })
     }
 
     /// The atoms of `t`, neither a constant nor a union.
-    fn own_atoms(&mut self, t: TypeId, depth: u32) -> Option<Range> {
-        let t = self.u.dealias(t);
+    fn own_atoms(&mut self, t: TypeId, depth: u32) -> Atoms {
+        let dealiased = self.u.dealias(t);
+        if dealiased != t {
+            self.provisional = true;
+        }
+        let t = dealiased;
         match self.u.types().get(t).clone() {
             Type::Or(..) | Type::Constant(..) | Type::Str(_) => self.atoms_at(t, depth),
             Type::ByName(r) => self.atoms_at(r, depth),
-            Type::Var(v) => self.atoms_at(self.vars.instance(v)?, depth),
-            Type::And(x, y) => match (self.atoms_at(x, depth), self.atoms_at(y, depth)) {
-                (Some(r1), Some(r2)) => {
-                    let lo = r1.lo.iter().copied().filter(members(&r2.lo, r1.lo.len())).collect();
-                    let hi = r1.hi.iter().copied().filter(members(&r2.hi, r1.hi.len())).collect();
-                    Some(Range { lo, hi })
+            Type::Var(v) => {
+                self.provisional = true;
+                match self.vars.instance(v) {
+                    Some(i) => self.atoms_at(i, depth),
+                    None => self.atoms_at(self.vars.bounds(v).1, depth).upper(),
                 }
-                (Some(r), None) | (None, Some(r)) => Some(r.upper()),
-                (None, None) => None,
-            },
-            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) | Type::Match(p) => {
-                Some(self.atoms_at(p, depth)?.upper())
             }
-            _ if self.is_singleton(t) => self.singleton_atoms(t, depth),
-            Type::TypeRef(..) | Type::Sym(..) => match self.named(t)?.meaning {
-                Meaning::Abstract(_, hi) => Some(self.atoms_at(hi, depth)?.upper()),
-                _ => None,
+            Type::And(x, y) => self.and_atoms(x, y, depth),
+            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) => self.atoms_at(p, depth).upper(),
+            Type::Match(p) => match self.atoms_at(p, depth).upper() {
+                Atoms::Known(r) => Atoms::Known(r),
+                _ => Atoms::Unmodelled,
             },
-            Type::Applied(tycon, args) => match self.named(tycon)?.meaning {
-                Meaning::Abstract(_, hi) => {
-                    let upper = self.apply(hi, &args);
-                    Some(self.atoms_at(upper, depth)?.upper())
-                }
-                _ => None,
-            },
-            _ => None,
+            Type::Method { .. } | Type::Poly { .. } | Type::Bounds(..) | Type::Wildcard(_) => Atoms::Unknown,
+            _ if self.is_singleton(t) => {
+                self.provisional = true;
+                self.singleton_atoms(t, depth)
+            }
+            Type::TypeRef(..) | Type::Sym(..) => {
+                self.provisional = true;
+                self.named_atoms(t, depth)
+            }
+            Type::Applied(tycon, args) => {
+                self.provisional = true;
+                self.applied_atoms(tycon, &args, depth)
+            }
+            _ => Atoms::Unmodelled,
         }
     }
 
-    /// The atoms of singleton `t`: those of its underlying type if it has just one, else `t`
-    /// normalized if it is stable.
-    fn singleton_atoms(&mut self, t: TypeId, depth: u32) -> Option<Range> {
-        let underlying = self.u.widen_once(t).and_then(|w| self.atoms_at(w, depth));
-        match underlying {
-            Some(r) if one(&r.hi).is_some() => Some(r),
-            Some(r) => Some(r.upper()),
-            None if self.is_stable(t) => {
-                let atom = self.normalized(t, depth);
-                Some(Range { lo: vec![atom], hi: vec![atom] })
+    /// The atoms of `x & y` (dotty's `Atoms.&`), those of one side's upper bound if the other's
+    /// are not computed.
+    fn and_atoms(&mut self, x: TypeId, y: TypeId, depth: u32) -> Atoms {
+        match (self.atoms_at(x, depth), self.atoms_at(y, depth)) {
+            (Atoms::Known(r1), Atoms::Known(r2)) => {
+                let us = self.u.unions();
+                Atoms::Known(Range { lo: us.common(&r1.lo, &r2.lo), hi: us.common(&r1.hi, &r2.hi) })
             }
-            None => None,
+            (known @ Atoms::Known(_), _) | (_, known @ Atoms::Known(_)) => known.upper(),
+            (Atoms::Unknown, Atoms::Unknown) => Atoms::Unknown,
+            _ => Atoms::Unmodelled,
         }
     }
-
-    /// Whether `t` has class symbol `Nothing` (dotty's `hasClassSymbol(defn.NothingClass)`).
-    fn is_nothing(&mut self, t: TypeId, depth: u32) -> bool {
-        if depth >= MAX_DEPTH {
-            return false;
-        }
-        let (t, d) = (self.u.dealias(t), depth + 1);
-        match self.u.types().get(t).clone() {
-            Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(t).map(|n| n.meaning) {
-                Some(Meaning::Class(c)) => c == self.u.builtins().nothing,
-                Some(Meaning::Alias(r) | Meaning::Abstract(_, r)) => self.is_nothing(r, d),
-                Some(Meaning::Term(_)) => self.u.widen_once(t).is_some_and(|w| self.is_nothing(w, d)),
-                _ => false,
-            },
-            Type::Applied(tycon, args) => match self.named(tycon).map(|n| n.meaning) {
-                Some(Meaning::Abstract(_, hi)) => {
-                    let upper = self.apply(hi, &args);
-                    self.is_nothing(upper, d)
-                }
-                _ => false,
-            },
-            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) | Type::Match(p) => {
-                self.is_nothing(p, d)
-            }
-            Type::Var(v) => self.vars.instance(v).is_some_and(|i| self.is_nothing(i, d)),
-            Type::And(x, y) => self.is_nothing(x, d) || self.is_nothing(y, d),
-            Type::Or(x, y) => self.is_nothing(x, d) && self.is_nothing(y, d),
-            _ => false,
-        }
-    }
-}
-
-/// Whether every element of `xs` is one of `ys`.
-pub fn subset(xs: &[TypeId], ys: &[TypeId]) -> bool {
-    xs.iter().all(members(ys, xs.len()))
-}
-
-/// The element `xs` consists of, if it is not empty and has no other.
-fn one(xs: &[TypeId]) -> Option<TypeId> {
-    let (&x, rest) = xs.split_first()?;
-    rest.iter().all(|&y| y == x).then_some(x)
-}
-
-/// A test for membership in `ys`, which `queries` tests will use; hashed if both are many.
-pub fn members(ys: &[TypeId], queries: usize) -> impl Fn(&TypeId) -> bool + '_ {
-    let set: Option<FxHashSet<TypeId>> =
-        (ys.len() > 16 && queries > 16).then(|| ys.iter().copied().collect());
-    move |x| set.as_ref().map_or_else(|| ys.contains(x), |s| s.contains(x))
 }

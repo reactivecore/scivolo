@@ -36,6 +36,7 @@ impl Universe {
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,
+            unions: Default::default(),
         };
         let root = u.add(Symbol {
             name: String::new(),

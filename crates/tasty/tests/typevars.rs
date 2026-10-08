@@ -134,6 +134,20 @@ fn contradictions_fail_and_either_rolls_back() {
 }
 
 #[test]
+fn variables_have_the_atoms_of_their_upper_bound() {
+    let Some(mut u) = stdlib() else { return };
+    let int = |u: &mut Universe, n| u.intern_type(Type::Constant(tasty::tags::INTconst, n));
+    let (one, two) = (int(&mut u, 1), int(&mut u, 2));
+    let x = VarId(0);
+    let tx = u.intern_type(Type::Var(x));
+    let (x_or_1, one_or_2) = (u.intern_type(Type::Or(tx, one)), u.intern_type(Type::Or(one, two)));
+    let mut vars = Bounds::default();
+    vars.added.push((x, two, true));
+    assert!(u.is_subtype_in(x_or_1, one_or_2, &mut vars));
+    assert_eq!(vars.added, [(x, two, true)]);
+}
+
+#[test]
 fn constructor_variables_take_constructors() {
     let Some(mut u) = stdlib() else { return };
     let (int, boolean) = (t(&mut u, "scala.Int", &[]), t(&mut u, "scala.Boolean", &[]));

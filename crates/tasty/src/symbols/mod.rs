@@ -21,6 +21,7 @@ mod varargs;
 mod variance;
 
 use crate::library::Library;
+use crate::subtype::Unions;
 use crate::types::{TypeId, Types};
 use crate::{Ast, NodeId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -60,6 +61,7 @@ pub struct Universe {
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,
+    unions: Unions,
 }
 
 #[derive(Debug)]
@@ -125,6 +127,11 @@ impl Universe {
 
     pub fn intern_type(&mut self, t: crate::Type) -> TypeId {
         self.types.intern(t)
+    }
+
+    /// The unions built so far and the atoms of unions.
+    pub fn unions(&mut self) -> &mut Unions {
+        &mut self.unions
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new;
