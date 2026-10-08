@@ -57,7 +57,6 @@ const CASES: &[(&str, &str)] = &[
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",
     ),
-    ("case class C[T](x: T)", "generic case classes"),
     (
         "class V(val n: Int) extends Ordered[V] { def compare(that: V) = n - that.n }",
         "generic library traits",

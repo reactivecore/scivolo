@@ -41,4 +41,5 @@ enums
 enumcases
 seqpatterns
 emptyliterals
+genericcases
 bynameparams
