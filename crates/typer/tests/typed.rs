@@ -1,5 +1,6 @@
-//! Typing small inputs in `tests/typed`, against dotty 3.9.0's typed trees recorded next to
-//! each in a `.check` file (`just typer-checks`); `just typer-report` compares on dotty's tests.
+//! Typing small inputs in `tests/typed`, against dotty 3.9.0's output recorded next to each in a
+//! `.check` file (`just typer-checks`): the typed trees, or only the diagnostics of an input with
+//! errors; `just typer-report` compares on dotty's tests.
 
 use std::path::Path;
 use syntax::source::SourceFile;
@@ -17,7 +18,7 @@ fn typed(u: &mut Universe, path: &Path) -> String {
 }
 
 #[test]
-fn typed_trees_match_dotty() {
+fn typed_trees_and_diagnostics_match_dotty() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let jars = library_jars(&root.join("../../ref/libs"));
     if let Some(missing) = jars.iter().find(|j| !j.exists()) {
