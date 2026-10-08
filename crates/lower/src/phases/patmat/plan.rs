@@ -56,6 +56,8 @@ pub enum Test {
     NonNull,
     /// `!scrutinee.isEmpty`.
     NonEmpty,
+    /// `scrutinee.lengthCompare(len) == 0`, or `>= 0` unless `exact`.
+    Length { len: i32, exact: bool },
 }
 
 impl Translator<'_, '_> {
@@ -176,7 +178,7 @@ impl Translator<'_, '_> {
     /// `WildcardPattern`).
     fn is_wildcard(&self, pat: TNodeId) -> bool {
         match *self.l.tpd.tree(pat) {
-            Tree::Ident { name } => self.l.names.text(name.name) == "_",
+            Tree::Ident { name } => matches!(self.l.names.text(name.name), "_" | "_*"),
             Tree::Bind { name, body } => self.l.names.text(name.name) == "_" && self.is_wildcard(body),
             Tree::Alternative { trees } => self.l.tpd.items(trees).iter().all(|&p| self.is_wildcard(p)),
             _ => false,

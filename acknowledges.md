@@ -36,10 +36,10 @@ Apache-2.0. Rust translations of:
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
     `ElimByName` (calls)
-  - `PatternMatcher` (literal, binding, alternative, type and extractor patterns, guards,
-    switches),
+  - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
+    guards, switches),
     `TypeTestsCasts` (type tests, casts of primitives),
-    `ast/Positioned.envelope` (spans of the trees phases make)
+    `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)

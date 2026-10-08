@@ -39,3 +39,4 @@ localclasses
 listliterals
 enums
 enumcases
+seqpatterns

@@ -8,6 +8,7 @@ mod inline;
 mod members;
 mod merge;
 mod plan;
+mod sequences;
 mod switch;
 mod types;
 

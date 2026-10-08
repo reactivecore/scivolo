@@ -25,23 +25,37 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
         }
     }
     for &td in classes {
-        for (t, budget) in walk(l, td, &mut budgets).into_iter().rev() {
+        let trees = walk(l, td, &mut budgets);
+        let parents: FxHashMap<TNodeId, TNodeId> =
+            trees.iter().filter_map(|&(t, _, p)| p.map(|p| (t, p))).collect();
+        for (t, budget, _) in trees.into_iter().rev() {
             if let Some(elems) = seq_elems(l, t).filter(|e| budget > 0 || e.is_empty()) {
                 cons(l, t, &elems);
             } else if let Some(literal) = array_literal(l, t) {
                 l.copy_node(t, literal);
+            } else {
+                continue;
+            }
+            let mut ancestor = parents.get(&t);
+            while let Some(&a) = ancestor {
+                l.recopy(a);
+                ancestor = parents.get(&a);
             }
         }
     }
 }
 
-/// The trees of class definition `td` in pre-order, each with the budget left in it; records in
-/// `budgets` the budget where each lambda and local class is made.
-fn walk(l: &Lower, td: TNodeId, budgets: &mut FxHashMap<SymbolId, i32>) -> Vec<(TNodeId, i32)> {
+/// The trees of class definition `td` in pre-order, each with the budget left in it and its
+/// parent; records in `budgets` the budget where each lambda and local class is made.
+fn walk(
+    l: &Lower,
+    td: TNodeId,
+    budgets: &mut FxHashMap<SymbolId, i32>,
+) -> Vec<(TNodeId, i32, Option<TNodeId>)> {
     let start = l.tpd.sym(td).and_then(|c| budgets.get(&c).copied()).unwrap_or(BUDGET);
     let mut order = Vec::new();
-    let mut todo = vec![(td, start)];
-    while let Some((t, budget)) = todo.pop() {
+    let mut todo = vec![(td, start, None)];
+    while let Some((t, budget, parent)) = todo.pop() {
         let budget = match *l.tpd.tree(t) {
             Tree::DefDef { .. } => l.tpd.sym(t).and_then(|m| budgets.get(&m).copied()).unwrap_or(budget),
             _ => budget,
@@ -60,10 +74,10 @@ fn walk(l: &Lower, td: TNodeId, budgets: &mut FxHashMap<SymbolId, i32>) -> Vec<(
             }
             _ => {}
         }
-        order.push((t, budget));
+        order.push((t, budget, parent));
         let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
         if !nested {
-            todo.extend(children(l.tpd, t).into_iter().map(|c| (c, budget)));
+            todo.extend(children(l.tpd, t).into_iter().map(|c| (c, budget, Some(t))));
         }
     }
     order

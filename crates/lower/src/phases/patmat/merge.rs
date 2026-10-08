@@ -76,6 +76,7 @@ impl Translator<'_, '_> {
             (Test::Guard, Test::Guard)
             | (Test::NonNull, Test::NonNull)
             | (Test::NonEmpty, Test::NonEmpty) => true,
+            (Test::Length { len: a, exact: x }, Test::Length { len: b, exact: y }) => a == b && x == y,
             (Test::Type(a), Test::Type(b)) => {
                 let (a, b) = (self.l.tpd.tpe(a), self.l.tpd.tpe(b));
                 self.l.u.dealias(a) == self.l.u.dealias(b) || self.same_class(a, b)

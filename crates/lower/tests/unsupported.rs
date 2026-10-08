@@ -17,8 +17,9 @@ const CASES: &[(&str, &str)] = &[
         "casts between primitive values or to references",
     ),
     (
-        "object O { def f(x: List[Int]): Int = x match { case List(a) => a; case _ => 0 } }",
-        "sequence extractors",
+        "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
+         object O { def f(x: String): Int = x match { case E(a) => a; case _ => 0 } }",
+        "sequence extractors not returning a sequence",
     ),
     (
         "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
