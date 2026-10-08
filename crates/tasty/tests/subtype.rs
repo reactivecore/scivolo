@@ -265,6 +265,34 @@ fn bounds_locals_and_this_as_atoms() {
 }
 
 #[test]
+fn union_parts_with_class_symbol_nothing_have_no_atoms() {
+    let Some(mut u) = universe() else { return };
+    let root = u.root();
+    let (one, one_or_2) = (parse(&mut u, "1"), parse(&mut u, "1 | 2"));
+    let sym = |u: &mut Universe, s| u.intern_type(Type::Sym(None, s));
+    let or_1 = |u: &mut Universe, a| u.intern_type(Type::Or(a, one));
+    let (below_nothing, unbounded) =
+        (u.intern_type(Type::Bounds(NOTHING, NOTHING)), u.intern_type(Type::Bounds(NOTHING, ANY)));
+    let (s, x) = (
+        define(&mut u, "S", Kind::Type, root, below_nothing),
+        define(&mut u, "X", Kind::Type, root, unbounded),
+    );
+    let (s, x) = (sym(&mut u, s), sym(&mut u, x));
+    let below_s = u.intern_type(Type::Bounds(NOTHING, s));
+    let t = define(&mut u, "T", Kind::Type, root, below_s);
+    let t = sym(&mut u, t);
+    let n = define(&mut u, "n", Kind::Val, root, NOTHING);
+    let n = sym(&mut u, n);
+    let nothing_and_x = u.intern_type(Type::And(NOTHING, x));
+    for part in [nothing_and_x, t, n] {
+        let union = or_1(&mut u, part);
+        assert!(u.is_subtype(union, one_or_2), "{} <: 1 | 2", u.show(union));
+    }
+    let x_or_1 = or_1(&mut u, x);
+    assert!(!u.is_subtype(x_or_1, one_or_2));
+}
+
+#[test]
 fn outer_this_types_are_seen_from_the_prefix() {
     let Some(mut u) = universe() else { return };
     let outer = named_type(&mut u, "oracle.Outer");

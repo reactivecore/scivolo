@@ -2,7 +2,7 @@
 //! (`compareAtoms`).
 //! Not modelled: the object as atom of its module class, the bounds of binder-bound type
 //! parameters, match type reduction, the declared bound of a type variable without instance
-//! (its atoms are unknown), `Nothing` as a union part other than itself or an alias.
+//! (its atoms are unknown).
 
 use super::refs::Meaning;
 use super::{Cmp, MAX_DEPTH};
@@ -60,7 +60,7 @@ impl Cmp<'_> {
                 r.hi.push(t);
                 true
             }
-            Type::Or(x, y) => match (self.is_nothing(x), self.is_nothing(y)) {
+            Type::Or(x, y) => match (self.is_nothing(x, depth), self.is_nothing(y, depth)) {
                 (true, _) => self.add_atoms(y, r, depth),
                 (_, true) => self.add_atoms(x, r, depth),
                 _ => self.add_atoms(x, r, depth) && self.add_atoms(y, r, depth),
@@ -93,7 +93,9 @@ impl Cmp<'_> {
                 (Some(r), None) | (None, Some(r)) => Some(r.upper()),
                 (None, None) => None,
             },
-            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Match(p) => Some(self.atoms_at(p, depth)?.upper()),
+            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) | Type::Match(p) => {
+                Some(self.atoms_at(p, depth)?.upper())
+            }
             _ if self.is_singleton(t) => self.singleton_atoms(t, depth),
             Type::TypeRef(..) | Type::Sym(..) => match self.named(t)?.meaning {
                 Meaning::Abstract(_, hi) => Some(self.atoms_at(hi, depth)?.upper()),
@@ -125,14 +127,34 @@ impl Cmp<'_> {
         }
     }
 
-    /// Whether `t` is `Nothing` or an alias of it.
-    fn is_nothing(&mut self, t: TypeId) -> bool {
-        if !matches!(self.u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) {
+    /// Whether `t` has class symbol `Nothing` (dotty's `hasClassSymbol(defn.NothingClass)`).
+    fn is_nothing(&mut self, t: TypeId, depth: u32) -> bool {
+        if depth >= MAX_DEPTH {
             return false;
         }
-        let t = self.u.dealias(t);
-        let nothing = self.u.builtins().nothing;
-        matches!(self.named(t).map(|n| n.meaning), Some(Meaning::Class(c)) if c == nothing)
+        let (t, d) = (self.u.dealias(t), depth + 1);
+        match self.u.types().get(t).clone() {
+            Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(t).map(|n| n.meaning) {
+                Some(Meaning::Class(c)) => c == self.u.builtins().nothing,
+                Some(Meaning::Alias(r) | Meaning::Abstract(_, r)) => self.is_nothing(r, d),
+                Some(Meaning::Term(_)) => self.u.widen_once(t).is_some_and(|w| self.is_nothing(w, d)),
+                _ => false,
+            },
+            Type::Applied(tycon, args) => match self.named(tycon).map(|n| n.meaning) {
+                Some(Meaning::Abstract(_, hi)) => {
+                    let upper = self.apply(hi, &args);
+                    self.is_nothing(upper, d)
+                }
+                _ => false,
+            },
+            Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) | Type::Match(p) => {
+                self.is_nothing(p, d)
+            }
+            Type::Var(v) => self.vars.instance(v).is_some_and(|i| self.is_nothing(i, d)),
+            Type::And(x, y) => self.is_nothing(x, d) || self.is_nothing(y, d),
+            Type::Or(x, y) => self.is_nothing(x, d) && self.is_nothing(y, d),
+            _ => false,
+        }
     }
 }
 
