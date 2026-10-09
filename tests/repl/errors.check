@@ -13,6 +13,13 @@ scala> val i: Int = 12345678901
   |             number too large
 1 error found
 
+scala> 123 + 12314324324
+-- Error: ----------------------------------------------------------------------
+1 |123 + 12314324324
+  |      ^^^^^^^^^^^
+  |      number too large
+1 error found
+
 scala> val x: Int = "a"
 -- [E007] Type Mismatch Error: -------------------------------------------------
 1 |val x: Int = "a"

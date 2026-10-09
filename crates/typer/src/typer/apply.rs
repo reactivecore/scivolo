@@ -162,7 +162,10 @@ impl Typer<'_> {
             let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
             return proxy.ok_or("application of a non-method");
         };
-        let sym = self.choose(&found.syms, Some(tpe), pt)?;
+        let sym = match self.choose(&found.syms, Some(tpe), pt) {
+            Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
+            chosen => chosen?,
+        };
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
         let apply_tpe = self.ref_type(Some(tpe), sym);

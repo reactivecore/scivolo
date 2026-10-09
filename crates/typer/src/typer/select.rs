@@ -63,7 +63,7 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
             Ok(sym) => sym,
-            Err(what) => return self.unsupported(id, what),
+            Err(what) => return self.unchosen(id, what, pt),
         };
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);
