@@ -196,6 +196,15 @@ fn no_false_errors_behind_unsupported_constructs() {
         assert_eq!(errors_first(text), Err(format!("unsupported {what}")), "{text}");
     }
     assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
+    let few = "class Term[A, B]\nobject M:\n  val t: Term[Kind] = ???\n";
+    assert_eq!(errors_first(few), Err("type errors [\"Not found: type Kind\"]".into()));
+    let untyped = "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x = 1\n";
+    assert_eq!(errors_first(untyped), Ok(()));
+    let strict = "import scala.language.strictEquality\nclass A\nclass B\nobject M:\n  val b = A() == B()\n";
+    assert_eq!(errors_first(strict), Err("unsupported comparison under strictEquality".into()));
+    let unimported =
+        strict.replace("object M:\n", "object M:\n  import scala.language.strictEquality as _\n");
+    assert_eq!(errors_first(&unimported), Err("unsupported comparison of unrelated types".into()));
 }
 
 #[test]

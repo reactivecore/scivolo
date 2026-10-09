@@ -20,12 +20,12 @@ impl Typer<'_> {
             if let Level::Import(i) = *self.levels.get(l)
                 && !self.is_root_import(i)
                 && let Some(info) = self.import_info(i)
-                && info.selectors.iter().any(|s| s.name == name)
+                && let Some(s) = info.selectors.iter().find(|s| s.name == name)
             {
-                let qual = info.qual;
+                let (qual, enabled) = (info.qual, s.rename != "_");
                 let site = self.import_site(qual);
                 if site.is_some_and(|s| self.u.full_name(s).replace('$', "") == object) {
-                    return true;
+                    return enabled;
                 }
             }
             level = self.levels.outer(l);

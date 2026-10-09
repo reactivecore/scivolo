@@ -62,7 +62,10 @@ impl Typer<'_> {
             )
         );
         let generic = Features::GENERIC_NUMBER_LITERALS;
-        if !primitive && self.feature_enabled(generic, "experimental.genericNumberLiterals", ctx) {
+        if matches!(pt, Pt::Type(_))
+            && !primitive
+            && self.feature_enabled(generic, "experimental.genericNumberLiterals", ctx)
+        {
             return self.unsupported(id, "generic number literal");
         }
         let whole = |r| from_digits::int(digits, r as u32).map(Constant::Int);

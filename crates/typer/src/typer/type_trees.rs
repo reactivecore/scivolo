@@ -20,7 +20,11 @@ impl Typer<'_> {
                 let tpt = self.typed_type(tpt, ctx);
                 let tycon = self.tpd.tpe(tpt);
                 let arg_ids = self.ast.items(args).to_vec();
-                if !self.is_error(tpt) && self.type_arity(tycon) != arg_ids.len() {
+                let arity = self.type_arity(tycon);
+                if !self.is_error(tpt) && arity != arg_ids.len() {
+                    for &a in arg_ids.iter().take(arity) {
+                        self.typed_type(a, ctx);
+                    }
                     return self.unsupported(id, "wrong number of type arguments");
                 }
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
@@ -32,7 +36,7 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if self.type_arity(tycon) != typed_args.len() {
+                if arity != typed_args.len() {
                     return self.unsupported(id, "wrong number of type arguments");
                 }
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
