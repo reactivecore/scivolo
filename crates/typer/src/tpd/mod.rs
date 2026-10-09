@@ -2,6 +2,7 @@
 //! references and definitions, its symbol.
 
 mod children;
+mod info;
 pub mod print;
 mod tree;
 

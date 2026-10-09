@@ -98,14 +98,9 @@ const SEQ_MODULES: [&str; 5] = [
 
 /// The method `t` applies, and the receiver of the innermost application.
 pub fn applied(l: &Lower, t: TNodeId) -> Option<(SymbolId, TNodeId)> {
-    let mut fun = t;
-    loop {
-        match *l.tpd.tree(fun) {
-            Tree::Apply { fun: f, .. } | Tree::TypeApply { fun: f, .. } => fun = f,
-            Tree::Select { qualifier, .. } => return Some((l.tpd.sym(fun)?, qualifier)),
-            _ => return None,
-        }
-    }
+    let fun = l.tpd.meth_part(t);
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
+    Some((l.tpd.sym(fun)?, qualifier))
 }
 
 /// The elements of `List(xs*)` or `Seq(xs*)` call `t`.
@@ -124,7 +119,7 @@ fn seq_elems(l: &Lower, t: TNodeId) -> Option<Vec<TNodeId>> {
 
 /// The symbol receiver `qual` refers to, through a getter call.
 pub fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
-    let qual = strip_typed(l, qual);
+    let qual = l.tpd.strip_typed(qual);
     match *l.tpd.tree(qual) {
         Tree::Apply { fun, args } if l.tpd.items(args).is_empty() => l.tpd.sym(fun),
         _ => l.tpd.sym(qual),
@@ -134,7 +129,7 @@ pub fn qualifier_symbol(l: &Lower, qual: TNodeId) -> Option<SymbolId> {
 /// The array literal a `ScalaRunTime.wrapXArray` call `t` wraps (dotty's `WrapArrayMethods`),
 /// or a `genericWrapArray` call an empty one.
 pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
-    let t = strip_typed(l, t);
+    let t = l.tpd.strip_typed(t);
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
     let m = l.tpd.sym(fun)?;
     let owner = l.u.symbol(m).owner?;
@@ -142,19 +137,12 @@ pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
         return None;
     }
     let &[literal] = l.tpd.items(args) else { return None };
-    let literal = strip_typed(l, literal);
+    let literal = l.tpd.strip_typed(literal);
     let Tree::SeqLiteral { elems, .. } = *l.tpd.tree(literal) else { return None };
     let name = &l.u.symbol(m).name;
     let wrap = name.starts_with("wrap") && name.ends_with("Array");
     let generic = name == "genericWrapArray" && l.tpd.items(elems).is_empty();
     (wrap || generic).then_some(literal)
-}
-
-pub fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
-    while let Tree::Typed { expr, .. } = *l.tpd.tree(t) {
-        t = expr;
-    }
-    t
 }
 
 /// `new ::(e1, ... new ::(en, Nil))` for `List(e1, ..., en)` call `t`, cast to its erased result.
