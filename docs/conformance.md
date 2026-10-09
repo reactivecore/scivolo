@@ -129,6 +129,35 @@ Results (2026-09-29):
   missing lambda bridge) and `redundantParents` (`getInterfaces`) (ADR 0008).
 - **Compile failed:** `i19394`, in Scala Native's compiler plugin (upstream bug 5).
 
+### Through the Rust frontend
+
+```sh
+just dotty-lower-report   # typer, lowering and VM; lower-report.md and lower-results.tsv under tmp/dotty
+```
+
+Each single-file test is lowered by `lower` and run in the VM. Tests failing in the VM when
+compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
+the typer or the lowering gives.
+
+Results (2026-10-09):
+
+| Outcome | Tests |
+|---|---:|
+| passed | 117 |
+| wrong output | 4 |
+| crashed | 10 |
+| lowering refused | 212 |
+| typer refused | 1090 |
+| frontend crashed | 13 |
+| several files | 59 |
+| fails in the VM | 31 |
+| skipped | 173 |
+| **total** | **1709** |
+
+- **Lowering refused:** mostly library traits with initialization (108).
+- **Typer refused:** mostly overloads with default or by-name parameters (244) and inline
+  definitions and calls (125).
+
 ## M5: scala/scala `test/junit`
 
 ```sh
