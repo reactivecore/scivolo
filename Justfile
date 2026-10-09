@@ -56,6 +56,11 @@ programs-stale *names:
     cargo build -q --release -p nir-dump
     python3 scripts/programs.py stale {{ names }}
 
+# The same for the test programs changed since commit `ref` (all if their build changed).
+programs-stale-since ref:
+    cargo build -q --release -p nir-dump
+    python3 scripts/programs.py stale-since '{{ ref }}'
+
 # Print NIR file, directory or jar `path` as text; `?` may stand for `$` (a glob).
 nir-dump path *args:
     cargo build -q --release -p nir-dump

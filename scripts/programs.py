@@ -3,6 +3,8 @@
 
 Usage: scripts/programs.py update NAME     write tests/programs/NAME's NIR and .check
        scripts/programs.py stale [NAME...]  list programs whose NIR or .check differs from a rebuild
+       scripts/programs.py stale-since REF  the same for the programs changed since commit REF, all
+                                            if their build changed or git cannot tell
 
 NIR files whose bytes differ are compared by their decoded definitions, as Scala Native orders
 forwarders and local variables differently on other machines: definitions and their lines in
@@ -24,6 +26,8 @@ PROGRAMS = ROOT / "tests/programs"
 WORK = ROOT / "tmp/programs"
 NIR_DUMP = ROOT / "target/release/nir-dump"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
+# Changing these changes every program's Scala Native build.
+BUILD_FILES = {"scripts/programs.py", "ci/Dockerfile"}
 
 
 def scala_cli(command, name, *extra):
@@ -104,6 +108,18 @@ def differences(name):
     return " ".join(["STALE", name, *found]) if found else f"ok    {name}"
 
 
+def changed(ref):
+    """The programs changed since commit REF; None (all) if their build changed or git fails."""
+    r = subprocess.run(["git", "diff", "--name-only", ref, "HEAD"], capture_output=True, text=True, cwd=ROOT)
+    if r.returncode != 0:
+        return None
+    files = r.stdout.split()
+    if any(f in BUILD_FILES for f in files):
+        return None
+    names = {f.split("/")[2] for f in files if f.startswith("tests/programs/") and f.count("/") >= 3}
+    return sorted(n for n in names if (PROGRAMS / n).is_dir())
+
+
 def stale(names):
     names = names or sorted(p.name for p in PROGRAMS.iterdir() if p.is_dir())
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
@@ -120,5 +136,11 @@ if __name__ == "__main__":
             sys.exit(f"{sys.argv[2]}: {e}")
     elif len(sys.argv) >= 2 and sys.argv[1] == "stale":
         stale(sys.argv[2:])
+    elif len(sys.argv) == 3 and sys.argv[1] == "stale-since":
+        names = changed(sys.argv[2])
+        if names == []:
+            print("no test program changed")
+        else:
+            stale(names or [])
     else:
         sys.exit(__doc__)

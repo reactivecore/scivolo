@@ -127,7 +127,8 @@ suite:linux:
     - just ci-suite
 
 # The committed NIR of the test programs (and their .check files) and of the library overlay
-# against a rebuild: in a merge request that touches them, and in scheduled pipelines.
+# against a rebuild: in a merge request that touches them (only the programs it changes), and
+# in scheduled pipelines (all).
 nir-stale:
   stage: test
   interruptible: true
@@ -159,7 +160,13 @@ nir-stale:
     - if: $CI_PIPELINE_SOURCE == "schedule"
   script:
     - scala-cli version --cli-version
-    - just programs-stale
+    - |
+      if [ "$CI_PIPELINE_SOURCE" = "merge_request_event" ]; then
+        git fetch --quiet origin "$CI_MERGE_REQUEST_DIFF_BASE_SHA" || true
+        just programs-stale-since "$CI_MERGE_REQUEST_DIFF_BASE_SHA"
+      else
+        just programs-stale
+      fi
     - just overlay-stale
 
 # The runner provides a JDK; scala-cli comes from scripts/fetch-scala-cli.sh.
