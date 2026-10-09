@@ -3,7 +3,7 @@
 
 use crate::Lower;
 use crate::symbols::{has, is_trait};
-use tasty::tags::PRIVATE;
+use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
 use tasty::{Kind, SymbolId};
 
 /// The separator in the names of trait setters.
@@ -29,6 +29,19 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
             format!("{}$${}", expanded_prefix(l, o), sym.name)
         }
         _ => sym.name.clone(),
+    }
+}
+
+/// Gives the private accessors of trait `trait_` their expanded names and makes them neither
+/// private nor local (dotty's `ensureNotPrivate`).
+pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
+    for s in l.u.decls(trait_).unwrap_or_default() {
+        if has(l.u, s, FIELDaccessor) && has(l.u, s, PRIVATE) {
+            let name = accessor_name(l, s);
+            l.u.rename(s, &name);
+            let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
+            l.u.set_flags(s, flags);
+        }
     }
 }
 
