@@ -19,6 +19,35 @@ impl Typer<'_> {
         found
     }
 
+    /// `{ defs; tree }`, or `tree` if there are no definitions (dotty's `wrapDefs`), its type
+    /// widened if it refers to the definitions, and classes selected on them selected on their
+    /// widened types (dotty's `avoid`); outside the subset if it still refers to them.
+    pub fn wrap_defs(&mut self, defs: Vec<TNodeId>, tree: TNodeId) -> TNodeId {
+        if defs.is_empty() {
+            return tree;
+        }
+        let span = defs.iter().fold(self.tpd.span(tree), |s, &d| s.union(self.tpd.span(d)));
+        let span = syntax::ast::Span::synthetic(span.start(), span.end());
+        let syms: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
+        let tpe = self.tpd.get(tree).tpe.map(|t| if self.refers_to(t, &syms) { self.u.widen(t) } else { t });
+        let tpe = tpe.map(|t| {
+            self.u.map_type(t, &mut |u, part| {
+                let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+                let local = matches!(*u.types().get(pre), Type::Sym(_, p) if syms.contains(&p));
+                if !local || u.symbol(s).kind != tasty::Kind::Class {
+                    return None;
+                }
+                let widened = u.widen(pre);
+                Some(u.intern_type(Type::Sym(Some(widened), s)))
+            })
+        });
+        if tpe.is_some_and(|t| self.refers_to(t, &syms)) {
+            self.unsupported_at(span, "type of a lifted call referring to a lifted value");
+        }
+        let stats = self.tpd.list(&defs);
+        self.tpd.node(T::Block { stats, expr: tree }, span, tpe, None)
+    }
+
     /// Block result `expr`, ascribed a type without references to `locals` if its own has some
     /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, or `pt` if that
     /// does not conform to `pt`; `None` if a reference remains.
