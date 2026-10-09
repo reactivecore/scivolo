@@ -4,10 +4,10 @@
 
 use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
-use crate::symbols::{has, is_module_class};
+use crate::symbols::{has, is_effectively_final, is_module_class};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FINAL, LAZY, MUTABLE, PRIVATE};
+use tasty::tags::{LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -37,7 +37,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
         };
         for t in subtrees(l.tpd, root) {
             let Some(field) = field_ref(l, class, t) else { continue };
-            if matches!(l.tpd.tree(t), Tree::Select { .. }) && !is_effectively_final(l, class, field) {
+            if matches!(l.tpd.tree(t), Tree::Select { .. }) && !is_effectively_final(l.u, class, field) {
                 return unsupported(
                     l.tpd.span(t),
                     "overridable class parameters selected on this in the constructor",
@@ -65,11 +65,6 @@ fn to_param(l: &mut Lower, params: &[SymbolId], t: TNodeId, field: SymbolId) {
     };
     let ident = l.ident(param, l.tpd.span(t));
     l.copy_node(t, ident);
-}
-
-/// Whether member `s` of class `class` cannot be overridden.
-fn is_effectively_final(l: &Lower, class: SymbolId, s: SymbolId) -> bool {
-    has(l.u, s, PRIVATE) || has(l.u, s, FINAL) || has(l.u, class, FINAL) || is_module_class(l.u, class)
 }
 
 /// The value parameters of constructor `constr`.
