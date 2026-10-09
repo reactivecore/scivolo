@@ -154,7 +154,7 @@ Results (2026-10-09):
 | skipped | 175 |
 | **total** | **1711** |
 
-- **Wrong output:** i9939, numeric harmonization in the typer.
+- **Wrong output:** i9939, numeric harmonization in the typer (#60).
 - **Crashed:** t8893, tail recursion (#59).
 - **Lowering refused:** mostly library traits with initialization (108).
 - **Typer refused:** mostly overloads with default or by-name parameters (244) and inline
