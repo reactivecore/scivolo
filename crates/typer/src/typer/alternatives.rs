@@ -3,6 +3,8 @@
 //! `narrowBySize` with `sizeFits`), before overload resolution.
 
 use super::{Pt, Typer};
+use crate::tpd::TNodeId;
+use syntax::ast::NodeId;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -143,6 +145,21 @@ impl Typer<'_> {
         let defaults = self.default_params(s).iter().filter(|&&d| d).count();
         let necessary = ps.len().saturating_sub(defaults);
         necessary <= n || necessary == n + 1 && varargs
+    }
+
+    /// The tree for reference `id` when `choose` finds no alternative for `what`: an error tree
+    /// when an argument of `pt` is erroneous and its error is reported (dotty's
+    /// `unusableForInference`), else `what` unsupported.
+    pub fn unchosen(&mut self, id: NodeId, what: &str, pt: Pt) -> TNodeId {
+        let args = match pt {
+            Pt::Fun(proto) => self.protos[proto].typed.clone().unwrap_or_default(),
+            _ => Vec::new(),
+        };
+        let reported = self.diags.has_errors() || self.unsupported.is_some();
+        if reported && args.into_iter().any(|a| self.is_error(a)) {
+            return self.error_tree(self.ast.span(id));
+        }
+        self.unsupported(id, what)
     }
 
     /// Whether method `s` takes type or value parameters.

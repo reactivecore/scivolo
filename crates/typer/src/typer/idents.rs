@@ -71,7 +71,7 @@ impl Typer<'_> {
         };
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
-            Err(what) => return self.unsupported(id, what),
+            Err(what) => return self.unchosen(id, what, pt),
         };
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
