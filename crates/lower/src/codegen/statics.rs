@@ -65,24 +65,35 @@ impl Gen<'_, '_> {
         let d = &self.l.defs;
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
-        let inherits = |b: &SymbolId| {
-            !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable" && !is_trait(self.l.u, *b)
-        };
-        if bases.iter().skip(1).any(inherits) {
-            return unsupported(Span::NONE, "forwarders to inherited methods");
+        let classes: Vec<SymbolId> = bases
+            .into_iter()
+            .filter(|b| {
+                !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable" && !is_trait(self.l.u, *b)
+            })
+            .collect();
+        if classes.iter().skip(1).any(|&c| self.l.u.symbol(c).tree.is_some()) {
+            return unsupported(Span::NONE, "forwarders to methods of library classes");
         }
-        let decls = self.l.u.decls(module_class).unwrap_or_default();
+        let mut seen = Vec::new();
         let mut out = Vec::new();
-        for m in decls {
+        let members: Vec<SymbolId> =
+            classes.into_iter().flat_map(|c| self.l.u.decls(c).unwrap_or_default()).collect();
+        for m in members {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PRIVATEqualified, PROTECTEDqualified];
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
             if !method
                 || is_constructor(self.l.u, m)
                 || is_extern(self.l.u, m)
+                || self.l.u.is_deferred(m)
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
             {
                 continue;
             }
+            let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
+            if seen.contains(&signature) {
+                continue;
+            }
+            seen.push(signature);
             let name = self.static_member_name(m, Some(module_class));
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
