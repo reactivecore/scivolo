@@ -27,9 +27,8 @@ impl Universe {
         self.is_class(s) && self.symbol(s).flags.has(TRAIT)
     }
 
-    /// A class, type member or type parameter.
     pub fn is_type_symbol(&self, s: SymbolId) -> bool {
-        matches!(self.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam)
+        self.symbol(s).kind.is_type()
     }
 
     pub fn is_constructor(&self, s: SymbolId) -> bool {

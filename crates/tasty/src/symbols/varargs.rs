@@ -34,7 +34,7 @@ impl Universe {
         let s = self.symbol(def);
         let Some(owner) = s.owner.filter(|_| s.kind == Kind::Def) else { return t };
         let (name, class) = (s.name.clone(), self.full_name(owner));
-        let class = class.strip_suffix('$').unwrap_or(&class);
+        let class = super::module_name(&class).unwrap_or(&class);
         let counts: Vec<usize> =
             VARARGS.iter().filter(|&&(c, m, _)| c == class && m == name).map(|&(_, _, n)| n).collect();
         if counts.is_empty() {

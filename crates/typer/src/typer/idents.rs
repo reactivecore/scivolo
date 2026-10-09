@@ -142,7 +142,9 @@ impl Typer<'_> {
         }
         let prefix = match prefix.map(|p| self.u.types().get(p).clone()) {
             Some(Type::Package(_)) => self.package_object_prefix(sym).or(prefix),
-            Some(Type::This(c)) if self.u.class_symbol(c).is_some_and(|c| self.is_package_object(c)) => {
+            Some(Type::This(c))
+                if self.u.class_symbol(c).is_some_and(|c| self.is_named_package_object(c)) =>
+            {
                 self.package_object_prefix(sym).or(prefix)
             }
             _ => prefix,
@@ -150,11 +152,16 @@ impl Typer<'_> {
         self.u.intern_type(Type::Sym(prefix, sym))
     }
 
-    /// Whether class `c` is a package object: `package$`, or a file's `<name>$package$`.
-    pub fn is_package_object(&self, c: SymbolId) -> bool {
+    /// Whether `c` is declared in a package under a package object's class name: `package$`, or a
+    /// file's `<name>$package$`.
+    pub fn is_named_package_object(&self, c: SymbolId) -> bool {
         let s = self.u.symbol(c);
         s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package)
             && tasty::is_package_object_name(&s.name)
+    }
+
+    pub fn is_package_object(&self, c: SymbolId) -> bool {
+        self.is_named_package_object(c)
     }
 
     /// The reference to the package object that declares `sym`, if one does.

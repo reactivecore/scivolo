@@ -37,7 +37,7 @@ impl Cmp<'_> {
         let Some(n) = self.named(t) else { return Atoms::Unmodelled };
         match n.meaning {
             Meaning::Abstract(_, hi) => self.atoms_at(hi, depth).upper(),
-            Meaning::Class(c) if self.u.symbol(c).flags.has(OBJECT) => match self.module_of(c) {
+            Meaning::Class(c) if self.u.is_module_class(c) => match self.module_of(c) {
                 Some(m) => {
                     let module = self.u.intern_type(Type::Sym(n.prefix, m));
                     Atoms::single(self.normalized(module, depth))
@@ -136,7 +136,7 @@ impl Cmp<'_> {
 
     /// The object whose class is `class`.
     fn module_of(&mut self, class: SymbolId) -> Option<SymbolId> {
-        if !self.u.symbol(class).flags.has(OBJECT) {
+        if !self.u.is_module_class(class) {
             return None;
         }
         self.u.source_module(class)

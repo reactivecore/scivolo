@@ -1,7 +1,6 @@
 //! The earlier inputs that ran, as the import statements that bring their definitions into the
 //! scope of a later input; a later definition hides an earlier one of the same name and kind.
 
-use crate::render::module_class;
 use tasty::tags::PRIVATE;
 use tasty::{Kind, Universe};
 
@@ -16,10 +15,11 @@ pub struct Earlier {
     pub members: Vec<(String, bool)>,
 }
 
-/// The names module class `module` defines that an import can hide, each with whether it names
-/// a type.
-pub fn members(u: &mut Universe, module: &str) -> Vec<(String, bool)> {
-    let Some(class) = module_class(u, module) else { return Vec::new() };
+/// The names top-level object `object` defines that an import can hide, each with whether it
+/// names a type.
+pub fn members(u: &mut Universe, object: &str) -> Vec<(String, bool)> {
+    let root = u.root();
+    let Some(class) = u.module_class_in(root, object) else { return Vec::new() };
     let mut names: Vec<(String, bool)> = (u.symbol(class).decls.iter())
         .map(|&d| u.symbol(d))
         .filter(|s| !s.flags.has(PRIVATE) && !s.name.contains(['<', '$']))

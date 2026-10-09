@@ -16,7 +16,14 @@ pub fn module_name(class: &str) -> Option<&str> {
 impl Universe {
     /// The class of object `module`.
     pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
-        let (owner, name) = (self.symbol(module).owner?, module_class_name(&self.symbol(module).name));
+        let owner = self.symbol(module).owner?;
+        let name = self.symbol(module).name.clone();
+        self.module_class_in(owner, &name)
+    }
+
+    /// The class of object `module` declared in `owner`.
+    pub fn module_class_in(&mut self, owner: SymbolId, module: &str) -> Option<SymbolId> {
+        let name = module_class_name(module);
         self.decl(owner, &name).ok()?.into_iter().find(|&c| self.is_class(c))
     }
 

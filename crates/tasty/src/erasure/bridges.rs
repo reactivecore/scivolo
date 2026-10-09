@@ -49,7 +49,7 @@ impl Universe {
                 .decl(t, &name)
                 .unwrap_or_default()
                 .into_iter()
-                .filter(|&m| !matches!(self.symbol(m).kind, Kind::Class | Kind::Type | Kind::TypeParam))
+                .filter(|&m| !self.is_type_symbol(m))
                 .collect();
             let [other] = terms[..] else { continue };
             if self.symbol(other).kind != Kind::Def || self.has_body(other) {

@@ -111,7 +111,9 @@ impl Typer<'_> {
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
     fn package_object(&mut self, c: SymbolId) -> Option<(SymbolId, SymbolId)> {
-        tasty::module_name(&self.u.symbol(c).name).filter(|n| n.ends_with("$package"))?;
+        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with("$package")) {
+            return None;
+        }
         let pkg = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package)?;
         Some((pkg, self.u.source_module(c)?))
     }
@@ -124,7 +126,9 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let class = self.u.symbol(ctor).owner.ok_or("default argument")?;
-        self.u.symbol(class).owner.ok_or("default argument")?;
+        if self.u.symbol(class).owner.is_none() {
+            return Err("default argument");
+        }
         let name = self.u.symbol(class).name.clone();
         let module = self.u.companion_module(class).ok_or("default argument without a companion")?;
         let new_tpe = self.tpd.tpe(new_tree);

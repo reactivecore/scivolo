@@ -93,7 +93,7 @@ impl Typer<'_> {
         let decls = self.u.decls(pkg).unwrap_or_default();
         decls
             .into_iter()
-            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_package_object(d))
+            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_named_package_object(d))
             .collect()
     }
 

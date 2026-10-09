@@ -67,7 +67,7 @@ impl Syms {
         owner: SymbolId,
         flags: FlagSet,
     ) -> SymbolId {
-        let is_term = !matches!(kind, Kind::Class | Kind::Type | Kind::TypeParam);
+        let is_term = !kind.is_type();
         let s = u.define(Symbol {
             name: name.to_owned(),
             kind,

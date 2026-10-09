@@ -147,8 +147,8 @@ impl Session {
         let line = import_text::Line { typed: &typed, template, names: &self.names, source: &parsed.source };
         let shown = import_text::shown(&mut self.u, &line);
         let units = render::inferred_units(&mut self.u, &typed, template);
-        let defs = render::definitions(&mut self.u, &module, &units);
-        let members = earlier::members(&mut self.u, &module);
+        let defs = render::definitions(&mut self.u, &object, &units);
+        let members = earlier::members(&mut self.u, &object);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
