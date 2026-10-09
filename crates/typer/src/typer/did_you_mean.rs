@@ -106,20 +106,23 @@ impl Typer<'_> {
             }
             return Some(());
         }
+        self.known_bases(site)?.into_iter().try_for_each(|base| self.decl_names(base, names))
+    }
+
+    /// The linearization of class `site`, completed; `None` if the universe may not know its members.
+    pub fn known_bases(&mut self, site: SymbolId) -> Option<Vec<SymbolId>> {
         self.complete(site);
-        for base in self.u.linearization(site) {
+        let bases = self.u.linearization(site);
+        for &base in &bases {
             self.complete(base);
             let full = self.u.full_name(base);
             let unknown_parent = self.u.parents(base).into_iter().any(|p| self.u.class_symbol(p).is_none());
-            if unknown_parent
-                || is_jdk(&full) && !KNOWN_JAVA.contains(&&*full)
-                || self.has_undeclared_members(base)
-            {
+            let jdk = is_jdk(&full) && !KNOWN_JAVA.contains(&&*full);
+            if unknown_parent || jdk || self.has_undeclared_members(base) {
                 return None;
             }
-            self.decl_names(base, names)?;
         }
-        Some(())
+        Some(bases)
     }
 
     fn decl_names(&mut self, s: SymbolId, names: &mut Vec<String>) -> Option<()> {

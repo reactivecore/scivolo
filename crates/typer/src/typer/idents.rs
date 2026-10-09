@@ -40,6 +40,9 @@ impl Typer<'_> {
     }
 
     pub fn typed_ident(&mut self, id: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
+        if self.is_probe_target(id) {
+            return self.error_tree(self.ast.span(id));
+        }
         let text = self.text(name.name).to_owned();
         if ctx.mode.is(Mode::PATTERN) && text == "_" {
             return self.wildcard_pattern(id, name, pt);

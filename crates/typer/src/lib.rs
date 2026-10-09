@@ -2,6 +2,7 @@
 //! over `syntax` trees, with symbols and types in `tasty::Universe` (docs/research/09-typer.md).
 #![allow(non_upper_case_globals)]
 
+mod completion;
 mod constraint;
 mod ctx;
 mod defn;
@@ -19,6 +20,7 @@ use syntax::names::{FreshNames, Names};
 use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
+pub use completion::Request;
 pub use typer::Typer;
 
 /// Why a unit takes the JVM frontend instead.
