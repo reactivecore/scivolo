@@ -5,7 +5,6 @@ Usage: scripts/programs.py update NAME     write tests/programs/NAME's NIR and .
        scripts/programs.py stale [NAME...]  list programs whose NIR or .check differs from a rebuild
        scripts/programs.py stale-since REF  the same for the programs changed since commit REF, all
                                             if their build changed or git cannot tell
-       scripts/programs.py check [NAME...]  run programs in the release VM against their .check
 
 NIR files whose bytes differ are compared by their decoded definitions, as Scala Native orders
 forwarders and local variables differently on other machines: definitions and their lines in
@@ -14,13 +13,11 @@ with a `.check-by-hand` marker keeps its hand-written `.check`.
 """
 import concurrent.futures
 import filecmp
-import hashlib
 import os
 import re
 import shutil
 import subprocess
 import sys
-import time
 from pathlib import Path
 
 NATIVE = "0.5.12"
@@ -28,8 +25,6 @@ ROOT = Path(__file__).resolve().parent.parent
 PROGRAMS = ROOT / "tests/programs"
 WORK = ROOT / "tmp/programs"
 NIR_DUMP = ROOT / "target/release/nir-dump"
-SCALAI = ROOT / "target/release/scalai"
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 # Changing these changes every program's Scala Native build.
 BUILD_FILES = {"scripts/programs.py", "ci/Dockerfile"}
@@ -129,42 +124,8 @@ def changed(ref):
     return sorted(n for n in names if (PROGRAMS / n).is_dir())
 
 
-def all_names():
-    return sorted(p.name for p in PROGRAMS.iterdir() if p.is_dir())
-
-
-def run(name):
-    """NAME in the release VM: ok, differs or timeout against its `.check`, and a hash of its output."""
-    check = PROGRAMS / name / f"{name}.check"
-    if not check.exists():
-        raise Failed(f"no {check.relative_to(ROOT)}")
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
-    try:
-        r = subprocess.run([str(SCALAI), "--cp", str(PROGRAMS / name), name], cwd=ROOT, env=env, text=True,
-                           errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=TIMEOUT + 10)
-    except subprocess.TimeoutExpired:
-        return "timeout", ""
-    out = r.stdout.rstrip("\n")
-    digest = hashlib.sha1(out.encode(errors="replace")).hexdigest()[:12]
-    return "ok" if out == check.read_text(errors="replace").rstrip("\n") else "differs", digest
-
-
-def check(names):
-    failed = False
-    for name in names or all_names():
-        start = time.monotonic()
-        try:
-            outcome, _ = run(name)
-        except Failed as e:
-            outcome = str(e)
-        took = f"{time.monotonic() - start:.2f}s"
-        print(f"ok   {name} {took}" if outcome == "ok" else f"DIFF {name} {took} {outcome}", flush=True)
-        failed |= outcome != "ok"
-    sys.exit(1 if failed else 0)
-
-
 def stale(names):
-    names = names or all_names()
+    names = names or sorted(p.name for p in PROGRAMS.iterdir() if p.is_dir())
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         lines = list(pool.map(differences, names))
     print("\n".join(lines))
@@ -179,8 +140,6 @@ if __name__ == "__main__":
             sys.exit(f"{sys.argv[2]}: {e}")
     elif len(sys.argv) >= 2 and sys.argv[1] == "stale":
         stale(sys.argv[2:])
-    elif len(sys.argv) >= 2 and sys.argv[1] == "check":
-        check(sys.argv[2:])
     elif len(sys.argv) == 3 and sys.argv[1] == "stale-since":
         names = changed(sys.argv[2])
         if names == []:

@@ -36,7 +36,7 @@ repl *args: release
 
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
-    python3 scripts/programs.py check {{ names }}
+    python3 scripts/program_runs.py check {{ names }}
 
 # Compile test program `name` with Scala Native into its committed NIR and `.check`.
 program-update name:
