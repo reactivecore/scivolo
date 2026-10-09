@@ -29,5 +29,7 @@ are checked against a `ReplDriver` built by `scripts/repl-oracle`. Some commands
 ## Consequences
 - An identifier naming an inherited member of an imported object shows its defining class as
   owner, where dotty shows the object it was imported from.
+- A selector's bound prints as written, where dotty prints the typed bound (`Ordering[ Short ]`
+  as `Ordering[Short]`, `?` as `? >: Nothing <: Any`); the typer refuses bounds for now.
 - Transcripts with relative `:load` paths need the repository root as working directory, which
   the scripted test sets.
