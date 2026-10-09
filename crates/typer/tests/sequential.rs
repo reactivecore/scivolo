@@ -143,6 +143,25 @@ fn deferred_members_of_earlier_units() {
     assert!(!u.is_deferred(c_a));
 }
 
+/// Whether typing `text` as a unit after `before` reports no `Not found` error.
+fn finds_toplevel(before: &[&str], text: &str) -> bool {
+    let Some(mut u) = universe() else { return true };
+    let mut units = Units::default();
+    for (i, b) in before.iter().enumerate() {
+        assert_eq!(type_unit(&mut u, &mut units, &format!("before{i}.scala"), b), Ok(()), "{b}");
+    }
+    !matches!(type_unit(&mut u, &mut units, "main.scala", text), Err(e) if e.contains("Not found"))
+}
+
+#[test]
+fn toplevel_definitions_used_in_an_object() {
+    let main = "object Main:\n  def main(args: Array[String]) =\n    val y = c\n";
+    assert!(finds_toplevel(&[], &format!("val c = 1\n\n{main}")));
+    assert!(finds_toplevel(&[], &format!("{main}\nval c = 1\n")));
+    assert!(finds_toplevel(&[], &format!("{main}\ndef c = 1\n")));
+    assert!(finds_toplevel(&["val c = 1\n"], main));
+}
+
 #[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };

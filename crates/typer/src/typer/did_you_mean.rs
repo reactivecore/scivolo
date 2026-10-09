@@ -5,6 +5,9 @@ use super::Typer;
 use super::imports::ImportEntry;
 use super::java_classes::java_classes;
 use crate::ctx::{Ctx, Level};
+use syntax::ast::children::Child;
+use syntax::ast::{Ast, NodeId, Tree};
+use syntax::names::Name;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// The root packages of the JDK's modules.
@@ -33,6 +36,7 @@ impl Typer<'_> {
         script.extend(self.syms.by_tree.values().copied());
         script.extend(self.syms.closure_syms.iter().copied());
         let mut names: Vec<String> = script.iter().map(|&s| self.u.symbol(s).name.clone()).collect();
+        self.defined_names(&mut names);
         names.extend(OBJECT_MEMBERS.split_whitespace().map(str::to_owned));
         let mut sites = vec![self.u.root()];
         let mut level = Some(ctx.level);
@@ -56,6 +60,17 @@ impl Typer<'_> {
             self.member_names(site, &mut names)?;
         }
         Some(names)
+    }
+
+    /// Adds the names the unit's trees define, entered or not, to `names`.
+    fn defined_names(&self, names: &mut Vec<String>) {
+        let mut found = Vec::new();
+        for (&t, &s) in &self.syms.by_tree {
+            if self.u.symbol(s).owner.is_none_or(|o| self.u.symbol(o).kind == Kind::Package) {
+                definitions(self.ast, t, false, &mut found);
+            }
+        }
+        names.extend(found.into_iter().map(|n| self.text(n).to_owned()));
     }
 
     /// The package or class whose members an import of a path of type `qual` makes visible.
@@ -108,6 +123,41 @@ impl Typer<'_> {
         let decls = self.u.decls(s).ok()?;
         names.extend(decls.iter().map(|&d| self.u.symbol(d).name.clone()));
         Some(())
+    }
+}
+
+/// Pushes the names that tree `id` and the trees under it define onto `out`, and those of all
+/// identifiers in patterns; `pat` if `id` is in a pattern.
+fn definitions(ast: &Ast, id: NodeId, pat: bool, out: &mut Vec<Name>) {
+    let pats: &[NodeId] = match ast.tree(id) {
+        Tree::ValDef { name, .. }
+        | Tree::DefDef { name, .. }
+        | Tree::TypeDef { name, .. }
+        | Tree::ModuleDef { name, .. }
+        | Tree::Bind { name, .. } => {
+            out.push(name.name);
+            &[]
+        }
+        Tree::Ident { name } if pat => {
+            out.push(name.name);
+            &[]
+        }
+        Tree::PatDef { pats, .. } => ast.items(*pats),
+        Tree::CaseDef { pat, .. } | Tree::GenFrom { pat, .. } | Tree::GenAlias { pat, .. } => {
+            std::slice::from_ref(pat)
+        }
+        _ => &[],
+    };
+    let mut visit = |n: NodeId| definitions(ast, n, pat || pats.contains(&n), out);
+    for &c in ast.children(id).iter() {
+        match c {
+            Child::Node(n) => visit(n),
+            Child::List(l) => ast.items(l).iter().for_each(|&n| visit(n)),
+            Child::Clauses(cs) => {
+                ast.clause_items(cs).iter().flat_map(|&l| ast.items(l)).for_each(|&n| visit(n))
+            }
+            Child::Empty | Child::Mods(_) => {}
+        }
     }
 }
 
