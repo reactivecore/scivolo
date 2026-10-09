@@ -28,7 +28,8 @@ Rationale goes in `docs/adr/`, one decision per file.
 
 - No source file over 200 lines, tests excluded; split by what the code is
   for, not by size. Exempt: a data table, a set of type definitions, or the
-  API around a single type (e.g. the TASTy tag table).
+  API around a single type (e.g. the TASTy tag table). A file that ports
+  exactly one dotty method or one dotty phase may have up to 300 lines.
 - Group by meaning, not by syntactic form: no `types.rs`, `enums.rs`,
   `utils.rs`. A type lives beside the code that uses it.
 - The reader is a Rust developer; use the shorter idiom where the language
