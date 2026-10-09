@@ -45,3 +45,4 @@ genericcases
 bynameparams
 traitvals
 traitorder
+generictraits

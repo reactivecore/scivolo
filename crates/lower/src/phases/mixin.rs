@@ -42,8 +42,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     if is_trait(l.u, class) {
-        if !matches!(*l.tpd.tree(constr), Tree::DefDef { paramss, .. } if l.tpd.clause_items(paramss).iter().all(|c| c.is_empty()))
-        {
+        let Tree::DefDef { paramss, .. } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
+        let clauses = l.tpd.clause_items(paramss).to_vec();
+        let value_params = clauses
+            .iter()
+            .flat_map(|&c| l.tpd.items(c))
+            .any(|&p| !matches!(l.tpd.tree(p), Tree::TypeDef { .. }));
+        if value_params {
             return unsupported(span, "trait parameters");
         }
         let stats = trait_defs(l, td);
