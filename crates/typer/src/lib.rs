@@ -50,9 +50,18 @@ pub fn type_unit(
 
 /// The typer's knowledge of the script symbols of the units typed so far into one universe.
 #[derive(Default)]
-pub struct Units(symbols::Syms);
+pub struct Units {
+    syms: symbols::Syms,
+    errors_first: bool,
+}
 
 impl Units {
+    /// Units whose type errors take precedence over an unsupported construct of the same unit
+    /// (stress mode).
+    pub fn errors_first() -> Self {
+        Self { errors_first: true, ..Self::default() }
+    }
+
     /// Types unit `root` like `type_unit`, the symbols of the units typed before counting as
     /// script symbols.
     pub fn type_unit(
@@ -63,15 +72,18 @@ impl Units {
         root: NodeId,
         features: syntax::config::Features,
     ) -> Result<Typed, Fallback> {
-        let mut typer = Typer::new(u, (ast, root), (names, fresh), features, &mut self.0)
+        let mut typer = Typer::new(u, (ast, root), (names, fresh), features, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
         }
-        self.0 = std::mem::take(&mut typer.syms);
-        self.0.end_unit(typer.u);
+        self.syms = std::mem::take(&mut typer.syms);
+        self.syms.end_unit(typer.u);
+        if self.errors_first && typer.diags.has_errors() {
+            return Err(Fallback::Errors(typer.diags));
+        }
         if let Some((at, what)) = typer.unsupported.take() {
             return Err(Fallback::Unsupported { at, what });
         }

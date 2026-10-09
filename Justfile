@@ -181,6 +181,15 @@ typer-report filter="":
     cargo build -q --release -p typer
     python3 scripts/typer-tests.py report {{ filter }}
 
+# Type tests/programs, tests/pos and tests/neg (those whose paths contain `filter`) with errors
+# taking precedence over unsupported constructs, and list the false errors: those at an offset
+# where dotty reports none (neg: by typer-oracle's output). Results in tmp/typer/3.9.0/stress.tsv.
+# Not in `ci`, which lacks ref/dotty and the oracle output: about 1.5 min for tests/pos and
+# 2.5 min for all on 12 cores.
+typer-stress filter="":
+    cargo build -q --release -p typer
+    python3 scripts/typer-tests.py stress {{ filter }}
+
 # Save the typer report's results (default: the latest) as the baseline of typer-progress.
 typer-baseline from="tmp/typer/3.9.0/results.tsv":
     cp {{ from }} tmp/typer/baseline.tsv

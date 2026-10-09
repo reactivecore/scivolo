@@ -87,7 +87,7 @@ impl Typer<'_> {
     }
 
     /// Adds the names of the members of package or class `site` to `names`; `None` for members
-    /// of the JDK the universe may not know.
+    /// of the JDK the universe may not know, or of a self type or export clause.
     pub fn member_names(&mut self, site: SymbolId, names: &mut Vec<String>) -> Option<()> {
         let full = self.u.full_name(site);
         if self.u.symbol(site).kind == Kind::Package {
@@ -111,7 +111,10 @@ impl Typer<'_> {
             self.complete(base);
             let full = self.u.full_name(base);
             let unknown_parent = self.u.parents(base).into_iter().any(|p| self.u.class_symbol(p).is_none());
-            if unknown_parent || is_jdk(&full) && !KNOWN_JAVA.contains(&&*full) {
+            if unknown_parent
+                || is_jdk(&full) && !KNOWN_JAVA.contains(&&*full)
+                || self.has_undeclared_members(base)
+            {
                 return None;
             }
             self.decl_names(base, names)?;

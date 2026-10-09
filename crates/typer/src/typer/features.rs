@@ -6,11 +6,15 @@ use crate::ctx::{Ctx, Level};
 use syntax::config::Features;
 
 impl Typer<'_> {
-    /// Whether feature `f`, `scala.language.name`, is enabled in `ctx`.
+    /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.
     pub fn feature_enabled(&mut self, f: Features, name: &str, ctx: Ctx) -> bool {
         if self.features.contains(f) {
             return true;
         }
+        let (object, name) = match name.rsplit_once('.') {
+            Some((prefix, last)) => (format!("scala.language.{prefix}"), last),
+            None => ("scala.language".to_owned(), name),
+        };
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             if let Level::Import(i) = *self.levels.get(l)
@@ -20,7 +24,7 @@ impl Typer<'_> {
             {
                 let qual = info.qual;
                 let site = self.import_site(qual);
-                if site.is_some_and(|s| self.u.full_name(s).trim_end_matches('$') == "scala.language") {
+                if site.is_some_and(|s| self.u.full_name(s).replace('$', "") == object) {
                     return true;
                 }
             }

@@ -15,10 +15,13 @@ struct Cli {
     /// The files, one `path<TAB>options` per line.
     #[arg(long, value_name = "LIST")]
     list: PathBuf,
+    /// Print type errors even when the unit also hits an unsupported construct.
+    #[arg(long)]
+    errors_first: bool,
 }
 
 fn main() {
-    let Cli { list } = Cli::parse();
+    let Cli { list, errors_first } = Cli::parse();
     let libs = std::env::var_os("SCALAI_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = library_jars(&libs);
@@ -31,7 +34,7 @@ fn main() {
         let run = std::panic::catch_unwind(|| {
             let mut u = Universe::open(&jars).expect("opening the library");
             let text = std::fs::read(path).expect("reading the source");
-            dump(&mut u, &SourceFile::new(path, String::from_utf8_lossy(&text)), &options)
+            dump(&mut u, &SourceFile::new(path, String::from_utf8_lossy(&text)), &options, errors_first)
         });
         match run {
             Ok(text) => b.push_str(&text),
