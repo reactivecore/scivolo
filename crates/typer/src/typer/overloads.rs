@@ -24,6 +24,8 @@ pub struct FunProto {
     pub args: Vec<NodeId>,
     pub ctx: Ctx,
     pub typed: Option<Vec<TNodeId>>,
+    /// Whether the application is applied to further arguments.
+    pub applied: bool,
 }
 
 impl Typer<'_> {
@@ -93,12 +95,47 @@ impl Typer<'_> {
                 best = alt;
             }
         }
+        let mut tied = vec![best];
         for &alt in applicable.iter().filter(|&&a| a != best) {
             if self.compare_alts((best, alt), prefix, views, ctx).ok_or(undecided)? <= 0 {
-                return Err("ambiguous overload");
+                tied.push(alt);
             }
         }
-        Ok(best)
+        if tied.len() == 1 {
+            return Ok(best);
+        }
+        if self.protos[proto].applied {
+            return Err("ambiguous overload resolved by further arguments");
+        }
+        for preferred in [false, true] {
+            let kept: Vec<SymbolId> = alts
+                .iter()
+                .copied()
+                .filter(|&a| if preferred { !self.has_defaults(a) } else { !self.result_is_method(a) })
+                .collect();
+            if let [only] = kept[..] {
+                return Ok(only);
+            }
+            if kept.len() > 1 && kept.len() < alts.len() {
+                return self.resolve_overloaded(&kept, prefix, proto);
+            }
+        }
+        Err("ambiguous overload")
+    }
+
+    /// Whether the first parameter clause of method `s` is followed by another that is not
+    /// implicit (dotty's `resultIsMethod` with `stripInferrable`).
+    fn result_is_method(&mut self, s: SymbolId) -> bool {
+        let info = self.u.info(s);
+        let info = match *self.u.types().get(info) {
+            tasty::Type::Poly { result, .. } => result,
+            _ => info,
+        };
+        let tasty::Type::Method { mut result, .. } = *self.u.types().get(info) else { return false };
+        while let tasty::Type::Method { result: r, implicit: true, .. } = *self.u.types().get(result) {
+            result = r;
+        }
+        matches!(self.u.types().get(result), tasty::Type::Method { .. })
     }
 
     /// The arguments of `proto`, typed without an expected type once.

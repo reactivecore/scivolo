@@ -13,7 +13,8 @@ impl Typer<'_> {
         }
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
-        self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None });
+        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun);
+        self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None, applied });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
