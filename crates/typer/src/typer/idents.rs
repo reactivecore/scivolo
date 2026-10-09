@@ -58,7 +58,12 @@ impl Typer<'_> {
             Ok(None) if matches!(pt, Pt::Fun(_)) && !name.is_type => {
                 return self.proxy_ident(id, name, pt, ctx);
             }
-            Ok(None) => return self.unsupported(id, &format!("unresolved name {text}")),
+            Ok(None) => {
+                return match self.not_found(id, name, ctx) {
+                    Some(error) => error,
+                    None => self.unsupported(id, &format!("unresolved name {text}")),
+                };
+            }
             Err("constructor proxy") if matches!(pt, Pt::Fun(_)) => {
                 return self.proxy_ident(id, name, pt, ctx);
             }

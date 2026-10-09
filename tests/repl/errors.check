@@ -20,7 +20,28 @@ scala> val x = 1
 val x: Int = 1
 
 scala> y
--- unsupported: unresolved name y
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |y
+  |^
+  |Not found: y
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> val q: Qqqq = zork
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |val q: Qqqq = zork
+  |       ^^^^
+  |       Not found: type Qqqq
+  |
+  | longer explanation available when compiling with `-explain`
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |val q: Qqqq = zork
+  |              ^^^^
+  |              Not found: zork
+  |
+  | longer explanation available when compiling with `-explain`
+2 errors found
 
 scala> List(1,2,3,4,5).fold((a,b) => (a+b))
 -- [E081] Type Error: ----------------------------------------------------------
@@ -40,3 +61,18 @@ scala> List(1,2,3,4,5).fold((a,b) => (a+b))
   |                        Expected type for the whole anonymous function:
   |                          Int
 2 errors found
+
+scala> val abc = 1
+val abc: Int = 1
+
+scala> abd
+-- unsupported: unresolved name abd
+
+scala> class K { def m = wwww }
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |class K { def m = wwww }
+  |                  ^^^^
+  |                  Not found: wwww
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
