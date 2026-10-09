@@ -25,6 +25,21 @@ impl Typer<'_> {
         self.unset_local(sym, prefix)
     }
 
+    /// Checks that term `name` referring to `sym` in `ctx` is no package, unless it is the
+    /// qualifier of a selection or an import (dotty's "is not a value", `checkValue`).
+    pub fn check_package_use(
+        &mut self,
+        sym: SymbolId,
+        name: syntax::ast::TName,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
+        let package = self.u.symbol(sym).kind == tasty::Kind::Package;
+        if package && !name.is_type && !ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
+            return Err("package used as a value");
+        }
+        Ok(())
+    }
+
     /// Whether `sym` may be referred to from `ctx`: it is unrestricted, or `ctx` is inside its
     /// owner, or, if it is protected, inside a subclass of its owner.
     pub fn is_accessible(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
