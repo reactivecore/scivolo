@@ -76,3 +76,27 @@ scala> class K { def m = wwww }
   |
   | longer explanation available when compiling with `-explain`
 1 error found
+
+scala> 1.zork
+-- [E008] Not Found Error: -----------------------------------------------------
+1 |1.zork
+  |^^^^^^
+  |value zork is not a member of Int
+1 error found
+
+scala> class Q { def m = 1 }
+// defined class Q
+
+scala> new Q().qqqq(1)
+-- [E008] Not Found Error: -----------------------------------------------------
+1 |new Q().qqqq(1)
+  |^^^^^^^^^^^^
+  |value qqqq is not a member of Q
+1 error found
+
+scala> List(1, 2).wwww
+-- [E008] Not Found Error: -----------------------------------------------------
+1 |List(1, 2).wwww
+  |^^^^^^^^^^^^^^^
+  |value wwww is not a member of List[Int]
+1 error found

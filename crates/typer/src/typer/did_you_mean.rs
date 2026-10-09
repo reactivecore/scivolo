@@ -14,11 +14,11 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 const JDK_ROOTS: [&str; 8] = ["apple", "com", "java", "javax", "jdk", "netscape", "org", "sun"];
 
 /// The members of `Any`, `AnyRef` and the JDK's `Object`.
-const OBJECT_MEMBERS: &str = "== != ## equals hashCode toString getClass isInstanceOf asInstanceOf eq ne \
+pub const OBJECT_MEMBERS: &str = "== != ## equals hashCode toString getClass isInstanceOf asInstanceOf eq ne \
     synchronized notify notifyAll wait clone finalize";
 
 /// The Java classes whose members are known: the universe's or `OBJECT_MEMBERS`.
-const KNOWN_JAVA: [&str; 3] = ["java.lang.Object", "java.lang.Comparable", "java.io.Serializable"];
+pub const KNOWN_JAVA: [&str; 3] = ["java.lang.Object", "java.lang.Comparable", "java.io.Serializable"];
 
 impl Typer<'_> {
     /// Whether dotty may suggest a name for `missing` in `ctx`: a candidate is close to it, or the
@@ -88,7 +88,7 @@ impl Typer<'_> {
 
     /// Adds the names of the members of package or class `site` to `names`; `None` for members
     /// of the JDK the universe may not know.
-    fn member_names(&mut self, site: SymbolId, names: &mut Vec<String>) -> Option<()> {
+    pub fn member_names(&mut self, site: SymbolId, names: &mut Vec<String>) -> Option<()> {
         let full = self.u.full_name(site);
         if self.u.symbol(site).kind == Kind::Package {
             if site == self.u.root() {
@@ -162,13 +162,13 @@ fn definitions(ast: &Ast, id: NodeId, pat: bool, out: &mut Vec<Name>) {
 }
 
 /// Whether full name `full` is in a root package of the JDK.
-fn is_jdk(full: &str) -> bool {
+pub fn is_jdk(full: &str) -> bool {
     JDK_ROOTS.contains(&full.split('.').next().unwrap_or_default())
 }
 
 /// Whether dotty's `closestTo` keeps candidate `cand` for name `missing`, in UTF-16 units: an edit
 /// distance of at most 3, at most a quarter of the summed lengths, and below each length.
-fn close(missing: &[u16], cand: &str) -> bool {
+pub fn close(missing: &[u16], cand: &str) -> bool {
     let cand: Vec<u16> = cand.encode_utf16().collect();
     if cand.len().abs_diff(missing.len()) > 3 {
         return false;

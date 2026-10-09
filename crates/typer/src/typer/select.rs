@@ -17,7 +17,7 @@ impl Typer<'_> {
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
-        let mut converted = false;
+        let (mut converted, mut widened) = (false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.widen_if_unstable(qual_tpe);
@@ -36,6 +36,7 @@ impl Typer<'_> {
             }
             if let Some(case) = self.widened_enum_case(qual) {
                 qual = case;
+                widened = true;
                 continue;
             }
             if self.extension_visible(&text, ctx) {
@@ -43,11 +44,15 @@ impl Typer<'_> {
             }
             match self.converted(qual, Goal::Member(&text), ctx) {
                 Ok(Some(q)) => qual = q,
+                Ok(None) if !widened => return self.member_not_found(id, qual, name, ctx),
                 Ok(None) => return self.unsupported(id, "member not found"),
                 Err(what) => return self.unsupported(id, what),
             }
             converted = true;
         };
+        if syms.is_empty() && name.is_type && !widened {
+            return self.member_not_found(id, qual, name, ctx);
+        }
         if syms.is_empty() {
             return self.unsupported(id, "member not found");
         }
@@ -86,5 +91,9 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
+    }
+
+    fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
+        self.not_a_member(id, qual, name, ctx).unwrap_or_else(|| self.unsupported(id, "member not found"))
     }
 }

@@ -31,18 +31,22 @@ mod features;
 mod find_ref;
 mod function_types;
 mod idents;
+mod implicit_views;
 mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
 mod java_classes;
+mod java_members;
 mod lift;
 mod literals;
 mod matches;
+mod member_views;
 mod members;
 mod named_args;
 mod names;
 mod no_inits;
+mod not_a_member;
 mod not_found;
 mod op_assign;
 mod overloads;
@@ -90,6 +94,8 @@ pub use overloads::Pt;
 pub struct Typer<'a> {
     pub u: &'a mut Universe,
     pub ast: &'a mut Ast,
+    /// The root tree of the unit.
+    pub unit: NodeId,
     pub names: &'a mut Names,
     /// The counters of the unit's fresh names, shared with the desugaring.
     pub fresh: &'a mut FreshNames,
@@ -127,7 +133,7 @@ const MAX_DEPTH: u32 = 400;
 impl<'a> Typer<'a> {
     pub fn new(
         u: &'a mut Universe,
-        ast: &'a mut Ast,
+        (ast, unit): (&'a mut Ast, NodeId),
         (names, fresh): (&'a mut Names, &'a mut FreshNames),
         features: Features,
         syms: &mut Syms,
@@ -141,6 +147,7 @@ impl<'a> Typer<'a> {
         let mut typer = Typer {
             u,
             ast,
+            unit,
             names,
             fresh,
             defn,

@@ -31,7 +31,7 @@ impl Typer<'_> {
     }
 
     /// The outermost definition tree of an owner of `ctx` that contains `id`.
-    fn enclosing_definition(&mut self, id: NodeId, ctx: Ctx) -> Option<NodeId> {
+    pub fn enclosing_definition(&mut self, id: NodeId, ctx: Ctx) -> Option<NodeId> {
         let mut owners = Vec::new();
         let mut owner = Some(ctx.owner);
         while let Some(o) = owner.filter(|&o| self.u.symbol(o).kind != Kind::Package) {
@@ -54,7 +54,7 @@ impl Typer<'_> {
 
 /// Whether the edge from tree `w[0]` to its child `w[1]` leads into a pattern, the function part
 /// of an application, an operand or an assigned variable.
-fn uncertain_edge(ast: &Ast, w: &[NodeId]) -> bool {
+pub fn uncertain_edge(ast: &Ast, w: &[NodeId]) -> bool {
     let child = w[1];
     match *ast.tree(w[0]) {
         Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } => fun == child,
@@ -67,7 +67,7 @@ fn uncertain_edge(ast: &Ast, w: &[NodeId]) -> bool {
 }
 
 /// Whether `to` is `from` or under it; the trees from `from` to `to` pushed onto `path` if so.
-fn path_to(ast: &Ast, from: NodeId, to: NodeId, path: &mut Vec<NodeId>) -> bool {
+pub fn path_to(ast: &Ast, from: NodeId, to: NodeId, path: &mut Vec<NodeId>) -> bool {
     path.push(from);
     if from == to {
         return true;

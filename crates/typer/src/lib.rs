@@ -63,7 +63,7 @@ impl Units {
         root: NodeId,
         features: syntax::config::Features,
     ) -> Result<Typed, Fallback> {
-        let mut typer = Typer::new(u, ast, (names, fresh), features, &mut self.0)
+        let mut typer = Typer::new(u, (ast, root), (names, fresh), features, &mut self.0)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
