@@ -21,3 +21,10 @@ pub fn not_found(name: &str, is_type: bool) -> Message {
     let kind = if is_type { "type " } else { "" };
     message(6, "Not Found", true, format!("Not found: {kind}{name}"))
 }
+
+/// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, with no
+/// addendum and no name to suggest.
+pub fn not_a_member(name: &str, is_type: bool, site: &str) -> Message {
+    let kind = if is_type { "type" } else { "value" };
+    message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}"))
+}
