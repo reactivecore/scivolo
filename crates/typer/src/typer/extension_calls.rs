@@ -26,7 +26,8 @@ impl Typer<'_> {
         }
         let java_statics = self.tpd.sym(qual).is_some_and(|s| {
             let full = self.u.full_name(s);
-            self.u.symbol(s).flags.has(tasty::tags::OBJECT) && (full.starts_with("java.") || full.starts_with("javax."))
+            self.u.symbol(s).flags.has(tasty::tags::OBJECT)
+                && (full.starts_with("java.") || full.starts_with("javax."))
         });
         if java_statics {
             return self.unsupported(id, "extension method on the statics of a Java class");
