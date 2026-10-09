@@ -215,6 +215,12 @@ repl-oracle *files:
     f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl/*.check); \
     scala-cli --power run --server=false --quiet --workspace tmp/repl-oracle-ws scripts/repl-oracle -- $f
 
+# Rewrite completion corpora (default: tests/repl-completion) with the labels Scala 3.9's REPL
+# lists on Tab (JVM, JDK 21).
+completion-oracle *files:
+    f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl-completion/*.tab); \
+    scala-cli --power run --server=false --quiet --workspace tmp/completion-oracle-ws scripts/completion-oracle -- $f
+
 # Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed
