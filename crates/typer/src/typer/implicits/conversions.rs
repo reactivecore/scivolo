@@ -27,7 +27,7 @@ impl Typer<'_> {
         let from = self.tpd.tpe(tree);
         let from = self.zonk(from);
         if let Goal::Conform(pt) = goal
-            && self.is_top_like(pt)
+            && (self.is_top_like(pt) || self.is_underspecified_arg(from))
         {
             return Ok(None);
         }
@@ -79,12 +79,27 @@ impl Typer<'_> {
         })
     }
 
-    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef` or `Matchable`, which no conversion targets.
+    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no conversion
+    /// targets.
     fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
         let b = self.u.builtins();
         let class = self.u.class_symbol(pt);
-        class.is_some_and(|c| c == b.any || c == b.object || c == b.matchable || Some(c) == b.any_val)
+        class.is_some_and(|c| {
+            c == b.any
+                || c == b.object
+                || c == b.matchable
+                || Some(c) == b.any_val
+                || self.u.full_name(c) == "scala.Unit"
+        })
+    }
+
+    /// Whether a value of type `from` is `null` or has no values, so no conversion takes it
+    /// (dotty's `isUnderSpecifiedArgument`).
+    fn is_underspecified_arg(&mut self, from: TypeId) -> bool {
+        let widened = self.u.widen(from);
+        let b = self.u.builtins();
+        self.u.class_symbol(widened).is_some_and(|c| c == b.nothing || c == b.null)
     }
 
     /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`.
