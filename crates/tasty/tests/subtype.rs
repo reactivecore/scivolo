@@ -375,6 +375,32 @@ fn union_parts_with_class_symbol_nothing_have_no_atoms() {
     assert!(!u.is_subtype(x_or_1, one_or_2));
 }
 
+/// Abstract types `T0 <: 2` and `Tk <: (Tk-1 | 1) & (Tk-1 | 3)`, each with atoms `2`.
+fn bound_dag(u: &mut Universe, levels: usize) -> TypeId {
+    let root = u.root();
+    let (one, two, three) = (parse(u, "1"), parse(u, "2"), parse(u, "3"));
+    let mut bound = two;
+    let mut t = NOTHING;
+    for k in 0..=levels {
+        let bounds = u.intern_type(Type::Bounds(NOTHING, bound));
+        let s = define(u, &format!("T{k}"), Kind::Type, root, bounds);
+        t = u.intern_type(Type::Sym(None, s));
+        let (left, right) = (u.intern_type(Type::Or(t, one)), u.intern_type(Type::Or(t, three)));
+        bound = u.intern_type(Type::And(left, right));
+    }
+    t
+}
+
+#[test]
+fn atoms_of_a_dag_of_bounds_take_one_step_per_node() {
+    let Some(mut u) = universe() else { return };
+    let two_or_4 = parse(&mut u, "2 | 4");
+    let t = bound_dag(&mut u, 40);
+    let start = std::time::Instant::now();
+    assert!(u.is_subtype(t, two_or_4));
+    assert!(start.elapsed() < std::time::Duration::from_secs(1), "{:?}", start.elapsed());
+}
+
 #[test]
 fn outer_this_types_are_seen_from_the_prefix() {
     let Some(mut u) = universe() else { return };
