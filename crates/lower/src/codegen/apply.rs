@@ -22,7 +22,8 @@ impl Gen<'_, '_> {
         let span = self.l.tpd.span(t);
         let saved = self.at_span(span);
         let args = self.l.tpd.items(args).to_vec();
-        let Some(sym) = self.l.tpd.sym(fun) else {
+        let method = if let Tree::TypeApply { fun, .. } = *self.l.tpd.tree(fun) { fun } else { fun };
+        let Some(sym) = self.l.tpd.sym(method) else {
             return unsupported(span, "a call without a method symbol");
         };
         if self.is_string_concat(sym) {

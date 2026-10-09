@@ -26,6 +26,9 @@ impl Gen<'_, '_> {
         let Some(owner) = self.l.u.symbol(sym).owner else { return Ok(None) };
         let name = self.l.u.symbol(sym).name.clone();
         let (any, object) = (self.l.defs.any, self.l.defs.object);
+        if sym == self.l.defs.monitors.synchronized {
+            return self.gen_synchronized(fun, args).map(Some);
+        }
         let object_op =
             [any, object].contains(&owner) && matches!(name.as_str(), "eq" | "ne" | "==" | "!=" | "##");
         if !object_op && !is_primitive(&self.l.u.binary_name(owner)) {

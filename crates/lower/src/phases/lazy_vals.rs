@@ -112,7 +112,7 @@ fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
 }
 
 /// `base` followed by the number of names made from it in the unit.
-fn fresh(l: &mut Lower, base: &str) -> String {
+pub fn fresh(l: &mut Lower, base: &str) -> String {
     let name = l.fresh.next(l.names, base);
     l.names.text(name).to_owned()
 }

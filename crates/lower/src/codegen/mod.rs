@@ -28,6 +28,7 @@ mod numeric;
 mod ops;
 mod primitives;
 mod statics;
+mod synchronized;
 mod tries;
 
 use crate::{Lower, NirFile, Result};

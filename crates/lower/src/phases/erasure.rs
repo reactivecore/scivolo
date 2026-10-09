@@ -2,6 +2,7 @@
 //! expected there and adapted to it (`adapt.rs`).
 
 use super::adapt::{adapt, applied_to_none, array_op, erased_type, is_parameterless_ref};
+use super::adapt::{is_synchronized, qualify_synchronized, synchronized_type};
 use super::casts::{is_cast, receiver_type};
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
@@ -61,13 +62,22 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                         all.splice(0..0, l.tpd.items(args).iter().copied());
                         fun = inner;
                     }
-                    Tree::TypeApply { fun: inner, .. } if !is_cast(l, fun) => fun = inner,
+                    Tree::TypeApply { fun: inner, .. } if !is_cast(l, fun) && !is_synchronized(l, fun) => {
+                        fun = inner
+                    }
                     _ => break,
                 }
             }
-            if let Tree::Select { qualifier, name } = *l.tpd.tree(fun) {
-                let qualifier = typed_qualifier(l, fun, qualifier)?;
-                l.tpd.get_mut(fun).tree = Tree::Select { qualifier, name };
+            let sel = match *l.tpd.tree(fun) {
+                Tree::TypeApply { fun: inner, .. } if is_synchronized(l, fun) => {
+                    qualify_synchronized(l, inner)?;
+                    inner
+                }
+                _ => fun,
+            };
+            if let Tree::Select { qualifier, name } = *l.tpd.tree(sel) {
+                let qualifier = typed_qualifier(l, sel, qualifier)?;
+                l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
             }
             if l.tpd.sym(fun) == Some(l.defs.array_clone) {
                 let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
@@ -76,9 +86,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 }
                 l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
             }
-            let params = match array_op(l, fun) {
-                Some((params, _)) => params,
-                None => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),
+            let params = match (array_op(l, fun), synchronized_type(l, fun)) {
+                (Some((params, _)), _) => params,
+                (None, Some(e)) => vec![e],
+                (None, None) => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),
             };
             let mut typed_args = Vec::new();
             for (i, &a) in all.iter().enumerate() {

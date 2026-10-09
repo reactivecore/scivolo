@@ -53,6 +53,8 @@ pub struct Lower<'a> {
     lazy_fields: Vec<phases::lazy_vals::LazyField>,
     /// The `$lzyINIT` method of each lazy value's accessor.
     lazy_inits: FxHashMap<SymbolId, SymbolId>,
+    /// The accessors of local lazy values, before and after `LambdaLift`.
+    local_lazy_accessors: FxHashSet<SymbolId>,
     /// The fields of lifted local classes holding the values they capture, each with the
     /// constructor parameter setting it.
     proxies: Vec<(SymbolId, SymbolId)>,
@@ -90,6 +92,7 @@ pub fn lower(
         extensions: FxHashMap::default(),
         lazy_fields: Vec::new(),
         lazy_inits: FxHashMap::default(),
+        local_lazy_accessors: FxHashSet::default(),
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),
         local_classes: FxHashSet::default(),

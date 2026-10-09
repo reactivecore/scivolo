@@ -40,16 +40,25 @@ impl Lower<'_> {
         self.with_span(t, span);
     }
 
+    /// Assigns spans to those of `trees` without, as a dotty `Thicket` of them does.
+    pub fn position_thicket(&mut self, trees: &[TNodeId]) {
+        self.envelope_of(trees, Span::NONE);
+    }
+
     /// The union of `start` and the spans of `t`'s children, assigning spans to those without.
     fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
         let parts = children(self.tpd, t);
-        let span = self.include_all(start, &parts);
+        self.envelope_of(&parts, start)
+    }
+
+    fn envelope_of(&mut self, parts: &[TNodeId], start: Span) -> Span {
+        let span = self.include_all(start, parts);
         let span = if !span.exists() || span.end() != MAX_OFFSET {
             span
         } else if span.start() == MAX_OFFSET {
             Span::NONE
         } else {
-            self.include_all(span.start_pos(), &parts)
+            self.include_all(span.start_pos(), parts)
         };
         span.to_synthetic()
     }
