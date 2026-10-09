@@ -216,7 +216,7 @@ repl-oracle *files:
     scala-cli --power run --server=false --quiet --workspace tmp/repl-oracle-ws scripts/repl-oracle -- $f
 
 # Rewrite completion corpora (default: tests/repl-completion) with the labels Scala 3.9's REPL
-# offers (JVM, JDK 21).
+# lists on Tab (JVM, JDK 21).
 completion-oracle *files:
     f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl-completion/*.tab); \
     scala-cli --power run --server=false --quiet --workspace tmp/completion-oracle-ws scripts/completion-oracle -- $f

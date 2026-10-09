@@ -36,11 +36,14 @@ validity filter.
    locals, case binds, class bodies), and reads mode and prefix off the *untyped* path.
 5. JLine filters the candidates by the word of step 1 (`LineReaderImpl.doComplete`, Tab being
    `complete-word`; `CompletionMatcherImpl.defaultMatchers`) [V]: the values starting with the
-   whole word; if none, those containing it; if none, those whose `ReaderUtils.distance` to it
-   is below 2, plus the word itself when there are several. The word can differ from dotty's
-   prefix, which ends at the cursor: `x.ma@@p` shows `map mapConserve` only. One match is
-   inserted; else the common prefix, then the list, sorted by `Candidate.compareTo`
-   (`String.compareTo` on the value).
+   whole word; if none, those containing it; if none, the typo fallback: those whose
+   `ReaderUtils.distance` to it is below 2, plus, when there are several, the word itself in
+   the group `original` (`x.ma@@q` lists `maq` above the `ma…` members). The word can differ
+   from dotty's prefix, which ends at the cursor: `x.ma@@p` shows `map mapConserve` only. One
+   match is inserted; else the common prefix, then the list (`computePost`, `GROUP` and
+   `AUTO_GROUP` on): with one group, no header; with several, `original` first and the REPL's
+   ungrouped labels under `others`, each under its header; within a group sorted by
+   `Candidate.compareTo` (`String.compareTo` on the value).
 
 ### 1.2 Mode and prefix (`Completion.scala:102-168`) [V]
 
@@ -95,7 +98,7 @@ The answers are in `tests/repl-completion/*.tab`; the points they make:
    `ArrayList` (`addFirst`).
 2. `(1, 2)._`: dotty returns every member (`_` scans as a wildcard token, so the name is
    `<error>` and the prefix empty), and JLine's word `_` keeps `_1`, `_2` and their
-   specializations. `x.ma@@q` falls back to the typo match and shows `maq` itself.
+   specializations. `x.hea@@x` and `x.ma@@q` take the typo fallback of §1.1 step 5.
 3. `1.` offers `isNaN`, `floor`, `toDegrees`; `x.size.` does not.
 4. `1 -` offers `-` and `->`: an infix operator completes as a member of its left operand.
 5. Nothing after a command (`:type x.`), on a keyword (`case`), on a rename, a type projection
@@ -132,12 +135,13 @@ would drop `_1$mcI$sp`.
 
 ## 4. The oracle and the corpus
 
-`just completion-oracle [files]` (`scripts/completion-oracle/Oracle.scala`) rewrites corpus
-files in place with what the REPL lists: the labels of `ReplDriver.completions`, filtered and
-sorted by JLine's own code (the REPL's `JLineTerminal` parser for the word, `CompletionMatcherImpl`
-with the REPL's options). One fresh `ReplDriver` per file, its classpath cut to the Scala library
-jars so that no tool package (`xsbti`) leaks in. It refuses a JDK other than 21. A `scala>` line
-that fails or a bad `miss>` line leaves its file unwritten and the exit code non-zero. The whole
+`just completion-oracle [files]` (`scripts/completion-oracle/`) rewrites corpus files in place
+with what the REPL lists: the labels of `ReplDriver.completions`, filtered, grouped and sorted by
+JLine's own code (the REPL's `JLineTerminal` parser for the word, a `LineReaderImpl` with the
+REPL's options for its matcher and `computePost`). One fresh `ReplDriver` per file, its classpath
+cut to the Scala library jars so that no tool package (`xsbti`) leaks in. It refuses a JDK other
+than 21. A `scala>` line that fails to compile or throws, dotty's error candidate, a bad `miss>`
+line or an unexpected line leaves its file unwritten and the exit code non-zero. The whole
 corpus takes 6–20 s, plus about 6 s for the scala-cli start. CI does not run it.
 
 A `.tab` file holds lines of these kinds:
@@ -148,7 +152,7 @@ A `.tab` file holds lines of these kinds:
 | `// …`, empty | kept |
 | `scala> input`, `     \| more` | run in the session |
 | `tab> text`, `     \| more` | ask at `@@`, which is removed |
-| two spaces, labels | the answer, written by the oracle: the labels listed, in JLine's order, space-separated, wrapped at 100 columns, backticked labels as one token; `<none>` |
+| two spaces, labels | the answer, written by the oracle: the labels listed, in JLine's order, space-separated, wrapped at 100 columns, backticked labels as one token; each group with a header starts a line with `[header]` (§1.1 step 5); `<none>` |
 | `miss> labels` | right after an answer (comment lines between allowed), by hand, with a `//` reason: labels we knowingly do not offer; the oracle checks that the answer has them |
 
 Our test (stage 2) runs the same file through `Session` and the word filter: it compares

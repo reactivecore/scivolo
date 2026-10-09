@@ -76,12 +76,13 @@ tab> x.he@@ad
   head headOption
 tab> x.ma@@p
   map mapConserve
-// JLine's fallback when no label starts with or contains the word: labels whose
-// `ReaderUtils.distance` to it is below 2; with more than one, the word itself is added.
+// JLine's typo fallback (docs/research/11-completion.md §1.1 step 5).
 tab> x.hea@@x
-  head headOption heax
+  [original] heax
+  [others] head headOption
 tab> x.ma@@q
-  map mapConserve maq max maxBy maxByOption maxOption
+  [original] maq
+  [others] map mapConserve max maxBy maxByOption maxOption
 tab> x.@@head
   != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
   aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect
