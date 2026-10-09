@@ -125,6 +125,12 @@ dotty-build filter="": dotty-fetch
 dotty-report filter="": release
     python3 scripts/dotty-tests.py report {{ filter }}
 
+# Run the dotty tests (default: all) through the Rust typer, the lowering and the VM, against
+# the outcomes of dotty-report; lower-report.md and lower-results.tsv under tmp/dotty.
+dotty-lower-report filter="": release
+    cargo build -q --release -p lower
+    python3 scripts/dotty-lower.py {{ filter }}
+
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":
     python3 scripts/dotty-tests.py native {{ filter }}
