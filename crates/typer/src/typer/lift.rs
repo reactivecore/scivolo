@@ -99,8 +99,9 @@ impl Typer<'_> {
                 if lifted == fun {
                     return Ok(f);
                 }
-                let tpe = self.tpd.get(f).tpe;
-                Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, tpe, None))
+                let types: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
+                let tpe = self.instantiated(lifted, &types)?;
+                Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, Some(tpe), None))
             }
             T::Select { qualifier, name } => {
                 let sym = self.tpd.sym(f).ok_or("lifting")?;
@@ -163,27 +164,14 @@ impl Typer<'_> {
 
     /// The result type of method reference `f`.
     pub fn result_of(&mut self, f: TNodeId) -> Option<TypeId> {
-        let info = self.method_info(self.tpd.tpe(f))?;
+        let tpe = self.tpd.tpe(f);
+        let info = match self.u.types().get(tpe) {
+            Type::Method { .. } => tpe,
+            _ => self.method_info(tpe)?,
+        };
         match *self.u.types().get(info) {
             Type::Method { result, .. } => Some(result),
             _ => None,
         }
-    }
-
-    /// `{ defs; tree }`, or `tree` if there are no definitions (dotty's `wrapDefs`), its type
-    /// widened if it refers to the definitions; outside the subset if it still does.
-    pub fn wrap_defs(&mut self, defs: Vec<TNodeId>, tree: TNodeId) -> TNodeId {
-        if defs.is_empty() {
-            return tree;
-        }
-        let span = defs.iter().fold(self.tpd.span(tree), |s, &d| s.union(self.tpd.span(d)));
-        let span = Span::synthetic(span.start(), span.end());
-        let syms: Vec<tasty::SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
-        let tpe = self.tpd.get(tree).tpe.map(|t| if self.refers_to(t, &syms) { self.u.widen(t) } else { t });
-        if tpe.is_some_and(|t| self.refers_to(t, &syms)) {
-            self.unsupported_at(span, "type of a lifted call referring to a lifted value");
-        }
-        let stats = self.tpd.list(&defs);
-        self.tpd.node(T::Block { stats, expr: tree }, span, tpe, None)
     }
 }
