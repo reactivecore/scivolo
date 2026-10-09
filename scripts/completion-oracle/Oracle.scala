@@ -24,6 +24,7 @@ val Answer = "  "
 val Cursor = "@@"
 val Width = 100
 val Thrown = """^[\w.$]+(Exception|Error|Throwable)(: .*)?$""".r
+val Elided = """^\s*\.\.\. \d+ elided$""".r
 
 class Probe(settings: Array[String], out: PrintStream) extends ReplDriver(settings, out):
   def labels(cursor: Int, expr: String, state: State): List[String] =
@@ -34,26 +35,27 @@ enum Entry:
   case Run(lines: List[String])
   case Ask(lines: List[String])
   case Misses(line: String)
+  case Unexpected(line: String)
 
 def isAnswer(line: String) = line.startsWith(Answer) && line.lift(Answer.length).exists(_ != ' ')
 
-def entries(lines: List[String], file: Path): List[Entry] =
+def entries(lines: List[String]): List[Entry] =
   def group(first: String, rest: List[String]) =
     val (more, after) = rest.span(_.startsWith(Continuation))
     (first :: more, after)
   lines match
     case Nil => Nil
-    case first :: rest if first.startsWith(Header) || isAnswer(first) => entries(rest, file)
+    case first :: rest if first.startsWith(Header) || isAnswer(first) => entries(rest)
     case first :: rest if first.startsWith(Prompt) =>
       val (input, after) = group(first, rest)
-      Entry.Run(input) :: entries(after, file)
+      Entry.Run(input) :: entries(after)
     case first :: rest if first.startsWith(Tab) =>
       val (input, after) = group(first, rest)
-      Entry.Ask(input) :: entries(after, file)
-    case first :: rest if first.startsWith(Miss) => Entry.Misses(first) :: entries(rest, file)
+      Entry.Ask(input) :: entries(after)
+    case first :: rest if first.startsWith(Miss) => Entry.Misses(first) :: entries(rest)
     case first :: rest if first.isEmpty || first.startsWith("//") =>
-      Entry.Kept(first) :: entries(rest, file)
-    case first :: _ => sys.error(s"$file: unexpected line: $first")
+      Entry.Kept(first) :: entries(rest)
+    case first :: rest => Entry.Unexpected(first) :: entries(rest)
 
 def text(lines: List[String], prompt: String): String =
   val more = lines.tail.map(_.stripPrefix(Continuation).stripPrefix(" "))
@@ -75,7 +77,7 @@ def libraryPath: String =
     name.startsWith("scala-library") || name.startsWith("scala3-library")
   .mkString(File.pathSeparator)
 
-class Session(file: Path):
+class Session:
   private val bytes = ByteArrayOutputStream()
   private val driver = Probe(
     Array("-classpath", libraryPath, "-color:never"),
@@ -92,12 +94,18 @@ class Session(file: Path):
     val out = bytes.toString(UTF_8)
     bytes.reset()
     answer = None
-    def fails(l: String) = l.startsWith("-- ") && l.contains("Error") || Thrown.matches(l)
+    def fails(l: String) =
+      l.startsWith("-- ") && l.contains("Error") || Thrown.matches(l) || Elided.matches(l)
     if out.linesIterator.exists(fails) then errors += s"`$input` fails:\n$out"
 
-  def ask(input: String): List[Group] =
-    val cursor = input.indexOf(Cursor)
-    if cursor < 0 then sys.error(s"$file: no $Cursor in `$input`")
+  def ask(input: String): List[Group] = input.indexOf(Cursor) match
+    case -1 =>
+      errors += s"no $Cursor in `$input`"
+      answer = None
+      Nil
+    case cursor => complete(input, cursor)
+
+  private def complete(input: String, cursor: Int): List[Group] =
     val line = input.patch(cursor, "", Cursor.length)
     val labels = driver.labels(cursor, line, state)
     def splits(l: String) = !l.startsWith("`") && l.exists(_.isWhitespace)
@@ -116,9 +124,12 @@ class Session(file: Path):
   def kept(line: String): Unit = if line.isEmpty then answer = None
 
 def regenerate(file: Path, header: String): (Int, List[String]) =
-  val session = Session(file)
+  val session = Session()
   var asked = 0
-  val out = entries(Files.readAllLines(file, UTF_8).asScala.toList, file).flatMap:
+  val out = entries(Files.readAllLines(file, UTF_8).asScala.toList).flatMap:
+    case Entry.Unexpected(line) =>
+      session.errors += s"unexpected line: $line"
+      List(line)
     case Entry.Kept(line) =>
       session.kept(line)
       List(line)

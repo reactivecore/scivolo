@@ -140,8 +140,9 @@ with what the REPL lists: the labels of `ReplDriver.completions`, filtered, grou
 JLine's own code (the REPL's `JLineTerminal` parser for the word, a `LineReaderImpl` with the
 REPL's options for its matcher and `computePost`). One fresh `ReplDriver` per file, its classpath
 cut to the Scala library jars so that no tool package (`xsbti`) leaks in. It refuses a JDK other
-than 21. A `scala>` line that fails to compile or throws, dotty's error candidate, a bad `miss>`
-line or an unexpected line leaves its file unwritten and the exit code non-zero. The whole
+than 21. A `scala>` line that fails to compile or throws, a `tab>` line without `@@`, dotty's
+error candidate, a bad `miss>` line or an unexpected line leaves its file unwritten, the other
+files are still checked, and the exit code is non-zero. The whole
 corpus takes 6–20 s, plus about 6 s for the scala-cli start. CI does not run it.
 
 A `.tab` file holds lines of these kinds:
