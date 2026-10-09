@@ -1,6 +1,6 @@
 //! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
 
-use tasty::tags::{OBJECT, PRIVATE, STATIC, TRAIT};
+use tasty::tags::{FINAL, OBJECT, PRIVATE, STATIC, TRAIT};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -26,6 +26,11 @@ pub fn is_trait(u: &Universe, s: SymbolId) -> bool {
 
 pub fn is_private(u: &Universe, s: SymbolId) -> bool {
     has(u, s, PRIVATE)
+}
+
+/// Whether member `s` of class `class` cannot be overridden.
+pub fn is_effectively_final(u: &Universe, class: SymbolId, s: SymbolId) -> bool {
+    has(u, s, PRIVATE) || has(u, s, FINAL) || has(u, class, FINAL) || is_module_class(u, class)
 }
 
 /// Java's `static`, which `@main` proxies carry, and the methods of javalib's objects that

@@ -48,6 +48,8 @@ pub(crate) mod select_static;
 mod sensical;
 mod specialize;
 mod synthetic;
+mod tail_calls;
+mod tailrec;
 mod trait_fields;
 mod trait_init;
 mod type_tests;
@@ -95,6 +97,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     array_apply::transform(l, &classes);
     for &td in &classes {
         select_static::transform(l, td);
+        tailrec::transform(l, td);
     }
     let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
         classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| crate::symbols::is_trait(l.u, c)));
