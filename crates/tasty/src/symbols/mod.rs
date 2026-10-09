@@ -56,6 +56,8 @@ pub struct Universe {
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The abstract methods and values among the symbols defined outside TASTy.
     deferred: FxHashSet<SymbolId>,
+    /// The classes defined outside TASTy that have initialization code.
+    with_inits: FxHashSet<SymbolId>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,

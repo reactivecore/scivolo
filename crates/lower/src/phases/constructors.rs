@@ -14,7 +14,7 @@ use typer::tpd::{TNodeId, Tree};
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     if is_trait(l.u, class) {
-        return Ok(());
+        return super::trait_init::transform(l, td);
     }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {

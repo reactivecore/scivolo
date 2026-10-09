@@ -61,6 +61,28 @@ nir-dump path *args:
     cargo build -q --release -p nir-dump
     target/release/nir-dump {{ args }} '{{ path }}'
 
+# Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
+# the lowering compile it, definitions sorted, with positions; Scala Native's from the test
+# program of that name, else compiled into tmp/sn/ when older than `file`.
+nir-cmp file class:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -q --release -p nir-dump -p lower
+    base=$(basename '{{ file }}' .scala)
+    target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null
+    sn="tests/programs/$base"
+    if [ ! -d "$sn" ]; then
+        sn="tmp/sn/$base"
+        if [ ! -d "$sn" ] || [ '{{ file }}' -nt "$sn" ]; then
+            rm -rf "$sn"
+            scala-cli --power compile --native --native-version 0.5.12 --server=false -d "$sn" '{{ file }}' > /dev/null
+        fi
+    fi
+    dump() { target/release/nir-dump --debug --sorted "$1" | grep -v '^// \|^# '; }
+    if diff <(dump $sn/{{ class }}.nir) <(dump tmp/lowered/$base/{{ class }}.nir); then
+        echo "same: {{ class }}"
+    fi
+
 # Compile the library overlay (overlay/src) with Scala Native into its committed NIR (overlay/nir).
 overlay:
     python3 scripts/overlay.py build

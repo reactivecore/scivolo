@@ -45,6 +45,8 @@ pub(crate) mod select_static;
 mod sensical;
 mod specialize;
 mod synthetic;
+mod trait_fields;
+mod trait_init;
 mod type_tests;
 mod value_classes;
 pub(crate) mod walk;
@@ -59,6 +61,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
+    trait_fields::find_inits(l, &classes);
     for &td in &classes {
         let retained = initializers::transform(l, td)?;
         getters::transform(l, td, &retained)?;
@@ -88,9 +91,10 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         select_static::transform(l, td);
     }
-    let unit_classes: Vec<_> = classes.iter().filter_map(|&td| l.tpd.sym(td)).collect();
-    for &td in &classes {
-        mixin::transform(l, td, &unit_classes)?;
+    let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
+        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| crate::symbols::is_trait(l.u, c)));
+    for &td in traits.iter().chain(&others) {
+        mixin::transform(l, td)?;
     }
     for &td in &classes {
         lazy_vals::transform(l, td)?;

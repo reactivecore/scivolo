@@ -62,6 +62,8 @@ pub struct Lower<'a> {
     local_classes: FxHashSet<SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
+    /// The accessors `Mixin` made in classes for the values of their traits, without a position.
+    mixed_in: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -90,6 +92,7 @@ pub fn lower(
         proxies: Vec::new(),
         local_classes: FxHashSet::default(),
         explicit_casts: FxHashSet::default(),
+        mixed_in: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

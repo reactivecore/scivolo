@@ -9,8 +9,9 @@ pub struct Equality {
     /// `BoxesRunTime.equals(Object, Object)`, a Java static method.
     pub equals: SymbolId,
     pub statics: SymbolId,
-    /// `Statics.anyHash(Object)`, a Java static method.
+    /// `Statics.anyHash(Object)` and `Statics.releaseFence()`, Java static methods.
     pub any_hash: SymbolId,
+    pub release_fence: SymbolId,
     pub number: SymbolId,
     pub character: SymbolId,
     pub boolean: SymbolId,
@@ -39,12 +40,17 @@ impl Equality {
         let statics = java_class(u, runtime, "Statics");
         let info = method(u, &[object], int);
         let any_hash = java_static(u, statics, "anyHash", Kind::Def, info);
+        let unit = member(u, scala, "Unit", Kind::Class)?;
+        let unit = type_ref(u, unit);
+        let info = method(u, &[], unit);
+        let release_fence = java_static(u, statics, "releaseFence", Kind::Def, info);
         Ok(Equality {
             any_equals: member(u, any, "equals", Kind::Def)?,
             boxes_runtime,
             equals,
             statics,
             any_hash,
+            release_fence,
             number: member(u, java_lang, "Number", Kind::Class)?,
             character: member(u, java_lang, "Character", Kind::Class)?,
             boolean: member(u, java_lang, "Boolean", Kind::Class)?,
