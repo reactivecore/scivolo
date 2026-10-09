@@ -64,6 +64,8 @@ pub struct Universe {
     /// How many binders `fresh_binder` has made.
     binders: u32,
     unions: Unions,
+    /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
+    scala2_erasure: bool,
 }
 
 #[derive(Debug)]
@@ -120,6 +122,16 @@ impl Universe {
     /// Whether `s` comes from the Scala 2 standard library (dotty's `Scala2x` flag).
     pub fn is_scala2(&self, s: SymbolId) -> bool {
         self.symbol(s).tree.is_some_and(|(file, _)| self.files[file.0 as usize].scala2)
+    }
+
+    /// Whether `erase` erases as Scala 2 does.
+    pub fn scala2_erasure(&self) -> bool {
+        self.scala2_erasure
+    }
+
+    /// Makes `erase` erase as Scala 2 does if `on`, returning the previous mode.
+    pub fn set_scala2_erasure(&mut self, on: bool) -> bool {
+        std::mem::replace(&mut self.scala2_erasure, on)
     }
 
     /// The arena of the types decoded so far.

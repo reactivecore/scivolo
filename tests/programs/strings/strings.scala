@@ -15,6 +15,7 @@ object Cat:
   def block(i: Int): String = "a" + { val j = i; j }
   def effect(): String = "a" + { println("r"); 1 }
   def nothing(): String = "a" + ???
+  def primitiveFirst(i: Int): String = i + "x" + 'c'
 
 @main def strings(): Unit =
   println(Cat.two("a", "b"))
@@ -28,3 +29,4 @@ object Cat:
   println(Cat.sequence("a", "cs"))
   println(Cat.block(5))
   println(Cat.effect())
+  println(Cat.primitiveFirst(3))

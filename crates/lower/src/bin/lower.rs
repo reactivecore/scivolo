@@ -28,7 +28,11 @@ fn main() {
             let _ = std::fs::remove_dir_all(&out);
             std::fs::create_dir_all(&out).expect("creating the output directory");
             for f in files {
-                std::fs::write(out.join(format!("{}.nir", f.name)), f.bytes).expect("writing NIR");
+                let path = out.join(format!("{}.nir", f.name.replace('.', "/")));
+                if let Some(dir) = path.parent() {
+                    std::fs::create_dir_all(dir).expect("creating a package directory");
+                }
+                std::fs::write(&path, f.bytes).expect("writing NIR");
                 println!("{}.nir", f.name);
             }
         }

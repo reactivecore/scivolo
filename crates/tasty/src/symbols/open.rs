@@ -38,6 +38,7 @@ impl Universe {
             builtins: Builtins::PENDING,
             binders: 0,
             unions: Default::default(),
+            scala2_erasure: false,
         };
         let root = u.add(Symbol {
             name: String::new(),

@@ -129,7 +129,7 @@ dotty-report filter="": release
 # the outcomes of dotty-report; lower-report.md and lower-results.tsv under tmp/dotty.
 dotty-lower-report filter="": release
     cargo build -q --release -p lower
-    python3 scripts/dotty-lower.py {{ filter }}
+    python3 scripts/dotty-lower.py '{{ filter }}'
 
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":

@@ -5,7 +5,7 @@ use crate::symbols::{has, is_extern};
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use tasty::tags::INLINE;
+use tasty::tags::{INLINE, MACRO};
 
 /// Whether binary class name `name` is a primitive value class.
 pub fn is_primitive(name: &str) -> bool {
@@ -25,7 +25,7 @@ impl Gen<'_, '_> {
         if self.is_primitive_op(sym) {
             return unsupported(span, "primitive operations");
         }
-        if has(self.l.u, sym, INLINE) {
+        if has(self.l.u, sym, INLINE) || has(self.l.u, sym, MACRO) {
             return unsupported(span, "a call of an inline method");
         }
         if is_extern(self.l.u, sym) {

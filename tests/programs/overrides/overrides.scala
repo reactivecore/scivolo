@@ -41,6 +41,9 @@ abstract class Narrowed extends AbstractParent:
 class Implemented extends Narrowed:
   def make: Sub = new Sub()
 
+class NullStr:
+  override def toString = null
+
 @main def overrides(): Unit =
   val m: Maker = new SubMaker()
   println(m.make)
@@ -55,3 +58,4 @@ class Implemented extends Narrowed:
   println(a.make)
   val n: AbstractParent = new Implemented()
   println(n.make)
+  println(List(new NullStr()))

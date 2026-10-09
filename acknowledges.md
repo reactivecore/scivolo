@@ -44,6 +44,8 @@ Apache-2.0. Rust translations of:
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`)
+- `crates/tasty/src/erasure/scala2.rs`: `core/unpickleScala2/Scala2Erasure`
+  (`intersectionDominator`), `SourceLanguage`.
 - `crates/tasty/src/types/show_user`: `printing/{ReplPrinter,RefinedPrinter,PlainPrinter}`
   (types and `dclText` as the REPL shows them).
 - `crates/repl`, from `repl/` (scala3-repl): `ReplPhase` (wrapping, `res` names),

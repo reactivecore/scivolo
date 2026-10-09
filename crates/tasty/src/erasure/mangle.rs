@@ -69,6 +69,16 @@ impl Universe {
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also
     /// boxed for a value; a type parameter erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
+        let owner = self.symbol(def).owner;
+        let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
+        let scala2 = in_scala2_class && !self.symbol(def).flags.has(INLINE);
+        let previous = self.set_scala2_erasure(scala2);
+        let erased = self.erase_method(def);
+        self.set_scala2_erasure(previous);
+        erased
+    }
+
+    fn erase_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
         let mut t = self.info(def);
         let mut params = Vec::new();
         let mut bounds = Vec::new();

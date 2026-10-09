@@ -50,7 +50,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
                 if same_params && other_result == result || bridged.contains(&signature) {
                     continue;
                 }
-                if !same_params && (other_params.len() != params.len() || !l.u.matches(site, m, other)) {
+                if other_params.len() != params.len() || !matching(l, site, m, other) {
                     continue;
                 }
                 if is_trait(l.u, class) {
@@ -70,6 +70,22 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
     Ok(())
 }
 
+/// Whether `a` overrides `b` as members of `site`: their parameters match unless one is a value
+/// or neither takes parameters.
+fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> bool {
+    let methods = l.u.symbol(a).kind == Kind::Def && l.u.symbol(b).kind == Kind::Def;
+    if !methods {
+        return true;
+    }
+    let clauses = |l: &mut Lower, s| {
+        let info = l.u.info(s);
+        l.u.param_clauses(info).iter().map(|(_, ps)| ps.len()).collect::<Vec<_>>()
+    };
+    let (ca, cb) = (clauses(l, a), clauses(l, b));
+    let nullary = |c: &[usize]| c.is_empty() || c == [0];
+    (nullary(&ca) && nullary(&cb)) || l.u.matches(site, a, b)
+}
+
 /// Whether `s` is a non-private method or value a class can override.
 fn is_member(l: &Lower, s: SymbolId) -> bool {
     matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !is_constructor(l.u, s)
@@ -86,6 +102,7 @@ fn inherited_pairs(
 ) -> Vec<(SymbolId, SymbolId)> {
     let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
     let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
+    let site = l.u.this_type(class);
     let mut out = Vec::new();
     for &base in bases[1..].iter().filter(|b| !inherited.contains(b)) {
         let decls: Vec<SymbolId> = l.u.decls(base).unwrap_or_default();
@@ -96,7 +113,10 @@ fn inherited_pairs(
             let implementation = bases.iter().find_map(|&b| {
                 let found = l.u.decl(b, &name).unwrap_or_default();
                 found.into_iter().find(|&o| {
-                    is_member(l, o) && !is_deferred(l, deferred, o) && l.u.erased_method(o).0 == params
+                    is_member(l, o)
+                        && !is_deferred(l, deferred, o)
+                        && l.u.erased_method(o).0 == params
+                        && (o == d || matching(l, site, o, d))
                 })
             });
             let Some(implementation) = implementation else { continue };
