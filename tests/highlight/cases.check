@@ -1,0 +1,173 @@
+\e[33mval\e[0m \e[36mx\e[0m = \e[32m1\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m): \e[32mList\e[0m[\e[32mString\e[0m] = x.toString :: \e[33mNil\e[0m
+\e[33mclass\e[0m \e[36mC\e[0m[\e[36mT\e[0m](\e[36ma\e[0m: \e[32mT\e[0m) \e[33mextends\e[0m \e[32mAnyRef\e[0m
+\e[33mobject\e[0m \e[36mO\e[0m
+\e[32mtrue\e[0m && \e[32mfalse\e[0m || \e[32mnull\e[0m
+\e[32m"str"\e[0m + \e[32ms"i\e[0m${x}\e[32mj"\e[0m + \e[32m'c'\e[0m + \e[32m1.5\e[0m + \e[32m0x1f\e[0m + \e[32m10L\e[0m
+\e[34m// comment\e[0m
+\e[34m/* block */\e[0m x
+\e[41m???\e[0m
+\e[33mList\e[0m(\e[32m1\e[0m, \e[32m2\e[0m).map(_ + \e[32m1\e[0m)
+\e[33mFoo\e[0m
+FOO
+foo.\e[33mBar\e[0m.BAZ
+\e[33minline\e[0m \e[33mdef\e[0m \e[36mg\e[0m = \e[32m1\e[0m
+inline
+\e[33mopen\e[0m \e[33mclass\e[0m \e[36mD\e[0m
+\e[33mimport\e[0m scala.collection.mutable.\e[33mListBuffer\e[0m
+\e[32m@deprecated\e[0m \e[33mdef\e[0m \e[36mold\e[0m = \e[32m1\e[0m
+\e[33mtype\e[0m \e[36mT\e[0m = \e[32mInt\e[0m
+\e[33mval\e[0m \e[36my\e[0m: \e[32mInt\e[0m = \e[32m1\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m = \e[32m1\e[0m\n\e[33mend\e[0m \e[36mf\e[0m
+x \e[33mmatch\e[0m { \e[33mcase\e[0m \e[33mSome\e[0m(v) => v \e[33mcase\e[0m \e[33mNone\e[0m => \e[32m0\e[0m }
+\e[33menum\e[0m \e[36mColor\e[0m { \e[33mcase\e[0m \e[33mRed\e[0m, \e[33mGreen\e[0m }
+\e[33mgiven\e[0m \e[32mInt\e[0m = \e[32m1\e[0m
+\e[33mval\e[0m \e[36mq\e[0m = )
+\e[32m'x\e[0m
+\e[33mlazy\e[0m \e[33mval\e[0m \e[36ml\e[0m = \e[32m2\e[0m
+extension (\e[36ms\e[0m: \e[32mString\e[0m) \e[33mdef\e[0m \e[36mtwice\e[0m = s + s
+\e[33mfor\e[0m i <- \e[32m1\e[0m to \e[32m3\e[0m \e[33myield\e[0m i
+\e[33mif\e[0m x \e[33mthen\e[0m \e[32m1\e[0m \e[33melse\e[0m \e[32m2\e[0m
+\e[33mnew\e[0m \e[32mC\e[0m(\e[32m1\e[0m)
+\e[33mtrait\e[0m \e[36mTr\e[0m
+\e[33mval\e[0m (a, b) = (\e[32m1\e[0m, \e[32m2\e[0m)
+x.asInstanceOf[\e[32mInt\e[0m]
+\e[32ms"a \e[0m$x\e[32m b \e[0m${x + \e[32m1\e[0m}\e[32m c"\e[0m
+\e[32mf"%d"\e[0m
+\e[32m"""triple"""\e[0m
+`backtick`
+:help
+\e[33mval\e[0m \e[36mx\e[0m = \e[32m1\e[0m \e[34m// trailing\e[0m
+\e[33mcase class\e[0m \e[36mP\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m, \e[36my\e[0m: \e[32mString\e[0m)
+\e[33mdef\e[0m \e[36mg\e[0m[\e[36mT\e[0m <: \e[32mAnyRef\e[0m](\e[36mt\e[0m: \e[32mT\e[0m): \e[32mOption\e[0m[\e[32mT\e[0m] = \e[33mSome\e[0m(t)
+\e[33mvar\e[0m \e[36mv\e[0m = \e[32m1\e[0m\nv = \e[32m2\e[0m
+\e[33mval\e[0m \e[36mfn\e[0m = (\e[36mi\e[0m: \e[32mInt\e[0m) => i + \e[32m1\e[0m
+scala.collection.immutable.\e[33mList\e[0m.empty[\e[32mInt\e[0m]
+\e[33mobject\e[0m \e[36mO\e[0m:\n  \e[33mdef\e[0m \e[36mm\e[0m = \e[32m1\e[0m\n\e[33mend\e[0m \e[36mO\e[0m
+\e[33mthis\e[0m.x
+\e[33msuper\e[0m.toString
+\e[33mval\e[0m \e[36ms\e[0m: \e[32mString\e[0m = \e[32mnull\e[0m
+\e[32m1\e[0m to \e[32m10\e[0m
+\e[33mval\e[0m \e[36mü\e[0m = \e[32m"ä"\e[0m \e[34m// ö\e[0m
+\e[33mval\e[0m \e[36m𝔸\e[0m = \e[32m"𝔹"\e[0m + \e[32m1\e[0m
+\e[34m/* a /* nested */ b */\e[0m \e[33mval\e[0m \e[36mz\e[0m = \e[32m1\e[0m
+\e[33mval\e[0m \e[36ma\e[0m = \e[32m1\e[0m \e[34m/* unclosed\e[0m
+"unclosed
+\e[33mdef\e[0m \e[36mh\e[0m(using \e[36mx\e[0m: \e[32mInt\e[0m) = x
+\e[33mopaque\e[0m \e[33mtype\e[0m \e[33mOp\e[0m = \e[33mInt\e[0m
+\e[33mtransparent\e[0m \e[33minline\e[0m \e[33mdef\e[0m \e[36mt\e[0m = \e[32m1\e[0m
+\e[33minfix\e[0m \e[33mdef\e[0m \e[36mop\e[0m(\e[36ma\e[0m: \e[32mInt\e[0m) = a
+\e[33mclass\e[0m \e[36mE\e[0m { \e[33mdef\e[0m \e[33mthis\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m) = \e[33mthis\e[0m() }
+\e[33mval\e[0m \e[33mSome\e[0m(z) = \e[33mOption\e[0m(\e[32m1\e[0m)
+\e[33mimport\e[0m java.util.{\e[33mMap\e[0m as \e[33mJMap\e[0m}
+\e[33mval\e[0m \e[36mt\e[0m: (\e[32mInt\e[0m, \e[32mString\e[0m) => \e[32mUnit\e[0m = \e[32mnull\e[0m
+\e[33mtype\e[0m \e[36mL\e[0m = [\e[36mX\e[0m] =>> \e[32mList\e[0m[\e[32mX\e[0m]
+\e[32m@main\e[0m \e[33mdef\e[0m \e[36mrun\e[0m(\e[36margs\e[0m: \e[32mString\e[0m*) = ()
+(x: @\e[32munchecked\e[0m) \e[33mmatch\e[0m { \e[33mcase\e[0m _ => \e[32m1\e[0m }
+\e[33mdef\e[0m \e[36mf\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m = \e[32m1\e[0m)(\e[33mimplicit\e[0m \e[36my\e[0m: \e[32mString\e[0m) = x
+\e[33mobject\e[0m \e[36mApp2\e[0m \e[33mextends\e[0m \e[32mApp\e[0m { println(\e[32m"hi"\e[0m) }
+xs.foreach { \e[36mx\e[0m => println(x) }
+\e[33mwhile\e[0m x < \e[32m3\e[0m \e[33mdo\e[0m x += \e[32m1\e[0m
+\e[33mtry\e[0m f() \e[33mcatch\e[0m { \e[33mcase\e[0m e: \e[32mException\e[0m => () } \e[33mfinally\e[0m ()
+\e[33mthrow\e[0m \e[33mnew\e[0m \e[32mRuntimeException\e[0m(\e[32m"x"\e[0m)
+\e[33mclass\e[0m \e[36mF\e[0m(\e[33mval\e[0m \e[36ma\e[0m: \e[32mInt\e[0m, \e[33mvar\e[0m \e[36mb\e[0m: \e[32mInt\e[0m)
+\e[33menum\e[0m \e[36mE2\e[0m { \e[33mcase\e[0m \e[36mA\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m) }
+\e[33mgiven\e[0m \e[36mord\e[0m: \e[32mOrdering\e[0m[\e[32mInt\e[0m] = \e[33mOrdering\e[0m.\e[33mInt\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m: \e[32mInt\e[0m = \e[41m???\e[0m
+\e[33mexport\e[0m O.*
+\e[33mabstract\e[0m \e[33mclass\e[0m \e[36mA2\e[0m { \e[33mdef\e[0m \e[36mm\e[0m: \e[32mInt\e[0m }
+\e[33mcase class\e[0m \e[36mQ\e[0m()\n\e[33mobject\e[0m \e[36mQ\e[0m
+java.lang.\e[33mString\e[0m.valueOf(\e[32m1\e[0m)
+\e[32ms"\e[0m${\e[32m"nested"\e[0m}\e[32m"\e[0m
+\e[33msealed\e[0m \e[33mtrait\e[0m \e[36mS\e[0m\n\e[33mfinal\e[0m \e[33mcase class\e[0m \e[36mS1\e[0m() \e[33mextends\e[0m \e[32mS\e[0m
+\e[33mprivate\e[0m \e[33mval\e[0m pv = \e[32m1\e[0m
+\e[33mval\e[0m \e[36mm\e[0m = \e[33mMap\e[0m(\e[32m1\e[0m -> \e[32m"a"\e[0m)
+\e[33mdef\e[0m \e[36mf\e[0m(\e[36mxs\e[0m: \e[32mInt\e[0m*) = xs
+\e[33mtype\e[0m \e[36mB\e[0m >: \e[32mNull\e[0m <: \e[32mAnyRef\e[0m
+classOf[\e[32mString\e[0m]
+\e[32m0.5f\e[0m + \e[32m1e3\e[0m + \e[32m'a'\e[0m.toInt
+\e[33mval\e[0m `\e[36ma b\e[0m` = \e[32m1\e[0m
+x \e[33mmatch\e[0m\n  \e[33mcase\e[0m \e[32m1\e[0m => \e[32m"one"\e[0m\n  \e[33mcase\e[0m _ => \e[32m"other"\e[0m
+\e[33mif\e[0m (x > \e[32m1\e[0m) \e[32m"big"\e[0m \e[33melse\e[0m \e[32m"small"\e[0m
+\e[33mval\e[0m \e[36mf2\e[0m: \e[32mInt\e[0m => \e[32mInt\e[0m = _ + \e[32m1\e[0m
+\e[33mList\e[0m[\e[32mInt\e[0m]()
+\e[33mnew\e[0m java.util.\e[32mArrayList\e[0m[\e[32mString\e[0m]()
+\e[33mval\e[0m \e[36mNaN\e[0m = \e[32m1\e[0m
+\e[33mdef\e[0m \e[36mFoo\e[0m = \e[32m1\e[0m
+\e[33mSeq\e[0m.empty[\e[32mOption\e[0m[\e[32mList\e[0m[\e[32mInt\e[0m]]]
+(\e[36mx\e[0m: \e[32mInt\e[0m) ?=> x
+inline \e[33mif\e[0m x \e[33mthen\e[0m \e[32m1\e[0m \e[33melse\e[0m \e[32m2\e[0m
+\e[33mval\e[0m \e[36mx\e[0m = \e[32m1\e[0m;\n\e[34m// two\e[0m\n\e[33mval\e[0m \e[36my\e[0m = \e[32m2\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m[\e[32m@specialized\e[0m \e[36mT\e[0m](\e[36mt\e[0m: \e[32mT\e[0m) = t
+\e[33mclass\e[0m \e[36mG\e[0m(\e[32m@deprecated\e[0m \e[33mval\e[0m \e[36ma\e[0m: \e[32mInt\e[0m)
+\e[33mobject\e[0m \e[36mO\e[0m { \e[33mval\e[0m \e[36mi\e[0m = \e[32m1\e[0m }\n\e[33mend\e[0m \e[36mO\e[0m
+\e[33mfor\e[0m { a <- \e[33mList\e[0m(\e[32m1\e[0m); b <- \e[33mList\e[0m(\e[32m2\e[0m) } \e[33myield\e[0m a + b
+x.isInstanceOf[\e[32mList\e[0m[?]]
+\e[33mval\e[0m \e[36me\e[0m = \e[32m1e10\e[0m; \e[33mval\e[0m \e[36mc\e[0m = \e[32m'c'\e[0m; \e[33mval\e[0m \e[36mu\e[0m = \e[32m'\u0041'\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m(): \e[32mUnit\e[0m =\n  println(\e[32m"a"\e[0m)\n  println(\e[32m"b"\e[0m)
+summon[\e[32mOrdering\e[0m[\e[32mInt\e[0m]]
+\e[33mtype\e[0m \e[36mM\e[0m = \e[32mMap\e[0m[\e[32mString\e[0m, \e[32mInt\e[0m]
+\e[33mimport\e[0m scala.math.\e[33mOrdering\e[0m.\e[33mgiven\e[0m
+\e[33mval\e[0m \e[36mxml\e[0m = \e[32m1\e[0m <\e[32m2\e[0m
+\e[33mval\e[0m \e[36mr\e[0m = \e[32ms"\e[0m$x$x\e[32m"\e[0m
+\e[33mval\e[0m \e[36mi\e[0m = \e[32mid"x"\e[0m
+\e[33mobject\e[0m \e[36mfoo\e[0m:\n  \e[33mval\e[0m \e[36mbar\e[0m = \e[32m1\e[0m
+end
+\e[33mcase\e[0m
+\e[33mdef\e[0m \e[36m+\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m) = x
+\e[33mdef\e[0m \e[36m::\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m) = x
+a :: b :: \e[33mNil\e[0m
+\e[33mtype\e[0m \e[36mT2\e[0m = \e[32mInt\e[0m \e[32m*:\e[0m \e[32mString\e[0m \e[32m*:\e[0m \e[32mEmptyTuple\e[0m
+\e[33mval\e[0m \e[36mx2\e[0m: scala.\e[32mInt\e[0m = \e[32m1\e[0m
+\e[33mval\e[0m \e[36ms2\e[0m: scala.collection.\e[32mSeq\e[0m[\e[32mInt\e[0m] = \e[33mNil\e[0m
+\e[33mclass\e[0m \e[36mA3\e[0m \e[33mextends\e[0m \e[32mB\e[0m \e[33mwith\e[0m \e[32mC\e[0m
+\e[33mtype\e[0m \e[36mF\e[0m[+\e[36mA\e[0m] = \e[32mList\e[0m[\e[32mA\e[0m]
+\e[33mval\e[0m \e[36mu\e[0m: \e[32mInt\e[0m \e[32m|\e[0m \e[32mString\e[0m = \e[32m1\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m(using \e[32mOrdering\e[0m[\e[32mInt\e[0m]) = \e[32m1\e[0m
+\e[33mobject\e[0m \e[36mO2\e[0m { \e[33mdef\e[0m \e[36mapply\e[0m() = \e[32m1\e[0m }
+\e[33mpackage\e[0m p
+\e[33mval\e[0m \e[36me\e[0m = <a>b</a>
+\e[33mgiven\e[0m [\e[36mT\e[0m]: \e[32mOrdering\e[0m[\e[32mT\e[0m] = \e[41m???\e[0m
+'{ \e[32m1\e[0m }
+\e[33mval\e[0m \e[36mpf\e[0m = [\e[36mT\e[0m] => (\e[36mx\e[0m: \e[32mT\e[0m) => x
+\e[33mdef\e[0m \e[36mbyName\e[0m(\e[36mx\e[0m: => \e[32mInt\e[0m) = x
+\e[33mclass\e[0m \e[36mU\e[0m(using \e[33mval\e[0m \e[36mx\e[0m: \e[32mInt\e[0m)
+\e[33mcase class\e[0m \e[36mX\e[0m(\e[36ma\e[0m: \e[32mInt\e[0m) derives \e[32mCanEqual\e[0m
+\e[33mtrait\e[0m \e[36mT3\e[0m { \e[36mself\e[0m: \e[32mAny\e[0m => }
+\e[33mval\e[0m \e[36mp\e[0m: \e[32mOuter\e[0m#\e[32mInner\e[0m = \e[41m???\e[0m
+\e[33mimport\e[0m a.{b => c}
+\e[33mval\e[0m \e[36mw\e[0m = \e[33mif\e[0m \e[32mtrue\e[0m \e[33mthen\e[0m \e[32m1\e[0m \e[33melse\e[0m \e[32m2\e[0m\n\e[33mend\e[0m \e[33mif\e[0m
+\e[33mwhile\e[0m \e[32mtrue\e[0m \e[33mdo\e[0m ()\n\e[33mend\e[0m \e[33mwhile\e[0m
+extension (\e[36mx\e[0m: \e[32mInt\e[0m)\n  \e[33mdef\e[0m \e[36mp\e[0m = \e[32m1\e[0m\n\e[33mend\e[0m extension
+\e[33mval\e[36m\\e[0mtt = \e[32m1\e[0m
+\e[33mval\e[0m \e[36mö\e[0m = \e[32m"é"\e[0m \e[34m/* é */\e[0m
+\e[33mdef\e[0m \e[36mf\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m)(\e[36my\e[0m: \e[32mInt\e[0m): x.\e[33mtype\e[0m = x
+\e[33mval\e[0m \e[36ml\e[0m: \e[32mList\e[0m[? <: \e[32mAnyRef\e[0m] = \e[33mNil\e[0m
+\e[33mdef\e[0m \e[36mm\e[0m[\e[36mF\e[0m[_]](\e[36mf\e[0m: \e[32mF\e[0m[\e[32mInt\e[0m]) = f
+\e[32m@deprecated("x", "1")\e[0m \e[33mclass\e[0m \e[36mOld\e[0m
+\e[32m@main\e[0m \e[33mdef\e[0m \e[36mgo\e[0m() = println(\e[32m"go"\e[0m)
+\e[33mval\e[0m \e[36mt3\e[0m = (\e[32m1\e[0m, \e[32m"a"\e[0m): (\e[32mInt\e[0m, \e[32mString\e[0m)
+\e[33mval\e[0m \e[36mq2\e[0m = \e[33mthis\e[0m
+\e[33mtype\e[0m \e[36mId\e[0m = [\e[36mX\e[0m] => \e[32mX\e[0m => \e[32mX\e[0m
+\e[33mfor\e[0m\n  a <- \e[33mList\e[0m(\e[32m1\e[0m)\n\e[33myield\e[0m a
+\e[33mclass\e[0m \e[36mPt\e[0m(\e[36mx\e[0m: \e[32mInt\e[0m):\n  \e[33mdef\e[0m \e[33mthis\e[0m() = \e[33mthis\e[0m(\e[32m0\e[0m)\n\e[33mend\e[0m \e[36mPt\e[0m
+\e[33mobject\e[0m \e[36mObj\e[0m:\n  \e[33mval\e[0m \e[36ma\e[0m = \e[32m1\e[0m\n  \e[33mend\e[0m \e[33mObj\e[0m
+\e[33mdef\e[0m \e[36mok\e[0m: \e[32mBoolean\e[0m = \e[32mtrue\e[0m\n\e[33mend\e[0m \e[36mok\e[0m
+x \e[33mmatch\e[0m\n  \e[33mcase\e[0m \e[33mList\e[0m(a, _\e[32m*\e[0m) => a
+\e[33mval\e[0m (a: \e[32mInt\e[0m, b) = (\e[32m1\e[0m, \e[32m2\e[0m)
+\e[33mcase\e[0m _ => \e[32m1\e[0m
+\e[33mval\e[0m \e[36mg2\e[0m = (_: \e[32mInt\e[0m) => \e[32m1\e[0m
+xs.map(_.length)
+\e[33mtype\e[0m \e[36mK\e[0m = \e[32mMap\e[0m[?, ?]
+\e[33mdef\e[0m \e[36mk\e[0m[\e[36mF\e[0m[_, _]] = \e[32m1\e[0m
+𝔸b
+\e[33mFOO𝔸\e[0m
+\e[33mAb𝔸\e[0m
+\e[33mdef\e[0m \e[36ma\e[0m$ = \e[32m1\e[0m
+\e[33mval\e[0m \e[36m$\e[0m = \e[32m1\e[0m
+\e[33mtype\e[0m \e[36mT\e[33m$\e[0m = \e[32mInt\e[0m
+\e[33mobject\e[0m \e[36mNothing$\e[0m
+\e[33mval\e[0m \e[36mNull$\e[0m = \e[32m1\e[0m
+\e[33msuper\e[0m[A].f
+\e[33mclass\e[0m \e[36mB4\e[0m \e[33mextends\e[0m \e[32mA\e[0m { \e[33mdef\e[0m \e[36mg\e[0m = \e[33msuper\e[0m[A].f }
+\e[32m1.5\e[0m𝔸

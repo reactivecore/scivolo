@@ -1,13 +1,15 @@
 //! The REPL: line editing on a terminal, else the lines of stdin.
 
-use ::repl::{Session, is_incomplete};
+use crate::history;
+use ::repl::{Session, highlight, is_incomplete};
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
-use rustyline::highlight::Highlighter;
+use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
-use rustyline::history::DefaultHistory;
+use rustyline::history::MemHistory;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::{Editor, Helper};
+use rustyline::{Config, Editor, Helper};
+use std::borrow::Cow;
 use std::io::{BufRead, IsTerminal};
 use std::panic::catch_unwind;
 use std::path::PathBuf;
@@ -74,20 +76,34 @@ fn piped(session: &mut Session) -> Result<(), String> {
 
 /// Reads inputs with line editing and history: Ctrl-C clears the input, Ctrl-D ends.
 fn interactive(session: &mut Session) -> Result<(), String> {
-    let mut editor: Editor<Input, DefaultHistory> = Editor::new().map_err(|e| e.to_string())?;
+    let config = Config::builder()
+        .max_history_size(history::MEMORY)
+        .and_then(|c| c.history_ignore_dups(false))
+        .map_err(|e| e.to_string())?
+        .history_ignore_space(false)
+        .build();
+    let memory = MemHistory::with_config(&config);
+    let mut editor = Editor::with_history(config, memory).map_err(|e| e.to_string())?;
     editor.set_helper(Some(Input));
-    let history = crate::libs::cache_dir().join("repl-history");
-    let _ = editor.load_history(&history);
-    let _ = std::fs::create_dir_all(crate::libs::cache_dir());
+    let file = history::path();
+    let mut last = None;
+    for entry in file.as_deref().map(history::load).unwrap_or_default() {
+        let _ = editor.add_history_entry(entry.as_str());
+        last = Some(entry);
+    }
     println!("{WELCOME}");
-    println!();
     loop {
+        println!();
         match editor.readline(PROMPT) {
-            Ok(text) if text.trim().is_empty() => {}
             Ok(text) => {
-                let _ = editor.add_history_entry(text.as_str());
-                let _ = editor.append_history(&history);
-                if !eval(session, &text) {
+                if let Some(entry) = history::accept(last.as_deref(), &text) {
+                    let _ = editor.add_history_entry(entry.as_str());
+                    if let Some(file) = &file {
+                        let _ = history::append(file, &entry);
+                    }
+                    last = Some(entry);
+                }
+                if !text.trim().is_empty() && !eval(session, &text) {
                     return Ok(());
                 }
             }
@@ -98,12 +114,21 @@ fn interactive(session: &mut Session) -> Result<(), String> {
     }
 }
 
-/// The editor's helper: an input is complete when it parses as one.
+/// The editor's helper: an input is complete when it parses as one, and coloured as in dotty.
 struct Input;
+
+/// The result of `f`, with the panic hook silenced while it runs.
+fn unreported<T>(f: impl FnOnce() -> T) -> T {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let out = f();
+    std::panic::set_hook(hook);
+    out
+}
 
 impl Validator for Input {
     fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
-        Ok(match incomplete(ctx.input()) {
+        Ok(match unreported(|| incomplete(ctx.input())) {
             true => ValidationResult::Incomplete,
             false => ValidationResult::Valid(None),
         })
@@ -118,6 +143,21 @@ impl Hinter for Input {
     type Hint = String;
 }
 
-impl Highlighter for Input {}
+impl Highlighter for Input {
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        Cow::Owned(unreported(|| highlight(line)))
+    }
+
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self, prompt: &'p str, default: bool) -> Cow<'b, str> {
+        match default {
+            true => Cow::Owned(format!("\x1b[35m{prompt}\x1b[0m")),
+            false => Cow::Borrowed(prompt),
+        }
+    }
+
+    fn highlight_char(&self, _line: &str, _pos: usize, kind: CmdKind) -> bool {
+        kind != CmdKind::MoveCursor
+    }
+}
 
 impl Helper for Input {}

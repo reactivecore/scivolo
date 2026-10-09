@@ -16,6 +16,10 @@ impl Scanner<'_> {
         IndentWidth::at(self.source, offset)
     }
 
+    pub fn top_level_region(&mut self, width: IndentWidth) -> RegionId {
+        self.regions.push(RegionKind::Indented { width, prefix: Token::Empty }, None)
+    }
+
     pub fn can_start_stat_tokens(&self) -> TokenSet {
         if self.cfg.source_version.migrate_to_3() { CAN_START_STAT_TOKENS2 } else { CAN_START_STAT_TOKENS3 }
     }

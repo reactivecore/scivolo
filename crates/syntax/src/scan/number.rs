@@ -75,7 +75,8 @@ impl Scanner<'_> {
             'f' | 'F' => self.finish_suffix(Token::FloatLit),
             _ => {}
         }
-        if is_identifier_part(self.reader.ch) && self.reader.ch >= ' ' {
+        let ch = self.reader.ch;
+        if is_identifier_part(ch) && (' '..='\u{FFFF}').contains(&ch) {
             self.error("Invalid literal number", self.cur.offset);
         }
     }

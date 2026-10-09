@@ -1,3 +1,4 @@
+mod history;
 mod libs;
 mod repl;
 mod script;
@@ -11,10 +12,11 @@ use vm::{Classpath, Vm, VmError};
 /// target, starts the REPL.
 ///
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
-/// SCALAI_CACHE holds the library image, compiled scripts and the REPL history; SCALAI_SCALA_CLI
-/// names the scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit
-/// 124); SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr;
-/// RUST_BACKTRACE prints panics in full.
+/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_SCALA_CLI names the
+/// scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit 124);
+/// SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr;
+/// RUST_BACKTRACE prints panics in full. The REPL keeps its history in ~/.dotty_history, as
+/// Scala's own REPL does.
 #[derive(Parser)]
 #[command(name = "scalai", override_usage = "scalai [OPTIONS] [TARGET] [ARGS]...")]
 struct Cli {

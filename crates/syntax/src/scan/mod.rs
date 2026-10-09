@@ -30,6 +30,7 @@ use crate::source::{Offset, SourceFile};
 use crate::token::Token;
 use literal::LitBuf;
 use reader::Reader;
+use std::ops::Range;
 
 pub struct Scanner<'a> {
     pub source: &'a SourceFile,
@@ -43,6 +44,8 @@ pub struct Scanner<'a> {
     prev: TokenData,
     /// The values of string and character literals, in UTF-16 units.
     pub strings: Vec<Box<[u16]>>,
+    /// The comments read, from their first `/` to the character after them.
+    pub comments: Vec<Range<Offset>>,
     pub regions: Regions,
     pub region: RegionId,
     reader: Reader<'a>,
@@ -80,6 +83,7 @@ impl<'a> Scanner<'a> {
             next: TokenData::EMPTY,
             prev: TokenData::EMPTY,
             strings: Vec::new(),
+            comments: Vec::new(),
             regions,
             region,
             reader: Reader::new(&source.text, from),
@@ -94,10 +98,6 @@ impl<'a> Scanner<'a> {
         s.next_token();
         s.region = s.top_level_region(IndentWidth::at(source, s.cur.offset));
         s
-    }
-
-    fn top_level_region(&mut self, width: IndentWidth) -> RegionId {
-        self.regions.push(RegionKind::Indented { width, prefix: Token::Empty }, None)
     }
 
     pub fn token(&self) -> Token {
