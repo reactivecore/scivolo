@@ -1,9 +1,16 @@
 //! The subtrees of typed trees, and the symbols trees refer to.
 
+use crate::Lower;
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tpd, Tree};
+
+impl AsRef<Tpd> for Lower<'_> {
+    fn as_ref(&self) -> &Tpd {
+        self.tpd
+    }
+}
 
 /// The direct subtrees of `t`, in order.
 pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
@@ -50,13 +57,10 @@ pub fn same(tpd: &Tpd, a: TNodeId, b: TNodeId) -> bool {
 
 /// The symbols that the identifiers and selections in `t` refer to.
 pub fn references(tpd: &Tpd, t: TNodeId) -> FxHashSet<SymbolId> {
-    let mut out = FxHashSet::default();
-    let mut todo = vec![t];
-    while let Some(t) = todo.pop() {
+    tpd.fold(FxHashSet::default(), t, &mut |mut out, t| {
         if matches!(tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) {
             out.extend(tpd.sym(t));
         }
-        todo.extend(children(tpd, t));
-    }
-    out
+        out
+    })
 }
