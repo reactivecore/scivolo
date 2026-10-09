@@ -3,7 +3,7 @@
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
-use super::walk::children;
+use super::walk::walk_class_up;
 use crate::Lower;
 use crate::symbols::{has, is_module};
 use syntax::ast::constant::Constant;
@@ -12,26 +12,18 @@ use tasty::tags::{
     CHARconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
 use tasty::{Kind, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Folds the references to constant `final` values and the constant blocks in class definition
 /// `td`, inner trees first.
 pub fn transform(l: &mut Lower, td: TNodeId) {
-    let mut trees = Vec::new();
-    let mut todo = vec![td];
-    while let Some(t) = todo.pop() {
-        trees.push(t);
-        let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        if !nested {
-            todo.extend(children(l.tpd, t));
-        }
-    }
-    for &t in trees.iter().rev() {
+    walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
         if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
             l.copy_node(t, arg);
         }
         const_to_literal(l, t);
-    }
+        Walk::Children
+    });
 }
 
 /// Makes `t` a literal if it refers to a constant `final` value through a pure path, or is a
