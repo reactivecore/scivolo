@@ -99,6 +99,10 @@ impl Typer<'_> {
             self.imports[i] = ImportEntry::Completing;
             let Tree::Import { expr, selectors } = *self.ast.tree(tree) else { unreachable!() };
             let typed = self.typed(expr, Pt::Any, ctx);
+            let package = self.tpd.sym(typed).is_some_and(|s| self.u.symbol(s).kind == tasty::Kind::Package);
+            if !package && !self.is_stable_path(typed) {
+                self.unsupported(expr, "import prefix that is not a pure expression");
+            }
             let qual = self.tpd.tpe(typed);
             let selectors = self.selectors(selectors);
             self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed) });

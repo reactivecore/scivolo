@@ -19,6 +19,10 @@ impl Typer<'_> {
         let typed = self.typed_type(rhs, ctx);
         self.typed_ahead(rhs, typed, ctx);
         let tpe = self.tpd.tpe(typed);
+        if !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0 {
+            self.unsupported(rhs, "alias of a type constructor");
+            return self.u.intern_type(Type::Error);
+        }
         match self.u.types().get(tpe) {
             Type::Bounds(..) => tpe,
             _ if matches!(self.ast.tree(rhs), Tree::DerivedTypeTree { .. }) => tpe,
