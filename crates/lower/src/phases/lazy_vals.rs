@@ -6,7 +6,7 @@ use super::adapt::adapt;
 use super::lazy_init::init_method;
 use super::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
 use crate::definitions::symbol;
-use crate::symbols::{has, is_singleton, is_trait};
+use crate::symbols::{has, is_module, is_singleton, is_trait};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
@@ -44,6 +44,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         };
         let span = l.tpd.span(stat);
+        if is_trait(l.u, class) && is_module(l.u, accessor) {
+            stats.push(stat);
+            continue;
+        }
         if is_trait(l.u, class) {
             return unsupported(span, "lazy values in traits");
         }
@@ -56,7 +60,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let field_tpt = l.type_tree(object, Span::NONE);
         let field_name = l.term_name(&l.u.symbol(lazy.field).name.clone());
         let field_def = Tree::ValDef { name: field_name, tpt: field_tpt, rhs: None };
-        stats.push(l.tpd.node(field_def, l.tpd.span(stat), None, Some(lazy.field)));
+        let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
+        stats.push(l.tpd.node(field_def, field_span, None, Some(lazy.field)));
         let rhs_span = l.tpd.span(rhs);
         let at = if rhs_span.exists() { rhs_span.with_point(rhs_span.start()) } else { span };
         let body = accessor_body(l, &lazy, info);
