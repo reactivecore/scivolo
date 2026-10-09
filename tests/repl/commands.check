@@ -84,6 +84,14 @@ scala> :type
 scala> 3
 val res3: Int = 3
 
+scala>  :type 1
+-- [E103] Syntax Error: --------------------------------------------------------
+1 | :type 1
+  | ^
+  | Illegal start of statement
+  |
+  | longer explanation available when compiling with `-explain`
+
 scala> :s
 ":s" matches :settings, :sh, :silent. Try typing a few more characters. Run ":help" for a list of commands
 

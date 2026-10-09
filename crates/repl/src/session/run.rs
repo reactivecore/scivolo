@@ -16,7 +16,7 @@ pub struct Unit {
     pub earlier: Earlier,
     /// How many `res` values of type `Unit` it defines, whose indices a run gives back.
     pub unit_res: u32,
-    /// The lines of its warnings, printed before it runs.
+    /// The lines of its warnings, printed after its own output and before its definitions.
     pub warnings: Vec<String>,
 }
 

@@ -103,6 +103,8 @@ scala> import scala.math.{Pi as _, given, *}
 
 scala> import `O`.P
 
+scala> import _root_.scala.util.Try
+
 scala> :imports
 import Predef.ArrowAssoc
 import Ordering.Implicits.*
@@ -119,3 +121,4 @@ import java.{util as ju}
 import java.util.Map
 import scala.math.{Pi as _, given, *}
 import `O`.P
+import _root_.scala.util.Try

@@ -1,7 +1,7 @@
 //! The commands as a session runs them; `:type` types its input in a wrapper object of its own,
 //! which is neither run nor imported by later inputs.
 
-use super::{RESETTING, Session};
+use super::{Compiled, RESETTING, Session};
 use crate::commands::{self, Command};
 use crate::input::{self, Input};
 use crate::report;
@@ -15,9 +15,11 @@ use typer::tpd::{TNodeId, Tree};
 const PREFIX: &str = "rs$line$type$";
 
 impl Session {
-    /// The lines command `c` prints.
-    pub fn command(&mut self, c: Command) -> Vec<String> {
-        match c {
+    /// What command `c` does: `:load` is left to run outside the guard against compiler panics;
+    /// the others print lines.
+    pub fn command(&mut self, c: Command) -> Compiled {
+        let lines = match c {
+            Command::Load(path) => return Compiled::Load(path),
             Command::Quit => {
                 self.exit = Some(0);
                 Vec::new()
@@ -33,13 +35,13 @@ impl Session {
                 Vec::new()
             }
             Command::Imports => self.earlier.iter().flat_map(|e| e.shown.clone()).collect(),
-            Command::Load(path) => self.load(&path),
             Command::Unsupported(name) => {
                 vec![commands::retired(name).map_or_else(|| report::unsupported(name), str::to_owned)]
             }
             Command::Ambiguous(name, matching) => vec![commands::ambiguous(&name, &matching)],
             Command::Unknown(name) => vec![commands::unknown(&name)],
-        }
+        };
+        Compiled::Lines(lines)
     }
 
     /// The lines `:type expr` prints: the type of the last statement of `expr`, or its errors.

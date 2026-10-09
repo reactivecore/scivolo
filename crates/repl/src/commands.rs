@@ -58,7 +58,6 @@ fn is_space(c: char) -> bool {
 /// The command `text` is, if it is `:`, a letter, more non-space characters, and an argument on
 /// the same line (dotty's `(:[a-zA-Z]\S*)\s*(.*)`); a prefix names the one command it starts.
 pub fn parse(text: &str) -> Option<Command> {
-    let text = text.trim_start();
     let rest = text.strip_prefix(':')?;
     if !rest.starts_with(|c: char| c.is_ascii_alphabetic()) {
         return None;
@@ -109,7 +108,9 @@ mod tests {
     fn commands_by_prefix() {
         assert_eq!(parse(":q"), Some(Command::Quit));
         assert_eq!(parse(":exit"), Some(Command::Quit));
-        assert_eq!(parse(" :help "), Some(Command::Help));
+        assert_eq!(parse(":help "), Some(Command::Help));
+        assert_eq!(parse(" :help"), None);
+        assert_eq!(parse("\n:type 1\n"), None);
         assert_eq!(parse(":reset -deprecation"), Some(Command::Reset("-deprecation".into())));
         assert_eq!(parse(":t  List(1) "), Some(Command::TypeOf("List(1)".into())));
         assert_eq!(parse(":si"), Some(Command::Silent));

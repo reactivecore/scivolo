@@ -3,15 +3,30 @@
 use super::Session;
 use std::path::{Component, Path, PathBuf};
 
+/// How many `:load` commands may run one inside the other.
+const NESTING: u32 = 16;
+
 impl Session {
     /// The lines `:load path` prints.
     pub fn load(&mut self, path: &str) -> Vec<String> {
+        let shown = || canonical(path).display().to_string();
         if !Path::new(path).exists() {
-            return vec![format!("Couldn't find file \"{}\"", canonical(path).display())];
+            return vec![format!("Couldn't find file \"{}\"", shown())];
         }
-        match std::fs::read(path) {
-            Ok(bytes) => self.answer(&String::from_utf8_lossy(&bytes)),
-            Err(e) => vec![format!("Couldn't read file \"{}\": {e}", canonical(path).display())],
+        if self.loading == NESTING {
+            return vec![format!(
+                "Couldn't load file \"{}\": more than {NESTING} nested :load commands",
+                shown()
+            )];
+        }
+        match std::fs::read_to_string(path) {
+            Ok(text) => {
+                self.loading += 1;
+                let out = self.answer(&text);
+                self.loading -= 1;
+                out
+            }
+            Err(e) => vec![format!("Couldn't read file \"{}\": {e}", shown())],
         }
     }
 }

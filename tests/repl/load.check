@@ -28,6 +28,14 @@ scala> :load tests/repl/load/incomplete.scala
 
 scala> :load tests/repl/load/empty.scala
 
+scala> :load tests/repl/load/command.scala
+-- [E103] Syntax Error: --------------------------------------------------------
+2 |:type 1
+  |^
+  |Illegal start of statement
+  |
+  | longer explanation available when compiling with `-explain`
+
 scala> :load tests/repl/load/deps.scala
 Please use `:dep com.example::artifact:version` to add dependencies in the REPL
 

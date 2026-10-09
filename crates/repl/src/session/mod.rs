@@ -5,10 +5,9 @@ mod command;
 mod load;
 mod run;
 
-use crate::commands::Command;
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
-use crate::{imports, line_names, render, report, wrap};
+use crate::{import_text, imports, line_names, render, report, wrap};
 use libimage::Image;
 use run::Unit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -23,7 +22,7 @@ const RESETTING: &str = "Resetting REPL state.";
 
 /// A compiled input: a unit to run, a file to load (run outside the guard against compiler
 /// panics), or the lines it prints.
-enum Compiled {
+pub enum Compiled {
     Unit(Unit),
     Load(String),
     Lines(Vec<String>),
@@ -49,6 +48,8 @@ pub struct Session {
     width: i32,
     /// Whether definitions and their values go unprinted (`:silent`).
     quiet: bool,
+    /// How many `:load` commands run, one inside the other.
+    loading: u32,
 }
 
 impl Session {
@@ -59,8 +60,23 @@ impl Session {
         let (names, fresh) = (Names::default(), FreshNames::default());
         let (u, units) = (Universe::open_image(image), Units::default());
         let (earlier, exit) = (Vec::new(), None);
-        let (line, base, res, quiet) = (0, 0, 0, false);
-        Ok(Session { vm, image, u, units, names, fresh, line, base, res, earlier, exit, width, quiet })
+        let (line, base, res, quiet, loading) = (0, 0, 0, false, 0);
+        Ok(Session {
+            vm,
+            image,
+            u,
+            units,
+            names,
+            fresh,
+            line,
+            base,
+            res,
+            earlier,
+            exit,
+            width,
+            quiet,
+            loading,
+        })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -115,8 +131,7 @@ impl Session {
         let name = format!("{}{}", line_names::PREFIX, self.line + 1);
         match input::classify(&name, text, &mut self.names, &mut self.fresh, self.width as usize) {
             Input::Empty => Compiled::Lines(Vec::new()),
-            Input::Command(Command::Load(path)) => Compiled::Load(path),
-            Input::Command(c) => Compiled::Lines(self.command(c)),
+            Input::Command(c) => self.command(c),
             Input::Errors(errors) => Compiled::Lines(errors),
             Input::Stats(parsed) => self.lower(*parsed).map_or_else(Compiled::Lines, Compiled::Unit),
         }
@@ -129,7 +144,8 @@ impl Session {
         let module = format!("{object}$");
         let (mut typed, template) = self.typed(&mut parsed, &object)?;
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
-        let shown = imports::shown(&self.u, &typed, template, &self.names, &parsed.source);
+        let line = import_text::Line { typed: &typed, template, names: &self.names, source: &parsed.source };
+        let shown = import_text::shown(&mut self.u, &line);
         let units = render::inferred_units(&mut self.u, &typed, template);
         let defs = render::definitions(&mut self.u, &module, &units);
         let members = earlier::members(&mut self.u, &module);
