@@ -41,6 +41,7 @@ Apache-2.0. Rust translations of:
     `TypeTestsCasts` (type tests, casts of primitives),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
+  - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,

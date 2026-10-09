@@ -54,3 +54,4 @@ nestedobjects
 privatetraits
 enumerations
 innerclasses
+privatemembers

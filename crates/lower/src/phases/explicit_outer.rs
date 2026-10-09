@@ -19,9 +19,6 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         if let Some(&t) = all.iter().find(|&&t| is_this_of(l, t, outer) && !own.contains(&t)) {
             return unsupported(l.tpd.span(t), "the enclosing instance two classes out");
         }
-        if let Some(&t) = all.iter().find(|&&t| is_private_member(l, t, outer)) {
-            return unsupported(l.tpd.span(t), "private members of an enclosing class");
-        }
         let uses = own.iter().any(|&t| is_this_of(l, t, outer) || creates_inner_of(l, t, outer));
         let always = match is_module_class(l.u, class) {
             true => is_trait(l.u, outer),
@@ -101,19 +98,6 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
 
 fn is_this_of(l: &Lower, t: TNodeId, class: SymbolId) -> bool {
     matches!(l.tpd.tree(t), Tree::This { .. }) && l.tpd.sym(t) == Some(class)
-}
-
-/// Whether `t` refers to a private member of `class` other than an object, which dotty's
-/// `ExpandPrivate` renames when a nested class uses it.
-fn is_private_member(l: &Lower, t: TNodeId, class: SymbolId) -> bool {
-    let reference = matches!(l.tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. });
-    l.tpd.sym(t).is_some_and(|s| {
-        reference
-            && l.u.symbol(s).owner == Some(class)
-            && has(l.u, s, PRIVATE)
-            && l.u.symbol(s).kind.is_term()
-            && !is_module(l.u, s)
-    })
 }
 
 /// Gives object `class` of definition `td` its field, constructor parameter and accessor for
