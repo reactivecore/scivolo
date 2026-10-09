@@ -400,6 +400,24 @@ fn atoms_of_a_dag_of_bounds_take_one_step_per_node() {
 }
 
 #[test]
+fn comparisons_of_a_dag_of_bounds_take_one_step_per_pair() {
+    let Some(mut u) = universe() else { return };
+    let one_or_3 = parse(&mut u, "1 | 3");
+    let t = bound_dag(&mut u, 40);
+    let start = std::time::Instant::now();
+    assert!(!u.is_subtype(t, one_or_3));
+    let (one, three, string) = (parse(&mut u, "1"), parse(&mut u, "3"), u.class_ref("java.lang.String"));
+    assert!(!u.is_subtype(t, one));
+    assert!(!u.is_subtype(t, three));
+    assert!(!u.is_subtype(t, string));
+    let one_or_t = u.intern_type(Type::Or(one, t));
+    assert!(!u.is_subtype(one_or_t, three));
+    u.lub(t, one);
+    u.glb(t, one_or_3);
+    assert!(start.elapsed().as_secs() < 5, "took {:?}", start.elapsed());
+}
+
+#[test]
 fn outer_this_types_are_seen_from_the_prefix() {
     let Some(mut u) = universe() else { return };
     let outer = named_type(&mut u, "oracle.Outer");
