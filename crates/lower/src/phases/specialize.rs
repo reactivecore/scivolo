@@ -3,25 +3,20 @@
 
 use super::adapt::from_start;
 use super::adapted::specializable;
-use super::walk::children;
+use super::walk::try_walk_class;
 use crate::definitions::specialized_apply;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Specializes the calls of functions' `apply` in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let mut todo = vec![td];
-    while let Some(t) = todo.pop() {
+    try_walk_class(l, td, &mut |l, t, _| {
         if let Tree::Apply { fun, args } = *l.tpd.tree(t) {
             specialize(l, t, fun, l.tpd.items(args).len())?;
         }
-        let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        if !nested {
-            todo.extend(children(l.tpd, t));
-        }
-    }
-    Ok(())
+        Ok(Walk::Children)
+    })
 }
 
 /// Makes call `app` of `fun` with `arity` arguments call the specialized `apply` if `fun` is a

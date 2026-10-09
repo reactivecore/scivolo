@@ -1,9 +1,62 @@
-//! The subtrees of typed trees, and the symbols trees refer to.
+//! The walks of the phases over a class definition, the subtrees of typed trees, and the
+//! symbols trees refer to.
 
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tpd, Tree};
+use typer::tpd::{Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
+
+impl AsRef<Tpd> for Lower<'_> {
+    fn as_ref(&self) -> &Tpd {
+        self.tpd
+    }
+}
+
+/// `typer::tpd::traverse` from class definition `td`, owned by its class, that does not enter
+/// the type and class definitions nested in it.
+pub fn walk_class<'a>(l: &mut Lower<'a>, td: TNodeId, enter: &mut Visit<Lower<'a>>) {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    traverse(l, td, class, &mut outside_nested(td, enter));
+}
+
+/// `walk_class` as `typer::tpd::traverse_up`, also calling `leave` on each tree entered, the
+/// nested definitions skipped too.
+pub fn walk_class_up<'a>(
+    l: &mut Lower<'a>,
+    td: TNodeId,
+    enter: &mut Visit<Lower<'a>>,
+    leave: &mut Leave<Lower<'a>>,
+) {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    traverse_up(l, td, class, &mut outside_nested(td, enter), leave);
+}
+
+/// `walk_class` of a fallible `enter`, ended by its first error.
+pub fn try_walk_class<'a>(
+    l: &mut Lower<'a>,
+    td: TNodeId,
+    enter: &mut dyn FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Result<Walk>,
+) -> Result<()> {
+    let mut result = Ok(());
+    walk_class(l, td, &mut |l, t, owner| {
+        enter(l, t, owner).unwrap_or_else(|e| {
+            result = Err(e);
+            Walk::Stop
+        })
+    });
+    result
+}
+
+/// `enter`, skipping the type and class definitions nested in class definition `td`.
+fn outside_nested<'a, 'f>(
+    td: TNodeId,
+    enter: &'f mut Visit<'_, Lower<'a>>,
+) -> impl FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Walk + 'f {
+    move |l, t, owner| {
+        if t != td && matches!(l.tpd.tree(t), Tree::TypeDef { .. }) { Walk::Skip } else { enter(l, t, owner) }
+    }
+}
 
 /// The direct subtrees of `t`, in order.
 pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
@@ -50,13 +103,10 @@ pub fn same(tpd: &Tpd, a: TNodeId, b: TNodeId) -> bool {
 
 /// The symbols that the identifiers and selections in `t` refer to.
 pub fn references(tpd: &Tpd, t: TNodeId) -> FxHashSet<SymbolId> {
-    let mut out = FxHashSet::default();
-    let mut todo = vec![t];
-    while let Some(t) = todo.pop() {
+    tpd.fold(FxHashSet::default(), t, &mut |mut out, t| {
         if matches!(tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) {
             out.extend(tpd.sym(t));
         }
-        todo.extend(children(tpd, t));
-    }
-    out
+        out
+    })
 }

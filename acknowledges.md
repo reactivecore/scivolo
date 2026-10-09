@@ -25,7 +25,8 @@ Apache-2.0. Rust translations of:
   `SymbolicXMLBuilder`, `Utility`).
 - `crates/syntax/src/desugar`: `ast/Desugar`, `ast/DesugarEnums`, the tree copier of `ast/Trees`.
 - `crates/typer`: `typer/{Typer,Namer}`, `ast/MainProxies`, the flag pickling of
-  `core/tasty/TreePickler`, `SymDenotations.fullName`.
+  `core/tasty/TreePickler`, `SymDenotations.fullName`; `crates/typer/src/tpd/walk.rs`:
+  `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding)

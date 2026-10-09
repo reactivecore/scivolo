@@ -2,10 +2,10 @@
 //! Java varargs parameter becomes an array, one passed to a Scala repeated parameter an array
 //! wrapped by `ScalaRunTime.wrapXArray`.
 
-use super::walk::children;
+use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// The classes whose arrays `ScalaRunTime` wraps by their own method.
 const PRIMITIVES: [&str; 9] = ["Boolean", "Byte", "Char", "Short", "Int", "Long", "Float", "Double", "Unit"];
@@ -16,25 +16,19 @@ const NOT_RUNTIME: [&str; 6] =
 
 /// Rewrites the repeated arguments of the calls in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let mut todo = vec![td];
-    while let Some(t) = todo.pop() {
-        if let Tree::Apply { fun, args } = *l.tpd.tree(t) {
-            let old = l.tpd.items(args).to_vec();
-            let mut new = Vec::new();
-            for (i, &a) in old.iter().enumerate() {
-                new.push(repeated_arg(l, t, i, a)?);
-            }
-            if new != old {
-                let args = l.tpd.list(&new);
-                l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
-            }
+    try_walk_class(l, td, &mut |l, t, _| {
+        let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return Ok(Walk::Children) };
+        let old = l.tpd.items(args).to_vec();
+        let mut new = Vec::new();
+        for (i, &a) in old.iter().enumerate() {
+            new.push(repeated_arg(l, t, i, a)?);
         }
-        let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        if !nested {
-            todo.extend(children(l.tpd, t));
+        if new != old {
+            let args = l.tpd.list(&new);
+            l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
         }
-    }
-    Ok(())
+        Ok(Walk::Children)
+    })
 }
 
 /// Argument `a`, the `i`th of call `app`, rewritten if it is `seq: <repeated>[T]`.
