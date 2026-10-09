@@ -67,9 +67,10 @@ fn tokens(text: &str, colors: &mut [&'static str]) {
     }
 }
 
-/// Whether `name` starts with an upper-case letter and is not all upper case.
+/// Whether the first UTF-16 unit of `name` is an upper-case letter and another one is not.
 fn capitalized(name: &str) -> bool {
-    name.chars().next().is_some_and(char::is_uppercase) && name.chars().any(|c| !c.is_uppercase())
+    let mut upper = name.encode_utf16().map(|u| char::from_u32(u.into()).is_some_and(char::is_uppercase));
+    upper.next() == Some(true) && upper.any(|u| !u)
 }
 
 /// Definition names, annotations and types of the statements of `text`.
@@ -114,7 +115,11 @@ impl Walk<'_> {
             Tree::TypeTree | Tree::DerivedTypeTree { .. } => self.fill_span(span, colors, TYPE),
             _ => {}
         }
-        for child in ast.child_nodes(id) {
+        let children = match ast.tree(id) {
+            Tree::Super { qual, .. } => vec![*qual],
+            _ => ast.child_nodes(id),
+        };
+        for child in children {
             self.visit(child, colors);
         }
     }
@@ -162,11 +167,12 @@ impl Walk<'_> {
         self.names.text(name.name)
     }
 
-    /// The length of `name` in the source; 0 for a fresh `_$n`, whose last part is empty.
+    /// The length of `name` without one trailing `$` of a longer name; 0 for a fresh `_$n`.
     fn len(&self, name: TName) -> Offset {
         let text = self.text(name);
         match text.strip_prefix("_$") {
             Some(n) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => 0,
+            _ if text.len() > 1 && text.ends_with('$') => text.len() as Offset - 1,
             _ => text.len() as Offset,
         }
     }

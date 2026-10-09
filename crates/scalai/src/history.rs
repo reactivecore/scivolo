@@ -10,10 +10,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub const MEMORY: usize = 500;
 /// The entries a trimmed file keeps.
 const FILE_MAX: usize = 10_000;
+/// The number of lines above which the file is trimmed.
+const TRIM_ABOVE: usize = FILE_MAX + FILE_MAX / 4;
 
-/// The history file Scala's own REPL uses, `$HOME/.dotty_history`.
+/// The history file Scala's own REPL uses, `~/.dotty_history`.
 pub fn path() -> Option<PathBuf> {
-    std::env::var_os("HOME").filter(|h| !h.is_empty()).map(|h| PathBuf::from(h).join(".dotty_history"))
+    std::env::home_dir().filter(|h| !h.as_os_str().is_empty()).map(|h| h.join(".dotty_history"))
 }
 
 /// The entries of the file at `path`, oldest first; rewrites the file without the lines that
@@ -37,8 +39,7 @@ pub fn accept(last: Option<&str>, line: &str) -> Option<String> {
     (!line.is_empty() && last != Some(line)).then(|| line.to_string())
 }
 
-/// Appends `line` to the file at `path`, then trims the file when it holds more than
-/// `FILE_MAX + FILE_MAX / 4` lines.
+/// Appends `line` to the file at `path`, then trims the file if needed.
 pub fn append(path: &Path, line: &str) -> io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -50,7 +51,7 @@ pub fn append(path: &Path, line: &str) -> io::Result<()> {
         let mut last = [0];
         file.seek(SeekFrom::End(-1))?;
         file.read_exact(&mut last)?;
-        if last[0] != b'\n' {
+        if !matches!(last[0], b'\n' | b'\r') {
             record.push('\n');
         }
     }
@@ -60,11 +61,11 @@ pub fn append(path: &Path, line: &str) -> io::Result<()> {
 }
 
 /// Trims the file at `path` to its last `FILE_MAX` distinct entries when it holds more than
-/// `FILE_MAX + FILE_MAX / 4` lines; of equal entries (trimmed), the last stays.
+/// `TRIM_ABOVE` lines; of equal entries (trimmed), the last stays.
 fn trim_if_needed(path: &Path) -> io::Result<()> {
     let bytes = std::fs::read(path)?;
     let lines = lines(&bytes);
-    if lines.len() <= FILE_MAX + FILE_MAX / 4 {
+    if lines.len() <= TRIM_ABOVE {
         return Ok(());
     }
     let mut seen = HashSet::new();
@@ -79,48 +80,63 @@ fn trim_if_needed(path: &Path) -> io::Result<()> {
     rewrite(path, &kept)
 }
 
-/// Replaces the file at `path` (behind symbolic links) by `lines`, through a temporary file
-/// with the original's permissions.
+/// Replaces the file at `path` (behind symbolic links) by `lines`, through a new temporary
+/// file with the original's permissions; fails when the file is not writable.
 fn rewrite(path: &Path, lines: &[&[u8]]) -> io::Result<()> {
     let target = std::fs::canonicalize(path)?;
+    OpenOptions::new().write(true).open(&target)?;
     let mut temp = target.clone().into_os_string();
     temp.push(format!(".{}.tmp", std::process::id()));
     let temp = PathBuf::from(temp);
-    let written = replace(&temp, &target, lines);
+    let file = OpenOptions::new().write(true).create_new(true).open(&temp)?;
+    let written = replace(file, &temp, &target, lines);
     if written.is_err() {
         let _ = std::fs::remove_file(&temp);
     }
     written
 }
 
-/// Writes `lines` to `temp`, then renames it to `target`.
-fn replace(temp: &Path, target: &Path, lines: &[&[u8]]) -> io::Result<()> {
+/// Writes `lines` to `file` at `temp`, then renames it to `target`.
+fn replace(mut file: std::fs::File, temp: &Path, target: &Path, lines: &[&[u8]]) -> io::Result<()> {
     let mut contents = Vec::new();
     for line in lines {
         contents.extend_from_slice(line);
         contents.push(b'\n');
     }
-    let mut file = std::fs::File::create(temp)?;
     file.set_permissions(std::fs::metadata(target)?.permissions())?;
     file.write_all(&contents)?;
     file.sync_all()?;
     std::fs::rename(temp, target)
 }
 
-/// The lines of `bytes`, without line ends.
+/// The lines of `bytes`, each ended by LF, CR or CR LF, as Java's `lines()` splits.
 fn lines(bytes: &[u8]) -> Vec<&[u8]> {
-    if bytes.is_empty() {
-        return Vec::new();
+    let (mut out, mut start, mut i) = (Vec::new(), 0, 0);
+    while i < bytes.len() {
+        if matches!(bytes[i], b'\n' | b'\r') {
+            out.push(&bytes[start..i]);
+            i += if bytes[i..].starts_with(b"\r\n") { 2 } else { 1 };
+            start = i;
+        } else {
+            i += 1;
+        }
     }
-    let body = bytes.strip_suffix(b"\n").unwrap_or(bytes);
-    body.split(|&b| b == b'\n').map(|l| l.strip_suffix(b"\r").unwrap_or(l)).collect()
+    if start < bytes.len() {
+        out.push(&bytes[start..]);
+    }
+    out
 }
 
-/// The entry of file line `line`: an integer, `:`, the escaped text.
+/// The entry of file line `line`: an integer, `:`, the escaped text, which does not end in an
+/// odd number of `\`.
 fn entry(line: &[u8]) -> Option<String> {
     let colon = line.iter().position(|&b| b == b':')?;
     std::str::from_utf8(&line[..colon]).ok()?.parse::<i64>().ok()?;
-    Some(unescape(&String::from_utf8_lossy(&line[colon + 1..])))
+    let text = &line[colon + 1..];
+    if text.iter().rev().take_while(|&&b| b == b'\\').count() % 2 == 1 {
+        return None;
+    }
+    Some(unescape(&String::from_utf8_lossy(text)))
 }
 
 /// `s` without the leading and trailing characters up to U+0020, as Java's `String.trim`.
@@ -165,8 +181,49 @@ mod tests {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/history-tests");
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(name);
+        let _ = std::fs::remove_file(&path);
         std::fs::write(&path, contents).unwrap();
         path
+    }
+
+    #[test]
+    fn rejects_an_odd_trailing_backslash() {
+        let path = file("backslash", "1:a\\\n2:b\\\\\n3:c\\\\\\\n");
+        assert_eq!(load(&path), ["b\\"]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "2:b\\\\\n");
+    }
+
+    #[test]
+    fn a_lone_carriage_return_ends_a_line() {
+        let path = file("cr", "1:a\r2:b\r\n3:c\r");
+        assert_eq!(load(&path), ["a", "b", "c"]);
+        append(&path, "d").unwrap();
+        assert_eq!(load(&path), ["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn leaves_a_read_only_file_alone() {
+        use std::os::unix::fs::PermissionsExt;
+        let path = file("read-only", "1:a\nbad\n");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400)).unwrap();
+        assert_eq!(load(&path), ["a"]);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "1:a\nbad\n");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+    }
+
+    #[test]
+    fn does_not_follow_an_existing_temporary_file() {
+        let path = file("planted", "1:a\nbad\n");
+        let other = file("planted-target", "x");
+        let mut temp = std::fs::canonicalize(&path).unwrap().into_os_string();
+        temp.push(format!(".{}.tmp", std::process::id()));
+        let _ = std::fs::remove_file(&temp);
+        std::os::unix::fs::symlink(&other, &temp).unwrap();
+        assert_eq!(load(&path), ["a"]);
+        assert_eq!(std::fs::read_to_string(&other).unwrap(), "x");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "1:a\nbad\n");
+        assert!(std::fs::symlink_metadata(&temp).unwrap().file_type().is_symlink());
+        std::fs::remove_file(&temp).unwrap();
     }
 
     #[test]

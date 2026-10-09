@@ -140,6 +140,14 @@ fn case_class_fuses_and_comments_are_skipped() {
 }
 
 #[test]
+fn a_supplementary_character_after_a_fraction_is_not_an_identifier_part() {
+    let (tokens, errors) = scan("1.5\u{1D538}");
+    assert_eq!(tokens[0], (DeciLit, "1.5".into()));
+    assert!(!errors.iter().any(|e| e.contains("Invalid literal number")), "{errors:?}");
+    assert!(!scan("1.5x").1.is_empty());
+}
+
+#[test]
 fn comments_are_recorded() {
     let text = "a /* b /* c */ d */ e // f\r\ng /* h";
     let source = SourceFile::new("t.scala", text);

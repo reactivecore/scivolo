@@ -92,8 +92,8 @@ fn interactive(session: &mut Session) -> Result<(), String> {
         last = Some(entry);
     }
     println!("{WELCOME}");
-    println!();
     loop {
+        println!();
         match editor.readline(PROMPT) {
             Ok(text) => {
                 if let Some(entry) = history::accept(last.as_deref(), &text) {
@@ -117,9 +117,18 @@ fn interactive(session: &mut Session) -> Result<(), String> {
 /// The editor's helper: an input is complete when it parses as one, and coloured as in dotty.
 struct Input;
 
+/// The result of `f`, with the panic hook silenced while it runs.
+fn unreported<T>(f: impl FnOnce() -> T) -> T {
+    let hook = std::panic::take_hook();
+    std::panic::set_hook(Box::new(|_| {}));
+    let out = f();
+    std::panic::set_hook(hook);
+    out
+}
+
 impl Validator for Input {
     fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
-        Ok(match incomplete(ctx.input()) {
+        Ok(match unreported(|| incomplete(ctx.input())) {
             true => ValidationResult::Incomplete,
             false => ValidationResult::Valid(None),
         })
@@ -136,11 +145,14 @@ impl Hinter for Input {
 
 impl Highlighter for Input {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
-        Cow::Owned(highlight(line))
+        Cow::Owned(unreported(|| highlight(line)))
     }
 
-    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self, prompt: &'p str, _default: bool) -> Cow<'b, str> {
-        Cow::Owned(format!("\x1b[35m{prompt}\x1b[0m"))
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self, prompt: &'p str, default: bool) -> Cow<'b, str> {
+        match default {
+            true => Cow::Owned(format!("\x1b[35m{prompt}\x1b[0m")),
+            false => Cow::Borrowed(prompt),
+        }
     }
 
     fn highlight_char(&self, _line: &str, _pos: usize, kind: CmdKind) -> bool {

@@ -160,3 +160,12 @@ x \e[33mmatch\e[0m\n  \e[33mcase\e[0m \e[33mList\e[0m(a, _\e[32m*\e[0m) => a
 xs.map(_.length)
 \e[33mtype\e[0m \e[36mK\e[0m = \e[32mMap\e[0m[?, ?]
 \e[33mdef\e[0m \e[36mk\e[0m[\e[36mF\e[0m[_, _]] = \e[32m1\e[0m
+𝔸b
+\e[33mFOO𝔸\e[0m
+\e[33mAb𝔸\e[0m
+\e[33mdef\e[0m \e[36ma\e[0m$ = \e[32m1\e[0m
+\e[33mval\e[0m \e[36m$\e[0m = \e[32m1\e[0m
+\e[33mtype\e[0m \e[36mT\e[33m$\e[0m = \e[32mInt\e[0m
+\e[33msuper\e[0m[A].f
+\e[33mclass\e[0m \e[36mB4\e[0m \e[33mextends\e[0m \e[32mA\e[0m { \e[33mdef\e[0m \e[36mg\e[0m = \e[33msuper\e[0m[A].f }
+\e[32m1.5\e[0m𝔸
