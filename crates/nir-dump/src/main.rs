@@ -22,6 +22,9 @@ struct Args {
     /// Dump definitions with their positions, local names and scopes.
     #[arg(long)]
     debug: bool,
+    /// Dump the definitions of each file sorted by their text.
+    #[arg(long)]
+    sorted: bool,
     /// Dump only definitions whose name contains TEXT.
     #[arg(long, value_name = "TEXT")]
     filter: Option<String>,
@@ -181,12 +184,18 @@ fn dump(entries: &[source::Entry], args: &Args) -> usize {
         match result {
             Ok(defns) if !defns.is_empty() => {
                 println!("\n// {}", e.name);
-                for d in &defns {
-                    if args.debug {
-                        println!("{}\n", show::defn_with_debug_info(&pool, d));
-                    } else {
-                        println!("{}\n", show::defn(&pool, d, !args.mangled));
-                    }
+                let mut texts: Vec<String> = defns
+                    .iter()
+                    .map(|d| match args.debug {
+                        true => show::defn_with_debug_info(&pool, d),
+                        false => show::defn(&pool, d, !args.mangled),
+                    })
+                    .collect();
+                if args.sorted {
+                    texts.sort();
+                }
+                for t in texts {
+                    println!("{t}\n");
                 }
             }
             Ok(_) => {}
