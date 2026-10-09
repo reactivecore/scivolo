@@ -1,7 +1,7 @@
 //! The walks of the phases over a class definition, the subtrees of typed trees, and the
 //! symbols trees refer to.
 
-use crate::Lower;
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
@@ -25,6 +25,14 @@ pub fn walk_class_up<'a>(
     let mut enter =
         |l: &mut Lower<'a>, t, owner| if nested(l, td, t) { Walk::Skip } else { enter(l, t, owner) };
     traverse_up(l, td, class, &mut enter, leave);
+}
+
+/// `walk`'s answer, or `Walk::Stop` for an error, which goes to `result`.
+pub fn or_stop(result: &mut Result<()>, walk: Result<Walk>) -> Walk {
+    walk.unwrap_or_else(|e| {
+        *result = Err(e);
+        Walk::Stop
+    })
 }
 
 /// Whether `t` is a class definition nested in class definition `td`.

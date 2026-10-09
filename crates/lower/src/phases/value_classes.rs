@@ -3,36 +3,26 @@
 //! `C.m$extension(q)(args)`, a method of the companion object taking the value first.
 
 use super::adapt::from_start;
-use super::walk::children;
+use super::walk::{or_stop, walk_class_up};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_constructor, is_module, is_trait};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewires the calls of value class methods in class definition `td`, children before their
 /// parents, as dotty's `MegaPhase` transforms.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let mut order = Vec::new();
-    let mut todo = vec![(td, class)];
-    while let Some((t, owner)) = todo.pop() {
-        order.push((t, owner));
-        let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        let inner = match *l.tpd.tree(t) {
-            Tree::DefDef { .. } | Tree::ValDef { .. } => l.tpd.sym(t).unwrap_or(owner),
-            Tree::Template { constr, .. } => l.tpd.sym(constr).unwrap_or(owner),
-            _ => owner,
-        };
-        if !nested {
-            todo.extend(children(l.tpd, t).into_iter().map(|c| (c, inner)));
-        }
-    }
-    for (t, owner) in order.into_iter().rev() {
-        rewire(l, t, owner)?;
-    }
-    Ok(())
+    let mut result = Ok(());
+    let mut enter = |l: &mut Lower, t, _| match *l.tpd.tree(t) {
+        Tree::Template { constr, .. } => l.tpd.sym(constr).map_or(Walk::Children, Walk::Within),
+        _ => Walk::Children,
+    };
+    walk_class_up(l, td, &mut enter, &mut |l, t, owner| {
+        or_stop(&mut result, rewire(l, t, owner).map(|()| Walk::Children))
+    });
+    result
 }
 
 /// Makes `t`, a call or selection of a value class method in `owner`, call its extension method.
