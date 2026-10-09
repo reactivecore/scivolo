@@ -47,12 +47,14 @@ const CASES: &[(&str, &str)] = &[
         "class A { private val p = 1; def g = p; object B { def f = p } }",
         "private members of an enclosing class",
     ),
-    (
-        "class A { val p = 1; object B { object C { def f = p } } }",
-        "the enclosing instance in classes nested in objects",
-    ),
+    ("class A { val p = 1; object B { object C { def f = p } } }", "the enclosing instance two classes out"),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
-    ("class A { class B }", "classes in classes and traits"),
+    ("class A { trait B }", "traits in classes and traits"),
+    ("class A { class B; class C extends B }", "subclasses of classes in classes"),
+    (
+        "class A { class B; def f(x: Any) = x match { case _: B => 1; case _ => 0 } }",
+        "patterns of classes in classes",
+    ),
     ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     (

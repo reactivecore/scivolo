@@ -15,9 +15,8 @@ impl Gen<'_, '_> {
             return unsupported(self.l.tpd.span(td), "native interop");
         }
         let owner = self.l.u.symbol(sym).owner.expect("a class's owner");
-        if is_class(self.l.u, owner) && !is_static_module(self.l.u, owner) && !is_module_class(self.l.u, sym)
-        {
-            return unsupported(self.l.tpd.span(td), "classes in classes and traits");
+        if is_class(self.l.u, owner) && !is_static_module(self.l.u, owner) && is_trait(self.l.u, sym) {
+            return unsupported(self.l.tpd.span(td), "traits in classes and traits");
         }
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
         let attrs =

@@ -43,6 +43,7 @@ mod memoize;
 mod methods;
 mod mirrors;
 mod mixin;
+mod outer_args;
 mod patmat;
 mod repeated;
 mod returns;
