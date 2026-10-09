@@ -2,42 +2,36 @@
 //! `StringContext(p0, p1, …).s(a1, …)` becomes `p0 + a1 + p1 + …`, empty parts dropped and the
 //! parts of `s` with their escapes processed.
 
-use super::walk::children;
+use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::constant::Constant;
 use tasty::{SymbolId, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the interpolations in class definition `td`; fails for one that is not `s` or `raw`
 /// of literal parts with valid escapes.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let mut todo = vec![td];
-    while let Some(t) = todo.pop() {
-        if let Some(raw) = interpolator(l, t) {
-            let span = l.tpd.span(t);
-            let literals = |l: &Lower, parts: &[TNodeId]| {
-                parts.iter().all(|&p| matches!(l.tpd.tree(p), Tree::Literal { value: Constant::String(_) }))
-            };
-            let Some((parts, args)) = interpolation(l, t).filter(|(parts, _)| literals(l, parts)) else {
-                return unsupported(span, "interpolations of parts that are not literals");
-            };
-            let Some(texts) = parts.iter().map(|&p| text(l, p, raw)).collect::<Option<Vec<_>>>() else {
-                return unsupported(span, "interpolations with invalid escapes");
-            };
-            for (&p, text) in parts.iter().zip(texts) {
-                l.tpd.get_mut(p).tree = Tree::Literal { value: Constant::String(text.into()) };
-            }
-            let concat = concat(l, &parts, &args);
-            let (tree, span, tpe) = (l.tpd.tree(concat).clone(), l.tpd.span(concat), l.tpd.tpe(concat));
-            let node = l.tpd.get_mut(t);
-            (node.tree, node.span, node.tpe, node.sym) = (tree, span, Some(tpe), None);
+    try_walk_class(l, td, &mut |l, t, _| {
+        let Some(raw) = interpolator(l, t) else { return Ok(Walk::Children) };
+        let span = l.tpd.span(t);
+        let literals = |l: &Lower, parts: &[TNodeId]| {
+            parts.iter().all(|&p| matches!(l.tpd.tree(p), Tree::Literal { value: Constant::String(_) }))
+        };
+        let Some((parts, args)) = interpolation(l, t).filter(|(parts, _)| literals(l, parts)) else {
+            return unsupported(span, "interpolations of parts that are not literals");
+        };
+        let Some(texts) = parts.iter().map(|&p| text(l, p, raw)).collect::<Option<Vec<_>>>() else {
+            return unsupported(span, "interpolations with invalid escapes");
+        };
+        for (&p, text) in parts.iter().zip(texts) {
+            l.tpd.get_mut(p).tree = Tree::Literal { value: Constant::String(text.into()) };
         }
-        let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        if !nested {
-            todo.extend(children(l.tpd, t));
-        }
-    }
-    Ok(())
+        let concat = concat(l, &parts, &args);
+        let (tree, span, tpe) = (l.tpd.tree(concat).clone(), l.tpd.span(concat), l.tpd.tpe(concat));
+        let node = l.tpd.get_mut(t);
+        (node.tree, node.span, node.tpe, node.sym) = (tree, span, Some(tpe), None);
+        Ok(Walk::Children)
+    })
 }
 
 /// Whether `t` is a call of `StringContext`'s `raw`, `Some(false)` for its `s`.
