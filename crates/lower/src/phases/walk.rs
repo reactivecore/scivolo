@@ -5,7 +5,7 @@ use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tpd, Tree, Visit, Walk, traverse_up};
+use typer::tpd::{TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
 
 impl AsRef<Tpd> for Lower<'_> {
     fn as_ref(&self) -> &Tpd {
@@ -13,8 +13,14 @@ impl AsRef<Tpd> for Lower<'_> {
     }
 }
 
-/// `typer::tpd::traverse_up` from class definition `td`, owned by its class, that does not
-/// enter the class definitions nested in it.
+/// `typer::tpd::traverse` from class definition `td`, owned by its class, that does not enter
+/// the type and class definitions nested in it.
+pub fn walk_class<'a>(l: &mut Lower<'a>, td: TNodeId, enter: &mut Visit<Lower<'a>>) {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    traverse(l, td, class, &mut |l, t, owner| if nested(l, td, t) { Walk::Skip } else { enter(l, t, owner) });
+}
+
+/// `walk_class` as `typer::tpd::traverse_up`, also calling `leave` on each tree entered.
 pub fn walk_class_up<'a>(
     l: &mut Lower<'a>,
     td: TNodeId,
@@ -35,7 +41,7 @@ pub fn or_stop(result: &mut Result<()>, walk: Result<Walk>) -> Walk {
     })
 }
 
-/// Whether `t` is a class definition nested in class definition `td`.
+/// Whether `t` is a type or class definition nested in class definition `td`.
 fn nested(l: &Lower, td: TNodeId, t: TNodeId) -> bool {
     t != td && matches!(l.tpd.tree(t), Tree::TypeDef { .. })
 }

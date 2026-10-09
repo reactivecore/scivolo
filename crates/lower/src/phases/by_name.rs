@@ -5,61 +5,53 @@
 
 use super::adapt::from_start;
 use super::getters::is_param_accessor;
-use super::walk::children;
+use super::walk::walk_class;
 use crate::Lower;
 use crate::definitions::symbol;
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{ARTIFACT, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewrites the by-name arguments and references in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) {
-    let class = l.tpd.sym(td).expect("a class definition's symbol");
-    walk(l, td, class, td, &mut FxHashSet::default());
+    let mut passed = FxHashSet::default();
+    walk_class(l, td, &mut |l, t, owner| {
+        rewrite_args(l, t, owner, &mut passed);
+        if by_name_ref(l, t) && !passed.contains(&t) {
+            apply_reference(l, t);
+            return Walk::Skip;
+        }
+        Walk::Children
+    });
 }
 
-/// Rewrites the by-name arguments and references under `t`, `owner` the definition `t` is in,
-/// except the references in `passed`, which are arguments to by-name parameters.
-fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId, passed: &mut FxHashSet<TNodeId>) {
-    if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td {
-        return;
-    }
-    if let Tree::Apply { fun, args } = *l.tpd.tree(t) {
-        let old = l.tpd.items(args).to_vec();
-        let (formals, instantiated) = formals(l, fun);
-        let new: Vec<TNodeId> = old
-            .iter()
-            .enumerate()
-            .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-                Some(Type::ByName(_)) if by_name_ref(l, l.tpd.strip_typed(a)) => {
-                    let a = l.tpd.strip_typed(a);
-                    passed.insert(a);
-                    a
-                }
-                Some(Type::ByName(result)) => {
-                    let result = if instantiated { result } else { l.tpd.tpe(a) };
-                    closure(l, a, owner, result)
-                }
-                _ => a,
-            })
-            .collect();
-        if new != old {
-            let args = l.tpd.list(&new);
-            l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
-        }
-    }
-    if by_name_ref(l, t) && !passed.contains(&t) {
-        apply_reference(l, t);
-        return;
-    }
-    let inner = match (l.tpd.tree(t), l.tpd.sym(t)) {
-        (Tree::DefDef { .. } | Tree::ValDef { .. }, Some(s)) => s,
-        _ => owner,
-    };
-    for c in children(l.tpd, t) {
-        walk(l, c, inner, td, passed);
+/// Rewrites the by-name arguments of `t`, if a call, in `owner`; records in `passed` the
+/// references to by-name parameters passed on as is.
+fn rewrite_args(l: &mut Lower, t: TNodeId, owner: SymbolId, passed: &mut FxHashSet<TNodeId>) {
+    let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return };
+    let old = l.tpd.items(args).to_vec();
+    let (formals, instantiated) = formals(l, fun);
+    let new: Vec<TNodeId> = old
+        .iter()
+        .enumerate()
+        .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
+            Some(Type::ByName(_)) if by_name_ref(l, l.tpd.strip_typed(a)) => {
+                let a = l.tpd.strip_typed(a);
+                passed.insert(a);
+                a
+            }
+            Some(Type::ByName(result)) => {
+                let result = if instantiated { result } else { l.tpd.tpe(a) };
+                closure(l, a, owner, result)
+            }
+            _ => a,
+        })
+        .collect();
+    if new != old {
+        let args = l.tpd.list(&new);
+        l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
 }
 
