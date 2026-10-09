@@ -62,29 +62,40 @@ impl Cmp<'_> {
 
     /// The atoms of `t` (dotty's `Type.atoms`).
     pub fn atoms(&mut self, t: TypeId) -> Atoms {
+        self.walk.clear();
         self.atoms_at(t, 0)
     }
 
-    /// The atoms of `t`, reached in `depth` steps that are not unions.
+    /// The atoms of `t`, reached in `depth` steps that are not unions; kept for the walk unless
+    /// trivial or cached for the universe.
     pub fn atoms_at(&mut self, t: TypeId, depth: u32) -> Atoms {
+        if let Some((atoms, provisional)) = self.walk.atoms(t, depth) {
+            self.provisional |= provisional;
+            return atoms;
+        }
         if depth >= MAX_DEPTH || !self.step() {
             self.provisional = true;
             return Atoms::Unmodelled;
         }
-        match *self.u.types().get(t) {
-            Type::Constant(..) | Type::Str(_) => Atoms::single(t),
-            Type::Or(x, y) => self.or_atoms(t, x, y, depth),
-            _ => self.own_atoms(t, depth + 1),
+        let outer = std::mem::replace(&mut self.provisional, false);
+        let (atoms, elsewhere) = match *self.u.types().get(t) {
+            Type::Constant(..) | Type::Str(_) => (Atoms::single(t), true),
+            Type::Or(x, y) => (self.or_atoms(t, x, y, depth), true),
+            _ => (self.own_atoms(t, depth + 1), false),
+        };
+        if self.provisional || !elsewhere {
+            self.walk.set_atoms(t, depth, atoms.clone(), self.provisional);
         }
+        self.provisional |= outer;
+        atoms
     }
 
-    /// The atoms of union `t = x | y`, cached unless provisional.
+    /// The atoms of union `t = x | y`, cached unless provisional; entered not provisional.
     fn or_atoms(&mut self, t: TypeId, x: TypeId, y: TypeId, depth: u32) -> Atoms {
         if let Some(cached) = self.u.unions().atoms(t) {
             return cached;
         }
-        let outer = std::mem::replace(&mut self.provisional, false);
-        let (nx, ny) = (self.is_nothing(x, depth), self.is_nothing(y, depth));
+        let (nx, ny) = (self.nothing_at(x, depth), self.nothing_at(y, depth));
         let atoms = match (nx, ny) {
             (Some(true), _) => self.atoms_at(y, depth),
             (_, Some(true)) => self.atoms_at(x, depth),
@@ -103,7 +114,6 @@ impl Cmp<'_> {
         if !self.provisional {
             self.u.unions().set_atoms(t, atoms.clone());
         }
-        self.provisional |= outer;
         atoms
     }
 

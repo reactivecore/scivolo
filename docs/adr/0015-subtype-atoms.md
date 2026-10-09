@@ -18,7 +18,9 @@ never freed.
   comparison continues by the parts.
 - **Cache:** the atoms of a union are cached by its `TypeId` when computing them read no type
   variable, no symbol and did not hit the depth limit. Atom and part lists are shared: a list
-  only grows at its end, and a union extending another extends its list in place.
+  only grows at its end, and a union extending another extends its list in place. Other
+  atoms and `Nothing`-ness are memoised by type and depth for one walk (one call of `atoms` or
+  `is_nothing`), which the constraint cannot change, so a DAG of bounds is walked once per node.
 - **Shapes:** unions keep dotty's balanced shape exactly. The balanced union of each range of
   a part list is memoised, so a rebuild only interns the subtrees it has not built before.
 

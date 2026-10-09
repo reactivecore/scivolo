@@ -18,6 +18,7 @@ mod refs;
 mod singletons;
 mod third;
 mod unions;
+mod walk;
 
 pub use unions::Unions;
 
@@ -117,6 +118,8 @@ pub struct Cmp<'a> {
     provisional: bool,
     /// How many more steps computing atoms and `Nothing`-ness may take.
     steps: u32,
+    /// What the current walk computing atoms or `Nothing`-ness has found.
+    walk: walk::Walk,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -124,8 +127,8 @@ const MAX_STEPS: u32 = 1_000_000;
 
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
-        let pending = FxHashSet::default();
-        Cmp { u, vars, frozen: false, depth: 0, pending, provisional: false, steps: MAX_STEPS }
+        let (pending, walk) = (FxHashSet::default(), walk::Walk::default());
+        Cmp { u, vars, frozen: false, depth: 0, pending, provisional: false, steps: MAX_STEPS, walk }
     }
 
     /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.
