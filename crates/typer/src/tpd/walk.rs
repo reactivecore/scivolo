@@ -90,7 +90,8 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
 
 impl Tpd {
     /// The owner of the children of `t`, a tree owned by `owner` (dotty's `localCtx`): `t`'s
-    /// symbol if `t` defines one, else `owner`.
+    /// symbol if `t` defines one, else `owner`, also for a template's statements, which dotty
+    /// gives the template's local dummy.
     pub fn local_owner(&self, t: TNodeId, owner: SymbolId) -> SymbolId {
         match self.tree(t) {
             Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::PackageDef { .. } => {
