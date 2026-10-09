@@ -95,10 +95,10 @@ impl Typer<'_> {
         }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
-            Ok(None) => {
+            Ok(None) => self.type_mismatch(tree, pt, ctx).unwrap_or_else(|| {
                 self.unsupported_at(span, "adaptation");
                 tree
-            }
+            }),
             Err(what) => {
                 self.unsupported_at(span, what);
                 tree

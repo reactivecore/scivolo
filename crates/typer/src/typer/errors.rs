@@ -22,6 +22,12 @@ pub fn not_found(name: &str, is_type: bool) -> Message {
     message(6, "Not Found", true, format!("Not found: {kind}{name}"))
 }
 
+/// `TypeMismatch` of a tree of the type shown as `found` with the type shown as `required`, with
+/// no note and no addendum.
+pub fn type_mismatch(found: &str, required: &str) -> Message {
+    message(7, "Type Mismatch", true, format!("Found:    {found}\nRequired: {required}"))
+}
+
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, with no
 /// addendum and no name to suggest.
 pub fn not_a_member(name: &str, is_type: bool, site: &str) -> Message {

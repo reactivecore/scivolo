@@ -14,7 +14,14 @@ scala> val i: Int = 12345678901
 1 error found
 
 scala> val x: Int = "a"
--- unsupported: adaptation
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |val x: Int = "a"
+  |             ^^^
+  |             Found:    ("a" : String)
+  |             Required: Int
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
 
 scala> val x = 1
 val x: Int = 1
@@ -99,4 +106,37 @@ scala> List(1, 2).wwww
 1 |List(1, 2).wwww
   |^^^^^^^^^^^^^^^
   |value wwww is not a member of List[Int]
+1 error found
+
+scala> val s: String = x
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |val s: String = x
+  |                ^
+  |                Found:    (x : Int)
+  |                Required: String
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> def f(i: Int): Int = i
+def f(i: Int): Int
+
+scala> f("a")
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |f("a")
+  |  ^^^
+  |  Found:    ("a" : String)
+  |  Required: Int
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> def g: String = 42
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |def g: String = 42
+  |                ^^
+  |                Found:    (42 : Int)
+  |                Required: String
+  |
+  | longer explanation available when compiling with `-explain`
 1 error found
