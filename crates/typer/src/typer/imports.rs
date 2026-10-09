@@ -104,6 +104,13 @@ impl Typer<'_> {
                 self.unsupported(expr, "import prefix that is not a pure expression");
             }
             let qual = self.tpd.tpe(typed);
+            let site = self.import_site(qual).map(|s| self.u.full_name(s).replace('$', ""));
+            if self.looks_like_language(expr) && !site.is_some_and(|s| s.starts_with("scala.language")) {
+                self.unsupported(
+                    expr,
+                    "import that looks like a language import but refers to something else",
+                );
+            }
             let selectors = self.selectors(selectors);
             self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed) });
         }
@@ -111,6 +118,31 @@ impl Typer<'_> {
             ImportEntry::Done(info) => Some(info),
             _ => None,
         }
+    }
+
+    /// Whether path `expr` is `[[_root_.]scala.]language[.x]` (dotty's `languageImport`).
+    fn looks_like_language(&self, expr: NodeId) -> bool {
+        let mut names = Vec::new();
+        let mut t = expr;
+        loop {
+            match *self.ast.tree(t) {
+                Tree::Select { qualifier, name } => {
+                    names.push(self.text(name.name).to_owned());
+                    t = qualifier;
+                }
+                Tree::Ident { name } => {
+                    names.push(self.text(name.name).to_owned());
+                    break;
+                }
+                _ => return false,
+            }
+        }
+        names.reverse();
+        let rest = match names.iter().position(|n| n == "language") {
+            Some(i) => &names[..i],
+            None => return false,
+        };
+        rest.is_empty() || rest == ["scala"] || rest == ["_root_", "scala"]
     }
 
     fn selectors(&self, selectors: List) -> Vec<Selector> {
