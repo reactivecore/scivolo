@@ -65,7 +65,7 @@ impl Typer<'_> {
         for &s in body {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(s) else { continue };
             let text = self.text(name.name);
-            if !case_names.iter().any(|c| text.strip_suffix('$') == Some(c.as_str())) {
+            if !case_names.iter().any(|c| tasty::module_name(text) == Some(c.as_str())) {
                 continue;
             }
             let Tree::Template { body: stats, .. } = *self.ast.tree(rhs) else { continue };

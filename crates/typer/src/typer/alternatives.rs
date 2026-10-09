@@ -3,6 +3,8 @@
 //! `narrowBySize` with `sizeFits`), before overload resolution.
 
 use super::{Pt, Typer};
+use crate::tpd::TNodeId;
+use syntax::ast::NodeId;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -143,6 +145,29 @@ impl Typer<'_> {
         let defaults = self.default_params(s).iter().filter(|&&d| d).count();
         let necessary = ps.len().saturating_sub(defaults);
         necessary <= n || necessary == n + 1 && varargs
+    }
+
+    /// The tree for reference `id` when `choose` finds no alternative for `what`: an error tree
+    /// when `pt` is unusable for inference, else `what` unsupported.
+    pub fn unchosen(&mut self, id: NodeId, what: &str, pt: Pt) -> TNodeId {
+        if self.unusable_for_inference(pt) {
+            return self.error_tree(self.ast.span(id));
+        }
+        self.unsupported(id, what)
+    }
+
+    /// Whether a typed argument of `pt` has the error type in it and that error is reported
+    /// (dotty's `unusableForInference`).
+    pub fn unusable_for_inference(&mut self, pt: Pt) -> bool {
+        let Pt::Fun(proto) = pt else { return false };
+        let args = self.protos[proto].typed.clone().unwrap_or_default();
+        let reported = self.diags.has_errors() || self.unsupported.is_some();
+        reported
+            && args.into_iter().any(|a| {
+                let tpe = self.tpd.tpe(a);
+                let tpe = self.zonk(tpe);
+                self.type_parts(tpe).into_iter().any(|p| *self.u.types().get(p) == Type::Error)
+            })
     }
 
     /// Whether method `s` takes type or value parameters.

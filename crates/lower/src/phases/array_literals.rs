@@ -1,7 +1,7 @@
 //! The array part of dotty's `ArrayApply`: `Array(xs*)` with a class tag of a class literal, and
 //! `Array(x, xs*)`, become array literals.
 
-use super::array_apply::{applied, qualifier_symbol, strip_typed, wrapped_literal};
+use super::array_apply::{applied, qualifier_symbol, wrapped_literal};
 use crate::Lower;
 use crate::symbols::is_module;
 use syntax::ast::Span;
@@ -34,12 +34,8 @@ pub fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
 /// Whether `t` is `ClassTag.apply(classOf[C])`, its argument cast or not, or a `ClassTag` of a
 /// primitive (dotty's `elideClassTag`).
 fn is_class_tag_of_literal(l: &Lower, t: TNodeId) -> bool {
-    let t = strip_typed(l, t);
-    let mut fun = t;
-    while let Tree::Apply { fun: f, .. } | Tree::TypeApply { fun: f, .. } = *l.tpd.tree(fun) {
-        fun = f;
-    }
-    let Some(m) = l.tpd.sym(fun) else { return false };
+    let t = l.tpd.strip_typed(t);
+    let Some(m) = l.tpd.sym(l.tpd.meth_part(t)) else { return false };
     let Some(owner) = l.u.symbol(m).owner else { return false };
     if l.u.full_name(owner) != "scala.reflect.ClassTag$" {
         return false;

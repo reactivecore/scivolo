@@ -4,6 +4,7 @@
 mod any_members;
 mod builtin;
 mod classes;
+mod companions;
 mod define;
 mod enter;
 mod impure_functions;
@@ -14,6 +15,7 @@ mod lookup;
 mod members;
 mod open;
 mod overrides;
+mod predicates;
 mod resolve;
 mod seen;
 mod symbol;
@@ -28,8 +30,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
 pub use builtin::{ANY, Builtins, NOTHING};
+pub use companions::{module_class_name, module_name};
 pub use jdk::defined_name;
 pub use lookup::encode;
+pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
 /// A decoded top-level file: its trees, and its name table shown as text.

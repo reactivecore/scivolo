@@ -122,10 +122,7 @@ impl Typer<'_> {
         {
             return self.unsupported(id, what);
         }
-        let mut callee = f;
-        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
-            callee = fun;
-        }
+        let callee = self.tpd.meth_part(f);
         let partial = matches!(self.u.types().get(result), Type::Method { .. });
         let tpe = match self.u.types().get(self.tpd.tpe(callee)).clone() {
             _ if erroneous => self.u.intern_type(Type::Error),
@@ -162,7 +159,10 @@ impl Typer<'_> {
             let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
             return proxy.ok_or("application of a non-method");
         };
-        let sym = self.choose(&found.syms, Some(tpe), pt)?;
+        let sym = match self.choose(&found.syms, Some(tpe), pt) {
+            Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
+            chosen => chosen?,
+        };
         self.check_reference(sym, Some(tpe), ctx)?;
         let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
         let apply_tpe = self.ref_type(Some(tpe), sym);

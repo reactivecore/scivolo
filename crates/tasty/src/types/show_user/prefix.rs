@@ -4,7 +4,7 @@
 use super::{Printer, simple};
 use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
-use crate::{Kind, SymbolId, Universe};
+use crate::{Kind, SymbolId, Universe, is_package_object_name, module_class_name, module_name};
 use rustc_hash::FxHashSet;
 
 /// A path by its qualified name and by its text.
@@ -23,9 +23,9 @@ pub fn join(prefix: &str, name: &str) -> String {
     }
 }
 
+/// Whether `name` is a package object's class or value.
 fn is_package_object(name: &str) -> bool {
-    let name = name.strip_suffix('$').unwrap_or(name);
-    name == "package" || name.ends_with("$package")
+    is_package_object_name(name) || is_package_object_name(&module_class_name(name))
 }
 
 /// Whether a prefix of qualified name `full` is omitted, as one the root imports bring.
@@ -105,8 +105,8 @@ impl Printer<'_> {
             None => self.owner_path(s),
         };
         let sym = self.u.symbol(s);
-        let name = match sym.kind == Kind::Class && sym.flags.has(OBJECT) {
-            true => sym.name.strip_suffix('$').unwrap_or(&sym.name).to_owned(),
+        let name = match self.u.is_module_class(s) {
+            true => module_name(&sym.name).unwrap_or(&sym.name).to_owned(),
             false => sym.name.clone(),
         };
         select(prefix, &name)

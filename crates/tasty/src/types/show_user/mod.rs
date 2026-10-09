@@ -35,7 +35,7 @@ impl Universe {
         let owner = prefix::after_wrapper(&full).to_owned();
         let name = self.symbol(s).name.clone();
         let prefix = prefix::prefix_text(prefix::Path { shown: owner.clone(), full: owner });
-        format!("{prefix}{}", name.strip_suffix('$').unwrap_or(&name))
+        format!("{prefix}{}", crate::module_name(&name).unwrap_or(&name))
     }
 
     /// Symbol `s` as dotty prints an identifier naming it as an import path: its qualified name

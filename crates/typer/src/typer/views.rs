@@ -6,7 +6,7 @@ use super::Typer;
 use super::imports::ImportInfo;
 use crate::ctx::{Ctx, Level};
 use syntax::ast::flags as f;
-use tasty::tags::{GIVEN, IMPLICIT, OBJECT};
+use tasty::tags::{GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -22,7 +22,8 @@ impl Typer<'_> {
         let mut candidates = Vec::new();
         for c in [from, to] {
             for base in self.u.linearization(c) {
-                if let Some(companion) = self.companion_class(base) {
+                let module = self.u.companion_module(base);
+                if let Some(companion) = module.and_then(|m| self.u.module_class(m)) {
                     candidates.extend(self.all_members(companion));
                 }
             }
@@ -92,19 +93,8 @@ impl Typer<'_> {
         let decls = self.u.decls(pkg).unwrap_or_default();
         decls
             .into_iter()
-            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_package_object(d))
+            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_named_package_object(d))
             .collect()
-    }
-
-    /// The class of the companion object of class `c`.
-    fn companion_class(&mut self, c: SymbolId) -> Option<SymbolId> {
-        let owner = self.u.symbol(c).owner?;
-        let name = self.u.symbol(c).name.clone();
-        let decls = self.u.decl(owner, &name).ok()?;
-        let module = decls
-            .into_iter()
-            .find(|&d| self.u.symbol(d).flags.has(OBJECT) && self.u.symbol(d).kind == Kind::Val)?;
-        self.u.module_class(module)
     }
 
     /// The declarations of class `c` and its base classes.

@@ -134,7 +134,7 @@ pub fn case_accessors(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
 /// The name of `class` without the `$` of an object's class.
 fn own_name(l: &Lower, class: SymbolId) -> String {
     let name = &l.u.symbol(class).name;
-    name.strip_suffix('$').unwrap_or(name).to_owned()
+    tasty::module_name(name).unwrap_or(name).to_owned()
 }
 
 /// The implementation of `sym` other than `sym` that `class` has or inherits (dotty's

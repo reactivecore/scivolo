@@ -38,7 +38,7 @@ fn wrapper_root(u: &Universe, typed: &Typed, t: TNodeId) -> Option<(u32, String)
     path.into_iter().rev().find_map(|n| {
         let owner = u.symbol(typed.tpd.sym(n)?).owner?;
         let s = u.symbol(owner);
-        let object = s.name.strip_suffix('$').filter(|o| o.starts_with(WRAPPER_PREFIX));
+        let object = tasty::module_name(&s.name).filter(|o| o.starts_with(WRAPPER_PREFIX));
         let span = typed.tpd.span(n);
         (s.kind == Kind::Class && span.exists()).then_some((span.start(), object?.to_owned()))
     })

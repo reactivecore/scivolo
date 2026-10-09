@@ -44,11 +44,7 @@ impl Typer<'_> {
 
     /// The class a parent tree extends: a constructor call's class, or its type's.
     fn parent_class(&mut self, tree: TNodeId) -> Option<SymbolId> {
-        let mut fun = tree;
-        while let T::Apply { fun: f, .. } = *self.tpd.tree(fun) {
-            fun = f;
-        }
-        match self.tpd.sym(fun) {
+        match self.tpd.sym(self.tpd.strip_apply(tree)) {
             Some(ctor) if self.u.symbol(ctor).name == "<init>" => self.u.symbol(ctor).owner,
             _ => {
                 let tpe = self.tpd.tpe(tree);
@@ -90,7 +86,7 @@ impl Typer<'_> {
     fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(parent);
         let Some(psym) = self.u.class_symbol(tpe) else { return parent };
-        if self.is_trait(cls) || self.is_trait(psym) {
+        if self.u.is_trait(cls) || self.u.is_trait(psym) {
             return parent;
         }
         let span = self.tpd.span(parent);
@@ -113,11 +109,7 @@ impl Typer<'_> {
 
     /// Moves the inferred type arguments of constructor call `call` to `at`.
     fn type_args_at(&mut self, call: TNodeId, at: Span) {
-        let mut fun = call;
-        while let T::Apply { fun: f, .. } = *self.tpd.tree(fun) {
-            fun = f;
-        }
-        let T::TypeApply { args, .. } = *self.tpd.tree(fun) else { return };
+        let T::TypeApply { args, .. } = *self.tpd.tree(self.tpd.strip_apply(call)) else { return };
         for a in self.tpd.items(args).to_vec() {
             self.tpd.get_mut(a).span = at;
         }

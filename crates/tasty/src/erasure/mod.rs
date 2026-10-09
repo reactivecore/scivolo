@@ -8,7 +8,7 @@ mod mangle;
 mod scala2;
 mod special;
 
-use crate::symbols::{defined_name, encode};
+use crate::symbols::{defined_name, encode, module_class_name, module_name};
 use crate::tags::{OBJECT as MODULE, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
@@ -43,8 +43,12 @@ impl Universe {
         match s.owner {
             Some(o) if self.symbol(o).kind == Kind::Class => {
                 let outer = self.binary_name(o);
-                let (simple, module) = outer.strip_suffix('$').map_or((outer.as_str(), ""), |s| (s, "$"));
-                let outer = defined_name(simple).map_or_else(|| outer.clone(), |d| format!("{d}{module}"));
+                let module = module_name(&outer);
+                let outer = match defined_name(module.unwrap_or(&outer)) {
+                    Some(d) if module.is_some() => module_class_name(d),
+                    Some(d) => d.to_owned(),
+                    None => outer.clone(),
+                };
                 if outer.ends_with('$') { format!("{outer}{name}") } else { format!("{outer}${name}") }
             }
             Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),

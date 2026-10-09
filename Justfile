@@ -36,16 +36,7 @@ repl *args: release
 
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
-    #!/usr/bin/env bash
-    names="{{ names }}"; [ -z "$names" ] && names=$(find tests/programs -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort)
-    failed=0
-    for p in $names; do
-      start=$(date +%s.%N)
-      out=$(SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/$p $p 2>&1)
-      t=$(echo "$(date +%s.%N) - $start" | bc)
-      if [ "$out" == "$(cat tests/programs/$p/$p.check)" ]; then echo "ok   $p ${t}s"; else echo "DIFF $p ${t}s"; failed=1; fi
-    done
-    exit $failed
+    python3 scripts/program_runs.py check {{ names }}
 
 # Compile test program `name` with Scala Native into its committed NIR and `.check`.
 program-update name:
@@ -202,6 +193,21 @@ typer-baseline from="tmp/typer/3.9.0/results.tsv":
 # Run the typer report and list the files that changed outcome against the baseline.
 typer-progress: typer-report
     bash scripts/typer-progress.sh
+
+# Before a refactor that must not change behaviour: record the outcomes of the oracles (default:
+# all) under tmp/snapshot. `typer` (typer-report), `lower` (dotty-lower-report), `tokens`,
+# `trees` and `desugar` (syntax-report), and `programs`: each test program's result in the
+# release VM against its `.check` file, as `just check` runs it, with a hash of its output.
+# An oracle whose recorded dotty output or checkout is missing is skipped; its old snapshot stays.
+snapshot *oracles: release
+    cargo build -q --release -p typer -p lower -p syntax
+    python3 scripts/snapshot.py record {{ oracles }}
+
+# After the refactor: rerun the oracles and fail on any outcome that differs from the snapshot,
+# on a skipped oracle that has a snapshot, and when no oracle was compared.
+snapshot-check *oracles: release
+    cargo build -q --release -p typer -p lower -p syntax
+    python3 scripts/snapshot.py check {{ oracles }}
 
 # Format, run the gates, commit every change not ignored with message `msg` and push the branch.
 ship msg: fmt gates lint-msrv

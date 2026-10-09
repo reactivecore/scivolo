@@ -43,7 +43,7 @@ impl Gen<'_, '_> {
         }
         let module_name = self.type_name(c);
         let id = self.pool.top_name(module_name).to_owned();
-        let name = self.pool.top(id.strip_suffix('$').unwrap_or(&id));
+        let name = self.pool.top(tasty::module_name(&id).unwrap_or(&id));
         let parent = self.pool.top("java.lang.Object");
         let class = Defn {
             name,

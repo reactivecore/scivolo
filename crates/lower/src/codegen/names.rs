@@ -5,7 +5,7 @@ use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_pr
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
 use tasty::tags::{ENUM, MACRO, PRIVATE, PROTECTED, STATIC};
-use tasty::{SymbolId, encode};
+use tasty::{SymbolId, encode, module_class_name, module_name};
 
 /// Classes Scala Native defines under another name, and `Nothing` and `Null`.
 const MAPPED: [(&str, &str); 11] = [
@@ -28,8 +28,8 @@ pub fn mapped(name: &str) -> String {
         if name == from {
             return to.to_owned();
         }
-        if name.strip_suffix('$') == Some(from) {
-            return format!("{to}$");
+        if module_name(name) == Some(from) {
+            return module_class_name(to);
         }
     }
     name.to_owned()
@@ -48,7 +48,7 @@ impl Gen<'_, '_> {
     pub fn module_name(&mut self, c: SymbolId) -> GlobalId {
         let name = self.type_name(c);
         let id = self.pool.top_name(name).to_owned();
-        if id.ends_with('$') { name } else { self.pool.top(&format!("{id}$")) }
+        if module_name(&id).is_some() { name } else { self.pool.top(&module_class_name(&id)) }
     }
 
     pub fn method_name(&mut self, m: SymbolId) -> GlobalId {
@@ -91,7 +91,7 @@ impl Gen<'_, '_> {
             type_name
         } else {
             let id = self.pool.top_name(type_name).to_owned();
-            self.pool.top(id.strip_suffix('$').unwrap_or(&id))
+            self.pool.top(module_name(&id).unwrap_or(&id))
         };
         let scope =
             if is_private(self.l.u, m) { Scope::PrivateStatic(owner_name) } else { Scope::PublicStatic };
