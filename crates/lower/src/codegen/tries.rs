@@ -53,7 +53,7 @@ impl<'l, 'a> Gen<'l, 'a> {
         });
         result?;
         let insts = match finalizer {
-            Some(f) => self.with_finally(f, insts)?,
+            Some(f) => self.with_finally(|g| g.gen_expr(f).map(drop), insts)?,
             None => insts,
         };
         self.jump(normal, Vec::new());

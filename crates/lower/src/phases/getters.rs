@@ -55,7 +55,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);
             if let (Some(class), Some(rhs), false) = (owner, rhs, in_trait) {
-                super::lazy_vals::define_init(l, class, sym, rhs);
+                super::lazy_vals::define_members(l, class, sym, rhs);
             }
             let paramss = l.tpd.clauses(&[]);
             l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };

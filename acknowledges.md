@@ -43,7 +43,8 @@ Apache-2.0. Rust translations of:
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
-  - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`)
+  - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
+    `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)
   - `TailRec` (`TailRecElimination`)
 - `crates/tasty/src/erasure/scala2.rs`: `core/unpickleScala2/Scala2Erasure`
   (`intersectionDominator`), `SourceLanguage`.
@@ -72,7 +73,7 @@ MIT. `overlay/src/scalai/repl`: a Scala port of `Walker`, `Renderer`, `Result`, 
 
 BSD-3 / Apache-2.0. Rust translations of:
 
-- `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally` too), `NirCodeGen` (without
+- `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally`, `genSynchronized` too), `NirCodeGen` (without
   native interop), `ControlFlow.removeDeadBlocks`, `Val.isZero`, `Val.isCanonical`,
   `AdaptLazyVals` (`objCAS` on a field pointer).
 - `crates/lower/src/phases/enumerations.rs`: nscplugin's `PrepNativeInterop` (names of

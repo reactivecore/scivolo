@@ -148,7 +148,8 @@ fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: Span
     let sym = l.tpd.sym(def).expect("a forwarder's symbol");
     let flags = l.u.symbol(sym).flags.with(LAZY).with(FIELDaccessor);
     l.u.set_flags(sym, flags);
-    super::lazy_vals::define_init(l, class, sym, rhs);
+    super::lazy_vals::define_members(l, class, sym, rhs);
+    super::lazy_vals::name_members(l, sym);
     Ok(def)
 }
 

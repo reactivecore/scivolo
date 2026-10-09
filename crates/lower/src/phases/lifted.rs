@@ -24,7 +24,11 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
     for f in functions {
         let (params, result) = signature(l, f)?;
         let name = l.u.symbol(f.sym).name.clone();
-        methods.push(define(l, class, &name, &f.captured, &params, result, f.this));
+        let method = define(l, class, &name, &f.captured, &params, result, f.this);
+        if l.local_lazy_accessors.contains(&f.sym) {
+            l.local_lazy_accessors.insert(method.sym);
+        }
+        methods.push(method);
     }
     Ok(methods)
 }
@@ -69,11 +73,8 @@ pub fn lift(
             None => fresh(l, &l.u.symbol(f.sym).name.clone()),
         };
         l.u.rename(method.sym, &name);
-        let closure = match f.closure {
-            Some(_) => Some(plan(l, class, f, &prefix, &params, result, &mut deferred)?),
-            None => None,
-        };
-        plans.push(closure);
+        let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
+        plans.push(closure.transpose()?);
     }
     calls(l, class, template, functions, methods);
     for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {

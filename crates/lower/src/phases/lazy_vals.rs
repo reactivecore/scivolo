@@ -77,24 +77,29 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// Defines the method `x$lzyINITN` of lazy value `accessor` of `class` and makes the
-/// definitions in its right-hand side `rhs` owned by it, as `LambdaLift` finds them in dotty.
-pub fn define_init(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: TNodeId) {
-    let name = l.u.symbol(accessor).name.clone();
-    let init_name = fresh(l, &format!("{name}$lzyINIT"));
-    let init =
-        l.u.define(symbol(&init_name, Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
+/// The `$lzyINIT` method and the field of a lazy value of a class, the field entered into the
+/// class by `transform`.
+#[derive(Clone, Copy)]
+pub struct LazyMembers {
+    pub init: SymbolId,
+    pub field: SymbolId,
+}
+
+/// Defines the members of lazy value `accessor` of `class`, unnamed until `name_members`, and
+/// makes the definitions in its right-hand side `rhs` owned by the `$lzyINIT` method, as
+/// `LambdaLift` finds them in dotty.
+pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: TNodeId) {
+    let init = l.u.define(symbol("", Kind::Def, class, Flags::default().with(PRIVATE).with(SYNTHETIC)));
     let binder = l.u.fresh_binder();
-    let result = object(l);
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result,
-        implicit: false,
-        contextual: false,
-    });
+    let object = object(l);
+    let params = Vec::new();
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: object, implicit: false, contextual: false });
     l.u.set_info(init, info);
-    l.lazy_inits.insert(accessor, init);
+    let field = l.u.define(symbol("", Kind::Val, class, Flags::default().with(PRIVATE).with(MUTABLE)));
+    l.u.unenter(field);
+    l.u.set_info(field, object);
+    l.lazy_members.insert(accessor, LazyMembers { init, field });
     for s in super::walk::subtrees(l.tpd, rhs) {
         let defined = matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. });
         if let Some(sym) = l.tpd.sym(s).filter(|&sym| defined && l.u.symbol(sym).owner == Some(accessor)) {
@@ -103,21 +108,27 @@ pub fn define_init(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: TNod
     }
 }
 
-/// The field `x$lzyN` and the method `define_init` made for lazy value `accessor` of `class`.
-fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
+/// Names the field `x$lzyN` and the method `x$lzyINITN` of lazy value `accessor` of a class, in
+/// that order.
+pub fn name_members(l: &mut Lower, accessor: SymbolId) {
     let name = l.u.symbol(accessor).name.clone();
+    let members = l.lazy_members[&accessor];
     let field_name = fresh(l, &format!("{name}$lzy"));
-    let field =
-        l.u.define(symbol(&field_name, Kind::Val, class, Flags::default().with(PRIVATE).with(MUTABLE)));
-    let object = object(l);
-    l.u.set_info(field, object);
+    l.u.rename(members.field, &field_name);
+    let init_name = fresh(l, &format!("{name}$lzyINIT"));
+    l.u.rename(members.init, &init_name);
+}
+
+/// The lazy value `accessor` of `class` with its field entered.
+fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
+    let LazyMembers { init, field } = l.lazy_members[&accessor];
+    l.u.enter(field);
     l.fields.insert(field, field);
-    let init = l.lazy_inits[&accessor];
     Lazy { class, accessor, field, init }
 }
 
 /// `base` followed by the number of names made from it in the unit.
-fn fresh(l: &mut Lower, base: &str) -> String {
+pub fn fresh(l: &mut Lower, base: &str) -> String {
     let name = l.fresh.next(l.names, base);
     l.names.text(name).to_owned()
 }

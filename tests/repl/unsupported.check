@@ -1,8 +1,8 @@
 scala> class A(var p: Int)
 -- unsupported: mutable class parameters
 
-scala> def f() = { lazy val x = 1; x }
--- unsupported: local lazy values
+scala> trait T { lazy val x = 1 }
+-- unsupported: lazy values in traits
 
 scala> val y = 2
 val y: Int = 2

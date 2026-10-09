@@ -6,12 +6,15 @@ use super::buf::Buf;
 use crate::Result;
 use nir::{Inst, Local, Next};
 use rustc_hash::FxHashSet;
-use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
-    /// The instructions `insts` with finalizer `finalizer` on each edge leaving them, the
+    /// The instructions `insts` with what `finalizer` generates on each edge leaving them, the
     /// finalizer copies after them.
-    pub fn with_finally(&mut self, finalizer: TNodeId, insts: Buf) -> Result<Buf> {
+    pub fn with_finally(
+        &mut self,
+        mut finalizer: impl FnMut(&mut Self) -> Result<()>,
+        insts: Buf,
+    ) -> Result<Buf> {
         let labels: FxHashSet<Local> = insts
             .insts
             .iter()
@@ -28,7 +31,7 @@ impl Gen<'_, '_> {
                 let saved = g.at(pos);
                 let scope = g.enter_scope(pos);
                 g.label(finally_label, Vec::new());
-                g.gen_expr(finalizer)?;
+                finalizer(g)?;
                 g.m.scope = scope;
                 g.push(inst, pos);
                 g.m.pos = saved;

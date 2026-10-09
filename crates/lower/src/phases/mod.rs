@@ -37,6 +37,7 @@ mod lifted;
 mod literals;
 mod local_classes;
 mod local_free;
+mod local_lazy;
 mod local_lift;
 mod memoize;
 mod methods;
@@ -86,6 +87,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         eta_reduce::transform(l, td);
     }
+    local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
     local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;

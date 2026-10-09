@@ -5,6 +5,7 @@ mod case_classes;
 mod equality;
 mod interfaces;
 mod lazy_vals;
+mod monitors;
 mod patmat;
 mod refs;
 mod sequences;
@@ -45,6 +46,7 @@ pub struct Definitions {
     pub patmat: Patmat,
     pub case_classes: CaseClasses,
     pub lazy_vals: LazyVals,
+    pub monitors: monitors::Monitors,
     pub sequences: Sequences,
     /// The object `scala.runtime.ScalaRunTime`.
     pub scala_run_time: SymbolId,
@@ -88,6 +90,7 @@ impl Definitions {
         }
         let b = u.builtins();
         let equality = Equality::new(u, b.any, b.object, runtime)?;
+        let array = member(u, scala, "Array", Kind::Class)?;
         Ok(Definitions {
             object: b.object,
             any: b.any,
@@ -102,13 +105,11 @@ impl Definitions {
             patmat: Patmat::new(u, b.any, b.object)?,
             case_classes: CaseClasses::new(u, b.any, b.object, equality.statics)?,
             lazy_vals: LazyVals::new(u, b.object)?,
+            monitors: monitors::Monitors::new(u, b.object)?,
             sequences: Sequences::new(u)?,
             scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
-            array_clone: {
-                let array = member(u, scala, "Array", Kind::Class)?;
-                member(u, array, "clone", Kind::Def)?
-            },
+            array_clone: member(u, array, "clone", Kind::Def)?,
             object_clone: member(u, b.object, "clone", Kind::Def)?,
         })
     }
