@@ -28,6 +28,16 @@ impl Session {
                 vec![RESETTING.to_owned()]
             }
             Command::TypeOf(expr) => self.type_of(&expr),
+            Command::Silent => {
+                self.quiet = !self.quiet;
+                Vec::new()
+            }
+            Command::Imports => vec![report::unsupported(":imports")],
+            Command::Load(_) => vec![report::unsupported(":load")],
+            Command::Unsupported(name) => {
+                vec![commands::retired(name).map_or_else(|| report::unsupported(name), str::to_owned)]
+            }
+            Command::Ambiguous(name, matching) => vec![commands::ambiguous(&name, &matching)],
             Command::Unknown(name) => vec![commands::unknown(&name)],
         }
     }

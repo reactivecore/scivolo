@@ -2,13 +2,13 @@
 //! into wrapper object `rs$line$<N>` and run.
 
 mod command;
+mod run;
 
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
-use crate::render::Definition;
-use crate::{imports, line_names, render, report, trace, wrap};
+use crate::{imports, line_names, render, report, wrap};
 use libimage::Image;
-use lower::NirFile;
+use run::Unit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
@@ -18,18 +18,6 @@ use typer::{Fallback, Typed, Units};
 use vm::{Vm, VmError};
 
 const RESETTING: &str = "Resetting REPL state.";
-
-/// A compiled input: its wrapper module, NIR files and definitions to print.
-struct Unit {
-    module: String,
-    files: Vec<NirFile>,
-    defs: Vec<Definition>,
-    earlier: Earlier,
-    /// How many `res` values of type `Unit` it defines, whose indices a run gives back.
-    unit_res: u32,
-    /// The lines of its warnings, printed before it runs.
-    warnings: Vec<String>,
-}
 
 pub struct Session {
     vm: Vm,
@@ -49,6 +37,8 @@ pub struct Session {
     exit: Option<i32>,
     /// The columns values are wrapped at.
     width: i32,
+    /// Whether definitions and their values go unprinted (`:silent`).
+    quiet: bool,
 }
 
 impl Session {
@@ -59,7 +49,8 @@ impl Session {
         let (names, fresh) = (Names::default(), FreshNames::default());
         let (u, units) = (Universe::open_image(image), Units::default());
         let (earlier, exit) = (Vec::new(), None);
-        Ok(Session { vm, image, u, units, names, fresh, line: 0, base: 0, res: 0, earlier, exit, width })
+        let (line, base, res, quiet) = (0, 0, 0, false);
+        Ok(Session { vm, image, u, units, names, fresh, line, base, res, earlier, exit, width, quiet })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -71,6 +62,7 @@ impl Session {
         self.base = self.line;
         self.res = 0;
         self.earlier.clear();
+        self.quiet = false;
     }
 
     /// Makes Ctrl-C stop the running input instead of ending the process.
@@ -154,46 +146,6 @@ impl Session {
         match wrap::template(&self.u, &typed, &format!("{object}$")) {
             Some(template) => Ok((typed, template)),
             None => Err(vec![report::unsupported("a wrapper object without a template")]),
-        }
-    }
-
-    /// Loads and runs `unit`; the lines it prints.
-    fn run(&mut self, unit: Unit) -> Vec<String> {
-        let Unit { module, files, defs, earlier, unit_res, warnings: mut out } = unit;
-        for f in files {
-            if let Err(e) = self.vm.add_nir(&f.name, f.bytes) {
-                out.push(e.to_string());
-                return out;
-            }
-        }
-        self.vm.clear_interrupts();
-        if let Err(e) = self.vm.eval_module(&module) {
-            out.extend(self.failed(e));
-            return out;
-        }
-        self.res -= unit_res;
-        self.earlier.push(earlier);
-        for d in defs {
-            match render::line(&mut self.vm, &module, &d, self.width) {
-                Ok(line) => out.push(line),
-                Err(e) => {
-                    out.extend(self.failed(e));
-                    break;
-                }
-            }
-        }
-        out
-    }
-
-    /// What a run that failed with `e` prints.
-    fn failed(&mut self, e: VmError) -> Vec<String> {
-        match e {
-            VmError::Uncaught(exc) => trace::lines(&exc),
-            VmError::Exit(code) => {
-                self.exit = Some(code);
-                Vec::new()
-            }
-            e => vec![e.to_string()],
         }
     }
 }
