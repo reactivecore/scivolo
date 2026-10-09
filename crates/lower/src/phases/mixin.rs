@@ -51,6 +51,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if value_params {
             return unsupported(span, "trait parameters");
         }
+        super::accessor_names::expand_private(l, class);
         let stats = trait_defs(l, td);
         let body = l.tpd.list(&stats);
         l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
