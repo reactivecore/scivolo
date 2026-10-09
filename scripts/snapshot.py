@@ -3,22 +3,19 @@
 
 Usage: scripts/snapshot.py record|check [ORACLE...]
 
-An oracle whose inputs are missing locally is skipped; `check` fails on any outcome that differs
-from the snapshot, and on an oracle that runs but has no snapshot.
+An oracle whose inputs are missing locally is skipped, and `record` keeps its old snapshot.
+`check` fails on any outcome that differs from the snapshot, on an oracle that runs without a
+snapshot or is skipped with one, and when it compared no oracle.
 """
-import concurrent.futures
-import os
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import programs as test_programs
+
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "tmp/snapshot"
-PROGRAMS = ROOT / "tests/programs"
-SCALAI = ROOT / "target/release/scalai"
-JOBS = max(2, (os.cpu_count() or 4) // 2)
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 SHOWN = 20
 DOTTY = "tmp/dotty/3.9.0-0.5.12"
 
@@ -40,27 +37,18 @@ def report(command, result, *needs):
         r = subprocess.run(["python3", *command], cwd=ROOT, capture_output=True, text=True, errors="replace")
         if r.returncode != 0:
             raise Failed(f"{' '.join(command)} failed: {(r.stderr or r.stdout).strip()[-500:]}")
+        if not (ROOT / result).exists():
+            raise Failed(f"{' '.join(command)} wrote no {result}")
         return (ROOT / result).read_text(errors="replace")
     return run
 
 
-def program(name):
-    """Whether test program `name` prints its `.check` file in the release VM."""
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
-    try:
-        r = subprocess.run([str(SCALAI), "--cp", str(PROGRAMS / name), name], cwd=ROOT, env=env, text=True,
-                           errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=TIMEOUT + 10)
-    except subprocess.TimeoutExpired:
-        return "timeout"
-    check = (PROGRAMS / name / f"{name}.check").read_text(errors="replace")
-    return "ok" if r.stdout.rstrip("\n") == check.rstrip("\n") else "differs"
-
-
 def programs():
-    names = sorted(p.name for p in PROGRAMS.iterdir() if p.is_dir())
-    with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
-        outcomes = list(pool.map(program, names))
-    return "".join(f"{n}\t{o}\n" for n, o in zip(names, outcomes))
+    """Each test program's outcome in the release VM and the hash of its output."""
+    try:
+        return "".join("{}\t{}\t{}\n".format(n, *test_programs.run(n)) for n in test_programs.all_names())
+    except test_programs.Failed as e:
+        raise Failed(str(e))
 
 
 def syntax(mode):
@@ -97,29 +85,32 @@ def differences(before, after):
 
 
 def one(command, name):
-    """Runs oracle `name`; its summary line, the lines of its differences, and whether it passed."""
+    """Runs oracle `name`: its summary and difference lines, and `ok`, `skipped` or `failed`."""
     path = SNAPSHOT / f"{name}.tsv"
     start = time.monotonic()
     try:
         text = ORACLES[name]()
     except Skipped as e:
+        if not path.exists():
+            return [f"{name:<9} skipped: {e}"], "skipped"
         if command == "record":
-            path.unlink(missing_ok=True)
-        return f"{name:<9} skipped: {e}", [], True
+            return [f"{name:<9} skipped: {e}; old snapshot kept"], "skipped"
+        return [f"{name:<9} FAILED: skipped with a snapshot: {e}"], "failed"
     except Failed as e:
-        return f"{name:<9} FAILED: {e}", [], False
+        kept = "; old snapshot kept" if command == "record" and path.exists() else ""
+        return [f"{name:<9} FAILED: {e}{kept}"], "failed"
     took = f"{time.monotonic() - start:6.1f} s"
     count = len(rows(text))
     if command == "record":
         path.write_text(text)
-        return f"{name:<9} recorded {count} rows  {took}", [], True
+        return [f"{name:<9} recorded {count} rows  {took}"], "ok"
     if not path.exists():
-        return f"{name:<9} FAILED: no snapshot: run `just snapshot {name}`", [], False
+        return [f"{name:<9} FAILED: no snapshot: run `just snapshot {name}`"], "failed"
     diff = differences(rows(path.read_text(errors="replace")), rows(text))
     if not diff:
-        return f"{name:<9} same     {count} rows  {took}", [], True
+        return [f"{name:<9} same     {count} rows  {took}"], "ok"
     shown = diff[:SHOWN] + ([f"    ... {len(diff) - SHOWN} more"] if len(diff) > SHOWN else [])
-    return f"{name:<9} DIFFERS  {len(diff)} of {count} rows  {took}", shown, False
+    return [f"{name:<9} DIFFERS  {len(diff)} of {count} rows  {took}", *shown], "failed"
 
 
 def main(command, names):
@@ -127,12 +118,14 @@ def main(command, names):
     if command not in ("record", "check") or unknown:
         sys.exit(__doc__ + f"\nORACLE = {' | '.join(ORACLES)}")
     SNAPSHOT.mkdir(parents=True, exist_ok=True)
-    passed = True
+    states = []
     for name in names or ORACLES:
-        summary, diff, ok = one(command, name)
-        print(summary, *diff, sep="\n", flush=True)
-        passed &= ok
-    sys.exit(0 if passed else 1)
+        lines, state = one(command, name)
+        print(*lines, sep="\n", flush=True)
+        states.append(state)
+    if "ok" not in states:
+        print(f"FAILED: no oracle {'recorded' if command == 'record' else 'compared'}")
+    sys.exit(0 if "ok" in states and "failed" not in states else 1)
 
 
 if __name__ == "__main__":
