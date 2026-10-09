@@ -4,6 +4,7 @@
 use super::Typer;
 use super::did_you_mean::{KNOWN_JAVA, OBJECT_MEMBERS, is_jdk};
 use super::java_members::java_members;
+use super::widening::is_numeric;
 use tasty::tags::{EXTENSION, GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -52,8 +53,8 @@ impl Typer<'_> {
         t
     }
 
-    /// Whether class `q`, whose base classes the universe knows, may conform to view parameter
-    /// type `param`; not to a class of a package the universe lacks.
+    /// Whether class `q`, whose base classes the universe knows, may conform or widen numerically
+    /// to view parameter type `param`; not to a class of a package the universe lacks.
     fn may_accept(&mut self, param: TypeId, q: SymbolId) -> bool {
         let param = self.u.widen(param);
         let param = self.u.dealias(param);
@@ -73,7 +74,8 @@ impl Typer<'_> {
             return false;
         }
         let Some(p) = self.direct_class(param) else { return true };
-        self.u.derives_from(q, p)
+        let numeric = |t: &Self, c| is_numeric(&t.u.full_name(c));
+        self.u.derives_from(q, p) || numeric(self, q) && numeric(self, p)
     }
 
     /// Whether result type `result` of a view of parameter type `param` may have member `name`.

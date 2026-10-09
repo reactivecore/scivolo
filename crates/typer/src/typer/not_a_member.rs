@@ -49,7 +49,7 @@ impl Typer<'_> {
             return None;
         }
         let (class, site) = self.member_site(qual_tpe)?;
-        if self.may_hint(class, &text) || !name.is_type && self.may_supply(class, &text, ctx) {
+        if self.may_hint(class, &text) || !name.is_type && self.may_supply((class, site), &text, ctx) {
             return None;
         }
         let shown = match self.u.symbol(class).flags.has(OBJECT) {

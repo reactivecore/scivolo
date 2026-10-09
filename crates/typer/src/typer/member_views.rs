@@ -9,15 +9,16 @@ use rustc_hash::FxHashSet;
 use syntax::ast::flags as f;
 use syntax::ast::{Ast, NodeId, TName, Tree};
 use tasty::tags::OBJECT;
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
-    /// Whether an extension method or implicit view may give class `q` member `name` in `ctx`, or
-    /// dotty's import suggestions may name one.
-    pub fn may_supply(&mut self, q: SymbolId, name: &str, ctx: Ctx) -> bool {
+    /// Whether an extension method or implicit view may give class `q` of type `site` member
+    /// `name` in `ctx`, or dotty's import suggestions may name one.
+    pub fn may_supply(&mut self, (q, site): (SymbolId, TypeId), name: &str, ctx: Ctx) -> bool {
         if self.extension_visible(name, ctx)
             || self.finds_completing(name, ctx)
             || self.script_may_supply(name)
+            || self.implicit_scope(site).into_iter().any(|c| self.may_view(c.sym, q, name))
         {
             return true;
         }
@@ -83,10 +84,6 @@ impl Typer<'_> {
     /// Whether the unit has a given or implicit definition or parameter, or an extension method
     /// named `name`, entered or not.
     fn script_may_supply(&self, name: &str) -> bool {
-        let top: Vec<NodeId> = (self.syms.by_tree.iter())
-            .filter(|&(_, &s)| self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package))
-            .map(|(&t, _)| t)
-            .collect();
         let supplies = |ast: &Ast, n: NodeId| {
             match *ast.tree(n) {
             Tree::ExtMethods { methods, .. } => ast.items(methods).iter().any(|&m| {
@@ -98,7 +95,7 @@ impl Typer<'_> {
             _ => ast.mods_of(n).is_some_and(|m| ast.modifiers(m).flags.is(f::GIVEN_OR_IMPLICIT)),
         }
         };
-        top.into_iter().any(|t| self.ast.exists_subtree(t, &supplies))
+        self.ast.exists_subtree(self.unit, &supplies)
     }
 
     /// Whether script class `c`, its parents not entered yet, has parents written or may have.
@@ -131,15 +128,20 @@ impl Typer<'_> {
         }
     }
 
-    /// Adds the classes of the objects the imports in `ctx` import from to `out`; `None` if one
-    /// imports from a path other than a package or an object.
+    /// Adds the classes of the objects the imports in `ctx` import from, or of the objects of the
+    /// packages they import from, to `out`; `None` if one imports from a path other than a package
+    /// or an object.
     fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>) -> Option<()> {
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             if let Level::Import(i) = *self.levels.get(l) {
                 let qual = self.import_info(i)?.qual;
                 let site = self.import_site(qual)?;
-                if self.u.symbol(site).kind != Kind::Package {
+                if self.u.symbol(site).kind == Kind::Package {
+                    for d in self.u.decls(site).ok()? {
+                        out.extend(self.object_class(d));
+                    }
+                } else {
                     out.push(self.object_class(site)?);
                 }
             }
