@@ -155,8 +155,7 @@ Results (2026-10-09):
 | **total** | **1711** |
 
 - **Wrong output:** i9939, numeric harmonization in the typer (#60).
-- **Lowering refused:** 47 reasons, none above 8 tests (nested classes and objects,
-  Enumeration values without names #62).
+- **Lowering refused:** 46 reasons, none above 8 tests (nested classes and objects).
 - **Typer refused:** mostly calls of inline methods (268) and inline definitions (97).
 
 ## M5: scala/scala `test/junit`
