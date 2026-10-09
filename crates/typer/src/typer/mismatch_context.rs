@@ -5,20 +5,19 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
-use syntax::ast::children::Child;
 use syntax::ast::{Ast, List, NodeId, Span, Tree};
 use tasty::tags::{MUTABLE, OBJECT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether the tree at `span`, typed in `ctx`, is where dotty types it with the same expected
-    /// type and reports a mismatch.
+    /// type and reports a mismatch; the trees at `span` lie on one path.
     pub fn certain_context(&mut self, span: Span, ctx: Ctx) -> bool {
-        if self.u.symbol(ctx.owner).name == "<init>" {
-            return false;
-        }
         let mut path = Vec::new();
-        node_path(self.ast, self.unit, span, &mut path)
+        self.u.symbol(ctx.owner).name != "<init>"
+            && node_path(self.ast, self.unit, span, &mut path)
+            && path.iter().filter(|&&n| has_span(self.ast, n, span)).count()
+                == count_spans(self.ast, self.unit, span)
             && path.windows(2).all(|w| self.certain_edge(w[0], w[1], ctx))
     }
 
@@ -182,17 +181,20 @@ impl Typer<'_> {
 /// to the innermost such tree pushed onto `path` if so.
 fn node_path(ast: &Ast, from: NodeId, span: Span, path: &mut Vec<NodeId>) -> bool {
     path.push(from);
-    let here = ast.span(from).start() == span.start() && ast.span(from).end() == span.end();
-    let found = ast.children(from).iter().any(|&c| match c {
-        Child::Node(n) => node_path(ast, n, span, path),
-        Child::List(l) => ast.items(l).iter().any(|&n| node_path(ast, n, span, path)),
-        Child::Clauses(cs) => {
-            ast.clause_items(cs).iter().any(|&l| ast.items(l).iter().any(|&n| node_path(ast, n, span, path)))
-        }
-        Child::Empty | Child::Mods(_) => false,
-    });
+    let here = has_span(ast, from, span);
+    let found = ast.child_nodes(from).into_iter().any(|n| node_path(ast, n, span, path));
     if !found && !here {
         path.pop();
     }
     found || here
+}
+
+/// The number of trees at or under `from` from the start to the end of `span`.
+fn count_spans(ast: &Ast, from: NodeId, span: Span) -> usize {
+    let below: usize = ast.child_nodes(from).into_iter().map(|n| count_spans(ast, n, span)).sum();
+    below + usize::from(has_span(ast, from, span))
+}
+
+fn has_span(ast: &Ast, n: NodeId, span: Span) -> bool {
+    ast.span(n).start() == span.start() && ast.span(n).end() == span.end()
 }
