@@ -23,6 +23,7 @@ mod envelope;
 mod erased_branches;
 mod erasure;
 mod eta_reduce;
+mod expand_private;
 mod explicit_outer;
 mod first_transform;
 mod getters;
@@ -121,6 +122,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         returns::transform(l, td);
     }
+    expand_private::transform(l, &classes);
     Ok(())
 }
 

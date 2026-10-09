@@ -2,6 +2,7 @@
 //! (dotty's `moduleClass`, `sourceModule`, `companionClass`, `companionModule`).
 
 use super::{SymbolId, Universe};
+use crate::Type;
 
 /// The name of the class of object `module`: `C$` for `C`.
 pub fn module_class_name(module: &str) -> String {
@@ -14,11 +15,18 @@ pub fn module_name(class: &str) -> Option<&str> {
 }
 
 impl Universe {
-    /// The class of object `module`.
+    /// The class of object `module`: the one declared beside it, else the class of its type.
     pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
         let owner = self.symbol(module).owner?;
         let name = self.symbol(module).name.clone();
-        self.module_class_in(owner, &name)
+        if let Some(c) = self.module_class_in(owner, &name) {
+            return Some(c);
+        }
+        let info = self.info(module);
+        match *self.types().get(info) {
+            Type::Sym(_, c) if self.is_class(c) => Some(c),
+            _ => None,
+        }
     }
 
     /// The class of object `module` declared in `owner`.
