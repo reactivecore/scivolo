@@ -87,7 +87,7 @@ impl Typer<'_> {
     }
 
     /// Whether the unit has a given or implicit definition or parameter, or an extension method
-    /// named `name`, entered or not.
+    /// named `name` if one is given, entered or not.
     pub fn script_may_supply(&self, name: Option<&str>) -> bool {
         let supplies = |ast: &Ast, n: NodeId| {
             match *ast.tree(n) {

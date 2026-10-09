@@ -140,3 +140,9 @@ scala> def g: String = 42
   |
   | longer explanation available when compiling with `-explain`
 1 error found
+
+scala> def one: 1 = 1
+def one: 1
+
+scala> val b: Byte = one
+-- unsupported: adaptation
