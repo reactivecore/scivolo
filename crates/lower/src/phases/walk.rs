@@ -33,6 +33,17 @@ pub fn walk_class_up<'a>(
     traverse_up(l, td, class, &mut enter, leave);
 }
 
+/// `walk_class` of a fallible `enter`, ended by its first error.
+pub fn try_walk_class<'a>(
+    l: &mut Lower<'a>,
+    td: TNodeId,
+    enter: &mut dyn FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Result<Walk>,
+) -> Result<()> {
+    let mut result = Ok(());
+    walk_class(l, td, &mut |l, t, owner| or_stop(&mut result, enter(l, t, owner)));
+    result
+}
+
 /// `walk`'s answer, or `Walk::Stop` for an error, which goes to `result`.
 pub fn or_stop(result: &mut Result<()>, walk: Result<Walk>) -> Walk {
     walk.unwrap_or_else(|e| {
