@@ -8,7 +8,7 @@ use crate::definitions::symbol;
 use crate::symbols::{has, is_trait};
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY, PRIVATE, SYNTHETIC};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -58,9 +58,15 @@ pub fn setter_getter_name(setter: &str) -> &str {
     name.strip_suffix("_=").unwrap_or(name)
 }
 
-/// Whether `s` is a getter of a value of a trait.
-fn is_trait_getter(l: &Lower, s: SymbolId) -> bool {
-    has(l.u, s, FIELDaccessor) && !is_setter(l, s) && !has(l.u, s, LAZY)
+/// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.
+fn is_trait_getter(l: &mut Lower, s: SymbolId) -> bool {
+    if !has(l.u, s, FIELDaccessor) || is_setter(l, s) || has(l.u, s, LAZY) {
+        return false;
+    }
+    let Some(trait_) = l.u.symbol(s).owner else { return false };
+    let name = l.u.symbol(s).name.clone();
+    let setter = if has(l.u, s, MUTABLE) { format!("{name}_=") } else { trait_setter_name(l, trait_, &name) };
+    l.u.decl(trait_, &setter).is_ok_and(|d| !d.is_empty())
 }
 
 /// Makes the getters and setters of trait definition `td` deferred, adding a trait setter for
@@ -72,11 +78,12 @@ pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
     let mut out = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
         out.push(stat);
-        let (Tree::DefDef { name, paramss, tpt, .. }, Some(s)) = (l.tpd.tree(stat).clone(), l.tpd.sym(stat))
+        let (Tree::DefDef { name, paramss, tpt, rhs }, Some(s)) = (l.tpd.tree(stat).clone(), l.tpd.sym(stat))
         else {
             continue;
         };
-        if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || is_const_final(l, s) {
+        let abstract_getter = rhs.is_none() && !is_setter(l, s);
+        if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || is_const_final(l, s) || abstract_getter {
             continue;
         }
         l.u.set_deferred(s, true);

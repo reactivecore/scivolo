@@ -7,7 +7,7 @@ use super::walk::references;
 use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PARAMsetter, PRIVATE, STATIC};
+use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC};
 use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -61,7 +61,15 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             continue;
         }
         if rhs.is_none() && !is_param_accessor(l, sym) {
-            return unsupported(span, "abstract values");
+            if has(l.u, sym, MUTABLE) {
+                return unsupported(span, "abstract variables");
+            }
+            let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
+            l.u.set_flags(sym, flags);
+            l.u.set_deferred(sym, true);
+            let paramss = l.tpd.clauses(&[]);
+            l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: None };
+            continue;
         }
         if has(l.u, sym, STATIC) {
             l.fields.insert(sym, sym);
