@@ -219,8 +219,10 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         let path = file("read-only", "1:a\nbad\n");
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o400)).unwrap();
+        let writable = OpenOptions::new().write(true).open(&path).is_ok();
         assert_eq!(load(&path), ["a"]);
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "1:a\nbad\n");
+        let kept = if writable { "1:a\n" } else { "1:a\nbad\n" };
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), kept);
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
     }
 
