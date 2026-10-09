@@ -22,11 +22,11 @@ pub struct Wrapped {
 }
 
 /// `parsed` as the unit of `object`, after the import statements `prelude`, with `res` the next
-/// free `res` index; `None` after desugaring errors. The desugaring's diagnostics join those of
-/// `parsed`.
+/// free `res` index, with show methods if `show`; `None` after desugaring errors. The
+/// desugaring's diagnostics join those of `parsed`.
 pub fn wrap(
     parsed: &mut Parsed,
-    object: &str,
+    (object, show): (&str, bool),
     res: u32,
     prelude: &str,
     names: &mut Names,
@@ -35,7 +35,7 @@ pub fn wrap(
     let mut next_res = res;
     let ast = &mut parsed.ast;
     let stats = definitions(ast, names, &parsed.stats, &mut next_res);
-    let shows = show_methods::source(ast, names, &stats);
+    let shows = if show { show_methods::source(ast, names, &stats) } else { String::new() };
     let text = format!("{prelude}\nobject {object} {{\n{shows}}}\n");
     let mut outer = synthetic(ast, names, fresh, &text);
     let Some(&Tree::ModuleDef { imp, .. }) = outer.last().map(|&m| ast.tree(m)) else {

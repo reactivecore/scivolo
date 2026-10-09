@@ -54,6 +54,7 @@ pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flag
         flags,
         target: None,
         is_extern: false,
+        derived: false,
         decls: Vec::new(),
         tree: None,
     })

@@ -21,7 +21,7 @@ pub enum Completion {
     Done,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
@@ -75,6 +75,7 @@ impl Syms {
             flags: pickled(flags, is_term),
             target: None,
             is_extern: false,
+            derived: is_derived(name),
             decls: Vec::new(),
             tree: None,
         });
@@ -112,6 +113,14 @@ impl Syms {
         self.binders += 1;
         Binder(FileId(u32::MAX), self.binders)
     }
+}
+
+/// Whether script name `name` is one desugaring derives: a default getter's, or a fresh `$1$`
+/// or `_$1`.
+fn is_derived(name: &str) -> bool {
+    let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
+    let unique = name.strip_prefix('$').and_then(|n| n.strip_suffix('$')).is_some_and(digits);
+    name.contains("$default$") || unique || name.strip_prefix("_$").is_some_and(digits)
 }
 
 /// The TASTy modifiers `TreePickler.pickleFlags` writes for dotty flags `flags`.

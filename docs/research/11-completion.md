@@ -115,20 +115,34 @@ Our parser already leaves dotty's shapes for unfinished input: `x.` is `Select(x
 the point at the name, `import a.` an `<error>` selector, `{Ar` a selector `Ar` [V]. Needed: a
 lenient parse beside `input::classify` that keeps statements and diagnostics. The typer gives no
 result on an unsupported construct or a missing member, so completion cannot read `type_unit`'s
-output: a probe (target node, recorded context, qualifier type, import qualifier) fires in
-`typed`, `typed_select`, `typed_ident` and `import_info`, and returns an error tree at the target.
-Candidates are computed in the same `Typer`; the session's `Units` stay as they were.
+output: a probe (target node, recorded context, qualifier type) fires in `typed_select`, before
+any member lookup, and returns an error tree at the target; stage 4 adds `typed_ident` and
+`import_info`. Candidates are computed in the same `Typer`. The universe keeps the wrapper's
+symbols, but `Units::forget` (also after `:type`) removes the wrapper object from the root
+package and its definitions from the script symbols: no later input resolves it (no
+`NoClassDefFoundError` for `rs$line$tab$1.q`), and no "did you mean" hint names them. A line
+that fails keeps its names, as in dotty (`yz` after a failed `val yy = 1; zzz` is "did you mean
+yy?").
 
 ### 3.2 When to show nothing
 
 - The probe never reached the target: dotty's mode none and our safety net.
 - The qualifier is an error tree, or its widened type holds `Type::Error` or `Type::Var`.
-- An unsupported construct without position, or at or before the cursor.
+- An unsupported construct met before the target is first typed; one met after it cannot have
+  changed the recorded qualifier or context.
 - A site whose member set the universe cannot know: what `did_you_mean::member_names` refuses
   (a JDK package other than `java.lang`, a JDK class without a member table, a missing base
   class, a self type, an export clause).
 - `java.lang` names: only those in javalib and `JAVA_LANG`, nested `$` classes never.
-- A panic: caught, no session reset.
+- A panic: caught, no session reset; the units' script symbols are as before, the universe and
+  the names keep what the typer added.
+- JLine's substring and typo matchers while labels are missed: only labels starting with the
+  word, since dotty's own labels may start with it (`x.en@@s` is `ensuring` for dotty).
+- The root package, whose members dotty takes from its classpath and the JDK; Scala Native's
+  `scala.scalanative`.
+- In the tuple right of a pattern definition whose pattern is a tuple (`val (a, b) = (x.he@@,
+  1)`), where dotty offers nothing; other pattern definitions complete (`val (a, b) = x.he@@`,
+  `val List(h) = x.ta@@`, `val a, b = x.he@@`).
 
 Derived names need a flag on `Symbol` set from the TASTy name kind, not a `$` pattern, which
 would drop `_1$mcI$sp`.
@@ -163,11 +177,10 @@ sequences, expecting exactly the answer less the misses, in the same order.
 
 1. The oracle, the corpus, this document, ADR 0018.
 2. Typer probe and selection completions (direct members): `Symbol` derived flag, path to the
-   cursor, member enumeration and validity filter, `Session::complete`, the corpus test, the
-   measurement of §6.
-3. The rustyline completer: JLine's word filter (§1.1 step 5; rustyline has none), `Pair`
-   candidates (display without backticks), list mode, prompt limit 400, commands; piped mode
-   unchanged.
+   cursor, member enumeration and validity filter, JLine's word filter (§1.1 step 5; rustyline
+   has none), commands, `Session::complete`, the corpus test, the measurement of §6.
+3. The rustyline completer: `Pair` candidates (display without backticks), list mode, prompt
+   limit 400; piped mode unchanged.
 4. Scope, import and type-position completions, with the shadowing resolution and `ScopeOrdering`;
    `java.lang` names from javalib ∩ `JAVA_LANG`; root packages.
 5. Conversions and extensions, each applied before it is offered; the JDK member table of
@@ -175,5 +188,11 @@ sequences, expecting exactly the answer less the misses, in the same order.
 
 ## 6. Cost of a wrapper per Tab
 
-The wrapper is a fresh `rs$line$tab$K` object, never run nor imported. Stage 2 measures the
-latency of `x.toString.` style inputs and the symbols added per Tab.
+The wrapper is a fresh `rs$line$tab$K` object, never run nor imported; its symbols stay in the
+universe until #70, so each Tab makes the later ones and evaluations slower. With `val x =
+List(1, 2)` defined, 1000 completions of each input, twice (release build,
+`crates/repl/tests/completion_cost.rs`, a loaded machine) [V]: the first round `x.hea` 0.15 ms,
+`x.` 0.52 ms, `x.toString.` 0.28 ms per completion, the second 0.62, 0.90 and 0.86 ms; an
+evaluation takes 1.1 ms before the 6000 and 4.0 ms after them. An independent run measured
+0.57 → 2.1 ms per Tab over 6000 Tabs and 0.87 → 1.40 ms per evaluation. `x.toString.` stops
+early: its class is the JDK's `String`, so it measures typing without the member scan.

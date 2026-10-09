@@ -10,7 +10,7 @@ use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
 
-/// The statements of an input without syntax errors.
+/// The statements of an input.
 pub struct Parsed {
     pub source: SourceFile,
     pub ast: Ast,
@@ -57,23 +57,28 @@ pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshName
     if let Some(command) = commands::parse(text) {
         return Input::Command(command);
     }
-    let source = SourceFile::new(name, text);
-    let mut p = Parser::new(&source, names, Config::default());
-    p.fresh = std::mem::take(fresh);
-    let stats = p.parse_stats();
-    *fresh = std::mem::take(&mut p.fresh);
-    if p.s.diags.has_errors() {
-        return Input::Errors(report::syntax_errors(&source, &p.s.diags, width));
+    let parsed = parse(SourceFile::new(name, text), names, fresh);
+    if parsed.diags.has_errors() {
+        return Input::Errors(report::syntax_errors(&parsed.source, &parsed.diags, width));
     }
     if text.starts_with("//>") {
         return Input::Errors(vec![report::DIRECTIVES.to_owned()]);
     }
-    if stats.is_empty() {
+    if parsed.stats.is_empty() {
         return Input::Empty;
     }
+    Input::Stats(Box::new(parsed))
+}
+
+/// The statements of `source`, syntax errors or not, with fresh names from `fresh`.
+pub fn parse(source: SourceFile, names: &mut Names, fresh: &mut FreshNames) -> Parsed {
+    let mut p = Parser::new(&source, names, Config::default());
+    p.fresh = std::mem::take(fresh);
+    let stats = p.parse_stats();
+    *fresh = std::mem::take(&mut p.fresh);
     let (ast, cfg, diags) = (std::mem::take(&mut p.ast), p.s.cfg, std::mem::take(&mut p.s.diags));
     drop(p);
-    Input::Stats(Box::new(Parsed { source, ast, stats, cfg, diags }))
+    Parsed { source, ast, stats, cfg, diags }
 }
 
 #[cfg(test)]

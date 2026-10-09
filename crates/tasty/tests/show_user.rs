@@ -51,6 +51,7 @@ fn define(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8
         flags,
         target: None,
         is_extern: false,
+        derived: false,
         decls: Vec::new(),
         tree: None,
     };

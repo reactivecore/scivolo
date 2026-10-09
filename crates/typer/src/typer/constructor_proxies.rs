@@ -10,7 +10,7 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// Whether class `c` gets constructor proxies (dotty's `needsConstructorProxies`).
-    fn needs_constructor_proxies(&self, c: SymbolId) -> bool {
+    pub fn needs_constructor_proxies(&self, c: SymbolId) -> bool {
         let s = self.u.symbol(c);
         s.kind == Kind::Class
             && ![ABSTRACT, TRAIT, CASE, SYNTHETIC, OBJECT, INVISIBLE].iter().any(|&f| s.flags.has(f))

@@ -23,6 +23,7 @@ fn symbol(name: &str, kind: Kind, owner: SymbolId) -> Symbol {
         flags: Flags::default(),
         target: None,
         is_extern: false,
+        derived: false,
         decls: Vec::new(),
         tree: None,
     }

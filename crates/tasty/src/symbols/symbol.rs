@@ -74,6 +74,9 @@ pub struct Symbol {
     pub target: Option<String>,
     /// Whether Scala Native's `@extern` annotates it: its members are C functions and values.
     pub is_extern: bool,
+    /// Whether its name is of a kind other than dotty's `SimpleNameKind`: a default getter, a
+    /// unique, expanded or super accessor name, a module class.
+    pub derived: bool,
     /// The symbols declared in a package or class, or the parameters of a method, in file order.
     pub decls: Vec<SymbolId>,
     /// The file and tree that define it; `None` for packages.

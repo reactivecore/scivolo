@@ -2,6 +2,7 @@
 //! object and run in one VM (ADR 0012).
 
 mod commands;
+mod completion;
 mod diagnostic;
 mod earlier;
 mod highlight;
@@ -16,6 +17,7 @@ mod show_methods;
 mod trace;
 mod wrap;
 
+pub use completion::Group;
 pub use highlight::highlight;
 pub use input::is_incomplete;
 pub use session::Session;

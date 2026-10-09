@@ -10,6 +10,8 @@ struct Source<'s> {
     file: FileId,
     ast: &'s Ast,
     names: &'s [String],
+    /// Whether each name is of a kind other than `Utf8`.
+    derived: &'s [bool],
 }
 
 impl Universe {
@@ -25,7 +27,10 @@ impl Universe {
         let names: Vec<String> = tasty.names.iter().map(|(r, _)| tasty.names.show(r)).collect();
         let attributes = tasty.attributes().map_err(corrupt)?;
         let scala2 = attributes.iter().any(|a| matches!(a, crate::Attribute::Flag(1)));
-        let src = Source { file: FileId(self.files.len() as u32), ast: &ast, names: &names };
+        let derived: Vec<bool> =
+            tasty.names.iter().map(|(_, n)| !matches!(n, crate::Name::Utf8(_))).collect();
+        let src =
+            Source { file: FileId(self.files.len() as u32), ast: &ast, names: &names, derived: &derived };
         for &root in ast.roots() {
             self.enter_stat(&src, root, self.root());
         }
@@ -55,6 +60,7 @@ impl Universe {
             _ => return,
         };
         let flags = mods.iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)));
+        let derived = src.derived.get(name.0 as usize).copied().unwrap_or_default();
         let (owner, name) = self.jdk_renamed(owner, name_of(name));
         let sym = self.add(Symbol {
             name,
@@ -63,6 +69,7 @@ impl Universe {
             flags,
             target: target_name(ast, names, mods),
             is_extern: annotations(ast, mods).any(|(ty, _)| names_ref(ast, names, ty, "extern")),
+            derived,
             decls: Vec::new(),
             tree: Some((src.file, id)),
         });

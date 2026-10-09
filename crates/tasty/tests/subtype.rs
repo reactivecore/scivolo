@@ -301,6 +301,7 @@ fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeI
         flags,
         target,
         is_extern: false,
+        derived: false,
         decls,
         tree,
     });

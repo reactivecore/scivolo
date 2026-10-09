@@ -3,7 +3,7 @@
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{FINAL, PROTECTED};
+use crate::tags::{ARTIFACT, FINAL, PROTECTED};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
 
@@ -29,7 +29,8 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let class_of_any = u.types.intern(Type::Applied(class, vec![wildcard]));
     method(u, any, "getClass", &[], class_of_any, &[FINAL]);
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
-    poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
+    let type_test = poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
+    u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
     let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
     let kept: Vec<SymbolId> =
@@ -97,11 +98,12 @@ fn poly(
     name: &str,
     bounds: TypeId,
     result: impl FnOnce(&mut Universe, &Type) -> TypeId,
-) {
+) -> SymbolId {
     let binder = u.fresh_binder();
     let x0 = Type::Param(binder, 0);
     let result = result(u, &x0);
     let info = u.types.intern(Type::Poly { binder, params: vec![("X0".into(), bounds)], result });
     let s = synthetic(u, owner, name, Kind::Def, &[FINAL]);
     u.infos.insert(s, info);
+    s
 }

@@ -21,7 +21,7 @@ mod default_params;
 mod defs;
 mod dependent_params;
 mod derived;
-mod did_you_mean;
+pub(crate) mod did_you_mean;
 mod dispatch;
 mod enum_case_refs;
 mod enum_cases;
@@ -129,6 +129,8 @@ pub struct Typer<'a> {
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// What a completion request records while typing.
+    pub probe: Option<crate::completion::Probe>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -170,6 +172,7 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             protos: Vec::new(),
             unsupported: None,
+            probe: None,
             depth: 0,
         };
         typer.enter_and_or();

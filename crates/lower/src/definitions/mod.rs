@@ -162,6 +162,7 @@ pub fn symbol(name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> Symbol {
         flags,
         target: None,
         is_extern: false,
+        derived: false,
         decls: Vec::new(),
         tree: None,
     }

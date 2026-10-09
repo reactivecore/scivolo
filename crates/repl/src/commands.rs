@@ -15,7 +15,7 @@ pub enum Command {
     Unknown(String),
 }
 
-const COMMANDS: [&str; 15] = [
+pub const COMMANDS: [&str; 15] = [
     ":quit",
     ":exit",
     ":help",

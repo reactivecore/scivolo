@@ -2,6 +2,7 @@
 //! into wrapper object `rs$line$<N>` and run.
 
 mod command;
+mod complete;
 mod load;
 mod run;
 
@@ -163,7 +164,7 @@ impl Session {
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let prelude = earlier::prelude(&self.earlier);
         let width = self.width as usize;
-        let Some(wrapped) = wrap::wrap(parsed, object, self.res, &prelude, names, fresh) else {
+        let Some(wrapped) = wrap::wrap(parsed, (object, true), self.res, &prelude, names, fresh) else {
             return Err(parsed.errors(Diagnostics::default(), width));
         };
         self.res = wrapped.next_res;

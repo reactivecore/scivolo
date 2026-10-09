@@ -24,8 +24,24 @@ tab> val y = x.@@
   takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
   toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
   view wait withFilter zip zipAll zipWithIndex →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> val y = x.hea@@
   head headOption
+tab> val (a, b) = (x.he@@, 1)
+  <none>
+tab> var (a, b) = (x.he@@, 1)
+  <none>
+tab> val a, b = x.he@@
+  head headOption
+tab> val (a, b) = x.he@@
+  head headOption
+tab> val List(h) = x.ta@@
+  tail tails take takeRight takeWhile tapEach
+tab> val Some(q) = x.he@@
+  head headOption
+tab> val h :: t = x.ta@@
+  tail tails take takeRight takeWhile tapEach
 tab> if x.isEmpty then x.he@@
   head headOption
 tab> x.map { e => e.toS@@

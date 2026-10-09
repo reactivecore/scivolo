@@ -8,6 +8,7 @@ pub mod flags;
 pub mod from_digits;
 mod kinds;
 pub mod modifiers;
+mod path;
 mod positions;
 pub mod print;
 pub mod span;

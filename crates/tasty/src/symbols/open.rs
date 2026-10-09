@@ -47,6 +47,7 @@ impl Universe {
             flags: Flags::default(),
             target: None,
             is_extern: false,
+            derived: false,
             decls: Vec::new(),
             tree: None,
         });

@@ -2,6 +2,7 @@
 //! over `syntax` trees, with symbols and types in `tasty::Universe` (docs/research/09-typer.md).
 #![allow(non_upper_case_globals)]
 
+mod completion;
 mod constraint;
 mod ctx;
 mod defn;
@@ -19,6 +20,7 @@ use syntax::names::{FreshNames, Names};
 use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
+pub use completion::Request;
 pub use typer::Typer;
 
 /// Why a unit takes the JVM frontend instead.
@@ -91,6 +93,25 @@ impl Units {
             return Err(Fallback::Errors(typer.diags));
         }
         Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
+    }
+
+    /// Removes the object `name` from the root package, and it and the definitions in it from
+    /// the script symbols: no later unit refers to them or is told of their names.
+    pub fn forget(&mut self, u: &mut Universe, name: &str) {
+        let root = u.root();
+        let objects: Vec<tasty::SymbolId> = [name.to_owned(), format!("{name}$")]
+            .iter()
+            .flat_map(|n| u.decl(root, n).unwrap_or_default())
+            .collect();
+        let under = |mut s: tasty::SymbolId| loop {
+            if objects.contains(&s) {
+                return true;
+            }
+            let Some(owner) = u.symbol(s).owner else { return false };
+            s = owner;
+        };
+        self.syms.flags.retain(|&s, _| !under(s));
+        objects.iter().for_each(|&o| u.unenter(o));
     }
 }
 
