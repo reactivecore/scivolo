@@ -23,6 +23,7 @@ mod envelope;
 mod erased_branches;
 mod erasure;
 mod eta_reduce;
+mod explicit_outer;
 mod first_transform;
 mod getters;
 mod initializers;
@@ -85,6 +86,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         eta_reduce::transform(l, td);
     }
+    explicit_outer::transform(l, &classes)?;
     local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {

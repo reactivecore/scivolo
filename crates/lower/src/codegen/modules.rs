@@ -3,7 +3,7 @@
 
 use super::Gen;
 use crate::phases::select_static::is_static_owner_ref;
-use crate::symbols::{is_module_class, is_package_object};
+use crate::symbols::{is_module_class, is_package_object, is_static};
 use crate::{Result, unsupported};
 use nir::{Op, ValId};
 use syntax::ast::Span;
@@ -53,10 +53,18 @@ impl Gen<'_, '_> {
         let class = self.class.expect("a class");
         let package_object = is_package_object(self.l.u, c);
         let static_method = self.m.this.is_none();
-        if (c != class || static_method) && is_module_class(self.l.u, c) || package_object {
+        let static_module = is_module_class(self.l.u, c) && is_static(self.l.u, c);
+        if (c != class || static_method) && static_module || package_object {
             return Ok(self.gen_module(c));
         }
         let method_owner = self.m.sym.and_then(|m| self.l.u.symbol(m).owner);
+        let mut owner = self.l.u.symbol(class).owner;
+        while let Some(o) = owner {
+            if o == c {
+                return unsupported(span, "`this` of an enclosing class");
+            }
+            owner = self.l.u.symbol(o).owner;
+        }
         match self.m.this {
             Some(this) if c == class || method_owner == Some(class) => Ok(this),
             _ => unsupported(span, "`this` of an enclosing class"),

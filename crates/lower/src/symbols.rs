@@ -28,6 +28,16 @@ pub fn is_private(u: &Universe, s: SymbolId) -> bool {
     has(u, s, PRIVATE)
 }
 
+/// Whether `tpe` is the type of a single value or an object's class, which `null` does not
+/// conform to (dotty's `isNullableClass`).
+pub fn is_singleton(u: &mut Universe, tpe: tasty::TypeId) -> bool {
+    match *u.types().get(tpe) {
+        tasty::Type::Sym(_, s) if u.symbol(s).kind.is_term() => true,
+        tasty::Type::TermRef(..) => true,
+        _ => u.class_symbol(tpe).is_some_and(|c| is_module_class(u, c)),
+    }
+}
+
 /// Whether member `s` of class `class` cannot be overridden.
 pub fn is_effectively_final(u: &Universe, class: SymbolId, s: SymbolId) -> bool {
     has(u, s, PRIVATE) || has(u, s, FINAL) || has(u, class, FINAL) || is_module_class(u, class)

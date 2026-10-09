@@ -49,3 +49,4 @@ generictraits
 abstractvals
 apps
 tailrec
+nestedobjects

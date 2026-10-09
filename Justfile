@@ -74,7 +74,6 @@ nir-cmp file class:
     set -euo pipefail
     cargo build -q --release -p nir-dump -p lower
     base=$(basename '{{ file }}' .scala)
-    target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null
     sn="tests/programs/$base"
     if [ ! -d "$sn" ]; then
         sn="tmp/sn/$base"
@@ -83,6 +82,7 @@ nir-cmp file class:
             scala-cli --power compile --native --native-version 0.5.12 --server=false -d "$sn" '{{ file }}' > /dev/null
         fi
     fi
+    target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null
     dump() { target/release/nir-dump --debug --sorted "$1" | grep -v '^// \|^# '; }
     if diff <(dump $sn/{{ class }}.nir) <(dump tmp/lowered/$base/{{ class }}.nir); then
         echo "same: {{ class }}"
@@ -316,6 +316,10 @@ test *args:
 # Open a merge request of the current branch into `target`, described by tmp/mr.md.
 mr-create title target="main" *flags:
     glab mr create --source-branch "$(git branch --show-current)" --target-branch '{{ target }}' --title '{{ title }}' --description "$(cat tmp/mr.md)" {{ flags }}
+
+# Open a merge request of branch `source` into main, described by tmp/mr.md.
+mr-create-from source title *flags:
+    glab mr create --source-branch '{{ source }}' --target-branch main --title '{{ title }}' --description "$(cat tmp/mr.md)" {{ flags }}
 
 # Create an issue with comma-separated `labels`, described by tmp/issue.md.
 issue-create title labels:

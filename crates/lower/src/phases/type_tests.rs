@@ -4,6 +4,7 @@
 
 use super::adapt::{adapt, erased_type};
 use super::casts::type_of;
+use crate::symbols::{is_module, is_static};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -47,6 +48,12 @@ fn type_test(
     in_match: bool,
     span: Span,
 ) -> Result<TNodeId> {
+    if let Type::Sym(_, s) = *l.u.types().get(target)
+        && is_module(l.u, s)
+        && !is_static(l.u, s)
+    {
+        return unsupported(span, "type tests of objects nested in classes");
+    }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {

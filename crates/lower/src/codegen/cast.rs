@@ -5,6 +5,7 @@
 use super::Gen;
 use crate::phases::adapt::erased_type;
 use crate::phases::casts::conforms;
+use crate::symbols::is_singleton;
 use crate::{Result, unsupported};
 use nir::{Conv, Op, Type, TypeId, ValId};
 use syntax::ast::Span;
@@ -97,9 +98,12 @@ impl Gen<'_, '_> {
         let (from, to) = (self.val_ty(value), self.gen_type(self.l.tpd.tpe(t)));
         let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, ty) = (self.pool.ty(from).clone(), self.pool.ty(to).clone());
+        let null_conforms = f == Type::Null && !is_singleton(self.l.u, self.l.tpd.tpe(t));
         let v = match () {
-            _ if f == ty || matches!(f, Type::Null | Type::Nothing) || (subtype && reference(&f)) => value,
-            _ if reference(&f) && reference(&ty) => self.emit(Op::As { ty: to, obj: value }),
+            _ if f == ty || null_conforms || f == Type::Nothing || (subtype && reference(&f)) => value,
+            _ if (reference(&f) || f == Type::Null) && reference(&ty) => {
+                self.emit(Op::As { ty: to, obj: value })
+            }
             _ => return unsupported(span, "casts to or from primitive values"),
         };
         self.m.pos = saved;

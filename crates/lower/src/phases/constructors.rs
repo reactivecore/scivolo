@@ -8,6 +8,7 @@ use super::initializers::constructor_params;
 use super::memoize::bottom;
 use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
+use syntax::ast::Span;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
@@ -92,6 +93,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let value = l.ident(param, template_span);
         stats.push(assign(l, lhs, value, template_span));
     }
+    let outer = l.outers.get(&class).copied();
+    let null_test_at = stats.len();
+    if let Some((field, param)) = outer {
+        let lhs = l.field_ref(field, template_span);
+        let value = l.ident(param, template_span);
+        stats.push(assign(l, lhs, value, template_span));
+    }
     let Some(&first) = l.tpd.items(parents).first() else {
         return unsupported(span, "a class without a superclass");
     };
@@ -100,6 +108,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let block_span = stats.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
     let block_span = block_span.map_or(span, |s| s.with_point(s.start()));
     let at = block_span.start_pos();
+    if let Some((_, param)) = outer {
+        let test_at = if null_test_at > 0 { Span::at(template_span.end()) } else { at };
+        let test = null_test(l, param, test_at);
+        stats.insert(null_test_at, test);
+    }
     let proxies: Vec<_> =
         l.proxies.iter().copied().filter(|&(f, _)| l.u.symbol(f).owner == Some(class)).collect();
     let mut inits = Vec::new();
@@ -117,7 +130,29 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId, span: syntax::ast::Span) -> TNodeId {
+/// `if param eq null then throw new NullPointerException()`, at `span`.
+fn null_test(l: &mut Lower, param: SymbolId, span: Span) -> TNodeId {
+    let npe = l.u.class_ref("java.lang.NullPointerException");
+    let npe = l.u.class_symbol(npe).expect("`NullPointerException`");
+    let ctor = l.u.decl(npe, "<init>").unwrap_or_default().into_iter().find(|&c| {
+        let info = l.u.info(c);
+        matches!(l.u.types().get(info), tasty::Type::Method { params, .. } if params.is_empty())
+    });
+    let ctor = ctor.expect("`NullPointerException()`");
+    let read = l.ident(param, Span::NONE);
+    let null = l.null_literal(Span::NONE);
+    let cond = super::lazy_trees::eq(l, read, null);
+    let new = l.new_(npe, Span::NONE);
+    let error = l.call(new, ctor, &[]);
+    l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
+    let throw = l.throw_(error);
+    let unit = l.unit_literal(Span::NONE);
+    let tpe = l.tpd.tpe(unit);
+    let test = l.tpd.node(Tree::If { cond, thenp: throw, elsep: unit }, Span::NONE, Some(tpe), None);
+    l.with_span(test, span)
+}
+
+fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId, span: Span) -> TNodeId {
     let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
     l.tpd.node(Tree::Assign { lhs, rhs }, span, Some(unit), None)
 }
