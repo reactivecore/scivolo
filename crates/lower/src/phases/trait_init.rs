@@ -1,12 +1,13 @@
 //! dotty's `Constructors` for a trait with initialization: its constructor `$init$` calls the
 //! setter of each value with its initializer and runs the statements of the body, in order.
 
+use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
 use super::trait_fields::trait_setter_name;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::tags::FIELDaccessor;
+use tasty::tags::{FIELDaccessor, LAZY};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -23,6 +24,22 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     for stat in l.tpd.items(body).to_vec() {
         match l.tpd.tree(stat).clone() {
             Tree::Import { .. } => {}
+            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
+                if l.tpd.sym(stat).is_some_and(|s| {
+                    has(l.u, s, FIELDaccessor)
+                        && !has(l.u, s, LAZY)
+                        && !is_setter(l, s)
+                        && is_const_final(l, s)
+                }) && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+            {
+                let getter = l.tpd.sym(stat).expect("a getter's symbol");
+                let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);
+                if literal != rhs {
+                    inits.push(rhs);
+                }
+                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(literal) };
+                class_stats.push(stat);
+            }
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
                 if l.tpd.sym(stat).is_some_and(|s| {
                     has(l.u, s, FIELDaccessor) && !is_setter(l, s) && !is_const_final(l, s)

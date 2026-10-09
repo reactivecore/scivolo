@@ -143,17 +143,19 @@ Results (2026-10-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 117 |
-| wrong output | 4 |
-| crashed | 10 |
-| lowering refused | 212 |
-| typer refused | 1090 |
-| frontend crashed | 13 |
+| passed | 126 |
+| wrong output | 1 |
+| crashed | 1 |
+| lowering refused | 216 |
+| typer refused | 1089 |
+| parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
-| skipped | 173 |
-| **total** | **1709** |
+| skipped | 175 |
+| **total** | **1711** |
 
+- **Wrong output:** i9939, numeric harmonization in the typer (#60).
+- **Crashed:** t8893, tail recursion (#59).
 - **Lowering refused:** mostly library traits with initialization (108).
 - **Typer refused:** mostly overloads with default or by-name parameters (244) and inline
   definitions and calls (125).

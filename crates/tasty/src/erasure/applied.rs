@@ -168,7 +168,7 @@ impl Universe {
     }
 
     /// The symbol a `Sym` or `TypeRef` refers to.
-    fn referenced(&mut self, t: TypeId) -> Option<crate::SymbolId> {
+    pub fn referenced(&mut self, t: TypeId) -> Option<crate::SymbolId> {
         match self.types().get(t).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, n) => self.resolve(p, &n, true),

@@ -17,8 +17,13 @@ object C:
     var seed = 42L
     times(2, () => seed = seed * 3)
     seed
+  def inClass(): Int =
+    var k = 1
+    new Object { k += 10 }
+    k
 
 @main def capture(): Unit =
   println(C.count())
   println(C.names())
   println(C.longs())
+  println(C.inClass())

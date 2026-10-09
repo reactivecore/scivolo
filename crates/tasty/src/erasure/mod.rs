@@ -5,6 +5,7 @@ mod applied;
 mod bounds;
 mod bridges;
 mod mangle;
+mod scala2;
 mod special;
 
 use crate::symbols::{defined_name, encode};
@@ -73,6 +74,7 @@ impl Universe {
             Type::Refined(p, _, _) | Type::Match(p) => self.erase(p),
             Type::Lambda { result, .. } => self.erase(result),
             Type::ByName(_) => Erased::Class("scala.Function0".into()),
+            Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),
             Type::And(a, b) => self.erase_and(a, b),
             Type::Or(a, b) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),

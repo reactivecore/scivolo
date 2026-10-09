@@ -5,6 +5,8 @@ Writes lower-report.md and lower-results.tsv under tmp/dotty/<versions>, beside 
 the same tests compiled by Scala Native (`just dotty-report`).
 
 Usage: scripts/dotty-lower.py [FILTER]
+
+FILTER is a substring of the test names to run; their rows replace those of the last run.
 """
 import collections
 import concurrent.futures
@@ -23,7 +25,7 @@ LOWER, SCALAI = ROOT / "target/release/lower", ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 OUTCOMES = ["passed", "wrong output", "crashed", "timeout", "lowering refused", "typer refused",
-            "frontend crashed", "several files", "fails in the VM", "skipped"]
+            "parser refused", "frontend crashed", "several files", "fails in the VM", "skipped"]
 TOP = 40
 
 
@@ -54,6 +56,8 @@ def one(name, groups, check, reason, baseline):
         message = first_line(r.stderr)
         if m := re.match(r"the (typer|lowering) does not support (.*?)( at \d+:\d+)?$", message):
             return f"{m[1]} refused", m[2]
+        if "syntax error" in message:
+            return "parser refused", message
         return "frontend crashed", message
     env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
     try:
@@ -84,7 +88,9 @@ def report(filter_):
     todo = [(n, g, c, r, base.get(n, "not run")) for n, g, c, r in tests(filter_)]
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t), todo))
-    rows = {t[0]: r for t, r in zip(todo, results)}
+    path = WORK / "lower-results.tsv"
+    old = [l.split("\t") for l in path.read_text().splitlines()] if filter_ and path.exists() else []
+    rows = {r[0]: (r[1], r[2]) for r in old} | {t[0]: r for t, r in zip(todo, results)}
     (WORK / "lower-results.tsv").write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
     counts = collections.Counter(o for o, _ in rows.values())
     md = "| Outcome | Tests |\n|---|---:|\n" + "".join(f"| {o} | {counts[o]} |\n" for o in OUTCOMES)

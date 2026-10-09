@@ -47,7 +47,8 @@ fn type_test(
     in_match: bool,
     span: Span,
 ) -> Result<TNodeId> {
-    let dealiased = l.u.widen(target);
+    let widened = l.u.widen(target);
+    let dealiased = l.u.dealias(widened);
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {
         return unsupported(span, "type tests of unions or intersections");
     }
@@ -111,6 +112,9 @@ fn is_instance_of(
 fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, target: tasty::TypeId) -> Result<TNodeId> {
     let (from, to) = (erased_type(l, expr), l.u.erase(target));
     match (&from, &to) {
+        (Erased::Class(_) | Erased::Array(_) | Erased::Null, Erased::Nothing) => {
+            Ok(throw_class_cast(l, expr))
+        }
         (Erased::Prim(a), Erased::Prim(b)) if a == b => Ok(expr),
         (Erased::Class(_) | Erased::Array(_), Erased::Prim(_)) => Ok(adapt(l, expr, &to)),
         (Erased::Prim(_), _) | (_, Erased::Prim(_)) => {
@@ -118,6 +122,29 @@ fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, target: tasty::TypeId) -> Resu
         }
         _ => Ok(t),
     }
+}
+
+/// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr`.
+fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
+    let class = l.u.class_ref("java.lang.ClassCastException");
+    let class = l.u.class_symbol(class).expect("`ClassCastException`");
+    let string = l.u.class_ref("java.lang.String");
+    let string = l.u.class_symbol(string);
+    let ctors = l.u.decl(class, "<init>").unwrap_or_default();
+    let ctor = ctors.into_iter().find(|&c| {
+        let info = l.u.info(c);
+        matches!(l.u.types().get(info).clone(), Type::Method { params, .. }
+            if params.len() == 1 && l.u.class_symbol(params[0].1) == string)
+    });
+    let ctor = ctor.expect("`ClassCastException(String)`");
+    let new = l.new_(class, Span::NONE);
+    let message = l.string_literal("Cannot cast to scala.Nothing");
+    let error = l.call(new, ctor, &[message]);
+    l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
+    let throw = l.throw_(error);
+    let span = l.tpd.span(expr);
+    let block = l.block(&[expr], throw, Span::NONE);
+    l.with_span(block, span)
 }
 
 /// Whether a value of type `tpe` is never null: a constant other than `null` (dotty's

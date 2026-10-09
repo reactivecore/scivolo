@@ -39,11 +39,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The local variables referred to under `t` from inside a function other than their own,
-/// `function` the innermost function `t` is in.
+/// The local variables referred to under `t` from inside a function or class other than their
+/// own function, `function` the innermost function or class `t` is in.
 fn collect(l: &Lower, t: TNodeId, function: SymbolId, out: &mut FxHashSet<SymbolId>) {
     let function = match (l.tpd.tree(t), l.tpd.sym(t)) {
-        (Tree::DefDef { .. }, Some(f)) => f,
+        (Tree::DefDef { .. } | Tree::TypeDef { .. }, Some(f)) => f,
         _ => function,
     };
     if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))

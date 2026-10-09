@@ -21,6 +21,9 @@ object G:
   def cells(): Int =
     val c = new Cell[Int](5)
     c.get + 1
+  def sortedEmpty(): String =
+    val m = scala.collection.immutable.SortedMap("a" -> 1)
+    m.empty.toString
 
 @main def generics(): Unit =
   println(G.ints())
@@ -32,3 +35,4 @@ object G:
   println(G.castBlock(new Cell[Int](4)))
   G.unit()
   println(G.builder(new java.lang.StringBuilder("ab")))
+  println(G.sortedEmpty())

@@ -2,6 +2,7 @@
 //! `genStringConcat`, `genStringBuilderAppend`).
 
 use super::Gen;
+use super::callee::is_primitive;
 use crate::phases::adapt::erased_type;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
@@ -11,10 +12,23 @@ use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Whether `sym` is `String`'s `+`.
-    pub fn is_string_concat(&self, sym: SymbolId) -> bool {
+    /// Whether `sym` is `String`'s `+`, or a primitive's `+` taking a `String`.
+    pub fn is_string_concat(&mut self, sym: SymbolId) -> bool {
         let s = self.l.u.symbol(sym);
-        s.name == "+" && s.owner == Some(self.l.defs.strings.string)
+        if s.name != "+" {
+            return false;
+        }
+        let Some(owner) = s.owner else { return false };
+        if owner == self.l.defs.strings.string {
+            return true;
+        }
+        if !is_primitive(&self.l.u.binary_name(owner)) {
+            return false;
+        }
+        let info = self.l.u.info(sym);
+        let tasty::Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return false };
+        let string = self.l.defs.strings.string;
+        matches!(params[..], [(_, p)] if self.l.u.class_symbol(p) == Some(string))
     }
 
     pub fn gen_string_concat(&mut self, app: TNodeId, span: Span) -> Result<ValId> {
@@ -88,10 +102,11 @@ impl Gen<'_, '_> {
     }
 
     /// The operands of the concatenations `t` is a chain of, from left to right.
-    fn lift_string_concat(&self, t: TNodeId) -> Vec<TNodeId> {
+    fn lift_string_concat(&mut self, t: TNodeId) -> Vec<TNodeId> {
         if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
             && let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun)
-            && self.l.tpd.sym(fun).is_some_and(|s| self.is_string_concat(s))
+            && let Some(s) = self.l.tpd.sym(fun)
+            && self.is_string_concat(s)
         {
             let mut parts = self.lift_string_concat(qualifier);
             parts.extend(self.l.tpd.items(args));
