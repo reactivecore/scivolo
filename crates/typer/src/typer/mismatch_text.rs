@@ -112,7 +112,7 @@ impl Typer<'_> {
             k if k.is_term() => name,
             _ if top && o.name.starts_with("rs$line$") => name,
             _ if top && !o.name.contains('$') => format!("{}.this.{name}", o.name),
-            _ if top && o.flags.has(OBJECT) => format!("{}.{name}", o.name.strip_suffix('$')?),
+            _ if top && o.flags.has(OBJECT) => format!("{}.{name}", tasty::module_name(&o.name)?),
             _ => return None,
         };
         (self.u.show_user(t) == format!("{path}.type")).then_some(path)

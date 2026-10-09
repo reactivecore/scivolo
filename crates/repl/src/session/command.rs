@@ -6,7 +6,7 @@ use crate::commands::{self, Command};
 use crate::input::{self, Input};
 use crate::report;
 use crate::show_methods::SUFFIX;
-use tasty::tags::{FIELDaccessor, MUTABLE, OBJECT};
+use tasty::tags::{FIELDaccessor, MUTABLE};
 use tasty::{Kind, SymbolId, Type};
 use typer::Typed;
 use typer::tpd::{TNodeId, Tree};
@@ -98,8 +98,7 @@ impl Session {
     }
 
     fn is_static_module_class(&self, c: SymbolId) -> bool {
-        let s = self.u.symbol(c);
-        s.kind == Kind::Class && s.flags.has(OBJECT) && self.u.is_static_symbol(c)
+        self.u.is_module_class(c) && self.u.is_static_symbol(c)
     }
 
     /// Whether `sym` is a show method or a variable's setter.

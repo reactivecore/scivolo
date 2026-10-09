@@ -93,7 +93,7 @@ impl Typer<'_> {
         let site = self.u.widen(t);
         let dealiased = self.u.dealias(site);
         let class = self.direct_class(dealiased)?;
-        if self.is_package_object(class) {
+        if self.is_named_package_object(class) {
             return None;
         }
         for special in SPECIAL_SITES {

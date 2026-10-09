@@ -2,13 +2,13 @@
 
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
+use tasty::SymbolId;
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
-use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     fn is_enum_case(&self, c: SymbolId) -> bool {
         let flags = self.u.symbol(c).flags;
-        flags.has(ENUM) && flags.has(CASE) && self.u.symbol(c).kind == Kind::Class
+        flags.has(ENUM) && flags.has(CASE) && self.u.is_class(c)
     }
 
     /// Call `apply` of a synthetic `apply` or `copy` of an enum case class ascribed the case's
@@ -22,7 +22,7 @@ impl Typer<'_> {
         let Some(m) = method.filter(|&m| self.u.symbol(m).flags.has(SYNTHETIC)) else { return Ok(apply) };
         let Some(owner) = self.u.symbol(m).owner else { return Ok(apply) };
         let applies = match self.u.symbol(m).name.as_str() {
-            "apply" => self.companion_class_of(owner).is_some_and(|c| self.is_enum_case(c)),
+            "apply" => self.u.companion_class(owner).is_some_and(|c| self.is_enum_case(c)),
             "copy" => self.is_enum_case(owner),
             _ => false,
         };
@@ -60,12 +60,5 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(expr);
         let class = self.u.class_symbol(tpe)?;
         self.is_enum_case(class).then_some(expr)
-    }
-
-    /// The class whose companion object has module class `module`.
-    fn companion_class_of(&mut self, module: SymbolId) -> Option<SymbolId> {
-        let name = self.u.symbol(module).name.strip_suffix('$')?.to_owned();
-        let owner = self.u.symbol(module).owner?;
-        self.u.decl(owner, &name).ok()?.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Class)
     }
 }

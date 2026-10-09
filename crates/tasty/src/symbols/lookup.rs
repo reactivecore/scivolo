@@ -1,5 +1,7 @@
 //! Looking up declarations, loading the files of a package that define a name.
 
+use super::companions::module_name;
+use super::predicates::is_package_object_name;
 use super::{Error, Kind, SymbolId, Universe};
 
 /// The operator characters of `NameTransformer` and their encodings in file names.
@@ -38,10 +40,6 @@ pub fn encode(name: &str) -> String {
     out
 }
 
-fn is_package_object(name: &str) -> bool {
-    name == "package$" || name.ends_with("$package$")
-}
-
 impl Universe {
     /// The declarations of `owner` named `name`. In a package, the file defining `name` is
     /// loaded, names no file defines are looked up among the package objects' members, and the
@@ -66,7 +64,7 @@ impl Universe {
             return self.decl(p, &jdk);
         }
         let encoded = encode(name);
-        let module = encoded.strip_suffix('$').filter(|_| name.ends_with('$')).map(str::to_owned);
+        let module = module_name(&encoded).filter(|_| name.ends_with('$')).map(str::to_owned);
         self.load_pending(owner, |file| file == encoded || Some(file) == module.as_deref())?;
         let found = named(self, owner);
         if !found.is_empty() {
@@ -78,7 +76,7 @@ impl Universe {
             .decls
             .iter()
             .copied()
-            .filter(|&d| self.symbol(d).kind == Kind::Class && is_package_object(&self.symbol(d).name))
+            .filter(|&d| self.is_class(d) && is_package_object_name(&self.symbol(d).name))
             .collect();
         Ok(objects.into_iter().flat_map(|o| named(self, o)).collect())
     }

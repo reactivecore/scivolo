@@ -121,7 +121,7 @@ impl Typer<'_> {
             let named = |u: &tasty::Universe, c: SymbolId| {
                 let s = u.symbol(c);
                 s.name == text
-                    || s.flags.has(tasty::tags::OBJECT) && s.name.strip_suffix('$') == Some(text.as_str())
+                    || s.flags.has(tasty::tags::OBJECT) && tasty::module_name(&s.name) == Some(text.as_str())
             };
             while let Some(c) = cls.filter(|&c| !named(self.u, c)) {
                 cls = self.u.symbol(c).owner.and_then(|o| self.enclosing_class(o));

@@ -124,18 +124,10 @@ impl Typer<'_> {
     /// The object whose module class `t` is, as a reference, or `t`.
     pub fn module_ref(&mut self, t: TypeId) -> TypeId {
         let Type::Sym(prefix, c) = *self.u.types().get(t) else { return t };
-        let sym = self.u.symbol(c);
-        if sym.kind != Kind::Class || !sym.flags.has(tasty::tags::OBJECT) {
+        if !self.u.is_module_class(c) {
             return t;
         }
-        let (Some(owner), Some(name)) = (sym.owner, sym.name.strip_suffix('$').map(str::to_owned)) else {
-            return t;
-        };
-        let module =
-            self.u.decl(owner, &name).unwrap_or_default().into_iter().find(|&m| {
-                self.u.symbol(m).kind == Kind::Val && self.u.symbol(m).flags.has(tasty::tags::OBJECT)
-            });
-        match module {
+        match self.u.source_module(c) {
             Some(m) => self.u.intern_type(Type::Sym(prefix, m)),
             None => t,
         }

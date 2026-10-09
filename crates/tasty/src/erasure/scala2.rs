@@ -3,7 +3,7 @@
 use super::Erased;
 use crate::tags::TRAIT;
 use crate::types::{Type, TypeId};
-use crate::{Kind, SymbolId, Universe};
+use crate::{SymbolId, Universe};
 
 /// What stands for a type's symbol in Scala 2: a symbol, or an intersection, refinement or
 /// structural member, which Scala 2 gives a symbol of its own.
@@ -66,10 +66,6 @@ impl Universe {
         });
         let first = class.or_else(|| unshadowed.iter().position(|&u| u)).unwrap_or(0);
         parents[first]
-    }
-
-    fn is_class(&self, s: SymbolId) -> bool {
-        self.symbol(s).kind == Kind::Class
     }
 
     /// The pseudo symbol of `t`.

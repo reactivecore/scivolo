@@ -49,7 +49,7 @@ impl Typer<'_> {
 
     /// The primary constructor of the companion class of object class `module`.
     pub fn companion_constructor(&mut self, module: SymbolId) -> Option<SymbolId> {
-        let name = self.u.symbol(module).name.strip_suffix('$')?.to_owned();
+        let name = tasty::module_name(&self.u.symbol(module).name)?.to_owned();
         let owner = self.u.symbol(module).owner?;
         let decls = self.u.symbol(owner).decls.clone();
         let companion = decls

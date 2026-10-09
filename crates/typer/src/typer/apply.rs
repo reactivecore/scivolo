@@ -122,10 +122,7 @@ impl Typer<'_> {
         {
             return self.unsupported(id, what);
         }
-        let mut callee = f;
-        while let T::Apply { fun, .. } | T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
-            callee = fun;
-        }
+        let callee = self.tpd.meth_part(f);
         let partial = matches!(self.u.types().get(result), Type::Method { .. });
         let tpe = match self.u.types().get(self.tpd.tpe(callee)).clone() {
             _ if erroneous => self.u.intern_type(Type::Error),

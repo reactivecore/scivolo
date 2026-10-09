@@ -33,8 +33,8 @@ fn walk(l: &mut Lower, t: TNodeId, owner: SymbolId, td: TNodeId, passed: &mut Fx
             .iter()
             .enumerate()
             .map(|(i, &a)| match formals.get(i).map(|&f| l.u.types().get(f).clone()) {
-                Some(Type::ByName(_)) if by_name_ref(l, strip_typed(l, a)) => {
-                    let a = strip_typed(l, a);
+                Some(Type::ByName(_)) if by_name_ref(l, l.tpd.strip_typed(a)) => {
+                    let a = l.tpd.strip_typed(a);
                     passed.insert(a);
                     a
                 }
@@ -77,13 +77,6 @@ fn by_name_ref(l: &mut Lower, t: TNodeId) -> bool {
         return false;
     };
     is_by_name_param(l, s)
-}
-
-fn strip_typed(l: &Lower, mut t: TNodeId) -> TNodeId {
-    while let Tree::Typed { expr, .. } = *l.tpd.tree(t) {
-        t = expr;
-    }
-    t
 }
 
 /// Makes reference `t` to by-name parameter `x: => T` the call `x.apply()` of type `T`.

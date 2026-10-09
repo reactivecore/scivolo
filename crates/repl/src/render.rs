@@ -18,9 +18,10 @@ pub struct Definition {
     show: Option<String>,
 }
 
-/// The definitions of module class `module` but `unprinted`, in source order.
-pub fn definitions(u: &mut Universe, module: &str, unprinted: &[SymbolId]) -> Vec<Definition> {
-    let Some(class) = module_class(u, module) else { return Vec::new() };
+/// The definitions of top-level object `object` but `unprinted`, in source order.
+pub fn definitions(u: &mut Universe, object: &str, unprinted: &[SymbolId]) -> Vec<Definition> {
+    let root = u.root();
+    let Some(class) = u.module_class_in(root, object) else { return Vec::new() };
     let decls = u.symbol(class).decls.clone();
     decls.into_iter().filter(|d| !unprinted.contains(d)).filter_map(|d| definition(u, d)).collect()
 }
@@ -48,12 +49,6 @@ pub fn results(u: &Universe, values: &[SymbolId]) -> u32 {
 
 fn is_res(name: &str) -> bool {
     name.strip_prefix("res").is_some_and(|n| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()))
-}
-
-/// The class of top-level module class `module`.
-pub fn module_class(u: &mut Universe, module: &str) -> Option<SymbolId> {
-    let root = u.root();
-    u.decl(root, module).unwrap_or_default().into_iter().find(|&c| u.symbol(c).kind == Kind::Class)
 }
 
 fn definition(u: &mut Universe, d: SymbolId) -> Option<Definition> {

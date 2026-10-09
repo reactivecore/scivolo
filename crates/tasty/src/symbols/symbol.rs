@@ -29,6 +29,11 @@ impl Kind {
     pub fn is_term(self) -> bool {
         matches!(self, Kind::Val | Kind::Param | Kind::Def)
     }
+
+    /// Whether a symbol of this kind is a type: a class, type member or type parameter.
+    pub fn is_type(self) -> bool {
+        matches!(self, Kind::Class | Kind::Type | Kind::TypeParam)
+    }
 }
 
 /// Modifiers: one bit per TASTy modifier tag below 64, and bits 0 and 1 (no modifier's tag) for

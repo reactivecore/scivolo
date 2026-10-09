@@ -20,11 +20,13 @@ pub fn jdk_name(pkg: &str, name: &str) -> Option<(&'static str, String)> {
     if !name.starts_with('_') {
         return None;
     }
-    let (simple, module) = name.strip_suffix('$').map_or((name, ""), |s| (s, "$"));
-    let full = format!("{pkg}.{simple}");
+    let module = super::module_name(name);
+    let full = format!("{pkg}.{}", module.unwrap_or(name));
     let (_, jdk) = RENAMED.iter().find(|(defined, _)| *defined == full)?;
     let (jdk_pkg, jdk_simple) = jdk.rsplit_once('.')?;
-    Some((jdk_pkg, format!("{jdk_simple}{module}")))
+    let jdk_name =
+        if module.is_some() { super::module_class_name(jdk_simple) } else { jdk_simple.to_owned() };
+    Some((jdk_pkg, jdk_name))
 }
 
 /// The qualified name Scala Native defines JDK class `jdk` under, if it is renamed.

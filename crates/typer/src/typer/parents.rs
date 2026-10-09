@@ -5,7 +5,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use syntax::ast::{NodeId, Tree};
-use tasty::{Kind, SymbolId, TypeId};
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
     /// The type tree of a parent: the class of a constructor call, or the parent itself.
@@ -18,10 +18,6 @@ impl Typer<'_> {
             Tree::New { tpt } => tpt,
             _ => parent,
         }
-    }
-
-    pub fn is_trait(&self, c: SymbolId) -> bool {
-        self.u.symbol(c).flags.has(tasty::tags::TRAIT)
     }
 
     /// The parent types of a class from parent trees `parents`, typed in `ctx` and dealiased,
@@ -41,7 +37,7 @@ impl Typer<'_> {
                 {
                     self.unsupported(p, "class extended twice");
                 }
-                if !types.is_empty() && !self.is_trait(c) {
+                if !types.is_empty() && !self.u.is_trait(c) {
                     self.unsupported(p, "class used as a mixin");
                 }
             }
@@ -54,7 +50,7 @@ impl Typer<'_> {
     /// with a class (dotty's `ensureFirstIsClass`).
     fn ensure_first_is_class(&mut self, parents: Vec<TypeId>) -> Vec<TypeId> {
         let first = parents.first().and_then(|&p| self.u.class_symbol(p));
-        if first.is_some_and(|c| !self.is_trait(c)) {
+        if first.is_some_and(|c| !self.u.is_trait(c)) {
             return parents;
         }
         let mut pcls = self.defn.object;
@@ -79,10 +75,10 @@ impl Typer<'_> {
 
     /// The class `sym` is or, for a trait, the class its first parent leads to.
     fn real_class_parent(&mut self, sym: Option<SymbolId>) -> SymbolId {
-        let Some(sym) = sym.filter(|&s| self.u.symbol(s).kind == Kind::Class) else {
+        let Some(sym) = sym.filter(|&s| self.u.is_class(s)) else {
             return self.defn.object;
         };
-        if !self.is_trait(sym) {
+        if !self.u.is_trait(sym) {
             return sym;
         }
         self.complete(sym);

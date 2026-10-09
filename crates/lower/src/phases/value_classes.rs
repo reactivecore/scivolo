@@ -77,7 +77,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     } else {
         (qualifier, None)
     };
-    let module = companion(l, class).expect("the companion of an extension method's class");
+    let module = l.u.companion_module(class).expect("the companion of an extension method's class");
     let module_ref = l.ident(module, span);
     let mut call = l.select(module_ref, extension, span);
     let info = l.u.info(extension);
@@ -157,7 +157,7 @@ fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
 fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let class = l.u.symbol(m).owner?;
     let info = l.u.info(m);
-    let module = companion(l, class)?;
+    let module = l.u.companion_module(class)?;
     let module_class = l.u.module_class(module)?;
     if let Some(&found) = l.extensions.get(&m) {
         return Some(found);
@@ -179,11 +179,4 @@ fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     }
     l.u.set_info(sym, info);
     Some(sym)
-}
-
-/// The companion object of class `c`.
-fn companion(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    let owner = l.u.symbol(c).owner?;
-    let name = l.u.symbol(c).name.clone();
-    l.u.decl(owner, &name).ok()?.into_iter().find(|&s| is_module(l.u, s))
 }

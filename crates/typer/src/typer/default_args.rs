@@ -111,11 +111,11 @@ impl Typer<'_> {
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
     fn package_object(&mut self, c: SymbolId) -> Option<(SymbolId, SymbolId)> {
-        let name = self.u.symbol(c).name.strip_suffix('$').filter(|n| n.ends_with("$package"))?.to_owned();
+        if !tasty::module_name(&self.u.symbol(c).name).is_some_and(|n| n.ends_with("$package")) {
+            return None;
+        }
         let pkg = self.u.symbol(c).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package)?;
-        let decls = self.u.decl(pkg, &name).unwrap_or_default();
-        let module = decls.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Val)?;
-        Some((pkg, module))
+        Some((pkg, self.u.source_module(c)?))
     }
 
     /// A reference to the companion object of the class constructor `ctor` creates in `new_tree`.
@@ -126,13 +126,11 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let class = self.u.symbol(ctor).owner.ok_or("default argument")?;
-        let owner = self.u.symbol(class).owner.ok_or("default argument")?;
+        if self.u.symbol(class).owner.is_none() {
+            return Err("default argument");
+        }
         let name = self.u.symbol(class).name.clone();
-        let decls = self.u.decl(owner, &name).unwrap_or_default();
-        let module = decls
-            .into_iter()
-            .find(|&d| self.u.symbol(d).kind == Kind::Val && self.u.symbol(d).flags.has(OBJECT))
-            .ok_or("default argument without a companion")?;
+        let module = self.u.companion_module(class).ok_or("default argument without a companion")?;
         let new_tpe = self.tpd.tpe(new_tree);
         let class_tpe = self.u.base_type(new_tpe, class).ok_or("default argument")?;
         let tycon = match *self.u.types().get(class_tpe) {

@@ -119,7 +119,7 @@ impl Typer<'_> {
     /// Whether `owner` is a package or a package object, whose private members are private to the
     /// package (dotty's `skipWeakOwner`).
     fn is_package_level(&self, owner: SymbolId) -> bool {
-        self.u.symbol(owner).kind == Kind::Package || self.is_package_object(owner)
+        self.u.symbol(owner).kind == Kind::Package || self.is_named_package_object(owner)
     }
 
     /// Records the classes of the annotations in `mods` on `sym`.

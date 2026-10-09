@@ -1,6 +1,7 @@
-//! What the lowering asks of symbols (dotty's `SymDenotations` predicates).
+//! What the lowering asks of symbols (dotty's `SymDenotations` predicates); those `Universe`
+//! answers are passed through.
 
-use tasty::tags::{FINAL, OBJECT, PRIVATE, STATIC, TRAIT};
+use tasty::tags::{FINAL, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId, Universe};
 
 pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
@@ -8,20 +9,19 @@ pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
 }
 
 pub fn is_class(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).kind == Kind::Class
+    u.is_class(s)
 }
 
 pub fn is_module_class(u: &Universe, s: SymbolId) -> bool {
-    is_class(u, s) && has(u, s, OBJECT)
+    u.is_module_class(s)
 }
 
-/// A module value, not its class.
 pub fn is_module(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).kind.is_term() && has(u, s, OBJECT)
+    u.is_module(s)
 }
 
 pub fn is_trait(u: &Universe, s: SymbolId) -> bool {
-    is_class(u, s) && has(u, s, TRAIT)
+    u.is_trait(s)
 }
 
 pub fn is_private(u: &Universe, s: SymbolId) -> bool {
@@ -57,7 +57,7 @@ fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
 }
 
 pub fn is_constructor(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).kind == Kind::Def && u.symbol(s).name == "<init>"
+    u.is_constructor(s)
 }
 
 /// Whether `s` is a package or an object reachable through static paths.
@@ -75,36 +75,22 @@ pub fn is_extern(u: &Universe, s: SymbolId) -> bool {
     u.symbol(s).is_extern || u.symbol(s).owner.is_some_and(|o| u.symbol(o).is_extern)
 }
 
-/// The class of a package object: `package$` or a source file's `F$package$`.
 pub fn is_package_object(u: &Universe, s: SymbolId) -> bool {
-    let name = &u.symbol(s).name;
-    is_module_class(u, s) && (name == "package$" || name.ends_with("$package$"))
+    u.is_package_object(s)
 }
 
 pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {
     is_module_class(u, s) && is_static(u, s)
 }
 
-/// The class declared beside module class `c` under its name without `$`.
 pub fn companion_class(u: &mut Universe, c: SymbolId) -> Option<SymbolId> {
-    let owner = u.symbol(c).owner?;
-    let name = u.symbol(c).name.strip_suffix('$')?.to_owned();
-    let found = u.decl(owner, &name).ok()?;
-    found.into_iter().find(|&s| is_class(u, s) && !has(u, s, OBJECT))
+    u.companion_class(c)
 }
 
-/// The object declared beside class `c`, its value.
 pub fn companion_module(u: &mut Universe, c: SymbolId) -> Option<SymbolId> {
-    let owner = u.symbol(c).owner?;
-    let name = u.symbol(c).name.clone();
-    let found = u.decl(owner, &name).ok()?;
-    found.into_iter().find(|&s| is_module(u, s))
+    u.companion_module(c)
 }
 
-/// The value of module class `c`.
 pub fn source_module(u: &mut Universe, c: SymbolId) -> Option<SymbolId> {
-    let owner = u.symbol(c).owner?;
-    let name = u.symbol(c).name.strip_suffix('$')?.to_owned();
-    let found = u.decl(owner, &name).ok()?;
-    found.into_iter().find(|&s| is_module(u, s))
+    u.source_module(c)
 }

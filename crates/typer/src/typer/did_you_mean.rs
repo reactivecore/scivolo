@@ -100,7 +100,7 @@ impl Typer<'_> {
             let decls = self.u.decls(site).ok()?;
             for d in decls {
                 names.push(self.u.symbol(d).name.clone());
-                if self.is_package_object(d) {
+                if self.is_named_package_object(d) {
                     self.decl_names(d, names)?;
                 }
             }
