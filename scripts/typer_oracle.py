@@ -1,11 +1,10 @@
 """dotty's typed trees: recording them for the corpora and the golden tests, and their feature counts."""
 import collections
-import re
 import subprocess
 import sys
 from pathlib import Path
 
-from typer_corpus import ROOT, USING, WORK, load_expected, selected, split, write_list
+from typer_corpus import ROOT, USING, WORK, feature_stats, has_errors, load_expected, selected, split, write_list
 
 
 def run_oracle(lst):
@@ -41,11 +40,10 @@ def stats(_):
     """Feature counts over the files dotty typed without errors: total, and files using each."""
     totals, files = collections.Counter(), collections.Counter()
     for body in load_expected().values():
-        m = re.search(r"^== stats (.*)$", body, re.M)
-        if m and "\n== E " not in "\n" + body:
-            for kv in m.group(1).split():
-                k, v = kv.split("=")
-                totals[k] += int(v)
+        counts = feature_stats(body)
+        if counts is not None and not has_errors(body):
+            for k, v in counts.items():
+                totals[k] += v
                 files[k] += 1
     for k in sorted(totals):
         print(f"{k:24} {totals[k]:8} {files[k]:6}")

@@ -11,7 +11,7 @@ CORPORA = ("programs", "pos", "neg")
 USING = re.compile(r"^//> using options (.*)$", re.M)
 
 
-def tests(filter_):
+def tests():
     """(path relative to the repository, options, skip reason or None) for each Scala file."""
     for f in sorted(ROOT.glob("tests/programs/*/*.scala")):
         yield f, "", None
@@ -31,7 +31,7 @@ def tests(filter_):
 
 
 def selected(filter_):
-    for f, opts, reason in tests(filter_):
+    for f, opts, reason in tests():
         rel = str(f.relative_to(ROOT))
         if filter_ in rel:
             yield rel, opts, reason
@@ -74,6 +74,12 @@ def load_expected():
 
 def has_errors(record):
     return "\n== E " in "\n" + record
+
+
+def feature_stats(record):
+    """{feature: count} of the `== stats` line of an oracle record, None without one."""
+    m = re.search(r"^== stats (.*)$", record, re.M)
+    return {k: int(v) for k, v in (kv.split("=") for kv in m.group(1).split())} if m else None
 
 
 def errors(record):

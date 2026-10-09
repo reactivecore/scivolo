@@ -1,10 +1,10 @@
 """The typer report: each file's outcome against dotty's typed trees, and their counts per corpus."""
 import collections
-import re
 import subprocess
 import sys
 
-from typer_corpus import CORPORA, DUMP, WORK, corpus, has_errors, load_expected, selected, split, write_list
+from typer_corpus import (CORPORA, DUMP, WORK, corpus, feature_stats, has_errors, load_expected, selected, split,
+                          write_list)
 
 REPORT_TIMEOUT = 1800
 OUTCOMES = ["passed", "differ", "warnings differ", "rejected", "accepted", "syntax errors", "unsupported",
@@ -14,11 +14,9 @@ SUBSET_EXCLUDED = ("ty_match", "tt_match_type", "quotes", "macro_calls")
 
 def in_subset(expected):
     """Whether dotty typed the file without errors and without features outside the subset."""
-    if "\n== E " in "\n" + expected or expected.startswith("== crash"):
+    if has_errors(expected) or expected.startswith("== crash"):
         return False
-    stats = re.search(r"^== stats (.*)$", expected, re.M)
-    keys = {kv.split("=")[0] for kv in stats.group(1).split()} if stats else set()
-    return not keys & set(SUBSET_EXCLUDED)
+    return not set(feature_stats(expected) or {}) & set(SUBSET_EXCLUDED)
 
 
 def classify(expected, actual):
