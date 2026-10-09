@@ -167,12 +167,14 @@ impl Walk<'_> {
         self.names.text(name.name)
     }
 
-    /// The length of `name` without one trailing `$` of a longer name; 0 for a fresh `_$n`.
+    /// The length of `name` without one trailing `$` of a longer name other than `Nothing$` and
+    /// `Null$`; 0 for a fresh `_$n`.
     fn len(&self, name: TName) -> Offset {
         let text = self.text(name);
+        let kept = matches!(text, "Nothing$" | "Null$");
         match text.strip_prefix("_$") {
             Some(n) if !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) => 0,
-            _ if text.len() > 1 && text.ends_with('$') => text.len() as Offset - 1,
+            _ if text.len() > 1 && text.ends_with('$') && !kept => text.len() as Offset - 1,
             _ => text.len() as Offset,
         }
     }

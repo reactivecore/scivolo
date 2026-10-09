@@ -29,6 +29,9 @@ REPLs expect one history.
 
 ## Consequences
 - Entries typed in either REPL appear in both.
-- Without a home directory the history lives in memory only.
+- Without a home directory the history lives in memory only. The home directory is `HOME`'s,
+  where the JVM REPL takes `user.home` from the user database, so a changed `HOME` (as with
+  `sudo`) gives the two REPLs different files.
+- A temporary file left by a crash keeps its name taken; a rewrite takes the next free one.
 - A session that appends while another rewrites the file (to trim it or drop bad lines) loses
   that entry from the file, as with JLine.

@@ -166,6 +166,8 @@ xs.map(_.length)
 \e[33mdef\e[0m \e[36ma\e[0m$ = \e[32m1\e[0m
 \e[33mval\e[0m \e[36m$\e[0m = \e[32m1\e[0m
 \e[33mtype\e[0m \e[36mT\e[33m$\e[0m = \e[32mInt\e[0m
+\e[33mobject\e[0m \e[36mNothing$\e[0m
+\e[33mval\e[0m \e[36mNull$\e[0m = \e[32m1\e[0m
 \e[33msuper\e[0m[A].f
 \e[33mclass\e[0m \e[36mB4\e[0m \e[33mextends\e[0m \e[32mA\e[0m { \e[33mdef\e[0m \e[36mg\e[0m = \e[33msuper\e[0m[A].f }
 \e[32m1.5\e[0m𝔸

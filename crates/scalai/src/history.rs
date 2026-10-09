@@ -85,15 +85,28 @@ fn trim_if_needed(path: &Path) -> io::Result<()> {
 fn rewrite(path: &Path, lines: &[&[u8]]) -> io::Result<()> {
     let target = std::fs::canonicalize(path)?;
     OpenOptions::new().write(true).open(&target)?;
-    let mut temp = target.clone().into_os_string();
-    temp.push(format!(".{}.tmp", std::process::id()));
-    let temp = PathBuf::from(temp);
-    let file = OpenOptions::new().write(true).create_new(true).open(&temp)?;
+    let (file, temp) = temp_file(&target)?;
     let written = replace(file, &temp, &target, lines);
     if written.is_err() {
         let _ = std::fs::remove_file(&temp);
     }
     written
+}
+
+/// A new file `<target>.<pid>.<n>.tmp`, with the first `n` below 8 whose name is free.
+fn temp_file(target: &Path) -> io::Result<(std::fs::File, PathBuf)> {
+    let mut last = io::Error::from(io::ErrorKind::AlreadyExists);
+    for n in 0..8 {
+        let mut temp = target.as_os_str().to_owned();
+        temp.push(format!(".{}.{n}.tmp", std::process::id()));
+        let temp = PathBuf::from(temp);
+        match OpenOptions::new().write(true).create_new(true).open(&temp) {
+            Ok(file) => return Ok((file, temp)),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => last = e,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(last)
 }
 
 /// Writes `lines` to `file` at `temp`, then renames it to `target`.
@@ -216,12 +229,12 @@ mod tests {
         let path = file("planted", "1:a\nbad\n");
         let other = file("planted-target", "x");
         let mut temp = std::fs::canonicalize(&path).unwrap().into_os_string();
-        temp.push(format!(".{}.tmp", std::process::id()));
+        temp.push(format!(".{}.0.tmp", std::process::id()));
         let _ = std::fs::remove_file(&temp);
         std::os::unix::fs::symlink(&other, &temp).unwrap();
         assert_eq!(load(&path), ["a"]);
         assert_eq!(std::fs::read_to_string(&other).unwrap(), "x");
-        assert_eq!(std::fs::read_to_string(&path).unwrap(), "1:a\nbad\n");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "1:a\n");
         assert!(std::fs::symlink_metadata(&temp).unwrap().file_type().is_symlink());
         std::fs::remove_file(&temp).unwrap();
     }

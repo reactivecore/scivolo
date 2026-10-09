@@ -166,6 +166,8 @@ Ab𝔸
 def a$ = 1
 val $ = 1
 type T$ = Int
+object Nothing$
+val Null$ = 1
 super[A].f
 class B4 extends A { def g = super[A].f }
 1.5𝔸
