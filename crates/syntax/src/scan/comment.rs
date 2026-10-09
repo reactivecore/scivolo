@@ -4,26 +4,25 @@ use super::Scanner;
 use super::reader::{CR, LF, SU};
 
 impl Scanner<'_> {
-    /// After a `/`: skip a comment and return true, or return false if there is none.
+    /// After a `/`: skip a comment, record it and return true, or return false if there is none.
     pub fn skip_comment(&mut self) -> bool {
+        let start = self.reader.last_char_offset;
         self.reader.next_char();
         match self.reader.ch {
-            '/' => {
-                loop {
-                    self.reader.next_char();
-                    if matches!(self.reader.ch, CR | LF | SU) {
-                        break;
-                    }
+            '/' => loop {
+                self.reader.next_char();
+                if matches!(self.reader.ch, CR | LF | SU) {
+                    break;
                 }
-                true
-            }
+            },
             '*' => {
                 self.reader.next_char();
                 self.skip_block_comment();
-                true
             }
-            _ => false,
+            _ => return false,
         }
+        self.comments.push(start..self.reader.ch_offset());
+        true
     }
 
     /// Skip to the end of a block comment whose `/*` has been read, with nested comments.

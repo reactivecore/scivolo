@@ -54,7 +54,9 @@ Apache-2.0. Rust translations of:
   (definitions shown), `ReplBytecodeAnalysis` (the synthesized `toString` test in
   `crates/vm/src/natives/repl.rs`); the transcript format of `compiler/test-resources/repl`;
   from the compiler, `reporting/MessageRendering` (diagnostic boxes) and the `ErrorMessageID`
-  numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`).
+  numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`);
+  `printing/SyntaxHighlighting` and the `nameSpan`/`endSpan` of `ast/Trees`
+  (`crates/repl/src/highlight.rs`), with `JLineTerminal`'s magenta prompt.
 
 ### [JLine](https://github.com/jline/jline3) 4.0.14
 

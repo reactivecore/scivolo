@@ -1,0 +1,162 @@
+val x = 1
+def f(x: Int): List[String] = x.toString :: Nil
+class C[T](a: T) extends AnyRef
+object O
+true && false || null
+"str" + s"i${x}j" + 'c' + 1.5 + 0x1f + 10L
+// comment
+/* block */ x
+???
+List(1, 2).map(_ + 1)
+Foo
+FOO
+foo.Bar.BAZ
+inline def g = 1
+inline
+open class D
+import scala.collection.mutable.ListBuffer
+@deprecated def old = 1
+type T = Int
+val y: Int = 1
+def f = 1\nend f
+x match { case Some(v) => v case None => 0 }
+enum Color { case Red, Green }
+given Int = 1
+val q = )
+'x
+lazy val l = 2
+extension (s: String) def twice = s + s
+for i <- 1 to 3 yield i
+if x then 1 else 2
+new C(1)
+trait Tr
+val (a, b) = (1, 2)
+x.asInstanceOf[Int]
+s"a $x b ${x + 1} c"
+f"%d"
+"""triple"""
+`backtick`
+:help
+val x = 1 // trailing
+case class P(x: Int, y: String)
+def g[T <: AnyRef](t: T): Option[T] = Some(t)
+var v = 1\nv = 2
+val fn = (i: Int) => i + 1
+scala.collection.immutable.List.empty[Int]
+object O:\n  def m = 1\nend O
+this.x
+super.toString
+val s: String = null
+1 to 10
+val ü = "ä" // ö
+val 𝔸 = "𝔹" + 1
+/* a /* nested */ b */ val z = 1
+val a = 1 /* unclosed
+"unclosed
+def h(using x: Int) = x
+opaque type Op = Int
+transparent inline def t = 1
+infix def op(a: Int) = a
+class E { def this(x: Int) = this() }
+val Some(z) = Option(1)
+import java.util.{Map as JMap}
+val t: (Int, String) => Unit = null
+type L = [X] =>> List[X]
+@main def run(args: String*) = ()
+(x: @unchecked) match { case _ => 1 }
+def f(x: Int = 1)(implicit y: String) = x
+object App2 extends App { println("hi") }
+xs.foreach { x => println(x) }
+while x < 3 do x += 1
+try f() catch { case e: Exception => () } finally ()
+throw new RuntimeException("x")
+class F(val a: Int, var b: Int)
+enum E2 { case A(x: Int) }
+given ord: Ordering[Int] = Ordering.Int
+def f: Int = ???
+export O.*
+abstract class A2 { def m: Int }
+case class Q()\nobject Q
+java.lang.String.valueOf(1)
+s"${"nested"}"
+sealed trait S\nfinal case class S1() extends S
+private val pv = 1
+val m = Map(1 -> "a")
+def f(xs: Int*) = xs
+type B >: Null <: AnyRef
+classOf[String]
+0.5f + 1e3 + 'a'.toInt
+val `a b` = 1
+x match\n  case 1 => "one"\n  case _ => "other"
+if (x > 1) "big" else "small"
+val f2: Int => Int = _ + 1
+List[Int]()
+new java.util.ArrayList[String]()
+val NaN = 1
+def Foo = 1
+Seq.empty[Option[List[Int]]]
+(x: Int) ?=> x
+inline if x then 1 else 2
+val x = 1;\n// two\nval y = 2
+def f[@specialized T](t: T) = t
+class G(@deprecated val a: Int)
+object O { val i = 1 }\nend O
+for { a <- List(1); b <- List(2) } yield a + b
+x.isInstanceOf[List[?]]
+val e = 1e10; val c = 'c'; val u = '\u0041'
+def f(): Unit =\n  println("a")\n  println("b")
+summon[Ordering[Int]]
+type M = Map[String, Int]
+import scala.math.Ordering.given
+val xml = 1 <2
+val r = s"$x$x"
+val i = id"x"
+object foo:\n  val bar = 1
+end
+case
+def +(x: Int) = x
+def ::(x: Int) = x
+a :: b :: Nil
+type T2 = Int *: String *: EmptyTuple
+val x2: scala.Int = 1
+val s2: scala.collection.Seq[Int] = Nil
+class A3 extends B with C
+type F[+A] = List[A]
+val u: Int | String = 1
+def f(using Ordering[Int]) = 1
+object O2 { def apply() = 1 }
+package p
+val e = <a>b</a>
+given [T]: Ordering[T] = ???
+'{ 1 }
+val pf = [T] => (x: T) => x
+def byName(x: => Int) = x
+class U(using val x: Int)
+case class X(a: Int) derives CanEqual
+trait T3 { self: Any => }
+val p: Outer#Inner = ???
+import a.{b => c}
+val w = if true then 1 else 2\nend if
+while true do ()\nend while
+extension (x: Int)\n  def p = 1\nend extension
+val\tt = 1
+val ö = "é" /* é */
+def f(x: Int)(y: Int): x.type = x
+val l: List[? <: AnyRef] = Nil
+def m[F[_]](f: F[Int]) = f
+@deprecated("x", "1") class Old
+@main def go() = println("go")
+val t3 = (1, "a"): (Int, String)
+val q2 = this
+type Id = [X] => X => X
+for\n  a <- List(1)\nyield a
+class Pt(x: Int):\n  def this() = this(0)\nend Pt
+object Obj:\n  val a = 1\n  end Obj
+def ok: Boolean = true\nend ok
+x match\n  case List(a, _*) => a
+val (a: Int, b) = (1, 2)
+case _ => 1
+val g2 = (_: Int) => 1
+xs.map(_.length)
+type K = Map[?, ?]
+def k[F[_, _]] = 1

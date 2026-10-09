@@ -221,6 +221,10 @@ completion-oracle *files:
     f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl-completion/*.tab); \
     scala-cli --power run --server=false --quiet --workspace tmp/completion-oracle-ws scripts/completion-oracle -- $f
 
+# Record dotty's highlighting of tests/highlight/cases.txt in cases.check (JVM).
+highlight-oracle:
+    scala-cli --power run --server=false --quiet --workspace tmp/highlight-oracle-ws scripts/highlight-oracle -- tests/highlight/cases.txt > tests/highlight/cases.check
+
 # Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed

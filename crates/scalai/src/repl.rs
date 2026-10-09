@@ -1,14 +1,15 @@
 //! The REPL: line editing on a terminal, else the lines of stdin.
 
 use crate::history;
-use ::repl::{Session, is_incomplete};
+use ::repl::{Session, highlight, is_incomplete};
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
-use rustyline::highlight::Highlighter;
+use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
 use rustyline::history::MemHistory;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
 use rustyline::{Config, Editor, Helper};
+use std::borrow::Cow;
 use std::io::{BufRead, IsTerminal};
 use std::panic::catch_unwind;
 use std::path::PathBuf;
@@ -113,7 +114,7 @@ fn interactive(session: &mut Session) -> Result<(), String> {
     }
 }
 
-/// The editor's helper: an input is complete when it parses as one.
+/// The editor's helper: an input is complete when it parses as one, and coloured as in dotty.
 struct Input;
 
 impl Validator for Input {
@@ -133,6 +134,18 @@ impl Hinter for Input {
     type Hint = String;
 }
 
-impl Highlighter for Input {}
+impl Highlighter for Input {
+    fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
+        Cow::Owned(highlight(line))
+    }
+
+    fn highlight_prompt<'b, 's: 'b, 'p: 'b>(&'s self, prompt: &'p str, _default: bool) -> Cow<'b, str> {
+        Cow::Owned(format!("\x1b[35m{prompt}\x1b[0m"))
+    }
+
+    fn highlight_char(&self, _line: &str, _pos: usize, kind: CmdKind) -> bool {
+        kind != CmdKind::MoveCursor
+    }
+}
 
 impl Helper for Input {}
