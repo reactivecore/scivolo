@@ -1,20 +1,21 @@
-//! Whether an implicit definition may convert a class to a type with a given member, or offer an
-//! extension method of that name (dotty's `candidateKind` for a selection's view prototype).
+//! Whether an implicit definition may convert a class to a type with a given member or to a given
+//! type, or offer an extension method of that name (dotty's `candidateKind` for a view prototype).
 
 use super::Typer;
 use super::did_you_mean::{KNOWN_JAVA, OBJECT_MEMBERS, is_jdk};
+use super::implicits::conversions::Goal;
 use super::java_members::java_members;
-use super::widening::is_numeric;
+use super::widening::{is_numeric, widens};
 use tasty::tags::{EXTENSION, GIVEN, IMPLICIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether member `m` of an object is an extension method named `name`, or an implicit that
-    /// may convert class `q` to a type with member `name` or offer such an extension method.
-    pub fn may_view(&mut self, m: SymbolId, q: SymbolId, name: &str) -> bool {
+    /// Whether member `m` of an object is an extension method named as `goal`'s member, or an
+    /// implicit that may convert class `q` to fit `goal` or offer such an extension method.
+    pub fn may_view(&mut self, m: SymbolId, q: SymbolId, goal: Goal) -> bool {
         let sym = self.u.symbol(m);
         if sym.flags.has(EXTENSION) {
-            return sym.name == name;
+            return matches!(goal, Goal::Member(name) if sym.name == name);
         }
         if !(sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN)) || !matches!(sym.kind, Kind::Val | Kind::Def) {
             return false;
@@ -27,7 +28,11 @@ impl Typer<'_> {
         if let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() {
             let [(_, param)] = params[..] else { return false };
             let result = self.strip_implicit_clauses(result);
-            return self.may_accept(param, q) && self.may_have(result, param, name);
+            return self.may_accept(param, q, matches!(goal, Goal::Conform(_)))
+                && match goal {
+                    Goal::Member(name) => self.may_have(result, param, name),
+                    Goal::Conform(to) => self.may_conform(result, param, to),
+                };
         }
         let value = self.strip_implicit_clauses(info);
         let mut value = self.u.widen(value);
@@ -36,7 +41,9 @@ impl Typer<'_> {
             value = t;
         }
         let Some(c) = self.u.class_symbol(value) else { return true };
-        if self.class_members(c, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION)) {
+        if let Goal::Member(name) = goal
+            && self.class_members(c, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION))
+        {
             return true;
         }
         let is_view = ["scala.Conversion", "scala.<:<"]
@@ -54,13 +61,14 @@ impl Typer<'_> {
     }
 
     /// Whether class `q`, whose base classes the universe knows, may conform or widen numerically
-    /// to view parameter type `param`; not to a class of a package the universe lacks.
-    fn may_accept(&mut self, param: TypeId, q: SymbolId) -> bool {
+    /// (only to a wider class if `widening`) to view parameter type `param`; not to a class of a
+    /// package the universe lacks.
+    fn may_accept(&mut self, param: TypeId, q: SymbolId, widening: bool) -> bool {
         let param = self.u.widen(param);
         let param = self.u.dealias(param);
         match *self.u.types().get(param) {
-            Type::Or(a, b) => return self.may_accept(a, q) || self.may_accept(b, q),
-            Type::Annotated(t, _) => return self.may_accept(t, q),
+            Type::Or(a, b) => return self.may_accept(a, q, widening) || self.may_accept(b, q, widening),
+            Type::Annotated(t, _) => return self.may_accept(t, q, widening),
             _ => {}
         }
         let tycon = match self.u.types().get(param) {
@@ -74,8 +82,9 @@ impl Typer<'_> {
             return false;
         }
         let Some(p) = self.direct_class(param) else { return true };
-        let numeric = |t: &Self, c| is_numeric(&t.u.full_name(c));
-        self.u.derives_from(q, p) || numeric(self, q) && numeric(self, p)
+        let (from, to) = (self.u.full_name(q), self.u.full_name(p));
+        let numeric = if widening { widens(&from, &to) } else { is_numeric(&from) && is_numeric(&to) };
+        self.u.derives_from(q, p) || numeric
     }
 
     /// Whether result type `result` of a view of parameter type `param` may have member `name`.
@@ -86,6 +95,18 @@ impl Typer<'_> {
         }
         let Some(c) = self.direct_class(result) else { return true };
         self.view_result_names(c).is_none_or(|names| names.iter().any(|n| n == name))
+    }
+
+    /// Whether result type `result` of a view of parameter type `param` may conform to `to`.
+    fn may_conform(&mut self, result: TypeId, param: TypeId, to: TypeId) -> bool {
+        let result = self.u.dealias(result);
+        if result == param && matches!(self.u.types().get(result), Type::Param(..)) {
+            return false;
+        }
+        let to = self.u.dealias(to);
+        let (Some(r), Some(t)) = (self.direct_class(result), self.direct_class(to)) else { return true };
+        let b = self.u.builtins();
+        r == b.nothing || r == b.null || self.u.derives_from(r, t)
     }
 
     /// The names of the members of class `c`, and more; `None` where they are not all known.

@@ -42,18 +42,25 @@ impl Ast {
         if !f(id) {
             return;
         }
+        for n in self.child_nodes(id) {
+            self.for_each_tree(n, f);
+        }
+    }
+
+    /// The trees of the positioned children of `id`, in order.
+    pub fn child_nodes(&self, id: NodeId) -> Vec<NodeId> {
+        let mut out = Vec::new();
         for &c in self.children(id).iter() {
             match c {
-                Child::Node(n) => self.for_each_tree(n, f),
-                Child::List(l) => self.items(l).iter().for_each(|&n| self.for_each_tree(n, f)),
+                Child::Node(n) => out.push(n),
+                Child::List(l) => out.extend_from_slice(self.items(l)),
                 Child::Clauses(cs) => {
-                    for &l in self.clause_items(cs) {
-                        self.items(l).iter().for_each(|&n| self.for_each_tree(n, f));
-                    }
+                    self.clause_items(cs).iter().for_each(|&l| out.extend_from_slice(self.items(l)))
                 }
                 Child::Empty | Child::Mods(_) => {}
             }
         }
+        out
     }
 
     /// Whether `id` or a tree under it satisfies `p` (dotty's `existsSubTree`).

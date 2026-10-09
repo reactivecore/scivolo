@@ -21,7 +21,14 @@ scala> o(true)
 val res1: Int = 3
 
 scala> o(1)
--- unsupported: adaptation
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |o(1)
+  |  ^
+  |  Found:    (1 : Int)
+  |  Required: Boolean
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
 
 scala> def f(using i: Int) = i
 def f(using i: Int): Int

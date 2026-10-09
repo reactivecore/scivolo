@@ -1,8 +1,10 @@
 //! Whether dotty may supply a member a qualifier lacks through an extension method or an implicit
 //! view, or suggest an import of one (dotty's `tryExtensionOrConversion`, `ImportSuggestions`):
-//! one named so, or one whose result may have the member, in the script or a Scala library object.
+//! one named so, or one whose result may have the member, in the script or a Scala library object;
+//! and the objects whose members those searches see.
 
 use super::Typer;
+use super::implicits::conversions::Goal;
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
 use rustc_hash::FxHashSet;
@@ -15,13 +17,16 @@ impl Typer<'_> {
     /// Whether an extension method or implicit view may give class `q` of type `site` member
     /// `name` in `ctx`, or dotty's import suggestions may name one.
     pub fn may_supply(&mut self, (q, site): (SymbolId, TypeId), name: &str, ctx: Ctx) -> bool {
-        if self.extension_visible(name, ctx)
+        self.extension_visible(name, ctx)
             || self.finds_completing(name, ctx)
-            || self.script_may_supply(name)
-            || self.implicit_scope(site).into_iter().any(|c| self.may_view(c.sym, q, name))
-        {
-            return true;
-        }
+            || self.script_may_supply(Some(name))
+            || self.implicit_scope(site).into_iter().any(|c| self.may_view(c.sym, q, Goal::Member(name)))
+            || self.any_root_member(ctx, |t, d| t.may_view(d, q, Goal::Member(name)))
+    }
+
+    /// Whether `f` holds for a member of an object in the script, a Scala library object or an
+    /// object imported in `ctx`, or those are not all known.
+    pub fn any_root_member(&mut self, ctx: Ctx, mut f: impl FnMut(&mut Self, SymbolId) -> bool) -> bool {
         let Some(mut containers) = self.script_classes() else { return true };
         if self.library_objects(&mut containers).is_none()
             || self.imported_objects(ctx, &mut containers).is_none()
@@ -37,7 +42,7 @@ impl Typer<'_> {
                 let Ok(decls) = self.u.decls(base) else { return true };
                 for d in decls {
                     containers.extend(self.object_class(d));
-                    if self.may_view(d, q, name) {
+                    if f(self, d) {
                         return true;
                     }
                 }
@@ -82,15 +87,15 @@ impl Typer<'_> {
     }
 
     /// Whether the unit has a given or implicit definition or parameter, or an extension method
-    /// named `name`, entered or not.
-    fn script_may_supply(&self, name: &str) -> bool {
+    /// named `name` if one is given, entered or not.
+    pub fn script_may_supply(&self, name: Option<&str>) -> bool {
         let supplies = |ast: &Ast, n: NodeId| {
             match *ast.tree(n) {
             Tree::ExtMethods { methods, .. } => ast.items(methods).iter().any(|&m| {
-                matches!(*ast.tree(m), Tree::DefDef { name: TName { name: n, .. }, .. } if self.text(n) == name)
+                matches!(*ast.tree(m), Tree::DefDef { name: TName { name: n, .. }, .. } if Some(self.text(n)) == name)
             }),
             Tree::DefDef { name: n, mods, .. } if ast.modifiers(mods).flags.is(f::EXTENSION_METHOD) => {
-                self.text(n.name) == name
+                Some(self.text(n.name)) == name
             }
             _ => ast.mods_of(n).is_some_and(|m| ast.modifiers(m).flags.is(f::GIVEN_OR_IMPLICIT)),
         }
