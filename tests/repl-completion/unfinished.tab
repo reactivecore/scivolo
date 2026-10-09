@@ -24,6 +24,8 @@ tab> val y = x.@@
   takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
   toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
   view wait withFilter zip zipAll zipWithIndex →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> val y = x.hea@@
   head headOption
 tab> if x.isEmpty then x.he@@

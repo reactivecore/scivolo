@@ -58,11 +58,18 @@ Apache-2.0. Rust translations of:
   numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`);
   `printing/SyntaxHighlighting` and the `nameSpan`/`endSpan` of `ast/Trees`
   (`crates/repl/src/highlight.rs`), with `JLineTerminal`'s magenta prompt.
+- Completion: `interactive/Completion` (`completionPrefix`, `accessibleMembers`,
+  `isValidCompletionSymbol`, `needsBacktick`) in `crates/typer/src/completion` and
+  `crates/repl/src/completion`; `ast/NavigateAST.pathTo` (`crates/syntax/src/ast/path.rs`);
+  scala3-repl's `JLineTerminal.Parser` (the word under the cursor).
 
 ### [JLine](https://github.com/jline/jline3) 4.0.14
 
 BSD-3. `crates/scalai/src/history.rs`: `reader/impl/history/DefaultHistory` (file format,
 `escape`/`unescape`, the add filters, `trimHistory`/`doTrimHistory`, the size limits).
+`crates/repl/src/completion/listed.rs`: `CompletionMatcherImpl`'s default matchers,
+`ReaderUtils.distance`, `utils/Levenshtein.distance` and the grouping and order of
+`LineReaderImpl.computePost`.
 
 ### [PPrint](https://github.com/com-lihaoyi/PPrint) by Li Haoyi, as vendored by dotty 3.9.0
 

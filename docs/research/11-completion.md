@@ -163,11 +163,10 @@ sequences, expecting exactly the answer less the misses, in the same order.
 
 1. The oracle, the corpus, this document, ADR 0018.
 2. Typer probe and selection completions (direct members): `Symbol` derived flag, path to the
-   cursor, member enumeration and validity filter, `Session::complete`, the corpus test, the
-   measurement of §6.
-3. The rustyline completer: JLine's word filter (§1.1 step 5; rustyline has none), `Pair`
-   candidates (display without backticks), list mode, prompt limit 400, commands; piped mode
-   unchanged.
+   cursor, member enumeration and validity filter, JLine's word filter (§1.1 step 5; rustyline
+   has none), commands, `Session::complete`, the corpus test, the measurement of §6.
+3. The rustyline completer: `Pair` candidates (display without backticks), list mode, prompt
+   limit 400; piped mode unchanged.
 4. Scope, import and type-position completions, with the shadowing resolution and `ScopeOrdering`;
    `java.lang` names from javalib ∩ `JAVA_LANG`; root packages.
 5. Conversions and extensions, each applied before it is offered; the JDK member table of
@@ -175,5 +174,7 @@ sequences, expecting exactly the answer less the misses, in the same order.
 
 ## 6. Cost of a wrapper per Tab
 
-The wrapper is a fresh `rs$line$tab$K` object, never run nor imported. Stage 2 measures the
-latency of `x.toString.` style inputs and the symbols added per Tab.
+The wrapper is a fresh `rs$line$tab$K` object, never run nor imported. With `val x =
+List(1, 2)` defined, 1000 completions each (release build, `crates/repl/tests/completion_cost.rs`)
+[V]: `x.hea` 0.10 ms, `x.` 0.34 ms, `x.toString.` 0.23 ms per completion; an evaluation after
+the 3000 takes 1.3 ms. The symbols each wrapper adds stay in the universe until #70.

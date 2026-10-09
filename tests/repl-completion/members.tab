@@ -23,10 +23,14 @@ tab> List(1).@@
   takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
   toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
   view wait withFilter zip zipAll zipWithIndex →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> Some(1).ge@@
   get getClass getOrElse
 tab> Option(1).ma@@
   map max maxBy maxByOption maxOption
+// Missed: members through the conversion `option2Iterable` (stage 5).
+miss> max maxBy maxByOption maxOption
 tab> scala.collection.mut@@
   mutable
 tab> scala.collection.mutable.ArrayB@@
@@ -51,6 +55,8 @@ tab> x.@@
   takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
   toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
   view wait withFilter zip zipAll zipWithIndex →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> x.hea@@
   head headOption
 tab> x.ma@@
@@ -68,9 +74,17 @@ tab> (1, 2).@@
   productElement productElementName productElementNames productIterator productPrefix reverse
   runtimeChecked size splitAt swap synchronized tail take toArray toIArray toList toString wait zip
   zipped →
+// Missed: extensions and conversions (stage 5); the specialized members of the JVM's library,
+// which Scala Native's lacks.
+miss> -> ensuring formatted invert nn runtimeChecked zipped →
+miss> _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2$mcC$sp _2$mcD$sp _2$mcI$sp _2$mcJ$sp
+miss> _2$mcZ$sp
 tab> (1, 2)._@@
   _1 _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2 _2$mcC$sp _2$mcD$sp _2$mcI$sp _2$mcJ$sp
   _2$mcZ$sp
+// Missed: the specialized members of the JVM's library, which Scala Native's lacks.
+miss> _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2$mcC$sp _2$mcD$sp _2$mcI$sp _2$mcJ$sp
+miss> _2$mcZ$sp
 // Cursor in the middle of a word: the prefix ends at the cursor.
 tab> x.he@@ad
   head headOption
@@ -102,6 +116,8 @@ tab> x.@@head
   takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
   toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
   view wait withFilter zip zipAll zipWithIndex →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 // Backticked prefix.
 tab> x.`hea@@
   `headOption` `head`
@@ -111,6 +127,8 @@ scala> val c = C(1, 2)
 tab> c.@@
   != ## -> == a asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf m mm ne nn
   notify notifyAll runtimeChecked synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> c.m@@
   m mm
 tab> c.b@@
@@ -121,42 +139,60 @@ scala> object O { val one = 1; def two = 2; type T = Int; class K; object N }
 tab> O.@@
   != ## -> == K N asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn
   notify notifyAll one runtimeChecked synchronized toString two wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> O.t@@
   toString two
 tab> O.N.@@
   != ## -> == asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn notify
   notifyAll runtimeChecked synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 scala> case class P(name: String, age: Int)
 tab> P("a", 1).@@
   != ## -> == _1 _2 age asInstanceOf canEqual copy ensuring eq equals formatted getClass hashCode
   isInstanceOf name ne nn notify notifyAll productArity productElement productElementName
   productElementNames productIterator productPrefix runtimeChecked synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> P("a", 1).na@@
   name
 tab> P.@@
   != ## -> == apply asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn
   notify notifyAll runtimeChecked synchronized toString unapply wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 scala> trait Animal { def name: String; def sound: String = "" }
 scala> class Dog extends Animal { def name = "dog"; def bark = "woof" }
 tab> Dog().@@
   != ## -> == asInstanceOf bark ensuring eq equals formatted getClass hashCode isInstanceOf name ne
   nn notify notifyAll runtimeChecked sound synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> (Dog(): Animal).@@
   != ## -> == asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf name ne nn
   notify notifyAll runtimeChecked sound synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 scala> enum Color { case Red, Green, Blue }
 tab> Color.@@
   != ## -> == Blue Green Red asInstanceOf ensuring eq equals formatted fromOrdinal getClass hashCode
   isInstanceOf ne nn notify notifyAll runtimeChecked synchronized toString valueOf values wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> Color.Red.@@
   != ## -> == asInstanceOf canEqual ensuring eq equals formatted getClass hashCode isInstanceOf ne
   nn notify notifyAll ordinal productArity productElement productElementName productElementNames
   productIterator productPrefix runtimeChecked synchronized toString wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 // Operators and symbolic names.
 scala> class V { def +(o: V) = this; def unary_- = this; def `odd name` = 1 }
 tab> V().@@
   != ## + -> == `odd name` asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf
   ne nn notify notifyAll runtimeChecked synchronized toString unary_- wait →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
 tab> V().`o@@
   `odd name`
 // Members of an object nested in a package.
