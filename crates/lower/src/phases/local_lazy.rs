@@ -1,9 +1,5 @@
-//! dotty's `LazyVals.transformLocalDef`: each local `lazy val x = rhs` becomes a holder
-//! `x$lzyN = new LazyRef` (`LazyInt` and so on for a primitive) at the start of its block, a
-//! method `x$lzyINITN() = x$lzyN.synchronized { if x$lzyN.initialized then x$lzyN.value else
-//! x$lzyN.initialize(rhs) }` and an accessor `x() = if x$lzyN.initialized then x$lzyN.value else
-//! x$lzyINITN()` the references call. Trees are made in dotty's order; those dotty shares are
-//! copied once positioned.
+//! dotty's `LazyVals.transformLocalDef`: a local lazy value becomes a `LazyRef` holder at the
+//! start of its block, a synchronized `$lzyINIT` method and an accessor the references call.
 
 use super::casts::class_named;
 use super::lazy_trees::{call, dup, if_, method, method_def, method_symbol, object, val_def};
@@ -32,21 +28,24 @@ struct Holder {
     value: TypeId,
 }
 
-/// Makes the local lazy values in class definition `td` methods, inner ones first.
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+/// Makes the local lazy values of unit `root` methods and names the members of its classes' lazy
+/// values, in one walk with inner trees first.
+pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut expanded = FxHashMap::default();
-    let mut todo = vec![(template, false)];
+    let mut todo = vec![(root, false)];
     while let Some((t, visited)) = todo.pop() {
+        let lazy = l.tpd.sym(t).filter(|&s| crate::symbols::has(l.u, s, LAZY));
         if !visited {
             todo.push((t, true));
-            let inner = children(l.tpd, t).into_iter().rev();
-            todo.extend(
-                inner.filter(|&c| !matches!(l.tpd.tree(c), Tree::TypeDef { .. })).map(|c| (c, false)),
-            );
-        } else if matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t).is_some_and(|s| has_lazy(l, s))
+            todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, false)));
+        } else if let (Tree::ValDef { .. }, Some(s)) = (l.tpd.tree(t), lazy)
+            && l.u.symbol(s).owner.is_some_and(|o| super::local_free::is_term(l, o))
         {
             expanded.insert(t, expand(l, t)?);
+        } else if let (Tree::DefDef { .. }, Some(s)) = (l.tpd.tree(t), lazy)
+            && l.lazy_members.contains_key(&s)
+        {
+            super::lazy_vals::name_members(l, s);
         } else if let Tree::Block { stats, expr } = *l.tpd.tree(t) {
             let items = l.tpd.items(stats).to_vec();
             if !items.iter().any(|s| expanded.contains_key(s)) {
@@ -70,10 +69,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
     }
     Ok(())
-}
-
-fn has_lazy(l: &Lower, s: SymbolId) -> bool {
-    crate::symbols::has(l.u, s, LAZY) && l.u.symbol(s).owner.is_some_and(|o| super::local_free::is_term(l, o))
 }
 
 /// The holder, `$lzyINIT` method and accessor of local lazy value definition `stat`.

@@ -50,7 +50,7 @@ fn collect(l: &Lower, t: TNodeId, function: SymbolId, out: &mut FxHashSet<Symbol
     if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
         && has(l.u, s, MUTABLE)
         && let Some(owner) = l.u.symbol(s).owner
-        && l.u.symbol(owner).kind == Kind::Def
+        && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
         && !is_class(l.u, owner)
         && owner != function
     {

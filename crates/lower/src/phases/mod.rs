@@ -86,8 +86,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     for &td in &classes {
         eta_reduce::transform(l, td);
-        local_lazy::transform(l, td)?;
     }
+    local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
     local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;

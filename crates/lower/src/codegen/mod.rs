@@ -1,6 +1,7 @@
 //! NIR generation from the lowered trees: a port of Scala Native's nscplugin, no native interop.
 
 mod apply;
+mod args;
 mod array;
 mod body;
 mod branch;
@@ -26,6 +27,7 @@ mod modules;
 mod names;
 mod numeric;
 mod ops;
+mod positions;
 mod primitives;
 mod statics;
 mod synchronized;
@@ -153,12 +155,6 @@ fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Spa
 }
 
 impl Gen<'_, '_> {
-    /// The position of class or method `s` of this unit, else of class `or`, else none.
-    pub fn sym_pos(&mut self, s: SymbolId, or: SymbolId) -> PosId {
-        let span = self.spans.get(&s).or_else(|| self.spans.get(&or)).copied().unwrap_or(Span::NONE);
-        self.pos_or(span, self.no_pos)
-    }
-
     fn top_of(&mut self, g: GlobalId) -> GlobalId {
         match *self.pool.global(g) {
             Global::Member(owner, _) => owner,
@@ -182,21 +178,5 @@ impl Gen<'_, '_> {
 
     pub fn str(&mut self, s: &str) -> StrId {
         StrId(self.pool.strings.intern_str(s))
-    }
-
-    /// The position of `span`'s point, or `None` if it has none.
-    pub fn pos_of(&mut self, span: Span) -> Option<PosId> {
-        if !span.exists() {
-            return None;
-        }
-        let src = self.l.source;
-        let line = src.offset_to_line(span.point()) as u32;
-        let column = src.column(span.point()) as u32;
-        Some(PosId(self.pool.positions.intern(Pos { file: self.file, line, column })))
-    }
-
-    /// The position of `span`, or `or` if it has none.
-    pub fn pos_or(&mut self, span: Span, or: PosId) -> PosId {
-        self.pos_of(span).unwrap_or(or)
     }
 }

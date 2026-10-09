@@ -18,6 +18,7 @@ use crate::{Lower, Result};
 use plan::{Plan, PlanId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
+use tasty::tags::LAZY;
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -36,6 +37,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         let inner = match *l.tpd.tree(t) {
             Tree::DefDef { .. } => l.tpd.sym(t).unwrap_or(owner),
+            Tree::ValDef { .. } => {
+                l.tpd.sym(t).filter(|&s| crate::symbols::has(l.u, s, LAZY)).unwrap_or(owner)
+            }
             Tree::Template { constr, .. } => l.tpd.sym(constr).unwrap_or(owner),
             _ => owner,
         };

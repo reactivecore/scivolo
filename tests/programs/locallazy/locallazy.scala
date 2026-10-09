@@ -48,6 +48,24 @@ object Lazies:
     val r2: Unit = u
     "units"
 
+class Shadow(k: Int):
+  lazy val x: Int = k + 1
+  def shadow(): Int =
+    lazy val x: Int = k + 2
+    x + this.x
+  def bound(o: Option[Int]): Int =
+    lazy val v: Int = o match
+      case Some(y) => y
+      case None => 0
+    v
+  def innerVar(): Int =
+    lazy val r: Int =
+      var n = 0
+      val f = () => n += 1
+      f(); f()
+      n
+    r
+
 class Box(n: Int):
   lazy val field: Int = n + 1
   def get(): Int =
@@ -68,6 +86,8 @@ object Locks:
   println(Lazies.generic("g"))
   println(Lazies.nested())
   println(Lazies.unit())
+  val shadow = Shadow(1)
+  println(s"${shadow.shadow()} ${shadow.bound(Some(5))} ${shadow.bound(None)} ${shadow.innerVar()}")
   println(Box(3).get())
   println(Locks.count(1))
   Locks.say("synchronized")
