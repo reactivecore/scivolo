@@ -2,6 +2,7 @@
 //! `Tpd::children`, each with the owner dotty's `localCtx` gives it.
 
 use super::{TNodeId, Tpd, Tree};
+use std::ops::ControlFlow;
 use tasty::SymbolId;
 
 /// What a walk does after entering a tree.
@@ -17,8 +18,11 @@ pub enum Walk {
     Stop,
 }
 
-/// A walk's callback, called with the context, the tree and the tree's owner.
+/// A walk's callback on entering a tree, called with the context, the tree and the tree's owner.
 pub type Visit<'f, C> = dyn FnMut(&mut C, TNodeId, SymbolId) -> Walk + 'f;
+
+/// A walk's callback on leaving a tree, as `Visit`; `Break` ends the walk.
+pub type Leave<'f, C> = dyn FnMut(&mut C, TNodeId, SymbolId) -> ControlFlow<()> + 'f;
 
 impl AsRef<Tpd> for Tpd {
     fn as_ref(&self) -> &Tpd {
@@ -27,19 +31,20 @@ impl AsRef<Tpd> for Tpd {
 }
 
 /// Calls `enter` on `t`, owned by `owner`, and then, as it says, on the trees under `t`, outer
-/// trees first; `enter` may rewrite the tree it is called on in place.
+/// trees first; `enter` may rewrite the tree it is called on in place, and the walk then enters
+/// the children of the new tree.
 pub fn traverse<C: AsRef<Tpd> + ?Sized>(cx: &mut C, t: TNodeId, owner: SymbolId, enter: &mut Visit<C>) {
     walk(cx, t, owner, enter, None);
 }
 
-/// `traverse`, also calling `leave` on each tree entered once the walk is done with its children,
-/// with the tree's owner; `Walk::Stop` from `leave` ends the walk, its other answers do nothing.
+/// `traverse`, also calling `leave` on each tree entered, with the tree's owner, once the walk is
+/// done with its children; for a tree `enter` skipped, right after `enter`.
 pub fn traverse_up<C: AsRef<Tpd> + ?Sized>(
     cx: &mut C,
     t: TNodeId,
     owner: SymbolId,
     enter: &mut Visit<C>,
-    leave: &mut Visit<C>,
+    leave: &mut Leave<C>,
 ) {
     walk(cx, t, owner, enter, Some(leave));
 }
@@ -54,7 +59,7 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
     t: TNodeId,
     owner: SymbolId,
     enter: &mut Visit<C>,
-    mut leave: Option<&mut Visit<C>>,
+    mut leave: Option<&mut Leave<C>>,
 ) {
     let mut todo = vec![Step::Enter(t, owner)];
     while let Some(step) = todo.pop() {
@@ -75,7 +80,7 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
                 }
             }
             Step::Leave(t, owner) => {
-                if leave.as_mut().is_some_and(|leave| leave(cx, t, owner) == Walk::Stop) {
+                if leave.as_mut().is_some_and(|leave| leave(cx, t, owner).is_break()) {
                     return;
                 }
             }
@@ -112,14 +117,19 @@ mod tests {
     use syntax::ast::{Span, TName};
     use syntax::names::Names;
 
+    fn name() -> TName {
+        TName { name: Names::default().intern("x"), is_type: false }
+    }
+
+    fn node(tpd: &mut Tpd, tree: Tree, sym: Option<u32>) -> TNodeId {
+        tpd.node(tree, Span::NONE, None, sym.map(SymbolId))
+    }
+
     /// `{ val v = a; def m = b }` as a block of class `C` (symbol 1), `v` symbol 2, `m` symbol 3,
     /// with the trees in pre-order.
     fn unit() -> (Tpd, Vec<TNodeId>) {
-        let mut names = Names::default();
-        let name = TName { name: names.intern("x"), is_type: false };
+        let name = name();
         let mut tpd = Tpd::default();
-        let node =
-            |tpd: &mut Tpd, tree: Tree, sym: Option<u32>| tpd.node(tree, Span::NONE, None, sym.map(SymbolId));
         let tpt = node(&mut tpd, Tree::TypeTree { inferred: true }, None);
         let a = node(&mut tpd, Tree::Ident { name }, None);
         let v = node(&mut tpd, Tree::ValDef { name, tpt, rhs: Some(a) }, Some(2));
@@ -132,28 +142,72 @@ mod tests {
         (tpd, vec![block, v, tpt, a, m, tpt2, b])
     }
 
-    #[test]
-    fn enters_outer_trees_first_with_their_owners() {
-        let (mut tpd, order) = unit();
+    /// The owner each tree under `root` is entered with, from owner 1.
+    fn owners(tpd: &mut Tpd, root: TNodeId) -> Vec<(TNodeId, u32)> {
         let mut seen = Vec::new();
-        traverse(&mut tpd, order[0], SymbolId(1), &mut |_, t, owner| {
+        traverse(tpd, root, SymbolId(1), &mut |_, t, owner| {
             seen.push((t, owner.0));
             Walk::Children
         });
-        let owners = [1, 1, 2, 2, 1, 3, 3];
-        assert_eq!(seen, order.iter().copied().zip(owners).collect::<Vec<_>>());
+        seen
     }
 
     #[test]
-    fn leaves_inner_trees_first() {
+    fn enters_outer_trees_first_with_their_owners() {
         let (mut tpd, order) = unit();
-        let mut seen = Vec::new();
-        traverse_up(&mut tpd, order[0], SymbolId(1), &mut |_, _, _| Walk::Children, &mut |_, t, _| {
-            seen.push(t);
-            Walk::Children
-        });
+        let owners = owners(&mut tpd, order[0]);
+        assert_eq!(owners, order.iter().copied().zip([1, 1, 2, 2, 1, 3, 3]).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn type_definitions_own_their_children_and_definitions_without_symbols_do_not() {
+        let name = name();
+        let mut tpd = Tpd::default();
+        let a = node(&mut tpd, Tree::Ident { name }, None);
+        let class = node(&mut tpd, Tree::TypeDef { name, rhs: a }, Some(5));
+        let tpt = node(&mut tpd, Tree::TypeTree { inferred: true }, None);
+        let b = node(&mut tpd, Tree::Ident { name }, None);
+        let anonymous = node(&mut tpd, Tree::ValDef { name, tpt, rhs: Some(b) }, None);
+        assert_eq!(owners(&mut tpd, class), [(class, 1), (a, 5)]);
+        assert_eq!(owners(&mut tpd, anonymous), [(anonymous, 1), (tpt, 1), (b, 1)]);
+    }
+
+    #[test]
+    fn leaves_inner_trees_first_and_skipped_trees_too() {
+        let (mut tpd, order) = unit();
         let [block, v, tpt, a, m, tpt2, b] = order[..] else { unreachable!() };
+        let mut seen = Vec::new();
+        let mut enter = |_: &mut Tpd, _, _| Walk::Children;
+        traverse_up(&mut tpd, block, SymbolId(1), &mut enter, &mut |_, t, _| {
+            seen.push(t);
+            ControlFlow::Continue(())
+        });
         assert_eq!(seen, [tpt, a, v, tpt2, b, m, block]);
+        seen.clear();
+        let mut enter = |_: &mut Tpd, t, _| if t == v { Walk::Skip } else { Walk::Children };
+        traverse_up(&mut tpd, block, SymbolId(1), &mut enter, &mut |_, t, _| {
+            seen.push(t);
+            ControlFlow::Continue(())
+        });
+        assert_eq!(seen, [v, tpt2, b, m, block]);
+    }
+
+    #[test]
+    fn a_break_from_leave_ends_the_walk_and_leave_gets_the_owner() {
+        let (mut tpd, order) = unit();
+        let [block, _, tpt, a, ..] = order[..] else { unreachable!() };
+        let mut seen = Vec::new();
+        let mut entered = 0;
+        let mut enter = |_: &mut Tpd, _, _| {
+            entered += 1;
+            Walk::Children
+        };
+        traverse_up(&mut tpd, block, SymbolId(1), &mut enter, &mut |_, t, owner| {
+            seen.push((t, owner.0));
+            if t == a { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
+        });
+        assert_eq!(seen, [(tpt, 2), (a, 2)]);
+        assert_eq!(entered, 4);
     }
 
     #[test]
@@ -171,6 +225,27 @@ mod tests {
             }
         });
         assert_eq!(seen, [(order[0], 1), (v, 1), (m, 1), (order[5], 9)]);
+    }
+
+    #[test]
+    fn enters_the_children_of_a_tree_rewritten_on_entering() {
+        let (mut tpd, order) = unit();
+        let a = order[3];
+        let name = name();
+        let mut made = Vec::new();
+        let mut seen = Vec::new();
+        traverse(&mut tpd, order[0], SymbolId(1), &mut |tpd, t, _| {
+            seen.push(t);
+            if t == a {
+                let expr = node(tpd, Tree::Ident { name }, None);
+                let tpt = node(tpd, Tree::TypeTree { inferred: true }, None);
+                tpd.get_mut(t).tree = Tree::Typed { expr, tpt };
+                made = vec![expr, tpt];
+            }
+            Walk::Children
+        });
+        let at = seen.iter().position(|&t| t == a).expect("a entered");
+        assert_eq!(seen[at + 1..at + 3], made[..]);
     }
 
     #[test]

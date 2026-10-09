@@ -5,7 +5,7 @@ use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
+use typer::tpd::{Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
 
 impl AsRef<Tpd> for Lower<'_> {
     fn as_ref(&self) -> &Tpd {
@@ -17,20 +17,19 @@ impl AsRef<Tpd> for Lower<'_> {
 /// the type and class definitions nested in it.
 pub fn walk_class<'a>(l: &mut Lower<'a>, td: TNodeId, enter: &mut Visit<Lower<'a>>) {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    traverse(l, td, class, &mut |l, t, owner| if nested(l, td, t) { Walk::Skip } else { enter(l, t, owner) });
+    traverse(l, td, class, &mut outside_nested(td, enter));
 }
 
-/// `walk_class` as `typer::tpd::traverse_up`, also calling `leave` on each tree entered.
+/// `walk_class` as `typer::tpd::traverse_up`, also calling `leave` on each tree entered, the
+/// nested definitions skipped too.
 pub fn walk_class_up<'a>(
     l: &mut Lower<'a>,
     td: TNodeId,
     enter: &mut Visit<Lower<'a>>,
-    leave: &mut Visit<Lower<'a>>,
+    leave: &mut Leave<Lower<'a>>,
 ) {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let mut enter =
-        |l: &mut Lower<'a>, t, owner| if nested(l, td, t) { Walk::Skip } else { enter(l, t, owner) };
-    traverse_up(l, td, class, &mut enter, leave);
+    traverse_up(l, td, class, &mut outside_nested(td, enter), leave);
 }
 
 /// `walk_class` of a fallible `enter`, ended by its first error.
@@ -40,21 +39,23 @@ pub fn try_walk_class<'a>(
     enter: &mut dyn FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Result<Walk>,
 ) -> Result<()> {
     let mut result = Ok(());
-    walk_class(l, td, &mut |l, t, owner| or_stop(&mut result, enter(l, t, owner)));
+    walk_class(l, td, &mut |l, t, owner| {
+        enter(l, t, owner).unwrap_or_else(|e| {
+            result = Err(e);
+            Walk::Stop
+        })
+    });
     result
 }
 
-/// `walk`'s answer, or `Walk::Stop` for an error, which goes to `result`.
-pub fn or_stop(result: &mut Result<()>, walk: Result<Walk>) -> Walk {
-    walk.unwrap_or_else(|e| {
-        *result = Err(e);
-        Walk::Stop
-    })
-}
-
-/// Whether `t` is a type or class definition nested in class definition `td`.
-fn nested(l: &Lower, td: TNodeId, t: TNodeId) -> bool {
-    t != td && matches!(l.tpd.tree(t), Tree::TypeDef { .. })
+/// `enter`, skipping the type and class definitions nested in class definition `td`.
+fn outside_nested<'a, 'f>(
+    td: TNodeId,
+    enter: &'f mut Visit<'_, Lower<'a>>,
+) -> impl FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Walk + 'f {
+    move |l, t, owner| {
+        if t != td && matches!(l.tpd.tree(t), Tree::TypeDef { .. }) { Walk::Skip } else { enter(l, t, owner) }
+    }
 }
 
 /// The direct subtrees of `t`, in order.

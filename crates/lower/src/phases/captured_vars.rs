@@ -28,7 +28,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.fields.insert(r.elem, r.elem);
         refs.insert(v, r);
     }
-    rewrite(l, td, class, &refs);
+    rewrite(l, td, &refs);
     for (&v, &r) in &refs {
         let flags = l.u.symbol(v).flags.without(MUTABLE);
         l.u.set_flags(v, flags);
@@ -59,11 +59,12 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
     });
 }
 
-/// Rewrites the definitions, reads and writes of the variables of `refs` under `t`, in class
-/// `class`.
-fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, refs: &FxHashMap<SymbolId, Ref>) {
+/// Rewrites the definitions, reads and writes of the variables of `refs` in class definition
+/// `td`.
+fn rewrite(l: &mut Lower, td: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
     let captured = |l: &Lower, t| l.tpd.sym(t).is_some_and(|s| refs.contains_key(&s));
-    traverse(l, t, class, &mut |l, t, _| match *l.tpd.tree(t) {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    traverse(l, td, class, &mut |l, t, _| match *l.tpd.tree(t) {
         Tree::ValDef { name, rhs: Some(rhs), .. } if captured(l, t) => {
             let r = refs[&l.tpd.sym(t).expect("a variable")];
             let span = l.tpd.span(rhs);

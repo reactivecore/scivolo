@@ -6,6 +6,7 @@ use super::getters::is_const_final;
 use super::walk::walk_class_up;
 use crate::Lower;
 use crate::symbols::{has, is_module};
+use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use syntax::names::to_utf16;
 use tasty::tags::{
@@ -22,7 +23,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             l.copy_node(t, arg);
         }
         const_to_literal(l, t);
-        Walk::Children
+        ControlFlow::Continue(())
     });
 }
 

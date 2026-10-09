@@ -3,10 +3,11 @@
 //! `C.m$extension(q)(args)`, a method of the companion object taking the value first.
 
 use super::adapt::from_start;
-use super::walk::{or_stop, walk_class_up};
+use super::walk::walk_class_up;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_constructor, is_module, is_trait};
 use crate::{Lower, Result, unsupported};
+use std::ops::ControlFlow;
 use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
@@ -20,7 +21,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         _ => Walk::Children,
     };
     walk_class_up(l, td, &mut enter, &mut |l, t, owner| {
-        or_stop(&mut result, rewire(l, t, owner).map(|()| Walk::Children))
+        result = rewire(l, t, owner);
+        if result.is_err() { ControlFlow::Break(()) } else { ControlFlow::Continue(()) }
     });
     result
 }

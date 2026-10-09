@@ -2,6 +2,7 @@
 
 use super::walk::walk_class_up;
 use crate::Lower;
+use std::ops::ControlFlow;
 use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree, Walk};
 
@@ -17,6 +18,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
             let ret = l.positioned(ret);
             l.tpd.get_mut(t).tree = Tree::Block { stats, expr: ret };
         }
-        Walk::Children
+        ControlFlow::Continue(())
     });
 }

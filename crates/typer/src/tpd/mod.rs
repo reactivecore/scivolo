@@ -8,7 +8,7 @@ mod tree;
 mod walk;
 
 pub use tree::{Clauses, List, TNodeId, Tree};
-pub use walk::{Visit, Walk, traverse, traverse_up};
+pub use walk::{Leave, Visit, Walk, traverse, traverse_up};
 
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
