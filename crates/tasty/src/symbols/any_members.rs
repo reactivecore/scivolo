@@ -3,7 +3,7 @@
 
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{FINAL, PROTECTED};
+use crate::tags::{ARTIFACT, FINAL, PROTECTED};
 use crate::types::{Type, TypeId};
 use crate::{ANY, NOTHING};
 
@@ -28,16 +28,16 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let wildcard = u.types.intern(Type::Wildcard(Some(any_bounds)));
     let class_of_any = u.types.intern(Type::Applied(class, vec![wildcard]));
     method(u, any, "getClass", &[], class_of_any, &[FINAL]);
-    poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
-    poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
-    poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
+    poly(u, any, "isInstanceOf", (any_bounds, &[FINAL]), |_, _| boolean);
+    poly(u, any, "$isInstanceOf", (any_bounds, &[FINAL, ARTIFACT]), |_, _| boolean);
+    poly(u, any, "asInstanceOf", (any_bounds, &[FINAL]), |u, x0| u.types.intern(x0.clone()));
     let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
     let kept: Vec<SymbolId> =
         hidden.into_iter().filter(|&d| !HIDDEN.contains(&u.symbol(d).name.as_str())).collect();
     u.symbols[object.0 as usize].decls = kept;
     method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL]);
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL]);
-    poly(u, object, "synchronized", any_bounds, |u, x0| {
+    poly(u, object, "synchronized", (any_bounds, &[FINAL]), |u, x0| {
         let t = u.types.intern(x0.clone());
         let binder = u.fresh_binder();
         u.types.intern(Type::Method {
@@ -89,19 +89,19 @@ fn value_method(u: &mut Universe, owner: SymbolId, name: &str, result: TypeId, f
     u.infos.insert(s, result);
 }
 
-/// A final method with one type parameter `X0` of bounds `bounds`, its type made by `result`
-/// from the parameter.
+/// A method of flags `flags` with one type parameter `X0` of bounds `bounds`, its type made by
+/// `result` from the parameter.
 fn poly(
     u: &mut Universe,
     owner: SymbolId,
     name: &str,
-    bounds: TypeId,
+    (bounds, flags): (TypeId, &[u8]),
     result: impl FnOnce(&mut Universe, &Type) -> TypeId,
 ) {
     let binder = u.fresh_binder();
     let x0 = Type::Param(binder, 0);
     let result = result(u, &x0);
     let info = u.types.intern(Type::Poly { binder, params: vec![("X0".into(), bounds)], result });
-    let s = synthetic(u, owner, name, Kind::Def, &[FINAL]);
+    let s = synthetic(u, owner, name, Kind::Def, flags);
     u.infos.insert(s, info);
 }
