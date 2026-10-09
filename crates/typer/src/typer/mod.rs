@@ -27,6 +27,7 @@ mod enum_cases;
 mod equality;
 mod errors;
 mod eta;
+mod features;
 mod find_ref;
 mod function_types;
 mod idents;

@@ -75,7 +75,7 @@ impl Typer<'_> {
         }
         let Pt::Type(pt) = pt else { return tree };
         if ctx.mode.is(Mode::PATTERN) {
-            if let Err(what) = self.check_pattern_equality(tree, pt) {
+            if let Err(what) = self.check_pattern_equality(tree, pt, ctx) {
                 self.unsupported_at(span, what);
             }
             return tree;
