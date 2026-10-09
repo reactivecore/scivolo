@@ -11,7 +11,7 @@ impl Typer<'_> {
     pub fn is_concrete(&self, s: SymbolId) -> bool {
         match self.syms.flags.get(&s) {
             Some(flags) => !flags.is(f::DEFERRED),
-            None => self.u.body(s).is_some(),
+            None => self.u.body(s).is_some() || self.u.symbol(s).owner == Some(self.u.builtins().any),
         }
     }
 
@@ -36,7 +36,12 @@ impl Typer<'_> {
 
     pub fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ka, kb) = (self.u.symbol(a).kind, self.u.symbol(b).kind);
-        if ka == Kind::Def && kb == Kind::Def { self.u.matches(site, a, b) } else { true }
+        match (ka, kb) {
+            (Kind::Def, Kind::Def) => self.u.matches(site, a, b),
+            (Kind::Def, _) => !self.has_params(a),
+            (_, Kind::Def) => !self.has_params(b),
+            _ => true,
+        }
     }
 
     pub fn check_overrides(&mut self, cls: SymbolId, span: Span) {
