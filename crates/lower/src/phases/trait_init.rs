@@ -1,9 +1,9 @@
 //! dotty's `Constructors` for a trait with initialization: its constructor `$init$` calls the
 //! setter of each value with its initializer and runs the statements of the body, in order.
 
+use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
-use super::trait_fields::trait_setter_name;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;

@@ -3,7 +3,9 @@
 //! it does not override, the call of the trait's initializer `$init$` and its setters, which
 //! `Memoize` makes store fields.
 
+use super::accessor_names::{accessor_name, trait_setter_name};
 use super::getters::{is_const_final, is_setter};
+use super::library_traits::define_setter;
 use crate::definitions::symbol;
 use crate::symbols::{has, is_trait};
 use crate::{Lower, Result};
@@ -29,43 +31,16 @@ pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
     }
 }
 
-/// The separator in the names of trait setters (dotty's `TraitSetterName`).
-const TRAIT_SETTER: &str = "$_setter_$";
-
-/// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
-/// trait and its owners joined by `$` (dotty's `expandedName`).
-pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
-    format!("{}{TRAIT_SETTER}{x}_=", expanded_prefix(l, trait_))
-}
-
-/// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
-fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
-    let sym = l.u.symbol(s);
-    let name = sym.name.strip_suffix('$').unwrap_or(&sym.name);
-    match sym.owner {
-        Some(o) if l.u.symbol(o).kind == Kind::Package => match l.u.full_name(o).as_str() {
-            "" | "<empty>" => name.to_owned(),
-            package => format!("{}${name}", package.replace('.', "$")),
-        },
-        Some(o) => format!("{}${name}", expanded_prefix(l, o)),
-        None => name.to_owned(),
-    }
-}
-
-/// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.
-pub fn setter_getter_name(setter: &str) -> &str {
-    let name = setter.rsplit(TRAIT_SETTER).next().unwrap_or(setter);
-    name.strip_suffix("_=").unwrap_or(name)
-}
-
 /// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.
 fn is_trait_getter(l: &mut Lower, s: SymbolId) -> bool {
     if !has(l.u, s, FIELDaccessor) || is_setter(l, s) || has(l.u, s, LAZY) {
         return false;
     }
     let Some(trait_) = l.u.symbol(s).owner else { return false };
-    let name = l.u.symbol(s).name.clone();
-    let setter = if has(l.u, s, MUTABLE) { format!("{name}_=") } else { trait_setter_name(l, trait_, &name) };
+    let setter = match has(l.u, s, MUTABLE) {
+        true => format!("{}_=", l.u.symbol(s).name),
+        false => trait_setter_name(l, trait_, &accessor_name(l, s)),
+    };
     l.u.decl(trait_, &setter).is_ok_and(|d| !d.is_empty())
 }
 
@@ -102,18 +77,11 @@ pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
 
 /// The deferred trait setter `T$_setter_$x_=(x$0: X): Unit` of getter `getter` of trait `trait_`.
 fn trait_setter(l: &mut Lower, trait_: SymbolId, getter: SymbolId, span: Span) -> TNodeId {
-    let getter_name = l.u.symbol(getter).name.clone();
-    let name = trait_setter_name(l, trait_, &getter_name);
-    let setter = l.u.define(symbol(&name, Kind::Def, trait_, tasty::Flags::default().with(FIELDaccessor)));
+    let name = trait_setter_name(l, trait_, &accessor_name(l, getter));
     let getter_info = l.u.info(getter);
     let value = l.u.result_type(getter_info);
+    let setter = define_setter(l, trait_, &name, value);
     let unit = l.u.class_ref("scala.Unit");
-    let binder = l.u.fresh_binder();
-    let params = vec![("x$0".to_owned(), value)];
-    let info =
-        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
-    l.u.set_info(setter, info);
-    l.u.set_deferred(setter, true);
     let param = l.u.define(symbol("x$0", Kind::Param, setter, tasty::Flags::default()));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
@@ -158,6 +126,9 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
 
 /// Whether the member of `class` named as `getter` is `getter` (dotty's `isInImplementingClass`).
 fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool {
+    if has(l.u, getter, PRIVATE) {
+        return true;
+    }
     let name = l.u.symbol(getter).name.clone();
     for base in l.u.linearization(class) {
         let found = l.u.decl(base, &name).unwrap_or_default();
@@ -175,8 +146,9 @@ fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool {
 /// span.
 fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<TNodeId>) -> TNodeId {
     let span = Span::NONE;
+    let name = accessor_name(l, member);
     let m = l.u.symbol(member);
-    let (name, kind, flags) = (m.name.clone(), m.kind, m.flags.with(SYNTHETIC));
+    let (kind, flags) = (m.kind, m.flags.with(SYNTHETIC).without(PRIVATE));
     let sym = l.u.define(symbol(&name, kind, class, flags));
     l.mixed_in.insert(sym);
     let info = l.u.info(member);

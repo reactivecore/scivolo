@@ -47,3 +47,4 @@ traitvals
 traitorder
 generictraits
 abstractvals
+apps

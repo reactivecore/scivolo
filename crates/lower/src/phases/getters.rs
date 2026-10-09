@@ -146,6 +146,22 @@ pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
+/// Records the span of the right-hand side of each getter of class definition `td`, its point at
+/// its start.
+pub fn record_rhs(l: &mut Lower, td: TNodeId) {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return };
+    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return };
+    for &stat in l.tpd.items(body) {
+        let (Tree::DefDef { rhs: Some(rhs), .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
+            continue;
+        };
+        let r = l.tpd.span(*rhs);
+        if has(l.u, s, FIELDaccessor) && r.exists() {
+            l.getter_rhs.insert(s, r.with_point(r.start()));
+        }
+    }
+}
+
 /// Whether a base class of value `s`'s class has a member of its name.
 fn overrides(l: &mut Lower, s: SymbolId) -> bool {
     let Some(class) = l.u.symbol(s).owner else { return false };

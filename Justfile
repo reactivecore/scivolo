@@ -56,10 +56,10 @@ programs-stale *names:
     cargo build -q --release -p nir-dump
     python3 scripts/programs.py stale {{ names }}
 
-# Print NIR file, directory or jar `path` as text.
+# Print NIR file, directory or jar `path` as text; `?` may stand for `$` (a glob).
 nir-dump path *args:
     cargo build -q --release -p nir-dump
-    target/release/nir-dump {{ args }} '{{ path }}'
+    target/release/nir-dump {{ args }} {{ path }}
 
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
 # the lowering compile it, definitions sorted, with positions; Scala Native's from the test
@@ -298,3 +298,11 @@ lint-msrv:
 # Run the whole test suite.
 test *args:
     cargo test --workspace {{ locked }} {{ args }}
+
+# Open a merge request of the current branch into `target`, described by tmp/mr.md.
+mr-create title target="main" *flags:
+    glab mr create --source-branch "$(git branch --show-current)" --target-branch '{{ target }}' --title '{{ title }}' --description "$(cat tmp/mr.md)" {{ flags }}
+
+# Create an issue with comma-separated `labels`, described by tmp/issue.md.
+issue-create title labels:
+    glab issue create --title '{{ title }}' --label '{{ labels }}' --description "$(cat tmp/issue.md)"

@@ -1,5 +1,6 @@
 //! dotty's phases between the typer and NIR generation, each a pass over the unit.
 
+mod accessor_names;
 pub(crate) mod adapt;
 mod adapted;
 mod array_apply;
@@ -17,6 +18,7 @@ pub(crate) mod casts;
 mod closures;
 mod constructors;
 mod enum_values;
+mod enumerations;
 mod envelope;
 mod erased_branches;
 mod erasure;
@@ -29,6 +31,7 @@ mod lambda_lift;
 mod lazy_init;
 mod lazy_trees;
 pub(crate) mod lazy_vals;
+mod library_traits;
 mod lifted;
 mod literals;
 mod local_classes;
@@ -57,6 +60,7 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
     for &td in &classes {
+        enumerations::check(l, td)?;
         synthetic::add_synthetic_members(l, root, td)?;
         first_transform::transform(l, td);
     }
@@ -74,6 +78,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         by_name::transform(l, td);
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
+        getters::record_rhs(l, td);
     }
     for &td in &classes {
         eta_reduce::transform(l, td);

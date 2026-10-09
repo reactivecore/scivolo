@@ -59,14 +59,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut forwarders = Vec::new();
     for mixin in mixins(l, class) {
         let library = l.u.symbol(mixin).tree.is_some();
-        if library && !l.u.no_inits(mixin) {
-            return unsupported(span, "library traits with initialization");
-        }
         let decls = l.u.decls(mixin).unwrap_or_default();
         if library && decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
             return unsupported(span, "generic library traits as parents");
         }
-        if !library {
+        if library && !l.u.no_inits(mixin) {
+            super::library_traits::prepare(l, mixin, span)?;
+        }
+        if !library || !l.u.no_inits(mixin) {
             forwarders.extend(mixed_in(l, class, mixin, span)?);
         }
         for meth in l.u.decls(mixin).unwrap_or_default() {

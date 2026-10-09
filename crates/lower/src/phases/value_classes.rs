@@ -20,8 +20,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     while let Some((t, owner)) = todo.pop() {
         order.push((t, owner));
         let nested = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) && t != td;
-        let inner = match l.tpd.tree(t) {
-            Tree::DefDef { .. } => l.tpd.sym(t).unwrap_or(owner),
+        let inner = match *l.tpd.tree(t) {
+            Tree::DefDef { .. } | Tree::ValDef { .. } => l.tpd.sym(t).unwrap_or(owner),
+            Tree::Template { constr, .. } => l.tpd.sym(constr).unwrap_or(owner),
             _ => owner,
         };
         if !nested {
