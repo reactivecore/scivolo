@@ -1,7 +1,7 @@
 //! dotty's `Constructors` for a trait with initialization: its constructor `$init$` calls the
 //! setter of each value with its initializer and runs the statements of the body, in order.
 
-use super::getters::is_setter;
+use super::getters::{is_const_final, is_setter};
 use super::trait_fields::trait_setter_name;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -24,7 +24,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         match l.tpd.tree(stat).clone() {
             Tree::Import { .. } => {}
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
-                if l.tpd.sym(stat).is_some_and(|s| has(l.u, s, FIELDaccessor) && !is_setter(l, s)) =>
+                if l.tpd.sym(stat).is_some_and(|s| {
+                    has(l.u, s, FIELDaccessor) && !is_setter(l, s) && !is_const_final(l, s)
+                }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");
                 inits.push(set(l, class, getter, rhs, l.tpd.span(stat)));

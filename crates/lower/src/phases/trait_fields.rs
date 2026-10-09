@@ -32,10 +32,24 @@ pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
 /// The separator in the names of trait setters (dotty's `TraitSetterName`).
 const TRAIT_SETTER: &str = "$_setter_$";
 
-/// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`.
+/// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
+/// trait and its owners joined by `$` (dotty's `expandedName`).
 pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
-    let prefix = l.u.full_name(trait_).replace('.', "$");
-    format!("{prefix}{TRAIT_SETTER}{x}_=")
+    format!("{}{TRAIT_SETTER}{x}_=", expanded_prefix(l, trait_))
+}
+
+/// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
+fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
+    let sym = l.u.symbol(s);
+    let name = sym.name.strip_suffix('$').unwrap_or(&sym.name);
+    match sym.owner {
+        Some(o) if l.u.symbol(o).kind == Kind::Package => match l.u.full_name(o).as_str() {
+            "" | "<empty>" => name.to_owned(),
+            package => format!("{}${name}", package.replace('.', "$")),
+        },
+        Some(o) => format!("{}${name}", expanded_prefix(l, o)),
+        None => name.to_owned(),
+    }
 }
 
 /// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.

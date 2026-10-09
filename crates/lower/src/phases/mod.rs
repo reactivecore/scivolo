@@ -91,7 +91,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         select_static::transform(l, td);
     }
-    for &td in &classes {
+    let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
+        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| crate::symbols::is_trait(l.u, c)));
+    for &td in traits.iter().chain(&others) {
         mixin::transform(l, td)?;
     }
     for &td in &classes {

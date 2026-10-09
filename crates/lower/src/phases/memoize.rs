@@ -1,14 +1,16 @@
 //! dotty's `Memoize`: each getter of a class gets a private field that its right-hand side
 //! (or, for a class parameter, the constructor) initializes and that the getter returns; a
-//! setter stores its argument in the field; a constant `final` value needs no field.
+//! setter stores its argument in the field; a constant `final` value needs no field. The class's
+//! own accessors come first, then those `Mixin` added, in its order.
 
 use super::getters::{is_const_final, is_param_accessor, is_setter};
 use super::trait_fields::setter_getter_name;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY, LOCAL, MUTABLE, PRIVATE, SYNTHETIC};
+use tasty::tags::{FIELDaccessor, LAZY, LOCAL, MUTABLE, PRIVATE};
 use tasty::{Erased, Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -16,72 +18,26 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
-    let mut stats = Vec::new();
-    let mut setters = Vec::new();
-    for stat in l.tpd.items(body).to_vec() {
-        let accessor = l.tpd.sym(stat).filter(|&s| has(l.u, s, FIELDaccessor) && !l.u.is_deferred(s));
-        let (Tree::DefDef { name, paramss, tpt, rhs }, Some(accessor)) = (l.tpd.tree(stat).clone(), accessor)
-        else {
-            stats.push(stat);
-            continue;
-        };
-        if is_setter(l, accessor) {
-            setters.push((stat, accessor));
-            stats.push(stat);
-            continue;
-        }
-        if is_const_final(l, accessor) || has(l.u, accessor, LAZY) {
-            stats.push(stat);
-            continue;
-        }
-        let name_text = l.u.symbol(accessor).name.clone();
-        let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
-        if has(l.u, accessor, MUTABLE) {
-            flags = flags.with(MUTABLE);
-        }
-        let field = l.u.define(symbol(&name_text, Kind::Val, class, flags));
-        l.fields.insert(field, accessor);
-        let info = l.u.info(accessor);
-        l.u.set_info(field, info);
-        let span = l.tpd.span(stat);
-        let mixed_in = rhs.is_none() && has(l.u, accessor, SYNTHETIC) && !is_param_accessor(l, accessor);
-        let field_span = if mixed_in { Span::NONE } else { span };
-        let field_tpt = l.type_tree(info, field_span);
-        let def = Tree::ValDef { name, tpt: field_tpt, rhs };
-        stats.push(l.tpd.node(def, field_span, None, Some(field)));
-        let tpt_span = l.tpd.span(tpt);
-        let inferred = matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
-        let read_span = match rhs.map(|r| l.tpd.span(r)) {
-            _ if inferred && tpt_span.exists() => tpt_span.end_pos(),
-            Some(r) if r.exists() => r.with_point(r.start()),
-            _ if span.exists() => span.with_point(span.start()),
-            _ => span,
-        };
-        let read = match bottom(l, accessor) {
-            Some(Erased::Unit) => l.unit_literal(read_span),
-            Some(Erased::Null) => l.null_literal(read_span),
-            Some(_) => {
-                let null = l.null_literal(read_span);
-                l.throw_(null)
-            }
-            None => l.field_ref(field, read_span),
-        };
-        l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(read) };
-        stats.push(stat);
-    }
+    let items = l.tpd.items(body).to_vec();
+    let mut fields: FxHashMap<TNodeId, TNodeId> = FxHashMap::default();
+    let mut memoized = FxHashSet::default();
     let mut fence = false;
-    for (stat, accessor) in setters {
-        let Tree::DefDef { name, paramss, tpt, rhs } = l.tpd.tree(stat).clone() else {
-            unreachable!("a setter")
-        };
-        let rhs = match rhs {
-            _ if !is_unit_setter(l, class, accessor) => {
-                setter_rhs(l, class, accessor, paramss, rhs, &mut fence)
+    for mixed in [false, true] {
+        for &stat in &items {
+            let accessor = l.tpd.sym(stat).filter(|&s| has(l.u, s, FIELDaccessor) && !l.u.is_deferred(s));
+            let Some(accessor) = accessor.filter(|s| l.mixed_in.contains(s) == mixed) else { continue };
+            if is_setter(l, accessor) {
+                setter(l, class, stat, accessor, &memoized, &mut fence);
+            } else if !is_const_final(l, accessor) && !has(l.u, accessor, LAZY) {
+                fields.extend(getter(l, class, stat, accessor).map(|f| (stat, f)));
+                memoized.insert(l.u.symbol(accessor).name.clone());
             }
-            Some(r) => r,
-            None => l.unit_literal(l.tpd.span(stat)),
-        };
-        l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+        }
+    }
+    let mut stats = Vec::new();
+    for stat in items {
+        stats.extend(fields.get(&stat).copied());
+        stats.push(stat);
     }
     if fence {
         let call = l.static_call(l.defs.equality.release_fence, &[]);
@@ -93,6 +49,50 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
+/// Makes getter definition `stat` of `getter` return its field, or the value of a type needing
+/// none; the field's definition, none for a mixed-in getter of such a type.
+fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Option<TNodeId> {
+    let Tree::DefDef { name, paramss, tpt, rhs } = l.tpd.tree(stat).clone() else { unreachable!("a getter") };
+    let mixed_in = l.mixed_in.contains(&getter);
+    let bottom = bottom(l, getter);
+    let span = l.tpd.span(stat);
+    let field = (!(mixed_in && bottom.is_some())).then(|| {
+        let name_text = l.u.symbol(getter).name.clone();
+        let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
+        if has(l.u, getter, MUTABLE) {
+            flags = flags.with(MUTABLE);
+        }
+        let field = l.u.define(symbol(&name_text, Kind::Val, class, flags));
+        l.fields.insert(field, getter);
+        let info = l.u.info(getter);
+        l.u.set_info(field, info);
+        let field_span = if mixed_in { Span::NONE } else { span };
+        let field_tpt = l.type_tree(info, field_span);
+        let def = Tree::ValDef { name, tpt: field_tpt, rhs };
+        (field, l.tpd.node(def, field_span, None, Some(field)))
+    });
+    let tpt_span = l.tpd.span(tpt);
+    let inferred = matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
+    let read_span = match rhs.map(|r| l.tpd.span(r)) {
+        _ if inferred && tpt_span.exists() => tpt_span.end_pos(),
+        Some(r) if r.exists() => r.with_point(r.start()),
+        _ if span.exists() => span.with_point(span.start()),
+        _ => span,
+    };
+    let read = match (bottom, field) {
+        (Some(Erased::Unit), _) => l.unit_literal(read_span),
+        (Some(Erased::Null), _) => l.null_literal(read_span),
+        (Some(_), _) => {
+            let null = l.null_literal(read_span);
+            l.throw_(null)
+        }
+        (None, Some((field, _))) => l.field_ref(field, read_span),
+        (None, None) => unreachable!("a field"),
+    };
+    l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(read) };
+    field.map(|(_, def)| def)
+}
+
 /// The erased class of getter `getter`'s value if it is `Unit`, `Null` or `Nothing`, which need
 /// no field (dotty's `isErasableBottomField`).
 pub fn bottom(l: &mut Lower, getter: SymbolId) -> Option<Erased> {
@@ -101,44 +101,46 @@ pub fn bottom(l: &mut Lower, getter: SymbolId) -> Option<Erased> {
     matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing).then_some(erased)
 }
 
-/// The name of the getter of setter `setter`.
-fn getter_name(l: &Lower, setter: SymbolId) -> String {
-    setter_getter_name(&l.u.symbol(setter).name).to_owned()
-}
-
-/// Whether setter `setter` of class `class` sets a value that needs no field.
-fn is_unit_setter(l: &mut Lower, class: SymbolId, setter: SymbolId) -> bool {
-    let name = getter_name(l, setter);
-    let getter = l.u.decl(class, &name).unwrap_or_default().into_iter().find(|&g| !is_setter(l, g));
-    getter.is_some_and(|g| bottom(l, g).is_some())
-}
-
-/// `field = x$1` for setter `setter` of class `class`; the field of a `val` becomes mutable and
-/// `fence` true (dotty's `classesThatNeedReleaseFence`).
-fn setter_rhs(
+/// Makes setter definition `stat` of `setter` store its argument in the field of its getter, if
+/// that getter is among `memoized` and not a class parameter's; else its body stays `()`. A
+/// `val`'s field becomes mutable, and `fence` true (dotty's `classesThatNeedReleaseFence`).
+fn setter(
     l: &mut Lower,
     class: SymbolId,
+    stat: TNodeId,
     setter: SymbolId,
-    paramss: typer::tpd::Clauses,
-    rhs: Option<TNodeId>,
+    memoized: &FxHashSet<String>,
     fence: &mut bool,
-) -> TNodeId {
-    let getter_name = getter_name(l, setter);
-    let field = l.fields.iter().find_map(|(&f, &g)| {
-        let s = l.u.symbol(g);
-        (s.name == getter_name && s.owner == Some(class) && f != g).then_some(f)
-    });
-    let field = field.expect("a variable's field");
-    if !has(l.u, field, MUTABLE) {
-        let flags = l.u.symbol(field).flags.with(MUTABLE);
-        l.u.set_flags(field, flags);
+) {
+    let Tree::DefDef { name, paramss, tpt, rhs } = l.tpd.tree(stat).clone() else { unreachable!("a setter") };
+    let unit_body = |l: &mut Lower| rhs.unwrap_or_else(|| l.unit_literal(l.tpd.span(stat)));
+    let getter_name = setter_getter_name(&l.u.symbol(setter).name).to_owned();
+    let getter = l.u.decl(class, &getter_name).unwrap_or_default().into_iter().find(|&g| !is_setter(l, g));
+    let param_val = getter.is_some_and(|g| is_param_accessor(l, g) && !has(l.u, g, MUTABLE));
+    let Some(getter) = getter.filter(|_| memoized.contains(&getter_name) && !param_val) else {
+        let rhs = unit_body(l);
+        l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+        return;
+    };
+    let field = l.fields.iter().find_map(|(&f, &g)| (g == getter && f != g).then_some(f));
+    if !has(l.u, getter, MUTABLE) {
+        if let Some(field) = field {
+            let flags = l.u.symbol(field).flags.with(MUTABLE);
+            l.u.set_flags(field, flags);
+        }
         *fence = true;
     }
-    let param_tree = l.tpd.items(l.tpd.clause_items(paramss)[0])[0];
-    let span = rhs.map_or(l.tpd.span(param_tree), |r| l.tpd.span(r));
-    let param = l.tpd.sym(param_tree).expect("a setter's parameter");
-    let lhs = l.field_ref(field, span);
-    let value = l.ident(param, span);
-    let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
-    l.tpd.node(Tree::Assign { lhs, rhs: value }, span, Some(unit), None)
+    let rhs = match (bottom(l, getter), field) {
+        (Some(_), _) | (None, None) => unit_body(l),
+        (None, Some(field)) => {
+            let param_tree = l.tpd.items(l.tpd.clause_items(paramss)[0])[0];
+            let span = rhs.map_or(l.tpd.span(param_tree), |r| l.tpd.span(r));
+            let param = l.tpd.sym(param_tree).expect("a setter's parameter");
+            let lhs = l.field_ref(field, span);
+            let value = l.ident(param, span);
+            let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
+            l.tpd.node(Tree::Assign { lhs, rhs: value }, span, Some(unit), None)
+        }
+    };
+    l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
 }
