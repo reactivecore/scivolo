@@ -45,6 +45,7 @@ mod methods;
 mod mirrors;
 mod mixin;
 mod outer_args;
+mod package_objects;
 mod patmat;
 mod repeated;
 mod returns;
@@ -68,6 +69,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
+        package_objects::transform(l, td);
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
