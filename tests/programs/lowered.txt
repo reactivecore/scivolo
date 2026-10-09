@@ -49,5 +49,6 @@ generictraits
 abstractvals
 apps
 tailrec
+nestedobjects
 privatetraits
 enumerations

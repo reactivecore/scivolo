@@ -11,9 +11,9 @@ use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVA
 use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Makes the values of class definition `td` getters; drops the private parameter fields not in
-/// `retained`; makes the private local values nothing refers to values of the constructor; drops
-/// the values of objects in objects.
+/// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
+/// private parameter fields not in `retained`; makes the private local values nothing refers to
+/// values of the constructor; drops the values of objects in objects.
 pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(()) };
@@ -36,14 +36,18 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             continue;
         }
         let span = l.tpd.span(stat);
-        if is_module(l.u, sym) {
-            if !owner.is_some_and(|o| is_module_class(l.u, o) && is_static(l.u, o)) {
-                return unsupported(span, "objects in classes and traits");
-            }
-            kept.pop();
-            continue;
-        }
         let in_trait = owner.is_some_and(|o| is_trait(l.u, o));
+        if is_module(l.u, sym) {
+            if owner.is_some_and(|o| is_module_class(l.u, o) && is_static(l.u, o)) {
+                kept.pop();
+                continue;
+            }
+            if in_trait {
+                return unsupported(span, "objects in traits");
+            }
+            let flags = l.u.symbol(sym).flags.with(LAZY);
+            l.u.set_flags(sym, flags);
+        }
         if in_trait && has(l.u, sym, LAZY) {
             return unsupported(span, "lazy values in traits");
         }
