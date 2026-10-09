@@ -7,6 +7,8 @@ case class Pair[A, B](a: A, b: B):
   val b = Box(1)
   println(b)
   println(b.value + 1)
+  println(b == Box(1))
+  println(b.equals(Box(2)))
   println(b.copy(value = "s"))
   val p = Pair("x", 2.5)
   println(p.swap)
