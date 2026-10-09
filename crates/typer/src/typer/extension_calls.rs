@@ -7,6 +7,13 @@ use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Span, TName, Tree};
 
 impl Typer<'_> {
+    /// Whether an extension method named `name` is visible in `ctx`.
+    pub fn extension_visible(&mut self, name: &str, ctx: Ctx) -> bool {
+        let found = self.find_ref(name, false, ctx);
+        let Ok(Some(found)) = found else { return found.is_err() };
+        found.syms.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
+    }
+
     /// Selection `id` of `name` from typed qualifier `qual`, which has no such member, as a call
     /// of the extension methods named `name` that `ctx` sees, if all it sees are such.
     pub fn extension_select(&mut self, id: NodeId, qual: TNodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {

@@ -70,6 +70,10 @@ impl Tpd {
             Tree::TypeBoundsTree { lo, hi, alias } => {
                 out.extend([Some(lo), Some(hi), alias].into_iter().flatten())
             }
+            Tree::LambdaTypeTree { tparams, body } => {
+                list(&mut out, tparams);
+                out.push(body);
+            }
             Tree::ValDef { tpt, rhs, .. } => out.extend([Some(tpt), rhs].into_iter().flatten()),
             Tree::DefDef { paramss, tpt, rhs, .. } => {
                 for &c in self.clause_items(paramss) {

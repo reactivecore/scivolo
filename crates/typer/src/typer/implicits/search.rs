@@ -54,6 +54,9 @@ impl Typer<'_> {
             let winner = match found.as_slice() {
                 [] => continue,
                 [c] => *c,
+                _ if !self.is_fully_defined(pt) => {
+                    return Err("implicit search for a type with type variables");
+                }
                 _ => self.most_specific(&found).ok_or("ambiguous implicit arguments")?,
             };
             return self.try_implicit(winner, pt, at, ctx, depth);

@@ -81,17 +81,24 @@ impl Universe {
         }
     }
 
-    /// `tycon[args]` with `tycon` an alias of a type lambda: its body, arguments substituted.
+    /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of
+    /// `tycon`, arguments substituted.
     pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
-        let alias = match self.types().get(tycon).clone() {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => self.resolve(p, &n, true),
-            _ => None,
-        }?;
+        let (prefix, alias) = match self.types().get(tycon).clone() {
+            Type::Sym(p, s) => (p, Some(s)),
+            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)),
+            _ => (None, None),
+        };
+        let alias = alias?;
         if self.symbol(alias).kind != Kind::Type {
             return None;
         }
         let info = self.info(alias);
+        let owner = self.symbol(alias).owner;
+        let info = match (prefix, owner) {
+            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),
+            _ => info,
+        };
         let Type::Lambda { binder, params, result } = self.types().get(info).clone() else { return None };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, args))

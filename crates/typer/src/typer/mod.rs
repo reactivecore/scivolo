@@ -72,6 +72,7 @@ mod this;
 mod tries;
 mod type_apply;
 mod type_defs;
+mod type_lambdas;
 mod type_mismatch;
 mod type_trees;
 mod unapply;

@@ -198,6 +198,11 @@ pub enum Tree {
         hi: TNodeId,
         alias: Option<TNodeId>,
     },
+    /// `[tparams] =>> body`.
+    LambdaTypeTree {
+        tparams: List,
+        body: TNodeId,
+    },
     Bind {
         name: TName,
         body: TNodeId,

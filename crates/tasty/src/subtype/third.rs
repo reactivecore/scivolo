@@ -84,10 +84,19 @@ impl Cmp<'_> {
             false => {
                 let a = match self.u.types().get(a).clone() {
                     Type::ByName(r) => r,
+                    Type::Applied(tycon, args) => self.applied_alias_expansion(tycon, &args).unwrap_or(a),
                     _ => a,
                 };
                 self.vars.add_lower(self.u, v, a)
             }
+        }
+    }
+
+    /// `tycon[args]` expanded if `tycon` is a type alias (dotty's `superType` of an applied alias).
+    fn applied_alias_expansion(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        match self.named(tycon)?.meaning {
+            super::refs::Meaning::Alias(_) => self.u.expand(tycon, args),
+            _ => None,
         }
     }
 

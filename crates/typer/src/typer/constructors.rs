@@ -25,6 +25,14 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new of a type alias of a non-static owner");
         }
+        if let Type::Sym(_, s) = *self.u.types().get(tycon)
+            && self.u.symbol(s).kind == Kind::Type
+            && self.syms.flags.contains_key(&s)
+            && let info = self.u.info(s)
+            && matches!(self.u.types().get(info), Type::Lambda { .. })
+        {
+            return self.unsupported(id, "new of a parameterized type alias");
+        }
         let erased = self.resolve_full_name("scala.compiletime.Erased", true);
         if let (Some(c), Some(erased)) = (self.u.class_symbol(tpe), erased)
             && self.u.derives_from(c, erased)
