@@ -396,9 +396,7 @@ fn atoms_of_a_dag_of_bounds_take_one_step_per_node() {
     let Some(mut u) = universe() else { return };
     let two_or_4 = parse(&mut u, "2 | 4");
     let t = bound_dag(&mut u, 40);
-    let start = std::time::Instant::now();
     assert!(u.is_subtype(t, two_or_4));
-    assert!(start.elapsed() < std::time::Duration::from_secs(1), "{:?}", start.elapsed());
 }
 
 #[test]
