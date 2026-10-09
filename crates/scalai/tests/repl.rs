@@ -94,6 +94,55 @@ fn piped_line_endings() {
     assert_eq!(code, Some(0));
 }
 
+#[test]
+fn load_paths_missing_or_unreadable() {
+    if libs_missing() {
+        return;
+    }
+    let cwd = std::fs::canonicalize(".").unwrap();
+    let (code, out, _) = repl(":load nope.scala\n:load nope/../src\n:load ./src\n:load\n:load a b \n");
+    let expected = [
+        format!("Couldn't find file \"{}\"", cwd.join("nope.scala").display()),
+        format!("Couldn't find file \"{}\"", cwd.join("src").display()),
+        format!("Couldn't read file \"{}\": Is a directory (os error 21)", cwd.join("src").display()),
+        format!("Couldn't find file \"{}\"", cwd.display()),
+        format!("Couldn't find file \"{}\"", cwd.join("a b ").display()),
+    ];
+    assert_eq!(out.lines().collect::<Vec<_>>(), expected);
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn load_nested_or_not_utf8() {
+    if libs_missing() {
+        return;
+    }
+    let bad = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("not-utf8.scala");
+    std::fs::write(&bad, b"val s = \"\xff\"\n").unwrap();
+    let (code, out, _) = repl(&format!(":load tests/load/itself.scala\n:load {}\n1\n", bad.display()));
+    let itself = std::fs::canonicalize("tests/load/itself.scala").unwrap();
+    let bad = std::fs::canonicalize(&bad).unwrap();
+    let expected = [
+        format!("Couldn't load file \"{}\": more than 16 nested :load commands", itself.display()),
+        format!("Couldn't read file \"{}\": stream did not contain valid UTF-8", bad.display()),
+        "val res0: Int = 1".to_owned(),
+    ];
+    assert_eq!(out.lines().collect::<Vec<_>>(), expected);
+    assert_eq!(code, Some(0));
+}
+
+#[test]
+fn printed_output_comes_first_also_when_silent() {
+    if libs_missing() {
+        return;
+    }
+    let input = ":silent\nprintln(\"p1\")\nval x = { println(\"p2\"); 1 }\n:load tests/load/prints.scala\n\
+                 :silent\nprintln(\"p3\")\n1\n";
+    let (code, out, _) = repl(input);
+    assert_eq!(out, "p1\np2\nloading\np3\nval res0: Int = 1\n");
+    assert_eq!(code, Some(0));
+}
+
 const SPIN: &str = "def spin(): Unit = while true do ()
 { println(\"looping\"); while true do try spin() catch { case _: ThreadDeath => println(\"caught\") } }
 ";

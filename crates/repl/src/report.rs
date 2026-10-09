@@ -42,6 +42,10 @@ fn count(shown: &[&Diagnostic], level: Level, what: &str) -> Option<String> {
     (n > 0).then(|| format!("{n} {what}{plural} found"))
 }
 
+/// What an input that starts with `//>` prints instead of running.
+pub const DIRECTIVES: &str =
+    "Please use `:dep com.example::artifact:version` to add dependencies in the REPL";
+
 pub fn unsupported(what: &str) -> String {
     format!("-- unsupported: {what}")
 }

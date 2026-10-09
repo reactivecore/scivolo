@@ -28,10 +28,23 @@ fn is_package_object(name: &str) -> bool {
     name == "package" || name.ends_with("$package")
 }
 
+/// Whether a prefix of qualified name `full` is omitted, as one the root imports bring.
+pub fn is_omitted(full: &str) -> bool {
+    OMITTED.contains(&full)
+}
+
+/// Qualified name `full` after its last REPL wrapper object: `O` for `rs$line$3.O`.
+pub fn after_wrapper(full: &str) -> &str {
+    match full.rfind("rs$line$") {
+        Some(at) => full[at..].split_once('.').map_or("", |(_, rest)| rest),
+        None => full,
+    }
+}
+
 /// The text of `path` as a prefix, `.` included; empty if the prefix is omitted.
 pub fn prefix_text(path: Path) -> String {
     let last = path.full.rsplit('.').next().unwrap_or("");
-    match OMITTED.contains(&path.full.as_str()) || last.contains("rs$line$") || path.shown.is_empty() {
+    match is_omitted(&path.full) || last.contains("rs$line$") || path.shown.is_empty() {
         true => String::new(),
         false => format!("{}.", path.shown),
     }
