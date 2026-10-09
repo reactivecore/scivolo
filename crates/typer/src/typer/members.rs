@@ -1,20 +1,20 @@
 //! The members of a type (dotty's `Type.member`, `findMember`).
 
 use super::Typer;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// The members named `name` of type `t`.
     pub fn type_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
         match self.u.types().get(t).clone() {
-            Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
+            Type::Package(p) => self.package_members(p, name),
             Type::This(c) => self.type_members(c, name),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
                 self.type_members(widened, name)
             }
             Type::Sym(prefix, s) => match self.u.symbol(s).kind {
-                Kind::Package => self.u.decl(s, name).unwrap_or_default(),
+                Kind::Package => self.package_members(s, name),
                 Kind::Class => self.class_members(s, name),
                 Kind::Val if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => {
                     self.u.module_class(s).map_or_else(Vec::new, |c| self.class_members(c, name))
@@ -22,7 +22,11 @@ impl Typer<'_> {
                 _ => {
                     self.complete(s);
                     let info = match prefix {
-                        Some(p) if !self.is_type_symbol(s) => self.u.member_info(p, s),
+                        Some(p) if !self.is_type_symbol(s) => {
+                            let info = self.u.member_info(p, s);
+                            let info = self.resolve_class_params(info);
+                            self.instantiated_selected(info)
+                        }
                         _ => self.u.info(s),
                     };
                     let info = match *self.u.types().get(info) {
@@ -51,6 +55,33 @@ impl Typer<'_> {
                 None => Vec::new(),
             },
         }
+    }
+
+    /// `t`, a type variable without instance but with a lower bound instantiated from below, so
+    /// that members can be selected on it (dotty's `isFullyDefined` with `ForceDegree.failBottom`
+    /// in `typedSelect`).
+    fn instantiated_selected(&mut self, t: TypeId) -> TypeId {
+        let t = self.zonk(t);
+        if let Type::Var(v) = *self.u.types().get(t)
+            && self.constraint.bounds(v).0 != tasty::NOTHING
+            && self.instantiate_var(v, true).is_ok()
+        {
+            return self.zonk(t);
+        }
+        t
+    }
+
+    /// The members named `name` of package `p`, those of its package objects that the unit
+    /// defines among them once completed.
+    fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
+        let objects: Vec<SymbolId> =
+            self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_package_object(d)).collect();
+        for o in objects {
+            if matches!(self.syms.completions.get(&o), Some(crate::symbols::Completion::Pending { .. })) {
+                self.complete(o);
+            }
+        }
+        self.u.decl(p, name).unwrap_or_default()
     }
 
     /// The members named `name` of class `c`, its base classes' included: the first type member,

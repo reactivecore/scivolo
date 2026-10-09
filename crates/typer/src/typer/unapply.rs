@@ -86,7 +86,7 @@ impl Typer<'_> {
         let tpe = self.widen_if_unstable(tpe);
         let seq = self.members_found(tpe, "unapply", false).is_none()
             && self.members_found(tpe, "unapplySeq", false).is_some();
-        if seq && (self.extension_visible("unapply", ctx) || self.unit_defines_extension("unapply")) {
+        if seq && self.extension_visible("unapply", ctx) {
             return Err("extension method");
         }
         let span = self.ast.span(qual);
@@ -101,16 +101,6 @@ impl Typer<'_> {
             return Err("extractor outside the subset");
         }
         Ok((unapp, seq))
-    }
-
-    /// Whether a package object of the unit defines an extension method named `name`.
-    fn unit_defines_extension(&mut self, name: &str) -> bool {
-        let objects: Vec<_> =
-            self.syms.flags.keys().copied().filter(|&s| self.is_package_object(s)).collect();
-        objects.into_iter().any(|c| {
-            let members = self.class_members(c, name);
-            members.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
-        })
     }
 
     /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.
