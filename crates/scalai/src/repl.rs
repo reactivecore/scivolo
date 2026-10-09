@@ -1,13 +1,14 @@
 //! The REPL: line editing on a terminal, else the lines of stdin.
 
+use crate::history;
 use ::repl::{Session, is_incomplete};
 use rustyline::completion::Completer;
 use rustyline::error::ReadlineError;
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
-use rustyline::history::DefaultHistory;
+use rustyline::history::MemHistory;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::{Editor, Helper};
+use rustyline::{Config, Editor, Helper};
 use std::io::{BufRead, IsTerminal};
 use std::panic::catch_unwind;
 use std::path::PathBuf;
@@ -74,20 +75,34 @@ fn piped(session: &mut Session) -> Result<(), String> {
 
 /// Reads inputs with line editing and history: Ctrl-C clears the input, Ctrl-D ends.
 fn interactive(session: &mut Session) -> Result<(), String> {
-    let mut editor: Editor<Input, DefaultHistory> = Editor::new().map_err(|e| e.to_string())?;
+    let config = Config::builder()
+        .max_history_size(history::MEMORY)
+        .and_then(|c| c.history_ignore_dups(false))
+        .map_err(|e| e.to_string())?
+        .history_ignore_space(false)
+        .build();
+    let memory = MemHistory::with_config(&config);
+    let mut editor = Editor::with_history(config, memory).map_err(|e| e.to_string())?;
     editor.set_helper(Some(Input));
-    let history = crate::libs::cache_dir().join("repl-history");
-    let _ = editor.load_history(&history);
-    let _ = std::fs::create_dir_all(crate::libs::cache_dir());
+    let file = history::path();
+    let mut last = None;
+    for entry in file.as_deref().map(history::load).unwrap_or_default() {
+        let _ = editor.add_history_entry(entry.as_str());
+        last = Some(entry);
+    }
     println!("{WELCOME}");
     println!();
     loop {
         match editor.readline(PROMPT) {
-            Ok(text) if text.trim().is_empty() => {}
             Ok(text) => {
-                let _ = editor.add_history_entry(text.as_str());
-                let _ = editor.append_history(&history);
-                if !eval(session, &text) {
+                if let Some(entry) = history::accept(last.as_deref(), &text) {
+                    let _ = editor.add_history_entry(entry.as_str());
+                    if let Some(file) = &file {
+                        let _ = history::append(file, &entry);
+                    }
+                    last = Some(entry);
+                }
+                if !text.trim().is_empty() && !eval(session, &text) {
                     return Ok(());
                 }
             }
