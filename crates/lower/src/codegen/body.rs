@@ -21,7 +21,9 @@ impl Gen<'_, '_> {
         let pos = self.pos_or(self.l.tpd.span(dd), self.no_pos);
         let name = self.method_name(sym);
         let ty = self.method_sig(sym, false);
-        let inline = has(self.l.u, sym, FIELDaccessor) || self.l.bridges.contains(&sym);
+        let inline = has(self.l.u, sym, FIELDaccessor)
+            || self.l.bridges.contains(&sym)
+            || self.l.local_lazy_accessors.contains(&sym);
         let attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });

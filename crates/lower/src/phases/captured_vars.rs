@@ -7,7 +7,7 @@ use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::{has, is_class};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
-use tasty::tags::MUTABLE;
+use tasty::tags::{LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -39,17 +39,18 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The local variables referred to under `t` from inside a function or class other than their
-/// own function, `function` the innermost function or class `t` is in.
+/// The local variables referred to under `t` from inside a function, class or lazy value other
+/// than their own function, `function` the innermost function, class or lazy value `t` is in.
 fn collect(l: &Lower, t: TNodeId, function: SymbolId, out: &mut FxHashSet<SymbolId>) {
     let function = match (l.tpd.tree(t), l.tpd.sym(t)) {
         (Tree::DefDef { .. } | Tree::TypeDef { .. }, Some(f)) => f,
+        (Tree::ValDef { .. }, Some(f)) if has(l.u, f, LAZY) => f,
         _ => function,
     };
     if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
         && has(l.u, s, MUTABLE)
         && let Some(owner) = l.u.symbol(s).owner
-        && l.u.symbol(owner).kind == Kind::Def
+        && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
         && !is_class(l.u, owner)
         && owner != function
     {
