@@ -1,4 +1,4 @@
-// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// oracle: scala3-repl 3.9.0, JDK 21
 // Direct members of a qualifier.
 tab> List(1).ma@@
   map mapConserve max maxBy maxByOption maxOption
@@ -69,15 +69,19 @@ tab> (1, 2).@@
   runtimeChecked size splitAt swap synchronized tail take toArray toIArray toList toString wait zip
   zipped →
 tab> (1, 2)._@@
-  != ## *: ++ -> :* == _1 _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2 _2$mcC$sp _2$mcD$sp
-  _2$mcI$sp _2$mcJ$sp _2$mcZ$sp apply asInstanceOf canEqual copy drop ensuring eq equals formatted
-  getClass hashCode head init invert isInstanceOf last map ne nn notify notifyAll productArity
-  productElement productElementName productElementNames productIterator productPrefix reverse
-  runtimeChecked size splitAt swap synchronized tail take toArray toIArray toList toString wait zip
-  zipped →
+  _1 _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2 _2$mcC$sp _2$mcD$sp _2$mcI$sp _2$mcJ$sp
+  _2$mcZ$sp
 // Cursor in the middle of a word: the prefix ends at the cursor.
 tab> x.he@@ad
   head headOption
+tab> x.ma@@p
+  map mapConserve
+// JLine's fallback when no label starts with or contains the word: labels whose
+// `ReaderUtils.distance` to it is below 2; with more than one, the word itself is added.
+tab> x.hea@@x
+  head headOption heax
+tab> x.ma@@q
+  map mapConserve maq max maxBy maxByOption maxOption
 tab> x.@@head
   != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
   aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect

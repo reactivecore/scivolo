@@ -3,7 +3,7 @@
 Date: 2026-10-09. Claims are [V] verified by reading the code or running it, or [I] inferred.
 Paths: `C/` = `ref/dotty/compiler/src/dotty/tools/dotc/`, `R/` = `ref/scala3-repl-3.9.0/dotty/
 tools/repl/`. Issue #69; the policy is [ADR 0018](../adr/0018-repl-completion.md). Oracle answers
-are those of scala3-repl 3.9.0 on JDK 21.0.12.1.
+are those of scala3-repl 3.9.0 and JLine 4.0.14 on JDK 21.
 
 **Recommendation.** Port `Completion.scala` as a computation of label sets (the REPL shows
 labels only, deduplicated, no types), driven by a *probe* in our typer: the input is parsed
@@ -19,7 +19,7 @@ validity filter.
 1. JLine asks the REPL's parser for the word under the cursor (`R/JLineTerminal.scala:220-292`)
    [V]: the whole input if it is a prefix of a command, else the identifier or keyword token
    containing the cursor (an unclosed backtick keeps its start), else an empty word. `LIST_MAX`
-   is 400; Tab at the start of a line inserts a tab.
+   is 400; Tab inserts a tab when the buffer's last line is blank (`insertTab`).
 2. The completer (`R/ReplDriver.scala:184-211`) [V] adds one candidate per distinct label:
    value the label, display the label without backticks, no description, no space appended.
    Candidates whose label equals the word print their `showUser` signature above the prompt
@@ -34,6 +34,13 @@ validity filter.
    the cursor (`Interactive.pathTo`, innermost first, recovery trees skipped), rebuilds the
    context along it (`Interactive.contextOfPath`: imports before the cursor, parameters, block
    locals, case binds, class bodies), and reads mode and prefix off the *untyped* path.
+5. JLine filters the candidates by the word of step 1 (`LineReaderImpl.doComplete`, Tab being
+   `complete-word`; `CompletionMatcherImpl.defaultMatchers`) [V]: the values starting with the
+   whole word; if none, those containing it; if none, those whose `ReaderUtils.distance` to it
+   is below 2, plus the word itself when there are several. The word can differ from dotty's
+   prefix, which ends at the cursor: `x.ma@@p` shows `map mapConserve` only. One match is
+   inserted; else the common prefix, then the list, sorted by `Candidate.compareTo`
+   (`String.compareTo` on the value).
 
 ### 1.2 Mode and prefix (`Completion.scala:102-168`) [V]
 
@@ -77,7 +84,6 @@ text from a leading backtick. Matching is `startsWith`.
 
 The result is a map by name, unordered [V]. A label that is not a plain identifier or operator,
 or is a keyword, is backticked, and every label is when the prefix starts with a backtick.
-JLine sorts by value [I]; ADR 0018 fixes alphabetical order.
 
 ## 2. What the corpus shows [V]
 
@@ -87,13 +93,15 @@ The answers are in `tests/repl-completion/*.tab`; the points they make:
    `LiveStackFrame$PrimitiveSlot`, `Str` gives `StringTemplate$Processor$Linkage`), JDK root
    packages (`sun`, `javax`), JDK members of `String`, `Integer` (`describeConstable`) and
    `ArrayList` (`addFirst`).
-2. `(1, 2)._` lists every member: `_` scans as a wildcard token, so the name is `<error>` and the
-   prefix empty.
+2. `(1, 2)._`: dotty returns every member (`_` scans as a wildcard token, so the name is
+   `<error>` and the prefix empty), and JLine's word `_` keeps `_1`, `_2` and their
+   specializations. `x.ma@@q` falls back to the typo match and shows `maq` itself.
 3. `1.` offers `isNaN`, `floor`, `toDegrees`; `x.size.` does not.
 4. `1 -` offers `-` and `->`: an infix operator completes as a member of its left operand.
 5. Nothing after a command (`:type x.`), on a keyword (`case`), on a rename, a type projection
    (`Box[Int]#El`), an enum after `new`, an extension of an object not imported.
 6. An error elsewhere in the input does not stop completion (`val q: Int = "s"; x.hea`).
+   Inside a string literal, scope names complete: `"pri` and `s"pri` give `print printf println`.
 7. `x.\`hea` gives `` `headOption` `` before `` `head` ``: sorted with backticks.
 
 ## 3. What we need
@@ -125,9 +133,12 @@ would drop `_1$mcI$sp`.
 ## 4. The oracle and the corpus
 
 `just completion-oracle [files]` (`scripts/completion-oracle/Oracle.scala`) rewrites corpus
-files in place with dotty's answers, one fresh `ReplDriver` per file, its classpath cut to the
-Scala library jars so that no tool package (`xsbti`) leaks in. It refuses a JDK other than 21.
-The whole corpus takes about 6 s, 12 s with the scala-cli start. CI does not run it.
+files in place with what the REPL lists: the labels of `ReplDriver.completions`, filtered and
+sorted by JLine's own code (the REPL's `JLineTerminal` parser for the word, `CompletionMatcherImpl`
+with the REPL's options). One fresh `ReplDriver` per file, its classpath cut to the Scala library
+jars so that no tool package (`xsbti`) leaks in. It refuses a JDK other than 21. A `scala>` line
+that fails or a bad `miss>` line leaves its file unwritten and the exit code non-zero. The whole
+corpus takes 6–20 s, plus about 6 s for the scala-cli start. CI does not run it.
 
 A `.tab` file holds lines of these kinds:
 
@@ -137,11 +148,11 @@ A `.tab` file holds lines of these kinds:
 | `// …`, empty | kept |
 | `scala> input`, `     \| more` | run in the session |
 | `tab> text`, `     \| more` | ask at `@@`, which is removed |
-| two spaces, labels | the answer, written by the oracle: distinct labels sorted by `String.compareTo`, space-separated, wrapped at 100 columns, backticked labels as one token; `<none>` |
-| `miss> labels` | after an answer, by hand, with a `//` reason above: labels we knowingly do not offer; the oracle checks that dotty offers them |
+| two spaces, labels | the answer, written by the oracle: the labels listed, in JLine's order, space-separated, wrapped at 100 columns, backticked labels as one token; `<none>` |
+| `miss> labels` | right after an answer (comment lines between allowed), by hand, with a `//` reason: labels we knowingly do not offer; the oracle checks that the answer has them |
 
-Our test (stage 2) runs the same file through `Session`: it expects exactly the answer less the
-misses.
+Our test (stage 2) runs the same file through `Session` and the word filter: it compares
+sequences, expecting exactly the answer less the misses, in the same order.
 
 ## 5. Stages
 
@@ -149,8 +160,9 @@ misses.
 2. Typer probe and selection completions (direct members): `Symbol` derived flag, path to the
    cursor, member enumeration and validity filter, `Session::complete`, the corpus test, the
    measurement of §6.
-3. The rustyline completer: `Pair` candidates (display without backticks), list mode, prompt
-   limit 400, commands; piped mode unchanged.
+3. The rustyline completer: JLine's word filter (§1.1 step 5; rustyline has none), `Pair`
+   candidates (display without backticks), list mode, prompt limit 400, commands; piped mode
+   unchanged.
 4. Scope, import and type-position completions, with the shadowing resolution and `ScopeOrdering`;
    `java.lang` names from javalib ∩ `JAVA_LANG`; root packages.
 5. Conversions and extensions, each applied before it is offered; the JDK member table of

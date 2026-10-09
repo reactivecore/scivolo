@@ -141,5 +141,7 @@ the VM (fetched, not vendored).
   suite ([docs/conformance.md](docs/conformance.md)).
 - dotty `tests/run` and scala/scala `test/junit`: planned milestones M4 and M5.
 - scala3-repl 3.9.0's `ReplDriver.completions` and `interactive/Completion`: the answers of
-  `tests/repl-completion` and the algorithm to port (research 11).
+  `tests/repl-completion` and the algorithm to port (research 11), with
+  [JLine](https://github.com/jline/jline3) 4.0.14's `CompletionMatcherImpl` (BSD-3), the word
+  filter applied to them.
 - Rust style: Reactive Core's `rcui` project (`CLAUDE.md`).

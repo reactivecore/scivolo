@@ -1,4 +1,4 @@
-// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// oracle: scala3-repl 3.9.0, JDK 21
 // Names in scope: earlier lines, locals, parameters, Predef, scala, java.lang, root packages.
 tab> pri@@
   print printf println

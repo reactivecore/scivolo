@@ -1,4 +1,4 @@
-// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// oracle: scala3-repl 3.9.0, JDK 21
 // Members through implicit conversions and extension methods; JDK members.
 tab> "abc".leng@@
   length lengthCompare lengthIs

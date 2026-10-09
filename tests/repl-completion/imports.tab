@@ -1,4 +1,4 @@
-// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// oracle: scala3-repl 3.9.0, JDK 21
 // Import paths and selectors.
 tab> import scala.coll@@
   collection

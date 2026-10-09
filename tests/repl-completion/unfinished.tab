@@ -1,4 +1,4 @@
-// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// oracle: scala3-repl 3.9.0, JDK 21
 // Unfinished inputs and positions where dotty offers nothing.
 scala> val x = List(1, 2)
 tab> x.map(_.toS@@)
@@ -37,7 +37,12 @@ tab> def f(a: Int) = {
 tab> x.he@@
      | x.size
   head headOption
-// No candidates: keywords, after `=`, inside an argument list, a literal, the package clause.
+tab> val b = 1
+     |
+     | b.toSt@@
+  toString
+// No keywords; no candidates after `=`, inside an argument list, in a number literal, the
+// package clause. At the start of a line Tab inserts a tab.
 tab> va@@
   valueOf
 tab> val y = @@
@@ -48,12 +53,17 @@ tab> @@
   <none>
 tab> 12@@
   <none>
-tab> "ab@@"
-  <none>
 tab> val y@@
   <none>
 tab> package sc@@
   <none>
+// In a string literal: scope names in term mode.
+tab> "ab@@"
+  <none>
+tab> "pri@@"
+  print printf println
+tab> s"pri@@"
+  print printf println
 // The input has an error elsewhere.
 tab> val q: Int = "s"; x.hea@@
   head headOption
