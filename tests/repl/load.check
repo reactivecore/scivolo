@@ -7,6 +7,9 @@ def sum(xs: List[Int]): Int
 scala> b
 val res1: Int = 2
 
+scala> :imports
+import scala.collection.mutable.ListBuffer
+
 scala> :load tests/repl/load/syntax-error.scala
 -- [E018] Syntax Error: --------------------------------------------------------
 1 |val q = )

@@ -129,13 +129,14 @@ impl Session {
         let module = format!("{object}$");
         let (mut typed, template) = self.typed(&mut parsed, &object)?;
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
+        let shown = imports::shown(&self.u, &typed, template, &self.names, &parsed.source);
         let units = render::inferred_units(&mut self.u, &typed, template);
         let defs = render::definitions(&mut self.u, &module, &units);
         let members = earlier::members(&mut self.u, &module);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
-        let earlier = Earlier { object, imports, members };
+        let earlier = Earlier { object, imports, shown, members };
         let warnings = report::warnings(&parsed.source, &parsed.diags, self.width as usize);
         Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units), warnings })
     }

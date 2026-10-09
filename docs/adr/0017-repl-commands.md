@@ -16,7 +16,15 @@ are checked against a `ReplDriver` built by `scripts/repl-oracle`. Some commands
   trailing whitespace, as dotty's `(.*)`. A missing file prints Java's `getCanonicalPath`. A
   path that exists but cannot be read (a directory) prints `Couldn't read file "<path>": <error>`
   where dotty dies with `FileNotFoundException`; bytes that are not UTF-8 read as U+FFFD.
+- `:imports` lists the top-level imports of the inputs whose module was constructed, printed
+  from the typed tree as `RefinedPrinter.importText`. An identifier as path is its symbol's
+  owners, or its name alone when the owner is `scala`, `java.lang` or `Predef`. The `scala`
+  binary runs `import dotty.vendored.pprint.pprintln` as a first input, which `:imports` lists
+  and which numbers the first user input `rs$line$2`; the oracle, and so this REPL, has no such
+  predef.
 
 ## Consequences
+- An identifier naming an inherited member of an imported object shows its defining class as
+  owner, where dotty shows the object it was imported from.
 - Transcripts with relative `:load` paths need the repository root as working directory, which
   the scripted test sets.

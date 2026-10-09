@@ -32,7 +32,7 @@ impl Session {
                 self.quiet = !self.quiet;
                 Vec::new()
             }
-            Command::Imports => vec![report::unsupported(":imports")],
+            Command::Imports => self.earlier.iter().flat_map(|e| e.shown.clone()).collect(),
             Command::Load(path) => self.load(&path),
             Command::Unsupported(name) => {
                 vec![commands::retired(name).map_or_else(|| report::unsupported(name), str::to_owned)]
