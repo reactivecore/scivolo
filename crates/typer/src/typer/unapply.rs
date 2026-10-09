@@ -100,6 +100,9 @@ impl Typer<'_> {
         if self.unsupported != unsupported {
             return Err("extractor outside the subset");
         }
+        if !matches!(self.tpd.tree(unapp), crate::tpd::Tree::Select { .. }) {
+            return Err("extension method as an extractor");
+        }
         Ok((unapp, seq))
     }
 
