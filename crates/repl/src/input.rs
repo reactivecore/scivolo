@@ -65,6 +65,9 @@ pub fn classify(name: &str, text: &str, names: &mut Names, fresh: &mut FreshName
     if p.s.diags.has_errors() {
         return Input::Errors(report::syntax_errors(&source, &p.s.diags, width));
     }
+    if text.starts_with("//>") {
+        return Input::Errors(vec![report::DIRECTIVES.to_owned()]);
+    }
     if stats.is_empty() {
         return Input::Empty;
     }
@@ -82,6 +85,14 @@ mod tests {
         for text in ["", "  \t\n ", "// c", "/* c */ ;"] {
             let input = classify("t", text, &mut Default::default(), &mut Default::default(), 80);
             assert!(matches!(input, Input::Empty), "{text:?}");
+        }
+    }
+
+    #[test]
+    fn directives_are_refused() {
+        for text in ["//> using dep x", "//> using dep x\n1"] {
+            let input = classify("t", text, &mut Default::default(), &mut Default::default(), 80);
+            assert!(matches!(input, Input::Errors(e) if e == [crate::report::DIRECTIVES]), "{text:?}");
         }
     }
 

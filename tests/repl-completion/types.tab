@@ -1,0 +1,48 @@
+// oracle: scala3-repl 3.9.0, JDK 21
+// Type positions: types and stable terms.
+tab> val y: In@@
+  IncompatibleClassChangeError IndexOutOfBoundsException IndexedSeq InheritableThreadLocal
+  InstantiationError InstantiationException Int Integer Integral InternalError InterruptedException
+tab> val y: Str@@ = ""
+  Stream StrictMath String StringBuffer StringBuilder StringContext StringFormat
+  StringIndexOutOfBoundsException StringTemplate StringTemplate$Processor
+  StringTemplate$Processor$Linkage
+tab> val y: Opt@@
+  OptManifest Option
+tab> val y: List[Opt@@]
+  OptManifest Option
+tab> type T = Lis@@
+  List
+tab> def f(a: Seq@@) = a
+  Seq SeqCharSequence
+tab> val y: scala.collection.mutable.Ar@@
+  ArrayBuffer ArrayBufferView ArrayBuilder ArrayDeque ArrayDequeOps ArraySeq ArrayStack
+tab> val y: scala.collection.immutable.@@
+  :: AbstractMap AbstractSeq AbstractSet ArraySeq BitSet DefaultMap HashMap HashSet IndexedSeq
+  IndexedSeqDefaults IndexedSeqOps IntMap Iterable LazyList LazyListIterable LinearSeq LinearSeqOps
+  List ListMap ListSet LongMap Map MapOps Nil NumericRange Queue Range Seq SeqMap SeqOps Set SetOps
+  SortedMap SortedMapOps SortedSet SortedSetOps Stream StrictOptimizedMapOps StrictOptimizedSeqOps
+  StrictOptimizedSetOps StrictOptimizedSortedMapOps StrictOptimizedSortedSetOps StringOps StringView
+  Traversable TreeMap TreeSeqMap TreeSet Vector VectorBuilder VectorMap WrappedString
+tab> new Strin@@
+  String StringBuffer StringBuilder StringContext StringFormat StringIndexOutOfBoundsException
+  StringTemplate StringTemplate$Processor StringTemplate$Processor$Linkage
+tab> new scala.collection.mutable.ArrayB@@
+  ArrayBuffer ArrayBufferView ArrayBuilder
+scala> class Box[A](a: A) { type Elem = A }
+scala> object Holder { type H = Int; val hv = 1; class HC }
+tab> val b: Bo@@
+  Boolean BootstrapMethodError Box
+tab> val h: Holder.@@
+  H HC hv
+tab> val h: Holder.H@@
+  H HC
+tab> val e: Box[Int]#El@@
+  <none>
+scala> enum Shape { case Circle, Square }
+tab> new Sha@@
+  <none>
+tab> val s: Sha@@
+  Shape
+tab> val s: Shape.@@
+  Circle Square

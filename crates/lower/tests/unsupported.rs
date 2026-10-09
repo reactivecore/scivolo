@@ -67,7 +67,6 @@ const CASES: &[(&str, &str)] = &[
     ("object O { def f(): String = { lazy val x = \"a\"; x } }", "local lazy values"),
     ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
     ("trait T { var x: Int }", "abstract variables"),
-    ("trait T { private val x = \"a\"; def y = x }", "private values in traits"),
     (
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",

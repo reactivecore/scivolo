@@ -51,9 +51,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         if in_trait && has(l.u, sym, LAZY) {
             return unsupported(span, "lazy values in traits");
         }
-        if in_trait && has(l.u, sym, PRIVATE) {
-            return unsupported(span, "private values in traits");
-        }
         if has(l.u, sym, LAZY) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);

@@ -9,7 +9,12 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
-        let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(crate::ctx::Mode::NONE));
+        let path = matches!(
+            self.ast.tree(qualifier),
+            syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
+        );
+        let mode = if path { crate::ctx::Mode::QUALIFIER } else { crate::ctx::Mode::NONE };
+        let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
@@ -61,6 +66,9 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
+            return self.unsupported(id, what);
+        }
+        if let Err(what) = self.check_package_use(sym, name, ctx) {
             return self.unsupported(id, what);
         }
         let flags = self.u.symbol(sym).flags;

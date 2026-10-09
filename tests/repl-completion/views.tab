@@ -1,0 +1,123 @@
+// oracle: scala3-repl 3.9.0, JDK 21
+// Members through implicit conversions and extension methods; JDK members.
+tab> "abc".leng@@
+  length lengthCompare lengthIs
+tab> "abc".@@
+  != ## * + ++ ++: +: -> /: :+ :++ :\ < <= == > >= CombinationsItr Maximized PermutationsItr
+  addString aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual
+  capitalize charAt charStepper chars codePointAt codePointBefore codePointCount codePointStepper
+  codePoints collect collectFirst combinations companion compare compareTo compareToIgnoreCase
+  compose concat contains containsSlice contentEquals copyToArray copyToBuffer corresponds count
+  describeConstable diff distinct distinctBy drop dropRight dropWhile elementWise empty endsWith
+  ensuring eq equals equalsIgnoreCase exists filter filterNot find findLast flatMap flatten fold
+  foldLeft foldRight forall foreach format formatLocal formatted getBytes getChars getClass groupBy
+  groupMap groupMapReduce grouped hasDefiniteSize hashCode head headOption indent indexOf
+  indexOfSlice indexWhere indices init inits intern intersect isBlank isDefinedAt isEmpty
+  isInstanceOf isTraversableAgain iterableFactory iterator knownSize last lastIndexOf
+  lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs lift lines
+  linesIterator linesWithSeparators map matches max maxBy maxByOption maxOption min minBy
+  minByOption minOption mkString ne nn nonEmpty notify notifyAll offsetByCodePoints orElse padTo
+  partition partitionMap patch permutations prefixLength prepended prependedAll product r reduce
+  reduceLeft reduceLeftOption reduceOption reduceRight reduceRightOption regionMatches repeat
+  replace replaceAll replaceAllLiterally replaceFirst repr resolveConstantDesc reverse
+  reverseIterator reverseMap runWith runtimeChecked sameElements scan scanLeft scanRight search
+  segmentLength seq size sizeCompare sizeIs slice sliding sortBy sortWith sorted span split splitAt
+  splitWithDelimiters startsWith stepper strip stripIndent stripLeading stripLineEnd stripMargin
+  stripPrefix stripSuffix stripTrailing subSequence substring sum synchronized tail tails take
+  takeRight takeWhile tapEach to toArray toBoolean toBooleanOption toBuffer toByte toByteOption
+  toCharArray toDouble toDoubleOption toFloat toFloatOption toIndexedSeq toInt toIntOption
+  toIterable toIterator toList toLong toLongOption toLowerCase toMap toSeq toSet toShort
+  toShortOption toStream toString toTraversable toUpperCase toVector transform translateEscapes
+  transpose trim unapply union unzip unzip3 updated view wait withFilter zip zipAll zipWithIndex →
+tab> 1.to@@
+  to toBinaryString toByte toChar toDouble toFloat toHexString toInt toLong toOctalString toShort
+  toString
+tab> 1.@@
+  != ## % & * + - -> / < << <= == > >= >> >>> ^ abs asInstanceOf byteValue ceil compare compareTo
+  describeConstable doubleValue ensuring eq equals floatValue floor formatted getClass hashCode
+  intValue isFinite isInfinite isInfinity isInstanceOf isNaN isNegInfinity isPosInfinity isValidByte
+  isValidChar isValidInt isValidLong isValidShort isWhole longValue max min ne nn notify notifyAll
+  resolveConstantDesc round runtimeChecked self shortValue sign signum synchronized to
+  toBinaryString toByte toChar toDegrees toDouble toFloat toHexString toInt toLong toOctalString
+  toRadians toShort toString unary_+ unary_- unary_~ until wait | →
+tab> Array(1).@@
+  != ## ++ ++: +: -> /: :+ :++ :\ == CombinationsItr Maximized PermutationsItr addString aggregate
+  andThen appended appendedAll apply applyOrElse array asInstanceOf canEqual clone collect
+  collectFirst combinations companion compose concat contains containsSlice copyToArray copyToBuffer
+  corresponds count diff distinct distinctBy drop dropRight dropWhile elemTag elementWise empty
+  endsWith ensuring eq equals exists filter filterNot find findLast flatMap flatten fold foldLeft
+  foldRight forall foreach formatted getClass groupBy groupMap groupMapReduce grouped
+  hasDefiniteSize hashCode head headOption indexOf indexOfSlice indexWhere indices init inits
+  intersect isDefinedAt isEmpty isInstanceOf isTraversableAgain iterableFactory iterator knownSize
+  last lastIndexOf lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs
+  lift map mapInPlace max maxBy maxByOption maxOption min minBy minByOption minOption mkString ne nn
+  nonEmpty notify notifyAll orElse padTo partition partitionMap patch permutations prefixLength
+  prepended prependedAll product reduce reduceLeft reduceLeftOption reduceOption reduceRight
+  reduceRightOption repr reverse reverseIterator reverseMap runWith runtimeChecked sameElements scan
+  scanLeft scanRight search segmentLength seq size sizeCompare sizeIs slice sliding sortBy
+  sortInPlace sortInPlaceBy sortInPlaceWith sortWith sorted span splitAt startsWith stepper sum
+  synchronized tail tails take takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq
+  toIterable toIterator toList toMap toSeq toSet toStream toString toTraversable toVector transform
+  transpose unapply union unzip unzip3 update updated view wait withFilter zip zipAll zipWithIndex →
+tab> Array(1).ma@@
+  map mapInPlace max maxBy maxByOption maxOption
+tab> 1.ensu@@
+  ensuring
+tab> 1 -@@
+  - ->
+tab> new java.util.ArrayList[Int]().ad@@
+  add addAll addFirst addLast
+scala> val x = List(1, 2)
+tab> x.toString.@@
+  != ## * + ++ ++: +: -> /: :+ :++ :\ < <= == > >= CombinationsItr Maximized PermutationsItr
+  addString aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual
+  capitalize charAt charStepper chars codePointAt codePointBefore codePointCount codePointStepper
+  codePoints collect collectFirst combinations companion compare compareTo compareToIgnoreCase
+  compose concat contains containsSlice contentEquals copyToArray copyToBuffer corresponds count
+  describeConstable diff distinct distinctBy drop dropRight dropWhile elementWise empty endsWith
+  ensuring eq equals equalsIgnoreCase exists filter filterNot find findLast flatMap flatten fold
+  foldLeft foldRight forall foreach format formatLocal formatted getBytes getChars getClass groupBy
+  groupMap groupMapReduce grouped hasDefiniteSize hashCode head headOption indent indexOf
+  indexOfSlice indexWhere indices init inits intern intersect isBlank isDefinedAt isEmpty
+  isInstanceOf isTraversableAgain iterableFactory iterator knownSize last lastIndexOf
+  lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs lift lines
+  linesIterator linesWithSeparators map matches max maxBy maxByOption maxOption min minBy
+  minByOption minOption mkString ne nn nonEmpty notify notifyAll offsetByCodePoints orElse padTo
+  partition partitionMap patch permutations prefixLength prepended prependedAll product r reduce
+  reduceLeft reduceLeftOption reduceOption reduceRight reduceRightOption regionMatches repeat
+  replace replaceAll replaceAllLiterally replaceFirst repr resolveConstantDesc reverse
+  reverseIterator reverseMap runWith runtimeChecked sameElements scan scanLeft scanRight search
+  segmentLength seq size sizeCompare sizeIs slice sliding sortBy sortWith sorted span split splitAt
+  splitWithDelimiters startsWith stepper strip stripIndent stripLeading stripLineEnd stripMargin
+  stripPrefix stripSuffix stripTrailing subSequence substring sum synchronized tail tails take
+  takeRight takeWhile tapEach to toArray toBoolean toBooleanOption toBuffer toByte toByteOption
+  toCharArray toDouble toDoubleOption toFloat toFloatOption toIndexedSeq toInt toIntOption
+  toIterable toIterator toList toLong toLongOption toLowerCase toMap toSeq toSet toShort
+  toShortOption toStream toString toTraversable toUpperCase toVector transform translateEscapes
+  transpose trim unapply union unzip unzip3 updated view wait withFilter zip zipAll zipWithIndex →
+tab> x.size.@@
+  != ## % & * + - -> / < << <= == > >= >> >>> ^ abs asInstanceOf byteValue compare compareTo
+  describeConstable doubleValue ensuring eq equals floatValue formatted getClass hashCode intValue
+  isInstanceOf isValidByte isValidChar isValidInt isValidLong isValidShort isWhole longValue max min
+  ne nn notify notifyAll resolveConstantDesc round runtimeChecked self shortValue sign signum
+  synchronized to toBinaryString toByte toChar toDouble toFloat toHexString toInt toLong
+  toOctalString toShort toString unary_+ unary_- unary_~ until wait | →
+tab> x.ensuring@@
+  ensuring
+// User extensions and conversions.
+scala> extension (i: Int) def twice = i * 2
+tab> 1.tw@@
+  twice
+scala> extension (s: String) { def shout = s.toUpperCase; def whisper = s.toLowerCase }
+tab> "a".sh@@
+  shout
+scala> object Ext { extension (b: Boolean) def flip = !b }
+tab> true.fl@@
+  <none>
+scala> import Ext.*
+tab> true.fl@@
+  flip
+scala> class Wrapped(val w: Int) { def wrappedOnly = w }
+scala> given Conversion[String, Wrapped] = s => Wrapped(s.length)
+tab> "a".wrapp@@
+  wrappedOnly

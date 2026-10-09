@@ -1,0 +1,18 @@
+// oracle: scala3-repl 3.9.0, JDK 21
+// REPL commands, by prefix of the whole input.
+tab> :@@
+  :dep :doc :exit :help :imports :jar :kind :load :quit :require :reset :settings :sh :silent :type
+tab> :t@@
+  :type
+tab> :re@@
+  :require :reset
+tab> :q@@
+  :quit
+tab> :x@@
+  <none>
+// Nothing after a command.
+scala> val x = List(1, 2)
+tab> :type x.@@
+  <none>
+tab> :type x.he@@
+  <none>

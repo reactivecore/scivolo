@@ -1,0 +1,69 @@
+// oracle: scala3-repl 3.9.0, JDK 21
+// Names in scope: earlier lines, locals, parameters, Predef, scala, java.lang, root packages.
+tab> pri@@
+  print printf println
+tab> Li@@
+  LinkageError List LiveStackFrame$PrimitiveSlot
+tab> Opti@@
+  Option
+tab> Seq@@
+  Seq SeqCharSequence
+tab> ident@@
+  identity
+tab> Strin@@
+  String StringBuffer StringBuilder StringContext StringFormat StringIndexOutOfBoundsException
+  StringTemplate StringTemplate$Processor StringTemplate$Processor$Linkage
+tab> Thr@@
+  Thread Thread$Builder Thread$Builder$OfPlatform Thread$Builder$OfVirtual Thread$State
+  Thread$UncaughtExceptionHandler ThreadDeath ThreadGroup ThreadLocal Throwable
+tab> jav@@
+  java javax
+tab> sca@@
+  scala
+scala> val x = List(1, 2)
+tab> x@@
+  x
+scala> def xs(n: Int) = List.fill(n)(n)
+scala> val xyz = 3
+tab> x@@
+  x xs xyz
+tab> xy@@
+  xyz
+tab> { val local1 = 1; val local2 = 2; loc@@ }
+  local1 local2 locally
+tab> def g(param1: Int, param2: String) = par@@
+  param1 param2
+tab> List(1).map(elem => ele@@)
+  elem
+tab> for (item <- List(1)) yield ite@@
+  item
+tab> 1 match { case caseVar => case@@ }
+  <none>
+// Shadowing: a later line redefines a name.
+scala> val sh = 1
+scala> def sh = "two"
+tab> s@@
+  scala sh short2Short shortArrayOps shortWrapper specialized summon sun synchronized sys
+scala> class Sh2
+scala> val Sh2 = 1
+tab> Sh@@
+  Sh2 Short Short2short
+// Imports of earlier lines.
+scala> import scala.collection.mutable.ArrayBuffer
+tab> ArrayB@@
+  ArrayBuffer
+scala> import scala.util.{Try as Attempt, *}
+tab> Attem@@
+  Attempt
+tab> Tr@@
+  Traversable
+tab> Succ@@
+  Success
+// Members of an enclosing class and its bases.
+tab> class E { def em = 1; def en = em@@ }
+  em
+tab> class F extends Iterable[Int] { def iterator = Iterator.empty; def g = siz@@ }
+  size sizeCompare sizeIs
+// String interpolation.
+tab> s"${x@@}"
+  x xs xyz

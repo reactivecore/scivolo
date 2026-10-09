@@ -6,6 +6,7 @@
 use super::accessor_names::{accessor_name, trait_setter_name};
 use super::getters::{is_const_final, is_setter};
 use super::library_traits::define_setter;
+use super::mixin::has_body;
 use crate::definitions::symbol;
 use crate::symbols::{has, is_trait};
 use crate::{Lower, Result};
@@ -124,19 +125,19 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
     Ok(out)
 }
 
-/// Whether the member of `class` named as `getter` is `getter` (dotty's `isInImplementingClass`).
+/// Whether the concrete member of `class` named as `getter` is `getter` (dotty's
+/// `isInImplementingClass`).
 fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool {
     if has(l.u, getter, PRIVATE) {
         return true;
     }
     let name = l.u.symbol(getter).name.clone();
     for base in l.u.linearization(class) {
-        let found = l.u.decl(base, &name).unwrap_or_default();
-        if let Some(&m) = found
-            .iter()
-            .find(|&&m| matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def) && !has(l.u, m, PRIVATE))
-        {
-            return m == getter;
+        for m in l.u.decl(base, &name).unwrap_or_default() {
+            let member = matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def) && !has(l.u, m, PRIVATE);
+            if member && (has_body(l, m) || is_trait_getter(l, m)) {
+                return m == getter;
+            }
         }
     }
     false

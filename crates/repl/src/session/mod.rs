@@ -2,13 +2,14 @@
 //! into wrapper object `rs$line$<N>` and run.
 
 mod command;
+mod load;
+mod run;
 
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
-use crate::render::Definition;
-use crate::{imports, line_names, render, report, trace, wrap};
+use crate::{import_text, imports, line_names, render, report, wrap};
 use libimage::Image;
-use lower::NirFile;
+use run::Unit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
@@ -19,16 +20,12 @@ use vm::{Vm, VmError};
 
 const RESETTING: &str = "Resetting REPL state.";
 
-/// A compiled input: its wrapper module, NIR files and definitions to print.
-struct Unit {
-    module: String,
-    files: Vec<NirFile>,
-    defs: Vec<Definition>,
-    earlier: Earlier,
-    /// How many `res` values of type `Unit` it defines, whose indices a run gives back.
-    unit_res: u32,
-    /// The lines of its warnings, printed before it runs.
-    warnings: Vec<String>,
+/// A compiled input: a unit to run, a file to load (run outside the guard against compiler
+/// panics), or the lines it prints.
+pub enum Compiled {
+    Unit(Unit),
+    Load(String),
+    Lines(Vec<String>),
 }
 
 pub struct Session {
@@ -49,6 +46,10 @@ pub struct Session {
     exit: Option<i32>,
     /// The columns values are wrapped at.
     width: i32,
+    /// Whether definitions and their values go unprinted (`:silent`).
+    quiet: bool,
+    /// How many `:load` commands run, one inside the other.
+    loading: u32,
 }
 
 impl Session {
@@ -59,7 +60,23 @@ impl Session {
         let (names, fresh) = (Names::default(), FreshNames::default());
         let (u, units) = (Universe::open_image(image), Units::default());
         let (earlier, exit) = (Vec::new(), None);
-        Ok(Session { vm, image, u, units, names, fresh, line: 0, base: 0, res: 0, earlier, exit, width })
+        let (line, base, res, quiet, loading) = (0, 0, 0, false, 0);
+        Ok(Session {
+            vm,
+            image,
+            u,
+            units,
+            names,
+            fresh,
+            line,
+            base,
+            res,
+            earlier,
+            exit,
+            width,
+            quiet,
+            loading,
+        })
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -71,6 +88,7 @@ impl Session {
         self.base = self.line;
         self.res = 0;
         self.earlier.clear();
+        self.quiet = false;
     }
 
     /// Makes Ctrl-C stop the running input instead of ending the process.
@@ -91,26 +109,31 @@ impl Session {
     /// Evaluates input `text`; the lines it prints. A panic while compiling the input is reported
     /// as an internal error and resets the session; a panic while running it is passed on.
     pub fn eval(&mut self, text: &str) -> Vec<String> {
-        let compiled = catch_unwind(AssertUnwindSafe(|| self.compile(text)));
-        let out = match compiled {
-            Ok(Ok(unit)) => self.run(unit),
-            Ok(Err(out)) => out,
+        let out = self.answer(text);
+        out.iter().flat_map(|s| s.lines()).map(|l| line_names::shown(l, self.base)).collect()
+    }
+
+    /// What input `text` prints, wrapper objects named as the VM knows them.
+    fn answer(&mut self, text: &str) -> Vec<String> {
+        match catch_unwind(AssertUnwindSafe(|| self.compile(text))) {
+            Ok(Compiled::Unit(unit)) => self.run(unit),
+            Ok(Compiled::Load(path)) => self.load(&path),
+            Ok(Compiled::Lines(out)) => out,
             Err(panic) => {
                 self.reset();
                 vec![report::internal(panic.as_ref()), RESETTING.to_owned()]
             }
-        };
-        out.iter().flat_map(|s| s.lines()).map(|l| line_names::shown(l, self.base)).collect()
+        }
     }
 
-    /// Compiles input `text` into a unit to run, or the lines it prints instead.
-    fn compile(&mut self, text: &str) -> Result<Unit, Vec<String>> {
+    /// Compiles input `text`.
+    fn compile(&mut self, text: &str) -> Compiled {
         let name = format!("{}{}", line_names::PREFIX, self.line + 1);
         match input::classify(&name, text, &mut self.names, &mut self.fresh, self.width as usize) {
-            Input::Empty => Err(Vec::new()),
-            Input::Command(c) => Err(self.command(c)),
-            Input::Errors(errors) => Err(errors),
-            Input::Stats(parsed) => self.lower(*parsed),
+            Input::Empty => Compiled::Lines(Vec::new()),
+            Input::Command(c) => self.command(c),
+            Input::Errors(errors) => Compiled::Lines(errors),
+            Input::Stats(parsed) => self.lower(*parsed).map_or_else(Compiled::Lines, Compiled::Unit),
         }
     }
 
@@ -121,13 +144,15 @@ impl Session {
         let module = format!("{object}$");
         let (mut typed, template) = self.typed(&mut parsed, &object)?;
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
+        let line = import_text::Line { typed: &typed, template, names: &self.names, source: &parsed.source };
+        let shown = import_text::shown(&mut self.u, &line);
         let units = render::inferred_units(&mut self.u, &typed, template);
         let defs = render::definitions(&mut self.u, &module, &units);
         let members = earlier::members(&mut self.u, &module);
         let (names, fresh) = (&mut self.names, &mut self.fresh);
         let lowered = lower::lower(&mut self.u, &mut typed.tpd, typed.root, names, fresh, &parsed.source);
         let files = lowered.map_err(|e| vec![report::unsupported(&e.what)])?;
-        let earlier = Earlier { object, imports, members };
+        let earlier = Earlier { object, imports, shown, members };
         let warnings = report::warnings(&parsed.source, &parsed.diags, self.width as usize);
         Ok(Unit { module, files, defs, earlier, unit_res: render::results(&self.u, &units), warnings })
     }
@@ -154,46 +179,6 @@ impl Session {
         match wrap::template(&self.u, &typed, &format!("{object}$")) {
             Some(template) => Ok((typed, template)),
             None => Err(vec![report::unsupported("a wrapper object without a template")]),
-        }
-    }
-
-    /// Loads and runs `unit`; the lines it prints.
-    fn run(&mut self, unit: Unit) -> Vec<String> {
-        let Unit { module, files, defs, earlier, unit_res, warnings: mut out } = unit;
-        for f in files {
-            if let Err(e) = self.vm.add_nir(&f.name, f.bytes) {
-                out.push(e.to_string());
-                return out;
-            }
-        }
-        self.vm.clear_interrupts();
-        if let Err(e) = self.vm.eval_module(&module) {
-            out.extend(self.failed(e));
-            return out;
-        }
-        self.res -= unit_res;
-        self.earlier.push(earlier);
-        for d in defs {
-            match render::line(&mut self.vm, &module, &d, self.width) {
-                Ok(line) => out.push(line),
-                Err(e) => {
-                    out.extend(self.failed(e));
-                    break;
-                }
-            }
-        }
-        out
-    }
-
-    /// What a run that failed with `e` prints.
-    fn failed(&mut self, e: VmError) -> Vec<String> {
-        match e {
-            VmError::Uncaught(exc) => trace::lines(&exc),
-            VmError::Exit(code) => {
-                self.exit = Some(code);
-                Vec::new()
-            }
-            e => vec![e.to_string()],
         }
     }
 }

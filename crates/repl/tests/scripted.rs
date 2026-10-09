@@ -1,6 +1,7 @@
 //! The transcripts in `tests/repl/*.check`, in the format of dotty's `test-resources/repl`:
 //! `scala> ` input lines, `     | ` continuation lines (`     |` an empty one), the expected
-//! output; blank lines do not count. All share one session, reset between files.
+//! output; blank lines do not count. All share one session, reset between files, run in the
+//! repository root.
 
 #[path = "../../scalai/src/libs.rs"]
 mod libs;
@@ -42,6 +43,8 @@ fn answer(session: &mut Session, expected: &str) -> Vec<String> {
 }
 
 fn run() -> Result<(), String> {
+    std::env::set_current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
+        .map_err(|e| e.to_string())?;
     let jars = libs::jars()?;
     let image = libs::image(&jars).map_err(|e| e.to_string())?;
     let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;

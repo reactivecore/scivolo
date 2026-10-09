@@ -68,6 +68,8 @@ BSD-3 / Apache-2.0. Rust translations of:
 - `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally` too), `NirCodeGen` (without
   native interop), `ControlFlow.removeDeadBlocks`, `Val.isZero`, `Val.isCanonical`,
   `AdaptLazyVals` (`objCAS` on a field pointer).
+- `crates/lower/src/phases/enumerations.rs`: nscplugin's `PrepNativeInterop` (names of
+  `Enumeration` values).
 - `crates/nir/src/encode`, `sig.rs`: `serialization/BinarySerializer`, `Sig`, `Mangle`.
 
 ### Scala Native precompiled libraries
@@ -138,4 +140,8 @@ the VM (fetched, not vendored).
 - Scala Native's unit tests (`unit-tests/`, JUnit runtime and test interface): our conformance
   suite ([docs/conformance.md](docs/conformance.md)).
 - dotty `tests/run` and scala/scala `test/junit`: planned milestones M4 and M5.
+- scala3-repl 3.9.0's `ReplDriver.completions` and `interactive/Completion`: the answers of
+  `tests/repl-completion` and the algorithm to port (research 11), with
+  [JLine](https://github.com/jline/jline3) 4.0.14's `CompletionMatcherImpl` (BSD-3), the word
+  filter applied to them.
 - Rust style: Reactive Core's `rcui` project (`CLAUDE.md`).

@@ -32,13 +32,24 @@ impl Universe {
     /// qualified name of that owner after any REPL wrapper object: `scala.util.Try`, `None`.
     pub fn show_module_class(&mut self, s: SymbolId) -> String {
         let full = Printer::new(self).owner_path(s).full;
-        let owner = match full.rfind("rs$line$") {
-            Some(at) => full[at..].split_once('.').map_or("", |(_, rest)| rest).to_owned(),
-            None => full,
-        };
+        let owner = prefix::after_wrapper(&full).to_owned();
         let name = self.symbol(s).name.clone();
         let prefix = prefix::prefix_text(prefix::Path { shown: owner.clone(), full: owner });
         format!("{prefix}{}", name.strip_suffix('$').unwrap_or(&name))
+    }
+
+    /// Symbol `s` as dotty prints an identifier naming it as an import path: its qualified name
+    /// after any REPL wrapper object, its name alone if a root import brings it (`Predef`,
+    /// `collection`); empty for the root package.
+    pub fn show_import_ident(&mut self, s: SymbolId) -> String {
+        let mut printer = Printer::new(self);
+        let owner = printer.owner_path(s).full;
+        let full = printer.symbol_path(None, s).full;
+        let name = full.rsplit('.').next().unwrap_or_default();
+        match prefix::after_wrapper(&owner) {
+            owner if prefix::is_omitted(owner) => name.to_owned(),
+            owner => prefix::join(owner, name),
+        }
     }
 }
 
