@@ -203,6 +203,19 @@ typer-baseline from="tmp/typer/3.9.0/results.tsv":
 typer-progress: typer-report
     bash scripts/typer-progress.sh
 
+# Before a refactor that must not change behaviour: record the outcomes of the oracles (default:
+# all) under tmp/snapshot. `typer` (typer-report), `lower` (dotty-lower-report), `tokens`,
+# `trees` and `desugar` (syntax-report) and `programs` (`check`: the test programs in the VM).
+# An oracle whose recorded dotty output or checkout is missing is skipped.
+snapshot *oracles: release
+    cargo build -q --release -p typer -p lower -p syntax
+    python3 scripts/snapshot.py record {{ oracles }}
+
+# After the refactor: rerun the oracles and fail on any outcome that differs from the snapshot.
+snapshot-check *oracles: release
+    cargo build -q --release -p typer -p lower -p syntax
+    python3 scripts/snapshot.py check {{ oracles }}
+
 # Format, run the gates, commit every change not ignored with message `msg` and push the branch.
 ship msg: fmt gates lint-msrv
     git add -A
