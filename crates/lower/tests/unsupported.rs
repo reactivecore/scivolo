@@ -38,11 +38,11 @@ const CASES: &[(&str, &str)] = &[
         "overridable class parameters selected on this in the constructor",
     ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
-    ("trait A { object B }", "objects in traits"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
+    ("trait A { private object B; def f = B }", "private objects in traits"),
     (
         "class A { private val p = 1; def g = p; object B { def f = p } }",
         "private members of an enclosing class",

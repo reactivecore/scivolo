@@ -18,6 +18,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 NATIVE = "0.5.12"
@@ -49,7 +50,11 @@ def build(name):
     source, work = PROGRAMS / name / f"{name}.scala", WORK / name
     if not source.exists():
         raise Failed(f"no {source.relative_to(ROOT)}")
-    shutil.rmtree(work, ignore_errors=True)
+    for _ in range(5):
+        shutil.rmtree(work, ignore_errors=True)
+        if not work.exists():
+            break
+        time.sleep(1)
     work.mkdir(parents=True)
     shutil.copy(source, work)
     cmds = [scala_cli("compile", name, "-d", str(work / "out"))]

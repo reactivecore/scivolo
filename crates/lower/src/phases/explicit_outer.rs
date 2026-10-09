@@ -22,7 +22,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         if let Some(&t) = all.iter().find(|&&t| is_private_member(l, t, outer)) {
             return unsupported(l.tpd.span(t), "private members of an enclosing class");
         }
-        if own.iter().any(|&t| is_this_of(l, t, outer)) {
+        if is_trait(l.u, outer) || own.iter().any(|&t| is_this_of(l, t, outer)) {
             add_outer(l, td, class, outer);
         }
     }
@@ -35,7 +35,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
 /// The class whose instance an object `class` nested in it can use, unless static.
 fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(class).owner?;
-    let nested = is_module_class(l.u, class) && is_class(l.u, owner) && !is_trait(l.u, owner);
+    let nested = is_module_class(l.u, class) && is_class(l.u, owner);
     (nested && !is_static(l.u, class)).then_some(owner)
 }
 
@@ -112,8 +112,9 @@ fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
             l.copy_node(t, read);
         }
     }
-    let at = Span::at(l.tpd.span(template).end());
-    let field_def = field_def(l, field, Span::at(l.tpd.span(td).point()));
+    let name_at = l.tpd.span(td).point();
+    let at = Span::at(l.tpd.span(template).end().max(name_at));
+    let field_def = field_def(l, field, Span::at(name_at));
     let accessor = accessor(l, class, field, at);
     let stats: Vec<TNodeId> = stats.into_iter().chain([field_def, accessor]).collect();
     let body = l.tpd.list(&stats);

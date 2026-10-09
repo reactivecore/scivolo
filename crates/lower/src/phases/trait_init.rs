@@ -4,7 +4,7 @@
 use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
-use crate::symbols::has;
+use crate::symbols::{has, is_module};
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY};
@@ -42,7 +42,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             }
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
                 if l.tpd.sym(stat).is_some_and(|s| {
-                    has(l.u, s, FIELDaccessor) && !is_setter(l, s) && !is_const_final(l, s)
+                    has(l.u, s, FIELDaccessor)
+                        && !is_setter(l, s)
+                        && !is_const_final(l, s)
+                        && !is_module(l.u, s)
                 }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");
@@ -56,7 +59,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     let Tree::DefDef { name, paramss, tpt, .. } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
     let span = inits.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
-    let span = span.map_or(l.tpd.span(td), |s| s.with_point(s.start()));
+    let span = span.map_or(l.tpd.span(constr), |s| s.with_point(s.start()));
     let unit = l.unit_literal(span);
     let rhs = l.block(&inits, unit, span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
