@@ -2,14 +2,13 @@
 //! `val x = XRef.create(e)`, a read `x.elem` and a write `x.elem = e`, so closures share the
 //! variable.
 
-use super::walk::children;
 use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::{has, is_class};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::tags::{LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
 /// Makes the variables in class definition `td` that closures capture shared references.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
@@ -29,7 +28,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.fields.insert(r.elem, r.elem);
         refs.insert(v, r);
     }
-    rewrite(l, td, &refs);
+    rewrite(l, td, class, &refs);
     for (&v, &r) in &refs {
         let flags = l.u.symbol(v).flags.without(MUTABLE);
         l.u.set_flags(v, flags);
@@ -39,33 +38,33 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     Ok(())
 }
 
-/// The local variables referred to under `t` from inside a function, class or lazy value other
-/// than their own function, `function` the innermost function, class or lazy value `t` is in.
-fn collect(l: &Lower, t: TNodeId, function: SymbolId, out: &mut FxHashSet<SymbolId>) {
-    let function = match (l.tpd.tree(t), l.tpd.sym(t)) {
-        (Tree::DefDef { .. } | Tree::TypeDef { .. }, Some(f)) => f,
-        (Tree::ValDef { .. }, Some(f)) if has(l.u, f, LAZY) => f,
-        _ => function,
-    };
-    if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
-        && has(l.u, s, MUTABLE)
-        && let Some(owner) = l.u.symbol(s).owner
-        && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
-        && !is_class(l.u, owner)
-        && owner != function
-    {
-        out.insert(s);
-    }
-    for c in children(l.tpd, t) {
-        collect(l, c, function, out);
-    }
+/// The local variables referred to under `t`, in class `class`, from inside a function, class or
+/// lazy value other than their own function.
+fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<SymbolId>) {
+    traverse(l, t, class, &mut |l, t, function| {
+        if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
+            && has(l.u, s, MUTABLE)
+            && let Some(owner) = l.u.symbol(s).owner
+            && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
+            && !is_class(l.u, owner)
+            && owner != function
+        {
+            out.insert(s);
+        }
+        match (l.tpd.tree(t), l.tpd.sym(t)) {
+            (Tree::ValDef { .. }, Some(v)) if has(l.u, v, LAZY) => Walk::Children,
+            (Tree::ValDef { .. }, _) => Walk::Within(function),
+            _ => Walk::Children,
+        }
+    });
 }
 
-/// Rewrites the definitions, reads and writes of the variables of `refs` under `t`.
-fn rewrite(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
-    match *l.tpd.tree(t) {
-        Tree::ValDef { name, rhs: Some(rhs), .. } if l.tpd.sym(t).is_some_and(|s| refs.contains_key(&s)) => {
-            rewrite(l, rhs, refs);
+/// Rewrites the definitions, reads and writes of the variables of `refs` under `t`, in class
+/// `class`.
+fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, refs: &FxHashMap<SymbolId, Ref>) {
+    let captured = |l: &Lower, t| l.tpd.sym(t).is_some_and(|s| refs.contains_key(&s));
+    traverse(l, t, class, &mut |l, t, _| match *l.tpd.tree(t) {
+        Tree::ValDef { name, rhs: Some(rhs), .. } if captured(l, t) => {
             let r = refs[&l.tpd.sym(t).expect("a variable")];
             let span = l.tpd.span(rhs);
             let class = l.ident(r.class, span);
@@ -74,22 +73,14 @@ fn rewrite(l: &mut Lower, t: TNodeId, refs: &FxHashMap<SymbolId, Ref>) {
             let rhs = l.apply(create, &[rhs], tpe, span);
             let tpt = l.type_tree(tpe, span);
             l.tpd.get_mut(t).tree = Tree::ValDef { name, tpt, rhs: Some(rhs) };
-            return;
+            Walk::Children
         }
-        Tree::Assign { lhs, rhs } if l.tpd.sym(lhs).is_some_and(|s| refs.contains_key(&s)) => {
-            to_elem(l, lhs, refs);
-            rewrite(l, rhs, refs);
-            return;
-        }
-        Tree::Ident { .. } if l.tpd.sym(t).is_some_and(|s| refs.contains_key(&s)) => {
+        Tree::Ident { .. } if captured(l, t) => {
             to_elem(l, t, refs);
-            return;
+            Walk::Skip
         }
-        _ => {}
-    }
-    for c in children(l.tpd, t) {
-        rewrite(l, c, refs);
-    }
+        _ => Walk::Children,
+    });
 }
 
 /// Makes reference `t` to variable `x` the selection `x.elem`.
