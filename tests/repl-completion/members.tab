@@ -1,0 +1,164 @@
+// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// Direct members of a qualifier.
+tab> List(1).ma@@
+  map mapConserve max maxBy maxByOption maxOption
+tab> List(1).map@@
+  map mapConserve
+tab> List(1).@@
+  != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
+  aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect
+  collectFirst combinations companion compose concat contains containsSlice copyToArray copyToBuffer
+  corresponds count diff distinct distinctBy drop dropRight dropWhile elementWise empty endsWith
+  ensuring eq equals exists filter filterNot find findLast flatMap flatten fold foldLeft foldRight
+  forall foreach formatted getClass groupBy groupMap groupMapReduce grouped hasDefiniteSize hashCode
+  head headOption indexOf indexOfSlice indexWhere indices init inits intersect isDefinedAt isEmpty
+  isInstanceOf isTraversableAgain iterableFactory iterator knownSize last lastIndexOf
+  lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs lift map
+  mapConserve max maxBy maxByOption maxOption min minBy minByOption minOption mkString ne nn
+  nonEmpty notify notifyAll orElse padTo partition partitionMap patch permutations prefixLength
+  prepended prependedAll product reduce reduceLeft reduceLeftOption reduceOption reduceRight
+  reduceRightOption repr reverse reverseIterator reverseMap reverse_::: runWith runtimeChecked
+  sameElements scan scanLeft scanRight search segmentLength seq size sizeCompare sizeIs slice
+  sliding sortBy sortWith sorted span splitAt startsWith stepper sum synchronized tail tails take
+  takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
+  toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
+  view wait withFilter zip zipAll zipWithIndex →
+tab> Some(1).ge@@
+  get getClass getOrElse
+tab> Option(1).ma@@
+  map max maxBy maxByOption maxOption
+tab> scala.collection.mut@@
+  mutable
+tab> scala.collection.mutable.ArrayB@@
+  ArrayBuffer ArrayBufferView ArrayBuilder
+scala> val x = List(1, 2)
+tab> x.@@
+  != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
+  aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect
+  collectFirst combinations companion compose concat contains containsSlice copyToArray copyToBuffer
+  corresponds count diff distinct distinctBy drop dropRight dropWhile elementWise empty endsWith
+  ensuring eq equals exists filter filterNot find findLast flatMap flatten fold foldLeft foldRight
+  forall foreach formatted getClass groupBy groupMap groupMapReduce grouped hasDefiniteSize hashCode
+  head headOption indexOf indexOfSlice indexWhere indices init inits intersect isDefinedAt isEmpty
+  isInstanceOf isTraversableAgain iterableFactory iterator knownSize last lastIndexOf
+  lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs lift map
+  mapConserve max maxBy maxByOption maxOption min minBy minByOption minOption mkString ne nn
+  nonEmpty notify notifyAll orElse padTo partition partitionMap patch permutations prefixLength
+  prepended prependedAll product reduce reduceLeft reduceLeftOption reduceOption reduceRight
+  reduceRightOption repr reverse reverseIterator reverseMap reverse_::: runWith runtimeChecked
+  sameElements scan scanLeft scanRight search segmentLength seq size sizeCompare sizeIs slice
+  sliding sortBy sortWith sorted span splitAt startsWith stepper sum synchronized tail tails take
+  takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
+  toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
+  view wait withFilter zip zipAll zipWithIndex →
+tab> x.hea@@
+  head headOption
+tab> x.ma@@
+  map mapConserve max maxBy maxByOption maxOption
+tab> val z = x; z.he@@
+  head headOption
+tab> def f(a: Int) = a.toSt@@
+  toString
+tab> x.headOption.ge@@
+  get getClass getOrElse
+tab> (1, 2).@@
+  != ## *: ++ -> :* == _1 _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2 _2$mcC$sp _2$mcD$sp
+  _2$mcI$sp _2$mcJ$sp _2$mcZ$sp apply asInstanceOf canEqual copy drop ensuring eq equals formatted
+  getClass hashCode head init invert isInstanceOf last map ne nn notify notifyAll productArity
+  productElement productElementName productElementNames productIterator productPrefix reverse
+  runtimeChecked size splitAt swap synchronized tail take toArray toIArray toList toString wait zip
+  zipped →
+tab> (1, 2)._@@
+  != ## *: ++ -> :* == _1 _1$mcC$sp _1$mcD$sp _1$mcI$sp _1$mcJ$sp _1$mcZ$sp _2 _2$mcC$sp _2$mcD$sp
+  _2$mcI$sp _2$mcJ$sp _2$mcZ$sp apply asInstanceOf canEqual copy drop ensuring eq equals formatted
+  getClass hashCode head init invert isInstanceOf last map ne nn notify notifyAll productArity
+  productElement productElementName productElementNames productIterator productPrefix reverse
+  runtimeChecked size splitAt swap synchronized tail take toArray toIArray toList toString wait zip
+  zipped →
+// Cursor in the middle of a word: the prefix ends at the cursor.
+tab> x.he@@ad
+  head headOption
+tab> x.@@head
+  != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
+  aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect
+  collectFirst combinations companion compose concat contains containsSlice copyToArray copyToBuffer
+  corresponds count diff distinct distinctBy drop dropRight dropWhile elementWise empty endsWith
+  ensuring eq equals exists filter filterNot find findLast flatMap flatten fold foldLeft foldRight
+  forall foreach formatted getClass groupBy groupMap groupMapReduce grouped hasDefiniteSize hashCode
+  head headOption indexOf indexOfSlice indexWhere indices init inits intersect isDefinedAt isEmpty
+  isInstanceOf isTraversableAgain iterableFactory iterator knownSize last lastIndexOf
+  lastIndexOfSlice lastIndexWhere lastOption lazyZip length lengthCompare lengthIs lift map
+  mapConserve max maxBy maxByOption maxOption min minBy minByOption minOption mkString ne nn
+  nonEmpty notify notifyAll orElse padTo partition partitionMap patch permutations prefixLength
+  prepended prependedAll product reduce reduceLeft reduceLeftOption reduceOption reduceRight
+  reduceRightOption repr reverse reverseIterator reverseMap reverse_::: runWith runtimeChecked
+  sameElements scan scanLeft scanRight search segmentLength seq size sizeCompare sizeIs slice
+  sliding sortBy sortWith sorted span splitAt startsWith stepper sum synchronized tail tails take
+  takeRight takeWhile tapEach to toArray toBuffer toIndexedSeq toIterable toIterator toList toMap
+  toSeq toSet toStream toString toTraversable toVector transpose unapply union unzip unzip3 updated
+  view wait withFilter zip zipAll zipWithIndex →
+// Backticked prefix.
+tab> x.`hea@@
+  `headOption` `head`
+// User definitions of earlier lines.
+scala> class C(val a: Int, b: Int) { def m = 1; private def p = 2; protected def q = 3; val mm = "" }
+scala> val c = C(1, 2)
+tab> c.@@
+  != ## -> == a asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf m mm ne nn
+  notify notifyAll runtimeChecked synchronized toString wait →
+tab> c.m@@
+  m mm
+tab> c.b@@
+  <none>
+tab> c.p@@
+  <none>
+scala> object O { val one = 1; def two = 2; type T = Int; class K; object N }
+tab> O.@@
+  != ## -> == K N asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn
+  notify notifyAll one runtimeChecked synchronized toString two wait →
+tab> O.t@@
+  toString two
+tab> O.N.@@
+  != ## -> == asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn notify
+  notifyAll runtimeChecked synchronized toString wait →
+scala> case class P(name: String, age: Int)
+tab> P("a", 1).@@
+  != ## -> == _1 _2 age asInstanceOf canEqual copy ensuring eq equals formatted getClass hashCode
+  isInstanceOf name ne nn notify notifyAll productArity productElement productElementName
+  productElementNames productIterator productPrefix runtimeChecked synchronized toString wait →
+tab> P("a", 1).na@@
+  name
+tab> P.@@
+  != ## -> == apply asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn
+  notify notifyAll runtimeChecked synchronized toString unapply wait →
+scala> trait Animal { def name: String; def sound: String = "" }
+scala> class Dog extends Animal { def name = "dog"; def bark = "woof" }
+tab> Dog().@@
+  != ## -> == asInstanceOf bark ensuring eq equals formatted getClass hashCode isInstanceOf name ne
+  nn notify notifyAll runtimeChecked sound synchronized toString wait →
+tab> (Dog(): Animal).@@
+  != ## -> == asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf name ne nn
+  notify notifyAll runtimeChecked sound synchronized toString wait →
+scala> enum Color { case Red, Green, Blue }
+tab> Color.@@
+  != ## -> == Blue Green Red asInstanceOf ensuring eq equals formatted fromOrdinal getClass hashCode
+  isInstanceOf ne nn notify notifyAll runtimeChecked synchronized toString valueOf values wait →
+tab> Color.Red.@@
+  != ## -> == asInstanceOf canEqual ensuring eq equals formatted getClass hashCode isInstanceOf ne
+  nn notify notifyAll ordinal productArity productElement productElementName productElementNames
+  productIterator productPrefix runtimeChecked synchronized toString wait →
+// Operators and symbolic names.
+scala> class V { def +(o: V) = this; def unary_- = this; def `odd name` = 1 }
+tab> V().@@
+  != ## + -> == `odd name` asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf
+  ne nn notify notifyAll runtimeChecked synchronized toString unary_- wait →
+tab> V().`o@@
+  `odd name`
+// Members of an object nested in a package.
+tab> scala.math.Pi@@
+  Pi
+tab> scala.math.Ordering.Int.@@
+  != ## -> == OrderingOps asInstanceOf compare ensuring eq equals equiv formatted getClass gt gteq
+  hashCode isInstanceOf isReverseOf lt lteq max min mkOrderingOps ne nn notify notifyAll on orElse
+  orElseBy reverse reversed runtimeChecked synchronized thenComparing thenComparingDouble
+  thenComparingInt thenComparingLong toString tryCompare wait →

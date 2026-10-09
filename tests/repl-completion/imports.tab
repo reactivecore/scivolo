@@ -1,0 +1,88 @@
+// oracle: scala3-repl 3.9.0, JDK 21.0.12.1
+// Import paths and selectors.
+tab> import scala.coll@@
+  collection
+tab> import scala.collection.@@
+  +: :+ AbstractIndexedSeqView AbstractIterable AbstractIterator AbstractMap AbstractMapView
+  AbstractSeq AbstractSeqView AbstractSet AbstractView AnyStepper ArrayLike ArrayOps BitSet
+  BitSetOps BufferedIterator BuildFrom BuildFromLowPriority1 BuildFromLowPriority2
+  ClassTagIterableFactory ClassTagSeqFactory DefaultMap DoubleStepper EvidenceIterableFactory
+  EvidenceIterableFactoryDefaults Factory GenIterable GenMap GenSeq GenSet GenTraversable
+  GenTraversableOnce IndexedSeq IndexedSeqOps IndexedSeqView IntStepper Iterable IterableFactory
+  IterableFactoryDefaults IterableOnce IterableOnceExtensionMethods IterableOnceOps IterableOps
+  Iterator JavaConverters LazyZip2 LazyZip3 LazyZip4 LinearSeq LinearSeqOps LongStepper Map
+  MapFactory MapFactoryDefaults MapOps MapView MapViewFactory Searching Seq SeqFactory SeqLike
+  SeqMap SeqOps SeqView Set SetOps SortedIterableFactory SortedMap SortedMapFactory
+  SortedMapFactoryDefaults SortedMapOps SortedOps SortedSet SortedSetFactoryDefaults SortedSetOps
+  SpecificIterableFactory Stepper StepperShape StepperShapeLowPriority1 StepperShapeLowPriority2
+  StrictOptimizedClassTagSeqFactory StrictOptimizedIterableOps StrictOptimizedLinearSeqOps
+  StrictOptimizedMapOps StrictOptimizedSeqFactory StrictOptimizedSeqOps StrictOptimizedSetOps
+  StrictOptimizedSortedMapOps StrictOptimizedSortedSetOps StringOps StringView Traversable
+  TraversableOnce View WithFilter concurrent convert generic immutable mutable
+tab> import scala.collection.mutable.{Ar@@}
+  ArrayBuffer ArrayBufferView ArrayBuilder ArrayDeque ArrayDequeOps ArraySeq ArrayStack
+tab> import scala.collection.mutable.{ArrayBuffer, Li@@}
+  LinearSeq LinkedHashMap LinkedHashSet ListBuffer ListMap
+tab> import scala.collection.mutable.{ArrayBuffer as AB, Li@@}
+  LinearSeq LinkedHashMap LinkedHashSet ListBuffer ListMap
+tab> import scala.collection.mutable.{ArrayBuffer as A@@}
+  <none>
+tab> import scala.util.control.@@
+  Breaks ControlThrowable Exception NoStackTrace NonFatal NonLocalReturns TailCalls
+tab> import scala.util.Tr@@
+  Try
+tab> import scala.math.Ordering.@@
+  != ## == AsComparable BigDecimal BigDecimalOrdering BigInt BigIntOrdering Boolean BooleanOrdering
+  Byte ByteOrdering CachedReverse Char CharOrdering DeprecatedDoubleOrdering DeprecatedFloatOrdering
+  Double ExtraImplicits Float Implicits Int IntOrdering Iterable Long LongOrdering Option
+  OptionOrdering Short ShortOrdering String StringOrdering Symbol SymbolOrdering Tuple2 Tuple3
+  Tuple4 Tuple5 Tuple6 Tuple7 Tuple8 Tuple9 Unit UnitOrdering apply asInstanceOf by
+  comparatorToOrdering eq equals fromLessThan getClass hashCode isInstanceOf ne notify notifyAll
+  ordered synchronized toString wait
+tab> import java.ut@@
+  util
+tab> import java.util.@@
+  AbstractCollection AbstractList AbstractMap AbstractMap$SimpleEntry
+  AbstractMap$SimpleImmutableEntry AbstractQueue AbstractSequentialList AbstractSet ArrayDeque
+  ArrayList Arrays Base64 Base64$Decoder Base64$Encoder BitSet Calendar Calendar$Builder Collection
+  Collections Comparator ConcurrentModificationException Currency Date Deque Dictionary
+  DoubleSummaryStatistics DuplicateFormatFlagsException EmptyStackException EnumMap EnumSet
+  Enumeration EventListener EventListenerProxy EventObject FormatFlagsConversionMismatchException
+  FormatProcessor Formattable FormattableFlags Formatter Formatter$BigDecimalLayoutForm
+  FormatterClosedException GregorianCalendar HashMap HashSet Hashtable HexFormat IdentityHashMap
+  IllegalFormatCodePointException IllegalFormatConversionException IllegalFormatException
+  IllegalFormatFlagsException IllegalFormatPrecisionException IllegalFormatWidthException
+  IllformedLocaleException InputMismatchException IntSummaryStatistics
+  InvalidPropertiesFormatException Iterator LinkedHashMap LinkedHashSet LinkedList List ListIterator
+  ListResourceBundle Locale Locale$Builder Locale$Category Locale$FilteringMode
+  Locale$IsoCountryCode Locale$LanguageRange LongSummaryStatistics Map Map$Entry
+  MissingFormatArgumentException MissingFormatWidthException MissingResourceException NavigableMap
+  NavigableSet NoSuchElementException Objects Observable Observer Optional OptionalDouble
+  OptionalInt OptionalLong PrimitiveIterator PrimitiveIterator$OfDouble PrimitiveIterator$OfInt
+  PrimitiveIterator$OfLong PriorityQueue Properties PropertyPermission PropertyResourceBundle Queue
+  Random RandomAccess ResourceBundle ResourceBundle$Control Scanner SequencedCollection SequencedMap
+  SequencedSet ServiceConfigurationError ServiceLoader ServiceLoader$Provider Set SimpleTimeZone
+  SortedMap SortedSet Spliterator Spliterator$OfDouble Spliterator$OfInt Spliterator$OfLong
+  Spliterator$OfPrimitive Spliterators Spliterators$AbstractDoubleSpliterator
+  Spliterators$AbstractIntSpliterator Spliterators$AbstractLongSpliterator
+  Spliterators$AbstractSpliterator SplittableRandom Stack StringJoiner StringTokenizer TimeZone
+  Timer TimerTask TooManyListenersException TreeMap TreeSet UUID UnknownFormatConversionException
+  UnknownFormatFlagsException Vector WeakHashMap concurrent function jar logging prefs random regex
+  spi stream zip
+tab> import java.util.Arr@@
+  ArrayDeque ArrayList Arrays
+tab> import sc@@
+  scala
+tab> import @@
+  <none>
+scala> object Q { val qa = 1; def qb = 2; given Int = 3; class QC }
+tab> import Q.@@
+  != ## == QC asInstanceOf eq equals getClass given_Int hashCode isInstanceOf ne notify notifyAll qa
+  qb synchronized toString wait
+tab> import Q.q@@
+  qa qb
+tab> import Q.{given@@}
+  given_Int
+// Export clauses.
+tab> object R { export Q.q@@ }
+  qa qb

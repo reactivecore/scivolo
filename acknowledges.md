@@ -140,4 +140,6 @@ the VM (fetched, not vendored).
 - Scala Native's unit tests (`unit-tests/`, JUnit runtime and test interface): our conformance
   suite ([docs/conformance.md](docs/conformance.md)).
 - dotty `tests/run` and scala/scala `test/junit`: planned milestones M4 and M5.
+- scala3-repl 3.9.0's `ReplDriver.completions` and `interactive/Completion`: the answers of
+  `tests/repl-completion` and the algorithm to port (research 11).
 - Rust style: Reactive Core's `rcui` project (`CLAUDE.md`).
