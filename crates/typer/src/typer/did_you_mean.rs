@@ -36,7 +36,6 @@ impl Typer<'_> {
         script.extend(self.syms.by_tree.values().copied());
         script.extend(self.syms.closure_syms.iter().copied());
         let mut names: Vec<String> = script.iter().map(|&s| self.u.symbol(s).name.clone()).collect();
-        self.defined_names(&mut names);
         names.extend(OBJECT_MEMBERS.split_whitespace().map(str::to_owned));
         let mut sites = vec![self.u.root()];
         let mut level = Some(ctx.level);
@@ -59,6 +58,7 @@ impl Typer<'_> {
         for site in sites {
             self.member_names(site, &mut names)?;
         }
+        self.defined_names(&mut names);
         Some(names)
     }
 

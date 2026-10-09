@@ -143,14 +143,16 @@ fn deferred_members_of_earlier_units() {
     assert!(!u.is_deferred(c_a));
 }
 
-/// Whether typing `text` as a unit after `before` reports no `Not found` error.
+/// Whether typing `text` as a unit after `before` types it or leaves the unresolved `c` to the
+/// fallback.
 fn finds_toplevel(before: &[&str], text: &str) -> bool {
     let Some(mut u) = universe() else { return true };
     let mut units = Units::default();
     for (i, b) in before.iter().enumerate() {
         assert_eq!(type_unit(&mut u, &mut units, &format!("before{i}.scala"), b), Ok(()), "{b}");
     }
-    !matches!(type_unit(&mut u, &mut units, "main.scala", text), Err(e) if e.contains("Not found"))
+    let outcome = type_unit(&mut u, &mut units, "main.scala", text);
+    matches!(&outcome, Ok(())) || matches!(&outcome, Err(e) if e.as_str() == "unsupported unresolved name c")
 }
 
 #[test]
