@@ -94,6 +94,24 @@ impl Units {
         }
         Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
     }
+
+    /// Forgets that the definitions in the object `name` of the root package, and the object, are
+    /// script symbols, so that they bind no name later units may be told of.
+    pub fn forget(&mut self, u: &mut Universe, name: &str) {
+        let root = u.root();
+        let objects: Vec<tasty::SymbolId> = [name.to_owned(), format!("{name}$")]
+            .iter()
+            .flat_map(|n| u.decl(root, n).unwrap_or_default())
+            .collect();
+        let under = |mut s: tasty::SymbolId| loop {
+            if objects.contains(&s) {
+                return true;
+            }
+            let Some(owner) = u.symbol(s).owner else { return false };
+            s = owner;
+        };
+        self.syms.flags.retain(|&s, _| !under(s));
+    }
 }
 
 /// The context of a unit: the members of the root package, then the wildcard imports of

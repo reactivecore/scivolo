@@ -35,6 +35,12 @@ tab> scala.collection.mut@@
   mutable
 tab> scala.collection.mutable.ArrayB@@
   ArrayBuffer ArrayBufferView ArrayBuilder
+// Packages of Scala Native's libraries, which dotty's classpath lacks.
+tab> scala.sc@@
+  <none>
+tab> _root_.@@
+  `<empty>` `<special-ops>` apple com images java javax jdk netscape org scala sun
+  toolbarButtonGraphics
 scala> val x = List(1, 2)
 tab> x.@@
   != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
@@ -97,6 +103,27 @@ tab> x.hea@@x
 tab> x.ma@@q
   [original] maq
   [others] map mapConserve max maxBy maxByOption maxOption
+// The word filter over labels we miss: JLine's fallbacks would pick others.
+tab> x.en@@s
+  ensuring
+// Missed: Predef's extensions and conversions (stage 5).
+miss> ensuring
+tab> x.for@@m
+  formatted
+// Missed: Predef's extensions and conversions (stage 5).
+miss> formatted
+tab> x.fo@@rm
+  formatted
+// Missed: Predef's extensions and conversions (stage 5).
+miss> formatted
+tab> x.n@@n
+  nn
+// Missed: Predef's extensions and conversions (stage 5).
+miss> nn
+tab> x.ru@@nt
+  runtimeChecked
+// Missed: Predef's extensions and conversions (stage 5).
+miss> runtimeChecked
 tab> x.@@head
   != ## ++ ++: +: -> /: :+ :++ :: ::: :\ == CombinationsItr Maximized PermutationsItr addString
   aggregate andThen appended appendedAll apply applyOrElse asInstanceOf canEqual collect
@@ -135,6 +162,14 @@ tab> c.b@@
   <none>
 tab> c.p@@
   <none>
+scala> object S3 { var vr = 2; val v$1 = 3; def x$2 = 4 }
+tab> S3.@@
+  != ## -> == asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn notify
+  notifyAll runtimeChecked synchronized toString v$1 vr wait x$2 →
+// Missed: Predef's extensions and conversions (stage 5).
+miss> -> ensuring formatted nn runtimeChecked →
+tab> S3.v@@
+  v$1 vr
 scala> object O { val one = 1; def two = 2; type T = Int; class K; object N }
 tab> O.@@
   != ## -> == K N asInstanceOf ensuring eq equals formatted getClass hashCode isInstanceOf ne nn

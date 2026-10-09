@@ -25,11 +25,12 @@ impl Typer<'_> {
                 }
             }
         }
-        names.retain(|name| self.offers(&owners, name, (this, ctx)));
+        names.retain(|name| self.offers(&owners, name, this, ctx));
         Some(names)
     }
 
-    /// The package or the base classes whose declarations are the members of `site`.
+    /// The package or the base classes whose declarations are the members of `site`; `None` for
+    /// the root package, whose members dotty takes from its classpath and the JDK.
     fn member_owners(&mut self, site: TypeId) -> Option<Vec<SymbolId>> {
         let package = match *self.u.types().get(site) {
             Type::Package(p) => Some(p),
@@ -37,7 +38,7 @@ impl Typer<'_> {
             _ => None,
         };
         if let Some(p) = package {
-            if is_jdk(&self.u.full_name(p)) {
+            if p == self.u.root() || is_jdk(&self.u.full_name(p)) {
                 return None;
             }
             let decls = self.u.decls(p).ok()?;
@@ -64,7 +65,7 @@ impl Typer<'_> {
     /// Whether a selection whose members `owners` declare, the first the site's class or package,
     /// offers `name` from where `ctx` is, the prefix being a `this` if `this`: a member term as
     /// dotty's typer sees it, or a constructor proxy.
-    fn offers(&mut self, owners: &[SymbolId], name: &str, (this, ctx): (bool, Ctx)) -> bool {
+    fn offers(&mut self, owners: &[SymbolId], name: &str, this: bool, ctx: Ctx) -> bool {
         let mut terms = Vec::new();
         for &owner in owners {
             let decls = self.u.decl(owner, name).unwrap_or_default();
@@ -84,14 +85,17 @@ impl Typer<'_> {
         owner.is_some_and(|o| self.syms.flags.contains_key(&o)) && !self.syms.flags.contains_key(&s)
     }
 
-    /// Whether term `s` is offered (dotty's `isValidCompletionSymbol` and `isAccessibleFrom`).
+    /// Whether term `s` is offered (dotty's `isValidCompletionSymbol` and `isAccessibleFrom`):
+    /// not `Object` members the JDK lacks, nor Scala Native's packages.
     fn is_offered(&mut self, s: SymbolId, this: bool, ctx: Ctx) -> bool {
         let sym = self.u.symbol(s);
         let flags = sym.flags;
-        let setter = flags.has(MUTABLE) && flags.has(FIELDaccessor);
+        let setter = flags.has(MUTABLE) && flags.has(FIELDaccessor) && sym.name.ends_with("_=");
         let hidden =
             sym.owner == Some(self.defn.object) && !OBJECT_MEMBERS.split_whitespace().any(|m| m == sym.name);
         let valid = sym.name != "<init>" && !sym.derived && !setter && !flags.has(ARTIFACT) && !hidden;
+        let native = sym.kind == Kind::Package && self.u.full_name(s).starts_with("scala.scalanative");
+        let valid = valid && !native;
         let package_object = self.u.module_class(s).is_some_and(|c| self.is_package_object(c));
         valid && !package_object && self.is_visible(s, this, ctx)
     }

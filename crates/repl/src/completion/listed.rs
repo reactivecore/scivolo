@@ -15,16 +15,18 @@ pub struct Group {
     pub labels: Vec<String>,
 }
 
-/// The groups JLine lists for `labels` and `word`: the labels starting with the word, else those
-/// containing it, else those within a typo of it and then the word itself under `original`.
-pub fn listed(word: &str, mut labels: Vec<String>) -> Vec<Group> {
+/// The groups JLine lists for `labels` and `word`: the labels starting with the word, else, if
+/// `labels` are all dotty's, those containing it, else those within a typo of it and then the
+/// word itself under `original`.
+pub fn listed(word: &str, mut labels: Vec<String>, complete: bool) -> Vec<Group> {
     labels.sort_by(|a, b| a.encode_utf16().cmp(b.encode_utf16()));
     labels.dedup();
     let word16: Vec<u16> = word.encode_utf16().collect();
     let matchers: [&dyn Fn(&str) -> bool; 3] = [&|l| l.starts_with(word), &|l| l.contains(word), &|l| {
         distance(&word16, &l.encode_utf16().collect::<Vec<_>>()) < ERRORS
     }];
-    let Some((i, matched)) = matchers.iter().enumerate().find_map(|(i, m)| {
+    let tried = if complete { &matchers[..] } else { &matchers[..1] };
+    let Some((i, matched)) = tried.iter().enumerate().find_map(|(i, m)| {
         let matched: Vec<String> = labels.iter().filter(|l| m(l)).cloned().collect();
         (!matched.is_empty()).then_some((i, matched))
     }) else {
@@ -116,20 +118,27 @@ mod tests {
     #[test]
     fn filters_by_prefix_then_substring_then_typo() {
         let all = labels(&["map", "max", "head", "headOption"]);
-        assert_eq!(
-            listed("hea", all.clone()),
-            [Group { header: None, labels: labels(&["head", "headOption"]) }]
-        );
-        assert_eq!(listed("Option", all.clone()), [Group { header: None, labels: labels(&["headOption"]) }]);
-        let typo = listed("maq", all.clone());
+        let head = [Group { header: None, labels: labels(&["head", "headOption"]) }];
+        assert_eq!(listed("hea", all.clone(), true), head);
+        assert_eq!(listed("hea", all.clone(), false), head);
+        let option = [Group { header: None, labels: labels(&["headOption"]) }];
+        assert_eq!(listed("Option", all.clone(), true), option);
+        let typo = listed("maq", all.clone(), true);
         assert_eq!(typo[0], Group { header: Some("original"), labels: labels(&["maq"]) });
         assert_eq!(typo[1], Group { header: Some("others"), labels: labels(&["map", "max"]) });
-        assert_eq!(listed("zzz", all), []);
+        assert_eq!(listed("zzz", all.clone(), true), []);
+    }
+
+    #[test]
+    fn only_by_prefix_for_some_of_the_labels() {
+        let all = labels(&["map", "max", "head", "headOption"]);
+        assert_eq!(listed("Option", all.clone(), false), []);
+        assert_eq!(listed("maq", all, false), []);
     }
 
     #[test]
     fn sorts_by_utf16_units() {
-        let sorted = listed("", labels(&["`head`", "`headOption`", "b", "B"]));
+        let sorted = listed("", labels(&["`head`", "`headOption`", "b", "B"]), false);
         assert_eq!(sorted[0].labels, labels(&["B", "`headOption`", "`head`", "b"]));
     }
 }

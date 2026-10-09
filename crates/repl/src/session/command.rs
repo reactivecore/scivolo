@@ -61,6 +61,7 @@ impl Session {
         };
         let res = self.res;
         let typed = self.typed(&mut parsed, &object);
+        self.units.forget(&mut self.u, &object);
         let expression = (self.res > res).then(|| format!("res{}", self.res - 1));
         self.res = res;
         let (typed, template) = match typed {

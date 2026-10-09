@@ -184,7 +184,6 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
-        self.probe_context(id, ctx);
         let vars = self.constraint.count();
         let tree = match self.ready(id, ctx) {
             Some(t) => t,

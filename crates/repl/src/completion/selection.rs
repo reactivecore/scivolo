@@ -16,7 +16,8 @@ pub struct Selection {
 }
 
 /// The term selection innermost around byte offset `cursor` among `stats`, if the cursor is on
-/// one; `None` for any other tree, a type selection, a recovery tree or a package clause.
+/// one; `None` for any other tree, a type selection, a recovery tree, a package clause, or in a
+/// pattern definition (`val (a, b) = …`), whose desugaring keeps dotty from the selection.
 pub fn selection(
     ast: &Ast,
     names: &Names,
@@ -29,7 +30,8 @@ pub fn selection(
     let Tree::Select { name, .. } = *ast.tree(target) else { return None };
     let span = ast.span(target);
     let package = outer.first().is_some_and(|&o| matches!(ast.tree(o), Tree::PackageDef { .. }));
-    if name.is_type || span.is_synthetic() || package {
+    let pattern_def = outer.iter().any(|&o| matches!(ast.tree(o), Tree::PatDef { .. }));
+    if name.is_type || span.is_synthetic() || package || pattern_def {
         return None;
     }
     let text = &source.text;
@@ -92,5 +94,7 @@ mod tests {
         assert_eq!(prefix("pri@@"), None);
         assert_eq!(prefix("val y: scala.In@@"), None);
         assert_eq!(prefix("val y = @@"), None);
+        assert_eq!(prefix("val (a, b) = (x.he@@, 1)"), None);
+        assert_eq!(prefix("val y = x.he@@"), Some(("he".into(), false)));
     }
 }

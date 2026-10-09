@@ -1,7 +1,8 @@
 //! The completion corpus `tests/repl-completion/*.tab` (format in docs/research/11-completion.md
 //! §4): `scala>` lines run in one session, reset between files; each `tab>` line asks at `@@`.
 //! An entry in scope must list dotty's answer less its `miss>` labels, in the same order; an
-//! entry out of scope is skipped with its reason, and still lists no label dotty does not.
+//! entry out of scope is skipped with its reason, and still lists no label dotty does not. The
+//! `scala>` lines of files in scope must compile and run.
 
 #[path = "../../scalai/src/libs.rs"]
 mod libs;
@@ -27,7 +28,10 @@ const SKIPPED_FILES: [(&str, &str); 4] = [
 ];
 
 /// The entries out of this stage's scope in the other files, by file and input, and why.
-const SKIPPED: [(&str, &str, &str); 5] = [
+const SKIPPED: [(&str, &str, &str); 8] = [
+    ("members.tab", "x.hea@@x", "JLine's typo fallback, off while labels are missed (stage 5)"),
+    ("members.tab", "x.ma@@q", "JLine's typo fallback, off while labels are missed (stage 5)"),
+    ("members.tab", "_root_.@@", "the root package: dotty's classpath and the JDK (stage 4)"),
     ("members.tab", "scala.math.Ordering.Int.@@", "a JDK base class, `java.util.Comparator` (stage 5)"),
     ("unfinished.tab", "va@@", "scope completion (stage 4)"),
     ("unfinished.tab", "\"ab@@\"", "scope completion in a string literal (stage 4)"),
@@ -45,8 +49,9 @@ struct Entry {
 struct Tally {
     passed: usize,
     with_misses: usize,
-    /// How many entries of `SKIPPED` were found.
-    found_skips: usize,
+    /// The files of `SKIPPED_FILES` and the entries of `SKIPPED` found.
+    found_files: Vec<&'static str>,
+    found_skips: Vec<(&'static str, &'static str)>,
     skipped: BTreeMap<&'static str, usize>,
     failed: Vec<String>,
 }
@@ -103,7 +108,9 @@ fn text(first: &str, more: &[&str], prompt: &str) -> String {
 /// Runs the corpus file `name` of `content` through `session`, counting into `tally`.
 fn run_file(session: &mut Session, name: &str, content: &str, tally: &mut Tally) {
     let lines: Vec<&str> = content.lines().collect();
-    let skipped_file = SKIPPED_FILES.iter().find(|(f, _)| *f == name).map(|&(_, why)| why);
+    let skipped_file = SKIPPED_FILES.iter().find(|(f, _)| *f == name);
+    tally.found_files.extend(skipped_file.map(|&(f, _)| f));
+    let skipped_file = skipped_file.map(|&(_, why)| why);
     let mut i = 0;
     while i < lines.len() {
         let line = lines[i];
@@ -111,7 +118,11 @@ fn run_file(session: &mut Session, name: &str, content: &str, tally: &mut Tally)
         let cont = &lines[i + 1..i + 1 + more];
         i += 1 + more;
         if line.starts_with(PROMPT) {
-            session.eval(&text(line, cont, PROMPT));
+            let input = text(line, cont, PROMPT);
+            let out = session.eval(&input);
+            if skipped_file.is_none() && out.iter().any(|l| fails(l)) {
+                tally.failed.push(format!("{name}: `{input}` fails:\n{}", out.join("\n")));
+            }
             continue;
         }
         if !line.starts_with(TAB) {
@@ -125,9 +136,16 @@ fn run_file(session: &mut Session, name: &str, content: &str, tally: &mut Tally)
         let entry =
             Entry { input: text(line, cont, TAB), expected: answer(&answers), misses: misses.collect() };
         let skipped = SKIPPED.iter().find(|(f, input, _)| *f == name && *input == entry.input);
-        tally.found_skips += usize::from(skipped.is_some());
+        tally.found_skips.extend(skipped.map(|&(f, input, _)| (f, input)));
         check(session, name, &entry, skipped_file.or(skipped.map(|&(_, _, why)| why)), tally);
     }
+}
+
+/// Whether output line `l` reports an error, a construct outside the subset or an exception.
+fn fails(l: &str) -> bool {
+    let class = l.split(": ").next().unwrap_or(l);
+    let thrown = !class.contains(' ') && (class.ends_with("Exception") || class.ends_with("Error"));
+    l.starts_with("-- ") && !l.contains("Warning") || thrown
 }
 
 /// Asks `session` for `entry` and compares the answer, exactly if in scope, else for extras only.
@@ -190,17 +208,46 @@ fn run() -> Result<(), String> {
         run_file(&mut session, &name, &std::fs::read_to_string(&file).unwrap(), &mut tally);
         session.reset();
     }
+    unchanged_by_looks(&mut session, &mut tally.failed);
     session.shutdown().map_err(|e| e.to_string())?;
     eprintln!(
         "completion corpus: {} passed ({} with misses), skipped {:?}",
         tally.passed, tally.with_misses, tally.skipped
     );
-    if tally.found_skips != SKIPPED.len() {
-        tally.failed.push(format!("{} of the {} skipped entries found", tally.found_skips, SKIPPED.len()));
+    for (file, _) in SKIPPED_FILES.iter().filter(|(f, _)| !tally.found_files.contains(f)) {
+        tally.failed.push(format!("skipped file {file} not in the corpus"));
+    }
+    for (file, input, _) in SKIPPED.iter().filter(|&&(f, i, _)| !tally.found_skips.contains(&(f, i))) {
+        tally.failed.push(format!("skipped entry `{input}` not in {file}"));
     }
     match tally.failed.is_empty() {
         true => Ok(()),
         false => Err(format!("{} entries fail:\n\n{}", tally.failed.len(), tally.failed.join("\n\n"))),
+    }
+}
+
+/// Inputs whose output a completion, or a `:type` command, before them must not change: a look
+/// at a definition binds no name.
+const UNCHANGED: [(&str, &str); 3] =
+    [("val yy = x.toSt", "yz"), ("val zz = 1; x.toSt", "zz"), (":type val yy = 1", "yz")];
+
+/// Checks `UNCHANGED` in `session`, which it resets, into `failed`.
+fn unchanged_by_looks(session: &mut Session, failed: &mut Vec<String>) {
+    for (look, input) in UNCHANGED {
+        session.eval("val x = List(1, 2)");
+        let expected = session.eval(input);
+        session.reset();
+        session.eval("val x = List(1, 2)");
+        if look.starts_with(':') {
+            session.eval(look);
+        } else {
+            session.complete(look, look.len());
+        }
+        let actual = session.eval(input);
+        if actual != expected {
+            failed.push(format!("`{look}` changes `{input}`: {expected:?} became {actual:?}"));
+        }
+        session.reset();
     }
 }
 

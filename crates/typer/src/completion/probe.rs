@@ -11,7 +11,7 @@ use tasty::{Type, TypeId};
 pub struct Probe {
     target: NodeId,
     cursor: Offset,
-    /// The context of the first typing of the target.
+    /// The context of the first typing of the target selection.
     ctx: Option<Ctx>,
     /// The qualifier's type, zonked, at each typing of the target selection.
     quals: Vec<TypeId>,
@@ -30,21 +30,14 @@ impl Typer<'_> {
         self.probe.as_ref().is_some_and(|p| p.target == id)
     }
 
-    /// Records `ctx` if `id` is the target typed for the first time.
-    pub fn probe_context(&mut self, id: NodeId, ctx: Ctx) {
-        if let Some(p) = &mut self.probe
-            && p.target == id
-        {
-            p.ctx.get_or_insert(ctx);
-        }
-    }
-
-    /// Records the type of `qual`, the qualifier of target selection `id`; an error tree for it.
-    pub fn probe_selection(&mut self, id: NodeId, qual: TNodeId) -> TNodeId {
+    /// Records the type of `qual`, the qualifier of target selection `id` typed in `ctx`; an
+    /// error tree for the selection.
+    pub fn probe_selection(&mut self, id: NodeId, qual: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(qual);
         let tpe = self.zonk(tpe);
         if let Some(p) = &mut self.probe {
             p.quals.push(tpe);
+            p.ctx.get_or_insert(ctx);
         }
         self.error_tree(self.ast.span(id))
     }

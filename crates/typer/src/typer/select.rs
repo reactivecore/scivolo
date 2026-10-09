@@ -16,7 +16,7 @@ impl Typer<'_> {
         let mode = if path { crate::ctx::Mode::QUALIFIER } else { crate::ctx::Mode::NONE };
         let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
         if self.is_probe_target(id) {
-            return self.probe_selection(id, qual);
+            return self.probe_selection(id, qual, ctx);
         }
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));

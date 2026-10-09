@@ -115,9 +115,12 @@ Our parser already leaves dotty's shapes for unfinished input: `x.` is `Select(x
 the point at the name, `import a.` an `<error>` selector, `{Ar` a selector `Ar` [V]. Needed: a
 lenient parse beside `input::classify` that keeps statements and diagnostics. The typer gives no
 result on an unsupported construct or a missing member, so completion cannot read `type_unit`'s
-output: a probe (target node, recorded context, qualifier type, import qualifier) fires in
-`typed`, `typed_select`, `typed_ident` and `import_info`, and returns an error tree at the target.
-Candidates are computed in the same `Typer`; the session's `Units` stay as they were.
+output: a probe (target node, recorded context, qualifier type) fires in `typed_select`, before
+any member lookup, and returns an error tree at the target; stage 4 adds `typed_ident` and
+`import_info`. Candidates are computed in the same `Typer`. The universe keeps the wrapper's
+symbols, and the session's `Units` its script symbols, but the wrapper's definitions are
+forgotten as script symbols (`Units::forget`, also after `:type`), so that no later "did you
+mean" hint sees them.
 
 ### 3.2 When to show nothing
 
@@ -128,7 +131,13 @@ Candidates are computed in the same `Typer`; the session's `Units` stay as they 
   (a JDK package other than `java.lang`, a JDK class without a member table, a missing base
   class, a self type, an export clause).
 - `java.lang` names: only those in javalib and `JAVA_LANG`, nested `$` classes never.
-- A panic: caught, no session reset.
+- A panic: caught, no session reset; the units' script symbols are as before, the universe and
+  the names keep what the typer added.
+- JLine's substring and typo matchers while labels are missed: only labels starting with the
+  word, since dotty's own labels may start with it (`x.en@@s` is `ensuring` for dotty).
+- The root package, whose members dotty takes from its classpath and the JDK; Scala Native's
+  `scala.scalanative`.
+- In a pattern definition (`val (a, b) = (x.he@@, 1)`), where dotty offers nothing.
 
 Derived names need a flag on `Symbol` set from the TASTy name kind, not a `$` pattern, which
 would drop `_1$mcI$sp`.
@@ -174,7 +183,11 @@ sequences, expecting exactly the answer less the misses, in the same order.
 
 ## 6. Cost of a wrapper per Tab
 
-The wrapper is a fresh `rs$line$tab$K` object, never run nor imported. With `val x =
-List(1, 2)` defined, 1000 completions each (release build, `crates/repl/tests/completion_cost.rs`)
-[V]: `x.hea` 0.10 ms, `x.` 0.34 ms, `x.toString.` 0.23 ms per completion; an evaluation after
-the 3000 takes 1.3 ms. The symbols each wrapper adds stay in the universe until #70.
+The wrapper is a fresh `rs$line$tab$K` object, never run nor imported; its symbols stay in the
+universe until #70, so each Tab makes the later ones and evaluations slower. With `val x =
+List(1, 2)` defined, 1000 completions of each input, twice (release build,
+`crates/repl/tests/completion_cost.rs`, a loaded machine) [V]: the first round `x.hea` 0.15 ms,
+`x.` 0.52 ms, `x.toString.` 0.28 ms per completion, the second 0.62, 0.90 and 0.86 ms; an
+evaluation takes 1.1 ms before the 6000 and 4.0 ms after them. An independent run measured
+0.57 → 2.1 ms per Tab over 6000 Tabs and 0.87 → 1.40 ms per evaluation. `x.toString.` stops
+early: its class is the JDK's `String`, so it measures typing without the member scan.

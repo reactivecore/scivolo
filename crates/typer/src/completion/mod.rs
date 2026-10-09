@@ -23,7 +23,7 @@ pub struct Request {
 impl Units {
     /// The names dotty offers for `request` in unit `root`, typed as `type_unit` types it, its
     /// symbols kept as `type_unit` keeps them; none where they are not all known. A panic
-    /// leaves the units as they were.
+    /// leaves these units' script symbols as they were, not `u`, `names` and `fresh`.
     pub fn complete(
         &mut self,
         u: &mut Universe,
