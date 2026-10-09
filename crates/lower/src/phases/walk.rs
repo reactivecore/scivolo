@@ -1,15 +1,35 @@
-//! The subtrees of typed trees, and the symbols trees refer to.
+//! The walks of the phases over a class definition, the subtrees of typed trees, and the
+//! symbols trees refer to.
 
 use crate::Lower;
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tpd, Tree};
+use typer::tpd::{TNodeId, Tpd, Tree, Visit, Walk, traverse_up};
 
 impl AsRef<Tpd> for Lower<'_> {
     fn as_ref(&self) -> &Tpd {
         self.tpd
     }
+}
+
+/// `typer::tpd::traverse_up` from class definition `td`, owned by its class, that does not
+/// enter the class definitions nested in it.
+pub fn walk_class_up<'a>(
+    l: &mut Lower<'a>,
+    td: TNodeId,
+    enter: &mut Visit<Lower<'a>>,
+    leave: &mut Visit<Lower<'a>>,
+) {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    let mut enter =
+        |l: &mut Lower<'a>, t, owner| if nested(l, td, t) { Walk::Skip } else { enter(l, t, owner) };
+    traverse_up(l, td, class, &mut enter, leave);
+}
+
+/// Whether `t` is a class definition nested in class definition `td`.
+fn nested(l: &Lower, td: TNodeId, t: TNodeId) -> bool {
+    t != td && matches!(l.tpd.tree(t), Tree::TypeDef { .. })
 }
 
 /// The direct subtrees of `t`, in order.
