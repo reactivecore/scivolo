@@ -38,6 +38,10 @@ impl Typer<'_> {
     }
 
     pub fn typed_bind(&mut self, id: NodeId, name: TName, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let ref_or_literal = matches!(
+            self.ast.tree(body),
+            Tree::Ident { .. } | Tree::Select { .. } | Tree::Literal { .. } | Tree::Number { .. }
+        );
         let body = self.typed(body, pt, ctx);
         let text = self.text(name.name).to_owned();
         if text == "_" {
@@ -53,6 +57,7 @@ impl Typer<'_> {
         let (nothing, null) = (b.nothing, b.null);
         let bottom = |t: &mut Self, p| matches!(t.u.class_symbol(p), Some(c) if c == nothing || c == null);
         let info = match pt {
+            _ if !ref_or_literal && self.is_error(body) => body_tpe,
             Pt::Type(p) if stable_or_literal => p,
             Pt::Type(p) if !bottom(self, p) && !self.u.is_subtype(body_tpe, p) => {
                 if !self.u.is_subtype(p, body_tpe) {

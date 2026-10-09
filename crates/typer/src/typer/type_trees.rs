@@ -18,10 +18,14 @@ impl Typer<'_> {
             }
             Tree::AppliedTypeTree { tpt, args } => {
                 let tpt = self.typed_type(tpt, ctx);
+                let tycon = self.tpd.tpe(tpt);
                 let arg_ids = self.ast.items(args).to_vec();
+                let arity = self.type_arity(tycon);
+                if !self.is_error(tpt) && arity != arg_ids.len() {
+                    return self.unsupported(id, "wrong number of type arguments");
+                }
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                let tycon = self.tpd.tpe(tpt);
                 if self
                     .tpd
                     .sym(tpt)
@@ -29,7 +33,7 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if self.type_arity(tycon) != typed_args.len() {
+                if arity != typed_args.len() {
                     return self.unsupported(id, "wrong number of type arguments");
                 }
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {

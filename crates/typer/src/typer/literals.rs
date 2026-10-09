@@ -1,11 +1,13 @@
 //! Literals and their constant types (dotty's `typedLiteral`, `ConstantType`).
 
 use super::{Pt, Typer};
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::from_digits;
 use syntax::ast::tree::NumberKind;
+use syntax::config::Features;
 use tasty::tags::*;
 use tasty::{Type, TypeId};
 
@@ -36,11 +38,36 @@ impl Typer<'_> {
 
     /// A number literal: of the primitive type expected if there is one, else an `Int` or a
     /// `Double` by its form (dotty's `typedNumber`).
-    pub fn typed_number(&mut self, id: NodeId, digits: &str, kind: NumberKind, pt: Pt) -> TNodeId {
+    pub fn typed_number(
+        &mut self,
+        id: NodeId,
+        (digits, kind): (&str, NumberKind),
+        pt: Pt,
+        ctx: Ctx,
+    ) -> TNodeId {
         let target = match pt {
             Pt::Type(t) => self.u.class_symbol(t).map(|c| self.u.full_name(c)),
             _ => None,
         };
+        let primitive = matches!(
+            target.as_deref(),
+            Some(
+                "scala.Int"
+                    | "scala.Char"
+                    | "scala.Byte"
+                    | "scala.Short"
+                    | "scala.Long"
+                    | "scala.Float"
+                    | "scala.Double"
+            )
+        );
+        let generic = Features::GENERIC_NUMBER_LITERALS;
+        if matches!(pt, Pt::Type(_))
+            && !primitive
+            && self.feature_enabled(generic, "experimental.genericNumberLiterals", ctx)
+        {
+            return self.unsupported(id, "generic number literal");
+        }
         let whole = |r| from_digits::int(digits, r as u32).map(Constant::Int);
         let value = match (target.as_deref(), kind) {
             (Some("scala.Int" | "scala.Char" | "scala.Byte" | "scala.Short"), NumberKind::Whole(r)) => {

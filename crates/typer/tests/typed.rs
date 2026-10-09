@@ -14,7 +14,7 @@ fn typed(u: &mut Universe, path: &Path) -> String {
         .filter_map(|l| l.strip_prefix("//> using options "))
         .flat_map(str::split_whitespace)
         .collect();
-    dump(u, &SourceFile::new(path.to_string_lossy(), text.as_str()), &options)
+    dump(u, &SourceFile::new(path.to_string_lossy(), text.as_str()), &options, false)
 }
 
 #[test]

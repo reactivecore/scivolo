@@ -20,6 +20,7 @@ impl Features {
     pub const PURE_FUNCTIONS: Features = Features(1 << 8);
     pub const INTO: Features = Features(1 << 9);
     pub const STRICT_EQUALITY: Features = Features(1 << 10);
+    pub const GENERIC_NUMBER_LITERALS: Features = Features(1 << 11);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -37,6 +38,7 @@ impl Features {
             "experimental.pureFunctions" => Features::PURE_FUNCTIONS,
             "experimental.into" => Features::INTO,
             "strictEquality" => Features::STRICT_EQUALITY,
+            "experimental.genericNumberLiterals" => Features::GENERIC_NUMBER_LITERALS,
             _ => return None,
         })
     }

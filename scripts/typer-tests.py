@@ -3,10 +3,12 @@
 (docs/research/09-typer.md). A neg file passes when the typer does not accept it: it reports an
 error or falls back.
 
-Usage: scripts/typer-tests.py oracle|report [FILTER] | diff PATH | checks DIR | stats
+Usage: scripts/typer-tests.py oracle|report|stress [FILTER] | diff PATH | checks DIR | stats
 """
 import collections
+import concurrent.futures
 import difflib
+import os
 import re
 import subprocess
 import sys
@@ -17,6 +19,7 @@ TESTS = ROOT / "ref/dotty/tests"
 WORK = ROOT / "tmp/typer/3.9.0"
 DUMP = ROOT / "target/release/typer-dump"
 REPORT_TIMEOUT = 1800
+STRESS_TIMEOUT = 60
 CORPORA = ("programs", "pos", "neg")
 OUTCOMES = ["passed", "differ", "warnings differ", "rejected", "accepted", "syntax errors", "unsupported",
             "crashed", "skipped"]
@@ -185,6 +188,59 @@ def report(filter_):
     print(table)
 
 
+def errors(record):
+    """{offset: message} of the errors of a dump or oracle record."""
+    return {int(m[1]): m[2] for m in re.finditer(r"^== E (\d+) (.*)$", record, re.M)}
+
+
+def dump_one(rel, opts):
+    """The stress-mode record of one file, or a crash line when it does not finish in time."""
+    lst = WORK / "stress" / (rel.replace("/", "_") + ".tsv")
+    lst.write_text(f"{ROOT / rel}\t{opts}\n")
+    try:
+        out = subprocess.run([str(DUMP), "--errors-first", "--list", str(lst)], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=STRESS_TIMEOUT)
+    except subprocess.TimeoutExpired:
+        return f"== crash timeout after {STRESS_TIMEOUT} s\n"
+    return split(out.stdout).get(rel, "== crash no output\n")
+
+
+def stress(filter_):
+    """Type programs, pos and neg files with errors taking precedence over unsupported constructs: an
+    error at an offset where dotty reports none is a false error. Without oracle output, dotty
+    reports none in a programs or pos file, and in a neg file whose oracle run crashed, those on the
+    lines marked `// error`."""
+    expected = load_expected()
+    runnable = [(rel, opts) for rel, opts, reason in selected(filter_)
+                if reason is None and (rel in expected or corpus(rel) != "neg")]
+    (WORK / "stress").mkdir(exist_ok=True)
+    with concurrent.futures.ThreadPoolExecutor(os.cpu_count()) as pool:
+        records = dict(zip(runnable, pool.map(lambda r: dump_one(*r), runnable)))
+    false, crashed, rows = collections.Counter(), [], []
+    for (rel, _), got in records.items():
+        if got.startswith("== crash"):
+            crashed.append(rel)
+            rows.append(f"{rel}\tcrashed\t{got.splitlines()[0]}\n")
+        oracle = expected.get(rel, "")
+        if corpus(rel) == "neg" and oracle.startswith("== crash"):
+            text = (ROOT / rel).read_text(errors="replace")
+            marked = {i for i, l in enumerate(text.splitlines()) if "// error" in l}
+            dotty = lambda at: text.count("\n", 0, at) in marked
+        else:
+            dotty = errors(oracle).__contains__
+        for at, msg in sorted(errors(got).items()):
+            if not dotty(at):
+                false[corpus(rel)] += 1
+                rows.append(f"{rel}\tfalse\t{at} {msg}\n")
+                print(f"false error: {rel} @ {at} {msg}")
+    (WORK / "stress.tsv").write_text("".join(rows))
+    for rel in crashed:
+        print(f"crashed: {rel}")
+    print(f"{len(records)} files, {len(crashed)} crashed, false errors: "
+          + ", ".join(f"{c} {false[c]}" for c in CORPORA))
+    sys.exit(1 if false or crashed else 0)
+
+
 def diff(path):
     rel = relative(str(Path(path).resolve()))
     opts = next((o for r, o, _ in selected(rel) if r == rel), "")
@@ -228,7 +284,7 @@ def stats(_):
 
 
 if __name__ == "__main__":
-    commands = {"oracle": oracle, "report": report, "diff": diff, "checks": checks, "stats": stats}
+    commands = {"oracle": oracle, "report": report, "stress": stress, "diff": diff, "checks": checks, "stats": stats}
     if len(sys.argv) < 2 or sys.argv[1] not in commands:
         sys.exit(__doc__)
     WORK.mkdir(parents=True, exist_ok=True)

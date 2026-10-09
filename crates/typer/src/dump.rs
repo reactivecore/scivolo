@@ -27,7 +27,9 @@ pub fn library_jars(libs: &std::path::Path) -> Vec<PathBuf> {
     out
 }
 
-pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str]) -> String {
+/// The dump of `source` compiled with `options`; with `errors_first`, type errors are printed
+/// even when the unit also hits an unsupported construct.
+pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str], errors_first: bool) -> String {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
     let root = p.parse();
@@ -37,7 +39,8 @@ pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str]) -> String {
         return "== syntax errors\n".into();
     }
     let mut b = String::new();
-    match crate::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
+    let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
+    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
         Ok(typed) => {
             let mut printer = Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new() };
             printer.tree(typed.root);

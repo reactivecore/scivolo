@@ -164,6 +164,49 @@ fn toplevel_definitions_used_in_an_object() {
     assert!(finds_toplevel(&["val c = 1\n"], main));
 }
 
+/// The outcome of typing `text` with errors taking precedence over unsupported constructs.
+fn errors_first(text: &str) -> Result<(), String> {
+    let Some(mut u) = universe() else { return Ok(()) };
+    type_unit(&mut u, &mut Units::errors_first(), "main.scala", text)
+}
+
+#[test]
+fn no_false_errors_behind_unsupported_constructs() {
+    let Some(_) = universe() else { return };
+    let cases = [
+        (
+            "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
+            "Export",
+        ),
+        (
+            "trait T:\n  def getRoot(): Int\nabstract class S { self: T =>\n  def f() = this.getRoot()\n}\n",
+            "self type",
+        ),
+        (
+            "class Bar[T] { def value: T = ??? }\nobject M:\n  def f(x: Any) = x match\n    case y: Bar[_] => y.value\n",
+            "type pattern needing a type test or type binding",
+        ),
+        (
+            "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x: BigInt = 13232202002020202020202\n",
+            "generic number literal",
+        ),
+        ("class Term[T]\nobject M:\n  val t: Term[Int, Kind] = ???\n", "wrong number of type arguments"),
+    ];
+    for (text, what) in cases {
+        assert_eq!(errors_first(text), Err(format!("unsupported {what}")), "{text}");
+    }
+    assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
+    let few = "class Term[A, B]\nobject M:\n  val t: Term[Kind] = ???\n";
+    assert_eq!(errors_first(few), Err("unsupported wrong number of type arguments".into()));
+    let untyped = "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x = 1\n";
+    assert_eq!(errors_first(untyped), Ok(()));
+    let strict = "import scala.language.strictEquality\nclass A\nclass B\nobject M:\n  val b = A() == B()\n";
+    assert_eq!(errors_first(strict), Err("unsupported comparison under strictEquality".into()));
+    let unimported =
+        strict.replace("object M:\n", "object M:\n  import scala.language.strictEquality as _\n");
+    assert_eq!(errors_first(&unimported), Err("unsupported comparison of unrelated types".into()));
+}
+
 #[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
