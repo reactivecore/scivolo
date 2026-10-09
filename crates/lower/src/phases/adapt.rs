@@ -24,10 +24,20 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         && !is_static_enum_value(l, s)
         && s != l.defs.boxed_unit_unit;
     let method = l.u.symbol(s).kind == Kind::Def || has(l.u, s, FIELDaccessor) || class_value;
-    let info = l.u.info(s);
+    let mut info = l.u.info(s);
+    while let Type::Poly { result, .. } = *l.u.types().get(info) {
+        info = result;
+    }
     method
         && !is_constructor(l.u, s)
-        && !matches!(l.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
+        && !is_class_of(l, s)
+        && !matches!(l.u.types().get(info), Type::Method { .. })
+}
+
+/// Whether `s` is `Predef.classOf`, a constant rather than a call.
+fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
+    let sym = l.u.symbol(s);
+    sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == "scala.Predef$")
 }
 
 /// The erased type of `t` as erasure leaves it: a call's erased result type, a value's erased

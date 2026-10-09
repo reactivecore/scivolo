@@ -143,11 +143,11 @@ Results (2026-10-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 214 |
+| passed | 218 |
 | wrong output | 1 |
 | crashed | 0 |
 | lowering refused | 129 |
-| typer refused | 1089 |
+| typer refused | 1085 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
@@ -157,8 +157,7 @@ Results (2026-10-09):
 - **Wrong output:** i9939, numeric harmonization in the typer (#60).
 - **Lowering refused:** 47 reasons, none above 8 tests (nested classes and objects,
   Enumeration values without names #62).
-- **Typer refused:** mostly overloads with default or by-name parameters (244) and inline
-  definitions and calls (125).
+- **Typer refused:** mostly calls of inline methods (268) and inline definitions (97).
 
 ## M5: scala/scala `test/junit`
 
