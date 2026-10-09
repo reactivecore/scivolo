@@ -87,13 +87,23 @@ impl Typer<'_> {
     ) -> Option<bool> {
         let (mut params, repeated) = self.param_types(alt, prefix, true)?;
         let elem = repeated.then(|| params.pop()).flatten();
-        let fits = if elem.is_some() { args.len() >= params.len() } else { args.len() == params.len() };
-        if !fits {
+        if args.len() > params.len() && elem.is_none() {
             return Some(false);
+        }
+        if args.len() < params.len() {
+            let defaults = self.default_params(alt);
+            if !(args.len()..params.len()).all(|i| defaults.get(i) == Some(&true)) {
+                return Some(false);
+            }
         }
         let mut all = true;
         for (i, &a) in args.iter().enumerate() {
             let p = params.get(i).copied().or(elem)?;
+            let by_name_result = |t: &Self, x: TypeId| match *t.u.types().get(x) {
+                Type::ByName(r) => r,
+                _ => x,
+            };
+            let (a, p) = (by_name_result(self, a), by_name_result(self, p));
             all &= self.compatible(a, p, views, ctx)?;
         }
         Some(all)

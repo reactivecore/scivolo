@@ -107,13 +107,22 @@ impl Typer<'_> {
         let mut fitting = Vec::new();
         for s in methods {
             let info = self.u.info(s);
-            let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
-            if ps.iter().any(|&p| self.is_special_param(p)) || self.has_defaults(s) {
-                return Err("overloads with default or by-name parameters");
+            let Some((implicit, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
+            if implicit {
+                return Err("overloads with a leading implicit parameter clause");
             }
-            let repeated = ps.last().is_some_and(|&p| self.repeated_elem(p).is_some());
-            let fits = if repeated { n + 1 >= ps.len() } else { n == ps.len() };
-            if fits {
+            let dependent = ps.iter().any(|&p| {
+                let mut found = false;
+                self.u.map_type(p, &mut |u, part| {
+                    found |= matches!(u.types().get(part), Type::Param(..));
+                    None
+                });
+                found
+            });
+            if dependent {
+                return Err("overloads with dependent parameters");
+            }
+            if self.size_fits(s, &ps, n) {
                 fitting.push(s);
             }
         }
@@ -124,6 +133,18 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether method `s` of first-clause parameter types `ps` may take `n` arguments, missing
+    /// ones by default or as an empty vararg (dotty's `sizeFits`).
+    fn size_fits(&mut self, s: SymbolId, ps: &[TypeId], n: usize) -> bool {
+        let varargs = ps.last().is_some_and(|&p| self.repeated_elem(p).is_some());
+        if ps.len() <= n {
+            return ps.len() == n || varargs;
+        }
+        let defaults = self.default_params(s).iter().filter(|&&d| d).count();
+        let necessary = ps.len().saturating_sub(defaults);
+        necessary <= n || necessary == n + 1 && varargs
+    }
+
     /// Whether method `s` takes type or value parameters.
     pub fn has_params(&mut self, s: SymbolId) -> bool {
         self.complete(s);
@@ -131,32 +152,4 @@ impl Typer<'_> {
         matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
-    /// Whether method `s` or a method it overrides has default arguments (dotty's
-    /// `hasDefaultParams`).
-    pub fn has_defaults(&mut self, s: SymbolId) -> bool {
-        let Some(owner) = self.u.symbol(s).owner else { return false };
-        if self.declares_defaults(owner, s) {
-            return true;
-        }
-        if self.u.symbol(owner).kind != Kind::Class {
-            return false;
-        }
-        let name = self.u.symbol(s).name.clone();
-        let site = crate::defn::type_ref(self.u, owner);
-        for base in self.u.linearization(owner).into_iter().skip(1) {
-            for m in self.u.decl(base, &name).unwrap_or_default() {
-                if self.same_member(site, m, s) && self.declares_defaults(base, m) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Whether `owner` declares default getters of method `s`, a member of it.
-    fn declares_defaults(&mut self, owner: SymbolId, s: SymbolId) -> bool {
-        let prefix = format!("{}$default$", self.u.symbol(s).name);
-        let decls = self.u.decls(owner).unwrap_or_default();
-        decls.iter().any(|&d| self.u.symbol(d).name.starts_with(&prefix))
-    }
 }

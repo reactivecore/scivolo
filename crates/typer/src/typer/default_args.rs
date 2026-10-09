@@ -50,7 +50,7 @@ impl Typer<'_> {
         let trees: Vec<TNodeId> =
             targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
         let tpe = self.instantiated(select, &types)?;
-        let tpe = self.simplified(tpe);
+        let tpe = if ctor { tpe } else { self.simplified(tpe) };
         let args = self.tpd.list(&trees);
         Ok(self.tpd.node(T::TypeApply { fun: select, args }, span, Some(tpe), None))
     }

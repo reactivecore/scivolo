@@ -22,8 +22,8 @@ impl Typer<'_> {
 
     /// `args` aligned with `params`, the non-repeated parameters, if some are named or parameters
     /// are left to defaults, `None` if they are positional and as many as the parameters take;
-    /// `Err` for named or missing arguments of a method with a `repeated` parameter or of
-    /// `overloaded` alternatives.
+    /// `Err` for named or missing arguments of a method with a `repeated` parameter, and for named
+    /// arguments of `overloaded` alternatives.
     pub fn aligned_args(
         &self,
         args: &[NodeId],
@@ -36,8 +36,8 @@ impl Typer<'_> {
         if !named && fits {
             return Ok(None);
         }
-        if repeated || overloaded || !named && args.len() > params.len() {
-            return Err("named or default arguments of a repeated or overloaded method, or wrong arity");
+        if repeated || overloaded && named || !named && args.len() > params.len() {
+            return Err("named or default arguments of a repeated method, named ones of an overloaded one, or wrong arity");
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         self.ordered_args(args, &names).map(Some)
