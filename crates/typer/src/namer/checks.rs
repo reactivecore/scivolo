@@ -153,7 +153,7 @@ impl Typer<'_> {
         decls.iter().any(|&d| {
             self.syms.flags.contains_key(&d)
                 && self.u.symbol(d).name == name
-                && crate::symbols::is_type_symbol(self.u, d) == is_type
+                && self.u.is_type_symbol(d) == is_type
         })
     }
 

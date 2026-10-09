@@ -114,10 +114,8 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(f);
         let widened = self.u.widen(tpe);
         let module_class = self.u.class_symbol(widened).filter(|&m| self.u.symbol(m).flags.has(OBJECT))?;
-        let name = self.u.symbol(module_class).name.strip_suffix('$')?.to_owned();
         let owner = self.u.symbol(module_class).owner?;
-        let decls = self.u.decl(owner, &name).unwrap_or_default();
-        let class = decls.into_iter().find(|&d| self.u.symbol(d).kind == Kind::Class)?;
+        let class = self.u.companion_class(module_class)?;
         if !self.needs_constructor_proxies(class) {
             return None;
         }

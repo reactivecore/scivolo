@@ -141,7 +141,7 @@ impl Session {
     fn lower(&mut self, mut parsed: Parsed) -> Result<Unit, Vec<String>> {
         self.line += 1;
         let object = format!("{}{}", line_names::PREFIX, self.line);
-        let module = format!("{object}$");
+        let module = tasty::module_class_name(&object);
         let (mut typed, template) = self.typed(&mut parsed, &object)?;
         let imports = imports::imports(&self.u, &typed, template, &parsed.source);
         let line = import_text::Line { typed: &typed, template, names: &self.names, source: &parsed.source };
@@ -176,7 +176,7 @@ impl Session {
             Err(Fallback::Unsupported { what, .. }) => return Err(vec![report::unsupported(&what)]),
         };
         parsed.diags.items.append(&mut typed.diags.items);
-        match wrap::template(&self.u, &typed, &format!("{object}$")) {
+        match wrap::template(&self.u, &typed, &tasty::module_class_name(object)) {
             Some(template) => Ok((typed, template)),
             None => Err(vec![report::unsupported("a wrapper object without a template")]),
         }

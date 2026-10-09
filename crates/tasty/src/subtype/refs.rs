@@ -3,7 +3,7 @@
 use super::Cmp;
 use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
-use crate::{ANY, Kind, NOTHING, SymbolId, Universe};
+use crate::{ANY, Kind, NOTHING, SymbolId, Universe, is_package_object_name, module_class_name};
 
 /// What a named type stands for.
 #[derive(Clone, PartialEq, Debug)]
@@ -146,10 +146,7 @@ fn package_object_of(u: &Universe, obj: SymbolId, pkg: SymbolId) -> bool {
     let name = &u.symbol(obj).name;
     u.symbol(pkg).kind == Kind::Package
         && u.symbol(obj).owner == Some(pkg)
-        && (name == "package"
-            || name == "package$"
-            || name.ends_with("$package")
-            || name.ends_with("$package$"))
+        && (is_package_object_name(name) || is_package_object_name(&module_class_name(name)))
 }
 
 /// What symbol `s` stands for when referred to through `prefix`.

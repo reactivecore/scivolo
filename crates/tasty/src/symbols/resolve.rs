@@ -23,9 +23,7 @@ impl Universe {
 
     fn resolve_in(&mut self, prefix: TypeId, name: &str, ty: bool) -> Option<SymbolId> {
         let owner = self.prefix_owner(prefix)?;
-        let wanted = move |u: &Self, s: SymbolId| {
-            matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam) == ty
-        };
+        let wanted = move |u: &Self, s: SymbolId| u.is_type_symbol(s) == ty;
         let found = match self.symbol(owner).kind {
             Kind::Class => self.member_where(owner, name, wanted),
             _ => self.decl(owner, name).ok()?,
@@ -62,11 +60,5 @@ impl Universe {
                 self.class_symbol(t)
             }
         }
-    }
-
-    /// The class of object `module`: the class `name$` declared beside it.
-    pub fn module_class(&mut self, module: SymbolId) -> Option<SymbolId> {
-        let (owner, name) = (self.symbol(module).owner?, format!("{}$", self.symbol(module).name));
-        self.decl(owner, &name).ok()?.into_iter().find(|&c| self.symbol(c).kind == Kind::Class)
     }
 }

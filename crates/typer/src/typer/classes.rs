@@ -89,7 +89,7 @@ impl Typer<'_> {
             let info = self.u.info(c);
             self.u.param_clauses(info).iter().any(|(_, ps)| !ps.is_empty())
         });
-        if self.is_trait(cls) && params {
+        if self.u.is_trait(cls) && params {
             return self.unsupported(id, "trait parameters");
         }
         let t = self.template(rhs);

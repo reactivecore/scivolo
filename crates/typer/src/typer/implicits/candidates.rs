@@ -5,7 +5,7 @@ use super::super::Typer;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
-use tasty::tags::{GIVEN, IMPLICIT, OBJECT, PRIVATE};
+use tasty::tags::{GIVEN, IMPLICIT, PRIVATE};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 /// An implicit value or method and the prefix it is referenced through.
@@ -167,11 +167,9 @@ impl Typer<'_> {
     /// The companion object of class `c`, if `c` is not nested in a class other than an object's.
     fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(c).owner?;
-        if self.u.symbol(owner).kind == Kind::Class && !self.u.symbol(owner).flags.has(OBJECT) {
+        if self.u.is_class(owner) && !self.u.is_module_class(owner) {
             return None;
         }
-        let name = self.u.symbol(c).name.clone();
-        let decls = self.u.decl(owner, &name).ok()?;
-        decls.into_iter().find(|&d| self.u.symbol(d).flags.has(OBJECT) && self.u.symbol(d).kind == Kind::Val)
+        self.u.companion_module(c)
     }
 }

@@ -19,6 +19,7 @@ pub use erasure::Erased;
 pub use subtype::{Mark, NoVars, TypeVars};
 pub use symbols::{
     ANY, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe, encode,
+    is_package_object_name, module_class_name, module_name,
 };
 pub use types::{Binder, Type, TypeId, Types, VarId};
 

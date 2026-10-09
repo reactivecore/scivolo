@@ -32,9 +32,9 @@ impl Typer<'_> {
     /// that declares something not synthetic.
     fn check_package_object_name(&mut self, stats: &[NodeId], span: syntax::ast::Span) {
         let objects = stats.iter().filter_map(|s| self.syms.by_tree.get(s).copied());
-        let Some(c) = objects.into_iter().find(|&c| {
-            self.u.symbol(c).kind == tasty::Kind::Class && self.u.symbol(c).name.ends_with("$package$")
-        }) else {
+        let Some(c) =
+            objects.into_iter().find(|&c| self.u.is_class(c) && self.u.symbol(c).name.ends_with("$package$"))
+        else {
             return;
         };
         let declares = self.u.symbol(c).decls.iter().any(|&d| {

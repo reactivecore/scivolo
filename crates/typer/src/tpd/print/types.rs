@@ -1,7 +1,6 @@
 //! Types as `scripts/typer-oracle` prints them.
 
 use super::symbols::full_name;
-use crate::symbols::is_type_symbol;
 use syntax::ast::constant::Constant;
 use syntax::ast::print::quote;
 use tasty::{Binder, Kind, Type, TypeId, Universe};
@@ -77,7 +76,7 @@ impl Printer<'_> {
         let n = d + 1;
         match self.u.types().get(t).clone() {
             Type::Sym(p, s) => {
-                let k = if is_type_symbol(self.u, s) { "T:" } else { "t:" };
+                let k = if self.u.is_type_symbol(s) { "T:" } else { "t:" };
                 if is_static_prefix(self.u, p) {
                     format!("{k}{}", full_name(self.u, s))
                 } else {

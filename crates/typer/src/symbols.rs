@@ -85,7 +85,7 @@ impl Syms {
 
     /// Gives script symbol `s` dotty flags `flags`.
     pub fn set_flags(&mut self, u: &mut Universe, s: SymbolId, flags: FlagSet) {
-        let is_term = !is_type_symbol(u, s);
+        let is_term = !u.is_type_symbol(s);
         u.set_flags(s, pickled(flags, is_term));
         u.set_deferred(s, is_term && flags.is(f::DEFERRED));
         self.flags.insert(s, flags);
@@ -112,10 +112,6 @@ impl Syms {
         self.binders += 1;
         Binder(FileId(u32::MAX), self.binders)
     }
-}
-
-pub fn is_type_symbol(u: &Universe, s: SymbolId) -> bool {
-    matches!(u.symbol(s).kind, Kind::Class | Kind::Type | Kind::TypeParam)
 }
 
 /// The TASTy modifiers `TreePickler.pickleFlags` writes for dotty flags `flags`.

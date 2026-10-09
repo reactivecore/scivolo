@@ -99,12 +99,11 @@ impl Typer<'_> {
         if !self.is_stable_member(s) {
             return IMPURE;
         }
-        let flags = self.u.symbol(s).flags;
-        if flags.has(tasty::tags::OBJECT) && self.u.symbol(s).kind == Kind::Val {
+        if self.u.is_module(s) {
             let no_inits = self.u.module_class(s).is_some_and(|c| self.is_no_inits(c));
             return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
         }
-        if flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }
+        if self.u.symbol(s).flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }
     }
 
     /// Whether `tree` has a method type or refers to a method with parameters, unapplied.
@@ -135,7 +134,7 @@ impl Typer<'_> {
             return false;
         }
         let Some(module) = sym.owner else { return false };
-        let Some(name) = self.u.symbol(module).name.strip_suffix('$').map(str::to_owned) else {
+        let Some(name) = tasty::module_name(&self.u.symbol(module).name).map(str::to_owned) else {
             return false;
         };
         let Some(owner) = self.u.symbol(module).owner else { return false };

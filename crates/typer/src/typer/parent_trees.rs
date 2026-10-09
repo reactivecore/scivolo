@@ -86,7 +86,7 @@ impl Typer<'_> {
     fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(parent);
         let Some(psym) = self.u.class_symbol(tpe) else { return parent };
-        if self.is_trait(cls) || self.is_trait(psym) {
+        if self.u.is_trait(cls) || self.u.is_trait(psym) {
             return parent;
         }
         let span = self.tpd.span(parent);

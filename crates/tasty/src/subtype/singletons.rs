@@ -136,12 +136,9 @@ impl Cmp<'_> {
 
     /// The object whose class is `class`.
     fn module_of(&mut self, class: SymbolId) -> Option<SymbolId> {
-        let owner = self.u.symbol(class).owner?;
         if !self.u.symbol(class).flags.has(OBJECT) {
             return None;
         }
-        let name = self.u.symbol(class).name.strip_suffix('$')?.to_owned();
-        let found = self.u.decl(owner, &name).ok()?;
-        found.into_iter().find(|&s| self.u.symbol(s).kind == Kind::Val && self.u.symbol(s).flags.has(OBJECT))
+        self.u.source_module(class)
     }
 }

@@ -3,7 +3,7 @@
 use super::{DOT, GLOBAL, Printer, simple};
 use crate::tags::{CASE, LAZY, MUTABLE, OBJECT, TRAIT};
 use crate::types::{Type, TypeId};
-use crate::{Kind, SymbolId};
+use crate::{Kind, SymbolId, module_name};
 
 impl Printer<'_> {
     pub fn def(&mut self, s: SymbolId) -> String {
@@ -11,7 +11,7 @@ impl Printer<'_> {
         let (kind, flags) = (sym.kind, sym.flags);
         let module = flags.has(OBJECT) && matches!(kind, Kind::Class | Kind::Val);
         let name = match kind == Kind::Class && module {
-            true => sym.name.strip_suffix('$').unwrap_or(&sym.name).to_owned(),
+            true => module_name(&sym.name).unwrap_or(&sym.name).to_owned(),
             false => sym.name.clone(),
         };
         let owner_is_term = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
