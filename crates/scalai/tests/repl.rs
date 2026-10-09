@@ -94,6 +94,24 @@ fn piped_line_endings() {
     assert_eq!(code, Some(0));
 }
 
+#[test]
+fn load_paths_missing_or_unreadable() {
+    if libs_missing() {
+        return;
+    }
+    let cwd = std::fs::canonicalize(".").unwrap();
+    let (code, out, _) = repl(":load nope.scala\n:load nope/../src\n:load ./src\n:load\n:load a b \n");
+    let expected = [
+        format!("Couldn't find file \"{}\"", cwd.join("nope.scala").display()),
+        format!("Couldn't find file \"{}\"", cwd.join("src").display()),
+        format!("Couldn't read file \"{}\": Is a directory (os error 21)", cwd.join("src").display()),
+        format!("Couldn't find file \"{}\"", cwd.display()),
+        format!("Couldn't find file \"{}\"", cwd.join("a b ").display()),
+    ];
+    assert_eq!(out.lines().collect::<Vec<_>>(), expected);
+    assert_eq!(code, Some(0));
+}
+
 const SPIN: &str = "def spin(): Unit = while true do ()
 { println(\"looping\"); while true do try spin() catch { case _: ThreadDeath => println(\"caught\") } }
 ";

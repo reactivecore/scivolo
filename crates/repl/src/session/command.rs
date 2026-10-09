@@ -33,7 +33,7 @@ impl Session {
                 Vec::new()
             }
             Command::Imports => vec![report::unsupported(":imports")],
-            Command::Load(_) => vec![report::unsupported(":load")],
+            Command::Load(path) => self.load(&path),
             Command::Unsupported(name) => {
                 vec![commands::retired(name).map_or_else(|| report::unsupported(name), str::to_owned)]
             }

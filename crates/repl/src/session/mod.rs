@@ -2,8 +2,10 @@
 //! into wrapper object `rs$line$<N>` and run.
 
 mod command;
+mod load;
 mod run;
 
+use crate::commands::Command;
 use crate::earlier::{self, Earlier};
 use crate::input::{self, Input, Parsed};
 use crate::{imports, line_names, render, report, wrap};
@@ -18,6 +20,14 @@ use typer::{Fallback, Typed, Units};
 use vm::{Vm, VmError};
 
 const RESETTING: &str = "Resetting REPL state.";
+
+/// A compiled input: a unit to run, a file to load (run outside the guard against compiler
+/// panics), or the lines it prints.
+enum Compiled {
+    Unit(Unit),
+    Load(String),
+    Lines(Vec<String>),
+}
 
 pub struct Session {
     vm: Vm,
@@ -83,26 +93,32 @@ impl Session {
     /// Evaluates input `text`; the lines it prints. A panic while compiling the input is reported
     /// as an internal error and resets the session; a panic while running it is passed on.
     pub fn eval(&mut self, text: &str) -> Vec<String> {
-        let compiled = catch_unwind(AssertUnwindSafe(|| self.compile(text)));
-        let out = match compiled {
-            Ok(Ok(unit)) => self.run(unit),
-            Ok(Err(out)) => out,
+        let out = self.answer(text);
+        out.iter().flat_map(|s| s.lines()).map(|l| line_names::shown(l, self.base)).collect()
+    }
+
+    /// What input `text` prints, wrapper objects named as the VM knows them.
+    fn answer(&mut self, text: &str) -> Vec<String> {
+        match catch_unwind(AssertUnwindSafe(|| self.compile(text))) {
+            Ok(Compiled::Unit(unit)) => self.run(unit),
+            Ok(Compiled::Load(path)) => self.load(&path),
+            Ok(Compiled::Lines(out)) => out,
             Err(panic) => {
                 self.reset();
                 vec![report::internal(panic.as_ref()), RESETTING.to_owned()]
             }
-        };
-        out.iter().flat_map(|s| s.lines()).map(|l| line_names::shown(l, self.base)).collect()
+        }
     }
 
-    /// Compiles input `text` into a unit to run, or the lines it prints instead.
-    fn compile(&mut self, text: &str) -> Result<Unit, Vec<String>> {
+    /// Compiles input `text`.
+    fn compile(&mut self, text: &str) -> Compiled {
         let name = format!("{}{}", line_names::PREFIX, self.line + 1);
         match input::classify(&name, text, &mut self.names, &mut self.fresh, self.width as usize) {
-            Input::Empty => Err(Vec::new()),
-            Input::Command(c) => Err(self.command(c)),
-            Input::Errors(errors) => Err(errors),
-            Input::Stats(parsed) => self.lower(*parsed),
+            Input::Empty => Compiled::Lines(Vec::new()),
+            Input::Command(Command::Load(path)) => Compiled::Load(path),
+            Input::Command(c) => Compiled::Lines(self.command(c)),
+            Input::Errors(errors) => Compiled::Lines(errors),
+            Input::Stats(parsed) => self.lower(*parsed).map_or_else(Compiled::Lines, Compiled::Unit),
         }
     }
 

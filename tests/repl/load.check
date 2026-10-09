@@ -1,0 +1,80 @@
+scala> :load tests/repl/load/loaded.scala
+val a: Int = 1
+def b: Int
+val res1: Int = 3
+def sum(xs: List[Int]): Int
+
+scala> b
+val res1: Int = 2
+
+scala> :load tests/repl/load/syntax-error.scala
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |val q = )
+  |        ^
+  |        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> :load tests/repl/load/incomplete.scala
+-- [E018] Syntax Error: --------------------------------------------------------
+1 |def f(x: Int) =
+  |               ^
+  |               expression expected but eof found
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> :load tests/repl/load/empty.scala
+
+scala> :load tests/repl/load/deps.scala
+Please use `:dep com.example::artifact:version` to add dependencies in the REPL
+
+scala> :load tests/repl/load/errors.scala
+-- [E007] Type Mismatch Error: -------------------------------------------------
+2 |val bad: Int = "s"
+  |               ^^^
+  |               Found:    ("s" : String)
+  |               Required: Int
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> :load  tests/repl/load/loaded.scala
+val a: Int = 1
+def b: Int
+val res3: Int = 3
+def sum(xs: List[Int]): Int
+
+scala> :lo tests/repl/load/loaded.scala
+val a: Int = 1
+def b: Int
+val res4: Int = 3
+def sum(xs: List[Int]): Int
+
+scala> :l ./tests/repl/load/../load/loaded.scala
+val a: Int = 1
+def b: Int
+val res5: Int = 3
+def sum(xs: List[Int]): Int
+
+scala> :silent
+
+scala> :load tests/repl/load/loaded.scala
+
+scala> :silent
+
+scala> res3
+
+scala> sum(List(1, 2))
+val res6: Int = 3
+
+scala> //> using dep foo::bar:1
+Please use `:dep com.example::artifact:version` to add dependencies in the REPL
+
+scala> //> using dep foo::bar:1
+     | val q = )
+-- [E018] Syntax Error: --------------------------------------------------------
+2 |val q = )
+  |        ^
+  |        expression expected but ')' found
+  |
+  | longer explanation available when compiling with `-explain`
