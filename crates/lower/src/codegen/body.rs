@@ -4,7 +4,6 @@
 use super::Gen;
 use super::dead::remove_dead_blocks;
 use super::method::Method;
-use crate::phases::walk::children;
 use crate::symbols::{has, is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, LexicalScope, Op, Param, Type, Val, ValId};
@@ -94,9 +93,7 @@ impl Gen<'_, '_> {
     /// The local variables assigned in `rhs`, in the order of their first assignment (nscplugin's
     /// `CollectMethodInfo`).
     fn mutable_vars(&self, rhs: TNodeId) -> Vec<SymbolId> {
-        let mut out = Vec::new();
-        let mut todo = vec![rhs];
-        while let Some(t) = todo.pop() {
+        self.l.tpd.fold(Vec::new(), rhs, &mut |mut out, t| {
             if let Tree::Assign { lhs, .. } = *self.l.tpd.tree(t)
                 && let (Tree::Ident { .. }, Some(var)) = (self.l.tpd.tree(lhs), self.l.tpd.sym(lhs))
                 && !self.is_field(var)
@@ -104,9 +101,8 @@ impl Gen<'_, '_> {
             {
                 out.push(var);
             }
-            todo.extend(children(self.l.tpd, t).into_iter().rev());
-        }
-        out
+            out
+        })
     }
 
     /// `ret value`, `ret unit` for a `Unit` value.
