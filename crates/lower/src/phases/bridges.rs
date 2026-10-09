@@ -1,7 +1,7 @@
 //! dotty's `Bridges`: a concrete method of a class overriding a member of another erasure gets a
 //! bridge of the member's type that calls it, its arguments cast where their erasures differ.
 
-use super::casts::cast;
+use super::adapt::adapt;
 use crate::symbols::{has, is_class, is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
@@ -57,7 +57,9 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
                     return unsupported(l.tpd.span(stat), "bridges in traits");
                 }
                 bridged.push(signature);
-                stats.push(bridge(l, class, m, other, l.tpd.span(stat))?);
+                let at = l.tpd.span(stat);
+                let at = if at.exists() { syntax::ast::Span::at(at.point()) } else { at };
+                stats.push(bridge(l, class, m, other, at)?);
             }
         }
     }
@@ -128,15 +130,17 @@ fn bridge(
         flags = flags.without(tag);
     }
     let (params, other_params) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
+    let other_result = l.u.erased_method(other).1;
     let (sym, def) = l.method_like(class, m, flags, info, span, |l, args, _| {
         let args: Vec<TNodeId> = args
             .iter()
             .zip(params.iter().zip(&other_params))
-            .map(|(&a, (p, o))| if p == o { a } else { cast(l, a, p) })
+            .map(|(&a, (p, o))| if p == o { a } else { adapt(l, a, p) })
             .collect();
         let this = l.this(class, span);
         let fun = l.select(this, m, span);
-        l.apply(fun, &args, m_result, span)
+        let call = l.apply(fun, &args, m_result, span);
+        adapt(l, call, &other_result)
     })?;
     l.bridges.insert(sym);
     Ok(def)

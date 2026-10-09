@@ -1,6 +1,6 @@
 //! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member of a
-//! trait of the unit or the library its class directly extends, with another erased signature,
-//! gets a bridge of that member's type calling it.
+//! trait of the unit or the library its class directly extends, with another erased signature it
+//! conforms to, gets a bridge of that member's type calling it.
 
 use super::Gen;
 use crate::Result;
@@ -35,6 +35,10 @@ impl Gen<'_, '_> {
                 }
                 let signature = self.l.u.erased_method(inherited);
                 if signature.0 != params || signature.1 == result || seen.contains(&signature) {
+                    continue;
+                }
+                let reference = matches!(result, Erased::Class(_) | Erased::Array(_));
+                if !reference || !crate::phases::casts::conforms(self.l, &result, &signature.1) {
                     continue;
                 }
                 seen.push(signature);
