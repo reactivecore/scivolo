@@ -130,12 +130,12 @@ impl Typer<'_> {
                 return None;
             }
             let eta = matches!(u.types().get(result), Type::Applied(_, rargs)
-                if rargs.len() == params.len()
-                    && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
-                        Type::Param(b, k) => *b == binder && *k == i as u32,
-                        Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
-                        _ => false,
-                    }));
+            if rargs.len() == params.len()
+                && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
+                    Type::Param(b, k) => *b == binder && *k == i as u32,
+                    Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
+                    _ => false,
+                }));
             if lambda != tycon && !eta && !impure {
                 return None;
             }

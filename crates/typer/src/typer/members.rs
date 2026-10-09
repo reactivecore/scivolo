@@ -61,7 +61,9 @@ impl Typer<'_> {
                 }
             }
             Type::Or(..) => match self.u.join(t) {
-                Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => self.members_within(j, name, depth),
+                Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => {
+                    self.members_within(j, name, depth)
+                }
                 _ => Vec::new(),
             },
             _ => match self.u.class_symbol(t) {

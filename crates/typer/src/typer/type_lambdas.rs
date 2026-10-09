@@ -34,7 +34,13 @@ impl Typer<'_> {
                 return self.unsupported(p, "higher-kinded type lambda parameter");
             }
             let text = self.text(name.name).to_owned();
-            let s = self.syms.define(self.u, &text, Kind::TypeParam, owner, flags.or(f::TYPE_PARAM).to_type_flags());
+            let s = self.syms.define(
+                self.u,
+                &text,
+                Kind::TypeParam,
+                owner,
+                flags.or(f::TYPE_PARAM).to_type_flags(),
+            );
             self.syms.by_tree.insert(p, s);
             self.levels.enter(level, &text, s);
             syms.push(s);

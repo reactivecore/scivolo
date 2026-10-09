@@ -95,7 +95,10 @@ impl Typer<'_> {
             .or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
             .or_else(|| aliased_object(self))
         else {
-            return Err("implicit import from a value other than an object");
+            if self.u.symbol(site).kind.is_term() {
+                return Err("implicit import from a value other than an object");
+            }
+            return Ok(Vec::new());
         };
         for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != "_") {
             for m in self.class_members(class, name) {
