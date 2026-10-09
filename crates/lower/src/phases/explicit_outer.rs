@@ -1,7 +1,7 @@
-//! dotty's `ExplicitOuter` for objects in classes: an object using its enclosing instance gets
-//! a field `$outer`, set from a leading constructor parameter, and an accessor `C$$$outer()`;
-//! its references to the instance read the parameter in constructor code, else the field, and
-//! `new C` passes the instance.
+//! dotty's `ExplicitOuter` for classes and objects in classes: one needing its enclosing instance
+//! gets a field `$outer`, set from a leading constructor parameter, and an accessor
+//! `C$$$outer()`; its references to the instance read the parameter in constructor code, else
+//! the field.
 
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
@@ -17,31 +17,72 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         let Some(outer) = enclosing_instance(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
         if let Some(&t) = all.iter().find(|&&t| is_this_of(l, t, outer) && !own.contains(&t)) {
-            return unsupported(l.tpd.span(t), "the enclosing instance in classes nested in objects");
+            return unsupported(l.tpd.span(t), "the enclosing instance two classes out");
         }
         if let Some(&t) = all.iter().find(|&&t| is_private_member(l, t, outer)) {
             return unsupported(l.tpd.span(t), "private members of an enclosing class");
         }
-        if is_trait(l.u, outer) || own.iter().any(|&t| is_this_of(l, t, outer)) {
+        let uses = own.iter().any(|&t| is_this_of(l, t, outer) || creates_inner_of(l, t, outer));
+        let always = match is_module_class(l.u, class) {
+            true => is_trait(l.u, outer),
+            false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
+        };
+        if always || uses {
             add_outer(l, td, class, outer);
         }
     }
     for &td in classes {
-        pass_outer(l, td)?;
+        super::outer_args::pass_outer(l, td)?;
     }
     Ok(())
 }
 
-/// The class whose instance an object `class` nested in it can use, unless static.
-fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
+/// The class whose instance a class or object `class` nested in it can use (dotty's
+/// `needsOuterIfReferenced`), unless static or a trait.
+pub fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(class).owner?;
-    let nested = is_module_class(l.u, class) && is_class(l.u, owner);
+    let nested = is_class(l.u, owner) && !is_trait(l.u, class);
     (nested && !is_static(l.u, class)).then_some(owner)
+}
+
+/// Whether `class` is defined in a method or value, directly or through other classes.
+fn is_local(l: &Lower, class: SymbolId) -> bool {
+    let mut owner = l.u.symbol(class).owner;
+    while let Some(o) = owner {
+        if l.u.symbol(o).kind.is_term() {
+            return true;
+        }
+        owner = l.u.symbol(o).owner;
+    }
+    false
+}
+
+/// Whether `t` is `new C` of a class `C` whose enclosing instance is one of `outer` (dotty's
+/// `referencesOuter` of a `New`).
+fn creates_inner_of(l: &mut Lower, t: TNodeId, outer: SymbolId) -> bool {
+    let Tree::New { .. } = l.tpd.tree(t) else { return false };
+    let tpe = l.tpd.tpe(t);
+    l.u.class_symbol(tpe).is_some_and(|c| enclosing_instance(l, c) == Some(outer))
+}
+
+/// Why a type test against `target` cannot be lowered: an object of a class, or in a match a
+/// class that may test its enclosing instance (dotty's `addOuterTest`).
+pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) -> Option<&'static str> {
+    if let Type::Sym(_, s) = *l.u.types().get(target)
+        && is_module(l.u, s)
+        && !is_static(l.u, s)
+    {
+        return Some("type tests of objects nested in classes");
+    }
+    let widened = l.u.widen(target);
+    let dealiased = l.u.dealias(widened);
+    let inner = l.u.class_symbol(dealiased).is_some_and(|c| enclosing_instance(l, c).is_some());
+    (in_match && inner).then_some("patterns of classes in classes")
 }
 
 /// `t` and the trees in it but those in type trees, and in class definitions within `t` unless
 /// `nested`.
-fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
+pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
     let mut out = Vec::new();
     let mut todo = vec![t];
     while let Some(s) = todo.pop() {
@@ -148,29 +189,4 @@ fn accessor(l: &mut Lower, class: SymbolId, field: SymbolId, span: Span) -> TNod
     let read = l.select(this, field, span);
     let tpt = l.type_tree(result, span);
     l.method_def(m, &[], tpt, read, span)
-}
-
-/// Passes the enclosing instance to each `new C` in class definition `td` of an object `C` that
-/// takes it.
-fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
-    for t in terms(l, td, false) {
-        let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
-        let Tree::Select { qualifier: new, .. } = *l.tpd.tree(fun) else { continue };
-        if !matches!(l.tpd.tree(new), Tree::New { .. }) {
-            continue;
-        }
-        let Some(created) = l.u.class_symbol(l.tpd.tpe(new)).filter(|c| l.outers.contains_key(c)) else {
-            continue;
-        };
-        let outer = l.u.symbol(created).owner.expect("an object's class");
-        let enclosing = l.tpd.sym(td);
-        if enclosing != Some(outer) {
-            return unsupported(l.tpd.span(t), "objects of a class created outside it");
-        }
-        let instance = l.this(outer, Span::NONE);
-        let all: Vec<TNodeId> = std::iter::once(instance).chain(l.tpd.items(args).iter().copied()).collect();
-        let args = l.tpd.list(&all);
-        l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
-    }
-    Ok(())
 }

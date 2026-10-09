@@ -126,12 +126,23 @@ pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[Symb
     let paramss = l.tpd.clauses(&clauses);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
     let info = l.u.info(ctor);
-    if let Type::Method { binder, params: old, result, implicit, contextual } = l.u.types().get(info).clone()
-    {
-        let new = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p)));
-        let params = new.chain(old).collect();
-        let info = l.u.intern_type(Type::Method { binder, params, result, implicit, contextual });
-        l.u.set_info(ctor, info);
+    let info = with_leading_params(l, info, params);
+    l.u.set_info(ctor, info);
+}
+
+/// Method type `info`, also under type parameters, with `params` first in its first clause.
+fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) -> tasty::TypeId {
+    match l.u.types().get(info).clone() {
+        Type::Poly { binder, params: tparams, result } => {
+            let result = with_leading_params(l, result, params);
+            l.u.intern_type(Type::Poly { binder, params: tparams, result })
+        }
+        Type::Method { binder, params: old, result, implicit, contextual } => {
+            let new = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p)));
+            let params = new.chain(old).collect();
+            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+        }
+        _ => info,
     }
 }
 
