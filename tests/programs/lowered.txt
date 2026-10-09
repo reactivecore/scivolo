@@ -50,3 +50,6 @@ abstractvals
 apps
 tailrec
 locallazy
+nestedobjects
+privatetraits
+enumerations

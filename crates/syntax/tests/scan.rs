@@ -140,6 +140,27 @@ fn case_class_fuses_and_comments_are_skipped() {
 }
 
 #[test]
+fn a_supplementary_character_after_a_fraction_is_not_an_identifier_part() {
+    let (tokens, errors) = scan("1.5\u{1D538}");
+    assert_eq!(tokens[0], (DeciLit, "1.5".into()));
+    assert!(!errors.iter().any(|e| e.contains("Invalid literal number")), "{errors:?}");
+    assert!(!scan("1.5x").1.is_empty());
+}
+
+#[test]
+fn comments_are_recorded() {
+    let text = "a /* b /* c */ d */ e // f\r\ng /* h";
+    let source = SourceFile::new("t.scala", text);
+    let mut names = Names::default();
+    let mut s = Scanner::new(&source, &mut names, Config::default());
+    while s.token() != Eof {
+        s.next_token();
+    }
+    let comments: Vec<_> = s.comments.iter().map(|c| &text[c.start as usize..c.end as usize]).collect();
+    assert_eq!(comments, ["/* b /* c */ d */", "// f\r", "/* h"]);
+}
+
+#[test]
 fn errors_point_at_the_offending_input() {
     let (_, errors) = scan("val s = \"abc\nval c = '' val n = 1_ /* x");
     assert_eq!(

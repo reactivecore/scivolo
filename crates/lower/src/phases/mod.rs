@@ -23,6 +23,7 @@ mod envelope;
 mod erased_branches;
 mod erasure;
 mod eta_reduce;
+mod explicit_outer;
 mod first_transform;
 mod getters;
 mod initializers;
@@ -63,8 +64,8 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
     for &td in &classes {
-        enumerations::check(l, td)?;
         synthetic::add_synthetic_members(l, root, td)?;
+        enumerations::transform(l, td)?;
         first_transform::transform(l, td);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
@@ -87,6 +88,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         eta_reduce::transform(l, td);
         local_lazy::transform(l, td)?;
     }
+    explicit_outer::transform(l, &classes)?;
     local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes)?;
     for &td in &classes {

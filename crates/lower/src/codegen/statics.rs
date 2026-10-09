@@ -67,8 +67,9 @@ impl Gen<'_, '_> {
         let bases = self.l.u.linearization(module_class);
         let classes: Vec<SymbolId> = bases
             .into_iter()
-            .filter(|b| {
-                !plain.contains(b) && self.l.u.symbol(*b).name != "Matchable" && !is_trait(self.l.u, *b)
+            .filter(|&b| {
+                let library_trait = is_trait(self.l.u, b) && self.l.u.symbol(b).tree.is_some();
+                !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait
             })
             .collect();
         if classes.iter().skip(1).any(|&c| self.l.u.symbol(c).tree.is_some()) {

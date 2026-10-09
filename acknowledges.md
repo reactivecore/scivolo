@@ -55,7 +55,14 @@ Apache-2.0. Rust translations of:
   (definitions shown), `ReplBytecodeAnalysis` (the synthesized `toString` test in
   `crates/vm/src/natives/repl.rs`); the transcript format of `compiler/test-resources/repl`;
   from the compiler, `reporting/MessageRendering` (diagnostic boxes) and the `ErrorMessageID`
-  numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`).
+  numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`);
+  `printing/SyntaxHighlighting` and the `nameSpan`/`endSpan` of `ast/Trees`
+  (`crates/repl/src/highlight.rs`), with `JLineTerminal`'s magenta prompt.
+
+### [JLine](https://github.com/jline/jline3) 4.0.14
+
+BSD-3. `crates/scalai/src/history.rs`: `reader/impl/history/DefaultHistory` (file format,
+`escape`/`unescape`, the add filters, `trimHistory`/`doTrimHistory`, the size limits).
 
 ### [PPrint](https://github.com/com-lihaoyi/PPrint) by Li Haoyi, as vendored by dotty 3.9.0
 
@@ -69,6 +76,8 @@ BSD-3 / Apache-2.0. Rust translations of:
 - `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally`, `genSynchronized` too), `NirCodeGen` (without
   native interop), `ControlFlow.removeDeadBlocks`, `Val.isZero`, `Val.isCanonical`,
   `AdaptLazyVals` (`objCAS` on a field pointer).
+- `crates/lower/src/phases/enumerations.rs`: nscplugin's `PrepNativeInterop` (names of
+  `Enumeration` values).
 - `crates/nir/src/encode`, `sig.rs`: `serialization/BinarySerializer`, `Sig`, `Mangle`.
 
 ### Scala Native precompiled libraries
@@ -139,4 +148,8 @@ the VM (fetched, not vendored).
 - Scala Native's unit tests (`unit-tests/`, JUnit runtime and test interface): our conformance
   suite ([docs/conformance.md](docs/conformance.md)).
 - dotty `tests/run` and scala/scala `test/junit`: planned milestones M4 and M5.
+- scala3-repl 3.9.0's `ReplDriver.completions` and `interactive/Completion`: the answers of
+  `tests/repl-completion` and the algorithm to port (research 11), with
+  [JLine](https://github.com/jline/jline3) 4.0.14's `CompletionMatcherImpl` (BSD-3), the word
+  filter applied to them.
 - Rust style: Reactive Core's `rcui` project (`CLAUDE.md`).

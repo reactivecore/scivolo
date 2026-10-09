@@ -111,7 +111,7 @@ fn add_proxies(
 }
 
 /// Puts `params` first in the first parameter clause of constructor `constr` of `ctor`.
-fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[SymbolId]) {
+pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[SymbolId]) {
     let span = l.tpd.span(constr);
     let param_defs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, span)).collect();
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(constr) else { unreachable!("a constructor") };

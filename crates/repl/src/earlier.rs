@@ -10,6 +10,8 @@ pub struct Earlier {
     pub object: String,
     /// The input's top-level imports as source text.
     pub imports: Vec<String>,
+    /// The input's top-level imports as `:imports` lists them.
+    pub shown: Vec<String>,
     /// The names the wrapper defines, each with whether it names a type.
     pub members: Vec<(String, bool)>,
 }

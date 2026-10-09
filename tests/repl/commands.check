@@ -84,10 +84,36 @@ scala> :type
 scala> 3
 val res3: Int = 3
 
+scala>  :type 1
+-- [E103] Syntax Error: --------------------------------------------------------
+1 | :type 1
+  | ^
+  | Illegal start of statement
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> :s
+":s" matches :settings, :sh, :silent. Try typing a few more characters. Run ":help" for a list of commands
+
+scala> :r
+":r" matches :reset, :require. Try typing a few more characters. Run ":help" for a list of commands
+
+scala> :kind Int
+The :kind command is not currently supported.
+
+scala> :sh ls
+The :sh command is deprecated. Use `import scala.sys.process._` and `"command".!` instead.
+
+scala> :require x.jar
+:require is no longer supported, but has been replaced with :jar. Please use :jar
+
 scala> :help
 The REPL has several commands available:
 
 :help                    print this summary
+:load <path>             interpret lines in a file
 :quit                    exit the interpreter
 :type <expression>       evaluate the type of the given expression
+:imports                 show import history
 :reset                   reset the repl to its initial state, forgetting all session entries
+:silent                  disable/enable automatic printing of results

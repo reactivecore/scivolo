@@ -6,7 +6,7 @@ use super::adapt::adapt;
 use super::lazy_init::init_method;
 use super::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
 use crate::definitions::symbol;
-use crate::symbols::{has, is_trait};
+use crate::symbols::{has, is_singleton, is_trait};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
@@ -148,6 +148,9 @@ fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
     let null = l.null_literal(Span::NONE);
     l.tpd.get_mut(null).tpe = Some(object);
     let null = adapt(l, null, &erased);
+    if is_singleton(l.u, info) {
+        l.tpd.get_mut(null).tpe = Some(info);
+    }
     let this = l.this(lazy.class, Span::NONE);
     let init = call(l, this, lazy.init, &[]);
     let init = adapt(l, init, &erased);

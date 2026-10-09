@@ -38,7 +38,20 @@ const CASES: &[(&str, &str)] = &[
         "overridable class parameters selected on this in the constructor",
     ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
-    ("class A { object B }", "objects in classes"),
+    ("trait A { object B }", "objects in traits"),
+    (
+        "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
+        "type tests of objects nested in classes",
+    ),
+    (
+        "class A { private val p = 1; def g = p; object B { def f = p } }",
+        "private members of an enclosing class",
+    ),
+    (
+        "class A { val p = 1; object B { object C { def f = p } } }",
+        "the enclosing instance in classes nested in objects",
+    ),
+    ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
     ("class A { class B }", "classes in classes and traits"),
     ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
@@ -57,7 +70,6 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
     ("trait T { var x: Int }", "abstract variables"),
-    ("trait T { private val x = \"a\"; def y = x }", "private values in traits"),
     (
         "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
         "bridges in traits",

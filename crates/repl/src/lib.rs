@@ -4,6 +4,8 @@
 mod commands;
 mod diagnostic;
 mod earlier;
+mod highlight;
+mod import_text;
 mod imports;
 mod input;
 mod line_names;
@@ -14,5 +16,6 @@ mod show_methods;
 mod trace;
 mod wrap;
 
+pub use highlight::highlight;
 pub use input::is_incomplete;
 pub use session::Session;
