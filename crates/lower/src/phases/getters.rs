@@ -42,19 +42,19 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
                 kept.pop();
                 continue;
             }
-            if in_trait {
-                return unsupported(span, "objects in traits");
+            if in_trait && has(l.u, sym, PRIVATE) {
+                return unsupported(span, "private objects in traits");
             }
             let flags = l.u.symbol(sym).flags.with(LAZY);
             l.u.set_flags(sym, flags);
         }
-        if in_trait && has(l.u, sym, LAZY) {
+        if in_trait && has(l.u, sym, LAZY) && !is_module(l.u, sym) {
             return unsupported(span, "lazy values in traits");
         }
         if has(l.u, sym, LAZY) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);
-            if let (Some(class), Some(rhs)) = (owner, rhs) {
+            if let (Some(class), Some(rhs), false) = (owner, rhs, in_trait) {
                 super::lazy_vals::define_members(l, class, sym, rhs);
             }
             let paramss = l.tpd.clauses(&[]);

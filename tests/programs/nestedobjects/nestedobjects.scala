@@ -8,6 +8,14 @@ class Outer(val base: Int):
     def seven(): Int = 7
   def run(): Int = Inner.show(1) + Inner.v + Plain.seven()
 
+trait Named:
+  def name: String
+  object Greeting:
+    val text: String = "hello " + name
+    def shout(): String = text + "!"
+
+class Person(val name: String) extends Named
+
 object Top:
   class C(val b: Int):
     object In:
@@ -24,3 +32,6 @@ object Top:
   val c = Top.C(3)
   println(c.In.f())
   println(c.In.f())
+  val p = Person("ann")
+  println(p.Greeting.shout())
+  println(p.Greeting eq p.Greeting)

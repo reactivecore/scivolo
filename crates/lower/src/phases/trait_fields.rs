@@ -8,8 +8,8 @@ use super::getters::{is_const_final, is_setter};
 use super::library_traits::define_setter;
 use super::mixin::has_body;
 use crate::definitions::symbol;
-use crate::symbols::{has, is_trait};
-use crate::{Lower, Result};
+use crate::symbols::{has, is_module, is_trait};
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
@@ -59,7 +59,8 @@ pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
             continue;
         };
         let abstract_getter = rhs.is_none() && !is_setter(l, s);
-        if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || is_const_final(l, s) || abstract_getter {
+        let skip = !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || is_module(l.u, s);
+        if skip || is_const_final(l, s) || abstract_getter {
             continue;
         }
         l.u.set_deferred(s, true);
@@ -102,7 +103,14 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
     let mut out = Vec::new();
     let decls = l.u.decls(mixin).unwrap_or_default();
     for &getter in &decls {
-        if is_trait_getter(l, getter) && !is_const_final(l, getter) && implemented_by(l, class, getter) {
+        let library = l.u.symbol(getter).tree.is_some();
+        if is_module(l.u, getter) && library {
+            return unsupported(span, "objects in library traits");
+        }
+        if is_module(l.u, getter) {
+            out.push(module_forwarder(l, class, getter, span)?);
+        } else if is_trait_getter(l, getter) && !is_const_final(l, getter) && implemented_by(l, class, getter)
+        {
             out.push(forwarder(l, class, getter, None));
         }
     }
@@ -123,6 +131,26 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
         }
     }
     Ok(out)
+}
+
+/// The lazy object `x = new T$x$(this)` of class `class` for object `getter` of a trait.
+fn module_forwarder(l: &mut Lower, class: SymbolId, getter: SymbolId, span: Span) -> Result<TNodeId> {
+    let module_class = l.u.module_class(getter);
+    let ctor = module_class.and_then(|c| l.u.decl(c, "<init>").unwrap_or_default().into_iter().next());
+    let (Some(module_class), Some(ctor)) = (module_class, ctor) else {
+        return unsupported(span, "objects in traits without their class");
+    };
+    let new = l.new_(module_class, Span::NONE);
+    let this = l.this(class, Span::NONE);
+    let rhs = l.call(new, ctor, &[this]);
+    l.tpd.get_mut(rhs).tpe = l.tpd.get(new).tpe;
+    let def = forwarder(l, class, getter, Some(rhs));
+    let sym = l.tpd.sym(def).expect("a forwarder's symbol");
+    let flags = l.u.symbol(sym).flags.with(LAZY).with(FIELDaccessor);
+    l.u.set_flags(sym, flags);
+    super::lazy_vals::define_members(l, class, sym, rhs);
+    super::lazy_vals::name_members(l, sym);
+    Ok(def)
 }
 
 /// Whether the concrete member of `class` named as `getter` is `getter` (dotty's
