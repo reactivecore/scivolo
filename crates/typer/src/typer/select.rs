@@ -45,7 +45,7 @@ impl Typer<'_> {
                 continue;
             }
             if self.extension_visible(&text, ctx) {
-                return self.unsupported(id, "extension method");
+                return self.extension_select(id, qual, name, pt, ctx);
             }
             match self.converted(qual, Goal::Member(&text), ctx) {
                 Ok(Some(q)) => qual = q,
