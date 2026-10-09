@@ -12,19 +12,17 @@ impl Typer<'_> {
     /// The info of type definition `sym` with right-hand side `rhs`: bounds for an abstract type
     /// or a type parameter, else an alias; its typed tree is kept for typing `rhs`.
     pub fn type_def_info(&mut self, rhs: NodeId, ctx: Ctx) -> TypeId {
-        if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. }) {
-            self.unsupported(rhs, "type lambda");
-            return self.u.intern_type(Type::Error);
-        }
+        let lambda = matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. });
         let typed = self.typed_type(rhs, ctx);
         self.typed_ahead(rhs, typed, ctx);
         let tpe = self.tpd.tpe(typed);
-        if !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0 {
+        if !lambda && !matches!(self.u.types().get(tpe), Type::Bounds(..)) && self.type_arity(tpe) > 0 {
             self.unsupported(rhs, "alias of a type constructor");
             return self.u.intern_type(Type::Error);
         }
         match self.u.types().get(tpe) {
             Type::Bounds(..) => tpe,
+            Type::Lambda { .. } if lambda => tpe,
             _ if matches!(self.ast.tree(rhs), Tree::DerivedTypeTree { .. }) => tpe,
             _ => self.u.intern_type(Type::Alias(tpe)),
         }

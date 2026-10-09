@@ -45,7 +45,19 @@ impl Typer<'_> {
                         self.check_simple_kinded(t, a);
                     }
                 }
+                let wildcard = arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                if wildcard
+                    && let Type::Sym(_, s) = *self.u.types().get(tycon)
+                    && self.u.symbol(s).kind == Kind::Type
+                    && self.syms.flags.contains_key(&s)
+                {
+                    return self.unsupported(id, "parameterized type alias applied to a wildcard");
+                }
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
+                let dealiased = self.u.dealias(tpe);
+                if matches!(self.u.types().get(dealiased), Type::Match(_)) && self.is_ground(tpe) {
+                    return self.unsupported(id, "match type that may reduce");
+                }
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
             }
@@ -79,12 +91,32 @@ impl Typer<'_> {
                 self.tpd.node(T::Annotated { arg, annot }, span, Some(tpe), None)
             }
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
+            Tree::LambdaTypeTree { tparams, body } => self.typed_lambda_type(id, tparams, body, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             t => {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
         }
+    }
+
+    /// Whether `t` refers to no type parameter and no abstract type.
+    fn is_ground(&mut self, t: TypeId) -> bool {
+        let mut abstract_part = false;
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part) {
+                abstract_part |= match u.symbol(s).kind {
+                    Kind::TypeParam => true,
+                    Kind::Type => {
+                        let info = u.info(s);
+                        matches!(u.types().get(info), Type::Bounds(..))
+                    }
+                    _ => false,
+                };
+            }
+            None
+        });
+        !abstract_part
     }
 
     /// Whether `tree` is a literal, `this`, or a path of stable members.

@@ -69,8 +69,8 @@ impl Typer<'_> {
     }
 
     /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
-    /// `appliedTo`), and capture-checking annotations (`retains`) dropped; an impure function
-    /// alias only if its arguments have such annotations.
+    /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
+    /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         let retains = |u: &mut tasty::Universe, a| {
             u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
@@ -88,8 +88,9 @@ impl Typer<'_> {
                 Type::TypeRef(p, n) => u.resolve(p, &n, true),
                 _ => None,
             };
+            let impure = alias.is_some_and(|s| u.full_name(s).starts_with("scala.Impure"));
             let lambda = match alias {
-                Some(s) if u.full_name(s).starts_with("scala.Impure") => {
+                Some(s) if impure => {
                     let mut annotated = false;
                     for &a in &args {
                         u.map_type(a, &mut |u, x| {
@@ -107,6 +108,15 @@ impl Typer<'_> {
                 }
                 Some(s) if u.symbol(s).kind == Kind::Type && !u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
                     let info = u.info(s);
+                    let prefix = match *u.types().get(tycon) {
+                        Type::Sym(p, _) => p,
+                        Type::TypeRef(p, _) => Some(p),
+                        _ => None,
+                    };
+                    let info = match (prefix, u.symbol(s).owner) {
+                        (Some(p), Some(o)) if u.symbol(o).kind == Kind::Class => u.as_seen_from(info, p, o),
+                        _ => info,
+                    };
                     match *u.types().get(info) {
                         Type::Alias(a) => a,
                         Type::Lambda { .. } => info,
@@ -117,6 +127,16 @@ impl Typer<'_> {
             };
             let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
             if matches!(u.types().get(result), Type::Match(_)) {
+                return None;
+            }
+            let eta = matches!(u.types().get(result), Type::Applied(_, rargs)
+                if rargs.len() == params.len()
+                    && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
+                        Type::Param(b, k) => *b == binder && *k == i as u32,
+                        Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
+                        _ => false,
+                    }));
+            if lambda != tycon && !eta && !impure {
                 return None;
             }
             let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();

@@ -125,6 +125,10 @@ impl Printer<'_> {
                 self.node(hi);
                 self.opt(alias);
             }
+            Tree::LambdaTypeTree { tparams, body } => {
+                self.list(tparams);
+                self.node(body);
+            }
             Tree::Import { expr, selectors } => {
                 self.node(expr);
                 self.list(selectors);

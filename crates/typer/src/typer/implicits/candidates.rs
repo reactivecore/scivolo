@@ -85,10 +85,17 @@ impl Typer<'_> {
         let names: Vec<(String, String)> =
             info.selectors.iter().map(|s| (s.name.clone(), s.rename.clone())).collect();
         let Some(site) = self.import_site(qual) else { return Ok(Vec::new()) };
-        let Some(class) =
-            self.u.module_class(site).or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
+        let aliased_object = |t: &mut Self| {
+            let widened = t.u.widen(qual);
+            t.u.class_symbol(widened).filter(|&c| t.u.symbol(c).flags.has(tasty::tags::OBJECT))
+        };
+        let Some(class) = self
+            .u
+            .module_class(site)
+            .or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
+            .or_else(|| aliased_object(self))
         else {
-            return Ok(Vec::new());
+            return Err("implicit import from a value other than an object");
         };
         for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != "_") {
             for m in self.class_members(class, name) {
@@ -147,7 +154,26 @@ impl Typer<'_> {
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let name = self.u.symbol(c.sym).name.clone();
         let name = TName { name: self.name(&name), is_type: false };
-        let tpe = self.ref_type(c.prefix, c.sym);
+        let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_package_object(o));
+        let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {
+            Some(Type::Package(_)) => true,
+            Some(Type::Sym(_, m)) => t.u.module_class(m) == Some(o),
+            Some(Type::This(c)) => match *t.u.types().get(c) {
+                Type::Package(_) => true,
+                Type::Sym(_, s) => s == o || t.u.symbol(s).kind == tasty::Kind::Package,
+                _ => false,
+            },
+            _ => false,
+        };
+        let prefix = c.prefix.map(|p| self.u.types().get(p).clone());
+        let tpe = match (prefix.clone(), package_object) {
+            (_, Some(o)) if through_object(self, prefix, o) => {
+                let class = crate::defn::type_ref(self.u, o);
+                let this = self.u.intern_type(Type::This(class));
+                self.u.intern_type(Type::Sym(Some(this), c.sym))
+            }
+            _ => self.ref_type(c.prefix, c.sym),
+        };
         if self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
             return Ok(self.tpd.node(T::Ident { name }, span, Some(tpe), Some(c.sym)));
         }
@@ -155,13 +181,6 @@ impl Typer<'_> {
             Some(Type::This(_)) => Ok(self.this_select(span, name, tpe, c.sym)),
             _ => Err("implicit through a path"),
         }
-    }
-
-    /// Whether an extension method named `name` is visible in `ctx`.
-    pub fn extension_visible(&mut self, name: &str, ctx: Ctx) -> bool {
-        let found = self.find_ref(name, false, ctx);
-        let Ok(Some(found)) = found else { return found.is_err() };
-        found.syms.iter().any(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION))
     }
 
     /// The companion object of class `c`, if `c` is not nested in a class other than an object's.

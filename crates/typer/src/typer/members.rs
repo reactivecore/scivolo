@@ -3,15 +3,25 @@
 use super::Typer;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
+/// How many steps through bounds, aliases and parts finding a member may take.
+const MAX_MEMBER_DEPTH: u32 = 32;
+
 impl Typer<'_> {
     /// The members named `name` of type `t`.
     pub fn type_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
+        self.members_within(t, name, MAX_MEMBER_DEPTH)
+    }
+
+    /// The members named `name` of type `t`, none if finding them takes more than `depth` steps
+    /// through bounds, aliases and parts.
+    fn members_within(&mut self, t: TypeId, name: &str, depth: u32) -> Vec<SymbolId> {
+        let Some(depth) = depth.checked_sub(1) else { return Vec::new() };
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
-            Type::This(c) => self.type_members(c, name),
+            Type::This(c) => self.members_within(c, name, depth),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
-                self.type_members(widened, name)
+                self.members_within(widened, name, depth)
             }
             Type::Sym(prefix, s) => match self.u.symbol(s).kind {
                 Kind::Package => self.package_members(s, name),
@@ -33,12 +43,16 @@ impl Typer<'_> {
                         Type::ByName(r) => r,
                         _ => info,
                     };
-                    self.type_members(info, name)
+                    self.members_within(info, name, depth)
                 }
             },
-            Type::Alias(a) | Type::Bounds(_, a) => self.type_members(a, name),
+            Type::Alias(a) | Type::Bounds(_, a) => self.members_within(a, name, depth),
+            Type::Applied(..) if self.u.dealias(t) != t => {
+                let dealiased = self.u.dealias(t);
+                self.members_within(dealiased, name, depth)
+            }
             Type::And(a, b) => {
-                let (ma, mb) = (self.type_members(a, name), self.type_members(b, name));
+                let (ma, mb) = (self.members_within(a, name, depth), self.members_within(b, name, depth));
                 match (ma.is_empty(), mb.is_empty()) {
                     (true, _) => mb,
                     (_, true) => ma,
@@ -47,7 +61,7 @@ impl Typer<'_> {
                 }
             }
             Type::Or(..) => match self.u.join(t) {
-                Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => self.type_members(j, name),
+                Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => self.members_within(j, name, depth),
                 _ => Vec::new(),
             },
             _ => match self.u.class_symbol(t) {
