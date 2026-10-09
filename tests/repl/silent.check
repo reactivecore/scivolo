@@ -1,0 +1,67 @@
+scala> :silent
+
+scala> val x = 1
+
+scala> x + 1
+
+scala> def f = 2
+
+scala> class C
+
+scala> var shown = 0
+
+scala> val y: Int = "s"
+-- [E007] Type Mismatch Error: -------------------------------------------------
+1 |val y: Int = "s"
+  |             ^^^
+  |             Found:    ("s" : String)
+  |             Required: Int
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> val z = throw new Exception("boom")
+
+scala> val a$d = 1
+1 warning found
+-- [E230] Syntax Warning: ------------------------------------------------------
+1 |val a$d = 1
+  |    ^^^
+  |The identifier `a$d` should not contain `$`, which is reserved for internal compiler use.
+  |
+  | longer explanation available when compiling with `-explain`
+
+scala> object W { override def toString = { shown += 1; "W" } }
+
+scala> val w = W
+
+scala> lazy val l = 3
+
+scala> :si
+
+scala> x
+val res1: Int = 1
+
+scala> res0
+val res2: Int = 2
+
+scala> shown
+val res3: Int = 1
+
+scala> w
+val res4: W.type = W
+
+scala> :silent
+
+scala> :reset
+Resetting REPL state.
+
+scala> 1
+val res0: Int = 1
+
+scala> :silent
+
+scala> 2
+
+scala> :type 3
+Int

@@ -4,6 +4,7 @@
 mod commands;
 mod diagnostic;
 mod earlier;
+mod import_text;
 mod imports;
 mod input;
 mod line_names;

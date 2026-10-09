@@ -1,0 +1,124 @@
+scala> :imports
+
+scala> import scala.collection.mutable
+
+scala> :imports
+import scala.collection.mutable
+
+scala> import mutable.ListBuffer
+
+scala> import scala.math.{max, min as minimum}
+
+scala> import scala.util.*
+
+scala> import scala.collection.immutable.{List as _, *}
+
+scala> val s = "abc"
+val s: String = "abc"
+
+scala> import s.length
+
+scala> import scala.language.implicitConversions
+
+scala> :imports
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.math.{max, min as minimum}
+import scala.util.*
+import scala.collection.immutable.{List as _, *}
+import s.length
+import scala.language.implicitConversions
+
+scala> import scala.collection.mutable; val x = 1
+val x: Int = 1
+
+scala> import java.util.{Map as JMap}; import scala.math.Ordering.given
+
+scala> object O { import scala.util.Random }
+// defined object O
+
+scala> :i
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.math.{max, min as minimum}
+import scala.util.*
+import scala.collection.immutable.{List as _, *}
+import s.length
+import scala.language.implicitConversions
+import scala.collection.mutable
+import java.util.{Map as JMap}
+import scala.math.Ordering.given
+
+scala> import scala.math.abs; throw new Exception("boom")
+java.lang.Exception: boom
+  ... 1 elided
+
+scala> :imports
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
+import scala.math.{max, min as minimum}
+import scala.util.*
+import scala.collection.immutable.{List as _, *}
+import s.length
+import scala.language.implicitConversions
+import scala.collection.mutable
+import java.util.{Map as JMap}
+import scala.math.Ordering.given
+
+scala> :reset
+Resetting REPL state.
+
+scala> :imports
+
+scala> import Predef.ArrowAssoc
+
+scala> import Ordering.Implicits.*
+
+scala> import collection.mutable
+
+scala> import util.Try
+
+scala> import Math.abs
+
+scala> import mutable.ListBuffer
+
+scala> import math.Ordering.Int
+
+scala> object O { object P { val v = 1 } }
+// defined object O
+
+scala> import O.P
+
+scala> import P.v
+
+scala> import scala.collection.{mutable as m}
+
+scala> import m.ArrayBuffer
+
+scala> import java.util as ju
+
+scala> import ju.Map
+
+scala> import scala.math.{Pi as _, given, *}
+
+scala> import `O`.P
+
+scala> import _root_.scala.util.Try
+
+scala> :imports
+import Predef.ArrowAssoc
+import Ordering.Implicits.*
+import collection.mutable
+import util.Try
+import Math.abs
+import scala.collection.mutable.ListBuffer
+import math.Ordering.Int
+import O.P
+import O.P.v
+import scala.collection.{mutable as m}
+import scala.collection.mutable.ArrayBuffer
+import java.{util as ju}
+import java.util.Map
+import scala.math.{Pi as _, given, *}
+import `O`.P
+import _root_.scala.util.Try

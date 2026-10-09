@@ -76,6 +76,9 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
         }
+        if let Err(what) = self.check_package_use(sym, name, ctx) {
+            return self.unsupported(id, what);
+        }
         if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
             return self.unsupported(id, "impure function type");
         }

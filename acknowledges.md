@@ -68,6 +68,8 @@ BSD-3 / Apache-2.0. Rust translations of:
 - `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally` too), `NirCodeGen` (without
   native interop), `ControlFlow.removeDeadBlocks`, `Val.isZero`, `Val.isCanonical`,
   `AdaptLazyVals` (`objCAS` on a field pointer).
+- `crates/lower/src/phases/enumerations.rs`: nscplugin's `PrepNativeInterop` (names of
+  `Enumeration` values).
 - `crates/nir/src/encode`, `sig.rs`: `serialization/BinarySerializer`, `Sig`, `Mangle`.
 
 ### Scala Native precompiled libraries
