@@ -3,8 +3,8 @@
 //! setter stores its argument in the field; a constant `final` value needs no field. The class's
 //! own accessors come first, then those `Mixin` added, in its order.
 
+use super::accessor_names::setter_getter_name;
 use super::getters::{is_const_final, is_param_accessor, is_setter};
-use super::trait_fields::setter_getter_name;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -73,9 +73,11 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
     });
     let tpt_span = l.tpd.span(tpt);
     let inferred = matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
-    let read_span = match rhs.map(|r| l.tpd.span(r)) {
+    let recorded = l.getter_rhs.get(&getter).copied();
+    let read_span = match (recorded, rhs.map(|r| l.tpd.span(r))) {
         _ if inferred && tpt_span.exists() => tpt_span.end_pos(),
-        Some(r) if r.exists() => r.with_point(r.start()),
+        (Some(r), _) => r,
+        (None, Some(r)) if r.exists() => r.with_point(r.start()),
         _ if span.exists() => span.with_point(span.start()),
         _ => span,
     };

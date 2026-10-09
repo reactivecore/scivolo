@@ -1,0 +1,47 @@
+//! The names `Mixin` gives accessors: trait setters `T$_setter_$x_=` (dotty's `TraitSetterName`)
+//! and the expanded names `p$T$$x` of private trait members (dotty's `expandedName`).
+
+use crate::Lower;
+use crate::symbols::{has, is_trait};
+use tasty::tags::PRIVATE;
+use tasty::{Kind, SymbolId};
+
+/// The separator in the names of trait setters.
+const TRAIT_SETTER: &str = "$_setter_$";
+
+/// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
+/// trait and its owners joined by `$`.
+pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
+    format!("{}{TRAIT_SETTER}{x}_=", expanded_prefix(l, trait_))
+}
+
+/// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.
+pub fn setter_getter_name(setter: &str) -> &str {
+    let name = setter.rsplit(TRAIT_SETTER).next().unwrap_or(setter);
+    name.strip_suffix("_=").unwrap_or(name)
+}
+
+/// The name of accessor `s` outside its class: a private trait member's expanded.
+pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
+    let sym = l.u.symbol(s);
+    match sym.owner {
+        Some(o) if has(l.u, s, PRIVATE) && is_trait(l.u, o) => {
+            format!("{}$${}", expanded_prefix(l, o), sym.name)
+        }
+        _ => sym.name.clone(),
+    }
+}
+
+/// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
+fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
+    let sym = l.u.symbol(s);
+    let name = sym.name.strip_suffix('$').unwrap_or(&sym.name);
+    match sym.owner {
+        Some(o) if l.u.symbol(o).kind == Kind::Package => match l.u.full_name(o).as_str() {
+            "" | "<empty>" => name.to_owned(),
+            package => format!("{}${name}", package.replace('.', "$")),
+        },
+        Some(o) => format!("{}${name}", expanded_prefix(l, o)),
+        None => name.to_owned(),
+    }
+}

@@ -26,6 +26,15 @@ impl Gen<'_, '_> {
         let Some(function) = self.l.u.class_symbol(interface) else {
             return unsupported(span, "closures of a type that is not a class");
         };
+        let bases = self.l.u.linearization(function);
+        if bases.iter().any(|&b| is_trait(self.l.u, b) && !self.l.u.no_inits(b)) {
+            return unsupported(span, "closures of traits with initialization");
+        }
+        let sams = self.abstract_methods(function);
+        let name = |g: &Self, s: SymbolId| g.l.u.symbol(s).name.clone();
+        if sams.iter().enumerate().any(|(i, &a)| sams[..i].iter().any(|&b| name(self, a) == name(self, b))) {
+            return unsupported(span, "closures needing bridges");
+        }
         let saved = self.at_span(span);
         let class = self.class.expect("a closure's class");
         self.lambdas += 1;
@@ -60,7 +69,7 @@ impl Gen<'_, '_> {
             let rhs = self.val(Val::Zero(ty));
             self.closures.push(Defn { name, attrs: Vec::new(), pos, kind: DefnKind::Var { ty, rhs } });
         }
-        for sam in self.abstract_methods(function) {
+        for sam in sams {
             let defn = self.gen_closure_method(anon, sam, fun, &captures, &fields, instance);
             self.closures.push(defn);
         }
@@ -88,16 +97,36 @@ impl Gen<'_, '_> {
         Ok(alloc)
     }
 
-    /// The abstract methods of `class`.
+    /// The abstract methods of `class`, inherited ones too, but those of `Object` (dotty's
+    /// `possibleSamMethods`): of each name and parameters, the one of the first base declaring it.
     fn abstract_methods(&mut self, class: SymbolId) -> Vec<SymbolId> {
-        let decls = self.l.u.decls(class).unwrap_or_default();
-        let function = self.l.u.full_name(class).starts_with("scala.Function");
-        decls
-            .into_iter()
-            .filter(|&d| self.l.u.symbol(d).kind == Kind::Def && self.l.u.body(d).is_none())
-            .filter(|&d| self.l.u.symbol(d).name != "<init>")
-            .filter(|&d| !(function && self.l.u.symbol(d).name.starts_with("apply$mc")))
-            .collect()
+        let mut seen: Vec<(String, Vec<tasty::Erased>)> = Vec::new();
+        let mut out = Vec::new();
+        let object = self.l.defs.object;
+        for base in self.l.u.linearization(class) {
+            let function = self.l.u.full_name(base).starts_with("scala.Function");
+            for d in self.l.u.decls(base).unwrap_or_default() {
+                let s = self.l.u.symbol(d);
+                if s.kind != Kind::Def || s.name == "<init>" || function && s.name.starts_with("apply$mc") {
+                    continue;
+                }
+                let abstract_ = match s.tree.is_some() {
+                    true => self.l.u.body(d).is_none(),
+                    false => self.l.u.is_deferred(d),
+                };
+                let key = (s.name.clone(), self.l.u.erased_method(d).0);
+                if seen.contains(&key) {
+                    continue;
+                }
+                let object_decls = self.l.u.decl(object, &key.0).unwrap_or_default();
+                let in_object = object_decls.into_iter().any(|o| self.l.u.erased_method(o).0 == key.1);
+                seen.push(key);
+                if abstract_ && base != object && !in_object {
+                    out.push(d);
+                }
+            }
+        }
+        out
     }
 
     pub fn global_ptr(&mut self, name: GlobalId) -> ValId {

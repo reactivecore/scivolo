@@ -69,7 +69,8 @@ fn primitive(u: &mut Universe, e: &Erased) -> Result<TypeId, String> {
     Ok(type_ref(u, class))
 }
 
-/// Java interface `pkg.name`, a `FunctionN` with abstract method `method`; defined if missing.
+/// Java interface `pkg.name`, a `FunctionN` with abstract method `method` and a default `apply`
+/// of objects; defined if missing.
 fn interface(
     u: &mut Universe,
     pkg: &str,
@@ -89,11 +90,14 @@ fn interface(
     let class = u.define(symbol(name, Kind::Class, pkg, Flags::default().with(TRAIT)));
     let parents = vec![type_ref(u, function), type_ref(u, serializable)];
     u.set_parents(class, parents);
-    method(u, class, method_name, params, result);
+    let abstract_ = method(u, class, method_name, params, result);
+    u.set_deferred(abstract_, true);
+    let object = type_ref(u, u.builtins().object);
+    method(u, class, "apply", &vec![object; params.len()], object);
     Ok(class)
 }
 
-/// Method `name` of `owner` without a body.
+/// Method `name` of `owner`.
 fn method(u: &mut Universe, owner: SymbolId, name: &str, params: &[TypeId], result: TypeId) -> SymbolId {
     let m = u.define(symbol(name, Kind::Def, owner, Flags::default()));
     let params = params.iter().enumerate().map(|(i, &t)| (format!("v{}", i + 1), t)).collect();

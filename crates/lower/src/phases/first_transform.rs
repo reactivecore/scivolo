@@ -37,6 +37,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 /// Makes `t` a literal if it refers to a constant `final` value through a pure path, or is a
 /// block of constant type with only a constant.
 fn const_to_literal(l: &mut Lower, t: TNodeId) {
+    if is_constant_op(l, t)
+        && let Some(value) = constant(l.u.types().get(l.tpd.tpe(t)))
+    {
+        l.tpd.get_mut(t).tree = Tree::Literal { value };
+        l.tpd.get_mut(t).sym = None;
+        return;
+    }
     if is_constant_block(l, t) {
         let tpe = match *l.u.types().get(l.tpd.tpe(t)) {
             Type::Sym(_, s) if l.u.symbol(s).kind == Kind::Val => l.u.info(s),
@@ -64,6 +71,33 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
     node.tpe = Some(info);
     node.sym = None;
 }
+
+/// Whether `t` is an operation of a primitive class or `String` on literals and pure paths
+/// (dotty's `isPureApply` for a constant type).
+fn is_constant_op(l: &Lower, t: TNodeId) -> bool {
+    let operand = |a: TNodeId| matches!(l.tpd.tree(a), Tree::Literal { .. }) || is_pure(l, a);
+    let (fun, args) = match *l.tpd.tree(t) {
+        Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
+        Tree::Select { .. } => (t, Vec::new()),
+        _ => return false,
+    };
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
+    let Some(owner) = l.tpd.sym(fun).and_then(|m| l.u.symbol(m).owner) else { return false };
+    let owner = l.u.full_name(owner);
+    let known = PRIMITIVES.contains(&owner.as_str()) || owner == "java.lang.String";
+    known && operand(qualifier) && args.into_iter().all(operand)
+}
+
+const PRIMITIVES: [&str; 8] = [
+    "scala.Boolean",
+    "scala.Byte",
+    "scala.Short",
+    "scala.Char",
+    "scala.Int",
+    "scala.Long",
+    "scala.Float",
+    "scala.Double",
+];
 
 /// Whether `t` is a block of pure definitions ending in a literal (dotty's `isIdempotentExpr`
 /// with `statPurity`).
