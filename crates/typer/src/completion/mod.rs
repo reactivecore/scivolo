@@ -8,15 +8,13 @@ use crate::Units;
 use crate::typer::{Pt, Typer};
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::names::{FreshNames, Names};
-use syntax::source::Offset;
 use tasty::Universe;
 
 pub use probe::Probe;
 
-/// A completion of the selection `target`, at offset `cursor`, with names starting with `prefix`.
+/// A completion of the selection `target` with names starting with `prefix`.
 pub struct Request {
     pub target: NodeId,
-    pub cursor: Offset,
     pub prefix: String,
 }
 
@@ -36,7 +34,7 @@ impl Units {
         let Ok(mut typer) = Typer::new(u, (ast, root), (names, fresh), features, &mut syms) else {
             return Vec::new();
         };
-        typer.probe = Some(Probe::new(request.target, request.cursor));
+        typer.probe = Some(Probe::new(request.target));
         let ctx = crate::root_context(&mut typer);
         typer.typed(root, Pt::Any, ctx);
         if let Err(what) = typer.zonk_trees() {

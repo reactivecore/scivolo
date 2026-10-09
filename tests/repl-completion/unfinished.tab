@@ -32,6 +32,16 @@ tab> val (a, b) = (x.he@@, 1)
   <none>
 tab> var (a, b) = (x.he@@, 1)
   <none>
+tab> val a, b = x.he@@
+  head headOption
+tab> val (a, b) = x.he@@
+  head headOption
+tab> val List(h) = x.ta@@
+  tail tails take takeRight takeWhile tapEach
+tab> val Some(q) = x.he@@
+  head headOption
+tab> val h :: t = x.ta@@
+  tail tails take takeRight takeWhile tapEach
 tab> if x.isEmpty then x.he@@
   head headOption
 tab> x.map { e => e.toS@@

@@ -95,8 +95,8 @@ impl Units {
         Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
     }
 
-    /// Forgets that the definitions in the object `name` of the root package, and the object, are
-    /// script symbols, so that they bind no name later units may be told of.
+    /// Removes the object `name` from the root package, and it and the definitions in it from
+    /// the script symbols: no later unit refers to them or is told of their names.
     pub fn forget(&mut self, u: &mut Universe, name: &str) {
         let root = u.root();
         let objects: Vec<tasty::SymbolId> = [name.to_owned(), format!("{name}$")]
@@ -111,6 +111,7 @@ impl Units {
             s = owner;
         };
         self.syms.flags.retain(|&s, _| !under(s));
+        objects.iter().for_each(|&o| u.unenter(o));
     }
 }
 

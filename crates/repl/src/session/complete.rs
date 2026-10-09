@@ -50,7 +50,7 @@ impl Session {
         let Some(target) = completion::desugared(&parsed.ast, wrapped.root, selection.target) else {
             return Vec::new();
         };
-        let request = Request { target, cursor, prefix: selection.prefix };
+        let request = Request { target, prefix: selection.prefix };
         let (ast, features) = ((&mut parsed.ast, wrapped.root), parsed.cfg.features);
         let found = self.units.complete(&mut self.u, ast, (names, fresh), features, &request);
         found.iter().map(|n| completion::label(n, selection.backticked)).collect()

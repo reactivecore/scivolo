@@ -16,8 +16,8 @@ pub struct Selection {
 }
 
 /// The term selection innermost around byte offset `cursor` among `stats`, if the cursor is on
-/// one; `None` for any other tree, a type selection, a recovery tree, a package clause, or in a
-/// pattern definition (`val (a, b) = …`), whose desugaring keeps dotty from the selection.
+/// one; `None` for any other tree, a type selection, a recovery tree, a package clause, or in
+/// the tuple right of a tuple pattern definition (`val (a, b) = (x.he, 1)`).
 pub fn selection(
     ast: &Ast,
     names: &Names,
@@ -30,8 +30,7 @@ pub fn selection(
     let Tree::Select { name, .. } = *ast.tree(target) else { return None };
     let span = ast.span(target);
     let package = outer.first().is_some_and(|&o| matches!(ast.tree(o), Tree::PackageDef { .. }));
-    let pattern_def = outer.iter().any(|&o| matches!(ast.tree(o), Tree::PatDef { .. }));
-    if name.is_type || span.is_synthetic() || package || pattern_def {
+    if name.is_type || span.is_synthetic() || package || outer.iter().any(|&o| tuple_def(ast, o)) {
         return None;
     }
     let text = &source.text;
@@ -47,6 +46,13 @@ pub fn selection(
         }
     };
     Some(Selection { target, prefix: raw.trim_start_matches('`').to_owned(), backticked })
+}
+
+/// Whether `t` is a pattern definition of a tuple pattern by a tuple.
+fn tuple_def(ast: &Ast, t: NodeId) -> bool {
+    let Tree::PatDef { pats, rhs: Some(rhs), .. } = *ast.tree(t) else { return false };
+    let tuple = |n: NodeId| matches!(ast.tree(n), Tree::Tuple { .. });
+    ast.items(pats).iter().any(|&p| tuple(p)) && tuple(rhs)
 }
 
 /// The selection of unit `root` that desugaring made of selection `target`: the first of the
@@ -95,6 +101,8 @@ mod tests {
         assert_eq!(prefix("val y: scala.In@@"), None);
         assert_eq!(prefix("val y = @@"), None);
         assert_eq!(prefix("val (a, b) = (x.he@@, 1)"), None);
+        assert_eq!(prefix("val (a, b) = x.he@@"), Some(("he".into(), false)));
+        assert_eq!(prefix("val a, b = x.he@@"), Some(("he".into(), false)));
         assert_eq!(prefix("val y = x.he@@"), Some(("he".into(), false)));
     }
 }

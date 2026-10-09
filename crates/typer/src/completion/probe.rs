@@ -4,24 +4,22 @@
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use crate::typer::Typer;
-use syntax::ast::{NodeId, Span};
-use syntax::source::Offset;
+use syntax::ast::NodeId;
 use tasty::{Type, TypeId};
 
 pub struct Probe {
     target: NodeId,
-    cursor: Offset,
     /// The context of the first typing of the target selection.
     ctx: Option<Ctx>,
     /// The qualifier's type, zonked, at each typing of the target selection.
     quals: Vec<TypeId>,
-    /// Whether a construct outside the subset is at or before the cursor, or has no position.
+    /// Whether a construct outside the subset was met before the target was first typed.
     blocked: bool,
 }
 
 impl Probe {
-    pub fn new(target: NodeId, cursor: Offset) -> Probe {
-        Probe { target, cursor, ctx: None, quals: Vec::new(), blocked: false }
+    pub fn new(target: NodeId) -> Probe {
+        Probe { target, ctx: None, quals: Vec::new(), blocked: false }
     }
 }
 
@@ -42,10 +40,10 @@ impl Typer<'_> {
         self.error_tree(self.ast.span(id))
     }
 
-    /// Notes a construct outside the subset at `span`.
-    pub fn probe_unsupported(&mut self, span: Span) {
+    /// Notes a construct outside the subset.
+    pub fn probe_unsupported(&mut self) {
         if let Some(p) = &mut self.probe {
-            p.blocked |= !span.exists() || span.start() <= p.cursor;
+            p.blocked |= p.quals.is_empty();
         }
     }
 

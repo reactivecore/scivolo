@@ -118,15 +118,18 @@ result on an unsupported construct or a missing member, so completion cannot rea
 output: a probe (target node, recorded context, qualifier type) fires in `typed_select`, before
 any member lookup, and returns an error tree at the target; stage 4 adds `typed_ident` and
 `import_info`. Candidates are computed in the same `Typer`. The universe keeps the wrapper's
-symbols, and the session's `Units` its script symbols, but the wrapper's definitions are
-forgotten as script symbols (`Units::forget`, also after `:type`), so that no later "did you
-mean" hint sees them.
+symbols, but `Units::forget` (also after `:type`) removes the wrapper object from the root
+package and its definitions from the script symbols: no later input resolves it (no
+`NoClassDefFoundError` for `rs$line$tab$1.q`), and no "did you mean" hint names them. A line
+that fails keeps its names, as in dotty (`yz` after a failed `val yy = 1; zzz` is "did you mean
+yy?").
 
 ### 3.2 When to show nothing
 
 - The probe never reached the target: dotty's mode none and our safety net.
 - The qualifier is an error tree, or its widened type holds `Type::Error` or `Type::Var`.
-- An unsupported construct without position, or at or before the cursor.
+- An unsupported construct met before the target is first typed; one met after it cannot have
+  changed the recorded qualifier or context.
 - A site whose member set the universe cannot know: what `did_you_mean::member_names` refuses
   (a JDK package other than `java.lang`, a JDK class without a member table, a missing base
   class, a self type, an export clause).
@@ -137,7 +140,9 @@ mean" hint sees them.
   word, since dotty's own labels may start with it (`x.en@@s` is `ensuring` for dotty).
 - The root package, whose members dotty takes from its classpath and the JDK; Scala Native's
   `scala.scalanative`.
-- In a pattern definition (`val (a, b) = (x.he@@, 1)`), where dotty offers nothing.
+- In the tuple right of a pattern definition whose pattern is a tuple (`val (a, b) = (x.he@@,
+  1)`), where dotty offers nothing; other pattern definitions complete (`val (a, b) = x.he@@`,
+  `val List(h) = x.ta@@`, `val a, b = x.he@@`).
 
 Derived names need a flag on `Symbol` set from the TASTy name kind, not a `$` pattern, which
 would drop `_1$mcI$sp`.

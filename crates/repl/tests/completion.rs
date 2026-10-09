@@ -228,8 +228,13 @@ fn run() -> Result<(), String> {
 
 /// Inputs whose output a completion, or a `:type` command, before them must not change: a look
 /// at a definition binds no name.
-const UNCHANGED: [(&str, &str); 3] =
-    [("val yy = x.toSt", "yz"), ("val zz = 1; x.toSt", "zz"), (":type val yy = 1", "yz")];
+const UNCHANGED: [(&str, &str); 5] = [
+    ("val yy = x.toSt", "yz"),
+    ("val zz = 1; x.toSt", "zz"),
+    (":type val yy = 1", "yz"),
+    ("val q = 1; x.he", "rs$line$tab$1.q"),
+    (":type val q = 1", "rs$line$type$1.q"),
+];
 
 /// Checks `UNCHANGED` in `session`, which it resets, into `failed`.
 fn unchanged_by_looks(session: &mut Session, failed: &mut Vec<String>) {
