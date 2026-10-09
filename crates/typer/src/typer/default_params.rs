@@ -56,13 +56,28 @@ impl Typer<'_> {
         if let Some(clauses) = self.syms.param_clauses.get(&s) {
             let taken = if first { clauses.len().min(1) } else { clauses.len() };
             let params: Vec<SymbolId> = clauses[..taken].iter().flatten().copied().collect();
-            return params.iter().map(|p| self.syms.flags.get(p).is_some_and(|fl| fl.is(f::HAS_DEFAULT))).collect();
+            return params
+                .iter()
+                .map(|p| self.syms.flags.get(p).is_some_and(|fl| fl.is(f::HAS_DEFAULT)))
+                .collect();
         }
         let info = self.u.info(s);
         let clauses = self.u.param_clauses(info);
-        let count = if first { clauses.first().map_or(0, |(_, ps)| ps.len()) } else { clauses.iter().map(|(_, ps)| ps.len()).sum() };
-        let params: Vec<SymbolId> =
-            self.u.symbol(s).decls.iter().copied().filter(|&p| self.u.symbol(p).kind == Kind::Param).collect();
-        (0..count).map(|i| params.get(i).is_some_and(|&p| self.u.symbol(p).flags.has(tasty::tags::HASDEFAULT))).collect()
+        let count = if first {
+            clauses.first().map_or(0, |(_, ps)| ps.len())
+        } else {
+            clauses.iter().map(|(_, ps)| ps.len()).sum()
+        };
+        let params: Vec<SymbolId> = self
+            .u
+            .symbol(s)
+            .decls
+            .iter()
+            .copied()
+            .filter(|&p| self.u.symbol(p).kind == Kind::Param)
+            .collect();
+        (0..count)
+            .map(|i| params.get(i).is_some_and(|&p| self.u.symbol(p).flags.has(tasty::tags::HASDEFAULT)))
+            .collect()
     }
 }

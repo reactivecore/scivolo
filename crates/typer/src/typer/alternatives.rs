@@ -151,5 +151,4 @@ impl Typer<'_> {
         let info = self.u.info(s);
         matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
-
 }

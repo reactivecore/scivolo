@@ -37,7 +37,9 @@ impl Typer<'_> {
             return Ok(None);
         }
         if repeated || overloaded && named || !named && args.len() > params.len() {
-            return Err("named or default arguments of a repeated method, named ones of an overloaded one, or wrong arity");
+            return Err(
+                "named or default arguments of a repeated method, named ones of an overloaded one, or wrong arity",
+            );
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         self.ordered_args(args, &names).map(Some)
