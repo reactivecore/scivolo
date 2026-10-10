@@ -77,6 +77,23 @@ const CASES: &[(&str, &str)] = &[
         "generic library traits",
     ),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
+    ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
+    (
+        "object O { def f(k: Int) = { object L { object M { val v = k } }; L.M.v } }",
+        "classes in local classes capturing values",
+    ),
+    (
+        "object O { def f() = { class C { val g = (x: Int) => x }; new C().g(1) } }",
+        "lambdas and local methods in local classes",
+    ),
+    (
+        "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",
+        "local classes using the enclosing instance",
+    ),
+    (
+        "class A(f: () => Int); class B extends A(() => 1)",
+        "superclass constructor arguments defining or creating local classes or methods",
+    ),
 ];
 
 #[test]

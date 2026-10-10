@@ -2,49 +2,82 @@
 //! functions they call, in the order dotty records them, and whether they need `this`.
 
 use super::lambda_lift::Function;
+use super::lift_names::Pending;
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module_class};
+use crate::symbols::{has, is_module_class};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
+/// A step of the walk: a tree, or the definition of a lifted local class, with the values it uses.
+enum Step<'p> {
+    Tree(TNodeId),
+    Class(&'p [SymbolId]),
+}
+
+/// What a function calls: another function, or a local class's constructor it passes a value.
+#[derive(PartialEq)]
+enum Callee {
+    Function(usize),
+    Value(SymbolId),
+}
+
 /// Sets the captured values and `this` of `functions` of `class`, whose methods have the bodies
-/// `roots`; the functions in the order they first captured a value, those capturing one
-/// directly first, and their number.
+/// `roots`, local classes lifted into `class` if `in_class`, those of `pending` using values where
+/// they were defined and passed them where created; the functions in the order they first
+/// captured a value, those capturing one directly first, and their number.
 pub fn dependencies(
     l: &Lower,
     functions: &mut [Function],
     class: SymbolId,
     roots: &[TNodeId],
+    (in_class, pending): (bool, &Pending),
 ) -> Result<(Vec<usize>, usize)> {
     let defs: FxHashMap<TNodeId, usize> = functions.iter().enumerate().map(|(i, f)| (f.def, i)).collect();
-    let (mut order, mut called) = (Vec::new(), Vec::<(usize, Vec<usize>)>::new());
-    let mut todo: Vec<(TNodeId, Option<usize>)> = roots.iter().rev().map(|&r| (r, None)).collect();
-    while let Some((t, enclosure)) = todo.pop() {
+    let (mut order, mut called) = (Vec::new(), Vec::<(usize, Vec<Callee>)>::new());
+    let mut todo: Vec<(Step, Option<usize>)> = roots.iter().rev().map(|&r| (Step::Tree(r), None)).collect();
+    while let Some((step, enclosure)) = todo.pop() {
+        let t = match step {
+            Step::Tree(t) => t,
+            Step::Class(values) => {
+                if let Some(i) = enclosure {
+                    for &s in values {
+                        mark_free(l, functions, &mut order, s, i);
+                    }
+                }
+                continue;
+            }
+        };
         let enclosure = defs.get(&t).copied().or(enclosure);
-        if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, enclosure)));
+        let skipped = matches!(
+            l.tpd.tree(t),
+            Tree::TypeDef { .. }
+                | Tree::SingletonTypeTree { .. }
+                | Tree::AppliedTypeTree { .. }
+                | Tree::TypeTree { .. }
+        );
+        if !skipped {
+            todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
         }
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
             (Tree::This { .. }, _) => functions[i].this = true,
             (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains(c)) => {
-                functions[i].this = true
+                functions[i].this |= in_class
+            }
+            (Tree::Ident { .. }, Some(s)) if pending.passed.contains(&t) => {
+                add_call(&mut called, i, Callee::Value(s))
             }
             (Tree::Ident { .. }, Some(s)) => {
                 if let Some(j) = functions.iter().position(|f| f.sym == s) {
-                    match called.iter_mut().find(|(c, _)| *c == i) {
-                        Some((_, callees)) if !callees.contains(&j) => callees.push(j),
-                        Some(_) => {}
-                        None => called.push((i, vec![j])),
-                    }
+                    add_call(&mut called, i, Callee::Function(j));
                     continue;
                 }
                 let owner = l.u.symbol(s).owner;
                 functions[i].this |= owner == Some(class) && !is_module_class(l.u, class);
-                let local = owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Def && !is_class(l.u, o));
+                let local = owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
                 if local && mark_free(l, functions, &mut order, s, i) && has(l.u, s, MUTABLE) {
                     return unsupported(l.tpd.span(t), "local methods capturing variables");
                 }
@@ -55,18 +88,44 @@ pub fn dependencies(
     let direct = order.len();
     loop {
         let mut changed = false;
-        for &(caller, ref callees) in &called {
-            for &callee in callees {
-                changed |= functions[callee].this && !functions[caller].this;
-                functions[caller].this |= functions[callee].this;
-                for s in functions[callee].captured.clone() {
-                    changed |= mark_free(l, functions, &mut order, s, caller);
+        for (caller, callees) in &called {
+            for callee in callees {
+                let captured = match *callee {
+                    Callee::Function(j) => {
+                        changed |= functions[j].this && !functions[*caller].this;
+                        functions[*caller].this |= functions[j].this;
+                        functions[j].captured.clone()
+                    }
+                    Callee::Value(s) => vec![s],
+                };
+                for s in captured {
+                    changed |= mark_free(l, functions, &mut order, s, *caller);
                 }
             }
         }
         if !changed {
             return Ok((order, direct));
         }
+    }
+}
+
+/// The children of `t`, with the definitions of the local classes lifted out of it, if a block.
+fn steps<'p>(l: &Lower, t: TNodeId, pending: &'p Pending) -> Vec<Step<'p>> {
+    let mut steps: Vec<Step> = children(l.tpd, t).into_iter().map(Step::Tree).collect();
+    let mut lifted: Vec<_> = pending.definitions.iter().rev().filter(|d| d.0 == t).collect();
+    lifted.sort_by_key(|d| std::cmp::Reverse(d.1));
+    for (_, index, values) in lifted {
+        steps.insert(*index, Step::Class(values));
+    }
+    steps
+}
+
+/// Records that function `caller` calls `callee`.
+fn add_call(called: &mut Vec<(usize, Vec<Callee>)>, caller: usize, callee: Callee) {
+    match called.iter_mut().find(|(c, _)| *c == caller) {
+        Some((_, callees)) if !callees.contains(&callee) => callees.push(callee),
+        Some(_) => {}
+        None => called.push((caller, vec![callee])),
     }
 }
 

@@ -143,11 +143,11 @@ Results (2026-10-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 251 |
+| passed | 255 |
 | wrong output | 1 |
 | crashed | 0 |
-| lowering refused | 97 |
-| typer refused | 1084 |
+| lowering refused | 94 |
+| typer refused | 1083 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |

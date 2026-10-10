@@ -5,7 +5,7 @@
 
 use super::adapt::from_start;
 use super::getters::is_param_accessor;
-use super::walk::walk_class;
+use super::walk::{subtrees, walk_class};
 use crate::Lower;
 use crate::definitions::symbol;
 use rustc_hash::FxHashSet;
@@ -17,7 +17,11 @@ use typer::tpd::{TNodeId, Tree, Walk};
 /// Rewrites the by-name arguments and references in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) {
     let mut passed = FxHashSet::default();
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    let dummy = format!("<local {}>", l.u.symbol(class).name);
+    let dummy = l.u.decl(class, &dummy).ok().and_then(|d| d.first().copied());
     walk_class(l, td, &mut |l, t, owner| {
+        let owner = if owner == class { dummy.unwrap_or(owner) } else { owner };
         rewrite_args(l, t, owner, &mut passed);
         if by_name_ref(l, t) && !passed.contains(&t) {
             apply_reference(l, t);
@@ -132,6 +136,25 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
         contextual: false,
     });
     l.u.set_info(anon, info);
+    let defined: Vec<SymbolId> = subtrees(l.tpd, arg)
+        .into_iter()
+        .filter(|&s| {
+            matches!(
+                l.tpd.tree(s),
+                Tree::ValDef { .. }
+                    | Tree::DefDef { .. }
+                    | Tree::TypeDef { .. }
+                    | Tree::Bind { .. }
+                    | Tree::Labeled { .. }
+            )
+        })
+        .filter_map(|s| l.tpd.sym(s))
+        .collect();
+    for &sym in &defined {
+        if l.u.symbol(sym).owner.is_none_or(|o| !defined.contains(&o)) {
+            l.u.set_owner(sym, anon);
+        }
+    }
     let tpt = l.type_tree(result, span);
     let def = l.method_def(anon, &[], tpt, arg, from_start(span));
     let function = l.u.class_ref("scala.Function0");

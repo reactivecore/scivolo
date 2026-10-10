@@ -6,6 +6,7 @@ use super::lazy_trees::{call, dup, if_, method, method_def, method_symbol, objec
 use super::lazy_vals::fresh;
 use super::walk::{children, subtrees};
 use crate::definitions::{symbol, type_ref};
+use crate::symbols::{has, is_module};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
@@ -34,7 +35,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut expanded = FxHashMap::default();
     let mut todo = vec![(root, false)];
     while let Some((t, visited)) = todo.pop() {
-        let lazy = l.tpd.sym(t).filter(|&s| crate::symbols::has(l.u, s, LAZY));
+        let lazy = l.tpd.sym(t).filter(|&s| has(l.u, s, LAZY) || is_module(l.u, s));
         if !visited {
             todo.push((t, true));
             todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, false)));
@@ -97,9 +98,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let init_name = fresh(l, &format!("{name}$lzyINIT"));
     let init = method_symbol(l, &init_name, owner, info);
     for s in subtrees(l.tpd, rhs) {
-        let defines =
-            matches!(l.tpd.tree(s), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
-        if let Some(sym) = l.tpd.sym(s).filter(|&sym| defines && l.u.symbol(sym).owner == Some(value)) {
+        if let Some(sym) = l.tpd.sym(s).filter(|&sym| l.u.symbol(sym).owner == Some(value)) {
             l.u.set_owner(sym, init);
         }
     }
@@ -183,7 +182,7 @@ fn conform(l: &mut Lower, t: TNodeId, holder: &Holder, info: TypeId) -> TNodeId 
 fn call_accessor(l: &mut Lower, block: TNodeId, value: SymbolId, accessor: SymbolId) {
     let info = l.u.info(accessor);
     let info = l.u.result_type(info);
-    for t in subtrees(l.tpd, block) {
+    for t in super::explicit_outer::terms(l, block, true) {
         if matches!(l.tpd.tree(t), Tree::Ident { .. }) && l.tpd.sym(t) == Some(value) {
             let fun = l.ident(accessor, l.tpd.span(t));
             let args = l.tpd.list(&[]);

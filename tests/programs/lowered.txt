@@ -56,3 +56,4 @@ enumerations
 innerclasses
 privatemembers
 packageobjects
+localobjects

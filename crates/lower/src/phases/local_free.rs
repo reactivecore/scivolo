@@ -2,7 +2,7 @@
 //! where its methods use them, else only in its constructor.
 
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module_class, is_static, is_trait};
+use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{CASE, FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
@@ -52,12 +52,11 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let span = l.tpd.span(td);
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let refused = match () {
-        _ if is_module_class(l.u, class) => Some("local objects"),
         _ if has(l.u, class, CASE) => Some("local case classes"),
         _ if is_trait(l.u, class) => Some("local traits"),
         _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
         _ if parents.iter().any(|&c| is_local(l, c)) => Some("local classes extending local classes"),
-        _ => None,
+        _ => nested_definition(l, td),
     };
     if let Some(what) = refused {
         return unsupported(span, what);
@@ -69,7 +68,13 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
         let inner = in_method || matches!(l.tpd.tree(t), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(t));
-        todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner)));
+        let type_tree = matches!(
+            l.tpd.tree(t),
+            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. }
+        );
+        if !type_tree {
+            todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner)));
+        }
         let Some(s) = l.tpd.sym(t) else { continue };
         let span = l.tpd.span(t);
         match l.tpd.tree(t) {
@@ -79,6 +84,12 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             Tree::Ident { .. } => {
                 let owner = l.u.symbol(s).owner;
                 if owner == Some(outer) && !static_outer && !is_class(l.u, s) {
+                    return unsupported(span, "local classes using the enclosing instance");
+                }
+                let outer_param = owner.is_some_and(|o| {
+                    crate::symbols::is_constructor(l.u, o) && l.u.symbol(o).owner == Some(outer)
+                });
+                if outer_param && !static_outer {
                     return unsupported(span, "local classes using the enclosing instance");
                 }
                 let local = owner.is_some_and(|o| is_term(l, o) && !within(l, o, class));
@@ -99,6 +110,19 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             _ => {}
         }
     }
+    let nested = |t: TNodeId| match *l.tpd.tree(t) {
+        Tree::TypeDef { rhs, .. } => t != td && matches!(l.tpd.tree(rhs), Tree::Template { .. }),
+        _ => false,
+    };
+    let free_ref = |t: TNodeId| {
+        matches!(l.tpd.tree(t), Tree::Ident { .. })
+            && l.tpd.sym(t).is_some_and(|s| free.values.contains(&s) || free.in_methods.contains(&s))
+    };
+    for c in super::explicit_outer::terms(l, td, true).into_iter().filter(|&t| nested(t)) {
+        if let Some(t) = super::explicit_outer::terms(l, c, true).into_iter().find(|&t| free_ref(t)) {
+            return unsupported(l.tpd.span(t), "classes in local classes capturing values");
+        }
+    }
     free.constructor_first = !free.values.is_empty();
     for &s in &free.in_methods {
         if !free.values.contains(&s) {
@@ -106,6 +130,27 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         }
     }
     Ok(free)
+}
+
+/// What local class definition `td` defines that the lowering does not lift with it: lambdas and
+/// local methods, lazy values of an object.
+fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
+    super::explicit_outer::terms(l, td, true).into_iter().find_map(|t| match *l.tpd.tree(t) {
+        Tree::Closure { .. } => Some("lambdas and local methods in local classes"),
+        Tree::ValDef { .. } | Tree::DefDef { .. }
+            if l.tpd.sym(t).is_some_and(|s| {
+                has(l.u, s, LAZY) && !is_module(l.u, s) && l.u.symbol(s).owner == l.tpd.sym(td)
+            }) && l.tpd.sym(td).is_some_and(|c| is_module_class(l.u, c)) =>
+        {
+            Some("lazy values in local objects")
+        }
+        Tree::DefDef { .. }
+            if l.tpd.sym(t).is_some_and(|s| is_term(l, l.u.symbol(s).owner.expect("an owner"))) =>
+        {
+            Some("lambdas and local methods in local classes")
+        }
+        _ => None,
+    })
 }
 
 /// Whether `s` is a method whose body runs outside the constructor: not a constructor, nor a
