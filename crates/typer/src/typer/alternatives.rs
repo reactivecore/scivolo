@@ -40,13 +40,16 @@ impl Typer<'_> {
             self.complete(s);
             let tpe = self.ref_type(prefix, s);
             let info = self.method_info(tpe).unwrap_or(tpe);
-            if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
-                continue;
-            }
-            let result = match *self.u.types().get(info) {
+            let result = match self.u.types().get(info).clone() {
                 Type::ByName(r) => r,
+                Type::Poly { .. } => return Err("overloaded reference with a polymorphic alternative"),
+                Type::Method { params, result, implicit: false, .. } if params.is_empty() => result,
+                Type::Method { .. } => continue,
                 _ => info,
             };
+            if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+                continue;
+            }
             if let Pt::Type(p) = pt
                 && !self.u.is_subtype(result, p)
             {
