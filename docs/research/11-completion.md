@@ -180,7 +180,9 @@ sequences, expecting exactly the answer less the misses, in the same order.
    cursor, member enumeration and validity filter, JLine's word filter (§1.1 step 5; rustyline
    has none), commands, `Session::complete`, the corpus test, the measurement of §6.
 3. The rustyline completer: `Pair` candidates (display without backticks), list mode, prompt
-   limit 400; piped mode unchanged.
+   limit 400; piped mode unchanged. Rustyline lists JLine's groups without their headers, has no
+   menu cycling on a second Tab, asks with its own prompt and pages with `--More--`, and beeps on
+   an ambiguous Tab.
 4. Scope, import and type-position completions, with the shadowing resolution and `ScopeOrdering`;
    `java.lang` names from javalib ∩ `JAVA_LANG`; root packages.
 5. Conversions and extensions, each applied before it is offered; the JDK member table of
