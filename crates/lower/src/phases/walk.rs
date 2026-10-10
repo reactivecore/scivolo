@@ -5,12 +5,35 @@ use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
-use typer::tpd::{Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
+use typer::tpd::{self, Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
 
 impl AsRef<Tpd> for Lower<'_> {
     fn as_ref(&self) -> &Tpd {
         self.tpd
     }
+}
+
+impl AsMut<Tpd> for Lower<'_> {
+    fn as_mut(&mut self) -> &mut Tpd {
+        self.tpd
+    }
+}
+
+/// `typer::tpd::map_children` with a mapping that can fail; the first error ends the mapping.
+pub fn map_children<'a>(
+    l: &mut Lower<'a>,
+    t: TNodeId,
+    f: &mut dyn FnMut(&mut Lower<'a>, TNodeId) -> Result<TNodeId>,
+) -> Result<()> {
+    let mut failed = None;
+    tpd::map_children(l, t, &mut |l, c| match failed {
+        Some(_) => c,
+        None => f(l, c).unwrap_or_else(|e| {
+            failed = Some(e);
+            c
+        }),
+    });
+    failed.map_or(Ok(()), Err)
 }
 
 /// `typer::tpd::traverse` from class definition `td`, owned by its class, that does not enter
