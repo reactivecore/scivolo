@@ -1,10 +1,9 @@
 //! Typed trees as S-expressions, in the format of `scripts/typer-oracle`.
 
-mod fields;
 pub mod symbols;
 pub mod types;
 
-use super::{Clauses, List, TNodeId, Tpd, Tree};
+use super::{Clauses, Field, List, TNodeId, Tpd, Tree};
 use std::fmt::Write;
 use syntax::ast::TName;
 use syntax::ast::constant::Constant;
@@ -60,10 +59,31 @@ impl Printer<'_> {
         }
     }
 
+    /// The fields of `tree`, an empty `Template.self` as dotty's `EmptyValDef`.
+    fn fields(&mut self, tree: &mut Tree) {
+        let template = matches!(tree, Tree::Template { .. });
+        tree.fields(&mut |field| match field {
+            Field::Node(t) => self.node(*t),
+            Field::Opt(None) if template => self.out.push_str(" _self"),
+            Field::Opt(t) => self.opt(*t),
+            Field::List(l) => self.list(*l),
+            Field::Clauses(c) => self.clauses(*c),
+            Field::Name(n) => self.name(n),
+            Field::OptName(Some(n)) => self.name(n),
+            Field::OptName(None) => self.out.push_str(" _"),
+            Field::Constant(c) => self.constant(c),
+            Field::Class(tpe) => {
+                let shown = types::tpe(self.u, tpe);
+                self.out.push_str(" #Class:");
+                self.out.push_str(&shown);
+            }
+        });
+    }
+
     /// Print tree `id`.
     pub fn tree(&mut self, id: TNodeId) {
         let node = self.tpd.get(id);
-        let tree = node.tree.clone();
+        let mut tree = node.tree.clone();
         if let Tree::Ident { name } = tree
             && self.names.text(name.name).is_empty()
             && name.is_type
@@ -77,7 +97,7 @@ impl Printer<'_> {
             && self.names.text(name.name) == "_root_"
         {
             self.out.push_str(" sym=\"_root_\" :t:_root_");
-            self.fields(&tree);
+            self.fields(&mut tree);
             self.out.push(')');
             return;
         }
@@ -105,7 +125,7 @@ impl Printer<'_> {
                 }
             }
         }
-        self.fields(&tree);
+        self.fields(&mut tree);
         self.out.push(')');
     }
 }

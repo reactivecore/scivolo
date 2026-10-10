@@ -7,7 +7,8 @@ pub mod print;
 mod tree;
 mod walk;
 
-pub use tree::{Clauses, List, TNodeId, Tree};
+pub use children::{MapChild, map_children};
+pub use tree::{Clauses, Field, List, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};
 
 use syntax::ast::Span;
