@@ -36,6 +36,7 @@ pub(crate) mod lazy_vals;
 mod library_traits;
 mod lift_names;
 mod lifted;
+mod lifted_calls;
 mod literals;
 mod local_classes;
 mod local_free;
