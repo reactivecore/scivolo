@@ -157,19 +157,29 @@ fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId, span: Span) -> TNodeId {
     l.tpd.node(Tree::Assign { lhs, rhs }, span, Some(unit), None)
 }
 
-/// `super.<init>(args)` for parent `new P(args)`.
+/// `super.<init>(args)` for parent `new P[Ts](args1)...(argsN)`, the argument lists joined.
 fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId> {
     let span = l.tpd.span(parent);
-    let Tree::Apply { fun, args } = *l.tpd.tree(parent) else {
+    let Tree::Apply { mut fun, args } = *l.tpd.tree(parent) else {
         return unsupported(span, "a superclass without a constructor call");
     };
+    let mut args = l.tpd.items(args).to_vec();
+    loop {
+        match *l.tpd.tree(fun) {
+            Tree::Apply { fun: inner, args: first } => {
+                args.splice(0..0, l.tpd.items(first).iter().copied());
+                fun = inner;
+            }
+            Tree::TypeApply { fun: inner, .. } => fun = inner,
+            _ => break,
+        }
+    }
     let Some(ctor) = l.tpd.sym(fun).filter(|&s| is_constructor(l.u, s)) else {
-        return unsupported(span, "a superclass constructor call with type or several argument lists");
+        return unsupported(span, "a superclass constructor call without a constructor");
     };
     let parent_type = l.tpd.tpe(parent);
     let sup = l.super_(class, parent_type, span);
     let fun = l.select(sup, ctor, span);
-    let args = l.tpd.items(args).to_vec();
     let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
     Ok(l.apply(fun, &args, unit, span))
 }

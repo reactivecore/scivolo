@@ -143,10 +143,10 @@ Results (2026-10-09):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 256 |
+| passed | 265 |
 | wrong output | 1 |
 | crashed | 0 |
-| lowering refused | 95 |
+| lowering refused | 86 |
 | typer refused | 1081 |
 | parser refused | 13 |
 | several files | 59 |
