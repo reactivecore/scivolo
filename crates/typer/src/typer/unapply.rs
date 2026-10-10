@@ -143,7 +143,7 @@ impl Typer<'_> {
             let flags = self.u.symbol(c).flags;
             !flags.has(tasty::tags::FINAL) && !flags.has(tasty::tags::CASE)
         });
-        let variances = self.variances(arg_type, vars);
+        let variances = self.variances(arg_type, None, vars);
         if open && !variances.is_empty() {
             return Err("type arguments of a pattern of an open class");
         }
@@ -154,7 +154,7 @@ impl Typer<'_> {
             }
         }
         let arg_type = self.zonk(arg_type);
-        let variances = self.variances(arg_type, vars);
+        let variances = self.variances(arg_type, None, vars);
         for i in vars..self.constraint.count() {
             let v = VarId(i as u32);
             if self.constraint.instance(v).is_some() {
