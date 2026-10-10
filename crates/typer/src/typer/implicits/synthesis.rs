@@ -47,7 +47,7 @@ impl Typer<'_> {
         if let Some(special) = ["Unit", "Any", "AnyVal"].into_iter().find(|n| full == format!("scala.{n}")) {
             let member = self.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
             let member = member.ok_or("ClassTag member")?;
-            let qualifier = self.build().ident(module_tpe, at);
+            let qualifier = self.build().ident(module, module_tpe, at);
             return Ok(Some(self.build().select(qualifier, member, at)));
         }
         let apply = self
@@ -57,7 +57,7 @@ impl Typer<'_> {
             .into_iter()
             .find(|&d| self.u.symbol(d).kind == Kind::Def)
             .ok_or("ClassTag.apply")?;
-        let qualifier = self.build().ident(module_tpe, at);
+        let qualifier = self.build().ident(module, module_tpe, at);
         let select = self.build().select(qualifier, apply, at);
         let targ = self.type_tree(orig, at, false);
         let method = self.instantiated(select, &[orig])?;

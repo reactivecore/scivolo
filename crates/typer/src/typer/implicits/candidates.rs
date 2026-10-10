@@ -179,7 +179,7 @@ impl Typer<'_> {
         if !through_this && !self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
             return Err("implicit through a path");
         }
-        Ok(self.ref_(c.prefix, tpe, span, ctx))
+        Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))
     }
 
     /// The companion object of class `c`, if `c` is not nested in a class other than an object's.

@@ -59,7 +59,7 @@ impl Typer<'_> {
         let tpt = self.type_tree(tpe, span.start_pos(), true);
         defs.push(self.build().val_def(sym, tpt, Some(expr), span));
         let reference = self.u.intern_type(Type::Sym(None, sym));
-        self.build().ident(reference, Span::at(span.point()))
+        self.build().ident(sym, reference, Span::at(span.point()))
     }
 
     /// Makes `to` the owner of the definitions in `tree` that `from` owns (dotty's

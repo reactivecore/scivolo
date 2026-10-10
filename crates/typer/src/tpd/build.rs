@@ -55,10 +55,8 @@ impl<'a> Build<'a> {
         self.tpd.node(T::Literal { value }, span, Some(tpe), None)
     }
 
-    /// An identifier of type `tpe`, a reference to a symbol, by its term name (dotty's
-    /// `Ident(tp)`).
-    pub fn ident(&mut self, tpe: TypeId, span: Span) -> TNodeId {
-        let Type::Sym(_, s) = *self.u.types().get(tpe) else { unreachable!("a reference type") };
+    /// An identifier of `s` by its term name, of type `tpe` (dotty's `Ident(tp)`).
+    pub fn ident(&mut self, s: SymbolId, tpe: TypeId, span: Span) -> TNodeId {
         let name = self.term_name(s);
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(s))
     }
@@ -67,7 +65,7 @@ impl<'a> Build<'a> {
     /// owner's members are visible.
     pub fn static_ident(&mut self, s: SymbolId, span: Span) -> TNodeId {
         let tpe = type_ref(self.u, s);
-        self.ident(tpe, span)
+        self.ident(s, tpe, span)
     }
 
     /// `qual.m` by the term name of member `m`, seen from the type of `qual`.
@@ -108,7 +106,7 @@ impl<'a> Build<'a> {
     /// `return expr` from `method`, identified at the end of `span`.
     pub fn return_(&mut self, expr: TNodeId, method: SymbolId, span: Span) -> TNodeId {
         let from_tpe = self.u.intern_type(Type::Sym(None, method));
-        let from = self.ident(from_tpe, span.end_pos());
+        let from = self.ident(method, from_tpe, span.end_pos());
         let nothing = type_ref(self.u, self.u.builtins().nothing);
         self.tpd.node(T::Return { expr, from }, span, Some(nothing), None)
     }

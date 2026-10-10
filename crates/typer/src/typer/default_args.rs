@@ -104,7 +104,7 @@ impl Typer<'_> {
             return Err("default argument through a path");
         }
         let tpe = self.ref_type(Some(module_prefix), module);
-        Ok(self.build().ident(tpe, at))
+        Ok(self.build().ident(module, tpe, at))
     }
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
@@ -137,6 +137,6 @@ impl Typer<'_> {
         let Type::Sym(prefix, _) = *self.u.types().get(tycon) else { return Err("default argument") };
         let tpe = self.ref_type(prefix, module);
         let at = self.tpd.span(new_tree).start_pos();
-        Ok(self.ref_(prefix, tpe, at, ctx))
+        Ok(self.ref_(prefix, module, tpe, at, ctx))
     }
 }
