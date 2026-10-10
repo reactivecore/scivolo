@@ -124,12 +124,12 @@ impl<'a> Build<'a> {
         s: SymbolId,
         paramss: &[&[TNodeId]],
         tpt: TNodeId,
-        rhs: TNodeId,
+        rhs: Option<TNodeId>,
         span: Span,
     ) -> TNodeId {
         let name = self.term_name(s);
         let clauses: Vec<List> = paramss.iter().map(|ps| self.tpd.list(ps)).collect();
         let paramss = self.tpd.clauses(&clauses);
-        self.tpd.node(T::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, None, Some(s))
+        self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(s))
     }
 }

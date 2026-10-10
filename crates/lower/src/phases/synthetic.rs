@@ -63,7 +63,7 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     let proxy_type = l.tpd.tpe(new);
     let rhs = l.apply(ctor, &[lit], proxy_type, span);
     let tpt = l.type_tree(any_ref, span);
-    Ok(vec![l.build().def_def(sym, &[&[]], tpt, rhs, span)])
+    Ok(vec![l.build().def_def(sym, &[&[]], tpt, Some(rhs), span)])
 }
 
 /// A new `private def name(): AnyRef` of `class`, and `AnyRef`.

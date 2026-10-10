@@ -52,7 +52,7 @@ impl Lower<'_> {
             _ => &[],
         };
         let tpt = self.type_tree(result, span);
-        let def = self.build().def_def(sym, paramss, tpt, rhs, span);
+        let def = self.build().def_def(sym, paramss, tpt, Some(rhs), span);
         Ok((sym, def))
     }
 }

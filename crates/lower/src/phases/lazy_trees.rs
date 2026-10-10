@@ -4,16 +4,17 @@ use super::lazy_vals::Lazy;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, constant_type_of};
 
 pub fn object(l: &mut Lower) -> TypeId {
     type_ref(l.u, l.defs.object)
 }
 
 pub fn unit(l: &mut Lower) -> TypeId {
-    l.u.intern_type(Type::Constant(tasty::tags::UNITconst, 0))
+    constant_type_of(l.u, &Constant::Unit)
 }
 
 /// A local value `name` of `owner` of type `info`, a variable if `mutable`.

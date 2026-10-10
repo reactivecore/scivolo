@@ -9,6 +9,9 @@ use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{Build, TNodeId, Tree, constant_type_of};
 
 impl Lower<'_> {
+    /// The typer's tree builder. Its `()` and `null` literals, `this` and `return_` are the
+    /// typer's forms; lower makes those with `unit_literal`, `null_literal`, `this` and
+    /// `lazy_trees::return_`.
     pub fn build(&mut self) -> Build<'_> {
         Build::new(self.tpd, self.u, self.names, self.defs.patmat.unit)
     }
