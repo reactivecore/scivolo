@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
-use syntax::ast::{List, NodeId, TName, Tree};
+use syntax::ast::{List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -75,8 +75,8 @@ impl Typer<'_> {
             self.syms.closure_syms.push(sym);
             entries.push((text, sym));
             param_types.push(tpe);
-            let def = T::ValDef { name, tpt, rhs: None };
-            param_trees.push(self.tpd.node(def, self.ast.span(p), None, Some(sym)));
+            let span = self.ast.span(p);
+            param_trees.push(self.build().val_def(sym, tpt, None, span));
         }
         if missing {
             return self.error_tree(self.ast.span(id));
@@ -162,7 +162,7 @@ impl Typer<'_> {
         let tpt = Some(self.type_tree(parent, span.start_pos(), false));
         let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);
         let span = self.tpd.span(tree);
-        Some(self.tpd.node(T::Block { stats, expr: closure }, span, Some(parent), None))
+        Some(self.build().block(stats, closure, span))
     }
 
     /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span
@@ -182,17 +182,13 @@ impl Typer<'_> {
             None => self.tpd.span(body).start_pos(),
         };
         let tpt = self.type_tree(result, result_at, true);
-        let name = TName { name: self.name("$anonfun"), is_type: false };
-        let clause = self.tpd.list(params);
-        let paramss = self.tpd.clauses(&[clause]);
-        let def = T::DefDef { name, paramss, tpt, rhs: Some(body) };
-        let def = self.tpd.node(def, span, None, Some(anonfun));
+        let def = self.build().def_def(anonfun, &[params], tpt, body, span);
         let meth_tpe = self.u.intern_type(Type::Sym(None, anonfun));
-        let meth = self.tpd.node(T::Ident { name }, span.start_pos(), Some(meth_tpe), Some(anonfun));
+        let meth = self.build().ident(anonfun, meth_tpe, span.start_pos());
         let env = self.tpd.list(&[]);
         let tpt = sam.then(|| self.type_tree(fun_tpe, span.start_pos(), false));
         let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(fun_tpe), None);
         let stats = self.tpd.list(&[def]);
-        self.tpd.node(T::Block { stats, expr: closure }, span.to_synthetic(), Some(fun_tpe), None)
+        self.build().block(stats, closure, span.to_synthetic())
     }
 }

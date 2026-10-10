@@ -4,7 +4,7 @@
 use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use tasty::tags::GIVEN;
 use tasty::{Kind, Type, TypeId};
 
@@ -131,8 +131,7 @@ impl Typer<'_> {
         if !self.conforms(arg_tpe, param) {
             return Err("conversion of another type");
         }
-        let args = self.tpd.list(&[tree]);
-        let mut converted = self.tpd.node(T::Apply { fun, args }, span.to_synthetic(), Some(result), None);
+        let mut converted = self.build().apply(fun, &[tree], result, span.to_synthetic());
         while let Type::Method { params, result, implicit: true, .. } =
             self.u.types().get(self.tpd.tpe(converted)).clone()
         {
@@ -140,9 +139,7 @@ impl Typer<'_> {
             for (_, p) in params {
                 args.push(self.implicit_arg(p, span.end_pos(), ctx, 1)?);
             }
-            let args = self.tpd.list(&args);
-            converted =
-                self.tpd.node(T::Apply { fun: converted, args }, span.to_synthetic(), Some(result), None);
+            converted = self.build().apply(converted, &args, result, span.to_synthetic());
         }
         let result = self.tpd.tpe(converted);
         let fits = match goal {

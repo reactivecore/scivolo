@@ -1,39 +1,18 @@
-//! Literals and their constant types (dotty's `typedLiteral`, `ConstantType`).
+//! Literals and their types (dotty's `typedLiteral`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::from_digits;
 use syntax::ast::tree::NumberKind;
 use syntax::config::Features;
-use tasty::tags::*;
-use tasty::{Type, TypeId};
+use tasty::TypeId;
 
 impl Typer<'_> {
-    /// The type of literal `c`: `Unit` and `Null` for `()` and `null`, else a constant type.
     pub fn literal_type(&mut self, c: &Constant) -> TypeId {
-        match c {
-            Constant::Unit => crate::defn::type_ref(self.u, self.defn.unit),
-            Constant::Null => crate::defn::type_ref(self.u, self.u.builtins().null),
-            _ => self.constant_type(c),
-        }
-    }
-
-    pub fn constant_type(&mut self, c: &Constant) -> TypeId {
-        let t = match *c {
-            Constant::Unit => Type::Constant(UNITconst, 0),
-            Constant::Boolean(b) => Type::Constant(if b { TRUEconst } else { FALSEconst }, 0),
-            Constant::Char(c) => Type::Constant(CHARconst, c as i64),
-            Constant::Int(i) => Type::Constant(INTconst, i as i64),
-            Constant::Long(l) => Type::Constant(LONGconst, l),
-            Constant::Float(f) => Type::Constant(FLOATconst, f.to_bits() as i64),
-            Constant::Double(d) => Type::Constant(DOUBLEconst, d.to_bits() as i64),
-            Constant::String(ref s) => Type::Str(String::from_utf16_lossy(s)),
-            Constant::Null => Type::Constant(NULLconst, 0),
-        };
-        self.u.intern_type(t)
+        self.build().literal_type(c)
     }
 
     /// A number literal: of the primitive type expected if there is one, else an `Int` or a
@@ -106,8 +85,7 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "string with an unpaired surrogate");
         }
-        let tpe = self.literal_type(&value);
         let span = self.ast.span(id);
-        self.tpd.node(T::Literal { value }, span, Some(tpe), None)
+        self.build().literal(value, span)
     }
 }

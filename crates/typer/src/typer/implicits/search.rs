@@ -7,7 +7,7 @@ use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{Type, TypeId, TypeVars};
 
@@ -151,8 +151,7 @@ impl Typer<'_> {
                     for (_, p) in params {
                         args.push(self.implicit_arg(p, at, ctx, depth + 1)?);
                     }
-                    let args = self.tpd.list(&args);
-                    tree = self.tpd.node(T::Apply { fun: tree, args }, at, Some(result), None);
+                    tree = self.build().apply(tree, &args, result, at);
                 }
                 Type::Method { .. } | Type::Poly { .. } => return Err("not an implicit value"),
                 _ => break,

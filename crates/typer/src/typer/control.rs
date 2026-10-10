@@ -19,11 +19,6 @@ impl Typer<'_> {
         type_ref(self.u, self.defn.unit)
     }
 
-    fn unit_literal(&mut self, span: Span) -> TNodeId {
-        let unit = self.unit_type();
-        self.tpd.node(T::Literal { value: Constant::Unit }, span, Some(unit), None)
-    }
-
     pub fn typed_if(
         &mut self,
         id: NodeId,
@@ -39,7 +34,7 @@ impl Typer<'_> {
         let Some(elsep) = elsep else {
             let unit = self.unit_type();
             let thenp = self.typed(thenp, Pt::Type(unit), ctx);
-            let elsep = self.unit_literal(span.end_pos());
+            let elsep = self.build().literal(Constant::Unit, span.end_pos());
             return self.tpd.node(T::If { cond, thenp, elsep }, span, Some(unit), None);
         };
         let branch_pt = match pt {
@@ -124,15 +119,11 @@ impl Typer<'_> {
         let expr = match expr {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
             None => {
-                let unit = self.unit_literal(span);
+                let unit = self.build().literal(Constant::Unit, span);
                 self.adapt(unit, Pt::Type(result), ctx)
             }
         };
-        let name = TName { name: self.name(&self.u.symbol(method).name.clone()), is_type: false };
-        let from_tpe = self.u.intern_type(Type::Sym(None, method));
-        let from = self.tpd.node(T::Ident { name }, span.end_pos(), Some(from_tpe), Some(method));
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
-        self.tpd.node(T::Return { expr, from }, span, Some(nothing), None)
+        self.build().return_(expr, method, span)
     }
 
     /// The method `owner` is in, not a constructor.
@@ -182,11 +173,9 @@ impl Typer<'_> {
         let throw = self.throw_method();
         let span = self.ast.span(id);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
-        let name = TName { name: self.name("throw"), is_type: false };
-        let fun =
-            self.tpd.node(T::Ident { name }, self.tpd.span(expr).start_pos(), Some(fun_tpe), Some(throw));
-        let args = self.tpd.list(&[expr]);
+        let at = self.tpd.span(expr).start_pos();
+        let fun = self.build().ident(throw, fun_tpe, at);
         let nothing = type_ref(self.u, self.u.builtins().nothing);
-        self.tpd.node(T::Apply { fun, args }, span, Some(nothing), None)
+        self.build().apply(fun, &[expr], nothing, span)
     }
 }

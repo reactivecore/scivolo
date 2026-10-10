@@ -2,8 +2,7 @@
 //! adapting a non-constant inserts (dotty's views from the value classes' companions).
 
 use super::Typer;
-use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::TName;
+use crate::tpd::TNodeId;
 use syntax::ast::flags as f;
 use tasty::{Kind, Type, TypeId};
 
@@ -67,9 +66,7 @@ impl Typer<'_> {
             return None;
         }
         let span = self.tpd.span(tree);
-        let fun_name = TName { name: self.name(&name), is_type: false };
-        let fun = self.tpd.node(T::Ident { name: fun_name }, span.start_pos(), Some(fun_tpe), Some(conv));
-        let args = self.tpd.list(&[tree]);
-        Some(self.tpd.node(T::Apply { fun, args }, span.to_synthetic(), Some(result), None))
+        let fun = self.build().ident(conv, fun_tpe, span.start_pos());
+        Some(self.build().apply(fun, &[tree], result, span.to_synthetic()))
     }
 }
