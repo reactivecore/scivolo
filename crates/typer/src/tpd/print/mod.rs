@@ -59,7 +59,8 @@ impl Printer<'_> {
         }
     }
 
-    /// The fields of `tree`, an empty `Template.self` as dotty's `EmptyValDef`.
+    /// The fields of `tree`, an empty `Template.self` (its only optional field) as dotty's
+    /// `EmptyValDef`.
     fn fields(&mut self, tree: &mut Tree) {
         let template = matches!(tree, Tree::Template { .. });
         tree.fields(&mut |field| match field {
