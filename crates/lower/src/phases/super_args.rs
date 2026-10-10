@@ -9,8 +9,18 @@ pub fn check(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return Ok(()) };
     let Tree::Template { parents, .. } = *l.tpd.tree(template) else { return Ok(()) };
     for parent in l.tpd.items(parents).to_vec() {
-        let Tree::Apply { args, .. } = *l.tpd.tree(parent) else { continue };
-        for arg in l.tpd.items(args).to_vec() {
+        let (mut fun, mut all) = (parent, Vec::new());
+        loop {
+            match *l.tpd.tree(fun) {
+                Tree::Apply { fun: inner, args } => {
+                    all.extend(l.tpd.items(args).iter().copied());
+                    fun = inner;
+                }
+                Tree::TypeApply { fun: inner, .. } => fun = inner,
+                _ => break,
+            }
+        }
+        for arg in all {
             for t in super::walk::subtrees(l.tpd, arg) {
                 let hoisted = match *l.tpd.tree(t) {
                     Tree::DefDef { .. } | Tree::Template { .. } => true,

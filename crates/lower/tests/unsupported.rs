@@ -94,6 +94,10 @@ const CASES: &[(&str, &str)] = &[
         "class A(f: () => Int); class B extends A(() => 1)",
         "superclass constructor arguments defining or creating local classes or methods",
     ),
+    (
+        "class A[T](f: T)(n: Int); class B extends A[() => Int](() => 1)(2)",
+        "superclass constructor arguments defining or creating local classes or methods",
+    ),
 ];
 
 #[test]
