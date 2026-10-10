@@ -51,8 +51,7 @@ impl Typer<'_> {
             targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
         let tpe = self.instantiated(select, &types)?;
         let tpe = if ctor { tpe } else { self.simplified(tpe) };
-        let args = self.tpd.list(&trees);
-        Ok(self.tpd.node(T::TypeApply { fun: select, args }, span, Some(tpe), None))
+        Ok(self.build().type_apply(select, &trees, tpe, span))
     }
 
     /// A copy of path or call `t`, its qualifiers, functions and arguments copied too.
@@ -93,7 +92,7 @@ impl Typer<'_> {
                 let Some(c) = self.u.class_symbol(class) else { return Err("default argument") };
                 match self.package_object(c) {
                     Some((_, module)) => module,
-                    None => return Ok(self.this_tree(class, at)),
+                    None => return Ok(self.build().this(class, at)),
                 }
             }
             Type::Sym(_, m) if self.u.symbol(m).flags.has(OBJECT) => m,
@@ -105,8 +104,7 @@ impl Typer<'_> {
             return Err("default argument through a path");
         }
         let tpe = self.ref_type(Some(module_prefix), module);
-        let name = TName { name: self.name(&self.u.symbol(module).name.clone()), is_type: false };
-        Ok(self.tpd.node(T::Ident { name }, at, Some(tpe), Some(module)))
+        Ok(self.build().ident(module, tpe, at))
     }
 
     /// The package and the object of package object class `c` (a unit's top-level definitions).
@@ -129,7 +127,6 @@ impl Typer<'_> {
         if self.u.symbol(class).owner.is_none() {
             return Err("default argument");
         }
-        let name = self.u.symbol(class).name.clone();
         let module = self.u.companion_module(class).ok_or("default argument without a companion")?;
         let new_tpe = self.tpd.tpe(new_tree);
         let class_tpe = self.u.base_type(new_tpe, class).ok_or("default argument")?;
@@ -140,11 +137,10 @@ impl Typer<'_> {
         let Type::Sym(prefix, _) = *self.u.types().get(tycon) else { return Err("default argument") };
         let tpe = self.ref_type(prefix, module);
         let at = self.tpd.span(new_tree).start_pos();
-        let term = TName { name: self.name(&name), is_type: false };
         if self.term_prefix_is_elidable(prefix, module, ctx) {
-            Ok(self.tpd.node(T::Ident { name: term }, at, Some(tpe), Some(module)))
-        } else {
-            Ok(self.this_select(at, term, tpe, module))
+            return Ok(self.build().ident(module, tpe, at));
         }
+        let term = self.build().term_name(module);
+        Ok(self.this_select(at, term, tpe, module))
     }
 }

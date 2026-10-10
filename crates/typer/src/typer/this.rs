@@ -91,17 +91,6 @@ impl Typer<'_> {
         self.u.symbol(s).owner.is_none_or(|o| self.is_static_owner(o))
     }
 
-    /// `C.this`, of class type `class` at `span`, its qualifier the untyped name of the class
-    /// (dotty's `tpd.This(cls)`).
-    pub fn this_tree(&mut self, class: TypeId, span: Span) -> TNodeId {
-        let cls = self.u.class_symbol(class);
-        let text = cls.map(|c| self.u.symbol(c).name.clone()).unwrap_or_default();
-        let qual = TName { name: self.name(&text), is_type: true };
-        let qual = self.tpd.node(T::Ident { name: qual }, span.start_pos(), None, None);
-        let tpe = self.u.intern_type(Type::This(class));
-        self.tpd.node(T::This { qual }, span.start_pos(), Some(tpe), cls)
-    }
-
     /// `this` or `C.this` as written (dotty's `typedThis`): the innermost enclosing class, or
     /// the one named `C`.
     pub fn typed_this(
@@ -156,7 +145,7 @@ impl Typer<'_> {
         }
         o?;
         let class = crate::defn::type_ref(self.u, module_class);
-        let this = self.this_tree(class, span);
+        let this = self.build().this(class, span);
         self.tpd.get_mut(this).span = span;
         Some(this)
     }
@@ -165,7 +154,7 @@ impl Typer<'_> {
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
         let qualifier = match *self.u.types().get(prefix) {
-            Type::This(class) => self.this_tree(class, span),
+            Type::This(class) => self.build().this(class, span),
             _ => {
                 self.unsupported_at(span, "reference through a path");
                 return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));

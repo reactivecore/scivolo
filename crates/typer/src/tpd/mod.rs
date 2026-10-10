@@ -1,12 +1,14 @@
 //! Typed trees: dotty's `tpd` trees in an arena per unit, each node with its type and, for
 //! references and definitions, its symbol.
 
+mod build;
 mod children;
 mod info;
 pub mod print;
 mod tree;
 mod walk;
 
+pub use build::Build;
 pub use children::{MapChild, map_children};
 pub use tree::{Clauses, Field, List, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};

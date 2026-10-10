@@ -140,9 +140,8 @@ impl Typer<'_> {
         let Some(expr) = self.no_local_refs(expr, &locals, pt) else {
             return self.unsupported(id, "block type with local symbols");
         };
-        let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(&typed);
         let span = self.ast.span(id);
-        self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None)
+        self.build().block(stats, expr, span)
     }
 }

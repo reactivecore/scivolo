@@ -34,7 +34,7 @@ impl Typer<'_> {
     pub fn fold_select(&mut self, tree: TNodeId, name: &str) {
         let T::Select { qualifier, .. } = *self.tpd.tree(tree) else { return };
         if let Some(c) = self.constant_of(qualifier).and_then(|x| fold_unop(name, &x)) {
-            self.tpd.get_mut(tree).tpe = Some(self.constant_type(&c));
+            self.tpd.get_mut(tree).tpe = Some(self.build().constant_type(&c));
         }
     }
 
@@ -46,7 +46,7 @@ impl Typer<'_> {
         let op = self.text(name.name).to_owned();
         let (Some(x), Some(y)) = (self.constant_of(qualifier), self.constant_of(arg)) else { return };
         if let Some(c) = fold_binop(&op, &x, &y) {
-            self.tpd.get_mut(tree).tpe = Some(self.constant_type(&c));
+            self.tpd.get_mut(tree).tpe = Some(self.build().constant_type(&c));
         }
     }
 }

@@ -4,8 +4,8 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::Span;
 use syntax::ast::flags as f;
-use syntax::ast::{Span, TName};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -57,10 +57,9 @@ impl Typer<'_> {
         self.change_owners(expr, ctx.owner, sym);
         let span = self.tpd.span(expr);
         let tpt = self.type_tree(tpe, span.start_pos(), true);
-        let name = TName { name, is_type: false };
-        defs.push(self.tpd.node(T::ValDef { name, tpt, rhs: Some(expr) }, span, None, Some(sym)));
+        defs.push(self.build().val_def(sym, tpt, Some(expr), span));
         let reference = self.u.intern_type(Type::Sym(None, sym));
-        self.tpd.node(T::Ident { name }, Span::at(span.point()), Some(reference), Some(sym))
+        self.build().ident(sym, reference, Span::at(span.point()))
     }
 
     /// Makes `to` the owner of the definitions in `tree` that `from` owns (dotty's

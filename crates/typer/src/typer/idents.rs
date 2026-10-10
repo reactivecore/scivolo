@@ -106,14 +106,12 @@ impl Typer<'_> {
         let Some(s) = self.resolve_full_name(&full, sym.is_type) else {
             return self.unsupported(id, &format!("reference to {full}"));
         };
-        let tpe = crate::defn::type_ref(self.u, s);
         let span = self.ast.span(id);
         if sym.is_type {
+            let tpe = crate::defn::type_ref(self.u, s);
             return self.type_tree(tpe, span, false);
         }
-        let simple = self.u.symbol(s).name.clone();
-        let name = TName { name: self.name(&simple), is_type: false };
-        self.tpd.node(T::Ident { name }, span, Some(tpe), Some(s))
+        self.build().ref_(s, span)
     }
 
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.

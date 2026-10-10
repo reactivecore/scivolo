@@ -3,8 +3,8 @@
 
 use super::super::Typer;
 use crate::ctx::{Ctx, Level};
-use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Span, TName};
+use crate::tpd::TNodeId;
+use syntax::ast::Span;
 use tasty::tags::{GIVEN, IMPLICIT, PRIVATE};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -155,8 +155,6 @@ impl Typer<'_> {
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
     /// selection from `this`.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let name = self.u.symbol(c.sym).name.clone();
-        let name = TName { name: self.name(&name), is_type: false };
         let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_package_object(o));
         let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {
             Some(Type::Package(_)) => true,
@@ -178,10 +176,13 @@ impl Typer<'_> {
             _ => self.ref_type(c.prefix, c.sym),
         };
         if self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
-            return Ok(self.tpd.node(T::Ident { name }, span, Some(tpe), Some(c.sym)));
+            return Ok(self.build().ident(c.sym, tpe, span));
         }
         match c.prefix.map(|p| self.u.types().get(p).clone()) {
-            Some(Type::This(_)) => Ok(self.this_select(span, name, tpe, c.sym)),
+            Some(Type::This(_)) => {
+                let name = self.build().term_name(c.sym);
+                Ok(self.this_select(span, name, tpe, c.sym))
+            }
             _ => Err("implicit through a path"),
         }
     }

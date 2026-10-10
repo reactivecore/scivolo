@@ -4,7 +4,7 @@
 
 use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Span, TName};
+use syntax::ast::Span;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -47,11 +47,8 @@ impl Typer<'_> {
         if let Some(special) = ["Unit", "Any", "AnyVal"].into_iter().find(|n| full == format!("scala.{n}")) {
             let member = self.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
             let member = member.ok_or("ClassTag member")?;
-            let name = TName { name: self.name("ClassTag"), is_type: false };
-            let qualifier = self.tpd.node(T::Ident { name }, at, Some(module_tpe), Some(module));
-            let tpe = self.u.intern_type(Type::Sym(Some(module_tpe), member));
-            let name = TName { name: self.name(special), is_type: false };
-            return Ok(Some(self.tpd.node(T::Select { qualifier, name }, at, Some(tpe), Some(member))));
+            let qualifier = self.build().ident(module, module_tpe, at);
+            return Ok(Some(self.build().select(qualifier, member, at)));
         }
         let apply = self
             .u
@@ -60,22 +57,17 @@ impl Typer<'_> {
             .into_iter()
             .find(|&d| self.u.symbol(d).kind == Kind::Def)
             .ok_or("ClassTag.apply")?;
-        let name = TName { name: self.name("ClassTag"), is_type: false };
-        let qualifier = self.tpd.node(T::Ident { name }, at, Some(module_tpe), Some(module));
-        let apply_tpe = self.u.intern_type(Type::Sym(Some(module_tpe), apply));
-        let name = TName { name: self.name("apply"), is_type: false };
-        let select = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_tpe), Some(apply));
+        let qualifier = self.build().ident(module, module_tpe, at);
+        let select = self.build().select(qualifier, apply, at);
         let targ = self.type_tree(orig, at, false);
         let method = self.instantiated(select, &[orig])?;
-        let targs = self.tpd.list(&[targ]);
-        let fun = self.tpd.node(T::TypeApply { fun: select, args: targs }, at, Some(method), None);
+        let fun = self.build().type_apply(select, &[targ], method, at);
         let Type::Method { result, .. } = self.u.types().get(method).clone() else {
             return Err("ClassTag.apply");
         };
         let class_tpe = self.class_of(arg).ok_or("java.lang.Class")?;
         let literal = self.tpd.node(T::ClassLiteral { tpe: arg }, at, Some(class_tpe), None);
-        let args = self.tpd.list(&[literal]);
-        Ok(Some(self.tpd.node(T::Apply { fun, args }, at, Some(result), None)))
+        Ok(Some(self.build().apply(fun, &[literal], result, at)))
     }
 
     /// `java.lang.Class[t]`.
