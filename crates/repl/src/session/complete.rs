@@ -20,7 +20,7 @@ impl Session {
         if completion::inserts_tab(text) {
             return Vec::new();
         }
-        let word = completion::word(text, cursor);
+        let word = &text[completion::word(text, cursor)];
         if text.starts_with(':') {
             let commands = COMMANDS.iter().filter(|c| c.starts_with(text)).map(|&c| c.to_owned());
             return completion::listed(word, commands.collect(), true);

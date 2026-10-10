@@ -17,7 +17,7 @@ mod show_methods;
 mod trace;
 mod wrap;
 
-pub use completion::Group;
+pub use completion::{Group, inserts_tab, word};
 pub use highlight::highlight;
 pub use input::is_incomplete;
 pub use session::Session;
