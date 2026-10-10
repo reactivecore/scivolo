@@ -37,9 +37,28 @@ impl Typer<'_> {
     pub fn same_member(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ka, kb) = (self.u.symbol(a).kind, self.u.symbol(b).kind);
         match (ka, kb) {
-            (Kind::Def, Kind::Def) => self.u.matches(site, a, b),
-            (Kind::Def, _) => !self.has_params(a),
-            (_, Kind::Def) => !self.has_params(b),
+            (Kind::Def, Kind::Def) => self.u.matches(site, a, b) || self.is_nullary(a) && self.is_nullary(b),
+            (Kind::Def, _) => self.is_nullary(a),
+            (_, Kind::Def) => self.is_nullary(b),
+            _ => true,
+        }
+    }
+
+    /// Whether method `s` takes no parameters or one empty non-implicit clause and nothing else.
+    fn is_nullary(&mut self, s: SymbolId) -> bool {
+        use crate::symbols::Completion;
+        if let Some(Completion::Pending { tree, .. } | Completion::Completing(tree)) =
+            self.syms.completions.get(&s)
+        {
+            let clauses = self.def_clauses(*tree);
+            return clauses.len() <= 1 && clauses.concat().is_empty();
+        }
+        let info = self.u.info(s);
+        match self.u.types().get(info) {
+            Type::Method { params, result, implicit: false, .. } if params.is_empty() => {
+                !matches!(self.u.types().get(*result), Type::Method { .. } | Type::Poly { .. })
+            }
+            Type::Method { .. } | Type::Poly { .. } => false,
             _ => true,
         }
     }

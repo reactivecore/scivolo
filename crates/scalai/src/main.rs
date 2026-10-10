@@ -2,6 +2,7 @@ mod history;
 mod libs;
 mod repl;
 mod script;
+mod tab;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
 use std::path::PathBuf;

@@ -6,6 +6,7 @@ use super::adapt::{is_synchronized, qualify_synchronized, synchronized_type};
 use super::casts::{is_cast, receiver_type};
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
+use super::walk::map_children;
 use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Kind};
@@ -108,22 +109,20 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             }
             Some(Tree::TypeApply { fun, args })
         }
-        Tree::Block { stats, expr } => {
-            let mut typed_stats = Vec::new();
-            for s in l.tpd.items(stats).to_vec() {
-                typed_stats.push(typed(l, s, None)?);
-            }
-            Some(Tree::Block { stats: l.tpd.list(&typed_stats), expr: typed(l, expr, pt)? })
+        Tree::Block { expr, .. } => {
+            map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
+            None
         }
         Tree::If { cond, thenp, elsep } => {
             let cond = typed(l, cond, Some(&boolean))?;
             let branches = typed_branches(l, t, &[thenp, elsep], pt)?;
             Some(Tree::If { cond, thenp: branches[0], elsep: branches[1] })
         }
-        Tree::WhileDo { cond, body } => {
-            Some(Tree::WhileDo { cond: typed(l, cond, Some(&boolean))?, body: typed(l, body, None)? })
+        Tree::WhileDo { cond, .. } => {
+            map_children(l, t, &mut |l, c| typed(l, c, if c == cond { Some(&boolean) } else { None }))?;
+            None
         }
-        Tree::Return { expr, from } => {
+        Tree::Return { from, .. } => {
             let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {
                 Kind::Def => l.u.erased_method(m).1,
                 _ => {
@@ -131,40 +130,42 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                     l.u.erase(info)
                 }
             });
-            Some(Tree::Return { expr: typed(l, expr, result.as_ref())?, from })
+            typed_except(l, t, from, result.as_ref())?;
+            None
         }
-        Tree::Labeled { expr } => {
+        Tree::Labeled { .. } => {
             let erased = l.u.erase(l.tpd.tpe(t));
-            Some(Tree::Labeled { expr: typed(l, expr, Some(&erased))? })
+            map_children(l, t, &mut |l, c| typed(l, c, Some(&erased)))?;
+            None
         }
         Tree::Match { selector, cases } => Some(typed_switch(l, selector, cases)?),
-        Tree::Assign { lhs, rhs } => {
+        Tree::Assign { lhs, .. } => {
             let erased = l.u.erase(l.tpd.tpe(lhs));
-            Some(Tree::Assign { lhs, rhs: typed(l, rhs, Some(&erased))? })
+            typed_except(l, t, lhs, Some(&erased))?;
+            None
         }
-        Tree::SeqLiteral { elems, elemtpt } => {
+        Tree::SeqLiteral { elemtpt, .. } => {
             let elem = match l.u.erase(l.tpd.tpe(t)) {
                 Erased::Array(e) => *e,
                 _ => return unsupported(l.tpd.span(t), "a sequence literal that is not an array"),
             };
-            let mut typed_elems = Vec::new();
-            for e in l.tpd.items(elems).to_vec() {
-                typed_elems.push(typed(l, e, Some(&elem))?);
-            }
-            Some(Tree::SeqLiteral { elems: l.tpd.list(&typed_elems), elemtpt })
+            typed_except(l, t, elemtpt, Some(&elem))?;
+            None
         }
-        Tree::Typed { expr, tpt } => {
+        Tree::Typed { tpt, .. } => {
             let ascribed = l.u.erase(l.tpd.tpe(tpt));
-            Some(Tree::Typed { expr: typed(l, expr, Some(&ascribed))?, tpt })
+            typed_except(l, t, tpt, Some(&ascribed))?;
+            None
         }
-        Tree::ValDef { name, tpt, rhs: Some(rhs) } => {
+        Tree::ValDef { tpt, rhs: Some(_), .. } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
             let erased = match l.u.erase(info) {
                 Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
                 e => e,
             };
-            Some(Tree::ValDef { name, tpt, rhs: Some(typed(l, rhs, Some(&erased))?) })
+            typed_except(l, t, tpt, Some(&erased))?;
+            None
         }
         Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
         _ => None,
@@ -177,4 +178,9 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Some(pt) => adapt(l, t, pt),
         None => t,
     })
+}
+
+/// Types each child of `t` but `kept` against `pt`, rebuilding `t` in place.
+fn typed_except(l: &mut Lower, t: TNodeId, kept: TNodeId, pt: Option<&Erased>) -> Result<()> {
+    map_children(l, t, &mut |l, c| if c == kept { Ok(c) } else { typed(l, c, pt) })
 }

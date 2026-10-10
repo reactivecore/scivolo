@@ -1,17 +1,19 @@
 //! The REPL: line editing on a terminal, else the lines of stdin.
 
-use crate::history;
+use crate::{history, tab};
 use ::repl::{Session, highlight, is_incomplete};
-use rustyline::completion::Completer;
+use rustyline::completion::{Completer, Pair};
 use rustyline::error::ReadlineError;
 use rustyline::highlight::{CmdKind, Highlighter};
 use rustyline::hint::Hinter;
 use rustyline::history::MemHistory;
+use rustyline::line_buffer::LineBuffer;
 use rustyline::validate::{ValidationContext, ValidationResult, Validator};
-use rustyline::{Config, Editor, Helper};
+use rustyline::{Changeset, CompletionType, Config, Context, Editor, Helper};
 use std::borrow::Cow;
+use std::cell::{Cell, RefCell};
 use std::io::{BufRead, IsTerminal};
-use std::panic::catch_unwind;
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use vm::{Classpath, Vm};
 
@@ -25,12 +27,13 @@ pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
     let classpath = Classpath::with_image(cp, image).map_err(|e| e.to_string())?;
     let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let width = std::env::var("COLUMNS").ok().and_then(|c| c.parse().ok()).filter(|&w| w > 0).unwrap_or(80);
-    let mut session = Session::new(vm, image, width).map_err(|e| e.to_string())?;
-    session.watch_interrupts().map_err(|e| e.to_string())?;
+    let mut session = RefCell::new(Session::new(vm, image, width).map_err(|e| e.to_string())?);
+    session.get_mut().watch_interrupts().map_err(|e| e.to_string())?;
     let read = match std::io::stdin().is_terminal() {
-        true => interactive(&mut session),
-        false => piped(&mut session),
+        true => interactive(&session),
+        false => piped(session.get_mut()),
     };
+    let session = session.into_inner();
     let code = session.exit().unwrap_or(0);
     session.shutdown().map_err(|e| e.to_string())?;
     read.map(|()| code)
@@ -74,17 +77,20 @@ fn piped(session: &mut Session) -> Result<(), String> {
     Ok(())
 }
 
-/// Reads inputs with line editing and history: Ctrl-C clears the input, Ctrl-D ends.
-fn interactive(session: &mut Session) -> Result<(), String> {
+/// Reads inputs with line editing, history and completion: Ctrl-C clears the input, Ctrl-D ends.
+fn interactive(session: &RefCell<Session>) -> Result<(), String> {
     let config = Config::builder()
         .max_history_size(history::MEMORY)
         .and_then(|c| c.history_ignore_dups(false))
         .map_err(|e| e.to_string())?
         .history_ignore_space(false)
+        .completion_type(CompletionType::List)
+        .completion_show_all_if_ambiguous(true)
+        .completion_prompt_limit(tab::LIST_MAX - 1)
         .build();
     let memory = MemHistory::with_config(&config);
     let mut editor = Editor::with_history(config, memory).map_err(|e| e.to_string())?;
-    editor.set_helper(Some(Input));
+    editor.set_helper(Some(Input { session, end: Cell::new(0) }));
     let file = history::path();
     let mut last = None;
     for entry in file.as_deref().map(history::load).unwrap_or_default() {
@@ -103,7 +109,7 @@ fn interactive(session: &mut Session) -> Result<(), String> {
                     }
                     last = Some(entry);
                 }
-                if !text.trim().is_empty() && !eval(session, &text) {
+                if !text.trim().is_empty() && !eval(&mut session.borrow_mut(), &text) {
                     return Ok(());
                 }
             }
@@ -114,8 +120,12 @@ fn interactive(session: &mut Session) -> Result<(), String> {
     }
 }
 
-/// The editor's helper: an input is complete when it parses as one, and coloured as in dotty.
-struct Input;
+/// The editor's helper: an input is complete when it parses as one, coloured and completed as
+/// in dotty; `end` is where the range of the last completion ends.
+struct Input<'s> {
+    session: &'s RefCell<Session>,
+    end: Cell<usize>,
+}
 
 /// The result of `f`, with the panic hook silenced while it runs.
 fn unreported<T>(f: impl FnOnce() -> T) -> T {
@@ -126,7 +136,7 @@ fn unreported<T>(f: impl FnOnce() -> T) -> T {
     out
 }
 
-impl Validator for Input {
+impl Validator for Input<'_> {
     fn validate(&self, ctx: &mut ValidationContext) -> rustyline::Result<ValidationResult> {
         Ok(match unreported(|| incomplete(ctx.input())) {
             true => ValidationResult::Incomplete,
@@ -135,15 +145,30 @@ impl Validator for Input {
     }
 }
 
-impl Completer for Input {
-    type Candidate = String;
+impl Completer for Input<'_> {
+    type Candidate = Pair;
+
+    fn complete(&self, line: &str, pos: usize, _ctx: &Context<'_>) -> rustyline::Result<(usize, Vec<Pair>)> {
+        let Ok(mut session) = self.session.try_borrow_mut() else {
+            return Ok((pos, Vec::new()));
+        };
+        let found = unreported(|| catch_unwind(AssertUnwindSafe(|| tab::complete(&mut session, line, pos))));
+        let (range, candidates) = found.unwrap_or((pos..pos, Vec::new()));
+        self.end.set(range.end);
+        Ok((range.start, candidates))
+    }
+
+    fn update(&self, line: &mut LineBuffer, start: usize, elected: &str, cl: &mut Changeset) {
+        let end = self.end.get().clamp(line.pos(), line.len());
+        line.replace(start..end, elected, cl);
+    }
 }
 
-impl Hinter for Input {
+impl Hinter for Input<'_> {
     type Hint = String;
 }
 
-impl Highlighter for Input {
+impl Highlighter for Input<'_> {
     fn highlight<'l>(&self, line: &'l str, _pos: usize) -> Cow<'l, str> {
         Cow::Owned(unreported(|| highlight(line)))
     }
@@ -160,4 +185,4 @@ impl Highlighter for Input {
     }
 }
 
-impl Helper for Input {}
+impl Helper for Input<'_> {}

@@ -244,3 +244,149 @@ pub enum Tree {
         stats: List,
     },
 }
+
+/// A field of a tree, as `Tree::fields` hands it out: the subtrees as slots that can be
+/// replaced, the other fields as values.
+pub enum Field<'a> {
+    Node(&'a mut TNodeId),
+    Opt(&'a mut Option<TNodeId>),
+    List(&'a mut List),
+    Clauses(&'a mut Clauses),
+    Name(TName),
+    /// `Super.mix`.
+    OptName(Option<TName>),
+    Constant(&'a Constant),
+    /// `ClassLiteral.tpe`.
+    Class(TypeId),
+}
+
+impl Tree {
+    /// Calls `f` on each field of the tree's class in dotty, in order, except `TypeTree.inferred`.
+    pub fn fields(&mut self, f: &mut dyn FnMut(Field<'_>)) {
+        use Field::{Clauses as Ls, List as L, Name as Nm, Node as N, Opt as O};
+        match self {
+            Tree::Ident { name } => f(Nm(*name)),
+            Tree::Select { qualifier, name } => {
+                f(N(qualifier));
+                f(Nm(*name));
+            }
+            Tree::This { qual } => f(N(qual)),
+            Tree::Super { qual, mix } => {
+                f(N(qual));
+                f(Field::OptName(*mix));
+            }
+            Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
+                f(N(fun));
+                f(L(args));
+            }
+            Tree::Literal { value } => f(Field::Constant(value)),
+            Tree::ClassLiteral { tpe } => f(Field::Class(*tpe)),
+            Tree::New { tpt } => f(N(tpt)),
+            Tree::NamedArg { name, arg } => {
+                f(Nm(*name));
+                f(N(arg));
+            }
+            Tree::Closure { env, meth, tpt } => {
+                f(L(env));
+                f(N(meth));
+                f(O(tpt));
+            }
+            Tree::SeqLiteral { elems, elemtpt } => {
+                f(L(elems));
+                f(N(elemtpt));
+            }
+            Tree::Typed { expr: a, tpt: b }
+            | Tree::Assign { lhs: a, rhs: b }
+            | Tree::Return { expr: a, from: b }
+            | Tree::Annotated { arg: a, annot: b }
+            | Tree::WhileDo { cond: a, body: b } => {
+                f(N(a));
+                f(N(b));
+            }
+            Tree::Block { stats, expr } => {
+                f(L(stats));
+                f(N(expr));
+            }
+            Tree::If { cond, thenp, elsep } => {
+                f(N(cond));
+                f(N(thenp));
+                f(N(elsep));
+            }
+            Tree::CaseDef { pat, guard, body } => {
+                f(N(pat));
+                f(O(guard));
+                f(N(body));
+            }
+            Tree::Labeled { expr } => f(N(expr)),
+            Tree::Try { expr, cases, finalizer } => {
+                f(N(expr));
+                f(L(cases));
+                f(O(finalizer));
+            }
+            Tree::Match { selector, cases } => {
+                f(N(selector));
+                f(L(cases));
+            }
+            Tree::Alternative { trees } => f(L(trees)),
+            Tree::UnApply { fun, implicits, patterns } => {
+                f(N(fun));
+                f(L(implicits));
+                f(L(patterns));
+            }
+            Tree::TypeTree { .. } => {}
+            Tree::SingletonTypeTree { reference } => f(N(reference)),
+            Tree::ByNameTypeTree { result } => f(N(result)),
+            Tree::AppliedTypeTree { tpt, args } => {
+                f(N(tpt));
+                f(L(args));
+            }
+            Tree::TypeBoundsTree { lo, hi, alias } => {
+                f(N(lo));
+                f(N(hi));
+                f(O(alias));
+            }
+            Tree::LambdaTypeTree { tparams, body } => {
+                f(L(tparams));
+                f(N(body));
+            }
+            Tree::Bind { name, body } => {
+                f(Nm(*name));
+                f(N(body));
+            }
+            Tree::ValDef { name, tpt, rhs } => {
+                f(Nm(*name));
+                f(N(tpt));
+                f(O(rhs));
+            }
+            Tree::DefDef { name, paramss, tpt, rhs } => {
+                f(Nm(*name));
+                f(Ls(paramss));
+                f(N(tpt));
+                f(O(rhs));
+            }
+            Tree::TypeDef { name, rhs } => {
+                f(Nm(*name));
+                f(N(rhs));
+            }
+            Tree::Template { constr, parents, self_, body } => {
+                f(N(constr));
+                f(L(parents));
+                f(O(self_));
+                f(L(body));
+            }
+            Tree::Import { expr, selectors } => {
+                f(N(expr));
+                f(L(selectors));
+            }
+            Tree::ImportSelector { imported, renamed, bound } => {
+                f(N(imported));
+                f(O(renamed));
+                f(O(bound));
+            }
+            Tree::PackageDef { pid, stats } => {
+                f(N(pid));
+                f(L(stats));
+            }
+        }
+    }
+}
