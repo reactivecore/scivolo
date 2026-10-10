@@ -66,7 +66,7 @@ impl Typer<'_> {
             return None;
         }
         let span = self.tpd.span(tree);
-        let fun = self.build().ident(conv, fun_tpe, span.start_pos());
+        let fun = self.build().ident(fun_tpe, span.start_pos());
         Some(self.build().apply(fun, &[tree], result, span.to_synthetic()))
     }
 }

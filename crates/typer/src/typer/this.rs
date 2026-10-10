@@ -150,6 +150,17 @@ impl Typer<'_> {
         Some(this)
     }
 
+    /// A reference of type `tpe` to a member of `prefix` from `ctx` by its term name (dotty's
+    /// `ref(tp)`): an identifier if the prefix can be left implicit, else `C.this.name`.
+    pub fn ref_(&mut self, prefix: Option<TypeId>, tpe: TypeId, span: Span, ctx: Ctx) -> TNodeId {
+        let Type::Sym(_, sym) = *self.u.types().get(tpe) else { unreachable!("a reference type") };
+        if self.term_prefix_is_elidable(prefix, sym, ctx) {
+            return self.build().ident(tpe, span);
+        }
+        let name = self.build().term_name(sym);
+        self.this_select(span, name, tpe, sym)
+    }
+
     /// `C.this.name` of type `tpe`, a reference to `sym` at `span` (dotty's `ref(tpe)`).
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };

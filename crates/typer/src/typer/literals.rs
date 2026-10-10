@@ -2,7 +2,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::NodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::from_digits;
@@ -11,13 +11,8 @@ use syntax::config::Features;
 use tasty::TypeId;
 
 impl Typer<'_> {
-    /// The type of literal `c`: `Unit` and `Null` for `()` and `null`, else a constant type.
     pub fn literal_type(&mut self, c: &Constant) -> TypeId {
-        match c {
-            Constant::Unit => crate::defn::type_ref(self.u, self.defn.unit),
-            Constant::Null => crate::defn::type_ref(self.u, self.u.builtins().null),
-            _ => self.build().constant_type(c),
-        }
+        self.build().literal_type(c)
     }
 
     /// A number literal: of the primitive type expected if there is one, else an `Int` or a
@@ -91,10 +86,6 @@ impl Typer<'_> {
             return self.unsupported(id, "string with an unpaired surrogate");
         }
         let span = self.ast.span(id);
-        if !matches!(value, Constant::Unit | Constant::Null) {
-            return self.build().literal(value, span);
-        }
-        let tpe = self.literal_type(&value);
-        self.tpd.node(T::Literal { value }, span, Some(tpe), None)
+        self.build().literal(value, span)
     }
 }

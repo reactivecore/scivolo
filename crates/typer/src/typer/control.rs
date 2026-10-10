@@ -19,11 +19,6 @@ impl Typer<'_> {
         type_ref(self.u, self.defn.unit)
     }
 
-    fn unit_literal(&mut self, span: Span) -> TNodeId {
-        let unit = self.unit_type();
-        self.tpd.node(T::Literal { value: Constant::Unit }, span, Some(unit), None)
-    }
-
     pub fn typed_if(
         &mut self,
         id: NodeId,
@@ -39,7 +34,7 @@ impl Typer<'_> {
         let Some(elsep) = elsep else {
             let unit = self.unit_type();
             let thenp = self.typed(thenp, Pt::Type(unit), ctx);
-            let elsep = self.unit_literal(span.end_pos());
+            let elsep = self.build().literal(Constant::Unit, span.end_pos());
             return self.tpd.node(T::If { cond, thenp, elsep }, span, Some(unit), None);
         };
         let branch_pt = match pt {
@@ -124,7 +119,7 @@ impl Typer<'_> {
         let expr = match expr {
             Some(e) => self.typed(e, Pt::Type(result), ctx),
             None => {
-                let unit = self.unit_literal(span);
+                let unit = self.build().literal(Constant::Unit, span);
                 self.adapt(unit, Pt::Type(result), ctx)
             }
         };
@@ -179,7 +174,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
         let at = self.tpd.span(expr).start_pos();
-        let fun = self.build().ident(throw, fun_tpe, at);
+        let fun = self.build().ident(fun_tpe, at);
         let nothing = type_ref(self.u, self.u.builtins().nothing);
         self.build().apply(fun, &[expr], nothing, span)
     }

@@ -111,7 +111,7 @@ impl Typer<'_> {
             let tpe = crate::defn::type_ref(self.u, s);
             return self.type_tree(tpe, span, false);
         }
-        self.build().ref_(s, span)
+        self.build().static_ident(s, span)
     }
 
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.

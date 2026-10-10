@@ -175,16 +175,11 @@ impl Typer<'_> {
             }
             _ => self.ref_type(c.prefix, c.sym),
         };
-        if self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
-            return Ok(self.build().ident(c.sym, tpe, span));
+        let through_this = c.prefix.is_some_and(|p| matches!(self.u.types().get(p), Type::This(_)));
+        if !through_this && !self.term_prefix_is_elidable(c.prefix, c.sym, ctx) {
+            return Err("implicit through a path");
         }
-        match c.prefix.map(|p| self.u.types().get(p).clone()) {
-            Some(Type::This(_)) => {
-                let name = self.build().term_name(c.sym);
-                Ok(self.this_select(span, name, tpe, c.sym))
-            }
-            _ => Err("implicit through a path"),
-        }
+        Ok(self.ref_(c.prefix, tpe, span, ctx))
     }
 
     /// The companion object of class `c`, if `c` is not nested in a class other than an object's.
