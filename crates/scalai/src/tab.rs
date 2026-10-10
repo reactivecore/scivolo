@@ -9,32 +9,27 @@ pub const LIST_MAX: usize = 400;
 
 /// The byte range Tab replaces at byte offset `cursor` of `text`, and the candidates there.
 pub fn complete(session: &mut Session, text: &str, cursor: usize) -> (Range<usize>, Vec<Pair>) {
-    let range = replaced(text, cursor);
-    if inserts_tab(text) {
-        return (range, vec![Pair { display: "\t".into(), replacement: "\t".into() }]);
+    if let Some(tab) = tab(text, cursor) {
+        return tab;
     }
-    let groups = session.complete(text, cursor);
-    let pairs = candidates(groups, &text[range.clone()], &text[range.start..cursor]);
+    let range = word(text, cursor);
+    let pairs = candidates(session.complete(text, cursor), &text[range.clone()]);
     (range, pairs)
 }
 
-/// The byte range Tab replaces at `cursor` of `text`: the word around it, or the cursor alone
-/// where Tab inserts a tab.
-fn replaced(text: &str, cursor: usize) -> Range<usize> {
-    match inserts_tab(text) {
-        true => cursor..cursor,
-        false => word(text, cursor),
-    }
+/// A tab inserted at `cursor`, where Tab inserts one.
+fn tab(text: &str, cursor: usize) -> Option<(Range<usize>, Vec<Pair>)> {
+    inserts_tab(text).then(|| (cursor..cursor, vec![Pair { display: "\t".into(), replacement: "\t".into() }]))
 }
 
-/// The candidates for `groups`, listed for `word` of which `typed` precedes the cursor, each
-/// displayed without backticks. The only one is replaced by its label; several by what Tab
-/// inserts for all: their common prefix if it starts with `word`, else `typed`.
-fn candidates(groups: Vec<Group>, word: &str, typed: &str) -> Vec<Pair> {
+/// The candidates for `groups` listed for `word`, each displayed without backticks. The only one
+/// is replaced by its label; several by what Tab inserts for all: their common prefix if it
+/// starts with `word`, else `word`.
+fn candidates(groups: Vec<Group>, word: &str) -> Vec<Pair> {
     let labels: Vec<String> = groups.into_iter().flat_map(|g| g.labels).collect();
     let inserted = match labels.as_slice() {
         [] | [_] => None,
-        all => Some(Some(common_prefix(all)).filter(|p| p.starts_with(word)).unwrap_or(typed).to_owned()),
+        all => Some(Some(common_prefix(all)).filter(|p| p.starts_with(word)).unwrap_or(word).to_owned()),
     };
     let pair = |label: &String| Pair {
         display: displayed(label).to_owned(),
@@ -64,15 +59,16 @@ fn displayed(label: &str) -> &str {
 
 #[cfg(test)]
 mod tests {
-    use super::{candidates, common_prefix, displayed, replaced};
+    use super::{candidates, common_prefix, displayed, tab};
     use ::repl::Group;
+    use rustyline::completion::longest_common_prefix;
 
     fn group(header: Option<&'static str>, labels: &[&str]) -> Group {
         Group { header, labels: labels.iter().map(|&l| l.to_owned()).collect() }
     }
 
-    fn pairs(groups: Vec<Group>, word: &str, typed: &str) -> Vec<(String, String)> {
-        candidates(groups, word, typed).into_iter().map(|p| (p.display, p.replacement)).collect()
+    fn pairs(groups: Vec<Group>, word: &str) -> Vec<(String, String)> {
+        candidates(groups, word).into_iter().map(|p| (p.display, p.replacement)).collect()
     }
 
     fn owned(pairs: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -80,12 +76,19 @@ mod tests {
     }
 
     #[test]
-    fn replaces_the_word_around_the_cursor() {
-        assert_eq!(replaced("x.head", 4), 2..6);
-        assert_eq!(replaced("x.", 2), 2..2);
-        assert_eq!(replaced(":t", 2), 0..2);
-        assert_eq!(replaced("x.he\n  ", 4), 4..4);
-        assert_eq!(replaced("", 0), 0..0);
+    fn inserts_a_tab_on_a_blank_last_line() {
+        let (range, pairs) = tab("x.he\n  ", 4).expect("a tab");
+        assert_eq!(range, 4..4);
+        assert_eq!(pairs[0].replacement, "\t");
+        assert!(tab("x.he", 4).is_none());
+    }
+
+    #[test]
+    fn rustyline_inserts_the_one_replacement_of_several() {
+        let several = candidates(vec![group(None, &["head", "headOption"])], "he");
+        assert_eq!(longest_common_prefix(&several), Some("head"));
+        let typo = candidates(vec![group(None, &["maq", "map", "max"])], "maq");
+        assert_eq!(longest_common_prefix(&typo), Some("maq"));
     }
 
     #[test]
@@ -101,35 +104,35 @@ mod tests {
 
     #[test]
     fn inserts_the_only_candidate() {
-        let only = pairs(vec![group(None, &["headOption"])], "Option", "Opt");
+        let only = pairs(vec![group(None, &["headOption"])], "Option");
         assert_eq!(only, owned(&[("headOption", "headOption")]));
-        let backticked = pairs(vec![group(None, &["`type`"])], "`ty", "`ty");
+        let backticked = pairs(vec![group(None, &["`type`"])], "`ty");
         assert_eq!(backticked, owned(&[("type", "`type`")]));
     }
 
     #[test]
     fn inserts_the_common_prefix_of_several() {
-        let several = pairs(vec![group(None, &["head", "headOption"])], "he", "he");
+        let several = pairs(vec![group(None, &["head", "headOption"])], "he");
         assert_eq!(several, owned(&[("head", "head"), ("headOption", "head")]));
-        let ticks = pairs(vec![group(None, &["`headOption`", "`head`"])], "`he", "`he");
+        let ticks = pairs(vec![group(None, &["`headOption`", "`head`"])], "`he");
         assert_eq!(ticks, owned(&[("headOption", "`head"), ("head", "`head")]));
     }
 
     #[test]
-    fn keeps_the_typed_text_unless_the_prefix_extends_the_word() {
+    fn keeps_the_word_unless_the_prefix_extends_it() {
         let groups = vec![group(Some("original"), &["maq"]), group(Some("others"), &["map", "max"])];
-        let typo = pairs(groups, "maq", "ma");
-        assert_eq!(typo, owned(&[("maq", "ma"), ("map", "ma"), ("max", "ma")]));
-        let inside = pairs(vec![group(None, &["headOption", "lastOption"])], "Option", "Option");
+        let typo = pairs(groups, "maq");
+        assert_eq!(typo, owned(&[("maq", "maq"), ("map", "maq"), ("max", "maq")]));
+        let inside = pairs(vec![group(None, &["headOption", "lastOption"])], "Option");
         assert_eq!(inside, owned(&[("headOption", "Option"), ("lastOption", "Option")]));
     }
 
     #[test]
     fn lists_in_the_order_given() {
-        let listed = pairs(vec![group(None, &["b", "a"]), group(None, &["c"])], "", "");
+        let listed = pairs(vec![group(None, &["b", "a"]), group(None, &["c"])], "");
         let displays: Vec<_> = listed.into_iter().map(|(d, _)| d).collect();
         assert_eq!(displays, ["b", "a", "c"]);
-        assert!(pairs(Vec::new(), "x", "x").is_empty());
+        assert!(pairs(Vec::new(), "x").is_empty());
     }
 
     #[test]
