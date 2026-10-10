@@ -107,8 +107,7 @@ impl Translator<'_, '_> {
     /// The definition of variable `sym` with its initializer, at the variable.
     fn val_def(&mut self, sym: SymbolId) -> TNodeId {
         let rhs = self.initializer[&sym];
-        let name = self.l.u.symbol(sym).name.clone();
-        let name = self.l.term_name(&name);
+        let name = self.l.build().term_name(sym);
         let info = self.l.u.info(sym);
         let tpt = self.l.type_tree(info, Span::NONE);
         let def = self.node(Tree::ValDef { name, tpt, rhs: Some(rhs) }, info, Some(sym));

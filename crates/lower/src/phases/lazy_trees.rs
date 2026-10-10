@@ -62,7 +62,7 @@ pub fn block(l: &mut Lower, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
 }
 
 pub fn val_def(l: &mut Lower, s: SymbolId, rhs: TNodeId) -> TNodeId {
-    let name = l.term_name(&l.u.symbol(s).name.clone());
+    let name = l.build().term_name(s);
     let info = l.u.info(s);
     let tpt = l.type_tree(info, Span::NONE);
     let def = l.tpd.node(Tree::ValDef { name, tpt, rhs: Some(rhs) }, Span::NONE, Some(info), Some(s));

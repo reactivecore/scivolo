@@ -58,10 +58,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let lazy = define(l, class, accessor);
         let object = object(l);
         let field_tpt = l.type_tree(object, Span::NONE);
-        let field_name = l.term_name(&l.u.symbol(lazy.field).name.clone());
-        let field_def = Tree::ValDef { name: field_name, tpt: field_tpt, rhs: None };
         let field_span = if l.mixed_in.contains(&accessor) { Span::NONE } else { span };
-        stats.push(l.tpd.node(field_def, field_span, None, Some(lazy.field)));
+        stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
         let rhs_span = l.tpd.span(rhs);
         let at = if rhs_span.exists() { rhs_span.with_point(rhs_span.start()) } else { span };
         let body = accessor_body(l, &lazy, info);

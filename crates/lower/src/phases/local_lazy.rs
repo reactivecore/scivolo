@@ -108,8 +108,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let sync = l.select(receiver, l.defs.monitors.synchronized, Span::NONE);
     let sync = l.positioned(sync);
     let targ = l.type_tree(info, Span::NONE);
-    let targs = l.tpd.list(&[targ]);
-    let sync = l.tpd.node(Tree::TypeApply { fun: sync, args: targs }, Span::NONE, Some(info), None);
+    let sync = l.build().type_apply(sync, &[targ], info, Span::NONE);
     let sync = l.positioned(sync);
     let cond = if_(l, initialized, get_value, initialize, holder.value);
     let body = conform(l, cond, &holder, info);
@@ -173,8 +172,7 @@ fn conform(l: &mut Lower, t: TNodeId, holder: &Holder, info: TypeId) -> TNodeId 
     let fun = l.select(t, l.defs.as_instance_of, Span::NONE);
     let fun = l.positioned(fun);
     let tpt = l.type_tree(info, Span::NONE);
-    let args = l.tpd.list(&[tpt]);
-    let cast = l.tpd.node(Tree::TypeApply { fun, args }, Span::NONE, Some(info), None);
+    let cast = l.build().type_apply(fun, &[tpt], info, Span::NONE);
     l.positioned(cast)
 }
 

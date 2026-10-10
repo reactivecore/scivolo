@@ -7,7 +7,7 @@ use super::plan::{Plan, PlanId, Test};
 use crate::phases::walk::same;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Erased, Kind, Type};
+use tasty::{Erased, Kind};
 use typer::tpd::{TNodeId, Tree};
 
 /// The fewest alternatives, with the default, a switch is emitted for.
@@ -101,10 +101,7 @@ impl Translator<'_, '_> {
         let mut defs = Vec::new();
         for (alts, plan) in cases {
             let pat = match alts.as_slice() {
-                [] => {
-                    let name = self.l.term_name("_");
-                    self.l.tpd.node(Tree::Ident { name }, Span::NONE, Some(scrutinee_tpe), None)
-                }
+                [] => self.l.wildcard(scrutinee_tpe),
                 &[alt] => self.int_literal(alt),
                 alts => {
                     let trees: Vec<TNodeId> = alts.iter().map(|&a| self.int_literal(a)).collect();
@@ -136,9 +133,7 @@ impl Translator<'_, '_> {
     /// Literal `t` as an `Int` literal unless `Int` or `String`.
     fn int_literal(&mut self, t: TNodeId) -> TNodeId {
         let Tree::Literal { value: Constant::Char(c) } = *self.l.tpd.tree(t) else { return t };
-        let n = i32::from(c);
-        let tpe = self.l.u.intern_type(Type::Constant(tasty::tags::INTconst, i64::from(n)));
         let span = self.l.tpd.span(t);
-        self.l.tpd.node(Tree::Literal { value: Constant::Int(n) }, span, Some(tpe), None)
+        self.l.build().literal(Constant::Int(i32::from(c)), span)
     }
 }

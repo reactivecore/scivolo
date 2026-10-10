@@ -97,10 +97,9 @@ fn add_proxies(
     let mut field_defs = Vec::new();
     for ((&v, &field), &at) in free.in_methods.iter().zip(fields).zip(spans) {
         l.fields.insert(field, field);
-        let name = l.term_name(&l.u.symbol(field).name.clone());
         let info = l.u.info(v);
         let tpt = l.type_tree(info, Span::NONE);
-        field_defs.push(l.tpd.node(Tree::ValDef { name, tpt, rhs: None }, at, None, Some(field)));
+        field_defs.push(l.build().val_def(field, tpt, None, at));
         let i = free.values.iter().position(|&w| w == v).expect("a free value");
         l.proxies.push((field, params[i]));
     }

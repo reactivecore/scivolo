@@ -14,6 +14,6 @@ impl Typer<'_> {
     }
 
     pub fn build(&mut self) -> Build<'_> {
-        Build::new(&mut self.tpd, self.u, self.names, &self.defn)
+        Build::new(&mut self.tpd, self.u, self.names, self.defn.unit)
     }
 }

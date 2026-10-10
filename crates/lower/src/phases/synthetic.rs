@@ -62,13 +62,8 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
     let lit = l.tpd.node(Tree::ClassLiteral { tpe: module_ref }, span, Some(class_of), None);
     let proxy_type = l.tpd.tpe(new);
     let rhs = l.apply(ctor, &[lit], proxy_type, span);
-
-    let name = l.term_name("writeReplace");
-    let no_params = l.tpd.list(&[]);
-    let paramss = l.tpd.clauses(&[no_params]);
     let tpt = l.type_tree(any_ref, span);
-    let def = l.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, None, Some(sym));
-    Ok(vec![def])
+    Ok(vec![l.build().def_def(sym, &[&[]], tpt, rhs, span)])
 }
 
 /// A new `private def name(): AnyRef` of `class`, and `AnyRef`.

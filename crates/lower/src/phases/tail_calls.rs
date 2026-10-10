@@ -39,7 +39,7 @@ impl TailCalls {
 
     /// Rewrites the tail calls under `t`, in tail position if `tail`.
     pub fn walk(&mut self, l: &mut Lower, t: TNodeId, tail: bool) {
-        match l.tpd.tree(t).clone() {
+        match *l.tpd.tree(t) {
             Tree::Apply { fun, args } if is_boolean_op(l, fun) => {
                 self.walk(l, fun, false);
                 for a in l.tpd.items(args).to_vec() {

@@ -15,8 +15,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
     let target = type_of(l, to);
     let fun = l.select(t, l.defs.as_instance_of, span);
     let tpt = l.type_tree(target, span);
-    let args = l.tpd.list(&[tpt]);
-    l.tpd.node(Tree::TypeApply { fun, args }, span, Some(target), None)
+    l.build().type_apply(fun, &[tpt], target, span)
 }
 
 /// A type erasing to `e`.

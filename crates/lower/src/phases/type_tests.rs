@@ -6,7 +6,6 @@ use super::adapt::{adapt, erased_type};
 use super::casts::type_of;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use syntax::ast::constant::Constant;
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -168,10 +167,7 @@ fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
 /// `constant`).
 fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
     let span = l.tpd.span(expr);
-    let tpe = l
-        .u
-        .intern_type(Type::Constant(if value { tasty::tags::TRUEconst } else { tasty::tags::FALSEconst }, 0));
-    let lit = l.tpd.node(Tree::Literal { value: Constant::Boolean(value) }, Span::NONE, Some(tpe), None);
+    let lit = l.boolean_literal(value);
     match l.tpd.tree(expr) {
         Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => lit,
         _ => l.block(&[expr], lit, span),

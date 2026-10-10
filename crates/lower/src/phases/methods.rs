@@ -5,7 +5,7 @@ use crate::definitions::symbol;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::TNodeId;
 
 impl Lower<'_> {
     /// A method of class `class` with the name and target name of `like`, flags `flags` and type
@@ -42,20 +42,17 @@ impl Lower<'_> {
             let p = self.u.define(symbol(&pname, Kind::Param, sym, Default::default()));
             self.u.set_info(p, ptype);
             let tpt = self.type_tree(ptype, span);
-            let pname = self.term_name(&pname);
-            param_defs.push(self.tpd.node(Tree::ValDef { name: pname, tpt, rhs: None }, span, None, Some(p)));
+            param_defs.push(self.build().val_def(p, tpt, None, span));
             args.push(self.ident(p, span));
         }
         let result = self.u.result_type(info);
         let rhs = call(self, &args, result);
-        let clause = self.tpd.list(&param_defs);
-        let paramss = match self.u.types().get(info) {
-            Type::Method { .. } => self.tpd.clauses(&[clause]),
-            _ => self.tpd.clauses(&[]),
+        let paramss: &[&[TNodeId]] = match self.u.types().get(info) {
+            Type::Method { .. } => &[&param_defs],
+            _ => &[],
         };
         let tpt = self.type_tree(result, span);
-        let name = self.term_name(&name);
-        let def = self.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, None, Some(sym));
+        let def = self.build().def_def(sym, paramss, tpt, rhs, span);
         Ok((sym, def))
     }
 }

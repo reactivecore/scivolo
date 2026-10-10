@@ -10,8 +10,7 @@ use typer::tpd::{List, TNodeId, Tree};
 
 impl Lower<'_> {
     pub fn int_literal(&mut self, n: i32) -> TNodeId {
-        let tpe = self.u.intern_type(Type::Constant(tasty::tags::INTconst, i64::from(n)));
-        self.tpd.node(Tree::Literal { value: Constant::Int(n) }, Span::NONE, Some(tpe), None)
+        self.build().literal(Constant::Int(n), Span::NONE)
     }
 
     pub fn string_literal(&mut self, s: &str) -> TNodeId {
@@ -21,9 +20,7 @@ impl Lower<'_> {
     }
 
     pub fn boolean_literal(&mut self, b: bool) -> TNodeId {
-        let tag = if b { tasty::tags::TRUEconst } else { tasty::tags::FALSEconst };
-        let tpe = self.u.intern_type(Type::Constant(tag, 0));
-        self.tpd.node(Tree::Literal { value: Constant::Boolean(b) }, Span::NONE, Some(tpe), None)
+        self.build().literal(Constant::Boolean(b), Span::NONE)
     }
 
     /// `_` of type `tpe`, a pattern.
