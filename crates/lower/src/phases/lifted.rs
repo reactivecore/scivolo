@@ -3,7 +3,8 @@
 //! they need `this`. Calls of local methods pass the captured values.
 
 use super::closures::{Plan, plan, rewrite};
-use super::lambda_lift::{Function, fresh, post_order};
+use super::lambda_lift::Function;
+use super::lift_names::prefix;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -33,6 +34,19 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
     Ok(methods)
 }
 
+/// The indices of `functions`, each after the functions in it.
+fn post_order(functions: &[Function]) -> Vec<usize> {
+    fn visit(functions: &[Function], i: Option<usize>, out: &mut Vec<usize>) {
+        for j in (0..functions.len()).filter(|&j| functions[j].parent == i) {
+            visit(functions, Some(j), out);
+            out.push(j);
+        }
+    }
+    let mut out = Vec::new();
+    visit(functions, None, &mut out);
+    out
+}
+
 /// The parameters with their types and the result type of function `f`.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
     let info = l.u.info(f.sym);
@@ -45,8 +59,8 @@ fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, Ty
     Ok((params, result))
 }
 
-/// Names `methods` of `functions` of `class`, inner functions first, each lambda's followed by
-/// its `$adapted` method, and the proxies of the `$adapted` methods, to name last in the unit;
+/// Lifts named `methods` of `functions` of `class`, inner functions first, each lambda's followed
+/// by its `$adapted` method, and the proxies of the `$adapted` methods, to name last in the unit;
 /// the lambdas' blocks become closures, the local methods leave their blocks and calls of them in
 /// `template` call the lifted methods.
 pub fn lift(
@@ -58,21 +72,9 @@ pub fn lift(
 ) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
     let mut plans: Vec<Option<Plan>> = Vec::new();
     let mut deferred = Vec::new();
-    for (f, method) in functions.iter().zip(methods) {
+    for f in functions {
         let (params, result) = signature(l, f)?;
-        let prefix = match l.u.symbol(f.sym).owner {
-            Some(o) if l.u.symbol(o).kind == Kind::Def => match functions.iter().position(|x| x.sym == o) {
-                Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
-                None => format!("{}$", l.u.symbol(o).name),
-            },
-            Some(o) if f.ctor && l.u.symbol(o).owner == Some(class) => "$init$$".to_owned(),
-            _ => String::new(),
-        };
-        let name = match f.closure {
-            Some(_) => fresh(l, &format!("{prefix}$anonfun")),
-            None => fresh(l, &l.u.symbol(f.sym).name.clone()),
-        };
-        l.u.rename(method.sym, &name);
+        let prefix = prefix(l, class, functions, methods, f);
         let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
         plans.push(closure.transpose()?);
     }

@@ -4,6 +4,7 @@
 //! pass them.
 
 use super::captures::dependencies;
+use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
 use crate::symbols::{has, is_class, is_module_class, is_static};
@@ -39,17 +40,24 @@ struct Lifting {
 }
 
 /// Lifts the lambdas and local methods of class definitions `classes` into methods of their
-/// classes; the proxies are named first, those of `$adapted` methods last.
-pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+/// classes, naming them with the proxies and local classes of `pending`; the proxies are named
+/// first, those of `$adapted` methods last.
+pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Result<()> {
     let mut liftings = Vec::new();
     for &td in classes {
-        liftings.extend(prepare(l, td)?);
+        liftings.extend(prepare(l, td, &pending)?);
     }
-    let direct = liftings.iter().flat_map(|c| c.order[..c.direct].iter().map(move |&i| &c.methods[i]));
-    let propagated = liftings.iter().flat_map(|c| c.order[c.direct..].iter().map(move |&i| &c.methods[i]));
-    for method in direct.chain(propagated) {
-        name_proxies(l, &method.proxies);
-    }
+    let named: Vec<Named> = liftings
+        .iter()
+        .map(|c| Named {
+            class: c.class,
+            functions: &c.functions,
+            methods: &c.methods,
+            order: &c.order,
+            direct: c.direct,
+        })
+        .collect();
+    name_all(l, &named, &mut pending);
     let mut deferred = Vec::new();
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
@@ -80,21 +88,8 @@ pub fn fresh(l: &mut Lower, base: &str) -> String {
     l.names.text(name).to_owned()
 }
 
-/// The indices of `functions`, each after the functions in it.
-pub fn post_order(functions: &[Function]) -> Vec<usize> {
-    fn visit(functions: &[Function], i: Option<usize>, out: &mut Vec<usize>) {
-        for j in (0..functions.len()).filter(|&j| functions[j].parent == i) {
-            visit(functions, Some(j), out);
-            out.push(j);
-        }
-    }
-    let mut out = Vec::new();
-    visit(functions, None, &mut out);
-    out
-}
-
 /// The functions of class definition `td` with their dependencies and methods, if any.
-fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
+fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifting>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(None) };
@@ -129,7 +124,7 @@ fn prepare(l: &mut Lower, td: TNodeId) -> Result<Option<Lifting>> {
     for f in &mut functions {
         f.this = (f.closure.is_none() || f.ctor) && in_class;
     }
-    let (order, direct) = dependencies(l, &mut functions, class, &roots)?;
+    let (order, direct) = dependencies(l, &mut functions, class, &roots, (in_class, pending))?;
     let methods = methods(l, class, &functions)?;
     Ok(Some(Lifting { class, template, stats, functions, methods, order, direct }))
 }

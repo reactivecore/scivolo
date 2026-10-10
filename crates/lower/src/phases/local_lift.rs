@@ -3,18 +3,22 @@
 
 use super::local_free::{Free, within};
 use super::walk::children;
+use crate::symbols::is_module_class;
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashSet;
+use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Passes the values of `free`, or inside `class` its `fields`, first to each constructor call of
-/// `class` in unit `root`.
+/// `class` in unit `root`; records the values passed outside `class` in `passed`.
 pub fn pass_values(
     l: &mut Lower,
     root: TNodeId,
     class: SymbolId,
     free: &Free,
     fields: &[SymbolId],
+    passed: &mut FxHashSet<TNodeId>,
 ) -> Result<()> {
     for t in super::walk::subtrees(l.tpd, root) {
         let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
@@ -28,7 +32,11 @@ pub fn pass_values(
         let mut values = Vec::new();
         for &v in &free.values {
             let value = match free.in_methods.iter().position(|&w| w == v) {
-                _ if !inside => l.ident(v, span),
+                _ if !inside => {
+                    let value = l.ident(v, span);
+                    passed.insert(value);
+                    value
+                }
                 Some(i) => {
                     let this = l.this(class, span);
                     l.select(this, fields[i], span)
@@ -60,12 +68,18 @@ fn enclosing_def(l: &Lower, root: TNodeId, t: TNodeId) -> Option<SymbolId> {
     None
 }
 
-/// Moves class definition `td` of `class` from its block to the package of `outer`, named
-/// `Outer$Name$N`.
-pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId, outer: SymbolId) {
-    let base = format!("{}$", l.u.symbol(class).name);
-    let local = l.fresh.next(l.names, &base);
-    let local = l.names.text(local).to_owned();
+/// Names local class `class` in class `outer` `Outer$Name$N`, an object's class `Outer$Name$N$`
+/// and no longer an object's.
+pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
+    let class_name = l.u.symbol(class).name.clone();
+    let (base, module) = match tasty::module_name(&class_name) {
+        Some(m) if is_module_class(l.u, class) => (m, "$"),
+        _ => (class_name.as_str(), ""),
+    };
+    let flags = l.u.symbol(class).flags.without(OBJECT);
+    l.u.set_flags(class, flags);
+    let local = l.fresh.next(l.names, &format!("{base}$"));
+    let local = format!("{}{module}", l.names.text(local));
     let outer_name = l.u.binary_name(outer);
     let outer_name = outer_name.rsplit('.').next().unwrap_or(&outer_name).to_owned();
     let name = if outer_name.ends_with('$') {
@@ -73,18 +87,27 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId, outer: S
     } else {
         format!("{outer_name}${local}")
     };
-    let mut package = outer;
+    l.u.rename(class, &name);
+}
+
+/// Moves class definition `td` of `class` from its block to its package; the block and the index
+/// of the statement it was before.
+pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Option<(TNodeId, usize)> {
+    let mut package = class;
     while l.u.symbol(package).kind != Kind::Package {
         package = l.u.symbol(package).owner.expect("a class's owner");
     }
-    l.u.rename(class, &name);
     l.u.set_owner(class, package);
     l.u.enter(class);
     l.local_classes.insert(class);
+    let mut from = None;
     for t in super::walk::subtrees(l.tpd, root) {
         match *l.tpd.tree(t) {
             Tree::Block { stats, expr } if l.tpd.items(stats).contains(&td) => {
-                let kept: Vec<TNodeId> = l.tpd.items(stats).iter().copied().filter(|&s| s != td).collect();
+                let mut kept = l.tpd.items(stats).to_vec();
+                let index = kept.iter().position(|&s| s == td).expect("the class definition");
+                kept.remove(index);
+                from = Some((t, index));
                 let stats = l.tpd.list(&kept);
                 l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
             }
@@ -99,4 +122,5 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId, outer: S
             _ => {}
         }
     }
+    from
 }

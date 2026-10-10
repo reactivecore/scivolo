@@ -34,6 +34,7 @@ mod lazy_init;
 mod lazy_trees;
 pub(crate) mod lazy_vals;
 mod library_traits;
+mod lift_names;
 mod lifted;
 mod literals;
 mod local_classes;
@@ -52,6 +53,7 @@ mod returns;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;
+mod super_args;
 mod synthetic;
 mod tail_calls;
 mod tailrec;
@@ -69,6 +71,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
+        super_args::check(l, td)?;
         package_objects::transform(l, td);
         first_transform::transform(l, td);
     }
@@ -93,8 +96,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
-    local_classes::transform(l, root, &classes)?;
-    lambda_lift::transform(l, &classes)?;
+    let pending = local_classes::transform(l, root, &classes)?;
+    lambda_lift::transform(l, &classes, pending)?;
     for &td in &classes {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
