@@ -3,7 +3,9 @@
 typed trees are the same, why the Rust typer fell back, or where they first differ. Both trees
 are written to tmp/typer/compare/NAME.dotty and NAME.ours, one node per line.
 
-Usage: scripts/typer-compare.py FILE...
+Usage: scripts/typer-compare.py [--inlined] FILE...
+With --inlined, both stop after the `inlining` phase and compare only the outermost `Inlined`
+trees.
 """
 import subprocess
 import sys
@@ -24,16 +26,17 @@ def records(text):
     return out
 
 
-def main(files):
+def main(files, inlined):
     WORK.mkdir(parents=True, exist_ok=True)
     paths = [str(Path(f).resolve()) for f in files]
     lst = WORK / "list.tsv"
     lst.write_text("".join(f"{p}\t\n" for p in paths))
+    mode = ["--inlined"] if inlined else []
     oracle = subprocess.run(["scala-cli", "--power", "run", "--server=false", "--quiet", "--workspace",
                              str(ROOT / "tmp/typer/3.9.0/oracle-ws"), str(ROOT / "scripts/typer-oracle"), "--",
-                             "--list", str(lst)], capture_output=True, text=True)
+                             *mode, "--list", str(lst)], capture_output=True, text=True)
     try:
-        ours = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, timeout=120)
+        ours = subprocess.run([str(DUMP), *mode, "--list", str(lst)], capture_output=True, text=True, timeout=120)
         ours_out = ours.stdout
     except subprocess.TimeoutExpired:
         ours_out = ""
@@ -60,6 +63,9 @@ def main(files):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
+    args = sys.argv[1:]
+    inlined = "--inlined" in args
+    files = [a for a in args if a != "--inlined"]
+    if not files:
         sys.exit(__doc__)
-    main(sys.argv[1:])
+    main(files, inlined)
