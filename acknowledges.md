@@ -45,7 +45,8 @@ Apache-2.0. Rust translations of:
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
     casts of primitives, `primitiveConversion`),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
-  - `SpecializeFunctions`, `SpecializeApplyMethods`
+  - `SpecializeFunctions`, `SpecializeApplyMethods`, `SpecializeTuples` (with
+    `inlines/Inliner.isElideableExpr`, `Definitions.withSpecMethods`)
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)

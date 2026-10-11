@@ -74,6 +74,14 @@ impl Typer<'_> {
         let inferred = last && params.len() == xarity && function;
         let mut defs = Vec::new();
         let lifted = self.lift_app(&mut defs, tree, false, ctx)?;
+        let lifted_tpe = self.tpd.tpe(lifted);
+        let lifted_info = self.method_info(lifted_tpe).unwrap_or(lifted_tpe);
+        let params = match self.u.types().get(lifted_info).clone() {
+            Type::Method { params: lifted_params, .. } if lifted_params.len() == params.len() => {
+                lifted_params
+            }
+            _ => params,
+        };
         let java = self.tpd.sym(tree).is_some_and(|s| self.is_java_member(s));
         let span = self.tpd.span(tree);
         let whole = Span::synthetic(span.start(), span.end());
@@ -109,6 +117,10 @@ impl Typer<'_> {
         self.ast.with_span(function, whole);
         let mut closure = self.typed_function(function, params, body, pt, ctx);
         if !defs.is_empty() {
+            let locals: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
+            closure = self
+                .no_local_refs(closure, &locals, pt)
+                .ok_or("method value of a type referring to a lifted prefix")?;
             let block_span = defs.iter().fold(whole, |s, &d| s.union(self.tpd.span(d)));
             let stats = self.tpd.list(&defs);
             closure = self.build().block(stats, closure, block_span.to_synthetic());

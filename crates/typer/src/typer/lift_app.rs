@@ -34,7 +34,10 @@ impl Typer<'_> {
                 if lifted == fun && lifted_args == args {
                     return Ok(f);
                 }
-                let tpe = self.tpd.tpe(f);
+                let tpe = match lifted == fun {
+                    true => self.tpd.tpe(f),
+                    false => self.result_of(lifted).ok_or("lifting of a call of a function value")?,
+                };
                 Ok(self.build().apply(lifted, &lifted_args, tpe, span))
             }
             T::Block { stats, expr } => {

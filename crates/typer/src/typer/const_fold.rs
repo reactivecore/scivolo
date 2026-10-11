@@ -5,19 +5,7 @@ use super::const_ops::{fold_binop, fold_unop};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use tasty::tags::*;
-use tasty::{Type, TypeId};
-
-const PRIMITIVE_VALUE_CLASSES: [&str; 9] = [
-    "scala.Unit",
-    "scala.Boolean",
-    "scala.Byte",
-    "scala.Short",
-    "scala.Char",
-    "scala.Int",
-    "scala.Long",
-    "scala.Float",
-    "scala.Double",
-];
+use tasty::{PRIMITIVE_VALUE_CLASSES, Type, TypeId};
 
 impl Typer<'_> {
     /// The constant `tree` denotes, by its form or its type (dotty's `ConstantTree`).

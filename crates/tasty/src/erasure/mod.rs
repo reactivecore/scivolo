@@ -12,6 +12,7 @@ use crate::symbols::{defined_name, encode, module_class_name, module_name};
 use crate::tags::{OBJECT as MODULE, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;
 
 /// An erased type as Scala Native's backend sees it.

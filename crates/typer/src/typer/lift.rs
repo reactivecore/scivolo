@@ -100,7 +100,8 @@ impl Typer<'_> {
             }
             let prefix = if name.contains('$') { String::new() } else { name.clone() };
             let mut own = Vec::new();
-            let lifted = match *self.tpd.tree(arg) {
+            let node = self.tpd.tree(arg).clone();
+            let lifted = match node {
                 T::NamedArg { name, arg: inner } => {
                     let lifted = self.lift(&mut own, inner, &prefix, complex, ctx);
                     let (span, tpe) = (self.tpd.span(arg), self.tpd.get(arg).tpe);
@@ -108,6 +109,18 @@ impl Typer<'_> {
                         arg
                     } else {
                         self.tpd.node(T::NamedArg { name, arg: lifted }, span, tpe, None)
+                    }
+                }
+                T::Typed { expr, tpt }
+                    if self.tpd.get(arg).tpe.is_some_and(|t| self.repeated_elem(t).is_some()) =>
+                {
+                    self.type_seq_literal(expr);
+                    let lifted = self.lift(&mut own, expr, &prefix, complex, ctx);
+                    let (span, tpe) = (self.tpd.span(arg), self.tpd.get(arg).tpe);
+                    if lifted == expr {
+                        arg
+                    } else {
+                        self.tpd.node(T::Typed { expr: lifted, tpt }, span, tpe, None)
                     }
                 }
                 _ => self.lift(&mut own, arg, &prefix, complex, ctx),

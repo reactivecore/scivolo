@@ -18,6 +18,7 @@ mod case_members;
 pub(crate) mod casts;
 mod closures;
 mod constructors;
+mod elideable;
 mod enum_values;
 mod enumerations;
 mod envelope;
@@ -27,6 +28,7 @@ mod eta_reduce;
 mod expand_private;
 mod explicit_outer;
 mod first_transform;
+mod get_class;
 mod getters;
 mod hoist_super_args;
 mod initializers;
@@ -108,7 +110,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
-        specialize_tuples::check(l, td)?;
+        specialize_tuples::transform(l, td, &inits)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
