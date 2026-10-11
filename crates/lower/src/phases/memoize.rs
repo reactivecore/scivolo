@@ -45,8 +45,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         stats.push(stat);
     }
     if fence {
+        let spans = super::walk::children(l.tpd, template).into_iter().map(|c| l.tpd.span(c));
+        let end = spans.filter(|s| s.exists()).reduce(Span::union).unwrap_or(l.tpd.span(template));
         let call = l.static_call(l.defs.equality.release_fence, &[]);
-        l.tpd.get_mut(call).span = l.tpd.span(template).end_pos();
+        l.tpd.get_mut(call).span = end.end_pos();
         stats.push(call);
     }
     let body = l.tpd.list(&stats);
@@ -62,7 +64,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
     let bottom = bottom(l, getter);
     let span = l.tpd.span(stat);
     let field = (!(mixed_in && bottom.is_some())).then(|| {
-        let name_text = l.u.symbol(getter).name.clone();
+        let name_text = super::accessor_names::run_name(l, getter).to_owned();
         let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
         if has(l.u, getter, MUTABLE) {
             flags = flags.with(MUTABLE);

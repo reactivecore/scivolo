@@ -23,12 +23,11 @@ use tasty::tags::LAZY;
 use tasty::{Flags, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// Compiles the matches in class definition `td`, inner matches first; those outside methods
-/// with their variables owned by the constructor.
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let class = l.tpd.sym(td).expect("a class definition's symbol");
+/// Compiles the matches in unit `root` in the order of its trees, inner matches first; those
+/// outside methods with their variables owned by the constructor.
+pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     let mut matches = Vec::new();
-    let mut todo = vec![(td, class, false)];
+    let mut todo = vec![(root, owner, false)];
     while let Some((t, owner, visited)) = todo.pop() {
         if visited {
             if matches!(l.tpd.tree(t), Tree::Match { .. }) {
@@ -38,7 +37,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         }
         let inner = match *l.tpd.tree(t) {
-            Tree::DefDef { .. } => l.tpd.sym(t).unwrap_or(owner),
+            Tree::DefDef { .. } | Tree::TypeDef { .. } => l.tpd.sym(t).unwrap_or(owner),
             Tree::ValDef { .. } => {
                 l.tpd.sym(t).filter(|&s| crate::symbols::has(l.u, s, LAZY)).unwrap_or(owner)
             }
@@ -46,9 +45,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             _ => owner,
         };
         todo.push((t, owner, true));
-        if t == td || !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner, false)));
-        }
+        todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner, false)));
     }
     for (m, owner) in matches {
         Translator::new(l, m, owner).translate(m)?;
@@ -127,7 +124,7 @@ impl<'t, 'a> Translator<'t, 'a> {
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);
         self.initializer.insert(var, rhs);
-        self.spans.insert(var, self.l.tpd.span(rhs));
+        self.spans.insert(var, coord(self.l.tpd.span(rhs)));
         let body = body(self, var)?;
         Ok(self.add(Plan::Let { sym: var, body }))
     }
@@ -144,4 +141,9 @@ impl<'t, 'a> Translator<'t, 'a> {
     fn is_generated(&self, s: SymbolId) -> bool {
         self.generated.contains(&s)
     }
+}
+
+/// The span of a symbol defined at `span`: its point (dotty's `Coord`).
+pub fn coord(span: Span) -> Span {
+    if span.exists() { Span::at(span.point()) } else { span }
 }

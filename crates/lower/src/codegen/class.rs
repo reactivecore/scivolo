@@ -14,10 +14,6 @@ impl Gen<'_, '_> {
         if crate::symbols::is_extern(self.l.u, sym) {
             return unsupported(self.l.tpd.span(td), "native interop");
         }
-        let owner = self.l.u.symbol(sym).owner.expect("a class's owner");
-        if self.l.u.is_class(owner) && !is_static_module(self.l.u, owner) && self.l.u.is_trait(sym) {
-            return unsupported(self.l.tpd.span(td), "traits in classes and traits");
-        }
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
         let attrs =
             if crate::symbols::has(self.l.u, sym, ABSTRACT) { vec![Attr::Abstract] } else { Vec::new() };

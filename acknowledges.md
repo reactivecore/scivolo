@@ -24,7 +24,7 @@ Apache-2.0. Rust translations of:
 - `crates/syntax/src/parse/xml`: `parsing/xml/*` (`MarkupParsers`, `MarkupParserCommon`,
   `SymbolicXMLBuilder`, `Utility`).
 - `crates/syntax/src/desugar`: `ast/Desugar`, `ast/DesugarEnums`, the tree copier of `ast/Trees`.
-- `crates/typer`: `typer/{Typer,Namer}`, `ast/MainProxies`, the flag pickling of
+- `crates/typer`: `typer/{Typer,Namer}`, `typer/TypeAssigner.superType`, `ast/MainProxies`, the flag pickling of
   `core/tasty/TreePickler`, `SymDenotations.fullName`; `crates/typer/src/tpd/walk.rs`:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
 - `crates/lower/src/phases`, from `transform/`:
@@ -33,12 +33,20 @@ Apache-2.0. Rust translations of:
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
-  - `BetaReduce` (the applications it rewrites, refused)
-  - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
-    (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
-  - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
-  - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
-    `ElimByName` (calls)
+  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`
+  - `ExplicitOuter` (outer accessors of classes and traits, their implementations for mixed-in
+    traits, `needsOuterIfReferenced`), `TreeInfo.bodyKind` (`PureInterface`)
+  - `Erasure` (boxing, `adaptClosure`, `typedTyped`, `cast` of primitive arrays),
+    `TypeErasure.additionalAdaptationNeeded`, `Bridges` (result-type bridges, inherited pairs),
+    `core/Decorators.reduceBalanced`
+  - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,
+    `tpd.wrapArrayMethodName`
+  - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
+    and creating local classes, the naming order of proxies, `setLogicOwner` of classes,
+    returns of blocks), `CapturedVars`, `ElimByName` (calls),
+    `HoistSuperArgs`, `PureStats` (anonymous instances)
+  - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
+    classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
     guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
@@ -46,7 +54,9 @@ Apache-2.0. Rust translations of:
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
-  - `localopt/StringInterpolatorOpt` (`s`, `raw`)
+  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
+    (`rebindSuper`)
+  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)

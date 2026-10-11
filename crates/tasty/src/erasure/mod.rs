@@ -9,7 +9,7 @@ mod scala2;
 mod special;
 
 use crate::symbols::{defined_name, encode, module_class_name, module_name};
-use crate::tags::{OBJECT as MODULE, TRAIT};
+use crate::tags::{OBJECT as MODULE, PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
 use special::special;
@@ -125,7 +125,8 @@ impl Universe {
     }
 
     /// The underlying value of value class `c` (a class, not a trait, extending `AnyVal`): its
-    /// class parameter, unless that has type `c` itself.
+    /// first class parameter, or a script class's first parameter accessor, unless that has type
+    /// `c` itself.
     pub fn underlying(&mut self, c: SymbolId) -> Option<SymbolId> {
         if self.symbol(c).flags.has(TRAIT) {
             return None;
@@ -134,13 +135,16 @@ impl Universe {
         if !self.parents(c).into_iter().any(|p| self.class_symbol(p) == Some(any_val)) {
             return None;
         }
-        let value = self.symbol(c).decls.iter().copied().find(|&d| self.symbol(d).kind == Kind::Param)?;
+        let value = self.symbol(c).decls.iter().copied().find(|&d| {
+            let s = self.symbol(d);
+            s.kind == Kind::Param || s.kind == Kind::Val && s.flags.has(PARAMsetter)
+        })?;
         let info = self.info(value);
         (self.class_symbol(info) != Some(c)).then_some(value)
     }
 
     /// The erasure of `t` where values are boxed: a value class as itself.
-    fn erase_boxed(&mut self, t: TypeId) -> Erased {
+    pub fn erase_boxed(&mut self, t: TypeId) -> Erased {
         match self.class_symbol(t) {
             Some(c) if self.underlying(c).is_some() => Erased::Class(self.binary_name(c)),
             _ => self.erase(t),

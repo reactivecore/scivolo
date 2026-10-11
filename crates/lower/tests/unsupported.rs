@@ -18,7 +18,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
         "casts between primitive values or to references",
     ),
-    ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
     (
         "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
         "ascriptions to Unit of values other than literals",
@@ -30,13 +29,9 @@ const CASES: &[(&str, &str)] = &[
         "returns of Unit values of class members",
     ),
     (
-        "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
-         object O { def f(x: String): Int = x match { case E(a) => a; case _ => 0 } }",
-        "sequence extractors not returning a sequence",
-    ),
-    (
-        "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
-        "interpolations of parts that are not literals",
+        "object E { def unapplySeq(s: String): Option[(Int, Seq[Int])] = None }\n\
+         object O { def f(x: String): Int = x match { case E(a, b) => a; case _ => 0 } }",
+        "sequence extractors of a product and a sequence",
     ),
     ("object O { def f() = 3.compare(4) }", "members value classes inherit"),
     ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
@@ -45,45 +40,45 @@ const CASES: &[(&str, &str)] = &[
         "branches of arrays and other erased classes",
     ),
     ("class A(private var p: Int) { def f = p }", "private mutable class parameters"),
-    (
-        "class A(val x: Int) { println(this.x) }",
-        "overridable class parameters selected on this in the constructor",
-    ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    ("trait A { private object B; def f = B }", "private objects in traits"),
     (
         "class A { class B }; object O { val a = new A; class D { def f = new O.a.B } }",
         "creating an inner class through this prefix",
     ),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
-    ("class A { trait B }", "traits in classes and traits"),
     ("class A { class B; class C extends B }", "subclasses of classes in classes"),
     (
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
         "patterns of classes in classes",
     ),
-    ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     (
         "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
         "local classes using the enclosing instance",
     ),
-    (
-        "abstract class A { def u: Unit }; class B extends A { val u: Unit = () }",
-        "values of type Unit overriding",
-    ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     (
-        "object O { def f(): String = { lazy val x = \"a\"; class C { def g = x }; new C().g } }",
-        "local classes calling local methods",
+        "class A(n: Int) { def f() = { def g = n; class C { def h = g }; new C().h } }",
+        "local classes calling local methods that use the enclosing instance",
     ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
+    (
+        "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
+        "classes in local classes calling local methods",
+    ),
     ("trait T { var x: Int }", "abstract variables"),
-    ("object O { def f() = ((x: Int) => x + 1)(2) }", "applications of a lambda"),
+    (
+        "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",
+        "applications of a lambda defining classes",
+    ),
+    (
+        "object O { def f(x: Null) = x match { case Some(_) => 1; case _ => 2 } }",
+        "matches on values of type Null or Nothing",
+    ),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
@@ -94,6 +89,10 @@ const CASES: &[(&str, &str)] = &[
     (
         "object O { def f() = { class C { val g = (x: Int) => x }; new C().g(1) } }",
         "lambdas and local methods in local classes",
+    ),
+    (
+        "class B { trait T { def f = 1 } }; object O { def g(b: B) = { class C extends b.T; new C().f } }",
+        "local classes using the enclosing instance",
     ),
     (
         "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",

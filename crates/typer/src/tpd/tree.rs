@@ -82,10 +82,10 @@ pub enum Tree {
     This {
         qual: TNodeId,
     },
-    /// `mix` is `None` for dotty's empty identifier.
+    /// `mix` is an untyped identifier, empty for none.
     Super {
         qual: TNodeId,
-        mix: Option<TName>,
+        mix: TNodeId,
     },
     Apply {
         fun: TNodeId,
@@ -261,8 +261,6 @@ pub enum Field<'a> {
     List(&'a mut List),
     Clauses(&'a mut Clauses),
     Name(TName),
-    /// `Super.mix`.
-    OptName(Option<TName>),
     Constant(&'a Constant),
     /// `ClassLiteral.tpe`.
     Class(TypeId),
@@ -281,7 +279,7 @@ impl Tree {
             Tree::This { qual } => f(N(qual)),
             Tree::Super { qual, mix } => {
                 f(N(qual));
-                f(Field::OptName(*mix));
+                f(N(mix));
             }
             Tree::Apply { fun, args } | Tree::TypeApply { fun, args } => {
                 f(N(fun));

@@ -11,7 +11,8 @@ use tasty::{Binder, SymbolId, Type, TypeId};
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
         let f = self.typed(fun, Pt::PolyFun, ctx);
-        let class_of = self.tpd.sym(f).is_some_and(|s| self.u.full_name(s) == "scala.Predef$.classOf");
+        let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
+        let class_of = fun_name.as_deref() == Some("scala.Predef$.classOf");
         let f = match self.with_apply(f, Pt::PolyFun, ctx) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),

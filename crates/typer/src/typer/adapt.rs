@@ -76,7 +76,7 @@ impl Typer<'_> {
             return tree;
         }
         if let Some(converted) = self.converted_constant(tree, pt) {
-            return converted;
+            return self.adapt(converted, Pt::Type(pt), ctx);
         }
         if let Some(widened) = self.numeric_view(tree, pt) {
             return widened;
@@ -136,35 +136,24 @@ impl Typer<'_> {
         self.build().block(stats, literal, span.to_synthetic())
     }
 
-    /// The constant of `tree` converted to the primitive class of `pt` (dotty's
-    /// `Constant.convertTo`, `adaptConstant`).
+    /// The constant of `tree` converted to `pt` (dotty's `adaptToSubType` with `convertTo` and
+    /// `adaptConstant`).
     fn converted_constant(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
         let value = self.constant_of(tree)?;
-        let target = self.u.class_symbol(pt).map(|c| self.u.full_name(c))?;
-        let (converted, lossy) = match (&value, target.as_str()) {
-            (Constant::Char(c), "scala.Int") => (Constant::Int(*c as i32), false),
-            (Constant::Int(i), "scala.Char") if (0..=0xFFFF).contains(i) => {
-                (Constant::Char(*i as u16), false)
-            }
-            (Constant::Int(i), "scala.Long") => (Constant::Long(*i as i64), false),
-            (Constant::Char(c), "scala.Long") => (Constant::Long(*c as i64), false),
-            (Constant::Int(i), "scala.Float") => (Constant::Float(*i as f32), (*i as f32) as i32 != *i),
-            (Constant::Long(l), "scala.Float") => (Constant::Float(*l as f32), (*l as f32) as i64 != *l),
-            (Constant::Char(c), "scala.Float") => (Constant::Float(*c as f32), false),
-            (Constant::Int(i), "scala.Double") => (Constant::Double(*i as f64), false),
-            (Constant::Long(l), "scala.Double") => (Constant::Double(*l as f64), (*l as f64) as i64 != *l),
-            (Constant::Char(c), "scala.Double") => (Constant::Double(*c as f64), false),
-            (Constant::Float(f), "scala.Double") => (Constant::Double(*f as f64), false),
-            _ => return None,
+        let converted = self.convert_constant(&value, pt).filter(|c| c.tag() != value.tag())?;
+        let lossy = match (&value, &converted) {
+            (Constant::Int(i), Constant::Float(f)) => *f as i32 != *i,
+            (Constant::Long(l), Constant::Float(f)) => *f as i64 != *l,
+            (Constant::Long(l), Constant::Double(d)) => *d as i64 != *l,
+            _ => false,
         };
-        let span = self.tpd.span(tree);
         if lossy {
-            let short = target.rsplit('.').next().unwrap_or(&target);
+            let short = converted.tag();
             let msg = format!(
                 "Widening conversion from {} to {short} loses precision.\nWrite `.to{short}` instead.",
                 value.tag()
             );
-            self.diags.warning(span.point(), msg);
+            self.diags.warning(self.tpd.span(tree).point(), msg);
         }
         Some(self.with_constant(tree, converted))
     }

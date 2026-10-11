@@ -43,7 +43,14 @@ impl Universe {
                     .base_type_within(a, base, depth)
                     .or_else(|| self.base_type_within(b, base, depth));
             }
+            Type::Or(a, b) if self.is_bottom_ref(a) => return self.base_type_within(b, base, depth),
+            Type::Or(a, b) if self.is_bottom_ref(b) => return self.base_type_within(a, base, depth),
+            Type::Or(a, b) => {
+                let x = self.base_type_within(a, base, depth)?;
+                return (self.base_type_within(b, base, depth)? == x).then_some(x);
+            }
             Type::This(u)
+            | Type::Super(_, u)
             | Type::Annotated(u, _)
             | Type::Refined(u, _, _)
             | Type::Alias(u)
@@ -95,6 +102,12 @@ impl Universe {
         None
     }
 
+    /// Whether `t` refers to `Nothing` or `Null`.
+    fn is_bottom_ref(&self, t: TypeId) -> bool {
+        let b = self.builtins();
+        matches!(*self.types().get(t), Type::Sym(_, s) if s == b.nothing || s == b.null)
+    }
+
     /// `t` with the type parameters of class `c` replaced by `args`.
     fn subst_class_params(&mut self, t: TypeId, c: SymbolId, args: &[TypeId]) -> TypeId {
         if args.is_empty() {
@@ -106,10 +119,15 @@ impl Universe {
         })
     }
 
-    /// `t`, a type in class `owner`, as seen from `prefix`: the `this` of `owner`, of its base
-    /// classes and of its enclosing classes replaced by `prefix` or the prefix `prefix` gives
-    /// them, the type parameters of `owner` by the arguments `prefix` gives them.
+    /// `t`, a type in class `owner`, as seen from `prefix`, from its `this` for a `super`: the
+    /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
+    /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
+    /// `prefix` gives them.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
+        let prefix = match *self.types().get(prefix) {
+            Type::Super(this, _) => this,
+            _ => prefix,
+        };
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
             Type::This(c) => {

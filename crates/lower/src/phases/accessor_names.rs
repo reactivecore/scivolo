@@ -26,10 +26,16 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
         Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
-            format!("{}$${}", expanded_prefix(l, o), sym.name)
+            format!("{}$${}", expanded_prefix(l, o), run_name(l, s))
         }
-        _ => sym.name.clone(),
+        _ => run_name(l, s).to_owned(),
     }
+}
+
+/// The name of `s` at run time: its `@targetName`, else its name.
+pub fn run_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
+    let sym = l.u.symbol(s);
+    sym.target.as_deref().unwrap_or(&sym.name)
 }
 
 /// Gives the private accessors of trait `trait_` their expanded names and makes them public.
@@ -42,12 +48,19 @@ pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
 }
 
 /// Gives private member `s` other than a constructor its expanded name `p$C$$x` (`p$O$$$x` in
-/// object `O`) and makes it neither private nor local (dotty's `ensureNotPrivate`).
+/// object `O`), with a `_$` before `x` for each term a lifted method was defined in, and makes
+/// it neither private nor local (dotty's `ensureNotPrivate`).
 pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
     if !l.u.is_constructor(s) {
         let owner = l.u.symbol(s).owner.expect("a member's owner");
         let module = if l.u.symbol(owner).name.ends_with('$') { "$" } else { "" };
-        let name = format!("{}{module}$${}", expanded_prefix(l, owner), l.u.symbol(s).name);
+        let mut filler = String::new();
+        let mut from = l.lifted_from.get(&s).copied();
+        while let Some(term) = from.filter(|&t| l.u.symbol(t).kind.is_term()) {
+            filler.push_str("_$");
+            from = l.u.symbol(term).owner;
+        }
+        let name = format!("{}{module}$${filler}{}", expanded_prefix(l, owner), l.u.symbol(s).name);
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
@@ -55,7 +68,7 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
 }
 
 /// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
-fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
+pub fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     let name = tasty::module_name(&sym.name).unwrap_or(&sym.name);
     match sym.owner {

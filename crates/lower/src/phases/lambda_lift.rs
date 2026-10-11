@@ -27,16 +27,13 @@ pub struct Function {
     pub ctor: bool,
 }
 
-/// The functions of a class to lift, their methods, the functions in the order their proxies are
-/// named and the number of those capturing directly.
+/// The functions of a class to lift and their methods.
 struct Lifting {
     class: SymbolId,
     template: TNodeId,
     stats: Vec<TNodeId>,
     functions: Vec<Function>,
     methods: Vec<Method>,
-    order: Vec<usize>,
-    direct: usize,
 }
 
 /// Lifts the lambdas and local methods of class definitions `classes` into methods of their
@@ -49,15 +46,13 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     }
     let named: Vec<Named> = liftings
         .iter()
-        .map(|c| Named {
-            class: c.class,
-            functions: &c.functions,
-            methods: &c.methods,
-            order: &c.order,
-            direct: c.direct,
-        })
+        .map(|c| Named { class: c.class, functions: &c.functions, methods: &c.methods })
         .collect();
-    name_all(l, &named, &mut pending);
+    name_all(l, &named, &mut pending)?;
+    let lifted: Vec<_> = liftings.iter().map(|c| (c.class, &c.functions[..], &c.methods[..])).collect();
+    for caller in &pending.callers {
+        super::lifted_calls::calls_from_class(l, caller, &lifted)?;
+    }
     let mut deferred = Vec::new();
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
@@ -130,12 +125,12 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     for f in &mut functions {
         f.this = (f.closure.is_none() || f.ctor) && in_class;
     }
-    let (order, direct) = dependencies(l, &mut functions, class, &roots, (in_class, pending))?;
+    dependencies(l, &mut functions, class, &roots, (in_class, pending))?;
     for (i, f) in functions.iter_mut().enumerate() {
         f.this &= !in_static.contains(&i);
     }
     let methods = methods(l, class, &functions)?;
-    Ok(Some(Lifting { class, template, stats, functions, methods, order, direct }))
+    Ok(Some(Lifting { class, template, stats, functions, methods }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.

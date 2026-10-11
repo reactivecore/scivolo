@@ -22,7 +22,7 @@ use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
-pub use typer::Typer;
+pub use typer::{Typer, fold_binop, fold_unop};
 
 /// Why a unit takes the JVM frontend instead.
 pub enum Fallback {
@@ -79,6 +79,7 @@ impl Units {
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
+        typer.typed_annotations();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
         }

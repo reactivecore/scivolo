@@ -9,8 +9,20 @@ use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// `t.asInstanceOf[T]` for the type `T` erasing to `to`.
+/// `t.asInstanceOf[T]` for the type `T` erasing to `to`, a primitive array first made an array of
+/// references by `ScalaRunTime.toObjectArray` where one is expected.
 pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
+    let prim = |e: &Erased| matches!(e, Erased::Prim(_));
+    let t = match (super::adapt::erased_type(l, t), to) {
+        (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
+            let module = l.defs.scala_run_time;
+            let class = l.u.module_class(module).expect("ScalaRunTime's class");
+            let method = l.u.decl(class, "toObjectArray").unwrap_or_default();
+            let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
+            super::adapt::converted(l, t, module, method)
+        }
+        _ => t,
+    };
     let span = from_start(l.tpd.span(t));
     let target = type_of(l, to);
     let fun = l.select(t, l.defs.as_instance_of, span);

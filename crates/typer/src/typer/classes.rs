@@ -51,6 +51,7 @@ impl Typer<'_> {
             self.unsupported(s, "self type");
         }
         self.u.set_parents(cls, parents);
+        self.finalize_value_class(cls);
         self.check_member_classes(cls, rhs);
         self.check_enum_case_refs(&t.body);
         self.check_module_owner(cls, rhs);
@@ -99,6 +100,7 @@ impl Typer<'_> {
         let parents = self.parent_trees(cls, &t, ctx, name_span);
         let self_ = t.self_.map(|s| self.typed(s, Pt::Any, ctx));
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
+        self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);

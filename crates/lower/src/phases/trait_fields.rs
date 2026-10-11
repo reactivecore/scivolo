@@ -163,7 +163,11 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
     let name = accessor_name(l, member);
     let m = l.u.symbol(member);
     let (kind, flags) = (m.kind, m.flags.with(SYNTHETIC).without(PRIVATE));
+    let target = m.target.clone();
     let sym = l.u.define(symbol(&name, kind, class, flags));
+    if let Some(target) = target {
+        l.u.set_target(sym, &target);
+    }
     l.mixed_in.insert(sym);
     let info = l.u.info(member);
     l.u.set_info(sym, info);
