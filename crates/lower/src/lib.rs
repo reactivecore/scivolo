@@ -66,6 +66,11 @@ pub struct Lower<'a> {
     endless_loops: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
+    /// The names of the field and `$lzyINIT` method of each lazy value a class gets from a trait
+    /// member, by class and member.
+    mixed_in_lazy_names: FxHashMap<(SymbolId, SymbolId), (String, String)>,
+    /// The method each forwarder `Mixin` made calls, but for a JDK trait's.
+    forwarded: FxHashMap<SymbolId, SymbolId>,
     /// The span of each getter's right-hand side as `Getters` made it, its point at its start.
     getter_rhs: FxHashMap<SymbolId, Span>,
     /// The field and constructor parameter of each class holding its enclosing instance.
@@ -100,6 +105,8 @@ pub fn lower(
         local_classes: FxHashSet::default(),
         explicit_casts: FxHashSet::default(),
         mixed_in: FxHashSet::default(),
+        mixed_in_lazy_names: FxHashMap::default(),
+        forwarded: FxHashMap::default(),
         getter_rhs: FxHashMap::default(),
         outers: FxHashMap::default(),
     };

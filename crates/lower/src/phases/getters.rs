@@ -3,7 +3,6 @@
 //! none for a class parameter only the constructor uses; an assignment to a variable becomes a
 //! call of its setter.
 
-use super::walk::references;
 use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
@@ -12,20 +11,13 @@ use tasty::{Erased, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
-/// private parameter fields not in `retained`; makes the private local values nothing refers to
+/// private parameter fields not in `retained`; makes the private local values not in `retained`
 /// values of the constructor; drops the values of objects in objects.
 pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(()) };
     let constructor = l.tpd.sym(constr).expect("a constructor's symbol");
     let stats = l.tpd.items(body).to_vec();
-    let (mut in_methods, mut referenced) = (FxHashSet::default(), FxHashSet::default());
-    for &stat in &stats {
-        if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(stat) {
-            in_methods.extend(references(l.tpd, rhs));
-        }
-        referenced.extend(references(l.tpd, stat));
-    }
     let mut kept = Vec::new();
     for stat in stats {
         kept.push(stat);
@@ -47,9 +39,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             }
             let flags = l.u.symbol(sym).flags.with(LAZY);
             l.u.set_flags(sym, flags);
-        }
-        if in_trait && has(l.u, sym, LAZY) && !l.u.is_module(sym) {
-            return unsupported(span, "lazy values in traits");
         }
         if has(l.u, sym, LAZY) {
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
@@ -82,7 +71,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.u.unenter(sym);
             continue;
         }
-        if private_local && !is_param_accessor(l, sym) && !referenced.contains(&sym) {
+        if private_local && !is_param_accessor(l, sym) && !retained.contains(&sym) {
             l.u.set_owner(sym, constructor);
             continue;
         }
@@ -97,9 +86,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             return unsupported(span, "values of type Unit overriding members");
         }
         if private_local {
-            if !is_param_accessor(l, sym) && !in_methods.contains(&sym) {
-                return unsupported(span, "private values used only in the constructor");
-            }
             l.fields.insert(sym, sym);
             continue;
         }

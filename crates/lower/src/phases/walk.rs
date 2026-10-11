@@ -2,7 +2,6 @@
 //! symbols trees refer to.
 
 use crate::{Lower, Result};
-use rustc_hash::FxHashSet;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{self, Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
@@ -122,14 +121,4 @@ pub fn same(tpd: &Tpd, a: TNodeId, b: TNodeId) -> bool {
         }
         _ => false,
     }
-}
-
-/// The symbols that the identifiers and selections in `t` refer to.
-pub fn references(tpd: &Tpd, t: TNodeId) -> FxHashSet<SymbolId> {
-    tpd.fold(FxHashSet::default(), t, &mut |mut out, t| {
-        if matches!(tpd.tree(t), Tree::Ident { .. } | Tree::Select { .. }) {
-            out.extend(tpd.sym(t));
-        }
-        out
-    })
 }

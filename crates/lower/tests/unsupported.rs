@@ -31,8 +31,7 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",
     ),
-    ("object O { private val x = \"a\"; println(x) }", "private values used only in the constructor"),
-    ("class A(var p: Int) { println(p) }", "mutable class parameters"),
+    ("class A(private var p: Int) { def f = p }", "private mutable class parameters"),
     (
         "class A(val x: Int) { println(this.x) }",
         "overridable class parameters selected on this in the constructor",
@@ -66,12 +65,9 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(): String = { lazy val x = \"a\"; class C { def g = x }; new C().g } }",
         "local classes calling local methods",
     ),
-    ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
+    ("object O { def f() = { trait T; new T {} } }", "local traits"),
     ("trait T { var x: Int }", "abstract variables"),
-    (
-        "class V(val n: Int) extends Ordered[V] { def compare(that: V) = n - that.n }",
-        "generic library traits",
-    ),
+    ("object O { def f() = ((x: Int) => x + 1)(2) }", "applications of a lambda"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (

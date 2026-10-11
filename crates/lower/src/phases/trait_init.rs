@@ -45,7 +45,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                     has(l.u, s, FIELDaccessor)
                         && !is_setter(l, s)
                         && !is_const_final(l, s)
-                        && !l.u.is_module(s)
+                        && !has(l.u, s, LAZY)
                 }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");

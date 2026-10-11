@@ -1,8 +1,8 @@
-scala> class A(var p: Int)
--- unsupported: mutable class parameters
+scala> class A(private var p: Int) { def f = p }
+-- unsupported: private mutable class parameters
 
-scala> trait T { lazy val x = 1 }
--- unsupported: lazy values in traits
+scala> class B { trait T }
+-- unsupported: traits in classes and traits
 
 scala> val y = 2
 val y: Int = 2

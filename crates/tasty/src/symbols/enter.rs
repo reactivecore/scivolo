@@ -78,6 +78,14 @@ impl Universe {
         }
     }
 
+    /// Whether an annotation of the class named `name` annotates method `sym` in its TASTy.
+    pub fn is_annotated(&self, sym: SymbolId, name: &str) -> bool {
+        let Some((file, id)) = self.symbol(sym).tree else { return false };
+        let loaded = &self.files[file.0 as usize];
+        let View::DefDef { parts, .. } = view(&loaded.ast, id) else { return false };
+        annotations(&loaded.ast, parts.mods).any(|(ty, _)| names_ref(&loaded.ast, &loaded.names, ty, name))
+    }
+
     /// The owner and name of a definition named `name` in `owner`: its JDK package and name if
     /// Scala Native defines it under another name.
     fn jdk_renamed(&mut self, owner: SymbolId, name: String) -> (SymbolId, String) {

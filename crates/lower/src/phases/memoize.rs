@@ -24,9 +24,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut fence = false;
     for mixed in [false, true] {
         for &stat in &items {
-            let accessor = l.tpd.sym(stat).filter(|&s| has(l.u, s, FIELDaccessor) && !l.u.is_deferred(s));
+            let param_setter = |l: &Lower, s| is_param_accessor(l, s) && is_setter(l, s);
+            let accessor = l
+                .tpd
+                .sym(stat)
+                .filter(|&s| has(l.u, s, FIELDaccessor) && (!l.u.is_deferred(s) || param_setter(l, s)));
             let Some(accessor) = accessor.filter(|s| l.mixed_in.contains(s) == mixed) else { continue };
             if is_setter(l, accessor) {
+                l.u.set_deferred(accessor, false);
                 setter(l, class, stat, accessor, &memoized, &mut fence);
             } else if !is_const_final(l, accessor) && !has(l.u, accessor, LAZY) {
                 fields.extend(getter(l, class, stat, accessor).map(|f| (stat, f)));

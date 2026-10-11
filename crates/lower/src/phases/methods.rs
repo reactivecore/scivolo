@@ -1,8 +1,8 @@
 //! Methods the phases add to a class: forwarders and bridges, each calling another method with
-//! its own parameters.
+//! its own parameters, in one erased parameter list.
 
 use crate::definitions::symbol;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::TNodeId;
@@ -20,17 +20,20 @@ impl Lower<'_> {
         span: Span,
         call: impl FnOnce(&mut Self, &[TNodeId], tasty::TypeId) -> TNodeId,
     ) -> Result<(SymbolId, TNodeId)> {
-        let params = match self.u.types().get(info).clone() {
-            Type::Method { params, result, .. }
-                if !matches!(self.u.types().get(result), Type::Method { .. }) =>
-            {
-                params
+        let mut params = Vec::new();
+        let mut t = info;
+        let mut has_clause = false;
+        loop {
+            match self.u.types().get(t).clone() {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params: ps, result, .. } => {
+                    params.extend(ps);
+                    has_clause = true;
+                    t = result;
+                }
+                _ => break,
             }
-            Type::Method { .. } | Type::Poly { .. } => {
-                return unsupported(span, "added methods with type parameters or several parameter lists");
-            }
-            _ => Vec::new(),
-        };
+        }
         let name = self.u.symbol(like).name.clone();
         let mut s = symbol(&name, Kind::Def, class, flags);
         s.target = self.u.symbol(like).target.clone();
@@ -47,10 +50,7 @@ impl Lower<'_> {
         }
         let result = self.u.result_type(info);
         let rhs = call(self, &args, result);
-        let paramss: &[&[TNodeId]] = match self.u.types().get(info) {
-            Type::Method { .. } => &[&param_defs],
-            _ => &[],
-        };
+        let paramss: &[&[TNodeId]] = if has_clause { &[&param_defs] } else { &[] };
         let tpt = self.type_tree(result, span);
         let def = self.build().def_def(sym, paramss, tpt, Some(rhs), span);
         Ok((sym, def))

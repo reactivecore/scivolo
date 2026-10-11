@@ -3,6 +3,7 @@
 //! with its arguments cast where their erasures differ.
 
 use super::adapt::adapt;
+use super::mixin::{is_jdk, with_java_param_names};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
@@ -129,7 +130,10 @@ fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
 
 /// `def m(params): R = this.m(params)` with the type of `other` that `m` overrides.
 fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Span) -> Result<TNodeId> {
-    let info = l.u.info(other);
+    let mut info = l.u.info(other);
+    if l.u.symbol(other).owner.is_some_and(|o| is_jdk(l, o)) {
+        info = with_java_param_names(l, info);
+    }
     let m_info = l.u.info(m);
     let m_result = l.u.result_type(m_info);
     let mut flags = l.u.symbol(m).flags;
