@@ -67,7 +67,7 @@ pub fn typed_branches(
         let mut classes: Vec<Erased> = Vec::new();
         for &b in &out {
             let e = erased_type(l, b);
-            if e != Erased::Nothing && !classes.contains(&e) {
+            if !matches!(e, Erased::Nothing | Erased::Null) && !classes.contains(&e) {
                 classes.push(e);
             }
         }

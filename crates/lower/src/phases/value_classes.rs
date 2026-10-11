@@ -103,9 +103,11 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 
 /// Whether `t` is a literal, `this`, or a path of stable values and objects (dotty's
 /// `isIdempotentExpr` for these).
-fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
+pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
     let stable = |l: &mut Lower, s: Option<SymbolId>| {
-        s.is_some_and(|s| l.u.is_module(s) || l.u.symbol(s).kind == Kind::Val && !has(l.u, s, MUTABLE))
+        s.is_some_and(|s| {
+            l.u.is_module(s) || matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) && !has(l.u, s, MUTABLE)
+        })
     };
     match *l.tpd.tree(t) {
         Tree::Literal { .. } | Tree::ClassLiteral { .. } | Tree::This { .. } => true,
@@ -116,7 +118,7 @@ fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
 }
 
 /// `val ev$N = expr` in `owner` (dotty's `evalOnce`), with its symbol.
-fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TNodeId) {
+pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TNodeId) {
     let name = l.fresh.next(l.names, "ev$");
     let name = l.names.text(name).to_owned();
     let ev = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));

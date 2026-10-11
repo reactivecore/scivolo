@@ -30,13 +30,9 @@ const CASES: &[(&str, &str)] = &[
         "returns of Unit values of class members",
     ),
     (
-        "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
-         object O { def f(x: String): Int = x match { case E(a) => a; case _ => 0 } }",
-        "sequence extractors not returning a sequence",
-    ),
-    (
-        "object O { def f(p: String) = StringContext(p, \"y\").s(1) }",
-        "interpolations of parts that are not literals",
+        "object E { def unapplySeq(s: String): Option[(Int, Seq[Int])] = None }\n\
+         object O { def f(x: String): Int = x match { case E(a, b) => a; case _ => 0 } }",
+        "sequence extractors of a product and a sequence",
     ),
     ("object O { def f() = 3.compare(4) }", "members value classes inherit"),
     ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
@@ -83,7 +79,14 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
     ("trait T { var x: Int }", "abstract variables"),
-    ("object O { def f() = ((x: Int) => x + 1)(2) }", "applications of a lambda"),
+    (
+        "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",
+        "applications of a lambda defining classes",
+    ),
+    (
+        "object O { def f(x: Null) = x match { case Some(_) => 1; case _ => 2 } }",
+        "matches on values of type Null or Nothing",
+    ),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),

@@ -97,6 +97,7 @@ use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
 
+pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
 
 pub struct Typer<'a> {

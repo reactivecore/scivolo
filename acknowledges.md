@@ -33,10 +33,12 @@ Apache-2.0. Rust translations of:
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
-  - `BetaReduce` (the applications it rewrites, refused)
-  - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
-    (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
-  - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
+  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`
+  - `Erasure` (boxing, `adaptClosure`, `cast` of primitive arrays),
+    `TypeErasure.additionalAdaptationNeeded`, `Bridges` (result-type bridges, inherited pairs),
+    `core/Decorators.reduceBalanced`
+  - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,
+    `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
     `ElimByName` (calls)
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
@@ -46,7 +48,7 @@ Apache-2.0. Rust translations of:
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
-  - `localopt/StringInterpolatorOpt` (`s`, `raw`)
+  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)

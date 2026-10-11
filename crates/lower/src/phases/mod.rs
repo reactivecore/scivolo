@@ -35,6 +35,7 @@ mod lambda_lift;
 mod lazy_init;
 mod lazy_trees;
 pub(crate) mod lazy_vals;
+mod let_over_apply;
 mod library_traits;
 mod lift_names;
 mod lifted;
@@ -48,6 +49,7 @@ mod memoize;
 mod methods;
 mod mirrors;
 mod mixin;
+mod non_local_returns;
 mod outer_args;
 mod package_objects;
 mod patmat;
@@ -56,6 +58,7 @@ mod returns;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;
+mod standard_interpolator;
 mod super_args;
 mod synthetic;
 mod tail_calls;
@@ -71,6 +74,8 @@ use crate::{Lower, Result};
 use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
+    let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    beta_reduce::transform(l, root, unit_owner)?;
     let classes = class_defs(l.tpd, root);
     let inits = first_transform::objects_with_inits(l, &classes);
     for &td in &classes {
@@ -93,12 +98,15 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
         hoist_super_args::transform(l, td)?;
-        patmat::transform(l, td)?;
+    }
+    patmat::transform(l, root, unit_owner)?;
+    for &td in &classes {
         captured_vars::transform(l, td)?;
         getters::record_rhs(l, td);
     }
     for &td in &classes {
         eta_reduce::transform(l, td);
+        non_local_returns::transform(l, td)?;
     }
     local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
@@ -108,6 +116,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
         repeated::transform(l, td)?;
+        let_over_apply::transform(l, td);
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }

@@ -21,7 +21,7 @@ use tasty::Universe;
 use tpd::{TNodeId, Tpd};
 
 pub use completion::Request;
-pub use typer::Typer;
+pub use typer::{Typer, fold_binop, fold_unop};
 
 /// Why a unit takes the JVM frontend instead.
 pub enum Fallback {

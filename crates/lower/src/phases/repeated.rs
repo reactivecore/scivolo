@@ -4,6 +4,7 @@
 
 use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
+use syntax::ast::Span;
 use tasty::{Erased, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
@@ -44,17 +45,19 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
     };
     let Tree::SeqLiteral { elemtpt, .. } = *l.tpd.tree(seq) else {
         let tpe = l.u.widen(l.tpd.tpe(seq));
-        if java_varargs(l, method, clause, i).is_some() || is_class(l, tpe, "scala.Array") {
-            return unsupported(
-                span,
-                "sequences passed to Java varargs and arrays passed as repeated arguments",
-            );
+        let Type::Applied(_, ref elems) = *l.u.types().get(ascribed) else { return Ok(seq) };
+        let elem = elems[0];
+        if java_varargs(l, method, clause, i).is_some() {
+            return to_array(l, seq, elem, span);
+        }
+        if is_class(l, tpe, "scala.Array") {
+            let wrapped = wrap_array(l, seq, elem, ascribed, Span::NONE)?;
+            return Ok(l.positioned(wrapped));
         }
         return Ok(seq);
     };
     let elem = l.tpd.tpe(elemtpt);
-    let array = l.u.class_ref("scala.Array");
-    let array = l.u.intern_type(Type::Applied(array, vec![elem]));
+    let array = array_of(l, elem);
     l.tpd.get_mut(seq).tpe = Some(array);
     if let Some(param) = java_varargs(l, method, clause, i) {
         let (ours, theirs) = (l.u.erase(array), l.u.erase(param));
@@ -63,15 +66,60 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
         }
         return Ok(seq);
     }
+    wrap_array(l, seq, elem, ascribed, span)
+}
+
+/// `ScalaRunTime.wrapXArray(array)` of type `tpe`, for elements of type `elem` (dotty's
+/// `wrapArray`), at `span`.
+fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span: Span) -> Result<TNodeId> {
     let wrap = wrapper(l, elem);
     let module = l.defs.scala_run_time;
     let class = l.u.module_class(module).expect("ScalaRunTime's class");
     let Some(&wrap) = l.u.decl(class, wrap).unwrap_or_default().first() else {
-        return unsupported(span, format!("ScalaRunTime.{wrap} missing from the library"));
+        return unsupported(l.tpd.span(array), format!("ScalaRunTime.{wrap} missing from the library"));
     };
     let qual = l.ident(module, span);
     let fun = l.select(qual, wrap, span);
-    Ok(l.apply(fun, &[seq], ascribed, span))
+    Ok(l.apply(fun, &[array], tpe, span))
+}
+
+/// Sequence `seq` of elements of type `elem` passed to Java varargs: an array as it is, another
+/// `scala.runtime.Arrays.seqToArray(seq, classOf[elem])`, ascribed `Array[elem]` (dotty's
+/// `adaptToArray`).
+fn to_array(l: &mut Lower, seq: TNodeId, elem: TypeId, span: Span) -> Result<TNodeId> {
+    let array = array_of(l, elem);
+    let tpe = l.u.widen(l.tpd.tpe(seq));
+    let adapted = if is_class(l, tpe, "scala.Array") {
+        seq
+    } else {
+        let runtime = l.u.package("scala.runtime").expect("package scala.runtime");
+        let module = l.u.decl(runtime, "Arrays").unwrap_or_default();
+        let module = module.into_iter().find(|&m| l.u.is_module(m));
+        let class = module.and_then(|m| l.u.module_class(m));
+        let method = class.and_then(|c| l.u.decl(c, "seqToArray").unwrap_or_default().first().copied());
+        let (Some(module), Some(method)) = (module, method) else {
+            return unsupported(span, "scala.runtime.Arrays.seqToArray missing from the library");
+        };
+        let qual = l.ident(module, Span::NONE);
+        let fun = l.select(qual, method, Span::NONE);
+        let targ = l.type_tree(elem, Span::NONE);
+        let info = l.u.member_info(l.tpd.tpe(qual), method);
+        let fun = l.build().type_apply(fun, &[targ], info, Span::NONE);
+        let class_of = l.u.class_ref("java.lang.Class");
+        let class_of = l.u.class_symbol(class_of).expect("`java.lang.Class`");
+        let class_of = crate::definitions::applied(l.u, class_of, vec![elem]);
+        let literal = l.tpd.node(Tree::ClassLiteral { tpe: elem }, Span::NONE, Some(class_of), None);
+        let call = l.apply(fun, &[seq, literal], array, Span::NONE);
+        l.positioned(call)
+    };
+    let tpt = l.type_tree(array, Span::NONE);
+    let typed = l.tpd.node(Tree::Typed { expr: adapted, tpt }, Span::NONE, Some(array), None);
+    Ok(l.positioned(typed))
+}
+
+fn array_of(l: &mut Lower, elem: TypeId) -> TypeId {
+    let array = l.u.class_ref("scala.Array");
+    l.u.intern_type(Type::Applied(array, vec![elem]))
 }
 
 /// The method call `app` calls and the index of the parameter clause its arguments are for.
