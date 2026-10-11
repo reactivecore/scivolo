@@ -105,6 +105,7 @@ impl Printer<'_> {
         if let Some(s) = node.sym {
             match tree {
                 Tree::Template { .. } => {
+                    let s = if self.u.is_class(s) { s } else { self.u.symbol(s).owner.expect("a class") };
                     let full = symbols::full_name(self.u, s);
                     let name = &self.u.symbol(s).name;
                     let local = format!("{full}.<local {name}>");

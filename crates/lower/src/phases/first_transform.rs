@@ -1,36 +1,60 @@
-//! The constant folding of dotty's `FirstTransform`: a pure reference to a constant `final`
-//! value, and a pure block of constant type, becomes the constant.
+//! The constant folding of dotty's `FirstTransform`: a pure reference to a value of constant
+//! type, and a pure block of constant type, becomes the constant.
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
 use super::walk::walk_class_up;
 use crate::Lower;
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
+use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use syntax::names::to_utf16;
 use tasty::tags::{
     CHARconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
-use tasty::{Kind, Type};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
-/// Folds the references to constant `final` values and the constant blocks in class definition
-/// `td`, inner trees first.
-pub fn transform(l: &mut Lower, td: TNodeId) {
+/// Folds the references to values of constant type and the constant blocks in class definition
+/// `td`, inner trees first; `inits` are the unit's objects with initialization code.
+pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
     walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
         if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
             l.copy_node(t, arg);
         }
-        const_to_literal(l, t);
+        const_to_literal(l, t, inits);
         ControlFlow::Continue(())
     });
 }
 
-/// Makes `t` a literal if it refers to a constant `final` value through a pure path, or is a
-/// block of constant type with only a constant.
-fn const_to_literal(l: &mut Lower, t: TNodeId) {
-    if is_constant_op(l, t)
+/// The objects among class definitions `classes` with initialization code: a value with an
+/// initializer or a statement (dotty's not `NoInits`).
+pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
+    let mut out = FxHashSet::default();
+    for &td in classes {
+        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
+        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
+        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+        let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
+            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
+            Tree::ValDef { rhs, .. } => {
+                rhs.is_some() && l.tpd.sym(s).is_some_and(|v| !has(l.u, v, LAZY) && !l.u.is_module(v))
+            }
+            _ => true,
+        };
+        if l.tpd.items(body).iter().any(initializes) {
+            out.extend(l.u.source_module(class));
+        }
+    }
+    out
+}
+
+/// Makes `t` a literal if it is a pure path to a value of constant type, the path through
+/// objects without `inits` unless the value is `final`, or a block of constant type with only a
+/// constant.
+fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
+    if is_constant_op(l, t, inits)
         && let Some(value) = constant(l.u.types().get(l.tpd.tpe(t)))
     {
         l.tpd.get_mut(t).tree = Tree::Literal { value };
@@ -48,13 +72,8 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
             return;
         }
     }
-    let pure = match *l.tpd.tree(t) {
-        Tree::Ident { .. } => true,
-        Tree::Select { qualifier, .. } => is_pure(l, qualifier),
-        _ => false,
-    };
-    let Some(s) = l.tpd.sym(t).filter(|_| pure) else { return };
-    if !is_const_final(l, s) {
+    let Some(s) = l.tpd.sym(t).filter(|_| is_pure(l, t)) else { return };
+    if !is_const_final(l, s) && through(l, t, inits) {
         return;
     }
     let info = l.u.info(s);
@@ -65,10 +84,17 @@ fn const_to_literal(l: &mut Lower, t: TNodeId) {
     node.sym = None;
 }
 
-/// Whether `t` is an operation of a primitive class or `String` on literals and pure paths
-/// (dotty's `isPureApply` for a constant type).
-fn is_constant_op(l: &Lower, t: TNodeId) -> bool {
-    let operand = |a: TNodeId| matches!(l.tpd.tree(a), Tree::Literal { .. }) || is_pure(l, a);
+/// Whether path `t` selects through one of objects `inits`.
+fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { return false };
+    l.tpd.sym(qualifier).is_some_and(|q| inits.contains(&q)) || through(l, qualifier, inits)
+}
+
+/// Whether `t` is an operation of a primitive class or `String` on literals and pure paths, not
+/// through objects `inits` (dotty's `isPureApply` for a constant type).
+fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
+    let operand =
+        |a: TNodeId| matches!(l.tpd.tree(a), Tree::Literal { .. }) || is_pure(l, a) && !through(l, a, inits);
     let (fun, args) = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         Tree::Select { .. } => (t, Vec::new()),
@@ -112,7 +138,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
 pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
     let stable = |s| {
         let sym = l.u.symbol(s);
-        is_module(l.u, s)
+        l.u.is_module(s)
             || sym.kind == Kind::Param
             || (sym.kind == Kind::Val && !has(l.u, s, LAZY) && !has(l.u, s, MUTABLE))
     };

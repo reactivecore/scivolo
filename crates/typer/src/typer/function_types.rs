@@ -144,7 +144,7 @@ impl Typer<'_> {
         let mut out = Vec::new();
         for name in names {
             for m in self.class_members(c, &name) {
-                if self.is_concrete(m) || self.is_type_symbol(m) {
+                if self.is_concrete(m) || self.u.is_type_symbol(m) {
                     continue;
                 }
                 let mut in_object = self.class_members(object, &name);

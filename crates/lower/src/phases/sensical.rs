@@ -4,7 +4,7 @@
 use super::casts::class_named;
 use crate::Lower;
 use crate::definitions::primitive_class_name;
-use crate::symbols::{has, is_trait};
+use crate::symbols::has;
 use tasty::tags::FINAL;
 use tasty::{Erased, SymbolId, Type, TypeId};
 
@@ -24,7 +24,7 @@ fn check(l: &mut Lower, found: SymbolId, test: SymbolId, unboxed: SymbolId) -> b
     let final_found = has(l.u, found, FINAL);
     let unrelated = !l.u.derives_from(test, found)
         && !l.u.derives_from(unboxed, found)
-        && (has(l.u, test, FINAL) || !is_trait(l.u, test) && !is_trait(l.u, found));
+        && (has(l.u, test, FINAL) || !l.u.is_trait(test) && !l.u.is_trait(found));
     !final_found && !unrelated
 }
 

@@ -3,7 +3,7 @@
 
 use super::casts::{cast, conforms};
 use super::select_static::is_static_enum_value;
-use crate::symbols::{has, is_class, is_constructor, is_java_static, is_module};
+use crate::symbols::{has, is_java_static};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
@@ -16,10 +16,10 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
     let (Tree::Select { .. } | Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
         return false;
     };
-    let in_class = l.u.symbol(s).owner.is_some_and(|o| is_class(l.u, o));
+    let in_class = l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o));
     let class_value = l.u.symbol(s).kind == Kind::Val
         && in_class
-        && !is_module(l.u, s)
+        && !l.u.is_module(s)
         && !l.fields.contains_key(&s)
         && !is_static_enum_value(l, s)
         && s != l.defs.boxed_unit_unit;
@@ -29,7 +29,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         info = result;
     }
     method
-        && !is_constructor(l.u, s)
+        && !l.u.is_constructor(s)
         && !is_class_of(l, s)
         && !matches!(l.u.types().get(info), Type::Method { .. })
 }
@@ -47,7 +47,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     match *l.tpd.tree(t) {
         Tree::Apply { fun, .. } => match (array_op(l, fun), synchronized_type(l, fun), l.tpd.sym(fun)) {
             (Some((_, result)), _, _) | (None, Some(result), _) => result,
-            (None, None, Some(m)) if !is_constructor(l.u, m) => l.u.erased_method(m).1,
+            (None, None, Some(m)) if !l.u.is_constructor(m) => l.u.erased_method(m).1,
             _ => l.u.erase(l.tpd.tpe(t)),
         },
         Tree::Block { expr, .. } => erased_type(l, expr),
@@ -56,7 +56,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
             Erased::Class("scala.runtime.BoxedUnit".into())
         }
         Tree::Ident { .. } | Tree::Select { .. } => match sym {
-            Some(s) if !is_module(l.u, s) && l.u.symbol(s).kind.is_term() => {
+            Some(s) if !l.u.is_module(s) && l.u.symbol(s).kind.is_term() => {
                 let info = l.u.info(s);
                 l.u.erase(info)
             }

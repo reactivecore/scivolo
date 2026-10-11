@@ -4,7 +4,7 @@
 //! on `super`.
 
 use super::trait_fields::{mixed_in, trait_defs};
-use crate::symbols::{has, is_constructor, is_trait};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let span = l.tpd.span(td);
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
-    if is_trait(l.u, class) {
+    if l.u.is_trait(class) {
         let Tree::DefDef { paramss, .. } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
         let clauses = l.tpd.clause_items(paramss).to_vec();
         let value_params = clauses
@@ -91,7 +91,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let linearization = l.u.linearization(class);
     let mut out: Vec<SymbolId> =
-        linearization[1..].iter().copied().take_while(|&b| is_trait(l.u, b)).collect();
+        linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
     out.reverse();
     out
 }
@@ -101,7 +101,7 @@ fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
-        || is_constructor(l.u, meth)
+        || l.u.is_constructor(meth)
         || has(l.u, meth, PRIVATE)
         || has(l.u, meth, FIELDaccessor)
     {

@@ -1,10 +1,10 @@
-//! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member of a
-//! trait of the unit or the library its class directly extends, with another erased signature it
-//! conforms to, gets a bridge of that member's type calling it.
+//! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member, not
+//! overloaded, of a trait of the unit or the library its class directly extends, with another
+//! erased signature it conforms to, gets a bridge of that member's type calling it, itself a
+//! bridge if the method is; at the method, its body at the class if it takes parameters.
 
 use super::Gen;
 use crate::Result;
-use crate::symbols::{is_constructor, is_trait};
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -14,19 +14,21 @@ impl Gen<'_, '_> {
     pub fn interface_bridges(&mut self, dd: TNodeId) -> Result<Vec<TNodeId>> {
         let Some(m) = self.l.tpd.sym(dd) else { return Ok(Vec::new()) };
         let class = self.class.expect("a class");
-        if is_constructor(self.l.u, m) {
+        if self.l.u.is_constructor(m) {
             return Ok(Vec::new());
         }
         let name = self.l.u.symbol(m).name.clone();
         let (params, result) = self.l.u.erased_method(m);
         let bases = self.l.u.linearization(class);
-        let before_superclass = bases[1..].iter().copied().take_while(|&b| is_trait(self.l.u, b));
+        let before_superclass = bases[1..].iter().copied().take_while(|&b| self.l.u.is_trait(b));
         let mut traits: Vec<SymbolId> = before_superclass.collect();
         traits.reverse();
         let mut seen: Vec<(Vec<Erased>, Erased)> = Vec::new();
         let mut out = Vec::new();
         for t in traits {
-            for inherited in self.l.u.decl(t, &name).unwrap_or_default() {
+            let decls = self.l.u.decl(t, &name).unwrap_or_default();
+            let terms = decls.iter().filter(|&&d| self.l.u.symbol(d).kind.is_term()).count();
+            for inherited in decls.into_iter().filter(|_| terms == 1) {
                 let library = self.l.u.symbol(inherited).tree.is_some();
                 let deferred =
                     self.deferred.contains(&inherited) || library && self.l.u.body(inherited).is_none();
@@ -37,12 +39,19 @@ impl Gen<'_, '_> {
                 if signature.0 != params || signature.1 == result || seen.contains(&signature) {
                     continue;
                 }
+                let bottom = matches!(result, Erased::Nothing | Erased::Null);
+                let to_reference = matches!(signature.1, Erased::Class(_) | Erased::Array(_));
                 let reference = matches!(result, Erased::Class(_) | Erased::Array(_));
-                if !reference || !crate::phases::casts::conforms(self.l, &result, &signature.1) {
+                let conforms = reference && crate::phases::casts::conforms(self.l, &result, &signature.1);
+                if !(conforms || bottom && to_reference) {
                     continue;
                 }
                 seen.push(signature);
-                let span = self.l.tpd.span(dd);
+                let at = self.spans.get(&m).copied().unwrap_or(self.l.tpd.span(dd));
+                let span = match params.is_empty() {
+                    true => at,
+                    false => self.spans.get(&class).copied().unwrap_or(at),
+                };
                 let info = self.l.u.info(inherited);
                 let m_info = self.l.u.info(m);
                 let m_result = self.l.u.result_type(m_info);
@@ -54,6 +63,10 @@ impl Gen<'_, '_> {
                         l.apply(fun, args, m_result, span)
                     })?;
                 self.l.u.unenter(bridge);
+                self.l.tpd.get_mut(def).span = at;
+                if self.l.bridges.contains(&m) {
+                    self.l.bridges.insert(bridge);
+                }
                 out.push(def);
             }
         }

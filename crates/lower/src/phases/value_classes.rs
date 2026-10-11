@@ -5,7 +5,7 @@
 use super::adapt::from_start;
 use super::walk::walk_class_up;
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{has, is_constructor, is_module, is_trait};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
 use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
@@ -51,7 +51,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     if !has_extension(l, m) {
         let receiver = l.u.widen(l.tpd.tpe(qualifier));
         let value_class =
-            l.u.class_symbol(receiver).is_some_and(|c| !is_trait(l.u, c) && l.u.underlying(c).is_some());
+            l.u.class_symbol(receiver).is_some_and(|c| !l.u.is_trait(c) && l.u.underlying(c).is_some());
         if value_class && !typed {
             return unsupported(l.tpd.span(t), "members value classes inherit");
         }
@@ -105,7 +105,7 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 /// `isIdempotentExpr` for these).
 fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
     let stable = |l: &mut Lower, s: Option<SymbolId>| {
-        s.is_some_and(|s| is_module(l.u, s) || l.u.symbol(s).kind == Kind::Val && !has(l.u, s, MUTABLE))
+        s.is_some_and(|s| l.u.is_module(s) || l.u.symbol(s).kind == Kind::Val && !has(l.u, s, MUTABLE))
     };
     match *l.tpd.tree(t) {
         Tree::Literal { .. } | Tree::This { .. } => true,
@@ -135,10 +135,10 @@ fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
     let Some(owner) = s.owner.filter(|_| s.kind == Kind::Def && !s.name.starts_with("super$")) else {
         return false;
     };
-    !is_constructor(l.u, m)
+    !l.u.is_constructor(m)
         && !has(l.u, m, INLINE)
         && !has(l.u, m, MACRO)
-        && !is_trait(l.u, owner)
+        && !l.u.is_trait(owner)
         && l.u.symbol(owner).kind == Kind::Class
         && l.u.underlying(owner).is_some()
 }

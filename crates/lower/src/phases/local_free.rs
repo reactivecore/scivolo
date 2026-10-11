@@ -2,7 +2,7 @@
 //! where its methods use them, else only in its constructor.
 
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
+use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{CASE, FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
@@ -53,7 +53,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let refused = match () {
         _ if has(l.u, class, CASE) => Some("local case classes"),
-        _ if is_trait(l.u, class) => Some("local traits"),
+        _ if l.u.is_trait(class) => Some("local traits"),
         _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
         _ if parents.iter().any(|&c| is_local(l, c)) => Some("local classes extending local classes"),
         _ => nested_definition(l, td),
@@ -62,8 +62,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         return unsupported(span, what);
     }
     let l: &Lower = l;
-    let static_outer =
-        is_module_class(l.u, outer) && is_static(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
+    let static_outer = is_static_module(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
     let mut free = Free { values: Vec::new(), in_methods: Vec::new(), constructor_first: false };
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
@@ -83,12 +82,11 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             }
             Tree::Ident { .. } => {
                 let owner = l.u.symbol(s).owner;
-                if owner == Some(outer) && !static_outer && !is_class(l.u, s) {
+                if owner == Some(outer) && !static_outer && !l.u.is_class(s) {
                     return unsupported(span, "local classes using the enclosing instance");
                 }
-                let outer_param = owner.is_some_and(|o| {
-                    crate::symbols::is_constructor(l.u, o) && l.u.symbol(o).owner == Some(outer)
-                });
+                let outer_param =
+                    owner.is_some_and(|o| l.u.is_constructor(o) && l.u.symbol(o).owner == Some(outer));
                 if outer_param && !static_outer {
                     return unsupported(span, "local classes using the enclosing instance");
                 }
@@ -139,8 +137,8 @@ fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
         Tree::Closure { .. } => Some("lambdas and local methods in local classes"),
         Tree::ValDef { .. } | Tree::DefDef { .. }
             if l.tpd.sym(t).is_some_and(|s| {
-                has(l.u, s, LAZY) && !is_module(l.u, s) && l.u.symbol(s).owner == l.tpd.sym(td)
-            }) && l.tpd.sym(td).is_some_and(|c| is_module_class(l.u, c)) =>
+                has(l.u, s, LAZY) && !l.u.is_module(s) && l.u.symbol(s).owner == l.tpd.sym(td)
+            }) && l.tpd.sym(td).is_some_and(|c| l.u.is_module_class(c)) =>
         {
             Some("lazy values in local objects")
         }
@@ -156,7 +154,5 @@ fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
 /// Whether `s` is a method whose body runs outside the constructor: not a constructor, nor a
 /// field's getter, whose body is its initializer.
 pub fn is_method(l: &Lower, s: Option<SymbolId>) -> bool {
-    s.is_some_and(|s| {
-        !crate::symbols::is_constructor(l.u, s) && (!has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY))
-    })
+    s.is_some_and(|s| !l.u.is_constructor(s) && (!has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY)))
 }

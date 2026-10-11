@@ -3,7 +3,6 @@
 
 use super::local_free::{Free, within};
 use super::walk::children;
-use crate::symbols::is_module_class;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::OBJECT;
@@ -73,7 +72,7 @@ fn enclosing_def(l: &Lower, root: TNodeId, t: TNodeId) -> Option<SymbolId> {
 pub fn name_class(l: &mut Lower, class: SymbolId, outer: SymbolId) {
     let class_name = l.u.symbol(class).name.clone();
     let (base, module) = match tasty::module_name(&class_name) {
-        Some(m) if is_module_class(l.u, class) => (m, "$"),
+        Some(m) if l.u.is_module_class(class) => (m, "$"),
         _ => (class_name.as_str(), ""),
     };
     let flags = l.u.symbol(class).flags.without(OBJECT);

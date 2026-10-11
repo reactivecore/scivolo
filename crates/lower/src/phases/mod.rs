@@ -27,6 +27,7 @@ mod expand_private;
 mod explicit_outer;
 mod first_transform;
 mod getters;
+mod hoist_super_args;
 mod initializers;
 mod interpolators;
 mod lambda_lift;
@@ -69,12 +70,13 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
+    let inits = first_transform::objects_with_inits(l, &classes);
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
         super_args::check(l, td)?;
         package_objects::transform(l, td);
-        first_transform::transform(l, td);
+        first_transform::transform(l, td, &inits);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
     trait_fields::find_inits(l, &classes);
@@ -88,6 +90,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
+        hoist_super_args::transform(l, td)?;
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
         getters::record_rhs(l, td);
@@ -112,7 +115,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         tailrec::transform(l, td);
     }
     let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
-        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| crate::symbols::is_trait(l.u, c)));
+        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| l.u.is_trait(c)));
     for &td in traits.iter().chain(&others) {
         mixin::transform(l, td)?;
     }

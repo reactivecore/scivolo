@@ -5,7 +5,7 @@
 use super::case_members::existing_def;
 use super::synthetic::private_method;
 use super::walk::subtrees;
-use crate::symbols::{has, is_module, is_module_class, source_module};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{CASE, ENUM, OVERRIDE, SYNTHETIC};
@@ -93,7 +93,7 @@ fn child_index(l: &Lower, value: SymbolId) -> Option<i32> {
     let mut cases = l.u.symbol(companion).decls.iter().copied().filter(|&d| {
         let kind = l.u.symbol(d).kind;
         let class_or_value =
-            kind == Kind::Class && !is_module_class(l.u, d) || kind == Kind::Val && !is_module(l.u, d);
+            kind == Kind::Class && !l.u.is_module_class(d) || kind == Kind::Val && !l.u.is_module(d);
         class_or_value && has(l.u, d, CASE) && has(l.u, d, ENUM)
     });
     cases.position(|d| d == value).map(|i| i as i32)
@@ -114,7 +114,7 @@ fn param(l: &Lower, root: TNodeId, m: SymbolId, name: &str) -> Option<SymbolId> 
 /// the enum whose companion defines `owner`, `$new` or the case's value.
 fn read_resolve(l: &mut Lower, class: SymbolId, owner: SymbolId, focus: Span) -> Result<TNodeId> {
     let companion = l.u.symbol(owner).owner.expect("an enum value's owner");
-    let Some(module) = source_module(l.u, companion) else {
+    let Some(module) = l.u.source_module(companion) else {
         return unsupported(focus, "an enum companion without its value");
     };
     let from_ordinal = l.u.decl(companion, "fromOrdinal").unwrap_or_default();

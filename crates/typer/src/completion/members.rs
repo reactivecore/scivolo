@@ -42,7 +42,7 @@ impl Typer<'_> {
                 return None;
             }
             let decls = self.u.decls(p).ok()?;
-            let objects = decls.into_iter().filter(|&d| self.is_package_object(d));
+            let objects = decls.into_iter().filter(|&d| self.is_named_package_object(d));
             return Some(std::iter::once(p).chain(objects).collect());
         }
         let widened = self.u.widen(site);
@@ -70,7 +70,7 @@ impl Typer<'_> {
         for &owner in owners {
             let decls = self.u.decl(owner, name).unwrap_or_default();
             let inherited = |s: SymbolId| owner == owners[0] || !self.u.symbol(s).flags.has(PRIVATE);
-            let decls = decls.into_iter().filter(|&d| !self.is_type_symbol(d) && inherited(d));
+            let decls = decls.into_iter().filter(|&d| !self.u.is_type_symbol(d) && inherited(d));
             terms.extend(decls.filter(|&d| !self.is_lowered(d)));
         }
         if terms.iter().any(|&s| self.is_offered(s, this, ctx)) {
@@ -96,7 +96,7 @@ impl Typer<'_> {
         let valid = sym.name != "<init>" && !sym.derived && !setter && !flags.has(ARTIFACT) && !hidden;
         let native = sym.kind == Kind::Package && self.u.full_name(s).starts_with("scala.scalanative");
         let valid = valid && !native;
-        let package_object = self.u.module_class(s).is_some_and(|c| self.is_package_object(c));
+        let package_object = self.u.module_class(s).is_some_and(|c| self.is_named_package_object(c));
         valid && !package_object && self.is_visible(s, this, ctx)
     }
 

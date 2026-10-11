@@ -55,7 +55,7 @@ impl Typer<'_> {
         if self.u.symbol(sym).flags.has(STATIC) {
             return true;
         }
-        if self.is_type_symbol(sym) {
+        if self.u.is_type_symbol(sym) {
             return match prefix.map(|p| self.u.types().get(p).clone()) {
                 Some(Type::Sym(_, s)) => {
                     self.u.symbol(s).flags.has(tasty::tags::OBJECT) && self.is_static_term(s)

@@ -4,7 +4,7 @@
 
 use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
-use crate::symbols::{has, is_effectively_final, is_module_class};
+use crate::symbols::{has, is_effectively_final};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{LAZY, MUTABLE};
@@ -110,7 +110,7 @@ fn retained(l: &Lower, class: SymbolId, stats: &[TNodeId]) -> FxHashSet<SymbolId
         };
         let in_constructor = field_ref(l, class, t).is_some()
             && method.is_none_or(|m| {
-                !is_module_class(l.u, class) && !has(l.u, sym, MUTABLE) && in_anonfun(l, class, m)
+                !l.u.is_module_class(class) && !has(l.u, sym, MUTABLE) && in_anonfun(l, class, m)
             });
         if !in_constructor {
             out.insert(sym);

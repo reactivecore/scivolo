@@ -32,7 +32,7 @@ impl Typer<'_> {
                 _ => {
                     self.complete(s);
                     let info = match prefix {
-                        Some(p) if !self.is_type_symbol(s) => {
+                        Some(p) if !self.u.is_type_symbol(s) => {
                             let info = self.u.member_info(p, s);
                             let info = self.resolve_class_params(info);
                             self.instantiated_selected(info)
@@ -91,7 +91,7 @@ impl Typer<'_> {
     /// defines among them once completed.
     fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
         let objects: Vec<SymbolId> =
-            self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_package_object(d)).collect();
+            self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_named_package_object(d)).collect();
         for o in objects {
             if matches!(self.syms.completions.get(&o), Some(crate::symbols::Completion::Pending { .. })) {
                 self.complete(o);
@@ -120,15 +120,15 @@ impl Typer<'_> {
                 .filter(|&m| base == c || !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
                 .collect();
             for m in decls {
-                if self.is_type_symbol(m) {
-                    if !out.iter().any(|&o| self.is_type_symbol(o)) {
+                if self.u.is_type_symbol(m) {
+                    if !out.iter().any(|&o| self.u.is_type_symbol(o)) {
                         out.push(m);
                     }
                     continue;
                 }
                 let mut overridden = None;
                 for (k, &o) in out.iter().enumerate() {
-                    if !self.is_type_symbol(o) && self.same_member(site, o, m) {
+                    if !self.u.is_type_symbol(o) && self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }

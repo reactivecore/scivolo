@@ -7,9 +7,9 @@ use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module_class, is_static};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
-use tasty::tags::{FIELDaccessor, LAZY};
+use tasty::tags::{FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -94,11 +94,14 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(None) };
     let stats = l.tpd.items(body).to_vec();
-    let (mut functions, mut roots) = (Vec::new(), Vec::new());
+    let (mut functions, mut roots, mut in_static) = (Vec::new(), Vec::new(), Vec::new());
     for &stat in &stats {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),
             (Tree::DefDef { .. }, Some(s)) if !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY));
         let first = functions.len();
+        if l.tpd.sym(stat).is_some_and(|s| has(l.u, s, STATIC)) {
+            in_static.push(first);
+        }
         let root = match *l.tpd.tree(stat) {
             Tree::DefDef { rhs: Some(rhs), .. } => rhs,
             Tree::DefDef { .. } | Tree::TypeDef { .. } => continue,
@@ -106,6 +109,9 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         };
         roots.push(root);
         collect(l, root, None, &mut functions);
+        if in_static.last() == Some(&first) {
+            in_static.extend(first + 1..functions.len());
+        }
         if !method {
             for f in &mut functions[first..] {
                 f.ctor = true;
@@ -116,15 +122,18 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         return Ok(None);
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    if is_class(l.u, owner) && !is_static(l.u, class) {
+    if l.u.is_class(owner) && !is_static(l.u, class) {
         return unsupported(l.tpd.span(functions[0].def), "lambdas and local methods in nested classes");
     }
     let in_class =
-        is_static(l.u, class) && (is_module_class(l.u, class) || l.u.symbol(owner).kind != Kind::Package);
+        is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
         f.this = (f.closure.is_none() || f.ctor) && in_class;
     }
     let (order, direct) = dependencies(l, &mut functions, class, &roots, (in_class, pending))?;
+    for (i, f) in functions.iter_mut().enumerate() {
+        f.this &= !in_static.contains(&i);
+    }
     let methods = methods(l, class, &functions)?;
     Ok(Some(Lifting { class, template, stats, functions, methods, order, direct }))
 }
