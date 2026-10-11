@@ -56,22 +56,37 @@ fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<T
     path(l, class, prefix, span)
 }
 
-/// Stable path `p` as a tree in `class`: `this` of `class`, a local value or parameter, or a
-/// value of `class`.
+/// Stable path `p` as a tree in `class`: `this` of `class`, also for the object `class` is the
+/// class of (dotty's `ref` of a module seen from inside it), a local value or parameter, or a
+/// value or object selected on `this` of `class` or on such a path.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
+    let refused = "creating an inner class through this prefix";
     match l.u.types().get(p).clone() {
         Type::This(c) if l.u.class_symbol(c) == Some(class) => Ok(l.this(class, Span::NONE)),
-        Type::Sym(_, s) if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
+        Type::Sym(q, s) if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
+            let module = l.u.module_class(s).filter(|_| l.u.is_module(s));
+            if module == Some(class) {
+                return Ok(l.this(class, Span::NONE));
+            }
+            if module.is_some_and(|m| super::local_free::within(l, class, m)) {
+                return unsupported(span, refused);
+            }
             let owner = l.u.symbol(s).owner;
             if owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Def) {
-                Ok(l.ident(s, span))
-            } else if owner == Some(class) {
-                let this = l.this(class, span);
-                Ok(l.select(this, s, span))
-            } else {
-                unsupported(span, "creating an inner class through this prefix")
+                return Ok(l.ident(s, span));
             }
+            let this_class = match q.map(|q| l.u.types().get(q).clone()) {
+                Some(Type::This(c)) => l.u.class_symbol(c),
+                _ => None,
+            };
+            let on_this = q.is_none() || this_class == Some(class);
+            let qualifier = match q {
+                _ if on_this && owner == Some(class) => l.this(class, span),
+                Some(q) if !on_this => path(l, class, q, span)?,
+                _ => return unsupported(span, refused),
+            };
+            Ok(l.select(qualifier, s, span))
         }
-        _ => unsupported(span, "creating an inner class through this prefix"),
+        _ => unsupported(span, refused),
     }
 }

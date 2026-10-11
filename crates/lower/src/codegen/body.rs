@@ -23,7 +23,10 @@ impl Gen<'_, '_> {
         let inline = has(self.l.u, sym, FIELDaccessor)
             || self.l.bridges.contains(&sym)
             || self.l.local_lazy_accessors.contains(&sym);
-        let attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
+        let mut attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
+        if let Some(&target) = self.l.forwarded.get(&sym) {
+            attrs.extend(self.annotation_attrs(target));
+        }
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
@@ -34,6 +37,12 @@ impl Gen<'_, '_> {
         self.m.pos = rhs_pos;
         let body = self.gen_method_body(sym, paramss, rhs)?;
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
+    }
+
+    /// The attributes the `@inline` and `@noinline` annotations of library method `m` give.
+    fn annotation_attrs(&self, m: SymbolId) -> Vec<Attr> {
+        let annotations = [("noinline", Attr::NoInline), ("inline", Attr::InlineHint)];
+        annotations.into_iter().filter(|(name, _)| self.l.u.is_annotated(m, name)).map(|(_, a)| a).collect()
     }
 
     /// Fails for a method the lowering cannot define yet.
@@ -76,7 +85,7 @@ impl Gen<'_, '_> {
         self.label(entry, params);
         for var in self.mutable_vars(rhs) {
             let info = self.l.u.info(var);
-            let ty = self.gen_type(info);
+            let ty = self.value_type(info);
             let name = self.local_name(var);
             let slot = self.emit_named(Op::Var(ty), &name);
             self.m.env.insert(var, slot);

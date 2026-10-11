@@ -61,4 +61,7 @@ supercalls
 parameterless
 traitbridges
 constfinals
+librarytraits
 superargs2
+exprforms
+innerclasses2

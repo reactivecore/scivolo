@@ -1,16 +1,19 @@
 //! dotty's `LazyVals` (`transformMemberDefThreadSafeNew`): each lazy value of a class becomes a
 //! volatile field, an accessor reading it and a `$lzyINIT` method computing it under
-//! compare-and-set of the field (Scala Native's `LazyVals.objCAS`).
+//! compare-and-set of the field (Scala Native's `LazyVals.objCAS`); those `Mixin` adds come
+//! after the class's own.
 
-use super::adapt::adapt;
+mod accessor;
+
 use super::lazy_init::init_method;
-use super::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
+use super::lazy_trees::object;
 use crate::definitions::symbol;
-use crate::symbols::{has, is_singleton};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use accessor::accessor_body;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId, Type, TypeId};
+use tasty::{Erased, Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span
@@ -35,6 +38,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
+    let mut mixed_in = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
         let lazy = l.tpd.sym(stat).filter(|&s| has(l.u, s, LAZY));
         let (Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, Some(accessor)) =
@@ -44,16 +48,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         };
         let span = l.tpd.span(stat);
-        if l.u.is_trait(class) && l.u.is_module(accessor) {
+        if l.u.is_trait(class) {
             stats.push(stat);
             continue;
         }
-        if l.u.is_trait(class) {
-            return unsupported(span, "lazy values in traits");
-        }
         let info = l.u.info(accessor);
-        if matches!(l.u.erase(info), Erased::Unit | Erased::Null | Erased::Nothing) {
-            return unsupported(span, "lazy values of type Unit, Null or Nothing");
+        if has(l.u, accessor, SYNTHETIC) && l.u.erase(info) == Erased::Unit {
+            return unsupported(span, "lazy pattern definitions without variables");
         }
         let lazy = define(l, class, accessor);
         let object = object(l);
@@ -68,8 +69,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         node.span = Span::NONE;
         stats.push(l.with_span(stat, at));
         stats.push(init_method(l, &lazy, rhs, info));
-        l.lazy_fields.push(LazyField { class, field: lazy.field, accessor, span });
+        let field = LazyField { class, field: lazy.field, accessor, span };
+        match l.mixed_in.contains(&accessor) {
+            true => mixed_in.push(field),
+            false => l.lazy_fields.push(field),
+        }
     }
+    l.lazy_fields.extend(mixed_in);
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
@@ -129,61 +135,4 @@ fn define(l: &mut Lower, class: SymbolId, accessor: SymbolId) -> Lazy {
 pub fn fresh(l: &mut Lower, base: &str) -> String {
     let name = l.fresh.next(l.names, base);
     l.names.text(name).to_owned()
-}
-
-/// `{ val result = x$lzy; if result.isInstanceOf[T] then result else if result eq NullValue then
-/// null else x$lzyINIT() }`, each branch adapted to the value's type `info`; the test is
-/// `result != null && !result.isInstanceOf[LazyValControlState]` where `T` includes the states.
-fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
-    let object = object(l);
-    let result = local(l, lazy.accessor, "result", object, false);
-    let field = field_ref(l, lazy);
-    let def = val_def(l, result, field);
-    let erased = l.u.erase(info);
-    let cond = if holds_control_states(l, &erased) {
-        let read = l.ident(result, Span::NONE);
-        let null = l.null_literal(Span::NONE);
-        let set = call(l, read, l.defs.patmat.ne, &[null]);
-        let read = l.ident(result, Span::NONE);
-        let control = crate::definitions::type_ref(l.u, l.defs.lazy_vals.control_state);
-        let is_control = l.is_instance(read, control);
-        let not_control = call(l, is_control, l.defs.lazy_vals.not, &[]);
-        call(l, set, l.defs.patmat.and, &[not_control])
-    } else {
-        let test_type = boxed_type(l, &erased, info);
-        let read = l.ident(result, Span::NONE);
-        l.is_instance(read, test_type)
-    };
-    let read = l.ident(result, Span::NONE);
-    let value = adapt(l, read, &erased);
-    let read = l.ident(result, Span::NONE);
-    let null_value = l.ident(l.defs.lazy_vals.null_value, Span::NONE);
-    let is_null = eq(l, read, null_value);
-    let null = l.null_literal(Span::NONE);
-    l.tpd.get_mut(null).tpe = Some(object);
-    let null = adapt(l, null, &erased);
-    if is_singleton(l.u, info) {
-        l.tpd.get_mut(null).tpe = Some(info);
-    }
-    let this = l.this(lazy.class, Span::NONE);
-    let init = call(l, this, lazy.init, &[]);
-    let init = adapt(l, init, &erased);
-    let inner = if_(l, is_null, null, init, info);
-    let outer = if_(l, cond, value, inner, info);
-    block(l, &[def], outer)
-}
-
-/// Whether the values of erased type `erased` include `LazyValControlState`'s.
-fn holds_control_states(l: &mut Lower, erased: &Erased) -> bool {
-    let Erased::Class(name) = erased else { return false };
-    let control = l.defs.lazy_vals.control_state;
-    super::casts::class_named(l, name).is_some_and(|c| l.u.derives_from(control, c))
-}
-
-/// The class `T` of type `info` erasing to `erased` as a reference: its box for a primitive.
-fn boxed_type(l: &mut Lower, erased: &Erased, info: TypeId) -> TypeId {
-    match erased {
-        Erased::Prim(c) => l.u.class_ref(super::type_tests::boxed_class(*c).expect("a primitive's box")),
-        _ => info,
-    }
 }

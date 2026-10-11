@@ -8,13 +8,26 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
-        "object O { def f(x: Any): Boolean = x.isInstanceOf[String | Int] }",
-        "type tests of unions or intersections",
+        "object O { def g(): Any = 1; def f(): Boolean = g().isInstanceOf[String | Int] }",
+        "type tests of unions or intersections of values other than names",
     ),
     ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
+    ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
+    ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
-        "object O { def f(x: Int): Long = x.asInstanceOf[Long] }",
+        "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
         "casts between primitive values or to references",
+    ),
+    ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
+    (
+        "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
+        "ascriptions to Unit of values other than literals",
+    ),
+    ("object O { def f(x: Any): Unit = x.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
+    ("object O { def f(): Unit = null.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
+    (
+        "class U { val a: Unit = (); def f(x: Boolean): Unit = { if x then return a; () } }",
+        "returns of Unit values of class members",
     ),
     (
         "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
@@ -31,8 +44,7 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",
     ),
-    ("object O { private val x = \"a\"; println(x) }", "private values used only in the constructor"),
-    ("class A(var p: Int) { println(p) }", "mutable class parameters"),
+    ("class A(private var p: Int) { def f = p }", "private mutable class parameters"),
     (
         "class A(val x: Int) { println(this.x) }",
         "overridable class parameters selected on this in the constructor",
@@ -43,12 +55,15 @@ const CASES: &[(&str, &str)] = &[
         "type tests of objects nested in classes",
     ),
     ("trait A { private object B; def f = B }", "private objects in traits"),
-    ("class A { val p = 1; object B { object C { def f = p } } }", "the enclosing instance two classes out"),
+    (
+        "class A { class B }; object O { val a = new A; class D { def f = new O.a.B } }",
+        "creating an inner class through this prefix",
+    ),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
     ("class A { trait B }", "traits in classes and traits"),
     ("class A { class B; class C extends B }", "subclasses of classes in classes"),
     (
-        "class A { class B; def f(x: Any) = x match { case _: B => 1; case _ => 0 } }",
+        "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
         "patterns of classes in classes",
     ),
     ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
@@ -66,12 +81,10 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(): String = { lazy val x = \"a\"; class C { def g = x }; new C().g } }",
         "local classes calling local methods",
     ),
-    ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
+    ("object O { def f() = { trait T; new T {} } }", "local traits"),
     ("trait T { var x: Int }", "abstract variables"),
-    (
-        "class V(val n: Int) extends Ordered[V] { def compare(that: V) = n - that.n }",
-        "generic library traits",
-    ),
+    ("object O { def f() = ((x: Int) => x + 1)(2) }", "applications of a lambda"),
+    ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (

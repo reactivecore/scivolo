@@ -158,7 +158,7 @@ impl Typer<'_> {
         if self.needs_inline_accessor(c.sym, ctx) {
             return Err("non-public implicit in an inline method");
         }
-        let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_package_object(o));
+        let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_named_package_object(o));
         let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {
             Some(Type::Package(_)) => true,
             Some(Type::Sym(_, m)) => t.u.module_class(m) == Some(o),

@@ -156,8 +156,13 @@ fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) 
     }
 }
 
-/// The span of the definition of local value `v` in unit `root`.
-fn definition_span(l: &Lower, root: TNodeId, v: SymbolId) -> Span {
+/// The span of the definition of local value `v` in unit `root`, none for a parameter of an
+/// `apply` that `SpecializeFunctions` copies with new parameters.
+fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
+    let owner = l.u.symbol(v).owner;
+    if l.u.symbol(v).kind == Kind::Param && owner.is_some_and(|m| super::specialize::is_specialized(l, m)) {
+        return Span::NONE;
+    }
     let def = super::walk::subtrees(l.tpd, root)
         .into_iter()
         .find(|&t| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t) == Some(v));

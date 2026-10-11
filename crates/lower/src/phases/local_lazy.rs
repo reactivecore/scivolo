@@ -47,6 +47,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             && l.lazy_members.contains_key(&s)
         {
             super::lazy_vals::name_members(l, s);
+        } else if let (Tree::TypeDef { .. }, Some(c)) = (l.tpd.tree(t), l.tpd.sym(t))
+            && l.u.is_class(c)
+            && !l.u.is_trait(c)
+        {
+            super::trait_lazies::name_mixed_in(l, c);
         } else if let Tree::Block { stats, expr } = *l.tpd.tree(t) {
             let items = l.tpd.items(stats).to_vec();
             if !items.iter().any(|s| expanded.contains_key(s)) {

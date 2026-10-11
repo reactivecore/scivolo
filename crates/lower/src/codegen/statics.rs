@@ -69,23 +69,36 @@ impl Gen<'_, '_> {
                 !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait
             })
             .collect();
-        if classes.iter().skip(1).any(|&c| self.l.u.symbol(c).tree.is_some()) {
-            return unsupported(Span::NONE, "forwarders to methods of library classes");
+        let jdk_class = |c: &SymbolId| {
+            let name = self.l.u.full_name(*c);
+            !self.l.u.is_trait(*c) && (name.starts_with("java.") || name.starts_with("javax."))
+        };
+        if classes.iter().any(jdk_class) {
+            return unsupported(Span::NONE, "forwarders of objects extending JDK classes");
         }
         let mut seen = Vec::new();
         let mut out = Vec::new();
         let members: Vec<SymbolId> =
             classes.into_iter().flat_map(|c| self.l.u.decls(c).unwrap_or_default()).collect();
         for m in members {
-            let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PRIVATEqualified, PROTECTEDqualified];
+            let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PROTECTEDqualified];
+            let library = self.l.u.symbol(m).tree.is_some();
+            let owner = self.l.u.symbol(m).owner.map(|o| self.l.u.full_name(o)).unwrap_or_default();
+            let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
+            let value = self.l.u.symbol(m).kind == Kind::Val;
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
-            if !method
+            let deferred = if library { self.l.u.body(m).is_none() } else { self.l.u.is_deferred(m) };
+            if !(method || library && value)
                 || self.l.u.is_constructor(m)
                 || is_extern(self.l.u, m)
-                || self.l.u.is_deferred(m)
+                || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
+                || jdk && has(self.l.u, m, PRIVATEqualified)
             {
                 continue;
+            }
+            if !method && jdk {
+                return unsupported(Span::NONE, "forwarders to fields of JDK classes");
             }
             let signature = (self.l.u.symbol(m).name.clone(), self.l.u.erased_method(m));
             if seen.contains(&signature) {

@@ -1,8 +1,12 @@
 //! Type tests and casts as dotty's `TypeTestsCasts` erases them: `x.isInstanceOf[T]` as a null
-//! check if it holds statically in a match, else as a test of `T`'s erased class, the box class
-//! for a primitive; `x.asInstanceOf[T]` of a reference to a primitive as unboxing.
+//! check if it holds statically in a match, a constant for a primitive value, else as a test of
+//! `T`'s erased class, the box class for a primitive; casts in `as_instance_of.rs`.
 
-use super::adapt::{adapt, erased_type};
+mod as_instance_of;
+mod combined;
+mod runtime_tests;
+
+use super::adapt::erased_type;
 use super::casts::type_of;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
@@ -24,9 +28,10 @@ pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
     let Tree::Select { qualifier: expr, .. } = *l.tpd.tree(fun) else {
         return unsupported(span, "type tests and casts without a receiver");
     };
-    let target = l.tpd.tpe(l.tpd.items(args)[0]);
+    let tpt = l.tpd.items(args)[0];
+    let target = l.tpd.tpe(tpt);
     let new = if l.tpd.sym(fun) == Some(l.defs.as_instance_of) {
-        cast(l, t, expr, target)?
+        as_instance_of::cast(l, t, expr, tpt)?
     } else {
         let in_match = l.tpd.sym(fun) == Some(l.defs.patmat.type_test);
         type_test(l, expr, target, in_match, span)?
@@ -49,20 +54,25 @@ fn type_test(
     if let Some(what) = super::explicit_outer::unsupported_test(l, target, in_match) {
         return unsupported(span, what);
     }
+    let dealiased = l.u.dealias(target);
+    if let Type::Or(a, b) | Type::And(a, b) = *l.u.types().get(dealiased) {
+        let or = matches!(l.u.types().get(dealiased), Type::Or(..));
+        return combined::test(l, expr, (a, b), or, in_match, span);
+    }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {
-        return unsupported(span, "type tests of unions or intersections");
+        return unsupported(span, "type tests of unions or intersections of singletons");
     }
-    let tuple = l.u.class_symbol(dealiased).map(|c| l.u.full_name(c));
-    if tuple.is_some_and(|n| {
-        ["scala.Tuple", "scala.NonEmptyTuple", "scala.*:", "scala.EmptyTuple"].contains(&n.as_str())
-    }) {
-        return unsupported(span, "type tests of tuple types");
+    if let Some(what) = runtime_tests::runtime_test(l, dealiased) {
+        return unsupported(span, what);
     }
-    let test = l.u.erase(target);
-    if !matches!(test, Erased::Class(_) | Erased::Prim(_)) {
-        return unsupported(span, "type tests of arrays, singletons or Unit");
+    let test = match l.u.erase(target) {
+        Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
+        e => e,
+    };
+    if !matches!(test, Erased::Class(_) | Erased::Prim(_) | Erased::Array(_)) {
+        return unsupported(span, "type tests of singletons, Null or Nothing");
     }
     is_instance_of(l, expr, test.clone(), &test, in_match, span)
 }
@@ -77,13 +87,24 @@ fn is_instance_of(
     in_match: bool,
     span: Span,
 ) -> Result<TNodeId> {
-    let found = erased_type(l, expr);
-    if !matches!(found, Erased::Class(_) | Erased::Array(_)) {
-        return unsupported(span, "type tests of primitive values or of null");
-    }
+    let widened = l.u.widen(l.tpd.tpe(expr));
+    let found = match l.u.erase(widened) {
+        Erased::Prim(c) => Some(c),
+        Erased::Class(_) | Erased::Array(_)
+            if matches!(erased_type(l, expr), Erased::Class(_) | Erased::Array(_)) =>
+        {
+            None
+        }
+        _ => return unsupported(span, "type tests of primitive values or of null"),
+    };
     let expr_tpe = l.tpd.tpe(expr);
     let test_tpe = type_of(l, &test);
-    if in_match && l.u.is_subtype(expr_tpe, test_tpe) {
+    let boxed = found.and_then(boxed_class).map(|b| l.u.class_ref(b));
+    let array = matches!(test, Erased::Array(_));
+    if in_match && !array && l.u.is_subtype(boxed.unwrap_or(expr_tpe), test_tpe) {
+        if found.is_some() {
+            return unsupported(span, "type tests of primitive values");
+        }
         if is_not_null(l, expr_tpe) {
             return Ok(constant(l, expr, true));
         }
@@ -97,6 +118,12 @@ fn is_instance_of(
     if !super::sensical::sensical(l, expr_tpe, &test, unboxed) {
         return Ok(constant(l, expr, false));
     }
+    if let (Erased::Prim(c), Some(f)) = (&test, found) {
+        return Ok(constant(l, expr, *c == f));
+    }
+    if found.is_some() && !matches!(test, Erased::Class(_)) {
+        return unsupported(span, "type tests of primitive values");
+    }
     if let Erased::Prim(c) = test {
         let boxed = boxed_class(c).expect("a primitive's box class");
         return is_instance_of(l, expr, Erased::Class(boxed.into()), &test, in_match, span);
@@ -107,46 +134,6 @@ fn is_instance_of(
     let args = l.tpd.list(&[tpt]);
     let boolean = l.u.class_ref("scala.Boolean");
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.patmat.is_instance_of)))
-}
-
-/// Cast `t` of `expr` to `target`: unboxed if `expr` is a reference and `target` primitive,
-/// `t` if both are references or the same primitive.
-fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, target: tasty::TypeId) -> Result<TNodeId> {
-    let (from, to) = (erased_type(l, expr), l.u.erase(target));
-    match (&from, &to) {
-        (Erased::Class(_) | Erased::Array(_) | Erased::Null, Erased::Nothing) => {
-            Ok(throw_class_cast(l, expr))
-        }
-        (Erased::Prim(a), Erased::Prim(b)) if a == b => Ok(expr),
-        (Erased::Class(_) | Erased::Array(_), Erased::Prim(_)) => Ok(adapt(l, expr, &to)),
-        (Erased::Prim(_), _) | (_, Erased::Prim(_)) => {
-            unsupported(l.tpd.span(t), "casts between primitive values or to references")
-        }
-        _ => Ok(t),
-    }
-}
-
-/// `{ expr; throw new ClassCastException("Cannot cast to scala.Nothing") }`, at `expr`.
-fn throw_class_cast(l: &mut Lower, expr: TNodeId) -> TNodeId {
-    let class = l.u.class_ref("java.lang.ClassCastException");
-    let class = l.u.class_symbol(class).expect("`ClassCastException`");
-    let string = l.u.class_ref("java.lang.String");
-    let string = l.u.class_symbol(string);
-    let ctors = l.u.decl(class, "<init>").unwrap_or_default();
-    let ctor = ctors.into_iter().find(|&c| {
-        let info = l.u.info(c);
-        matches!(l.u.types().get(info).clone(), Type::Method { params, .. }
-            if params.len() == 1 && l.u.class_symbol(params[0].1) == string)
-    });
-    let ctor = ctor.expect("`ClassCastException(String)`");
-    let new = l.new_(class, Span::NONE);
-    let message = l.string_literal("Cannot cast to scala.Nothing");
-    let error = l.call(new, ctor, &[message]);
-    l.tpd.get_mut(error).tpe = l.tpd.get(new).tpe;
-    let throw = l.throw_(error);
-    let span = l.tpd.span(expr);
-    let block = l.block(&[expr], throw, Span::NONE);
-    l.with_span(block, span)
 }
 
 /// Whether a value of type `tpe` is never null: a constant other than `null` (dotty's
@@ -163,15 +150,17 @@ fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
     }
 }
 
-/// Boolean `value`, after `expr` unless it is a literal, identifier or `this` (dotty's
-/// `constant`).
+/// Boolean `value`, after `expr` unless it is a literal or a pure path (dotty's `constant`).
 fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
     let span = l.tpd.span(expr);
     let lit = l.boolean_literal(value);
-    match l.tpd.tree(expr) {
-        Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => lit,
-        _ => l.block(&[expr], lit, span),
+    let literal = matches!(l.tpd.tree(expr), Tree::Literal { .. } | Tree::ClassLiteral { .. });
+    if literal || super::first_transform::is_pure(l, expr) {
+        return lit;
     }
+    let block = l.block(&[expr], lit, Span::NONE);
+    let block = l.positioned(block);
+    l.with_span(block, span)
 }
 
 /// The box class of the primitive of erased letter `c`.

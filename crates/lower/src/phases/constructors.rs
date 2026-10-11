@@ -3,7 +3,7 @@
 //! initializers and statements of the class body in order.
 
 use super::first_transform::literal_of;
-use super::getters::{is_const_final, is_param_accessor};
+use super::getters::{is_const_final, is_param_accessor, is_setter};
 use super::initializers::constructor_params;
 use super::memoize::bottom;
 use crate::{Lower, Result, unsupported};
@@ -27,7 +27,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let stats = l.tpd.items(body).to_vec();
     for &stat in &stats {
         if matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::ValDef { rhs: None, .. }) {
-            accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s)));
+            accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s) && !is_setter(l, s)));
         }
     }
     for stat in stats {
@@ -36,7 +36,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         match *l.tpd.tree(stat) {
             Tree::Import { .. } => {}
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
-                if const_getter.is_some() && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+                if const_getter.is_some()
+                    && !matches!(l.tpd.tree(rhs), Tree::Literal { .. } | Tree::ClassLiteral { .. }) =>
             {
                 let getter = const_getter.expect("a getter's symbol");
                 let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);

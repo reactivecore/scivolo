@@ -98,7 +98,7 @@ impl<'l, 'a> Gen<'l, 'a> {
     }
 
     fn is_non_null(&self, t: TNodeId) -> bool {
-        matches!(self.l.tpd.tree(t), Tree::Literal { .. })
+        matches!(self.l.tpd.tree(t), Tree::Literal { .. } | Tree::ClassLiteral { .. })
             || self.l.tpd.sym(t).is_some_and(|s| self.l.u.is_module(s))
     }
 
