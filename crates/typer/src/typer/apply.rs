@@ -118,7 +118,7 @@ impl Typer<'_> {
             typed_args.push(arg);
         }
         if let [arg] = typed_args[..]
-            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg), ctx)
+            && let Err(what) = self.check_can_equal(f, self.tpd.tpe(arg), self.ast.span(id), ctx)
         {
             return self.unsupported(id, what);
         }

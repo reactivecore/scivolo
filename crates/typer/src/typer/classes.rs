@@ -98,18 +98,24 @@ impl Typer<'_> {
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
         let self_ = t.self_.map(|s| self.typed(s, Pt::Any, ctx));
-        let body = self.typed_template_stats(cls, &t.body, cctx);
+        let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         self.check_overrides(cls, self.ast.span(id));
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };
-        let template = self.tpd.node(template, self.ast.span(rhs), None, Some(cls));
+        let template = self.tpd.node(template, self.ast.span(rhs), None, Some(dummy.unwrap_or(cls)));
         let span = self.ast.span(id);
         self.tpd.node(T::TypeDef { name, rhs: template }, span, None, Some(cls))
     }
 
-    /// The statements of class `cls`'s body; expressions owned by the class's local dummy.
-    fn typed_template_stats(&mut self, cls: SymbolId, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
+    /// The statements of class `cls`'s body and the class's local dummy, which owns the
+    /// expressions, if it has any.
+    fn typed_template_stats(
+        &mut self,
+        cls: SymbolId,
+        stats: &[NodeId],
+        mut ctx: Ctx,
+    ) -> (Vec<TNodeId>, Option<SymbolId>) {
         let mut dummy = None;
         let mut out = Vec::new();
         for &s in stats {
@@ -127,7 +133,7 @@ impl Typer<'_> {
             out.push(self.typed_stat(s, stat_ctx));
             ctx = self.after_stat(s, ctx);
         }
-        out
+        (out, dummy)
     }
 
     /// Whether script class `c` has members its declarations lack: one its self type declares or an

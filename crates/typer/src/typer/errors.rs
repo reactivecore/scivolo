@@ -28,6 +28,12 @@ pub fn type_mismatch(found: &str, required: &str) -> Message {
     message(7, "Type Mismatch", true, format!("Found:    {found}\nRequired: {required}"))
 }
 
+/// `MissingImplicitArgument` for `CanEqual` of the types shown as `l` and `r`, worded by its
+/// `implicitNotFound` annotation.
+pub fn cannot_compare(l: &str, r: &str) -> Message {
+    message(172, "Type", false, format!("Values of types {l} and {r} cannot be compared with == or !="))
+}
+
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, with no
 /// addendum and no name to suggest.
 pub fn not_a_member(name: &str, is_type: bool, site: &str) -> Message {

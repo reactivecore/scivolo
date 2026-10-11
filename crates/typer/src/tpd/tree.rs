@@ -222,7 +222,8 @@ pub enum Tree {
         name: TName,
         rhs: TNodeId,
     },
-    /// Its symbol is the class's; `self_` is `None` for `EmptyValDef`.
+    /// Its symbol is the class's local dummy when the body has expression statements, else the
+    /// class; `self_` is `None` for `EmptyValDef`.
     Template {
         constr: TNodeId,
         parents: List,

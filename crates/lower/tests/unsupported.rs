@@ -100,11 +100,11 @@ const CASES: &[(&str, &str)] = &[
         "local classes using the enclosing instance",
     ),
     (
-        "class A(f: () => Int); class B extends A(() => 1)",
+        "class A(f: () => Int); object O { class B extends A(() => 1) }",
         "superclass constructor arguments defining or creating local classes or methods",
     ),
     (
-        "class A[T](f: T)(n: Int); class B extends A[() => Int](() => 1)(2)",
+        "class A[T](f: T)(n: Int); object O { class B extends A[() => Int](() => 1)(2) }",
         "superclass constructor arguments defining or creating local classes or methods",
     ),
 ];
