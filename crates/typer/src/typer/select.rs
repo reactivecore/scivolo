@@ -30,10 +30,13 @@ impl Typer<'_> {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.widen_if_unstable(qual_tpe);
             let syms: Vec<SymbolId> = self
-                .type_members(qual_tpe, &text)
+                .type_members_in(qual_tpe, &text, ctx)
                 .into_iter()
                 .filter(|&s| self.u.is_type_symbol(s) == name.is_type)
                 .collect();
+            if syms.is_empty() && self.needs_joint_member(qual_tpe, &text) {
+                return self.unsupported(id, "intersection member of an intersected type");
+            }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }

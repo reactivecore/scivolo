@@ -1,69 +1,10 @@
 //! Operations on constants as Java evaluates them (dotty's `ConstFold.foldUnop`, `foldBinop`).
 
+use super::constants::{
+    BOOLEAN, BYTE, DOUBLE, FLOAT, INT, LONG, NULL, STRING, double_value, float_value, int_value, is_numeric,
+    long_value, tag,
+};
 use syntax::ast::constant::Constant as C;
-
-const BOOLEAN: u8 = 2;
-const CHAR: u8 = 5;
-const INT: u8 = 6;
-const LONG: u8 = 7;
-const FLOAT: u8 = 8;
-const DOUBLE: u8 = 9;
-const STRING: u8 = 10;
-const NULL: u8 = 11;
-
-/// dotty's constant tag of `c`, ordered as numeric widening goes.
-fn tag(c: &C) -> u8 {
-    match c {
-        C::Unit => 1,
-        C::Boolean(_) => BOOLEAN,
-        C::Char(_) => CHAR,
-        C::Int(_) => INT,
-        C::Long(_) => LONG,
-        C::Float(_) => FLOAT,
-        C::Double(_) => DOUBLE,
-        C::String(_) => STRING,
-        C::Null => NULL,
-    }
-}
-
-fn is_numeric(c: &C) -> bool {
-    (CHAR..=DOUBLE).contains(&tag(c))
-}
-
-fn long_value(c: &C) -> i64 {
-    match *c {
-        C::Char(v) => v as i64,
-        C::Int(v) => v as i64,
-        C::Long(v) => v,
-        C::Float(v) => v as i64,
-        C::Double(v) => v as i64,
-        _ => 0,
-    }
-}
-
-fn int_value(c: &C) -> i32 {
-    match *c {
-        C::Float(v) => v as i32,
-        C::Double(v) => v as i32,
-        _ => long_value(c) as i32,
-    }
-}
-
-fn float_value(c: &C) -> f32 {
-    match *c {
-        C::Float(v) => v,
-        C::Double(v) => v as f32,
-        _ => long_value(c) as f32,
-    }
-}
-
-fn double_value(c: &C) -> f64 {
-    match *c {
-        C::Float(v) => v as f64,
-        C::Double(v) => v,
-        _ => long_value(c) as f64,
-    }
-}
 
 /// Unary operation `op` on `x`, if it folds.
 pub fn fold_unop(op: &str, x: &C) -> Option<C> {
@@ -120,7 +61,7 @@ pub fn fold_binop(op: &str, x: &C, y: &C) -> Option<C> {
                 _ => return None,
             }))
         }
-        CHAR | INT => int_op(op, int_value(x), int_value(y)),
+        BYTE..=INT => int_op(op, int_value(x), int_value(y)),
         LONG if tag(x) <= INT && matches!(op, "<<" | ">>>" | ">>") => {
             int_op(op, int_value(x), long_value(y) as i32)
         }

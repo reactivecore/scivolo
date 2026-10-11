@@ -8,8 +8,8 @@ use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Checks a reference to `sym` through `prefix` from `ctx`: accessible, and not to an inline
-    /// method, whose calls are expanded (a later step).
+    /// Checks a reference to `sym` through `prefix` from `ctx`: accessible, and inside the subset
+    /// as far as inlining goes.
     pub fn check_reference(
         &mut self,
         sym: SymbolId,
@@ -19,9 +19,7 @@ impl Typer<'_> {
         if !self.is_accessible(sym, ctx) {
             return Err("inaccessible member");
         }
-        if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
-            return Err("inline method call");
-        }
+        self.check_inline_reference(sym, ctx)?;
         self.unset_local(sym, prefix)
     }
 
