@@ -6,7 +6,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",
@@ -35,6 +35,16 @@ impl Typer<'_> {
             && !PRIMITIVES.contains(&self.u.full_name(c).as_str())
     }
 
+    /// Whether a type test or cast to `t` tests for a value class: `t` or a part of its union or
+    /// intersection is one.
+    pub fn tests_value_class(&mut self, t: TypeId) -> bool {
+        let t = self.u.dealias(t);
+        match *self.u.types().get(t) {
+            Type::And(a, b) | Type::Or(a, b) => self.tests_value_class(a) || self.tests_value_class(b),
+            _ => self.u.class_symbol(t).is_some_and(|c| self.is_derived_value_class(c)),
+        }
+    }
+
     /// Makes class `cls` final if it is a value class, its parents set.
     pub fn finalize_value_class(&mut self, cls: SymbolId) {
         if self.is_derived_value_class(cls) {
@@ -59,19 +69,19 @@ impl Typer<'_> {
         let flags = self.dotty_flags(cls);
         let shown = self.shown_class(cls);
         if flags.is(f::TRAIT) || flags.is(f::MODULE) {
-            self.vc_error(span, syntax_msg(68, true, format!("{shown} cannot extend AnyVal")));
+            self.error_at(span, syntax_msg(68, true, format!("{shown} cannot extend AnyVal")));
         }
         if flags.is(f::ENUM) {
-            self.vc_error(span, syntax_msg(206, false, format!("{shown} may not be a value class")));
+            self.error_at(span, syntax_msg(206, false, format!("{shown} may not be a value class")));
         }
         if flags.is(f::ABSTRACT) {
-            self.vc_error(span, syntax_msg(74, false, "Value classes may not be abstract"));
+            self.error_at(span, syntax_msg(74, false, "Value classes may not be abstract"));
         }
         let owner = self.u.symbol(cls).owner;
         if !owner.is_some_and(|o| self.is_static_owner(o)) {
             let local = owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
             let what = if local { "local class" } else { "member of another class" };
-            self.vc_error(span, syntax_msg(75, false, format!("Value classes may not be a {what}")));
+            self.error_at(span, syntax_msg(75, false, format!("Value classes may not be a {what}")));
         }
         self.check_parent_is_not_any_val_alias(span, parents);
         let params = self.value_class_params(cls);
@@ -85,14 +95,14 @@ impl Typer<'_> {
         });
         if wrapped.is_some_and(|c| self.is_derived_value_class(c)) {
             let msg = "A value class may not wrap another user-defined value class";
-            self.vc_error(span, syntax_msg(76, false, msg));
+            self.error_at(span, syntax_msg(76, false, msg));
         } else if let Some((&param, rest)) = params.split_first() {
             self.check_value_class_param(param, rest, stats, span);
             if self.u.underlying(cls) != Some(param) {
                 self.unsupported_at(span, "value class the erasure does not unwrap");
             }
         } else {
-            self.vc_error(span, syntax_msg(78, false, "Value class needs one val parameter"));
+            self.error_at(span, syntax_msg(78, false, "Value class needs one val parameter"));
         }
         for &s in stats {
             self.check_value_class_member(s);
@@ -132,23 +142,23 @@ impl Typer<'_> {
             .class_symbol(info)
             .is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"));
         if context_function {
-            self.vc_error(span, "value classes are not allowed for context function types");
+            self.error_at(span, "value classes are not allowed for context function types");
         }
         if flags.is(f::MUTABLE) {
-            self.vc_error(span, syntax_msg(77, true, "A value class parameter may not be a var"));
+            self.error_at(span, syntax_msg(77, true, "A value class parameter may not be a var"));
         }
         if matches!(self.u.types().get(info), Type::ByName(_)) {
             let name = self.u.symbol(param).name.clone();
             let msg = format!("Value class parameter `{name}` may not be call-by-name");
-            self.vc_error(span, syntax_msg(126, false, msg));
+            self.error_at(span, syntax_msg(126, false, msg));
         }
         if flags.is(f::ERASED) {
-            self.vc_error(span, "value class first parameter cannot be `erased`");
+            self.error_at(span, "value class first parameter cannot be `erased`");
         } else {
             for &p in rest {
                 if !self.dotty_flags(p).is(f::ERASED) {
                     let span = self.def_span(p, stats, cls_span);
-                    self.vc_error(span, "value class can only have one non `erased` parameter");
+                    self.error_at(span, "value class can only have one non `erased` parameter");
                 }
             }
         }
@@ -177,7 +187,7 @@ impl Typer<'_> {
             _ => (73, "Value classes may not contain initialization statements"),
         };
         let span = self.ast.span(stat);
-        self.vc_error(span, syntax_msg(code, false, text));
+        self.error_at(span, syntax_msg(code, false, text));
     }
 
     /// Reports a first parent of `parents` that names an alias of `AnyVal`.
@@ -198,7 +208,7 @@ impl Typer<'_> {
         if any_val.is_some() && self.u.class_symbol(tpe) == any_val {
             let name = self.u.symbol(alias).name.clone();
             let msg = format!("A value class cannot extend a type alias (type {name}) of AnyVal");
-            self.vc_error(span, syntax_msg(210, false, msg));
+            self.error_at(span, syntax_msg(210, false, msg));
         }
     }
 
@@ -232,9 +242,5 @@ impl Typer<'_> {
 
     fn dotty_flags(&self, s: SymbolId) -> FlagSet {
         self.syms.flags.get(&s).copied().unwrap_or(f::EMPTY)
-    }
-
-    fn vc_error(&mut self, span: Span, msg: impl Into<Message>) {
-        self.diags.error_at(span.start(), span.end(), span.point(), msg);
     }
 }
