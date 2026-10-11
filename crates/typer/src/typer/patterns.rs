@@ -32,9 +32,6 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) && !self.is_checkable_type(tpe) {
             return self.unsupported(id, "type pattern needing a type test or type binding");
         }
-        if ctx.mode.is(Mode::PATTERN) && self.tests_value_class(tpe) {
-            return self.unsupported(id, "type test or cast to a value class");
-        }
         let expr = self.typed(expr, Pt::Type(tpe), ctx);
         let span = self.ast.span(id);
         self.tpd.node(T::Typed { expr, tpt }, span, Some(tpe), None)

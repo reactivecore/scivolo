@@ -1,6 +1,7 @@
 //! Type tests and casts as dotty's `TypeTestsCasts` erases them: `x.isInstanceOf[T]` as a null
 //! check if it holds statically in a match, a constant for a primitive value, else as a test of
-//! `T`'s erased class, the box class for a primitive; casts in `as_instance_of.rs`.
+//! `T`'s erased class, a value class itself, the box class for a primitive; casts in
+//! `as_instance_of.rs`.
 
 mod as_instance_of;
 mod combined;
@@ -67,7 +68,14 @@ fn type_test(
     if let Some(what) = runtime_tests::runtime_test(l, dealiased) {
         return unsupported(span, what);
     }
-    let test = match l.u.erase(target) {
+    let expr_tpe = l.u.widen(l.tpd.tpe(expr));
+    if l.u.erase_boxed(expr_tpe) != l.u.erase(expr_tpe) {
+        return unsupported(span, "type tests of value class values");
+    }
+    if in_match && l.u.erase_boxed(target) != l.u.erase(target) {
+        return unsupported(span, "type patterns of value classes");
+    }
+    let test = match l.u.erase_boxed(target) {
         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,
     };

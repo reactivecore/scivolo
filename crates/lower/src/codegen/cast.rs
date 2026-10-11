@@ -83,7 +83,8 @@ impl Gen<'_, '_> {
             let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else {
                 unreachable!("a type application")
             };
-            let ty = self.gen_type(self.l.tpd.tpe(self.l.tpd.items(args)[0]));
+            let tested = self.l.u.erase_boxed(self.l.tpd.tpe(self.l.tpd.items(args)[0]));
+            let ty = self.erased(&tested);
             let ty = self.bottom_box(ty).unwrap_or(ty);
             let v = self.emit(Op::Is { ty, obj: value });
             self.m.pos = saved;
