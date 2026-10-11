@@ -43,18 +43,18 @@ impl Typer<'_> {
         let Type::Poly { params, .. } = self.u.types().get(info) else { return Ok(f) };
         let n = params.len();
         let span = self.tpd.span(f);
-        let (args, trees) = match self.new_type_args(f) {
+        let (args, trees, fresh) = match self.new_type_args(f) {
             Some((args, at)) => {
                 let trees: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, at, false)).collect();
-                (args, trees)
+                (args, trees, false)
             }
             None => {
                 let vars: Vec<TypeId> = (0..n).map(|_| self.constraint.fresh(self.u)).collect();
                 let trees = vars.iter().map(|&v| self.type_tree(v, span, true)).collect();
-                (vars, trees)
+                (vars, trees, true)
             }
         };
-        let tpe = self.instantiated(f, &args)?;
+        let tpe = self.instantiated_with(f, &args, fresh)?;
         let trees = self.tpd.list(&trees);
         Ok(self.tpd.node(T::TypeApply { fun: f, args: trees }, span.to_synthetic(), Some(tpe), None))
     }
@@ -74,6 +74,16 @@ impl Typer<'_> {
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables.
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
+        self.instantiated_with(f, args, false)
+    }
+
+    /// `instantiated`, without the kind check if `args` are fresh type variables.
+    fn instantiated_with(
+        &mut self,
+        f: TNodeId,
+        args: &[TypeId],
+        fresh: bool,
+    ) -> Result<TypeId, &'static str> {
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
@@ -87,8 +97,7 @@ impl Typer<'_> {
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
-            let var = matches!(self.u.types().get(arg), Type::Var(_));
-            if !var && self.type_arity(arg) != arity {
+            if !fresh && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
             if !self.conforms(arg, hi) || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
