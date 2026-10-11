@@ -52,8 +52,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             return unsupported(span, "lazy values in traits");
         }
         let info = l.u.info(accessor);
-        if matches!(l.u.erase(info), Erased::Unit | Erased::Null | Erased::Nothing) {
-            return unsupported(span, "lazy values of type Unit, Null or Nothing");
+        if has(l.u, accessor, SYNTHETIC) && l.u.erase(info) == Erased::Unit {
+            return unsupported(span, "lazy pattern definitions without variables");
         }
         let lazy = define(l, class, accessor);
         let object = object(l);
@@ -139,7 +139,8 @@ fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
     let result = local(l, lazy.accessor, "result", object, false);
     let field = field_ref(l, lazy);
     let def = val_def(l, result, field);
-    let erased = l.u.erase(info);
+    let erased = l.u.erased_method(lazy.accessor).1;
+    let info = if l.u.erase(info) == Erased::Unit { super::casts::type_of(l, &erased) } else { info };
     let cond = if holds_control_states(l, &erased) {
         let read = l.ident(result, Span::NONE);
         let null = l.null_literal(Span::NONE);
@@ -155,22 +156,40 @@ fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
         l.is_instance(read, test_type)
     };
     let read = l.ident(result, Span::NONE);
-    let value = adapt(l, read, &erased);
+    let value = conform(l, read, &erased, info);
     let read = l.ident(result, Span::NONE);
     let null_value = l.ident(l.defs.lazy_vals.null_value, Span::NONE);
     let is_null = eq(l, read, null_value);
     let null = l.null_literal(Span::NONE);
-    l.tpd.get_mut(null).tpe = Some(object);
-    let null = adapt(l, null, &erased);
+    if erased != Erased::Null {
+        l.tpd.get_mut(null).tpe = Some(object);
+    }
+    let null = conform(l, null, &erased, info);
     if is_singleton(l.u, info) {
         l.tpd.get_mut(null).tpe = Some(info);
     }
     let this = l.this(lazy.class, Span::NONE);
     let init = call(l, this, lazy.init, &[]);
-    let init = adapt(l, init, &erased);
+    let init = conform(l, init, &erased, info);
     let inner = if_(l, is_null, null, init, info);
     let outer = if_(l, cond, value, inner, info);
     block(l, &[def], outer)
+}
+
+/// `t` adapted to erased type `erased` of type `tpe`, cast to `Null` or `Nothing` unless it is
+/// `null` where `Null` is expected (dotty's `ensureConforms` after erasure).
+fn conform(l: &mut Lower, t: TNodeId, erased: &Erased, tpe: TypeId) -> TNodeId {
+    let null = matches!(l.tpd.tree(t), Tree::Literal { value: syntax::ast::constant::Constant::Null });
+    match erased {
+        Erased::Null if null => t,
+        Erased::Null | Erased::Nothing => {
+            let fun = l.select(t, l.defs.as_instance_of, Span::NONE);
+            let tpt = l.type_tree(tpe, Span::NONE);
+            let cast = l.build().type_apply(fun, &[tpt], tpe, Span::NONE);
+            l.positioned(cast)
+        }
+        _ => adapt(l, t, erased),
+    }
 }
 
 /// Whether the values of erased type `erased` include `LazyValControlState`'s.

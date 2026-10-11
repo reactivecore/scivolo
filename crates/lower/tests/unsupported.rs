@@ -8,14 +8,17 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
-        "object O { def f(x: Any): Boolean = x.isInstanceOf[String | Int] }",
-        "type tests of unions or intersections",
+        "object O { def g(): Any = 1; def f(): Boolean = g().isInstanceOf[String | Int] }",
+        "type tests of unions or intersections of values other than names",
     ),
     ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
+    ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
+    ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
-        "object O { def f(x: Int): Long = x.asInstanceOf[Long] }",
+        "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
         "casts between primitive values or to references",
     ),
+    ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
     (
         "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
          object O { def f(x: String): Int = x match { case E(a) => a; case _ => 0 } }",

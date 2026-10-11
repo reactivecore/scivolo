@@ -35,7 +35,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
 }
 
 /// Whether `s` is `Predef.classOf`, a constant rather than a call.
-fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
+pub fn is_class_of(l: &Lower, s: tasty::SymbolId) -> bool {
     let sym = l.u.symbol(s);
     sym.name == "classOf" && sym.owner.is_some_and(|o| l.u.full_name(o) == "scala.Predef$")
 }
@@ -58,7 +58,12 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
         Tree::Ident { .. } | Tree::Select { .. } => match sym {
             Some(s) if !l.u.is_module(s) && l.u.symbol(s).kind.is_term() => {
                 let info = l.u.info(s);
-                l.u.erase(info)
+                match l.u.erase(info) {
+                    Erased::Unit if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
+                        Erased::Class("scala.runtime.BoxedUnit".into())
+                    }
+                    e => e,
+                }
             }
             _ => l.u.erase(l.tpd.tpe(t)),
         },
@@ -166,7 +171,7 @@ pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
         (from, Erased::Unit) if reference(from) => {
             let span = l.tpd.span(t);
             let unit = l.unit_literal(span);
-            l.block(&[t], unit, span)
+            if super::first_transform::is_pure(l, t) { unit } else { l.block(&[t], unit, span) }
         }
         (from, to) if reference(from) && reference(to) && !conforms(l, from, to) => cast(l, t, to),
         _ => t,
@@ -174,7 +179,7 @@ pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
 }
 
 /// `C.m(t)` for object `C` with method `m`.
-fn converted(l: &mut Lower, t: TNodeId, module: SymbolId, m: SymbolId) -> TNodeId {
+pub fn converted(l: &mut Lower, t: TNodeId, module: SymbolId, m: SymbolId) -> TNodeId {
     let span = from_start(l.tpd.span(t));
     let module_ref = l.ident(module, span);
     let fun = l.select(module_ref, m, span);

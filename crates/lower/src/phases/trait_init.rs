@@ -30,7 +30,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                         && !has(l.u, s, LAZY)
                         && !is_setter(l, s)
                         && is_const_final(l, s)
-                }) && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+                }) && !matches!(l.tpd.tree(rhs), Tree::Literal { .. } | Tree::ClassLiteral { .. }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");
                 let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);

@@ -24,6 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
                 let rhs = typed(l, rhs, Some(&pt))?;
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+                l.recopy_class_literals(stat);
                 stats.push(stat);
             }
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => stats.push(stat),
@@ -113,7 +114,15 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             }
             Some(Tree::TypeApply { fun, args })
         }
-        Tree::Block { expr, .. } => {
+        Tree::Block { stats, expr } => {
+            let kept: Vec<_> = l
+                .tpd
+                .items(stats)
+                .iter()
+                .copied()
+                .filter(|&s| !matches!(l.tpd.tree(s), Tree::Import { .. }))
+                .collect();
+            l.tpd.get_mut(t).tree = Tree::Block { stats: l.tpd.list(&kept), expr };
             map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
             None
         }
@@ -144,7 +153,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         }
         Tree::Match { selector, cases } => Some(typed_switch(l, selector, cases)?),
         Tree::Assign { lhs, .. } => {
-            let erased = l.u.erase(l.tpd.tpe(lhs));
+            let erased = erased_type(l, lhs);
             typed_except(l, t, lhs, Some(&erased))?;
             None
         }
@@ -172,11 +181,16 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             None
         }
         Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
+        Tree::ClassLiteral { .. } => {
+            l.tpd.get_mut(t).span = syntax::ast::Span::NONE;
+            None
+        }
         _ => None,
     };
     if let Some(new) = new {
         l.tpd.get_mut(t).tree = new;
     }
+    l.recopy_class_literals(t);
     let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
     Ok(match pt {
         Some(pt) => adapt(l, t, pt),

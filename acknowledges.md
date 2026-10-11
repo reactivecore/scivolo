@@ -29,7 +29,7 @@ Apache-2.0. Rust translations of:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
-    `FirstTransform` (constant folding)
+    `FirstTransform` (constant folding, `classOf`)
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors, forwarders),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
@@ -39,7 +39,8 @@ Apache-2.0. Rust translations of:
     `ElimByName` (calls)
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
     guards, switches),
-    `TypeTestsCasts` (type tests, casts of primitives),
+    `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
+    casts of primitives, `primitiveConversion`),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
