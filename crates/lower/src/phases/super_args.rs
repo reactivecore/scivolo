@@ -1,11 +1,16 @@
-//! Refuses the superclass constructor arguments dotty's `HoistSuperArgs` moves into methods: those
-//! defining methods or classes or creating instances of classes that are not static.
+//! Refuses the superclass constructor arguments dotty's `HoistSuperArgs` moves out of a class
+//! that is not top-level, into its enclosing class or method.
 
-use crate::symbols::is_static;
+use super::hoist_super_args::needs_hoist;
 use crate::{Lower, Result, unsupported};
+use tasty::Kind;
 use typer::tpd::{TNodeId, Tree};
 
 pub fn check(l: &mut Lower, td: TNodeId) -> Result<()> {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
+    if l.u.symbol(class).owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Package) {
+        return Ok(());
+    }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return Ok(()) };
     let Tree::Template { parents, .. } = *l.tpd.tree(template) else { return Ok(()) };
     for parent in l.tpd.items(parents).to_vec() {
@@ -20,23 +25,11 @@ pub fn check(l: &mut Lower, td: TNodeId) -> Result<()> {
                 _ => break,
             }
         }
-        for arg in all {
-            for t in super::walk::subtrees(l.tpd, arg) {
-                let hoisted = match *l.tpd.tree(t) {
-                    Tree::DefDef { .. } | Tree::Template { .. } => true,
-                    Tree::New { tpt } => {
-                        let tpe = l.tpd.tpe(tpt);
-                        l.u.class_symbol(tpe).is_some_and(|c| !is_static(l.u, c))
-                    }
-                    _ => false,
-                };
-                if hoisted {
-                    return unsupported(
-                        l.tpd.span(t),
-                        "superclass constructor arguments defining or creating local classes or methods",
-                    );
-                }
-            }
+        if let Some(arg) = all.into_iter().find(|&a| needs_hoist(l, a)) {
+            return unsupported(
+                l.tpd.span(arg),
+                "superclass constructor arguments defining or creating local classes or methods",
+            );
         }
     }
     Ok(())
