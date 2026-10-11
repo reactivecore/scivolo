@@ -26,10 +26,16 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
         Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
-            format!("{}$${}", expanded_prefix(l, o), sym.name)
+            format!("{}$${}", expanded_prefix(l, o), run_name(l, s))
         }
-        _ => sym.name.clone(),
+        _ => run_name(l, s).to_owned(),
     }
+}
+
+/// The name of `s` at run time: its `@targetName`, else its name.
+pub fn run_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
+    let sym = l.u.symbol(s);
+    sym.target.as_deref().unwrap_or(&sym.name)
 }
 
 /// Gives the private accessors of trait `trait_` their expanded names and makes them public.

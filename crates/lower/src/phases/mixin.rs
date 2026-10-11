@@ -111,7 +111,8 @@ pub fn function_arity(l: &Lower, class: SymbolId) -> Option<usize> {
 }
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
-/// or value of its name and erased signature in the linearization of `class`.
+/// or value of its name and erased signature, or matching it, in the linearization of `class`,
+/// bridges aside.
 fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let m = l.u.symbol(meth);
     if m.kind != Kind::Def
@@ -123,15 +124,21 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     }
     let name = m.name.clone();
     let signature = l.u.erased_method(meth);
+    let site = l.u.this_type(class);
     for base in l.u.linearization(class) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(other);
-            let member = matches!(s.kind, Kind::Def | Kind::Val) && !has(l.u, other, PRIVATE);
+            let member = matches!(s.kind, Kind::Def | Kind::Val)
+                && !has(l.u, other, PRIVATE)
+                && !l.bridges.contains(&other);
             let deferred = match s.tree.is_some() {
                 true => l.u.body(other).is_none(),
                 false => s.kind == Kind::Def && !has(l.u, other, FIELDaccessor) && !has_body(l, other),
             };
-            if member && !deferred && l.u.erased_method(other) == signature {
+            if member
+                && !deferred
+                && (l.u.erased_method(other) == signature || l.u.matches(site, other, meth))
+            {
                 return other == meth;
             }
         }

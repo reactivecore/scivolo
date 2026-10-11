@@ -75,7 +75,7 @@ fn set(l: &mut Lower, class: tasty::SymbolId, getter: tasty::SymbolId, rhs: TNod
     let var_setter =
         l.u.decl(class, &format!("{name}_=")).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
     let setter = var_setter.or_else(|| {
-        let trait_setter = trait_setter_name(l, class, &name);
+        let trait_setter = trait_setter_name(l, class, &super::accessor_names::accessor_name(l, getter));
         l.u.decl(class, &trait_setter).unwrap_or_default().into_iter().next()
     });
     let setter = setter.expect("a value's setter");

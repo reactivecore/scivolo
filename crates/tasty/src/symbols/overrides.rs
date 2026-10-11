@@ -79,6 +79,10 @@ impl Universe {
         }
         let renamed: Vec<TypeId> = ta.iter().map(|&p| self.intern_type(Type::Sym(None, p))).collect();
         let (ia, ib) = (self.member_info(site, a), self.member_info(site, b));
+        let binders = match (self.types().get(ia), self.types().get(ib)) {
+            (&Type::Poly { binder: x, .. }, &Type::Poly { binder: y, .. }) => Some((x, y)),
+            _ => None,
+        };
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
         let shape = |c: &[(bool, Vec<TypeId>)]| c.iter().map(|(i, ps)| (*i, ps.len())).collect::<Vec<_>>();
         if shape(&ca) != shape(&cb) {
@@ -87,8 +91,11 @@ impl Universe {
         let pairs = ca.into_iter().zip(cb).flat_map(|((_, x), (_, y))| x.into_iter().zip(y));
         pairs.collect::<Vec<_>>().into_iter().all(|(x, y)| {
             let (x, y) = (self.normalize(x), self.normalize(y));
-            let y = self.map_type(y, &mut |u, t| match u.types().get(t) {
-                Type::Sym(_, s) => tb.iter().position(|p| p == s).map(|i| renamed[i]),
+            let y = self.map_type(y, &mut |u, t| match *u.types().get(t) {
+                Type::Sym(_, s) => tb.iter().position(|&p| p == s).map(|i| renamed[i]),
+                Type::Param(b, i) => {
+                    binders.filter(|&(_, y)| y == b).map(|(x, _)| u.intern_type(Type::Param(x, i)))
+                }
                 _ => None,
             });
             x == y
