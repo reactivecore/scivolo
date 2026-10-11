@@ -19,6 +19,8 @@ pub struct Patmat {
     pub type_test: SymbolId,
     /// `Object.ne`.
     pub ne: SymbolId,
+    /// `Object.eq`.
+    pub eq: SymbolId,
 }
 
 impl Patmat {
@@ -38,6 +40,7 @@ impl Patmat {
             is_instance_of: member(u, any, "isInstanceOf", Kind::Def)?,
             type_test: member(u, any, "$isInstanceOf", Kind::Def)?,
             ne: member(u, object, "ne", Kind::Def)?,
+            eq: member(u, object, "eq", Kind::Def)?,
         })
     }
 }

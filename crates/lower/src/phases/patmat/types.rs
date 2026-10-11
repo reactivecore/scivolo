@@ -2,6 +2,8 @@
 //! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches.
 
 use super::Translator;
+use crate::phases::explicit_outer::{outer_accessor, outer_prefix};
+use crate::phases::lazy_trees::dup;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -33,11 +35,29 @@ impl Translator<'_, '_> {
         self.type_apply(value, self.l.defs.as_instance_of, target, target)
     }
 
-    /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`.
+    /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`, for `O.this.C` of a
+    /// class `C` with an enclosing instance also `scrutinee.asInstanceOf[C].C$$$outer() eq O.this`
+    /// (dotty's `addOuterTest`).
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
         let boolean = self.l.u.class_ref("scala.Boolean");
-        self.type_apply(scrutinee, self.l.defs.patmat.type_test, target, boolean)
+        let test = self.type_apply(scrutinee, self.l.defs.patmat.type_test, target, boolean);
+        let Some(pre) = outer_prefix(self.l, target) else { return test };
+        let class = self.l.u.class_symbol(target).expect("a class type");
+        let accessor = outer_accessor(self.l, class);
+        let value = dup(self.l, scrutinee);
+        let value = self.cast(value, target);
+        let fun = self.l.select(value, accessor, Span::NONE);
+        let fun = self.l.positioned(fun);
+        let info = self.l.u.info(accessor);
+        let outer_type = self.l.u.result_type(info);
+        let outer = self.l.apply(fun, &[], outer_type, Span::NONE);
+        let outer = self.l.positioned(outer);
+        let Type::This(c) = *self.l.u.types().get(pre) else { unreachable!("a `this` prefix") };
+        let c = self.l.u.class_symbol(c).expect("a class");
+        let expected = self.l.this(c, Span::NONE);
+        let eq = self.l.call(outer, self.l.defs.patmat.eq, &[expected]);
+        self.l.call(test, self.l.defs.patmat.and, &[eq])
     }
 
     /// `qual.m[target]` of type `tpe`.

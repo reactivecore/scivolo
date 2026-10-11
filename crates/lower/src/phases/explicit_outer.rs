@@ -24,7 +24,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             true => l.u.is_trait(outer),
             false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
         };
-        if always || uses {
+        if always || uses || l.outer_accessors.contains_key(&class) {
             add_outer(l, td, class, outer);
         }
     }
@@ -74,7 +74,21 @@ pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) ->
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
     let inner = l.u.class_symbol(dealiased).is_some_and(|c| enclosing_instance(l, c).is_some());
-    (in_match && inner).then_some("patterns of classes in classes")
+    let tested = outer_prefix(l, target).is_some();
+    (in_match && inner && !tested).then_some("patterns of classes in classes")
+}
+
+/// The prefix `O.this` of type `O.this.C` of a class `C` with an enclosing instance, the instance
+/// a match tests (dotty's `addOuterTest` for a singleton prefix).
+pub fn outer_prefix(l: &mut Lower, target: tasty::TypeId) -> Option<tasty::TypeId> {
+    let target = l.u.dealias(target);
+    let target = match *l.u.types().get(target) {
+        Type::Applied(tycon, _) => tycon,
+        _ => target,
+    };
+    let Type::Sym(Some(pre), c) = *l.u.types().get(target) else { return None };
+    let singleton = matches!(l.u.types().get(pre), Type::This(_));
+    (singleton && l.u.is_class(c) && enclosing_instance(l, c).is_some()).then_some(pre)
 }
 
 /// `t` and the trees in it but those in type trees, and in class definitions within `t` unless
@@ -153,12 +167,26 @@ fn field_def(l: &mut Lower, field: SymbolId, span: Span) -> TNodeId {
     l.build().val_def(field, tpt, None, span)
 }
 
-/// `final def C$$$outer(): Outer = this.$outer` of `class`, at `span` (dotty's
-/// `outerAccName`: the class's name expanded, then `$$$outer`).
+/// `final def C$$$outer(): Outer = this.$outer` of `class`, at `span`.
 fn accessor(l: &mut Lower, class: SymbolId, field: SymbolId, span: Span) -> TNodeId {
+    let m = outer_accessor(l, class);
+    let result = l.u.info(field);
+    let this = l.this(class, span);
+    let read = l.select(this, field, span);
+    let tpt = l.type_tree(result, span);
+    l.method_def(m, &[], tpt, read, span)
+}
+
+/// The accessor `C$$$outer()` of the enclosing instance of class `class`, defined once; `class`
+/// then gets its field (dotty's `outerAccName`, `ensureOuterAccessors`).
+pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
+    if let Some(&m) = l.outer_accessors.get(&class) {
+        return m;
+    }
     let name = format!("{}$$$outer", l.u.binary_name(class).replace('.', "$"));
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
-    let result = l.u.info(field);
+    let outer = enclosing_instance(l, class).expect("a class with an enclosing instance");
+    let result = type_ref(l.u, outer);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method {
         binder,
@@ -168,8 +196,6 @@ fn accessor(l: &mut Lower, class: SymbolId, field: SymbolId, span: Span) -> TNod
         contextual: false,
     });
     l.u.set_info(m, info);
-    let this = l.this(class, span);
-    let read = l.select(this, field, span);
-    let tpt = l.type_tree(result, span);
-    l.method_def(m, &[], tpt, read, span)
+    l.outer_accessors.insert(class, m);
+    m
 }

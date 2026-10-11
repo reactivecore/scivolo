@@ -70,6 +70,8 @@ pub struct Lower<'a> {
     getter_rhs: FxHashMap<SymbolId, Span>,
     /// The field and constructor parameter of each class holding its enclosing instance.
     outers: FxHashMap<SymbolId, (SymbolId, SymbolId)>,
+    /// The accessor of the enclosing instance of each class needing one.
+    outer_accessors: FxHashMap<SymbolId, SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -102,6 +104,7 @@ pub fn lower(
         mixed_in: FxHashSet::default(),
         getter_rhs: FxHashMap::default(),
         outers: FxHashMap::default(),
+        outer_accessors: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)
