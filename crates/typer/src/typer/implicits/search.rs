@@ -61,7 +61,7 @@ impl Typer<'_> {
             };
             return self.try_implicit(winner, pt, at, ctx, depth);
         }
-        match self.synthesized(pt, at)? {
+        match self.synthesized(pt, at, ctx, depth)? {
             Some(tree) => Ok(tree),
             None => Err("no implicit argument"),
         }

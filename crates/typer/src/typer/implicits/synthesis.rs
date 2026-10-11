@@ -1,19 +1,29 @@
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
-//! `ClassTag[T]` for a class `T` without type arguments, `ClassTag.apply[T](classOf[T])` or, for
-//! `Unit`, `Any` and `AnyVal`, `ClassTag.Unit`, `ClassTag.Any`, `ClassTag.AnyVal`.
+//! `CanEqual` (`can_equal.rs`), and a `ClassTag[T]` for a class `T` without type arguments,
+//! `ClassTag.apply[T](classOf[T])` or, for `Unit`, `Any` and `AnyVal`, `ClassTag.Unit`,
+//! `ClassTag.Any`, `ClassTag.AnyVal`.
 
 use super::super::Typer;
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    /// The synthesized argument of type `pt` at `at`, if `pt` is one the compiler makes.
-    pub fn synthesized(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, &'static str> {
+    /// The synthesized argument of type `pt` at `at` in `ctx`, if `pt` is one the compiler makes.
+    pub fn synthesized(
+        &mut self,
+        pt: TypeId,
+        at: Span,
+        ctx: Ctx,
+        depth: u32,
+    ) -> Result<Option<TNodeId>, &'static str> {
         let Type::Applied(tycon, args) = self.u.types().get(pt).clone() else { return Ok(None) };
         let Some(class) = self.u.class_symbol(tycon) else { return Ok(None) };
-        if self.u.full_name(class) != "scala.reflect.ClassTag" {
-            return Ok(None);
+        match (self.u.full_name(class).as_str(), &args[..]) {
+            ("scala.CanEqual", &[l, r]) => return self.synthesized_can_equal(l, r, at, ctx, depth),
+            ("scala.reflect.ClassTag", _) => {}
+            _ => return Ok(None),
         }
         let [arg] = args[..] else { return Ok(None) };
         let arg = self.zonk(arg);
