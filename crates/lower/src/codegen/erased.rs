@@ -37,13 +37,22 @@ impl Gen<'_, '_> {
     }
 
     /// Fails unless value `v` passes where type `to` is expected without boxing, unboxing or a
-    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`.
+    /// conversion; the `unit` constant passes as `BoxedUnit.UNIT`, a `Null$` as `null`, any value
+    /// after a block ends.
     pub fn check_conforms(&mut self, v: ValId, to: TypeId, span: Span) -> Result<()> {
+        if !self.m.buf.labeled() {
+            return Ok(());
+        }
         let from = self.val_ty(v);
         let is_ref = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let unit = *self.pool.val(v) == Val::Unit;
+        let null_class = self.pool.top("scala.runtime.Null$");
         let (f, t) = (self.pool.ty(from), self.pool.ty(to));
-        let ok = f == t || *f == Type::Nothing || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
+        let null_box = *t == Type::Null && matches!(*f, Type::Ref { name, .. } if name == null_class);
+        let ok = f == t
+            || *f == Type::Nothing
+            || null_box
+            || (is_ref(t) && (is_ref(f) || *f == Type::Null || unit));
         if ok { Ok(()) } else { unsupported(span, "boxing, unboxing and primitive conversions") }
     }
 

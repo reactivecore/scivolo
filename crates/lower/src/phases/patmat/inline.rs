@@ -113,7 +113,7 @@ impl Translator<'_, '_> {
     /// Whether evaluating `t` has no effect (dotty's `isPureExpr`, for the trees plans bind).
     fn is_pure(&self, t: TNodeId) -> bool {
         match *self.l.tpd.tree(t) {
-            Tree::Literal { .. } | Tree::This { .. } => true,
+            Tree::Literal { .. } | Tree::ClassLiteral { .. } | Tree::This { .. } => true,
             Tree::Ident { .. } => self.l.tpd.sym(t).is_none_or(|s| {
                 self.l.u.symbol(s).kind != Kind::Def && !has(self.l.u, s, MUTABLE) && !has(self.l.u, s, LAZY)
             }),
