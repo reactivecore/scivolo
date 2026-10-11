@@ -82,7 +82,10 @@ impl Typer<'_> {
                 self.syms.primary_ctors.get(&c) == Some(&ctx.owner)
                     && self.u.symbol(sym).owner.is_some_and(|p| self.u.derives_from(c, p))
             });
-        if protected && !super_call && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
+        if protected
+            && !super_call
+            && !matches!(self.u.types().get(qual_tpe), Type::This(_) | Type::Super(..))
+        {
             return self.unsupported(id, "protected member through a path");
         }
         let projection = self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))

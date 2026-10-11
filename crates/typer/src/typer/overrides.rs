@@ -134,6 +134,13 @@ impl Typer<'_> {
                     .collect();
                 let Some((&winner, rest)) = concrete.split_first() else { continue };
                 let Some(winner_owner) = self.u.symbol(winner).owner else { continue };
+                let overrides = match self.syms.flags.get(&winner) {
+                    Some(fl) => fl.is(f::OVERRIDE) || fl.is(f::ABS_OVERRIDE),
+                    None => self.u.symbol(winner).flags.has(tasty::tags::OVERRIDE),
+                };
+                if overrides {
+                    continue;
+                }
                 for &m in rest {
                     let owner = self.u.symbol(m).owner.expect("a member");
                     if !self.u.derives_from(winner_owner, owner) && self.same_member(site, winner, m) {

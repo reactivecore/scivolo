@@ -69,6 +69,7 @@ mod seen_from;
 mod select;
 mod stability;
 mod stats;
+mod supers;
 mod this;
 mod tries;
 mod type_apply;

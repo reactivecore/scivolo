@@ -1,0 +1,170 @@
+//! dotty's `SuperAccessors`: `C.super[M].m` in a trait `C` without `M`, or in a class nested in
+//! `C`, becomes `C.this.acc` of a super accessor `C` declares. A trait's accessors have no body
+//! and the classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`.
+
+use super::explicit_outer::terms;
+use super::mixin::has_body;
+use crate::definitions::symbol;
+use crate::symbols::has;
+use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashMap;
+use syntax::ast::Span;
+use tasty::tags::{ABSTRACT, ARTIFACT, INLINE, OVERRIDE};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use typer::tpd::{TNodeId, Tree};
+
+/// A super selection: its tree, the class whose `super` it selects on, the mixin's name if
+/// given, the member it selects.
+struct SuperSelect {
+    sel: TNodeId,
+    clazz: SymbolId,
+    mix: String,
+    member: SymbolId,
+}
+
+pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+    let mut defs: FxHashMap<SymbolId, Vec<TNodeId>> = FxHashMap::default();
+    let points: FxHashMap<SymbolId, Span> = classes
+        .iter()
+        .map(|&td| (l.tpd.sym(td).expect("a class definition's symbol"), Span::at(l.tpd.span(td).point())))
+        .collect();
+    for &td in classes {
+        let current = l.tpd.sym(td).expect("a class definition's symbol");
+        for s in super_selects(l, td) {
+            let span = l.tpd.span(s.sel);
+            if !has_body(l, s.member) && !is_abstract_override(l, s.clazz, s.member) {
+                return unsupported(span, "super calls of abstract members");
+            }
+            if s.clazz == current && !(s.mix.is_empty() && l.u.is_trait(s.clazz)) {
+                continue;
+            }
+            let point = points.get(&s.clazz).copied().unwrap_or(Span::NONE);
+            let acc = accessor(l, &s, point, defs.entry(s.clazz).or_default())?;
+            let this = l.this(s.clazz, Span::NONE);
+            let sel = l.select(this, acc, Span::NONE);
+            l.with_span(sel, span);
+            let (tree, tpe) = (l.tpd.tree(sel).clone(), l.tpd.get(sel).tpe);
+            let node = l.tpd.get_mut(s.sel);
+            (node.tree, node.tpe, node.span, node.sym) = (tree, tpe, span, Some(acc));
+        }
+    }
+    for &td in classes {
+        let class = l.tpd.sym(td).expect("a class definition's symbol");
+        if let Some(accessors) = defs.remove(&class) {
+            add_after_params(l, td, accessors);
+        }
+    }
+    Ok(())
+}
+
+/// The term selections on `super` in class definition `td`, outside its nested classes.
+fn super_selects(l: &Lower, td: TNodeId) -> Vec<SuperSelect> {
+    let mut out = Vec::new();
+    for t in terms(l, td, false) {
+        let Tree::Select { qualifier, name } = *l.tpd.tree(t) else { continue };
+        let Tree::Super { mix, .. } = *l.tpd.tree(qualifier) else { continue };
+        let (Some(clazz), Some(member)) = (l.tpd.sym(qualifier), l.tpd.sym(t)) else { continue };
+        let Tree::Ident { name: mix } = *l.tpd.tree(mix) else { continue };
+        if !name.is_type && !has(l.u, member, INLINE) {
+            let mix = l.names.text(mix.name).to_owned();
+            out.push(SuperSelect { sel: t, clazz, mix, member });
+        }
+    }
+    out
+}
+
+/// Whether `clazz` declares a member of the name of `sym` that is `abstract override`.
+fn is_abstract_override(l: &mut Lower, clazz: SymbolId, sym: SymbolId) -> bool {
+    let name = l.u.symbol(sym).name.clone();
+    let decls = l.u.decl(clazz, &name).unwrap_or_default();
+    decls.into_iter().any(|m| has(l.u, m, ABSTRACT) && has(l.u, m, OVERRIDE))
+}
+
+/// Puts `stats` into the body of class definition `td` after its type members and parameter
+/// accessors.
+fn add_after_params(l: &mut Lower, td: TNodeId, stats: Vec<TNodeId>) {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return };
+    let old = l.tpd.items(body).to_vec();
+    let params = old.iter().take_while(|&&s| is_param(l, s)).count();
+    let mut out = old[..params].to_vec();
+    out.extend(stats);
+    out.extend_from_slice(&old[params..]);
+    let body = l.tpd.list(&out);
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
+}
+
+/// Whether class statement `s` is a type member or a parameter accessor.
+fn is_param(l: &Lower, s: TNodeId) -> bool {
+    match l.tpd.tree(s) {
+        Tree::TypeDef { rhs, .. } => !matches!(l.tpd.tree(*rhs), Tree::Template { .. }),
+        Tree::ValDef { .. } | Tree::DefDef { .. } => {
+            l.tpd.sym(s).is_some_and(|p| has(l.u, p, tasty::tags::PARAMsetter))
+        }
+        _ => false,
+    }
+}
+
+/// The super accessor of `s.clazz` for `s`: the one already there, else a new one whose
+/// definition joins `defs`, at `class_point` in a class.
+fn accessor(l: &mut Lower, s: &SuperSelect, class_point: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
+    let original = l.u.symbol(s.member).name.clone();
+    let unexpanded = match s.mix.as_str() {
+        "" => format!("super${original}"),
+        mix => format!("{original}$super${mix}"),
+    };
+    let trait_ = l.u.is_trait(s.clazz);
+    let name = match trait_ {
+        true => format!("{}$${unexpanded}", super::accessor_names::expanded_prefix(l, s.clazz)),
+        false => unexpanded,
+    };
+    let info = l.u.widen(l.tpd.tpe(s.sel));
+    let declared = l.u.decl(s.clazz, &name).unwrap_or_default();
+    if let Some(acc) = declared.into_iter().find(|&a| l.u.info(a) == info) {
+        return Ok(acc);
+    }
+    let span = match trait_ {
+        true => Span::at(l.tpd.span(s.sel).point()),
+        false => class_point,
+    };
+    if matches!(l.u.types().get(info), Type::Poly { .. }) {
+        return unsupported(span, "super calls of polymorphic methods");
+    }
+    let acc = l.u.define(symbol(&name, Kind::Def, s.clazz, Flags::default().with(ARTIFACT)));
+    l.u.set_info(acc, info);
+    l.super_accessors.insert(acc, (s.member, !s.mix.is_empty()));
+    let def = match trait_ {
+        true => {
+            l.u.set_deferred(acc, true);
+            deferred_def(l, acc, info, span)
+        }
+        false => {
+            let (clazz, member) = (s.clazz, s.member);
+            let owner = l.u.symbol(member).owner.expect("a member's owner");
+            l.forwarding_def(acc, span, |l, args, result| {
+                let sup = l.super_mix(clazz, owner, span);
+                let fun = l.select(sup, member, span);
+                l.apply(fun, args, result, span)
+            })
+        }
+    };
+    defs.push(def);
+    Ok(acc)
+}
+
+/// The definition without a body of method `acc` of type `info`.
+fn deferred_def(l: &mut Lower, acc: SymbolId, info: TypeId, span: Span) -> TNodeId {
+    let (params, result) = match l.u.types().get(info).clone() {
+        Type::Method { params, result, .. } => (Some(params), result),
+        _ => (None, info),
+    };
+    let mut defs = Vec::new();
+    for (pname, ptype) in params.iter().flatten() {
+        let p = l.u.define(symbol(pname, Kind::Param, acc, Flags::default()));
+        l.u.set_info(p, *ptype);
+        defs.push(l.param_def(p, span));
+    }
+    let tpt = l.type_tree(result, span);
+    let paramss: Vec<&[TNodeId]> = if params.is_some() { vec![&defs] } else { vec![] };
+    l.build().def_def(acc, &paramss, tpt, None, span)
+}

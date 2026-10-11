@@ -20,6 +20,23 @@ impl Lower<'_> {
         span: Span,
         call: impl FnOnce(&mut Self, &[TNodeId], tasty::TypeId) -> TNodeId,
     ) -> Result<(SymbolId, TNodeId)> {
+        let name = self.u.symbol(like).name.clone();
+        let mut s = symbol(&name, Kind::Def, class, flags);
+        s.target = self.u.symbol(like).target.clone();
+        let sym = self.u.define(s);
+        self.u.set_info(sym, info);
+        Ok((sym, self.forwarding_def(sym, span, call)))
+    }
+
+    /// The definition of method `sym`, whose body `call` makes from references to its
+    /// parameters, with the result type of its type.
+    pub fn forwarding_def(
+        &mut self,
+        sym: SymbolId,
+        span: Span,
+        call: impl FnOnce(&mut Self, &[TNodeId], tasty::TypeId) -> TNodeId,
+    ) -> TNodeId {
+        let info = self.u.info(sym);
         let mut params = Vec::new();
         let mut t = info;
         let mut has_clause = false;
@@ -34,11 +51,6 @@ impl Lower<'_> {
                 _ => break,
             }
         }
-        let name = self.u.symbol(like).name.clone();
-        let mut s = symbol(&name, Kind::Def, class, flags);
-        s.target = self.u.symbol(like).target.clone();
-        let sym = self.u.define(s);
-        self.u.set_info(sym, info);
         let mut param_defs = Vec::new();
         let mut args = Vec::new();
         for (pname, ptype) in params {
@@ -52,7 +64,6 @@ impl Lower<'_> {
         let rhs = call(self, &args, result);
         let paramss: &[&[TNodeId]] = if has_clause { &[&param_defs] } else { &[] };
         let tpt = self.type_tree(result, span);
-        let def = self.build().def_def(sym, paramss, tpt, Some(rhs), span);
-        Ok((sym, def))
+        self.build().def_def(sym, paramss, tpt, Some(rhs), span)
     }
 }

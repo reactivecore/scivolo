@@ -44,6 +44,7 @@ impl Universe {
                     .or_else(|| self.base_type_within(b, base, depth));
             }
             Type::This(u)
+            | Type::Super(_, u)
             | Type::Annotated(u, _)
             | Type::Refined(u, _, _)
             | Type::Alias(u)
@@ -155,6 +156,9 @@ impl Universe {
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
         let pre_kind = self.types().get(pre).clone();
+        if let Type::Super(this, _) = pre_kind {
+            return self.this_seen_from(this, cls, this_cls, depth);
+        }
         if self.symbol(cls).kind == Kind::Package || matches!(pre_kind, Type::NoPrefix) {
             return None;
         }

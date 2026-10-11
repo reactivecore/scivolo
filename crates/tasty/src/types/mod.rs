@@ -40,6 +40,8 @@ pub enum Type {
     /// A package the universe does not have, by qualified name (`java.lang` without javalib).
     PackageName(String),
     This(TypeId),
+    /// `C.super[P]`: the `this` type of `C` and the parent type `P`, or all parents intersected.
+    Super(TypeId, TypeId),
     Applied(TypeId, Vec<TypeId>),
     Alias(TypeId),
     Bounds(TypeId, TypeId),

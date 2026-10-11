@@ -93,7 +93,7 @@ impl<'u> Printer<'u> {
                 let name = self.u.symbol(s).name.clone();
                 self.named(p, Some(s), &name)
             }
-            Type::TermRef(..) | Type::This(_) | Type::Package(_) | Type::PackageName(_) => {
+            Type::TermRef(..) | Type::This(_) | Type::Super(..) | Type::Package(_) | Type::PackageName(_) => {
                 format!("{}.type", self.path(t).shown)
             }
             Type::Local(_, n) => simple(&n).to_owned(),
