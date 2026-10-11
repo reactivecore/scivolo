@@ -100,7 +100,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             map_children(l, t, &mut |l, c| typed(l, c, if c == cond { Some(&boolean) } else { None }))?;
             None
         }
-        Tree::Return { from, .. } => {
+        Tree::Return { expr, from } => {
+            if is_unit_member(l, expr) {
+                return unsupported(l.tpd.span(t), "returns of Unit values of class members");
+            }
             let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {
                 Kind::Def => l.u.erased_method(m).1,
                 _ => {
@@ -130,8 +133,12 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             typed_except(l, t, elemtpt, Some(&elem))?;
             None
         }
-        Tree::Typed { tpt, .. } => {
+        Tree::Typed { expr, tpt } => {
             let ascribed = l.u.erase(l.tpd.tpe(tpt));
+            let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
+            if written && ascribed == Erased::Unit && !matches!(l.tpd.tree(expr), Tree::Literal { .. }) {
+                return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
+            }
             typed_except(l, t, tpt, Some(&ascribed))?;
             None
         }
@@ -174,6 +181,17 @@ fn keep_class_literal_start(l: &mut Lower, t: TNodeId, before: syntax::ast::Span
     if matches!(l.tpd.tree(rhs), Tree::ClassLiteral { .. }) && !l.tpd.span(rhs).exists() && before.exists() {
         l.tpd.get_mut(rhs).span = before.start_pos();
     }
+}
+
+/// Whether `t` refers to a `Unit` value or getter of a class.
+fn is_unit_member(l: &mut Lower, t: TNodeId) -> bool {
+    let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+        return false;
+    };
+    let in_class = l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o));
+    let info = l.u.info(s);
+    let result = l.u.result_type(info);
+    in_class && l.u.symbol(s).kind.is_term() && l.u.erase(result) == Erased::Unit
 }
 
 /// Types each child of `t` but `kept` against `pt`, rebuilding `t` in place.

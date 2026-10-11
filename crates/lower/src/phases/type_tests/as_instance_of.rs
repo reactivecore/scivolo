@@ -3,6 +3,7 @@
 use crate::phases::adapt::{adapt, converted, erased_type};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::{Erased, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -22,6 +23,10 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None)
         }
         (found, Erased::Unit) if *found != Erased::Unit => {
+            let literal = matches!(l.tpd.tree(expr), Tree::Literal { value } if *value != Constant::Null);
+            if !literal && !matches!(l.tpd.tree(expr), Tree::Block { .. }) {
+                return unsupported(span, "casts to Unit of values other than blocks or literals");
+            }
             let span = l.tpd.span(expr);
             let unit = l.unit_literal(Span::NONE);
             let block = l.block(&[expr], unit, Span::NONE);

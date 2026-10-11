@@ -20,6 +20,16 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
     (
+        "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
+        "ascriptions to Unit of values other than literals",
+    ),
+    ("object O { def f(x: Any): Unit = x.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
+    ("object O { def f(): Unit = null.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
+    (
+        "class U { val a: Unit = (); def f(x: Boolean): Unit = { if x then return a; () } }",
+        "returns of Unit values of class members",
+    ),
+    (
         "object E { def unapplySeq(s: String): Option[Seq[Int]] = None }\n\
          object O { def f(x: String): Int = x match { case E(a) => a; case _ => 0 } }",
         "sequence extractors not returning a sequence",
