@@ -52,6 +52,7 @@ mod methods;
 mod mirrors;
 mod mixin;
 mod outer_args;
+mod outer_traits;
 mod package_objects;
 mod patmat;
 mod pure_stats;

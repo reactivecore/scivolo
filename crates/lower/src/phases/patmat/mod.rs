@@ -127,7 +127,7 @@ impl<'t, 'a> Translator<'t, 'a> {
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);
         self.initializer.insert(var, rhs);
-        self.spans.insert(var, self.l.tpd.span(rhs));
+        self.spans.insert(var, coord(self.l.tpd.span(rhs)));
         let body = body(self, var)?;
         Ok(self.add(Plan::Let { sym: var, body }))
     }
@@ -144,4 +144,9 @@ impl<'t, 'a> Translator<'t, 'a> {
     fn is_generated(&self, s: SymbolId) -> bool {
         self.generated.contains(&s)
     }
+}
+
+/// The span of a symbol defined at `span`: its point (dotty's `Coord`).
+pub fn coord(span: Span) -> Span {
+    if span.exists() { Span::at(span.point()) } else { span }
 }

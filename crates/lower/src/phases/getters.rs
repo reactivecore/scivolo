@@ -34,9 +34,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
                 kept.pop();
                 continue;
             }
-            if in_trait && has(l.u, sym, PRIVATE) {
-                return unsupported(span, "private objects in traits");
-            }
             let flags = l.u.symbol(sym).flags.with(LAZY);
             l.u.set_flags(sym, flags);
         }
@@ -81,9 +78,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             && matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing)
         {
             return unsupported(span, "parameters and private local fields of type Unit, Null or Nothing");
-        }
-        if erased == Erased::Unit && overrides(l, sym) {
-            return unsupported(span, "values of type Unit overriding members");
         }
         if private_local {
             l.fields.insert(sym, sym);
@@ -147,14 +141,6 @@ pub fn record_rhs(l: &mut Lower, td: TNodeId) {
             l.getter_rhs.insert(s, r.with_point(r.start()));
         }
     }
-}
-
-/// Whether a base class of value `s`'s class has a member of its name.
-fn overrides(l: &mut Lower, s: SymbolId) -> bool {
-    let Some(class) = l.u.symbol(s).owner else { return false };
-    let name = l.u.symbol(s).name.clone();
-    let bases = l.u.linearization(class);
-    bases[1..].iter().any(|&b| l.u.decl(b, &name).is_ok_and(|d| !d.is_empty()))
 }
 
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).

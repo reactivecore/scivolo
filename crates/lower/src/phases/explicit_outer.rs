@@ -3,6 +3,7 @@
 //! `C$$$outer()`; its references to the instance read the parameter in constructor code, else
 //! the field.
 
+use super::outer_traits::outer_class;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
@@ -12,23 +13,33 @@ use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+    let mut mixes_inner = Vec::new();
     for &td in classes {
+        let class = l.tpd.sym(td).expect("a class definition's symbol");
+        mixes_inner.push(super::outer_traits::implement(l, td, class)?);
+    }
+    for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         if let Some(outer) = super::local_outer::local_outer(l, td, class) {
             let field = !super::local_outer::is_anonymous(l, class);
             add_outer(l, td, class, outer, field);
             continue;
         }
-        let Some(outer) = enclosing_instance(l, class) else { continue };
+        let Some(outer) = outer_class(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
         let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
         let uses = all.iter().any(|&t| outward(l, t)) || own.iter().any(|&t| creates_inner_of(l, t, outer));
-        let always = match l.u.is_module_class(class) {
-            true => l.u.is_trait(outer),
-            false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
-        };
-        if always || uses || l.outer_accessors.contains_key(&class) {
-            add_outer(l, td, class, outer, true);
+        let inner_parent = l.u.is_trait(class) && super::outer_traits::has_inner_parent(l, class);
+        let always = mixes_inner
+            || inner_parent
+            || match l.u.is_module_class(class) {
+                true => l.u.is_trait(outer),
+                false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
+            };
+        match (always || uses || l.outer_accessors.contains_key(&class), l.u.is_trait(class)) {
+            (false, _) => {}
+            (true, true) => super::outer_traits::add_outer(l, td, class),
+            (true, false) => add_outer(l, td, class, outer, true),
         }
     }
     for &td in classes {
@@ -76,7 +87,7 @@ pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) ->
     }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
-    let inner = l.u.class_symbol(dealiased).is_some_and(|c| enclosing_instance(l, c).is_some());
+    let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some());
     let tested = outer_prefix(l, target).is_some();
     (in_match && inner && !tested).then_some("patterns of classes in classes")
 }
@@ -115,16 +126,16 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
 
 /// The classes from the enclosing instance of `class` out to the one `t` is `this` of, if `t`
 /// is `this` of a class enclosing `class` through enclosing instances (dotty's `outer.path`).
-fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
+pub fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
     let target = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::This { .. }))?;
     let mut chain = Vec::new();
-    let mut cur = enclosing_instance(l, class);
+    let mut cur = outer_class(l, class);
     while let Some(c) = cur {
         chain.push(c);
         if c == target {
             return Some(chain);
         }
-        cur = enclosing_instance(l, c);
+        cur = outer_class(l, c);
     }
     None
 }
@@ -211,14 +222,16 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
         return m;
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    let (prefix, outer) = match super::local_free::is_term(l, owner) {
-        true => (super::local_outer::accessor_prefix(l, class), super::local_free::enclosing_class(l, owner)),
+    let (name, outer) = match super::local_free::is_term(l, owner) {
+        true => (
+            format!("{}$$$outer", super::local_outer::accessor_prefix(l, class)),
+            super::local_free::enclosing_class(l, owner),
+        ),
         false => (
-            l.u.binary_name(class).replace('.', "$"),
-            enclosing_instance(l, class).expect("a class with an enclosing instance"),
+            outer_accessor_name(l, class),
+            outer_class(l, class).expect("a class with an enclosing instance"),
         ),
     };
-    let name = format!("{prefix}$$$outer");
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
     let result = type_ref(l.u, outer);
     let binder = l.u.fresh_binder();
@@ -232,4 +245,9 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     l.u.set_info(m, info);
     l.outer_accessors.insert(class, m);
     m
+}
+
+/// `C$$$outer`, the name of the accessor of the enclosing instance of class `class`.
+pub fn outer_accessor_name(l: &Lower, class: SymbolId) -> String {
+    format!("{}$$$outer", l.u.binary_name(class).replace('.', "$"))
 }
