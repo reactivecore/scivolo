@@ -7,22 +7,6 @@ pub fn has(u: &Universe, s: SymbolId, tag: u8) -> bool {
     u.symbol(s).flags.has(tag)
 }
 
-pub fn is_class(u: &Universe, s: SymbolId) -> bool {
-    u.is_class(s)
-}
-
-pub fn is_module_class(u: &Universe, s: SymbolId) -> bool {
-    u.is_module_class(s)
-}
-
-pub fn is_module(u: &Universe, s: SymbolId) -> bool {
-    u.is_module(s)
-}
-
-pub fn is_trait(u: &Universe, s: SymbolId) -> bool {
-    u.is_trait(s)
-}
-
 pub fn is_private(u: &Universe, s: SymbolId) -> bool {
     has(u, s, PRIVATE)
 }
@@ -53,10 +37,6 @@ pub fn is_java_static(u: &Universe, s: SymbolId) -> bool {
 fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     let name = u.full_name(c);
     u.is_module_class(c) && (name.starts_with("java.") || name.starts_with("javax."))
-}
-
-pub fn is_constructor(u: &Universe, s: SymbolId) -> bool {
-    u.is_constructor(s)
 }
 
 /// Whether `s` is a package or an object reachable through static paths.

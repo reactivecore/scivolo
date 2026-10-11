@@ -3,7 +3,7 @@
 //! with its arguments cast where their erasures differ.
 
 use super::adapt::adapt;
-use crate::symbols::{has, is_class, is_constructor, is_trait};
+use crate::symbols::has;
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -13,7 +13,7 @@ use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    if is_trait(l.u, class) {
+    if l.u.is_trait(class) {
         return Ok(());
     }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
@@ -60,7 +60,7 @@ fn overriding_pairs(
 ) -> Vec<(SymbolId, SymbolId)> {
     let bases = l.u.linearization(class);
     let site = l.u.this_type(class);
-    let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
+    let superclass = bases[1..].iter().copied().find(|&b| l.u.is_class(b) && !l.u.is_trait(b));
     let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
     let super_site = superclass.map(|s| l.u.this_type(s));
     let mut candidates = Vec::new();
@@ -119,7 +119,7 @@ fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> boo
 
 /// Whether `s` is a non-private method or value a class can override.
 fn is_member(l: &Lower, s: SymbolId) -> bool {
-    matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !is_constructor(l.u, s)
+    matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !l.u.is_constructor(s)
 }
 
 /// Whether method `m` has no body: one of the unit's in `deferred`, or the library's.

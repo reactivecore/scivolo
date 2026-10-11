@@ -4,7 +4,7 @@
 //! call of its setter.
 
 use super::walk::references;
-use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
+use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC};
@@ -32,13 +32,13 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         let Tree::ValDef { name, tpt, rhs } = *l.tpd.tree(stat) else { continue };
         let Some(sym) = l.tpd.sym(stat) else { continue };
         let owner = l.u.symbol(sym).owner;
-        if !owner.is_some_and(|o| is_class(l.u, o)) {
+        if !owner.is_some_and(|o| l.u.is_class(o)) {
             continue;
         }
         let span = l.tpd.span(stat);
-        let in_trait = owner.is_some_and(|o| is_trait(l.u, o));
-        if is_module(l.u, sym) {
-            if owner.is_some_and(|o| is_module_class(l.u, o) && is_static(l.u, o)) {
+        let in_trait = owner.is_some_and(|o| l.u.is_trait(o));
+        if l.u.is_module(sym) {
+            if owner.is_some_and(|o| is_static_module(l.u, o)) {
                 kept.pop();
                 continue;
             }
@@ -48,7 +48,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             let flags = l.u.symbol(sym).flags.with(LAZY);
             l.u.set_flags(sym, flags);
         }
-        if in_trait && has(l.u, sym, LAZY) && !is_module(l.u, sym) {
+        if in_trait && has(l.u, sym, LAZY) && !l.u.is_module(sym) {
             return unsupported(span, "lazy values in traits");
         }
         if has(l.u, sym, LAZY) {
