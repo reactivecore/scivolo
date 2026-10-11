@@ -10,6 +10,7 @@ mod patmat;
 mod refs;
 mod sequences;
 mod strings;
+mod tuples;
 
 pub use case_classes::CaseClasses;
 pub use equality::Equality;
@@ -21,6 +22,7 @@ pub use sequences::Sequences;
 pub use strings::Strings;
 use tasty::tags::STATIC;
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+pub use tuples::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
 
 /// A primitive value class: its erased letter, its object and that object's `box` and `unbox`
 /// methods.

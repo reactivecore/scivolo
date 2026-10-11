@@ -28,8 +28,15 @@ pub fn library_jars(libs: &std::path::Path) -> Vec<PathBuf> {
 }
 
 /// The dump of `source` compiled with `options`; with `errors_first`, type errors are printed
-/// even when the unit also hits an unsupported construct.
-pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str], errors_first: bool) -> String {
+/// even when the unit also hits an unsupported construct; with `inlined`, inline calls are
+/// expanded and the tree line holds only the outermost `Inlined` trees.
+pub fn dump(
+    u: &mut Universe,
+    source: &SourceFile,
+    options: &[&str],
+    errors_first: bool,
+    inlined: bool,
+) -> String {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
     let root = p.parse();
@@ -41,9 +48,27 @@ pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str], errors_firs
     let mut b = String::new();
     let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
     match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
-        Ok(typed) => {
+        Ok(mut typed) => {
+            if inlined
+                && let Err((at, what)) =
+                    crate::inlining::run(u, &mut typed.tpd, p.s.names, &mut p.fresh, typed.root)
+            {
+                let at = if at.exists() { at.point().to_string() } else { "-".into() };
+                writeln!(b, "== unsupported {what} @ {at}").unwrap();
+                return b;
+            }
+            let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
             let mut printer = Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new() };
-            printer.tree(typed.root);
+            if inlined {
+                printer.out.push('[');
+                for t in trees {
+                    printer.out.push(' ');
+                    printer.tree(t);
+                }
+                printer.out.push(']');
+            } else {
+                printer.tree(typed.root);
+            }
             b.push_str(&printer.out);
             b.push('\n');
             diagnostics(&p.s.diags, &mut b);
@@ -59,6 +84,14 @@ pub fn dump(u: &mut Universe, source: &SourceFile, options: &[&str], errors_firs
         }
     }
     b
+}
+
+/// The `Inlined` trees of `t` not inside another one, in pre-order.
+fn outermost_inlined(tpd: &crate::tpd::Tpd, t: crate::tpd::TNodeId) -> Vec<crate::tpd::TNodeId> {
+    if matches!(tpd.tree(t), crate::tpd::Tree::Inlined { .. }) {
+        return vec![t];
+    }
+    tpd.children(t).into_iter().flat_map(|c| outermost_inlined(tpd, c)).collect()
 }
 
 fn diagnostics(diags: &Diagnostics, b: &mut String) {

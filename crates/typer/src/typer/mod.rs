@@ -9,11 +9,12 @@ mod and_or_types;
 mod anon_classes;
 mod applicability;
 mod apply;
+mod auto_apply;
 mod avoid;
 mod classes;
 mod closures;
 mod const_fold;
-mod const_ops;
+pub(crate) mod const_ops;
 mod constants;
 mod constructor_proxies;
 mod constructors;
@@ -45,6 +46,7 @@ mod interpolate;
 mod java_classes;
 mod java_members;
 mod lift;
+mod lift_app;
 mod literals;
 mod matches;
 mod member_views;
@@ -125,6 +127,8 @@ pub struct Typer<'a> {
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
     /// Untyped trees that stand for typed ones (dotty's `TypedSplice`).
     pub splices: FxHashMap<NodeId, TNodeId>,
+    /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
+    pub splice_owners: FxHashMap<NodeId, SymbolId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
@@ -174,6 +178,7 @@ impl<'a> Typer<'a> {
             features,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
+            splice_owners: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             constraint: Default::default(),

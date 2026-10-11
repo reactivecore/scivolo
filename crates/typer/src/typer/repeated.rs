@@ -162,4 +162,16 @@ impl Typer<'_> {
         let tpt = self.type_tree(repeated, span.end_pos(), true);
         self.tpd.node(T::Typed { expr: seq, tpt }, span, Some(repeated), None)
     }
+
+    /// Gives `SeqLiteral` `tree` without a type its type `Seq[elem]`.
+    pub fn type_seq_literal(&mut self, tree: TNodeId) {
+        let T::SeqLiteral { elemtpt, .. } = *self.tpd.tree(tree) else { return };
+        if self.tpd.get(tree).tpe.is_some() {
+            return;
+        }
+        let Some(seq) = self.resolve_full_name("scala.collection.immutable.Seq", true) else { return };
+        let elem = self.tpd.tpe(elemtpt);
+        let seq = crate::defn::type_ref(self.u, seq);
+        self.tpd.get_mut(tree).tpe = Some(self.u.intern_type(Type::Applied(seq, vec![elem])));
+    }
 }

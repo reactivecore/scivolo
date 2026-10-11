@@ -3,7 +3,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
 /// tree is a path; the weaker of two levels is their intersection.
@@ -13,19 +13,9 @@ const IDEMPOTENT_PATH: u8 = 4 | IDEMPOTENT;
 const PURE_PATH: u8 = 4 | PURE;
 const IMPURE: u8 = 0;
 
-/// The classes whose methods do not observe their arguments (dotty's `isKnownPureOp`).
-const PURE_OP_OWNERS: [&str; 10] = [
-    "scala.Int",
-    "scala.Long",
-    "scala.Short",
-    "scala.Byte",
-    "scala.Char",
-    "scala.Float",
-    "scala.Double",
-    "scala.Boolean",
-    "scala.Unit",
-    "java.lang.String",
-];
+/// The members of `Any` that do not observe their arguments (dotty's `pureMethods`).
+const PURE_ANY_METHODS: [&str; 9] =
+    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf"];
 
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
@@ -113,8 +103,9 @@ impl Typer<'_> {
         matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
-    /// dotty's `isPureApply`: a constant operation of a primitive class, a stable constructor of
-    /// a class outside the JDK, or the synthetic `apply` of a case class that initializes nothing.
+    /// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
+    /// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a
+    /// case class that initializes nothing.
     fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
         if self.u.symbol(s).name == "<init>" {
@@ -124,7 +115,14 @@ impl Typer<'_> {
             return true;
         }
         let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-        self.has_constant_type(tree) && owner.is_some_and(|o| PURE_OP_OWNERS.contains(&o.as_str()))
+        let name = self.u.symbol(s).name.as_str();
+        let known = match owner.as_deref() {
+            Some("scala.Any") => PURE_ANY_METHODS.contains(&name),
+            Some("java.lang.Object") => name == "eq" || name == "ne",
+            Some(o) => o == "java.lang.String" || PRIMITIVE_VALUE_CLASSES.contains(&o),
+            None => false,
+        };
+        self.has_constant_type(tree) && known
     }
 
     /// dotty's `isPureSyntheticCaseApply`.

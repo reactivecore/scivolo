@@ -1,5 +1,5 @@
-//! The implicits eligible for a search (dotty's `ContextualImplicits` and `implicitScope`): those
-//! visible in a context, innermost first, and those of the companions of a type's parts.
+//! The implicits visible in a context, innermost first (dotty's `ContextualImplicits`), and
+//! references to them.
 
 use super::super::Typer;
 use crate::ctx::{Ctx, Level};
@@ -23,7 +23,7 @@ impl Typer<'_> {
 
     /// The implicit members of class `c` and its base classes, the private ones of `c` if
     /// `own_private`.
-    fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
+    pub fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
         self.complete(c);
         let mut out = Vec::new();
         for base in self.u.linearization(c) {
@@ -122,36 +122,6 @@ impl Typer<'_> {
         Ok(out)
     }
 
-    /// The implicits of the companions of the classes `t` refers to and of their base classes.
-    pub fn implicit_scope(&mut self, t: TypeId) -> Vec<Candidate> {
-        let mut classes = Vec::new();
-        let t = self.zonk(t);
-        self.u.map_type(t, &mut |u, part| {
-            if matches!(u.types().get(part), Type::Sym(..) | Type::TypeRef(..))
-                && let Some(s) = u.class_symbol(part)
-                && !classes.contains(&s)
-            {
-                classes.push(s);
-            }
-            None
-        });
-        let mut out = Vec::new();
-        for c in classes {
-            for base in self.u.linearization(c) {
-                let Some(module) = self.companion_module(base) else { continue };
-                let Some(module_class) = self.u.module_class(module) else { continue };
-                let prefix = Some(crate::defn::type_ref(self.u, module));
-                for sym in self.implicit_members(module_class, false) {
-                    let candidate = Candidate { sym, prefix };
-                    if !out.contains(&candidate) {
-                        out.push(candidate);
-                    }
-                }
-            }
-        }
-        out
-    }
-
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
     /// selection from `this`.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
@@ -183,14 +153,5 @@ impl Typer<'_> {
             return Err("implicit through a path");
         }
         Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))
-    }
-
-    /// The companion object of class `c`, if `c` is not nested in a class other than an object's.
-    fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
-        let owner = self.u.symbol(c).owner?;
-        if self.u.is_class(owner) && !self.u.is_module_class(owner) {
-            return None;
-        }
-        self.u.companion_module(c)
     }
 }

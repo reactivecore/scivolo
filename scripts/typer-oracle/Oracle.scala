@@ -14,12 +14,17 @@ import scala.jdk.CollectionConverters.*
 
 /** Prints what dotty 3.9.0's typer makes of Scala files, in the format of `typer-dump`
  *  (crates/typer): per file its typed tree, its diagnostics and its feature counts.
- *  Usage: Oracle --list LIST, one `path[;path...]<TAB>options` per line, the paths of a line typed
- *  in one run; `--fresh` among the options types them with a compiler of their own.
+ *  Usage: Oracle [--inlined] --list LIST, one `path[;path...]<TAB>options` per line, the paths of a
+ *  line typed in one run; `--fresh` among the options types them with a compiler of their own.
+ *  With `--inlined`, compilation stops after the `inlining` phase and the tree line holds only the
+ *  outermost `Inlined` trees, in order.
  */
 object Oracle:
+  var inlined = false
+
   def main(args: Array[String]): Unit =
-    val List("--list", list) = args.toList: @unchecked
+    inlined = args.contains("--inlined")
+    val List("--list", list) = args.toList.filter(_ != "--inlined"): @unchecked
     val jobs = Files.readAllLines(Paths.get(list)).asScala.filter(_.nonEmpty).map { l =>
       val parts = l.split('\t')
       (parts(0).split(';').toList, if parts.length > 1 then parts(1).split(' ').toList.filter(_.nonEmpty) else Nil)
@@ -66,12 +71,13 @@ object Oracle:
     val fctx = root.fresh
     fctx.setSettings(ScalacCommand.distill(opts.toArray, fctx.settings)(fctx.settingsState)(using fctx).sstate)
     fctx.setSetting(fctx.settings.color, "never")
-    fctx.setSetting(fctx.settings.YstopAfter, List("typer"))
+    fctx.setSetting(fctx.settings.YstopAfter, List(if inlined then "inlining" else "typer"))
     val reporter = new StoreReporter(null) with UniqueMessagePositions with HideNonSensicalMessages
     fctx.setReporter(reporter)
     val run = compiler.newRun(using fctx)
     run.compile(paths.map(p => AbstractFile.getFile(p)))
-    given Context = run.runContext.withPhase(Phases.typerPhase(using run.runContext))
+    given Context = run.runContext.withPhase(
+      if inlined then Phases.inliningPhase(using run.runContext) else Phases.typerPhase(using run.runContext))
     val ds = reporter.removeBufferedMessages
     val units = run.units.filter(_.tpdTree ne tpd.EmptyTree).map(u => u.source.path -> u).toMap
     val elsewhere = ds.filterNot(d => d.pos.span.exists && units.contains(d.pos.source.path))
@@ -80,7 +86,11 @@ object Oracle:
       val path = AbstractFile.getFile(p).path
       for unit <- units.get(path) do
         val bytes = utf8Offsets(unit.source.content())
-        Sexp(bytes, b).tree(unit.tpdTree)
+        if inlined then
+          b += '['
+          for t <- outermostInlined(unit.tpdTree) do { b += ' '; Sexp(bytes, b).tree(t) }
+          b += ']'
+        else Sexp(bytes, b).tree(unit.tpdTree)
         b += '\n'
         for d <- ds if d.pos.span.exists && d.pos.source.path == path do diag(d, bytes(d.pos.span.point min (bytes.length - 1)).toString, b)
         val stats = Stats()
@@ -88,6 +98,16 @@ object Oracle:
         b ++= "== stats " ++= stats.counts.toSeq.sorted.map((k, v) => s"$k=$v").mkString(" ") += '\n'
       if i == 0 then for d <- elsewhere do diag(d, "-", b)
     cleanup(run)
+
+  /** The `Inlined` trees of `t` not inside another one, in pre-order. */
+  def outermostInlined(t: tpd.Tree)(using Context): List[tpd.Inlined] =
+    val out = List.newBuilder[tpd.Inlined]
+    new tpd.TreeTraverser:
+      def traverse(t: tpd.Tree)(using Context): Unit = t match
+        case t: tpd.Inlined => out += t
+        case _ => traverseChildren(t)
+    .traverse(t)
+    out.result()
 
   def diag(d: Diagnostic, at: String, b: StringBuilder): Unit =
     val msg =

@@ -44,18 +44,18 @@ impl Typer<'_> {
         let Type::Poly { params, .. } = self.u.types().get(info) else { return Ok(f) };
         let n = params.len();
         let span = self.tpd.span(f);
-        let (args, trees) = match self.new_type_args(f) {
+        let (args, trees, fresh) = match self.new_type_args(f) {
             Some((args, at)) => {
                 let trees: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, at, false)).collect();
-                (args, trees)
+                (args, trees, false)
             }
             None => {
                 let vars: Vec<TypeId> = (0..n).map(|_| self.constraint.fresh(self.u)).collect();
                 let trees = vars.iter().map(|&v| self.type_tree(v, span, true)).collect();
-                (vars, trees)
+                (vars, trees, true)
             }
         };
-        let tpe = self.instantiated(f, &args)?;
+        let tpe = self.instantiated_with(f, &args, fresh)?;
         let trees = self.tpd.list(&trees);
         Ok(self.tpd.node(T::TypeApply { fun: f, args: trees }, span.to_synthetic(), Some(tpe), None))
     }
@@ -75,6 +75,16 @@ impl Typer<'_> {
     /// The type of polymorphic `f` applied to `args`, which must be within the bounds of its
     /// type parameters, or constrained to be if they are type variables.
     pub fn instantiated(&mut self, f: TNodeId, args: &[TypeId]) -> Result<TypeId, &'static str> {
+        self.instantiated_with(f, args, false)
+    }
+
+    /// `instantiated`, without the kind check if `args` are fresh type variables.
+    fn instantiated_with(
+        &mut self,
+        f: TNodeId,
+        args: &[TypeId],
+        fresh: bool,
+    ) -> Result<TypeId, &'static str> {
         let fun_tpe = self.tpd.tpe(f);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
@@ -87,18 +97,38 @@ impl Typer<'_> {
         let method = self.tpd.sym(f);
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
-            let (lo, hi) = match *self.u.types().get(bounds) {
-                Type::Bounds(lo, hi) => (lo, hi),
-                _ => (bounds, bounds),
-            };
-            if self.type_arity(arg) != self.type_arity(hi) {
+            let (lo, hi, arity) = self.bounds_of(bounds);
+            if !fresh && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
-            if !self.conforms(lo, arg) || !self.conforms(arg, hi) {
+            if !self.conforms(arg, hi) || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
                 return Err("type argument outside its bounds");
             }
         }
         Ok(self.instantiate_poly(result, binder, &names, args, method))
+    }
+
+    /// The lower and upper bound of type parameter info `bounds` and the arity of the parameter;
+    /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
+    /// `None` for `Nothing`.
+    fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
+        match self.u.types().get(bounds).clone() {
+            Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
+            Type::Lambda { binder, params, result } => {
+                let (lo, hi) = match *self.u.types().get(result) {
+                    Type::Bounds(lo, hi) => (lo, hi),
+                    _ => (result, result),
+                };
+                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+                let arity = params.len();
+                let mut lambda = |result| {
+                    let params = params.clone();
+                    self.u.intern_type(Type::Lambda { binder, params, result })
+                };
+                (Some(lambda(lo)).filter(|_| !bottom), lambda(hi), arity)
+            }
+            _ => (Some(bounds), bounds, self.type_arity(bounds)),
+        }
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter

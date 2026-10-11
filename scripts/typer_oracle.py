@@ -7,10 +7,10 @@ from pathlib import Path
 from typer_corpus import ROOT, USING, WORK, feature_stats, has_errors, load_expected, selected, split, write_list
 
 
-def run_oracle(lst):
-    """The oracle's output for the files of the list `lst`."""
+def run_oracle(lst, mode=()):
+    """The oracle's output for the files of the list `lst`, with the oracle's options `mode`."""
     cmd = ["scala-cli", "--power", "run", "--server=false", "--quiet", "--workspace", str(WORK / "oracle-ws"),
-           str(ROOT / "scripts/typer-oracle"), "--", "--list", str(lst)]
+           str(ROOT / "scripts/typer-oracle"), "--", *mode, "--list", str(lst)]
     out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
         sys.exit(out.stderr)
@@ -26,11 +26,13 @@ def oracle(filter_):
 
 
 def checks(directory):
-    """Write dotty's typed trees for each DIR/*.scala to DIR/*.check (golden tests)."""
+    """Write dotty's typed trees for each DIR/*.scala to DIR/*.check (golden tests); for a DIR named
+    `inlined`, its `Inlined` trees after the `inlining` phase."""
     files = sorted(Path(directory).resolve().glob("*.scala"))
     rows = [(str(f.relative_to(ROOT)), " ".join(o for u in USING.findall(f.read_text()) for o in u.split()))
             for f in files]
-    for rel, body in split(run_oracle(write_list("checks.tsv", rows))).items():
+    mode = ["--inlined"] if Path(directory).name == "inlined" else []
+    for rel, body in split(run_oracle(write_list("checks.tsv", rows), mode)).items():
         body = "".join(l + "\n" for l in body.splitlines() if not l.startswith("== stats"))
         (ROOT / rel).with_suffix(".check").write_text(body, encoding="utf-8")
     print(f"{len(files)} checks")

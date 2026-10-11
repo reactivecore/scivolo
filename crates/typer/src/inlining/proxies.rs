@@ -1,0 +1,124 @@
+//! Proxies of inline arguments, and the trees standing for bound parameters in an expansion
+//! (dotty's `paramBindingDef`, and the parameter case of the inliner's tree map).
+
+use super::copy::TreeTypeMap;
+use super::expand::Expansion;
+use super::{Inlining, Unsupported};
+use crate::tpd::{TNodeId, Tree as T};
+use rustc_hash::FxHashMap;
+use syntax::ast::{Span, TName};
+use tasty::tags::{INLINE, INLINEPROXY};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+
+impl Expansion<'_, '_> {
+    /// The type of a new proxy binding argument `arg` of parameter `p` of type `formal`: a value,
+    /// or a method for a by-name parameter.
+    pub fn proxy(&mut self, p: SymbolId, formal: TypeId, arg: TNodeId) -> Result<TypeId, Unsupported> {
+        let i = &mut *self.i;
+        if i.has_definitions(arg) || matches!(i.tpd.tree(arg), T::Typed { .. }) {
+            return Err(self.err("inline argument defining symbols or repeated"));
+        }
+        let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
+        let inline = i.is_inline_param_type(formal);
+        let arg_tpe = i.tpd.tpe(arg);
+        let mut widened = i.u.widen(arg_tpe);
+        let builtins = i.u.builtins();
+        let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
+        if bottom && inline {
+            return Err(self.err("inline argument of type Nothing"));
+        }
+        let info = if bottom {
+            widened = match *i.u.types().get(formal) {
+                Type::ByName(r) => r,
+                _ => formal,
+            };
+            formal
+        } else if by_name {
+            i.u.intern_type(Type::ByName(widened))
+        } else {
+            widened
+        };
+        let mut flags = Flags::default().with(INLINEPROXY);
+        if inline {
+            flags = flags.with(INLINE);
+        }
+        let base = i.u.symbol(p).name.clone();
+        let name = i.fresh.next(i.names, &format!("{base}$proxy"));
+        let text = i.names.text(name).to_owned();
+        let kind = if by_name { Kind::Def } else { Kind::Val };
+        let s = i.u.define(Symbol {
+            name: text,
+            kind,
+            owner: Some(self.owner),
+            flags,
+            target: None,
+            is_extern: false,
+            derived: true,
+            decls: Vec::new(),
+            tree: None,
+        });
+        i.u.set_info(s, info);
+        let rhs = i.copy(&mut TreeTypeMap::default(), arg, &mut |_, _, _| None)?;
+        let span = i.tpd.span(self.call);
+        let tpt_span = Span::at(i.tpd.span(arg).start());
+        let name = TName { name, is_type: false };
+        let def = if by_name {
+            let tpt = i.tpd.node(T::TypeTree { inferred: false }, tpt_span, Some(widened), None);
+            let paramss = i.tpd.clauses(&[]);
+            T::DefDef { name, paramss, tpt, rhs: Some(rhs) }
+        } else {
+            let tpt = i.tpd.node(T::TypeTree { inferred: true }, tpt_span, Some(info), None);
+            T::ValDef { name, tpt, rhs: Some(rhs) }
+        };
+        self.bindings.push(i.tpd.node(def, span, None, Some(s)));
+        Ok(i.u.intern_type(Type::Sym(None, s)))
+    }
+}
+
+/// The tree replacing `t` in the copied body, if `t` refers to a bound parameter: the binding's
+/// singleton as an argument inlined from outside, or the type argument.
+pub fn replace_param(
+    i: &mut Inlining<'_>,
+    binding: &FxHashMap<SymbolId, TypeId>,
+    arg_span: &FxHashMap<SymbolId, Span>,
+    t: TNodeId,
+) -> Option<TNodeId> {
+    let T::Ident { name } = *i.tpd.tree(t) else { return None };
+    let s = i.tpd.sym(t)?;
+    let &bound = binding.get(&s)?;
+    let span = *arg_span.get(&s)?;
+    if name.is_type {
+        return Some(i.tpd.node(T::TypeTree { inferred: true }, span, Some(bound), None));
+    }
+    let inner = i.singleton(bound, span)?;
+    let empty = i.tpd.list(&[]);
+    let tpe = i.tpd.tpe(inner);
+    Some(i.tpd.node(
+        T::Inlined { call: None, bindings: empty, expansion: inner },
+        i.tpd.span(t),
+        Some(tpe),
+        None,
+    ))
+}
+
+impl Inlining<'_> {
+    /// Whether `t` defines symbols.
+    pub fn has_definitions(&self, t: TNodeId) -> bool {
+        matches!(
+            self.tpd.tree(t),
+            T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. } | T::Closure { .. }
+        ) || self.tpd.children(t).into_iter().any(|c| self.has_definitions(c))
+    }
+
+    /// Whether parameter type `p` is annotated `@InlineParam`, also inside a by-name type.
+    pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
+        match *self.u.types().get(p) {
+            Type::ByName(r) => self.is_inline_param_type(r),
+            Type::Annotated(_, annot) => self
+                .u
+                .class_symbol(annot)
+                .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam"),
+            _ => false,
+        }
+    }
+}

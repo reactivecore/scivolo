@@ -17,13 +17,14 @@ impl Typer<'_> {
         owner: SymbolId,
         flags: FlagSet,
     ) {
-        if let Some(what) = self.definition_problem(name, kind, owner, flags) {
+        if let Some(what) = self.definition_problem(tree, name, kind, owner, flags) {
             self.unsupported(tree, what);
         }
     }
 
     fn definition_problem(
         &mut self,
+        tree: NodeId,
         name: &str,
         kind: Kind,
         owner: SymbolId,
@@ -68,11 +69,7 @@ impl Typer<'_> {
             "lazy method"
         } else if !is_type && flags.is(f::TRANSPARENT) && !flags.is(f::INLINE) {
             "transparent without inline"
-        } else if kind == Kind::Def && self.defines_value(owner, name)
-            || (kind != Kind::Def || name.contains("$default$"))
-                && name != "$anon"
-                && self.defines(owner, name, is_type)
-        {
+        } else if self.doubly_defined(tree, name, kind, owner) {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
             "definition named like a package"
@@ -169,30 +166,10 @@ impl Typer<'_> {
         s.kind == Kind::Class && !s.flags.has(tasty::tags::OBJECT)
     }
 
-    /// Whether this unit defined a value named `name` in `owner` already.
-    fn defines_value(&self, owner: SymbolId, name: &str) -> bool {
-        let decls = &self.u.symbol(owner).decls;
-        decls.iter().any(|&d| {
-            self.syms.flags.contains_key(&d)
-                && self.u.symbol(d).kind == Kind::Val
-                && self.u.symbol(d).name == name
-        })
-    }
-
     /// Whether package `owner` has a subpackage named `name`.
     fn has_package(&mut self, owner: SymbolId, name: &str) -> bool {
         let decls = self.u.decl(owner, name).unwrap_or_default();
         decls.into_iter().any(|d| self.u.symbol(d).kind == Kind::Package)
-    }
-
-    /// Whether this unit defined a term (or type) named `name` in `owner` already.
-    fn defines(&self, owner: SymbolId, name: &str, is_type: bool) -> bool {
-        let decls = &self.u.symbol(owner).decls;
-        decls.iter().any(|&d| {
-            self.syms.flags.contains_key(&d)
-                && self.u.symbol(d).name == name
-                && self.u.is_type_symbol(d) == is_type
-        })
     }
 
     /// Whether a base class of class `c` other than `c` has a member class named `name`.

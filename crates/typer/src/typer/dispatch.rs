@@ -3,12 +3,15 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
-use syntax::ast::{NodeId, Tree};
+use syntax::ast::{Attrs, NodeId, Tree};
 
 impl Typer<'_> {
     pub fn typed_unadapted(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         match self.ast.tree(id).clone() {
             Tree::Ident { name } => self.typed_ident(id, name, pt, ctx),
+            Tree::Select { qualifier, .. } if self.ast.attrs(id).contains(Attrs::ETA_UNDERSCORE) => {
+                self.typed_as_function(id, qualifier, pt, ctx)
+            }
             Tree::Select { qualifier, name } => self.typed_select(id, qualifier, name, pt, ctx),
             Tree::Apply { fun, args } if ctx.mode.is(Mode::PATTERN) => {
                 self.typed_unapply(id, fun, args, pt, ctx)

@@ -51,13 +51,12 @@ impl Typer<'_> {
     }
 
     /// Whether method `s` takes no parameters or one empty non-implicit clause and nothing else.
-    fn is_nullary(&mut self, s: SymbolId) -> bool {
+    pub fn is_nullary(&mut self, s: SymbolId) -> bool {
         use crate::symbols::Completion;
-        if let Some(Completion::Pending { tree, .. } | Completion::Completing(tree)) =
+        if let Some(&(Completion::Pending { tree, .. } | Completion::Completing(tree))) =
             self.syms.completions.get(&s)
         {
-            let clauses = self.def_clauses(*tree);
-            return clauses.len() <= 1 && clauses.concat().is_empty();
+            return self.is_nullary_def(tree);
         }
         let info = self.u.info(s);
         match self.u.types().get(info) {
@@ -67,6 +66,12 @@ impl Typer<'_> {
             Type::Method { .. } | Type::Poly { .. } => false,
             _ => true,
         }
+    }
+
+    /// Whether method definition `tree` has no parameters or one empty clause and nothing else.
+    pub fn is_nullary_def(&self, tree: syntax::ast::NodeId) -> bool {
+        let clauses = self.def_clauses(tree);
+        clauses.len() <= 1 && clauses.concat().is_empty()
     }
 
     pub fn check_overrides(&mut self, cls: SymbolId, span: Span) {
