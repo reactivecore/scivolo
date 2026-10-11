@@ -1,6 +1,7 @@
-//! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member of a
-//! trait of the unit or the library its class directly extends, with another erased signature it
-//! conforms to, gets a bridge of that member's type calling it.
+//! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member, not
+//! overloaded, of a trait of the unit or the library its class directly extends, with another
+//! erased signature it conforms to, gets a bridge of that member's type calling it, itself a
+//! bridge if the method is; at the method, its body at the class if it takes parameters.
 
 use super::Gen;
 use crate::Result;
@@ -26,7 +27,9 @@ impl Gen<'_, '_> {
         let mut seen: Vec<(Vec<Erased>, Erased)> = Vec::new();
         let mut out = Vec::new();
         for t in traits {
-            for inherited in self.l.u.decl(t, &name).unwrap_or_default() {
+            let decls = self.l.u.decl(t, &name).unwrap_or_default();
+            let terms = decls.iter().filter(|&&d| self.l.u.symbol(d).kind.is_term()).count();
+            for inherited in decls.into_iter().filter(|_| terms == 1) {
                 let library = self.l.u.symbol(inherited).tree.is_some();
                 let deferred =
                     self.deferred.contains(&inherited) || library && self.l.u.body(inherited).is_none();
@@ -37,12 +40,19 @@ impl Gen<'_, '_> {
                 if signature.0 != params || signature.1 == result || seen.contains(&signature) {
                     continue;
                 }
+                let bottom = matches!(result, Erased::Nothing | Erased::Null);
+                let to_reference = matches!(signature.1, Erased::Class(_) | Erased::Array(_));
                 let reference = matches!(result, Erased::Class(_) | Erased::Array(_));
-                if !reference || !crate::phases::casts::conforms(self.l, &result, &signature.1) {
+                let conforms = reference && crate::phases::casts::conforms(self.l, &result, &signature.1);
+                if !(conforms || bottom && to_reference) {
                     continue;
                 }
                 seen.push(signature);
-                let span = self.l.tpd.span(dd);
+                let at = self.spans.get(&m).copied().unwrap_or(self.l.tpd.span(dd));
+                let span = match params.is_empty() {
+                    true => at,
+                    false => self.spans.get(&class).copied().unwrap_or(at),
+                };
                 let info = self.l.u.info(inherited);
                 let m_info = self.l.u.info(m);
                 let m_result = self.l.u.result_type(m_info);
@@ -54,6 +64,10 @@ impl Gen<'_, '_> {
                         l.apply(fun, args, m_result, span)
                     })?;
                 self.l.u.unenter(bridge);
+                self.l.tpd.get_mut(def).span = at;
+                if self.l.bridges.contains(&m) {
+                    self.l.bridges.insert(bridge);
+                }
                 out.push(def);
             }
         }

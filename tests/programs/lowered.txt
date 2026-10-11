@@ -59,3 +59,5 @@ packageobjects
 localobjects
 supercalls
 parameterless
+traitbridges
+constfinals

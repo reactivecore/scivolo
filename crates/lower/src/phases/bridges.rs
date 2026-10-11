@@ -1,73 +1,104 @@
-//! dotty's `Bridges`: a concrete method of a class overriding a member of another erasure gets a
-//! bridge of the member's type that calls it, its arguments cast where their erasures differ.
+//! dotty's `Bridges`: a class, not a trait, gets a bridge for each overriding pair of its
+//! members whose erasures differ, of the overridden member's type, calling the overriding one
+//! with its arguments cast where their erasures differ.
 
 use super::adapt::adapt;
 use crate::symbols::{has, is_class, is_constructor, is_trait};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
+use syntax::ast::Span;
 use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter, PRIVATE};
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let span = l.tpd.span(td);
+    if is_trait(l.u, class) {
+        return Ok(());
+    }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
-    let bases = l.u.linearization(class);
-    let site = l.u.this_type(class);
     let mut stats = l.tpd.items(body).to_vec();
-    let mut bridged: Vec<(String, Vec<Erased>, Erased)> = Vec::new();
-    for (member, implementation) in inherited_pairs(l, class, &bases, deferred) {
-        let (params, result) = l.u.erased_method(member);
-        let signature = (l.u.symbol(member).name.clone(), params, result);
-        if bridged.contains(&signature) {
+    let mut made: Vec<(SymbolId, Vec<Erased>, Erased)> = Vec::new();
+    let mut removed = Vec::new();
+    for (member, other) in overriding_pairs(l, class, deferred) {
+        if is_deferred(l, deferred, member) {
             continue;
         }
-        if is_trait(l.u, class) {
-            return unsupported(span, "bridges in traits");
+        let (params, result) = l.u.erased_method(other);
+        if l.u.erased_method(member) == (params.clone(), result.clone()) {
+            continue;
         }
-        bridged.push(signature);
-        stats.push(bridge(l, class, implementation, member, span)?);
+        let key = (member, params, result);
+        if made.contains(&key) {
+            continue;
+        }
+        made.push(key);
+        if l.u.symbol(other).owner == Some(class) {
+            removed.push(other);
+        }
+        let own = stats.iter().copied().find(|&s| l.tpd.sym(s) == Some(member) && l.tpd.span(s).exists());
+        let at = Span::at(l.tpd.span(own.unwrap_or(td)).point());
+        stats.push(bridge(l, class, member, other, at)?);
     }
-    for stat in l.tpd.items(body).to_vec() {
-        let (Tree::DefDef { rhs: Some(_), .. }, Some(m)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
-            continue;
-        };
-        if !is_member(l, m) {
-            continue;
-        }
-        let name = l.u.symbol(m).name.clone();
-        let (params, result) = l.u.erased_method(m);
-        for &base in &bases[1..] {
-            for other in l.u.decl(base, &name).unwrap_or_default() {
-                if !is_member(l, other) {
-                    continue;
-                }
-                let (other_params, other_result) = l.u.erased_method(other);
-                let signature = (name.clone(), other_params.clone(), other_result.clone());
-                let same_params = other_params == params;
-                if same_params && other_result == result || bridged.contains(&signature) {
-                    continue;
-                }
-                if other_params.len() != params.len() || !matching(l, site, m, other) {
-                    continue;
-                }
-                if is_trait(l.u, class) {
-                    return unsupported(l.tpd.span(stat), "bridges in traits");
-                }
-                bridged.push(signature);
-                let at = l.tpd.span(stat);
-                let at = if at.exists() { syntax::ast::Span::at(at.point()) } else { at };
-                stats.push(bridge(l, class, m, other, at)?);
-            }
-        }
-    }
-    if !bridged.is_empty() {
+    if !made.is_empty() {
+        stats.retain(|&s| l.tpd.sym(s).is_none_or(|s| !removed.contains(&s)));
         let body = l.tpd.list(&stats);
         l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     }
     Ok(())
+}
+
+/// The pairs of a member of `class` and a member it overrides, in the order dotty's
+/// `OverridingPairs.Cursor` yields them for `Bridges`: candidates by name, concrete ones before
+/// deferred ones, each from `class` to its last base class in declaration order; a member once
+/// overridden overrides nothing; pairs the superclass has too are left out.
+fn overriding_pairs(
+    l: &mut Lower,
+    class: SymbolId,
+    deferred: &FxHashSet<SymbolId>,
+) -> Vec<(SymbolId, SymbolId)> {
+    let bases = l.u.linearization(class);
+    let site = l.u.this_type(class);
+    let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
+    let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
+    let super_site = superclass.map(|s| l.u.this_type(s));
+    let mut candidates = Vec::new();
+    for abstract_ in [false, true] {
+        for &base in &bases {
+            for d in l.u.decls(base).unwrap_or_default() {
+                if is_member(l, d) && !l.bridges.contains(&d) && is_deferred(l, deferred, d) == abstract_ {
+                    candidates.push(d);
+                }
+            }
+        }
+    }
+    let mut visited = FxHashSet::default();
+    let mut pairs = Vec::new();
+    for (i, &overriding) in candidates.iter().enumerate() {
+        if visited.contains(&overriding) {
+            continue;
+        }
+        let name = l.u.symbol(overriding).name.clone();
+        for &overridden in &candidates[i + 1..] {
+            let owners = (l.u.symbol(overriding).owner, l.u.symbol(overridden).owner);
+            if l.u.symbol(overridden).name != name || owners.0 == owners.1 {
+                continue;
+            }
+            if !matching(l, site, overriding, overridden) {
+                continue;
+            }
+            visited.insert(overridden);
+            let in_superclass = |o: Option<SymbolId>| o.is_some_and(|o| inherited.contains(&o));
+            let handled = in_superclass(owners.0)
+                && in_superclass(owners.1)
+                && super_site.is_some_and(|s| matching(l, s, overriding, overridden));
+            if !handled {
+                pairs.push((overriding, overridden));
+            }
+        }
+    }
+    pairs
 }
 
 /// Whether `a` overrides `b` as members of `site`: their parameters match unless one is a value
@@ -91,57 +122,13 @@ fn is_member(l: &Lower, s: SymbolId) -> bool {
     matches!(l.u.symbol(s).kind, Kind::Def | Kind::Val) && !has(l.u, s, PRIVATE) && !is_constructor(l.u, s)
 }
 
-/// The members of the traits `class` mixes in that an inherited member of another erased
-/// result type implements, each with that implementation: the pairs `Bridges` bridges in
-/// `class`.
-fn inherited_pairs(
-    l: &mut Lower,
-    class: SymbolId,
-    bases: &[SymbolId],
-    deferred: &FxHashSet<SymbolId>,
-) -> Vec<(SymbolId, SymbolId)> {
-    let superclass = bases[1..].iter().copied().find(|&b| is_class(l.u, b) && !is_trait(l.u, b));
-    let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
-    let site = l.u.this_type(class);
-    let mut out = Vec::new();
-    for &base in bases[1..].iter().filter(|b| !inherited.contains(b)) {
-        let decls: Vec<SymbolId> = l.u.decls(base).unwrap_or_default();
-        let members: Vec<SymbolId> = decls.into_iter().filter(|&d| is_member(l, d)).collect();
-        for d in members {
-            let name = l.u.symbol(d).name.clone();
-            let (params, result) = l.u.erased_method(d);
-            let implementation = bases.iter().find_map(|&b| {
-                let found = l.u.decl(b, &name).unwrap_or_default();
-                found.into_iter().find(|&o| {
-                    is_member(l, o)
-                        && !is_deferred(l, deferred, o)
-                        && l.u.erased_method(o).0 == params
-                        && (o == d || matching(l, site, o, d))
-                })
-            });
-            let Some(implementation) = implementation else { continue };
-            let inherited_impl = l.u.symbol(implementation).owner != Some(class);
-            if inherited_impl && l.u.erased_method(implementation).1 != result {
-                out.push((d, implementation));
-            }
-        }
-    }
-    out
-}
-
 /// Whether method `m` has no body: one of the unit's in `deferred`, or the library's.
 fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
-    deferred.contains(&m) || l.u.symbol(m).tree.is_some() && l.u.body(m).is_none()
+    deferred.contains(&m) || l.u.is_deferred(m) || l.u.symbol(m).tree.is_some() && l.u.body(m).is_none()
 }
 
 /// `def m(params): R = this.m(params)` with the type of `other` that `m` overrides.
-fn bridge(
-    l: &mut Lower,
-    class: SymbolId,
-    m: SymbolId,
-    other: SymbolId,
-    span: syntax::ast::Span,
-) -> Result<TNodeId> {
+fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Span) -> Result<TNodeId> {
     let info = l.u.info(other);
     let m_info = l.u.info(m);
     let m_result = l.u.result_type(m_info);
