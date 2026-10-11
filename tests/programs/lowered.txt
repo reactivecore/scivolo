@@ -58,3 +58,4 @@ privatemembers
 packageobjects
 localobjects
 supercalls
+parameterless

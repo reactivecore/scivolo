@@ -112,6 +112,14 @@ impl Universe {
                 let info = self.info(s);
                 self.erase(info)
             }
+            Kind::Def => {
+                let info = self.info(s);
+                match *self.types().get(info) {
+                    Type::ByName(result) => self.erase(result),
+                    Type::Method { .. } | Type::Poly { .. } => object(),
+                    _ => self.erase(info),
+                }
+            }
             _ => object(),
         }
     }

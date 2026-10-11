@@ -51,9 +51,9 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
     let info = l.u.info(f.sym);
     let result = match *l.u.types().get(info) {
-        Type::Method { result, .. } => result,
+        Type::Method { result, .. } | Type::ByName(result) => result,
         Type::Poly { .. } => return unsupported(l.tpd.span(f.def), "local methods with type parameters"),
-        _ => return unsupported(l.tpd.span(f.def), "local methods without parameter lists"),
+        _ => info,
     };
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
@@ -78,7 +78,7 @@ pub fn lift(
         let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
         plans.push(closure.transpose()?);
     }
-    calls(l, class, template, functions, methods);
+    super::lifted_calls::calls(l, class, template, functions, methods);
     for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {
         match plan {
             Some(plan) => rewrite(l, f, method, plan),
@@ -131,30 +131,6 @@ pub fn define(
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
     l.u.set_info(sym, info);
     Method { sym, proxies }
-}
-
-/// Makes the calls of the local methods among `functions` under `t` call their `methods` with
-/// the captured values first.
-fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function], methods: &[Method]) {
-    let mut todo = vec![t];
-    while let Some(t) = todo.pop() {
-        if let Tree::Apply { fun, args } = *l.tpd.tree(t)
-            && let Some(i) = l.tpd.sym(fun).and_then(|s| functions.iter().position(|f| f.sym == s))
-            && functions[i].closure.is_none()
-            && matches!(l.tpd.tree(fun), Tree::Ident { .. })
-        {
-            let span = l.tpd.span(fun);
-            let this = l.this(class, span);
-            let fun = l.select(this, methods[i].sym, span);
-            let mut all: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
-            all.extend(l.tpd.items(args));
-            let args = l.tpd.list(&all);
-            l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
-        }
-        if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            todo.extend(children(l.tpd, t));
-        }
-    }
 }
 
 /// Removes local method `f` from the block it is in.
