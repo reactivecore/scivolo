@@ -36,7 +36,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         match *l.tpd.tree(stat) {
             Tree::Import { .. } => {}
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
-                if const_getter.is_some() && !matches!(l.tpd.tree(rhs), Tree::Literal { .. }) =>
+                if const_getter.is_some()
+                    && !matches!(l.tpd.tree(rhs), Tree::Literal { .. } | Tree::ClassLiteral { .. }) =>
             {
                 let getter = const_getter.expect("a getter's symbol");
                 let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);

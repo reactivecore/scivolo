@@ -3,7 +3,7 @@
 use super::Gen;
 use super::callee::is_primitive;
 use crate::{Result, unsupported};
-use nir::{Val, ValId};
+use nir::{Type, Val, ValId};
 use syntax::ast::constant::Constant;
 use typer::tpd::TNodeId;
 
@@ -29,6 +29,27 @@ impl Gen<'_, '_> {
 
     /// `classOf[tpe]`: the class of an object for its singleton type.
     pub fn gen_class_literal(&mut self, t: TNodeId, tpe: tasty::TypeId) -> Result<ValId> {
+        let ty = self.gen_type(tpe);
+        if let Type::Array { elem, .. } = *self.pool.ty(ty) {
+            let simple = match self.pool.ty(elem) {
+                Type::Bool => "Boolean",
+                Type::Char => "Char",
+                Type::Byte => "Byte",
+                Type::Short => "Short",
+                Type::Int => "Int",
+                Type::Long => "Long",
+                Type::Float => "Float",
+                Type::Double => "Double",
+                _ => "Object",
+            };
+            let name = self.pool.top(&format!("scala.scalanative.runtime.{simple}Array"));
+            return Ok(self.val(Val::ClassOf(name)));
+        }
+        let object = tasty::Erased::Class("java.lang.Object".into());
+        if self.l.u.erase(tpe) == object {
+            let name = self.pool.top("java.lang.Object");
+            return Ok(self.val(Val::ClassOf(name)));
+        }
         let class = match *self.l.u.types().get(tpe) {
             tasty::Type::Sym(_, s) if self.l.u.is_module(s) => self.l.u.module_class(s),
             _ => self.l.u.class_symbol(tpe),

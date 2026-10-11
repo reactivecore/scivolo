@@ -108,7 +108,7 @@ fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
         s.is_some_and(|s| l.u.is_module(s) || l.u.symbol(s).kind == Kind::Val && !has(l.u, s, MUTABLE))
     };
     match *l.tpd.tree(t) {
-        Tree::Literal { .. } | Tree::This { .. } => true,
+        Tree::Literal { .. } | Tree::ClassLiteral { .. } | Tree::This { .. } => true,
         Tree::Ident { .. } => stable(l, l.tpd.sym(t)),
         Tree::Select { qualifier, .. } => stable(l, l.tpd.sym(t)) && is_stable_path(l, qualifier),
         _ => false,
