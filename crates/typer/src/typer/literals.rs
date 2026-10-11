@@ -8,13 +8,8 @@ use syntax::ast::constant::Constant;
 use syntax::ast::from_digits;
 use syntax::ast::tree::NumberKind;
 use syntax::config::Features;
-use tasty::TypeId;
 
 impl Typer<'_> {
-    pub fn literal_type(&mut self, c: &Constant) -> TypeId {
-        self.build().literal_type(c)
-    }
-
     /// A number literal: of the primitive type expected if there is one, else an `Int` or a
     /// `Double` by its form (dotty's `typedNumber`).
     pub fn typed_number(

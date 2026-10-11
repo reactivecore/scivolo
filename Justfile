@@ -203,11 +203,18 @@ snapshot *oracles: release
     cargo build -q --release -p typer -p lower -p syntax
     python3 scripts/snapshot.py record {{ oracles }}
 
-# After the refactor: rerun the oracles and fail on any outcome that differs from the snapshot,
-# on a skipped oracle that has a snapshot, and when no oracle was compared.
+# After the refactor: rerun the oracles, list the rows that differ from the snapshot as worsened,
+# improved and other changes, and fail on any of them, on a skipped oracle that has a snapshot,
+# and when no oracle was compared.
 snapshot-check *oracles: release
     cargo build -q --release -p typer -p lower -p syntax
     python3 scripts/snapshot.py check {{ oracles }}
+
+# After a feature: list the rows that differ from the snapshot like `snapshot-check`, without
+# failing on them.
+snapshot-diff *oracles: release
+    cargo build -q --release -p typer -p lower -p syntax
+    python3 scripts/snapshot.py diff {{ oracles }}
 
 # Format, run the gates, commit every change not ignored with message `msg` and push the branch.
 ship msg: fmt gates lint-msrv

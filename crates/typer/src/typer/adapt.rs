@@ -39,16 +39,14 @@ impl Typer<'_> {
                     }
                 }
             }
-            let args = self.tpd.list(&args);
-            let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
+            let apply = self.build().apply(tree, &args, *result, span.to_synthetic());
             return self.adapt(apply, pt, ctx);
         }
         if let Some(Type::Method { params, result, implicit: false, .. }) = &method
             && params.is_empty()
             && self.is_auto_applicable(tree)
         {
-            let args = self.tpd.list(&[]);
-            let apply = self.tpd.node(T::Apply { fun: tree, args }, span.to_synthetic(), Some(*result), None);
+            let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
             return self.adapt(apply, pt, ctx);
         }
         if let Some(Type::Method { params, implicit: false, .. }) = &method
@@ -133,10 +131,9 @@ impl Typer<'_> {
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).
     fn discarded(&mut self, tree: TNodeId, span: Span) -> TNodeId {
-        let unit = crate::defn::type_ref(self.u, self.defn.unit);
-        let literal = self.tpd.node(T::Literal { value: Constant::Unit }, span.end_pos(), Some(unit), None);
+        let literal = self.build().literal(Constant::Unit, span.end_pos());
         let stats = self.tpd.list(&[tree]);
-        self.tpd.node(T::Block { stats, expr: literal }, span.to_synthetic(), Some(unit), None)
+        self.build().block(stats, literal, span.to_synthetic())
     }
 
     /// The constant of `tree` converted to the primitive class of `pt` (dotty's
@@ -175,10 +172,10 @@ impl Typer<'_> {
     /// `tree` evaluated for constant `value`: the literal alone if `tree` is pure.
     fn with_constant(&mut self, tree: TNodeId, value: Constant) -> TNodeId {
         let span = self.tpd.span(tree);
-        let tpe = self.literal_type(&value);
+        let tpe = self.build().literal_type(&value);
         if let T::Block { stats, expr } = *self.tpd.tree(tree) {
             let expr = self.with_constant(expr, value);
-            return self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None);
+            return self.build().block(stats, expr, span);
         }
         let pure = matches!(self.tpd.tree(tree), T::Literal { .. }) || self.is_idempotent_expr(tree);
         let literal = self.tpd.node(T::Literal { value }, span, Some(tpe), None);
@@ -186,6 +183,6 @@ impl Typer<'_> {
             return literal;
         }
         let stats = self.tpd.list(&[tree]);
-        self.tpd.node(T::Block { stats, expr: literal }, span.to_synthetic(), Some(tpe), None)
+        self.build().block(stats, literal, span.to_synthetic())
     }
 }
