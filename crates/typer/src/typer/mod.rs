@@ -51,6 +51,7 @@ mod member_views;
 mod members;
 mod mismatch_context;
 mod mismatch_text;
+mod name_clashes;
 mod named_args;
 mod names;
 mod no_inits;

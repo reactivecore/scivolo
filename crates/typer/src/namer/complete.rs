@@ -23,6 +23,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
                 let info = self.result_type(sym, tpt, rhs, ctx.with_owner(sym));

@@ -15,6 +15,12 @@ impl Typer<'_> {
         }
     }
 
+    /// The name `s` has at run time: its `@targetName`, else its name.
+    pub fn run_name(&self, s: SymbolId) -> &str {
+        let s = self.u.symbol(s);
+        s.target.as_deref().unwrap_or(&s.name)
+    }
+
     fn has_default_args(&self, def: SymbolId) -> bool {
         let clauses = self.syms.param_clauses.get(&def);
         clauses
@@ -74,16 +80,7 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                let type_params = |t: &mut Self, m| {
-                    let info = t.u.info(m);
-                    match t.u.types().get(info) {
-                        Type::Poly { params, .. } => params.len(),
-                        _ => 0,
-                    }
-                };
-                let same_arity = type_params(self, a) == type_params(self, b);
-                let erased_clash = same_arity && self.u.erased_method(a) == self.u.erased_method(b);
-                if self.u.matches(site, a, b) || erased_clash {
+                if self.run_name(a) == self.run_name(b) && self.u.matches(site, a, b) {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {
@@ -91,6 +88,7 @@ impl Typer<'_> {
                 }
             }
         }
+        self.check_no_clashes(cls, span);
         for d in own {
             let (name, kind) = (self.u.symbol(d).name.clone(), self.u.symbol(d).kind);
             let exempt = f::PRIVATE.or(f::SYNTHETIC);
@@ -110,6 +108,10 @@ impl Typer<'_> {
                     let inline = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::INLINE);
                     if (inline(self, d) || inline(self, m)) && self.same_member(site, d, m) {
                         return self.unsupported_at(span, "override involving an inline method");
+                    }
+                    self.complete(m);
+                    if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
+                        return self.unsupported_at(span, "override with another @targetName");
                     }
                     if !self.is_concrete(m) || !self.same_member(site, d, m) {
                         continue;

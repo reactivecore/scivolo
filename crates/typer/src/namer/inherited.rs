@@ -14,7 +14,7 @@ impl Typer<'_> {
         let name = self.u.symbol(sym).name.clone();
         let decls = self.u.symbol(sym).decls.clone();
         if decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam) {
-            if !self.class_members(cls, &name).iter().all(|&m| m == sym) {
+            if !self.class_members(cls, &name).iter().all(|&m| self.u.symbol(m).owner == Some(cls)) {
                 self.unsupported_at(syntax::ast::Span::NONE, "polymorphic method overriding a member");
             }
             return None;

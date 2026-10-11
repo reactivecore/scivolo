@@ -86,10 +86,6 @@ impl Typer<'_> {
             self.unsupported_at(annot_span, "@main method not statically accessible");
             return None;
         }
-        if self.syms.annotations.get(&fun).is_some_and(|a| a.len() > 1) {
-            self.unsupported_at(annot_span, "@main method with other annotations");
-            return None;
-        }
         let mut call = self.splice_ref(fun);
         let info = self.u.info(fun);
         match self.u.types().get(info).clone() {

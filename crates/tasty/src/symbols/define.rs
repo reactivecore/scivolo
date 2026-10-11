@@ -31,6 +31,11 @@ impl Universe {
         self.symbols[sym.0 as usize].flags = flags;
     }
 
+    /// Gives `sym`, a symbol defined outside TASTy, the run-time name `target` (`@targetName`).
+    pub fn set_target(&mut self, sym: SymbolId, target: &str) {
+        self.symbols[sym.0 as usize].target = Some(target.to_owned());
+    }
+
     /// Records whether `sym`, a term defined outside TASTy, is abstract.
     pub fn set_deferred(&mut self, sym: SymbolId, deferred: bool) {
         if deferred {
