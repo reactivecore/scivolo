@@ -3,6 +3,7 @@
 //! `C$$$outer()`; its references to the instance read the parameter in constructor code, else
 //! the field.
 
+use super::outer_traits::outer_class;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
@@ -14,16 +15,20 @@ use typer::tpd::{TNodeId, Tree};
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        let Some(outer) = enclosing_instance(l, class) else { continue };
+        let mixes_inner = super::outer_traits::implement(l, td, class)?;
+        let Some(outer) = outer_class(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
         let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
         let uses = all.iter().any(|&t| outward(l, t)) || own.iter().any(|&t| creates_inner_of(l, t, outer));
-        let always = match l.u.is_module_class(class) {
-            true => l.u.is_trait(outer),
-            false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
-        };
-        if always || uses || l.outer_accessors.contains_key(&class) {
-            add_outer(l, td, class, outer);
+        let always = mixes_inner
+            || match l.u.is_module_class(class) {
+                true => l.u.is_trait(outer),
+                false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
+            };
+        match (always || uses || l.outer_accessors.contains_key(&class), l.u.is_trait(class)) {
+            (false, _) => {}
+            (true, true) => super::outer_traits::add_outer(l, td, class),
+            (true, false) => add_outer(l, td, class, outer),
         }
     }
     for &td in classes {
@@ -71,7 +76,7 @@ pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) ->
     }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
-    let inner = l.u.class_symbol(dealiased).is_some_and(|c| enclosing_instance(l, c).is_some());
+    let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some());
     let tested = outer_prefix(l, target).is_some();
     (in_match && inner && !tested).then_some("patterns of classes in classes")
 }
@@ -110,16 +115,16 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
 
 /// The classes from the enclosing instance of `class` out to the one `t` is `this` of, if `t`
 /// is `this` of a class enclosing `class` through enclosing instances (dotty's `outer.path`).
-fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
+pub fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
     let target = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::This { .. }))?;
     let mut chain = Vec::new();
-    let mut cur = enclosing_instance(l, class);
+    let mut cur = outer_class(l, class);
     while let Some(c) = cur {
         chain.push(c);
         if c == target {
             return Some(chain);
         }
-        cur = enclosing_instance(l, c);
+        cur = outer_class(l, c);
     }
     None
 }
@@ -200,9 +205,9 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     if let Some(&m) = l.outer_accessors.get(&class) {
         return m;
     }
-    let name = format!("{}$$$outer", l.u.binary_name(class).replace('.', "$"));
+    let name = outer_accessor_name(l, class);
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
-    let outer = enclosing_instance(l, class).expect("a class with an enclosing instance");
+    let outer = outer_class(l, class).expect("a class with an enclosing instance");
     let result = type_ref(l.u, outer);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method {
@@ -215,4 +220,9 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     l.u.set_info(m, info);
     l.outer_accessors.insert(class, m);
     m
+}
+
+/// `C$$$outer`, the name of the accessor of the enclosing instance of class `class`.
+pub fn outer_accessor_name(l: &Lower, class: SymbolId) -> String {
+    format!("{}$$$outer", l.u.binary_name(class).replace('.', "$"))
 }

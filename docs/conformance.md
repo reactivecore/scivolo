@@ -139,15 +139,15 @@ Each single-file test is lowered by `lower` and run in the VM. Tests failing in 
 compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
 the typer or the lowering gives.
 
-Results (2026-10-09):
+Results (2026-10-11):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 278 |
+| passed | 316 |
 | wrong output | 1 |
 | crashed | 0 |
-| lowering refused | 76 |
-| typer refused | 1078 |
+| lowering refused | 37 |
+| typer refused | 1079 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
