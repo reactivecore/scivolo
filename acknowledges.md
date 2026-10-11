@@ -30,8 +30,10 @@ Apache-2.0. Rust translations of:
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`)
-  - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors, forwarders),
+  - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
+    forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
+  - `BetaReduce` (the applications it rewrites, refused)
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
     (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`

@@ -4,11 +4,13 @@
 //! on `super`.
 
 use super::trait_fields::{mixed_in, trait_defs};
+use crate::definitions::specialized_applies;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
+use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, INLINE, PRIVATE};
-use tasty::{Kind, SymbolId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether member `s` has a body: in its TASTy for the library's, else unless deferred.
@@ -60,9 +62,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut forwarders = Vec::new();
     for mixin in mixins(l, class) {
         let library = l.u.symbol(mixin).tree.is_some();
-        let decls = l.u.decls(mixin).unwrap_or_default();
-        if library && decls.iter().any(|&d| l.u.symbol(d).kind == Kind::TypeParam) {
-            return unsupported(span, "generic library traits as parents");
+        if let Some(arity) = function_arity(l, mixin)
+            && specialized_applies(l.u, arity).is_err()
+        {
+            return unsupported(span, "specialized functions");
         }
         if library && !l.u.no_inits(mixin) {
             super::library_traits::prepare(l, mixin, span)?;
@@ -72,7 +75,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         for meth in l.u.decls(mixin).unwrap_or_default() {
             if has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth) {
-                forwarders.push(forwarder(l, class, mixin, meth, span)?);
+                let at = if span.exists() { Span::at(span.point()) } else { span };
+                forwarders.push(forwarder(l, class, mixin, meth, at)?);
             }
         }
     }
@@ -88,12 +92,22 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// The traits `class` mixes in, from the last one linearized to the first.
-fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
+pub fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let linearization = l.u.linearization(class);
     let mut out: Vec<SymbolId> =
         linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
     out.reverse();
     out
+}
+
+/// N if `class` is `scala.FunctionN` with specialized `apply` methods.
+pub fn function_arity(l: &Lower, class: SymbolId) -> Option<usize> {
+    match l.u.full_name(class).as_str() {
+        "scala.Function0" => Some(0),
+        "scala.Function1" => Some(1),
+        "scala.Function2" => Some(2),
+        _ => None,
+    }
 }
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
@@ -133,12 +147,57 @@ fn forwarder(
     meth: SymbolId,
     span: syntax::ast::Span,
 ) -> Result<TNodeId> {
-    let info = l.u.info(meth);
+    let mut info = l.u.info(meth);
+    let jdk = is_jdk(l, mixin);
+    if jdk {
+        info = with_java_param_names(l, info);
+    }
     let flags = l.u.symbol(meth).flags;
-    let (_, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
+    let (sym, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
         let sup = l.super_mix(class, mixin, span);
         let fun = l.select(sup, meth, span);
         l.apply(fun, args, result, span)
     })?;
+    if !jdk {
+        l.forwarded.insert(sym, meth);
+    }
     Ok(def)
+}
+
+/// Whether class `c` is in a JDK package, which dotty reads from Java class files.
+pub fn is_jdk(l: &Lower, c: SymbolId) -> bool {
+    let name = l.u.full_name(c);
+    name.starts_with("java.") || name.starts_with("javax.")
+}
+
+/// The base classes of `class` that javalib gives JDK classes as parents and the JDK does not,
+/// such as `scala.scalanative.runtime.Throwable`.
+pub fn javalib_only_bases(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
+    let jdk_bases: Vec<SymbolId> = l.u.linearization(class).into_iter().filter(|&b| is_jdk(l, b)).collect();
+    let mut out = Vec::new();
+    for b in jdk_bases {
+        for p in l.u.parents(b) {
+            let Some(p) = l.u.class_symbol(p) else { continue };
+            if l.u.full_name(p).starts_with("scala.scalanative.") && !out.contains(&p) {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+/// Method type `info` of a JDK method with its parameters named as dotty names those of Java
+/// class files: `x$0`, `x$1`, ...
+pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {
+    match l.u.types().get(info).clone() {
+        Type::Method { binder, params, result, implicit, contextual } => {
+            let params = params.into_iter().enumerate().map(|(i, (_, t))| (format!("x${i}"), t)).collect();
+            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
+        }
+        Type::Poly { binder, params, result } => {
+            let result = with_java_param_names(l, result);
+            l.u.intern_type(Type::Poly { binder, params, result })
+        }
+        _ => info,
+    }
 }

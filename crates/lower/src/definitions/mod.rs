@@ -13,7 +13,7 @@ mod strings;
 
 pub use case_classes::CaseClasses;
 pub use equality::Equality;
-pub use interfaces::{procedure, specialized, specialized_apply};
+pub use interfaces::{procedure, specialized, specialized_applies, specialized_apply};
 pub use lazy_vals::LazyVals;
 pub use patmat::Patmat;
 pub use refs::{Ref, ref_class};

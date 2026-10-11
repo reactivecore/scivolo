@@ -139,7 +139,8 @@ fn type_defs(l: &Lower, root: TNodeId) -> Vec<TNodeId> {
     out
 }
 
-/// The spans of classes `type_defs` and of the methods in their templates but those mixed in.
+/// The spans of classes `type_defs` and of the methods in their templates but those mixed in or
+/// specialized.
 fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Span> {
     let mut out = FxHashMap::default();
     for &td in type_defs {
@@ -147,7 +148,7 @@ fn definition_spans(l: &Lower, type_defs: &[TNodeId]) -> FxHashMap<SymbolId, Spa
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
         let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
         for &stat in l.tpd.items(body) {
-            let sym = l.tpd.sym(stat).filter(|s| !l.mixed_in.contains(s));
+            let sym = l.tpd.sym(stat).filter(|s| !l.mixed_in.contains(s) && !l.specialized.contains(s));
             out.extend(sym.map(|s| (s, l.tpd.span(stat))));
         }
     }

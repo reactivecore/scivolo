@@ -36,7 +36,39 @@ pub fn specialized_apply(u: &mut Universe, params: &[Erased], result: &Erased) -
     }
     let types = params.iter().map(|p| primitive(u, p)).collect::<Result<Vec<_>, _>>()?;
     let result = primitive(u, result)?;
-    Ok(method(u, function, &name, &types, result))
+    let m = u.define(symbol(&name, Kind::Def, function, Flags::default()));
+    let info = super::equality::method(u, &types, result);
+    u.set_info(m, info);
+    Ok(m)
+}
+
+/// All specialized `apply` methods of `Function{arity}`, entered if missing.
+pub fn specialized_applies(u: &mut Universe, arity: usize) -> Result<Vec<SymbolId>, String> {
+    let prims = |s: &str| s.chars().map(Erased::Prim).collect::<Vec<_>>();
+    let (results, params): (Vec<Erased>, Vec<Vec<Erased>>) = match arity {
+        0 => {
+            let results = prims("bscijfd").into_iter().chain([Erased::Unit, Erased::Prim('z')]);
+            (results.collect(), vec![Vec::new()])
+        }
+        1 => (function_results(), prims("ijfd").into_iter().map(|p| vec![p]).collect()),
+        _ => {
+            let ps = prims("ijd");
+            let params = ps.iter().flat_map(|p| ps.iter().map(|q| vec![p.clone(), q.clone()]));
+            (function_results(), params.collect())
+        }
+    };
+    let mut out = Vec::new();
+    for r in &results {
+        for ps in &params {
+            out.push(specialized_apply(u, ps, r)?);
+        }
+    }
+    Ok(out)
+}
+
+/// The results of the specialized `apply` methods of `Function1` and `Function2`.
+fn function_results() -> Vec<Erased> {
+    std::iter::once(Erased::Unit).chain("zifjd".chars().map(Erased::Prim)).collect()
 }
 
 /// `apply$mc<R><Ps>$sp`, each type by its Java descriptor letter.

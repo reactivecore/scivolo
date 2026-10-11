@@ -3,6 +3,7 @@
 //! with its arguments cast where their erasures differ.
 
 use super::adapt::adapt;
+use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
@@ -51,14 +52,17 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
 
 /// The pairs of a member of `class` and a member it overrides, in the order dotty's
 /// `OverridingPairs.Cursor` yields them for `Bridges`: candidates by name, concrete ones before
-/// deferred ones, each from `class` to its last base class in declaration order; a member once
+/// deferred ones, each from `class` to its last base class but javalib's own in declaration
+/// order; a member once
 /// overridden overrides nothing; pairs the superclass has too are left out.
 fn overriding_pairs(
     l: &mut Lower,
     class: SymbolId,
     deferred: &FxHashSet<SymbolId>,
 ) -> Vec<(SymbolId, SymbolId)> {
-    let bases = l.u.linearization(class);
+    let hidden = javalib_only_bases(l, class);
+    let mut bases = l.u.linearization(class);
+    bases.retain(|b| !hidden.contains(b));
     let site = l.u.this_type(class);
     let superclass = bases[1..].iter().copied().find(|&b| l.u.is_class(b) && !l.u.is_trait(b));
     let inherited = superclass.map(|s| l.u.linearization(s)).unwrap_or_default();
@@ -129,7 +133,10 @@ fn is_deferred(l: &Lower, deferred: &FxHashSet<SymbolId>, m: SymbolId) -> bool {
 
 /// `def m(params): R = this.m(params)` with the type of `other` that `m` overrides.
 fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Span) -> Result<TNodeId> {
-    let info = l.u.info(other);
+    let mut info = l.u.info(other);
+    if l.u.symbol(other).owner.is_some_and(|o| is_jdk(l, o)) {
+        info = with_java_param_names(l, info);
+    }
     let m_info = l.u.info(m);
     let m_result = l.u.result_type(m_info);
     let mut flags = l.u.symbol(m).flags;

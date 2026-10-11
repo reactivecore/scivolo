@@ -1,6 +1,7 @@
 //! dotty's `LazyVals` (`transformMemberDefThreadSafeNew`): each lazy value of a class becomes a
 //! volatile field, an accessor reading it and a `$lzyINIT` method computing it under
-//! compare-and-set of the field (Scala Native's `LazyVals.objCAS`).
+//! compare-and-set of the field (Scala Native's `LazyVals.objCAS`); those `Mixin` adds come
+//! after the class's own.
 
 mod accessor;
 
@@ -37,6 +38,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
+    let mut mixed_in = Vec::new();
     for stat in l.tpd.items(body).to_vec() {
         let lazy = l.tpd.sym(stat).filter(|&s| has(l.u, s, LAZY));
         let (Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }, Some(accessor)) =
@@ -46,12 +48,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         };
         let span = l.tpd.span(stat);
-        if l.u.is_trait(class) && l.u.is_module(accessor) {
+        if l.u.is_trait(class) {
             stats.push(stat);
             continue;
-        }
-        if l.u.is_trait(class) {
-            return unsupported(span, "lazy values in traits");
         }
         let info = l.u.info(accessor);
         if has(l.u, accessor, SYNTHETIC) && l.u.erase(info) == Erased::Unit {
@@ -70,8 +69,13 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         node.span = Span::NONE;
         stats.push(l.with_span(stat, at));
         stats.push(init_method(l, &lazy, rhs, info));
-        l.lazy_fields.push(LazyField { class, field: lazy.field, accessor, span });
+        let field = LazyField { class, field: lazy.field, accessor, span };
+        match l.mixed_in.contains(&accessor) {
+            true => mixed_in.push(field),
+            false => l.lazy_fields.push(field),
+        }
     }
+    l.lazy_fields.extend(mixed_in);
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())

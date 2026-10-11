@@ -3,7 +3,7 @@
 //! initializers and statements of the class body in order.
 
 use super::first_transform::literal_of;
-use super::getters::{is_const_final, is_param_accessor};
+use super::getters::{is_const_final, is_param_accessor, is_setter};
 use super::initializers::constructor_params;
 use super::memoize::bottom;
 use crate::{Lower, Result, unsupported};
@@ -27,7 +27,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let stats = l.tpd.items(body).to_vec();
     for &stat in &stats {
         if matches!(l.tpd.tree(stat), Tree::DefDef { .. } | Tree::ValDef { rhs: None, .. }) {
-            accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s)));
+            accessors.extend(l.tpd.sym(stat).filter(|&s| is_param_accessor(l, s) && !is_setter(l, s)));
         }
     }
     for stat in stats {
