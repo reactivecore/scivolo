@@ -139,15 +139,15 @@ Each single-file test is lowered by `lower` and run in the VM. Tests failing in 
 compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
 the typer or the lowering gives.
 
-Results (2026-10-09):
+Results (2026-10-11):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 278 |
+| passed | 320 |
 | wrong output | 1 |
 | crashed | 0 |
-| lowering refused | 76 |
-| typer refused | 1078 |
+| lowering refused | 33 |
+| typer refused | 1079 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
@@ -155,7 +155,7 @@ Results (2026-10-09):
 | **total** | **1711** |
 
 - **Wrong output:** i9939, numeric harmonization in the typer (#60).
-- **Lowering refused:** many reasons, none above 8 tests.
+- **Lowering refused:** many reasons, none above 3 tests.
 - **Typer refused:** mostly calls of inline methods (268) and inline definitions (97).
 
 ## M5: scala/scala `test/junit`

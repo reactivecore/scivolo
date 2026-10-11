@@ -58,6 +58,10 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
         })
         .collect();
     name_all(l, &named, &mut pending);
+    let lifted: Vec<_> = liftings.iter().map(|c| (c.class, &c.functions[..], &c.methods[..])).collect();
+    for caller in &pending.callers {
+        super::lifted_calls::calls_from_class(l, caller, &lifted)?;
+    }
     let mut deferred = Vec::new();
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;

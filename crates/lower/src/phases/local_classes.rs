@@ -2,14 +2,13 @@
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.
 
-use super::lift_names::{LocalClass, Pending, Proxies};
+use super::lift_names::{Caller, LocalClass, Pending};
 use super::local_free::{Free, enclosing_class, free_values, is_method, is_term};
 use super::local_lift::{lift, pass_values};
-use crate::definitions::symbol;
+use super::local_proxies::make_proxies;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::tags::{LOCAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
@@ -23,58 +22,38 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         let free = free_values(l, td, class, outer)?;
         locals.push((td, class, outer, free));
     }
+    let added = super::class_deps::close(l, root, &mut locals)?;
+    let order = super::class_deps::definition_order(l, &locals);
     let mut pending = Pending::default();
-    let proxies = make_proxies(l, &locals, &mut pending);
+    let proxies = make_proxies(l, &locals, &added, &mut pending);
+    for ((_, class, _, free), (fields, _)) in locals.iter().zip(&proxies) {
+        pass_values(l, root, *class, free, fields, &mut pending.passed)?;
+    }
+    let mut classes = Vec::new();
     for ((td, class, outer, free), (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
         add_proxies(l, td, class, &free, (&fields, &params), &spans);
-        pass_values(l, root, class, &free, &fields, &mut pending.passed)?;
+        if free.called.iter().any(|&(f, _)| l.u.symbol(f).kind == Kind::Def) {
+            let fields = free.in_methods.iter().copied().zip(fields).collect();
+            let params = free.values.iter().copied().zip(params).collect();
+            pending.callers.push(Caller { td, class, fields, params });
+        }
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        pending.classes.push(LocalClass { at: l.tpd.span(td).start(), class, outer });
+        classes.push(LocalClass { at: l.tpd.span(td).start(), class, outer });
+    }
+    let mut last = None;
+    for i in order {
+        let c = &classes[i];
+        let at = match last {
+            Some(before) if c.at < before => before,
+            _ => c.at,
+        };
+        last = Some(at);
+        pending.classes.push(LocalClass { at, class: c.class, outer: c.outer });
     }
     Ok(pending)
-}
-
-/// The fields and constructor parameters standing for the values each local class of `locals`
-/// uses, put in `pending` in the order dotty's `LambdaLift` names them: those of each class and
-/// of each constructor using values itself, then those of the other constructors.
-fn make_proxies(
-    l: &mut Lower,
-    locals: &[(TNodeId, SymbolId, SymbolId, Free)],
-    pending: &mut Pending,
-) -> Vec<(Vec<SymbolId>, Vec<SymbolId>)> {
-    let fields = |l: &mut Lower, class: SymbolId, free: &Free| -> Vec<SymbolId> {
-        let flags = Flags::default().with(PRIVATE).with(LOCAL);
-        free.in_methods.iter().map(|&v| proxy(l, v, class, Kind::Val, flags)).collect()
-    };
-    let params = |l: &mut Lower, td: TNodeId, free: &Free| -> Vec<SymbolId> {
-        let ctor = constructor(l, td);
-        free.values.iter().map(|&v| proxy(l, v, ctor, Kind::Param, Flags::default())).collect()
-    };
-    let mut out = Vec::new();
-    for &(td, class, _, ref free) in locals {
-        let ps = if free.constructor_first { params(l, td, free) } else { Vec::new() };
-        let fs = fields(l, class, free);
-        let syms = ps.iter().chain(&fs).copied().collect();
-        pending.proxies.push(Proxies { at: l.tpd.span(td).start(), direct: true, syms });
-        out.push((fs, ps));
-    }
-    for (&(td, _, _, ref free), (_, ps)) in locals.iter().zip(&mut out) {
-        if !free.constructor_first {
-            *ps = params(l, td, free);
-            pending.proxies.push(Proxies { at: l.tpd.span(td).start(), direct: false, syms: ps.clone() });
-        }
-    }
-    out
-}
-
-/// The symbol of the constructor of class definition `td`.
-fn constructor(l: &Lower, td: TNodeId) -> SymbolId {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
-    l.tpd.sym(constr).expect("a constructor's symbol")
 }
 
 /// Adds to class definition `td` a leading constructor parameter of `params` for each value of
@@ -167,15 +146,6 @@ fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
         .into_iter()
         .find(|&t| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t) == Some(v));
     def.map_or(Span::NONE, |d| l.tpd.span(d))
-}
-
-/// A symbol of `owner` standing for value `v`, named as `v` until named `v$N`.
-fn proxy(l: &mut Lower, v: SymbolId, owner: SymbolId, kind: Kind, flags: Flags) -> SymbolId {
-    let name = l.u.symbol(v).name.clone();
-    let p = l.u.define(symbol(&name, kind, owner, flags));
-    let info = l.u.info(v);
-    l.u.set_info(p, info);
-    p
 }
 
 /// Makes the references in `t` to values `free` refer to `to`, fields of `this` of `class` if

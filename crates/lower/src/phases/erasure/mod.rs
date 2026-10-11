@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let body = l.tpd.list(&stats[1..]);
     let mut typed_parents = Vec::new();
     for parent in l.tpd.items(parents).to_vec() {
-        let call = matches!(l.tpd.tree(parent), Tree::Apply { .. });
+        let call = matches!(l.tpd.tree(parent), Tree::Apply { .. } | Tree::Block { .. });
         typed_parents.push(if call { typed(l, parent, None)? } else { parent });
     }
     let parents = l.tpd.list(&typed_parents);

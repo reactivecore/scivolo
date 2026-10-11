@@ -46,7 +46,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     if fence {
         let call = l.static_call(l.defs.equality.release_fence, &[]);
-        l.tpd.get_mut(call).span = l.tpd.span(template).end_pos();
+        let parts = super::walk::children(l.tpd, template).into_iter().chain(stats.iter().copied());
+        let end = parts.map(|t| l.tpd.span(t)).filter(|s| s.exists()).map(|s| s.end()).max();
+        l.tpd.get_mut(call).span = end.map_or(l.tpd.span(template).end_pos(), Span::at);
         stats.push(call);
     }
     let body = l.tpd.list(&stats);

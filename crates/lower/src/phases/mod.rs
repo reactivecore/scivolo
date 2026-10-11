@@ -16,6 +16,7 @@ mod case_equality;
 mod case_hash;
 mod case_members;
 pub(crate) mod casts;
+mod class_deps;
 mod closures;
 mod constructors;
 mod enum_values;
@@ -44,6 +45,8 @@ mod local_classes;
 mod local_free;
 mod local_lazy;
 mod local_lift;
+mod local_outer;
+mod local_proxies;
 mod memoize;
 mod methods;
 mod mirrors;
@@ -51,6 +54,7 @@ mod mixin;
 mod outer_args;
 mod package_objects;
 mod patmat;
+mod pure_stats;
 mod repeated;
 mod returns;
 pub(crate) mod select_static;
@@ -71,7 +75,7 @@ use crate::{Lower, Result};
 use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
-    let classes = class_defs(l.tpd, root);
+    let mut classes = class_defs(l.tpd, root);
     let inits = first_transform::objects_with_inits(l, &classes);
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
@@ -92,7 +96,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
-        hoist_super_args::transform(l, td)?;
+        hoist_super_args::transform(l, root, td)?;
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
         getters::record_rhs(l, td);
@@ -100,6 +104,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         eta_reduce::transform(l, td);
     }
+    let dropped: Vec<TNodeId> =
+        pure_stats::transform(l, root).into_iter().flat_map(|d| walk::subtrees(l.tpd, d)).collect();
+    classes.retain(|td| !dropped.contains(td));
     local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
     let pending = local_classes::transform(l, root, &classes)?;

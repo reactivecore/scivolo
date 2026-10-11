@@ -4,18 +4,26 @@
 use super::walk::children;
 use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
-use tasty::tags::{CASE, FIELDaccessor, LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The local values of the enclosing methods a local class uses.
 pub struct Free {
-    /// All: those its constructor uses, then the others its methods use, each in the order used.
+    /// Those its constructor takes: those it uses, then if any the others its methods use, each
+    /// in the order used, then those `class_deps` adds.
     pub values: Vec<SymbolId>,
     /// Those its methods use, in the order used, which need fields.
     pub in_methods: Vec<SymbolId>,
     /// Whether its constructor uses some, which names the parameters first.
     pub constructor_first: bool,
+    /// The local methods it calls and the local classes it creates, each with whether from a
+    /// method.
+    pub called: Vec<(SymbolId, bool)>,
+    /// For each of `values` and of `in_methods`, the round of dotty's `computeFreeVars` that
+    /// finds it, 0 for a use in the class.
+    pub rounds: Vec<usize>,
+    pub field_rounds: Vec<usize>,
 }
 
 pub fn is_term(l: &Lower, s: SymbolId) -> bool {
@@ -50,20 +58,31 @@ pub fn within(l: &Lower, mut s: SymbolId, c: SymbolId) -> bool {
 /// where it needs an instance of the enclosing class `outer`.
 pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) -> Result<Free> {
     let span = l.tpd.span(td);
-    let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let refused = match () {
-        _ if has(l.u, class, CASE) => Some("local case classes"),
         _ if l.u.is_trait(class) => Some("local traits"),
         _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
-        _ if parents.iter().any(|&c| is_local(l, c)) => Some("local classes extending local classes"),
         _ => nested_definition(l, td),
     };
     if let Some(what) = refused {
         return unsupported(span, what);
     }
+    let mut created = Vec::new();
+    for t in super::walk::subtrees(l.tpd, td) {
+        if let Tree::New { tpt } = *l.tpd.tree(t) {
+            let tpe = l.tpd.tpe(tpt);
+            created.extend(l.u.class_symbol(tpe).map(|c| (t, c)));
+        }
+    }
     let l: &Lower = l;
     let static_outer = is_static_module(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
-    let mut free = Free { values: Vec::new(), in_methods: Vec::new(), constructor_first: false };
+    let mut free = Free {
+        values: Vec::new(),
+        in_methods: Vec::new(),
+        constructor_first: false,
+        called: Vec::new(),
+        rounds: Vec::new(),
+        field_rounds: Vec::new(),
+    };
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
         let inner = in_method || matches!(l.tpd.tree(t), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(t));
@@ -73,6 +92,11 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         );
         if !type_tree {
             todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner)));
+        }
+        let created = created.iter().find(|&&(n, _)| n == t).map(|&(_, c)| c);
+        let other = created.filter(|&c| is_local(l, c) && !within(l, c, class));
+        if let Some(c) = other.filter(|&c| !free.called.contains(&(c, in_method))) {
+            free.called.push((c, in_method));
         }
         let Some(s) = l.tpd.sym(t) else { continue };
         let span = l.tpd.span(t);
@@ -92,7 +116,10 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
                 }
                 let local = owner.is_some_and(|o| is_term(l, o) && !within(l, o, class));
                 if local && l.u.symbol(s).kind == Kind::Def {
-                    return unsupported(span, "local classes calling local methods");
+                    if !free.called.contains(&(s, in_method)) {
+                        free.called.push((s, in_method));
+                    }
+                    continue;
                 }
                 if !local || !matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) {
                     continue;
@@ -122,11 +149,13 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         }
     }
     free.constructor_first = !free.values.is_empty();
-    for &s in &free.in_methods {
+    for &s in free.in_methods.iter().filter(|_| free.constructor_first) {
         if !free.values.contains(&s) {
             free.values.push(s);
         }
     }
+    free.rounds = vec![0; free.values.len()];
+    free.field_rounds = vec![0; free.in_methods.len()];
     Ok(free)
 }
 

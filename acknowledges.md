@@ -37,8 +37,11 @@ Apache-2.0. Rust translations of:
   - `Erasure` (boxing, `adaptClosure`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
     (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
-  - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
-    `ElimByName` (calls)
+  - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
+    and creating local classes, returns of blocks), `CapturedVars`, `ElimByName` (calls),
+    `HoistSuperArgs`, `PureStats` (anonymous instances)
+  - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
+    classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
     guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,

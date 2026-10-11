@@ -1,6 +1,6 @@
 //! The order in which dotty's `LambdaLift` names what it lifts: the proxies of the functions and
-//! local classes capturing values directly, then those of the others, each group by position;
-//! then the lifted functions and classes in the order they are defined.
+//! local classes by the round of `computeFreeVars` finding them, each round by position; then the
+//! lifted functions and classes in the order they are defined.
 
 use super::lambda_lift::{Function, fresh};
 use super::lifted::Method;
@@ -10,11 +10,11 @@ use syntax::source::Offset;
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
-/// The proxies of a function, local class or constructor, at the definition's start; whether it
-/// uses the values itself.
+/// The proxies of a function, local class or constructor, at the definition's start; the round
+/// of dotty's `computeFreeVars` that finds them, 0 where it uses the values itself.
 pub struct Proxies {
     pub at: Offset,
-    pub direct: bool,
+    pub round: usize,
     pub syms: Vec<SymbolId>,
 }
 
@@ -25,22 +25,35 @@ pub struct LocalClass {
     pub outer: SymbolId,
 }
 
+/// A lifted local class calling local methods: its definition, and its fields and constructor
+/// parameters standing for the values it uses, each with the value.
+pub struct Caller {
+    pub td: TNodeId,
+    pub class: SymbolId,
+    pub fields: Vec<(SymbolId, SymbolId)>,
+    pub params: Vec<(SymbolId, SymbolId)>,
+}
+
 /// The proxies and local classes `local_classes` leaves for `lambda_lift` to name, and where the
-/// classes were: the values each used at its definition, by block and statement index, and the
-/// values passed to its constructor calls.
+/// classes were: the values each used at its definition, by block and statement index, the
+/// values passed to its constructor calls, and the classes calling local methods.
 #[derive(Default)]
 pub struct Pending {
     pub proxies: Vec<Proxies>,
     pub classes: Vec<LocalClass>,
     pub definitions: Vec<(TNodeId, usize, Vec<SymbolId>)>,
     pub passed: FxHashSet<TNodeId>,
+    pub callers: Vec<Caller>,
     next_class: usize,
 }
 
 impl Pending {
-    /// Names the local classes defined before `at`, all left if `None`.
+    /// Names the local classes defined before `at`, or at `at` unless objects, all left if `None`.
     pub fn name_classes_before(&mut self, l: &mut Lower, at: Option<Offset>) {
-        while let Some(c) = self.classes.get(self.next_class).filter(|c| at.is_none_or(|at| c.at < at)) {
+        let before = |l: &Lower, c: &LocalClass| {
+            at.is_none_or(|at| c.at < at || c.at == at && !l.u.is_module_class(c.class))
+        };
+        while let Some(c) = self.classes.get(self.next_class).filter(|c| before(l, c)) {
             super::local_lift::name_class(l, c.class, c.outer);
             self.next_class += 1;
         }
@@ -68,7 +81,7 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) {
             proxies
                 .map(|(k, &i)| Proxies {
                     at: at(i),
-                    direct: k < c.direct,
+                    round: usize::from(k >= c.direct),
                     syms: c.methods[i].proxies.clone(),
                 })
                 .collect()
@@ -115,12 +128,12 @@ pub fn prefix(
 }
 
 /// Names the proxies of the functions of each class of `functions` and of the local classes of
-/// `pending`, those used directly first, each class's in order, merged by position, functions'
-/// first on a tie.
+/// `pending` by round, each class's in order, merged by position, functions' first on a tie.
 fn name_proxies(l: &mut Lower, functions: &[Vec<Proxies>], pending: &Pending) {
-    for direct in [true, false] {
+    let rounds = functions.iter().flatten().chain(&pending.proxies).map(|p| p.round).max().unwrap_or(0);
+    for round in 0..=rounds {
         let group = |ps: &[Proxies]| -> Vec<(Offset, SymbolId)> {
-            let ps = ps.iter().filter(|p| p.direct == direct);
+            let ps = ps.iter().filter(|p| p.round == round);
             ps.flat_map(|p| p.syms.iter().map(|&s| (p.at, s))).collect()
         };
         let mut sequences: Vec<_> = functions.iter().map(|ps| group(ps)).collect();

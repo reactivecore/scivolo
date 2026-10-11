@@ -151,7 +151,7 @@ fn closure(l: &mut Lower, arg: TNodeId, owner: SymbolId, formal: tasty::TypeId) 
             l.u.set_owner(sym, anon);
         }
     }
-    let tpt = l.type_tree(result, span);
+    let tpt = l.type_tree(result, span.start_pos());
     let def = l.method_def(anon, &[], tpt, arg, from_start(span));
     let function = l.u.class_ref("scala.Function0");
     let function = l.u.intern_type(Type::Applied(function, vec![result]));
