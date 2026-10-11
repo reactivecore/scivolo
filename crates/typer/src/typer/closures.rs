@@ -182,7 +182,7 @@ impl Typer<'_> {
             None => self.tpd.span(body).start_pos(),
         };
         let tpt = self.type_tree(result, result_at, true);
-        let def = self.build().def_def(anonfun, &[params], tpt, body, span);
+        let def = self.build().def_def(anonfun, &[params], tpt, Some(body), span);
         let meth_tpe = self.u.intern_type(Type::Sym(None, anonfun));
         let meth = self.build().ident(anonfun, meth_tpe, span.start_pos());
         let env = self.tpd.list(&[]);

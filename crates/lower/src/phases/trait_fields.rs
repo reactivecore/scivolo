@@ -87,11 +87,8 @@ fn trait_setter(l: &mut Lower, trait_: SymbolId, getter: SymbolId, span: Span) -
     let param = l.u.define(symbol("x$0", Kind::Param, setter, tasty::Flags::default()));
     l.u.set_info(param, value);
     let param = l.param_def(param, span);
-    let params = l.tpd.list(&[param]);
-    let paramss = l.tpd.clauses(&[params]);
     let tpt = l.type_tree(unit, span);
-    let name = l.term_name(&name);
-    l.tpd.node(Tree::DefDef { name, paramss, tpt, rhs: None }, span, None, Some(setter))
+    l.build().def_def(setter, &[&[param]], tpt, None, span)
 }
 
 /// The members class `class` gets from trait `mixin` it mixes in (dotty's `traitInits`,
@@ -194,10 +191,8 @@ fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<TNode
             l.param_def(p, span)
         })
         .collect();
-    let clauses = if kind == Kind::Def { vec![l.tpd.list(&defs)] } else { Vec::new() };
-    let paramss = l.tpd.clauses(&clauses);
+    let paramss: &[&[TNodeId]] = if kind == Kind::Def { &[&defs] } else { &[] };
     let result = l.u.result_type(info);
     let tpt = l.type_tree(result, span);
-    let name = l.term_name(&name);
-    l.tpd.node(Tree::DefDef { name, paramss, tpt, rhs }, span, None, Some(sym))
+    l.build().def_def(sym, paramss, tpt, rhs, span)
 }

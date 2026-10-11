@@ -4,16 +4,17 @@ use super::lazy_vals::Lazy;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{TNodeId, Tree, constant_type_of};
 
 pub fn object(l: &mut Lower) -> TypeId {
     type_ref(l.u, l.defs.object)
 }
 
 pub fn unit(l: &mut Lower) -> TypeId {
-    l.u.intern_type(Type::Constant(tasty::tags::UNITconst, 0))
+    constant_type_of(l.u, &Constant::Unit)
 }
 
 /// A local value `name` of `owner` of type `info`, a variable if `mutable`.
@@ -62,7 +63,7 @@ pub fn block(l: &mut Lower, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
 }
 
 pub fn val_def(l: &mut Lower, s: SymbolId, rhs: TNodeId) -> TNodeId {
-    let name = l.term_name(&l.u.symbol(s).name.clone());
+    let name = l.build().term_name(s);
     let info = l.u.info(s);
     let tpt = l.type_tree(info, Span::NONE);
     let def = l.tpd.node(Tree::ValDef { name, tpt, rhs: Some(rhs) }, Span::NONE, Some(info), Some(s));

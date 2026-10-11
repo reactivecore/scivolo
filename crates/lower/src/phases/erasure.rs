@@ -59,8 +59,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
     if is_test_or_cast(l, t) {
         intercept(l, t)?;
     }
-    let tree = l.tpd.tree(t).clone();
-    let new = match tree {
+    let new = match *l.tpd.tree(t) {
         Tree::Apply { mut fun, args } => {
             let mut all = l.tpd.items(args).to_vec();
             loop {

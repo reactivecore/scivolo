@@ -1,7 +1,7 @@
 //! Typed trees made from symbols and types (dotty's `tpd` constructors).
 
 use super::{List, TNodeId, Tpd, Tree as T};
-use crate::defn::{Defn, type_ref};
+use crate::defn::type_ref;
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use syntax::names::Names;
@@ -12,7 +12,8 @@ pub struct Build<'a> {
     tpd: &'a mut Tpd,
     u: &'a mut Universe,
     names: &'a mut Names,
-    defn: &'a Defn,
+    /// The class `scala.Unit`.
+    unit: SymbolId,
 }
 
 /// dotty's `ConstantType(c)`.
@@ -32,8 +33,8 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
 }
 
 impl<'a> Build<'a> {
-    pub fn new(tpd: &'a mut Tpd, u: &'a mut Universe, names: &'a mut Names, defn: &'a Defn) -> Build<'a> {
-        Build { tpd, u, names, defn }
+    pub fn new(tpd: &'a mut Tpd, u: &'a mut Universe, names: &'a mut Names, unit: SymbolId) -> Build<'a> {
+        Build { tpd, u, names, unit }
     }
 
     /// The term name of `s`.
@@ -44,7 +45,7 @@ impl<'a> Build<'a> {
     /// The type of literal `c`: `Unit` and `Null` for `()` and `null`, else a constant type.
     pub fn literal_type(&mut self, c: &Constant) -> TypeId {
         match c {
-            Constant::Unit => type_ref(self.u, self.defn.unit),
+            Constant::Unit => type_ref(self.u, self.unit),
             Constant::Null => type_ref(self.u, self.u.builtins().null),
             _ => constant_type_of(self.u, c),
         }
@@ -123,12 +124,12 @@ impl<'a> Build<'a> {
         s: SymbolId,
         paramss: &[&[TNodeId]],
         tpt: TNodeId,
-        rhs: TNodeId,
+        rhs: Option<TNodeId>,
         span: Span,
     ) -> TNodeId {
         let name = self.term_name(s);
         let clauses: Vec<List> = paramss.iter().map(|ps| self.tpd.list(ps)).collect();
         let paramss = self.tpd.clauses(&clauses);
-        self.tpd.node(T::DefDef { name, paramss, tpt, rhs: Some(rhs) }, span, None, Some(s))
+        self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(s))
     }
 }

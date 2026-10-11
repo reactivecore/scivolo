@@ -52,7 +52,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 /// Makes getter definition `stat` of `getter` return its field, or the value of a type needing
 /// none; the field's definition, none for a mixed-in getter of such a type.
 fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Option<TNodeId> {
-    let Tree::DefDef { name, paramss, tpt, rhs } = l.tpd.tree(stat).clone() else { unreachable!("a getter") };
+    let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(stat) else { unreachable!("a getter") };
     let mixed_in = l.mixed_in.contains(&getter);
     let bottom = bottom(l, getter);
     let span = l.tpd.span(stat);
@@ -114,7 +114,7 @@ fn setter(
     memoized: &FxHashSet<String>,
     fence: &mut bool,
 ) {
-    let Tree::DefDef { name, paramss, tpt, rhs } = l.tpd.tree(stat).clone() else { unreachable!("a setter") };
+    let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(stat) else { unreachable!("a setter") };
     let unit_body = |l: &mut Lower| rhs.unwrap_or_else(|| l.unit_literal(l.tpd.span(stat)));
     let getter_name = setter_getter_name(&l.u.symbol(setter).name).to_owned();
     let getter = l.u.decl(class, &getter_name).unwrap_or_default().into_iter().find(|&g| !is_setter(l, g));

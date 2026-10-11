@@ -148,10 +148,9 @@ fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
 
 /// The definition of field `field` without initializer, at `span`.
 fn field_def(l: &mut Lower, field: SymbolId, span: Span) -> TNodeId {
-    let name = l.term_name(&l.u.symbol(field).name.clone());
     let info = l.u.info(field);
     let tpt = l.type_tree(info, span);
-    l.tpd.node(Tree::ValDef { name, tpt, rhs: None }, span, None, Some(field))
+    l.build().val_def(field, tpt, None, span)
 }
 
 /// `final def C$$$outer(): Outer = this.$outer` of `class`, at `span` (dotty's

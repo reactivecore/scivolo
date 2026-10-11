@@ -6,9 +6,16 @@ use crate::symbols::{is_static_module, source_module};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::{SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{Build, TNodeId, Tree, constant_type_of};
 
 impl Lower<'_> {
+    /// The typer's tree builder. Its `()` and `null` literals, `this` and `return_` are the
+    /// typer's forms; lower makes those with `unit_literal`, `null_literal`, `this` and
+    /// `lazy_trees::return_`.
+    pub fn build(&mut self) -> Build<'_> {
+        Build::new(self.tpd, self.u, self.names, self.defs.patmat.unit)
+    }
+
     pub fn term_name(&mut self, s: &str) -> TName {
         TName { name: self.names.intern(s), is_type: false }
     }
@@ -19,10 +26,8 @@ impl Lower<'_> {
 
     /// A reference to `s` by its name.
     pub fn ident(&mut self, s: SymbolId, span: Span) -> TNodeId {
-        let name = self.u.symbol(s).name.clone();
-        let name = self.term_name(&name);
         let tpe = type_ref(self.u, s);
-        self.tpd.node(Tree::Ident { name }, span, Some(tpe), Some(s))
+        self.build().ident(s, tpe, span)
     }
 
     /// A reference to field `f` of its class: through the object if the class is a static
@@ -46,16 +51,11 @@ impl Lower<'_> {
 
     /// `qual.m`, of member `m`.
     pub fn select(&mut self, qual: TNodeId, m: SymbolId, span: Span) -> TNodeId {
-        let name = self.u.symbol(m).name.clone();
-        let name = self.term_name(&name);
-        let prefix = self.tpd.tpe(qual);
-        let tpe = self.u.intern_type(Type::Sym(Some(prefix), m));
-        self.tpd.node(Tree::Select { qualifier: qual, name }, span, Some(tpe), Some(m))
+        self.build().select(qual, m, span)
     }
 
     pub fn apply(&mut self, fun: TNodeId, args: &[TNodeId], tpe: TypeId, span: Span) -> TNodeId {
-        let args = self.tpd.list(args);
-        self.tpd.node(Tree::Apply { fun, args }, span, Some(tpe), None)
+        self.build().apply(fun, args, tpe, span)
     }
 
     /// `C.this`, of class `c`.
@@ -82,20 +82,23 @@ impl Lower<'_> {
         self.tpd.node(Tree::Super { qual, mix: Some(mix) }, span, Some(tpe), None)
     }
 
+    /// Literal `value` of its constant type, also for `()` and `null`.
+    fn constant(&mut self, value: Constant, span: Span) -> TNodeId {
+        let tpe = constant_type_of(self.u, &value);
+        self.tpd.node(Tree::Literal { value }, span, Some(tpe), None)
+    }
+
     pub fn unit_literal(&mut self, span: Span) -> TNodeId {
-        let tpe = self.u.intern_type(Type::Constant(tasty::tags::UNITconst, 0));
-        self.tpd.node(Tree::Literal { value: Constant::Unit }, span, Some(tpe), None)
+        self.constant(Constant::Unit, span)
     }
 
     pub fn null_literal(&mut self, span: Span) -> TNodeId {
-        let tpe = self.u.intern_type(Type::Constant(tasty::tags::NULLconst, 0));
-        self.tpd.node(Tree::Literal { value: Constant::Null }, span, Some(tpe), None)
+        self.constant(Constant::Null, span)
     }
 
     /// The definition of parameter `p`.
     pub fn param_def(&mut self, p: SymbolId, span: Span) -> TNodeId {
-        let name = self.u.symbol(p).name.clone();
-        let name = self.term_name(&name);
+        let name = self.build().term_name(p);
         let info = self.u.info(p);
         let tpt = self.type_tree(info, span);
         self.tpd.node(Tree::ValDef { name, tpt, rhs: None }, span, Some(info), Some(p))
@@ -110,8 +113,7 @@ impl Lower<'_> {
         rhs: TNodeId,
         span: Span,
     ) -> TNodeId {
-        let name = self.u.symbol(sym).name.clone();
-        let name = self.term_name(&name);
+        let name = self.build().term_name(sym);
         let clause = self.tpd.list(params);
         let paramss = self.tpd.clauses(&[clause]);
         let info = self.u.info(sym);
@@ -127,8 +129,7 @@ impl Lower<'_> {
     }
 
     pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId, span: Span) -> TNodeId {
-        let tpe = self.tpd.tpe(expr);
         let stats = self.tpd.list(stats);
-        self.tpd.node(Tree::Block { stats, expr }, span, Some(tpe), None)
+        self.build().block(stats, expr, span)
     }
 }
