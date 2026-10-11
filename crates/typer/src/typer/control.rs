@@ -111,6 +111,9 @@ impl Typer<'_> {
         let Some(method) = self.enclosing_method(ctx.owner) else {
             return self.unsupported(id, "return outside a method");
         };
+        if self.u.symbol(method).flags.has(tasty::tags::INLINE) {
+            return self.unsupported(id, "return from an inline method");
+        }
         let Some(&result) = self.syms.def_results.get(&method).filter(|_| self.has_declared_result(method))
         else {
             return self.unsupported(id, "return from a method without a result type");

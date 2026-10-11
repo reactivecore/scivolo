@@ -175,7 +175,7 @@ impl Typer<'_> {
         if self.is_pure_expr(tree) {
             let tpe = self.tpd.tpe(tree);
             let widened = self.u.widen(tpe);
-            let shown = self.show_type(widened);
+            let shown = self.plain_text(widened).unwrap_or_else(|| self.show_type(widened));
             let msg = format!("Discarded non-Unit value of type {shown}. Add `: Unit` to discard silently.");
             let at = self.tpd.span(tree).point();
             self.diags.warning(at, msg);

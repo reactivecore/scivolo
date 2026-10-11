@@ -15,6 +15,12 @@ impl Typer<'_> {
         }
     }
 
+    /// The name `s` has at run time: its `@targetName`, else its name.
+    pub fn run_name(&self, s: SymbolId) -> &str {
+        let s = self.u.symbol(s);
+        s.target.as_deref().unwrap_or(&s.name)
+    }
+
     fn has_default_args(&self, def: SymbolId) -> bool {
         let clauses = self.syms.param_clauses.get(&def);
         clauses
@@ -74,16 +80,7 @@ impl Typer<'_> {
                 if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                let type_params = |t: &mut Self, m| {
-                    let info = t.u.info(m);
-                    match t.u.types().get(info) {
-                        Type::Poly { params, .. } => params.len(),
-                        _ => 0,
-                    }
-                };
-                let same_arity = type_params(self, a) == type_params(self, b);
-                let erased_clash = same_arity && self.u.erased_method(a) == self.u.erased_method(b);
-                if self.u.matches(site, a, b) || erased_clash {
+                if self.run_name(a) == self.run_name(b) && self.u.matches(site, a, b) {
                     return self.unsupported_at(span, "double definition");
                 }
                 if self.has_default_args(a) && self.has_default_args(b) {
@@ -91,6 +88,7 @@ impl Typer<'_> {
                 }
             }
         }
+        self.check_no_clashes(cls, span);
         for d in own {
             let (name, kind) = (self.u.symbol(d).name.clone(), self.u.symbol(d).kind);
             let exempt = f::PRIVATE.or(f::SYNTHETIC);
@@ -107,6 +105,14 @@ impl Typer<'_> {
             let flags = flags.unwrap_or_default();
             for &b in &bases {
                 for m in self.overridable(b, &name) {
+                    let inline = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::INLINE);
+                    if (inline(self, d) || inline(self, m)) && self.same_member(site, d, m) {
+                        return self.unsupported_at(span, "override involving an inline method");
+                    }
+                    self.complete(m);
+                    if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
+                        return self.unsupported_at(span, "override with another @targetName");
+                    }
                     if !self.is_concrete(m) || !self.same_member(site, d, m) {
                         continue;
                     }
@@ -138,16 +144,27 @@ impl Typer<'_> {
                     Some(fl) => fl.is(f::OVERRIDE) || fl.is(f::ABS_OVERRIDE),
                     None => self.u.symbol(winner).flags.has(tasty::tags::OVERRIDE),
                 };
-                if overrides {
-                    continue;
-                }
                 for &m in rest {
                     let owner = self.u.symbol(m).owner.expect("a member");
-                    if !self.u.derives_from(winner_owner, owner) && self.same_member(site, winner, m) {
+                    if self.u.derives_from(winner_owner, owner) || !self.same_member(site, winner, m) {
+                        continue;
+                    }
+                    if !overrides || !self.overrides_in_common(site, (winner_owner, owner), winner) {
                         return self.unsupported_at(span, "conflicting inherited members");
                     }
                 }
             }
         }
+    }
+
+    /// Whether classes `a` and `b` both derive from a third class with a member `m` matches.
+    fn overrides_in_common(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), m: SymbolId) -> bool {
+        let name = self.u.symbol(m).name.clone();
+        let bases: Vec<SymbolId> = self.u.linearization(a).into_iter().skip(1).collect();
+        let common: Vec<SymbolId> = bases.into_iter().filter(|&c| c != b && self.u.derives_from(b, c)).collect();
+        common.into_iter().any(|c| {
+            let members = self.overridable(c, &name);
+            members.into_iter().any(|o| self.same_member(site, m, o))
+        })
     }
 }
