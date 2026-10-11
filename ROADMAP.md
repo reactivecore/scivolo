@@ -164,9 +164,19 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 
    Leave out match types, GADTs and capture checking until they are needed.
    Anything unsupported falls back to the phase 1 path, never silently.
+   Status (2026-10-11): `crates/typer`, typed trees matching dotty's on the golden tests
+   (`just typer-checks`); of dotty's `tests/run`, about 1000 tests still stop at the typer,
+   306 of them at calls of transparent inline methods (#82). Done in the last weeks:
+   `super`, annotations, constants, intersection members, the typer half of value classes
+   (#83), non-transparent inline definitions and calls (#82 step 1).
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
-   nscplugin does (ADR 0001).
+   nscplugin does (ADR 0001). Status (2026-10-11): `crates/lower` ports dotty's phases
+   from FirstTransform to Constructors plus nscplugin's NIR generation; every lowered program
+   is compared byte for byte with Scala Native's NIR, positions included
+   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 376 pass through
+   typer, lowering and VM (278 on 2026-10-09), 40 are refused by the lowering, 1 gives wrong
+   output (i9939, #60); see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
 6. **REPL.** Starts as soon as the own frontend runs simple programs. As in
@@ -212,18 +222,43 @@ with no JVM involved.
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Next concrete steps (first 2–4 weeks)
+## Where we are and what's next (2026-10-11)
 
-1. Set up the workspace and `Justfile`. Promote the spike 04 reader to
-   `crates/nir`: split `show/op.rs`, add tests against Scala Native's printer.
-2. **Spike: mangling round trip.** Take a TASTy method symbol, compute its
-   erased signature, apply Scala Native's mangling and look it up in the NIR
-   index. This is the key risk in ADR 0001.
-3. **Spike: link Scala Native's C runtime** (nativelib `.c`/`.cpp` with Boehm)
-   into a Rust binary and call `scalanative_*` from Rust.
-4. Build the library index file and measure its open time against the 5 ms
-   target.
-5. Get the VM running M1 (hello) end to end.
+Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 376 of 1711
+pass, ~1000 stop at the typer, 40 at the lowering.
+
+Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
+traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
+non-local returns, string interpolators, annotations, constants, intersection members, the
+typer half of value classes, type tests against value classes (#87), inline definitions
+(#82 step 1), the typer's inlining phase for inline methods of scripts (#82 step 2a).
+
+Open merge requests:
+- Method values (!220): eta-expansion with lifting, `m _`, SpecializeTuples; 396 tests
+  pass on that branch.
+- #83: no false double definition between a method and a module (Draft !217); views in
+  implicit search (MR D, branch `83-views`, in progress).
+
+Next, in order of the tests they unblock:
+1. **Inlining (#82).** In the lowering: call `typer::inlining::run` before FirstTransform and
+   lower `Inlined` trees (their `call` child is not code). In the typer: step 2b (in
+   progress), inline methods of classes, nested inline calls; step 3:
+   inline match and if; transparent inline methods (306 tests); a reader of library inline
+   bodies from TASTy (`locally`, `require`).
+2. **Value classes, lowering half (#88):** ExtensionMethods, boxing and unboxing at erasure,
+   their synthetic members; 14 tests.
+3. **Typer groups** (#83 and new): adaptation, opaque types, missing implicit arguments,
+   union widening, self types, secondary constructors, higher-kinded abstract types.
+4. **Lowering gaps:** local classes using the enclosing instance, classes nested in local
+   classes, ProtectedAccessors (t8611b), objects in traits mixed into classes.
+5. **Wiring:** `scalai` runs scripts through the own frontend, with the phase 1 path as
+   fallback; the REPL gains what the lowering now covers (lazy vals, enums, generic case
+   classes).
+
+Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
+lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just
+dotty-build` and `just dotty-report` in every checkout that runs it.
 
 ## Decisions (2026-09-25)
 
