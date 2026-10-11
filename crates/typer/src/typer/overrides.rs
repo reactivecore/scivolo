@@ -15,6 +15,12 @@ impl Typer<'_> {
         }
     }
 
+    /// The name `s` has at run time: its `@targetName`, else its name.
+    fn run_name(&self, s: SymbolId) -> &str {
+        let s = self.u.symbol(s);
+        s.target.as_deref().unwrap_or(&s.name)
+    }
+
     fn has_default_args(&self, def: SymbolId) -> bool {
         let clauses = self.syms.param_clauses.get(&def);
         clauses
@@ -71,7 +77,9 @@ impl Typer<'_> {
             own.iter().copied().filter(|&d| self.u.symbol(d).kind == Kind::Def).collect();
         for (k, &a) in defs.iter().enumerate() {
             for &b in &defs[..k] {
-                if self.u.symbol(a).name != self.u.symbol(b).name {
+                let same_name = self.u.symbol(a).name == self.u.symbol(b).name;
+                let same_run_name = self.run_name(a) == self.run_name(b);
+                if !same_name && !same_run_name {
                     continue;
                 }
                 let type_params = |t: &mut Self, m| {
@@ -82,11 +90,12 @@ impl Typer<'_> {
                     }
                 };
                 let same_arity = type_params(self, a) == type_params(self, b);
-                let erased_clash = same_arity && self.u.erased_method(a) == self.u.erased_method(b);
-                if self.u.matches(site, a, b) || erased_clash {
+                let erased_clash =
+                    same_run_name && same_arity && self.u.erased_method(a) == self.u.erased_method(b);
+                if same_name && self.u.matches(site, a, b) || erased_clash {
                     return self.unsupported_at(span, "double definition");
                 }
-                if self.has_default_args(a) && self.has_default_args(b) {
+                if same_name && self.has_default_args(a) && self.has_default_args(b) {
                     return self.unsupported_at(span, "overloads with default arguments");
                 }
             }
@@ -110,6 +119,10 @@ impl Typer<'_> {
                     let inline = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::INLINE);
                     if (inline(self, d) || inline(self, m)) && self.same_member(site, d, m) {
                         return self.unsupported_at(span, "override involving an inline method");
+                    }
+                    self.complete(m);
+                    if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
+                        return self.unsupported_at(span, "override with another @targetName");
                     }
                     if !self.is_concrete(m) || !self.same_member(site, d, m) {
                         continue;

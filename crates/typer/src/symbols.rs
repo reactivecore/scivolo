@@ -27,6 +27,8 @@ pub struct Syms {
     pub completions: FxHashMap<SymbolId, Completion>,
     /// The classes of the annotations of a symbol, with the annotations' spans.
     pub annotations: FxHashMap<SymbolId, Vec<(SymbolId, Span)>>,
+    /// The annotations of the unit's symbols still to be typed, each with its context.
+    pub annotation_trees: Vec<(SymbolId, NodeId, Ctx)>,
     /// The symbol each definition tree defines.
     pub by_tree: FxHashMap<NodeId, SymbolId>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
@@ -106,6 +108,7 @@ impl Syms {
         }
         self.by_tree.clear();
         self.closure_syms.clear();
+        self.annotation_trees.clear();
     }
 
     /// A binder no other method or type lambda has.
