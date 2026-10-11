@@ -227,7 +227,8 @@ with no JVM involved.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 399 of 1711
-pass, 987 stop at the typer, 46 at the lowering. No merge requests are open.
+pass, 987 stop at the typer, 46 at the lowering. Open: #82 step 2b (!223), inline methods of classes, nested inline
+calls.
 
 Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
 traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
@@ -239,8 +240,7 @@ double definition between a method and a module.
 
 Next, in order of the tests they unblock:
 1. **Inlining (#82).** In the lowering: call `typer::inlining::run` before FirstTransform and
-   lower `Inlined` trees (their `call` child is not code). In the typer: step 2b (in
-   progress), inline methods of classes, nested inline calls; step 3:
+   lower `Inlined` trees (their `call` child is not code). In the typer: step 3:
    inline match and if; transparent inline methods (314 tests); a reader of library inline
    bodies from TASTy (`locally`, `require`).
 2. **Value classes, lowering half (#88):** ExtensionMethods, boxing and unboxing at erasure,
