@@ -47,6 +47,7 @@ impl Universe {
                 let c = self.class_symbol(c)?;
                 self.this_type(c)
             }
+            Type::Super(_, p) => p,
             _ => return None,
         })
     }

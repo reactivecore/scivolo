@@ -22,6 +22,15 @@ impl Typer<'_> {
         let pt = info.map_or(Pt::Any, Pt::Type);
         let rhs = rhs.map(|r| self.typed(r, pt, rhs_ctx));
         let span = self.ast.span(id);
+        let inline = sym.is_some_and(|s| {
+            let s = self.u.symbol(s);
+            s.flags.has(tasty::tags::INLINE) && s.kind == tasty::Kind::Val
+        });
+        let constant =
+            info.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(..) | Type::Str(_)));
+        if inline && (!constant || rhs.is_some_and(|r| !self.is_pure_expr(r))) {
+            return self.unsupported(id, "inline value of a type that is not constant or impure");
+        }
         self.tpd.node(T::ValDef { name, tpt, rhs }, span, None, sym)
     }
 
@@ -55,9 +64,23 @@ impl Typer<'_> {
         let paramss = self.tpd.clauses(&typed_clauses);
         let result = self.def_result(sym);
         let tpt = self.typed_tpt(tpt, Some(result), mctx);
-        let rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
+        let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
+        if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
+            let annots = self.syms.annotations.get(&sym).cloned().unwrap_or_default();
+            if annots.iter().any(|&(c, _)| self.u.full_name(c) == "scala.annotation.tailrec") {
+                return self.unsupported(id, "tailrec inline method");
+            }
+            rhs = rhs.map(|r| self.inline_body(r, tpt));
+        }
         let span = self.ast.span(id);
         self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(sym))
+    }
+
+    /// Inline method body `rhs` ascribed its result type tree `tpt` (dotty's `wrapRHS`).
+    fn inline_body(&mut self, rhs: TNodeId, tpt: TNodeId) -> TNodeId {
+        let span = self.tpd.span(tpt).union(self.tpd.span(rhs)).to_synthetic();
+        let tpe = self.tpd.tpe(tpt);
+        self.tpd.node(T::Typed { expr: rhs, tpt }, span, Some(tpe), None)
     }
 
     /// The parameter clauses of method definition `id`.

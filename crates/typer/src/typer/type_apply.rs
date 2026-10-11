@@ -11,7 +11,10 @@ use tasty::{Binder, SymbolId, Type, TypeId};
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
         let f = self.typed(fun, Pt::PolyFun, ctx);
-        let class_of = self.tpd.sym(f).is_some_and(|s| self.u.full_name(s) == "scala.Predef$.classOf");
+        let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
+        let class_of = fun_name.as_deref() == Some("scala.Predef$.classOf");
+        let test_or_cast =
+            matches!(fun_name.as_deref(), Some("scala.Any.isInstanceOf" | "scala.Any.asInstanceOf"));
         let f = match self.with_apply(f, Pt::PolyFun, ctx) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
@@ -19,6 +22,9 @@ impl Typer<'_> {
         let arg_ids = self.ast.items(args).to_vec();
         let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        if test_or_cast && arg_types.iter().any(|&t| self.tests_value_class(t)) {
+            return self.unsupported(id, "type test or cast to a value class");
+        }
         let mut tpe = match self.instantiated(f, &arg_types) {
             Ok(tpe) => tpe,
             Err(what) => return self.unsupported(id, what),

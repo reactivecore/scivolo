@@ -30,10 +30,13 @@ impl Typer<'_> {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.widen_if_unstable(qual_tpe);
             let syms: Vec<SymbolId> = self
-                .type_members(qual_tpe, &text)
+                .type_members_in(qual_tpe, &text, ctx)
                 .into_iter()
                 .filter(|&s| self.u.is_type_symbol(s) == name.is_type)
                 .collect();
+            if syms.is_empty() && self.needs_joint_member(qual_tpe, &text) {
+                return self.unsupported(id, "intersection member of an intersected type");
+            }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
@@ -82,7 +85,10 @@ impl Typer<'_> {
                 self.syms.primary_ctors.get(&c) == Some(&ctx.owner)
                     && self.u.symbol(sym).owner.is_some_and(|p| self.u.derives_from(c, p))
             });
-        if protected && !super_call && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
+        if protected
+            && !super_call
+            && !matches!(self.u.types().get(qual_tpe), Type::This(_) | Type::Super(..))
+        {
             return self.unsupported(id, "protected member through a path");
         }
         let projection = self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))

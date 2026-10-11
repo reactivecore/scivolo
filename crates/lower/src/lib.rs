@@ -79,6 +79,8 @@ pub struct Lower<'a> {
     outers: FxHashMap<SymbolId, (SymbolId, SymbolId)>,
     /// The accessor of the enclosing instance of each class needing one.
     outer_accessors: FxHashMap<SymbolId, SymbolId>,
+    /// The member each super accessor of the unit accesses, whether through a named mixin.
+    super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -115,6 +117,7 @@ pub fn lower(
         getter_rhs: FxHashMap::default(),
         outers: FxHashMap::default(),
         outer_accessors: FxHashMap::default(),
+        super_accessors: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

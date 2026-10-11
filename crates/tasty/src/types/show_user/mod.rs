@@ -93,6 +93,10 @@ impl<'u> Printer<'u> {
                 let name = self.u.symbol(s).name.clone();
                 self.named(p, Some(s), &name)
             }
+            Type::Super(this, _) => {
+                let this = self.path(this).shown;
+                format!("{}.super.type", this.strip_suffix(".this").unwrap_or(&this))
+            }
             Type::TermRef(..) | Type::This(_) | Type::Package(_) | Type::PackageName(_) => {
                 format!("{}.type", self.path(t).shown)
             }

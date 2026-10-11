@@ -27,6 +27,11 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
+    /// Reports an error at `span`, with its point as the position.
+    pub fn error_at(&mut self, span: Span, msg: impl Into<Message>) {
+        self.diags.error_at(span.start(), span.end(), span.point(), msg);
+    }
+
     pub fn error_tree(&mut self, span: Span) -> TNodeId {
         let name = TName { name: self.name("<error>"), is_type: false };
         let tpe = self.u.intern_type(Type::Error);

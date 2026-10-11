@@ -148,7 +148,7 @@ impl Universe {
     }
 
     /// Whether `t` is of class `Nothing` or `Null` (dotty's `isBottomTypeAfterErasure`).
-    pub fn is_bottom(&mut self, t: TypeId) -> bool {
+    fn is_bottom(&mut self, t: TypeId) -> bool {
         let widened = self.widen(t);
         let c = self.class_symbol(widened);
         c.is_some_and(|c| c == self.builtins().nothing || self.full_name(c) == "scala.Null")
