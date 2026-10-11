@@ -143,20 +143,22 @@ Results (2026-10-11):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 318 |
-| wrong output | 1 |
-| crashed | 0 |
-| lowering refused | 44 |
-| typer refused | 1070 |
+| passed | 344 |
+| wrong output | 2 |
+| crashed | 1 |
+| lowering refused | 58 |
+| typer refused | 1028 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
 | skipped | 175 |
 | **total** | **1711** |
 
-- **Wrong output:** i9939, numeric harmonization in the typer (#60).
+- **Wrong output:** i9939, numeric harmonization in the typer (#60); i13358, `@targetName` on
+  a trait's lazy value.
+- **Crashed:** i13252a, `@targetName` on a trait's value.
 - **Lowering refused:** many reasons, none above 8 tests.
-- **Typer refused:** mostly calls of inline methods (283) and inline definitions (97).
+- **Typer refused:** mostly calls of transparent inline methods (294).
 
 ## M5: scala/scala `test/junit`
 
