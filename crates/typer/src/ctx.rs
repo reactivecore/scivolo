@@ -15,6 +15,8 @@ impl Mode {
     pub const PATTERN: Mode = Mode(1);
     /// A path that is the qualifier of a selection or an import, where a package may stand.
     pub const QUALIFIER: Mode = Mode(2);
+    /// A search for a reflexive `CanEqual` instance, as under `strictEquality`.
+    pub const STRICT_EQUALITY: Mode = Mode(4);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

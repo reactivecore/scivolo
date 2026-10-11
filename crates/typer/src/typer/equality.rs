@@ -1,28 +1,31 @@
-//! Comparisons with `Any.==` and `Any.!=` (dotty's `checkCanEqual`), as far as the subset goes:
-//! operands of which one conforms to the other, or two numbers, without `strictEquality`.
+//! Comparisons with `Any.==` and `Any.!=` (dotty's `checkCanEqual`): operands of which one
+//! conforms to the other, else a `CanEqual` instance found or synthesized.
 
 use super::Typer;
-use super::widening::is_numeric;
-use crate::ctx::Ctx;
+use super::implicits::is_misfit;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::config::Features;
-use tasty::{Kind, Type, TypeId};
+use syntax::ast::{Ast, NodeId, Span, Tree};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Checks comparison `fun(arg)` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==` or
-    /// `Any.!=`.
-    pub fn check_can_equal(&mut self, fun: TNodeId, arg_tpe: TypeId, ctx: Ctx) -> Result<(), &'static str> {
+    /// Checks comparison `fun(arg)` at `at` of type `arg_tpe` in `ctx`, if `fun` selects `Any.==`
+    /// or `Any.!=`; an error reported there if no `CanEqual` instance exists.
+    pub fn check_can_equal(
+        &mut self,
+        fun: TNodeId,
+        arg_tpe: TypeId,
+        at: Span,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
         let Some(sym) = self.tpd.sym(fun) else { return Ok(()) };
         let s = self.u.symbol(sym);
         if s.owner != Some(self.u.builtins().any) || !matches!(s.name.as_str(), "==" | "!=") {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
-        if self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx) {
-            return Err("comparison under strictEquality");
-        }
         let a = self.tpd.tpe(qualifier);
-        self.check_comparable(a, arg_tpe)
+        self.check_comparable(a, arg_tpe, at, true, ctx)
     }
 
     /// Checks that a value of type `pt` can be compared with literal or stable identifier
@@ -41,23 +44,74 @@ impl Typer<'_> {
         if self.u.is_subtype(pt, tpe) {
             return Ok(());
         }
-        if self.feature_enabled(Features::STRICT_EQUALITY, "strictEquality", ctx) {
-            return Err("pattern under strictEquality");
-        }
-        self.check_comparable(tpe, pt)
+        let span = self.tpd.span(pat);
+        self.check_comparable(tpe, pt, span, false, ctx)
     }
 
-    /// Checks that values of types `a` and `b` can be compared: one conforms to the other lifted
-    /// (dotty's `assumedCanEqual`), or both are numbers.
-    fn check_comparable(&mut self, a: TypeId, b: TypeId) -> Result<(), &'static str> {
+    /// Checks that values of types `a` and `b` can be compared at `at` in `ctx`: one conforms to
+    /// the other lifted, else a `CanEqual[a, b]` instance exists; if none does, an error reported
+    /// there if `report` and dotty's message is certain, else `Err`.
+    fn check_comparable(
+        &mut self,
+        a: TypeId,
+        b: TypeId,
+        at: Span,
+        report: bool,
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
         let (a, b) = (self.fully_defined(a)?, self.fully_defined(b)?);
         let (a, b) = (self.u.widen(a), self.u.widen(b));
-        let numeric = |t: &mut Self, x| t.value_class(x).is_some_and(|c| is_numeric(&c));
+        let ctx = ctx.with_mode(Mode::NONE);
+        if !self.is_strict_equality(ctx) && self.assumed_can_equal(a, b) {
+            return Ok(());
+        }
+        let pt = self.can_equal_type(a, b).ok_or("CanEqual")?;
+        match self.implicit_arg(pt, at, ctx, 0) {
+            Ok(_) => Ok(()),
+            Err(what) if !is_misfit(what) => Err(what),
+            Err(_) => match (self.plain_text(a), self.plain_text(b)) {
+                (Some(l), Some(r)) if report && self.certainly_incomparable(a, b, at, ctx) => {
+                    self.diags.error_at(
+                        at.start(),
+                        at.end(),
+                        at.point(),
+                        super::errors::cannot_compare(&l, &r),
+                    );
+                    Ok(())
+                }
+                _ => Err("comparison of unrelated types"),
+            },
+        }
+    }
+
+    /// Whether dotty finds no `CanEqual[a, b]` at `at` in `ctx` either, as far as the search can
+    /// tell: outside `strictEquality`, the unit defines no implicit and derives nothing, and every
+    /// class `a` and `b` refer to has all its base classes in the library.
+    fn certainly_incomparable(&mut self, a: TypeId, b: TypeId, at: Span, ctx: Ctx) -> bool {
+        let derives = |ast: &Ast, n: NodeId| matches!(*ast.tree(n), Tree::Template { derived: Some(_), .. });
+        if self.is_strict_equality(ctx)
+            || self.script_may_supply(None)
+            || self.ast.exists_subtree(self.unit, &derives)
+        {
+            return false;
+        }
+        let parts = [self.type_parts(a), self.type_parts(b)].concat();
+        let classes: Vec<_> = parts.into_iter().filter_map(|p| self.u.class_symbol(p)).collect();
+        classes.into_iter().all(|c| self.has_known_bases(c)) && self.certain_context(at, ctx)
+    }
+
+    /// Whether every parent of class `c` and of its base classes resolves to a class.
+    fn has_known_bases(&mut self, c: SymbolId) -> bool {
+        self.u.linearization(c).into_iter().all(|base| {
+            let parents = self.u.parents(base);
+            parents.into_iter().all(|p| self.u.class_symbol(p).is_some())
+        })
+    }
+
+    /// Whether one of `a` and `b` conforms to the other lifted (dotty's `assumedCanEqual`).
+    pub fn assumed_can_equal(&mut self, a: TypeId, b: TypeId) -> bool {
         let (lifted_a, lifted_b) = (self.lifted(a, 8), self.lifted(b, 8));
-        let comparable = self.u.is_subtype(a, lifted_b)
-            || self.u.is_subtype(b, lifted_a)
-            || numeric(self, a) && numeric(self, b);
-        if comparable { Ok(()) } else { Err("comparison of unrelated types") }
+        self.u.is_subtype(a, lifted_b) || self.u.is_subtype(b, lifted_a)
     }
 
     /// `t` with abstract types replaced by their upper bounds, singletons widened and refinements
