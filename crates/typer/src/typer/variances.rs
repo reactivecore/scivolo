@@ -116,7 +116,7 @@ impl Typer<'_> {
                     };
                     go(self, a, v * pv);
                 }
-                go(self, tycon, 0);
+                go(self, tycon, v);
             }
             Type::Method { params, result, .. } => {
                 for (_, p) in params {

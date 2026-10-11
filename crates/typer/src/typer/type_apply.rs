@@ -86,18 +86,39 @@ impl Typer<'_> {
         let method = self.tpd.sym(f);
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
-            let (lo, hi) = match *self.u.types().get(bounds) {
-                Type::Bounds(lo, hi) => (lo, hi),
-                _ => (bounds, bounds),
-            };
-            if self.type_arity(arg) != self.type_arity(hi) {
+            let (lo, hi, arity) = self.bounds_of(bounds);
+            let var = matches!(self.u.types().get(arg), Type::Var(_));
+            if !var && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
-            if !self.conforms(lo, arg) || !self.conforms(arg, hi) {
+            if !self.conforms(arg, hi) || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
                 return Err("type argument outside its bounds");
             }
         }
         Ok(self.instantiate_poly(result, binder, &names, args, method))
+    }
+
+    /// The lower and upper bound of type parameter info `bounds` and the arity of the parameter;
+    /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
+    /// `None` for `Nothing`.
+    fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
+        match self.u.types().get(bounds).clone() {
+            Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
+            Type::Lambda { binder, params, result } => {
+                let (lo, hi) = match *self.u.types().get(result) {
+                    Type::Bounds(lo, hi) => (lo, hi),
+                    _ => (result, result),
+                };
+                let bottom = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+                let arity = params.len();
+                let mut lambda = |result| {
+                    let params = params.clone();
+                    self.u.intern_type(Type::Lambda { binder, params, result })
+                };
+                (Some(lambda(lo)).filter(|_| !bottom), lambda(hi), arity)
+            }
+            _ => (Some(bounds), bounds, self.type_arity(bounds)),
+        }
     }
 
     /// `t` with the type parameters of binder `binder`, named `names`, and the type parameter

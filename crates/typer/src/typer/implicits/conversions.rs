@@ -1,11 +1,11 @@
 //! Implicit conversions (dotty's `inferView`, `tryInsertImplicitOnQualifier`): an implicit method
 //! of one parameter applied to a tree, to fit an expected type or to give it a member.
 
-use super::super::Typer;
+use super::super::{Pt, Typer};
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
-use tasty::tags::GIVEN;
+use tasty::tags::{GIVEN, PRIVATE};
 use tasty::{Kind, Type, TypeId};
 
 /// What a conversion's result must offer.
@@ -120,13 +120,17 @@ impl Typer<'_> {
         self.complete(c.sym);
         let span = self.tpd.span(tree);
         let fun = self.candidate_ref(c, span.start_pos(), ctx)?;
+        let from = self.constraint.count();
         let fun = self.with_type_vars(fun)?;
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
             return Err("not a conversion");
         };
-        let [(_, param)] = params[..] else { return Err("not a conversion") };
+        let [(_, mut param)] = params[..] else { return Err("not a conversion") };
+        if let Type::ByName(p) = *self.u.types().get(param) {
+            param = p;
+        }
         let arg_tpe = self.tpd.tpe(tree);
         if !self.conforms(arg_tpe, param) {
             return Err("conversion of another type");
@@ -142,14 +146,19 @@ impl Typer<'_> {
             converted = self.build().apply(converted, &args, result, span.to_synthetic());
         }
         let result = self.tpd.tpe(converted);
-        let fits = match goal {
-            Goal::Conform(pt) => self.conforms(result, pt),
-            Goal::Member(name) => {
-                let result = self.zonk(result);
-                let members = self.type_members(result, name);
-                members.iter().any(|&m| !self.u.symbol(m).flags.has(tasty::tags::PRIVATE))
-            }
+        let pt = match goal {
+            Goal::Conform(pt) if self.conforms(result, pt) => Pt::Type(pt),
+            Goal::Conform(_) => return Err("conversion to another type"),
+            Goal::Member(_) => Pt::Any,
         };
-        if fits { Ok(converted) } else { Err("conversion to another type") }
+        self.interpolate(converted, pt, from)?;
+        let result = self.zonk(result);
+        self.tpd.get_mut(converted).tpe = Some(result);
+        if let Goal::Member(name) = goal
+            && !self.type_members(result, name).iter().any(|&m| !self.u.symbol(m).flags.has(PRIVATE))
+        {
+            return Err("conversion to another type");
+        }
+        Ok(converted)
     }
 }

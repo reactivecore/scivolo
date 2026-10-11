@@ -122,13 +122,21 @@ impl Typer<'_> {
         Ok(out)
     }
 
-    /// The implicits of the companions of the classes `t` refers to and of their base classes.
+    /// The implicits of the companions of the classes `t` refers to, those of the objects it
+    /// refers to, and those of their base classes.
     pub fn implicit_scope(&mut self, t: TypeId) -> Vec<Candidate> {
         let mut classes = Vec::new();
         let t = self.zonk(t);
         self.u.map_type(t, &mut |u, part| {
-            if matches!(u.types().get(part), Type::Sym(..) | Type::TypeRef(..))
-                && let Some(s) = u.class_symbol(part)
+            let class = match *u.types().get(part) {
+                Type::Sym(_, s) if u.symbol(s).kind.is_term() => {
+                    let widened = u.widen(part);
+                    (widened != part).then(|| u.class_symbol(widened)).flatten()
+                }
+                Type::Sym(..) | Type::TypeRef(..) => u.class_symbol(part),
+                _ => None,
+            };
+            if let Some(s) = class
                 && !classes.contains(&s)
             {
                 classes.push(s);
@@ -185,11 +193,15 @@ impl Typer<'_> {
         Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))
     }
 
-    /// The companion object of class `c`, if `c` is not nested in a class other than an object's.
+    /// The companion object of class `c`, the object itself of a module class, if `c` is not
+    /// nested in a class other than an object's.
     fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(c).owner?;
         if self.u.is_class(owner) && !self.u.is_module_class(owner) {
             return None;
+        }
+        if self.u.is_module_class(c) {
+            return self.u.source_module(c);
         }
         self.u.companion_module(c)
     }
