@@ -38,6 +38,7 @@ mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
+mod inline_refs;
 mod interpolate;
 mod java_classes;
 mod java_members;
