@@ -165,17 +165,18 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    Leave out match types, GADTs and capture checking until they are needed.
    Anything unsupported falls back to the phase 1 path, never silently.
    Status (2026-10-11): `crates/typer`, typed trees matching dotty's on the golden tests
-   (`just typer-checks`); of dotty's `tests/run`, about 1000 tests still stop at the typer,
-   306 of them at calls of transparent inline methods (#82). Done in the last weeks:
-   `super`, annotations, constants, intersection members, the typer half of value classes
-   (#83), non-transparent inline definitions and calls (#82 step 1).
+   (`just typer-checks`); of dotty's `tests/run`, 991 tests still stop at the typer, most
+   of them at calls of transparent inline methods (#82). Done in the last weeks: `super`,
+   method values, annotations, constants, intersection members, the typer half of value
+   classes (#83), non-transparent inline definitions and calls, the inlining of script
+   inline methods (#82).
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
    nscplugin does (ADR 0001). Status (2026-10-11): `crates/lower` ports dotty's phases
    from FirstTransform to Constructors plus nscplugin's NIR generation; every lowered program
    is compared byte for byte with Scala Native's NIR, positions included
-   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 376 pass through
-   typer, lowering and VM (278 on 2026-10-09), 40 are refused by the lowering, 1 gives wrong
+   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 396 pass through
+   typer, lowering and VM (278 on 2026-10-09), 45 are refused by the lowering, 1 gives wrong
    output (i9939, #60); see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
@@ -225,18 +226,17 @@ with no JVM involved.
 ## Where we are and what's next (2026-10-11)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 376 of 1711
-pass, ~1000 stop at the typer, 40 at the lowering.
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 396 of 1711
+pass, 991 stop at the typer, 45 at the lowering.
 
 Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
 traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
 non-local returns, string interpolators, annotations, constants, intersection members, the
 typer half of value classes, type tests against value classes (#87), inline definitions
-(#82 step 1), the typer's inlining phase for inline methods of scripts (#82 step 2a).
+(#82 step 1), the typer's inlining phase for inline methods of scripts (#82 step 2a), method
+values with eta-expansion and lifting, SpecializeTuples.
 
 Open merge requests:
-- Method values (!220): eta-expansion with lifting, `m _`, SpecializeTuples; 396 tests
-  pass on that branch.
 - #83: no false double definition between a method and a module (Draft !217); views in
   implicit search (MR D, branch `83-views`, in progress).
 
