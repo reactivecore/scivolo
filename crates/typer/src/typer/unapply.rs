@@ -72,6 +72,9 @@ impl Typer<'_> {
         if own == sel || sel == tasty::NOTHING {
             return Ok(tree);
         }
+        if self.tests_value_class(own) {
+            return Err("type test or cast to a value class");
+        }
         let tpt = self.type_tree(own, span.end_pos(), false);
         Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
     }

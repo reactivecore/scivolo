@@ -75,11 +75,15 @@ impl Universe {
         }
     }
 
-    /// The erasure of `a | b`: the other side for `Nothing`, and for `Null` beside a reference;
-    /// one side if both erase alike; an array of the joined elements; the closest common base
-    /// class of the erased sides; else `Object`.
+    /// The erasure of `a | b`: the other side for `Nothing`; `Object` beside a value class; the
+    /// other side for `Null` beside a reference; one side if both erase alike; an array of the
+    /// joined elements; the closest common base class of the erased sides; else `Object`.
     pub fn erase_or(&mut self, a: TypeId, b: TypeId) -> Erased {
         let (ea, eb) = (self.erase(a), self.erase(b));
+        let nothing = ea == Erased::Nothing || eb == Erased::Nothing;
+        if !nothing && (self.is_value_class(a) || self.is_value_class(b)) {
+            return object();
+        }
         if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
             && ea != eb
         {
@@ -136,6 +140,7 @@ impl Universe {
     }
 
     fn is_value_class(&mut self, t: TypeId) -> bool {
+        let t = self.widen(t);
         self.class_symbol(t).is_some_and(|c| self.underlying(c).is_some())
     }
 
