@@ -10,6 +10,7 @@ mod enter;
 mod impure_functions;
 mod info;
 mod inits;
+mod java_stubs;
 mod jdk;
 mod lookup;
 mod members;

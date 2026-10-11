@@ -14,6 +14,8 @@ impl Gen<'_, '_> {
             Constant::Null => Val::Null,
             Constant::Boolean(true) => Val::True,
             Constant::Boolean(false) => Val::False,
+            Constant::Byte(b) => Val::Byte(b),
+            Constant::Short(s) => Val::Short(s),
             Constant::Char(c) => Val::Char(c),
             Constant::Int(i) => Val::Int(i),
             Constant::Long(l) => Val::Long(l),

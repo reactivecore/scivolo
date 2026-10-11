@@ -53,12 +53,7 @@ impl Typer<'_> {
             }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, depth), self.members_within(b, name, depth));
-                match (ma.is_empty(), mb.is_empty()) {
-                    (true, _) => mb,
-                    (_, true) => ma,
-                    _ if ma == mb => ma,
-                    _ => Vec::new(),
-                }
+                self.and_members(t, ma, mb)
             }
             Type::Or(..) => match self.u.join(t) {
                 Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => {

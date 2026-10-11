@@ -2,10 +2,10 @@
 
 use super::Typer;
 use super::const_ops::{fold_binop, fold_unop};
+use super::constants::of_type;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use tasty::Type;
-use tasty::tags::*;
 
 impl Typer<'_> {
     /// The constant `tree` denotes, by its form or its type (dotty's `ConstantTree`).
@@ -24,7 +24,7 @@ impl Typer<'_> {
                     _ => return None,
                 },
                 Type::Str(s) => return Some(C::String(s.encode_utf16().collect())),
-                Type::Constant(tag, bits) => return constant(tag, bits),
+                Type::Constant(tag, bits) => return of_type(tag, bits),
                 _ => return None,
             }
         }
@@ -49,20 +49,4 @@ impl Typer<'_> {
             self.tpd.get_mut(tree).tpe = Some(constant_type_of(self.u, &c));
         }
     }
-}
-
-/// The constant of a constant type of tag `tag` and bits `bits`.
-fn constant(tag: u8, bits: i64) -> Option<C> {
-    Some(match tag {
-        UNITconst => C::Unit,
-        TRUEconst => C::Boolean(true),
-        FALSEconst => C::Boolean(false),
-        CHARconst => C::Char(bits as u16),
-        INTconst => C::Int(bits as i32),
-        LONGconst => C::Long(bits),
-        FLOATconst => C::Float(f32::from_bits(bits as u32)),
-        DOUBLEconst => C::Double(f64::from_bits(bits as u64)),
-        NULLconst => C::Null,
-        _ => return None,
-    })
 }
