@@ -1,7 +1,7 @@
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;
-use crate::symbols::{is_class, is_module_class, is_static_module, is_trait};
+use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
@@ -15,7 +15,7 @@ impl Gen<'_, '_> {
             return unsupported(self.l.tpd.span(td), "native interop");
         }
         let owner = self.l.u.symbol(sym).owner.expect("a class's owner");
-        if is_class(self.l.u, owner) && !is_static_module(self.l.u, owner) && is_trait(self.l.u, sym) {
+        if self.l.u.is_class(owner) && !is_static_module(self.l.u, owner) && self.l.u.is_trait(sym) {
             return unsupported(self.l.tpd.span(td), "traits in classes and traits");
         }
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
@@ -25,13 +25,13 @@ impl Gen<'_, '_> {
         let traits = self.class_interfaces(sym);
         let kind = if is_static_module(self.l.u, sym) {
             DefnKind::Module { parent: Some(self.class_parent(sym)), traits }
-        } else if is_trait(self.l.u, sym) {
+        } else if self.l.u.is_trait(sym) {
             DefnKind::Trait { traits }
         } else {
             DefnKind::Class { parent: Some(self.class_parent(sym)), traits }
         };
         self.defns.push(Defn { name, attrs, pos, kind });
-        if is_module_class(self.l.u, sym) {
+        if self.l.u.is_module_class(sym) {
             self.gen_lazy_handle_fields(sym, pos);
         }
         self.gen_lazy_handle_accessors(sym, pos);
@@ -52,7 +52,7 @@ impl Gen<'_, '_> {
         let superclass = parents
             .first()
             .and_then(|&p| self.l.u.class_symbol(p))
-            .filter(|&s| !is_trait(self.l.u, s))
+            .filter(|&s| !self.l.u.is_trait(s))
             .unwrap_or(self.l.defs.object);
         self.type_name(superclass)
     }
@@ -60,7 +60,7 @@ impl Gen<'_, '_> {
     fn class_interfaces(&mut self, c: tasty::SymbolId) -> Vec<nir::GlobalId> {
         let parents = self.l.u.parents(c);
         let classes: Vec<_> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-        let traits: Vec<_> = classes.into_iter().filter(|&s| is_trait(self.l.u, s)).collect();
+        let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s)).collect();
         traits.into_iter().map(|t| self.type_name(t)).collect()
     }
 

@@ -4,7 +4,7 @@
 use super::accessor_names::{accessor_name, trait_setter_name};
 use super::getters::is_const_final;
 use crate::definitions::symbol;
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
@@ -16,7 +16,7 @@ pub fn prepare(l: &mut Lower, trait_: SymbolId, span: Span) -> Result<()> {
         if l.u.symbol(value).kind != Kind::Val || has(l.u, value, FIELDaccessor) {
             continue;
         }
-        if is_module(l.u, value) {
+        if l.u.is_module(value) {
             return unsupported(span, "objects in library traits");
         }
         if l.u.body(value).is_none() || is_const_final(l, value) {

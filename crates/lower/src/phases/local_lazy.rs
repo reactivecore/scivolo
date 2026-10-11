@@ -6,7 +6,7 @@ use super::lazy_trees::{call, dup, if_, method, method_def, method_symbol, objec
 use super::lazy_vals::fresh;
 use super::walk::{children, subtrees};
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
@@ -35,7 +35,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut expanded = FxHashMap::default();
     let mut todo = vec![(root, false)];
     while let Some((t, visited)) = todo.pop() {
-        let lazy = l.tpd.sym(t).filter(|&s| has(l.u, s, LAZY) || is_module(l.u, s));
+        let lazy = l.tpd.sym(t).filter(|&s| has(l.u, s, LAZY) || l.u.is_module(s));
         if !visited {
             todo.push((t, true));
             todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, false)));

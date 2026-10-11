@@ -7,7 +7,6 @@ use super::casts::{is_cast, receiver_type};
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
 use super::walk::map_children;
-use crate::symbols::is_constructor;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Kind};
 use typer::tpd::{TNodeId, Tree};
@@ -22,7 +21,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         match *l.tpd.tree(stat) {
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
                 let sym = l.tpd.sym(stat).expect("a method definition's symbol");
-                let pt = if is_constructor(l.u, sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
+                let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
                 let rhs = typed(l, rhs, Some(&pt))?;
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
                 stats.push(stat);

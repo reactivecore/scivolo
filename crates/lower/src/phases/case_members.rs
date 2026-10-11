@@ -3,7 +3,7 @@
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
 use crate::definitions::type_ref;
-use crate::symbols::{has, is_module_class};
+use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{CASE, CASEaccessor, OVERRIDE, SYNTHETIC};
@@ -16,7 +16,7 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
         return Ok(Vec::new());
     }
     let cc = l.defs.case_classes;
-    let module = is_module_class(l.u, class);
+    let module = l.u.is_module_class(class);
     let members = [
         cc.hash_code,
         l.defs.equality.any_equals,
@@ -67,7 +67,7 @@ fn body(
         _ if sym == l.defs.equality.any_equals => {
             l.equals_body(class, &accessors, args[0], can_equal, locals)
         }
-        _ if sym == cc.to_string && is_module_class(l.u, class) => l.string_literal(&own_name),
+        _ if sym == cc.to_string && l.u.is_module_class(class) => l.string_literal(&own_name),
         _ if sym == cc.to_string => {
             let run_time = l.ident(cc.scala_run_time, Span::NONE);
             let this = l.this(class, Span::NONE);

@@ -6,7 +6,7 @@
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
 use crate::phases::case_members::case_accessors;
-use crate::symbols::{companion_class, has};
+use crate::symbols::has;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
@@ -71,7 +71,7 @@ impl Translator<'_, '_> {
         }
         let owner = self.l.u.symbol(extractor).owner.expect("an extractor's owner");
         let accessors =
-            companion_class(self.l.u, owner).map(|c| case_accessors(self.l, c)).unwrap_or_default();
+            self.l.u.companion_class(owner).map(|c| case_accessors(self.l, c)).unwrap_or_default();
         let unapp_type = self.l.tpd.tpe(unapp);
         if self.l.u.is_scala2(extractor)
             && has(self.l.u, extractor, SYNTHETIC)

@@ -3,7 +3,7 @@
 //! variable.
 
 use crate::definitions::{Ref, ref_class, type_ref};
-use crate::symbols::{has, is_class};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::tags::{LAZY, MUTABLE};
@@ -46,7 +46,7 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
             && has(l.u, s, MUTABLE)
             && let Some(owner) = l.u.symbol(s).owner
             && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
-            && !is_class(l.u, owner)
+            && !l.u.is_class(owner)
             && owner != function
         {
             out.insert(s);

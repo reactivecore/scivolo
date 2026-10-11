@@ -1,7 +1,7 @@
 //! NIR names of classes, modules and methods (nscplugin's `NirGenName`).
 
 use super::Gen;
-use crate::symbols::{has, is_constructor, is_java_static, is_module_class, is_private, is_trait};
+use crate::symbols::{has, is_java_static, is_private};
 use nir::GlobalId;
 use nir::sig::{Scope, Sig};
 use tasty::tags::{ENUM, MACRO, PRIVATE, PROTECTED, STATIC};
@@ -63,10 +63,10 @@ impl Gen<'_, '_> {
         };
         let params = self.param_types(m);
         let sig = match self.l.u.symbol(m).name.as_str() {
-            _ if is_constructor(self.l.u, m) && is_trait(self.l.u, owner_sym) => {
+            _ if self.l.u.is_constructor(m) && self.l.u.is_trait(owner_sym) => {
                 Sig::Method("$init$".into(), vec![self.ty(nir::Type::Unit)], scope)
             }
-            _ if is_constructor(self.l.u, m) => Sig::Ctor(params),
+            _ if self.l.u.is_constructor(m) => Sig::Ctor(params),
             "<clinit>" => Sig::Clinit,
             "$init$" => Sig::Method(self.native_id(m), vec![self.ty(nir::Type::Unit)], scope),
             _ => {
@@ -87,7 +87,7 @@ impl Gen<'_, '_> {
         let type_name = self.type_name(owner);
         let no_forwarders = !has(self.l.u, m, ENUM)
             && [PRIVATE, STATIC, PROTECTED, MACRO].iter().any(|&f| has(self.l.u, m, f));
-        let owner_name = if is_module_class(self.l.u, owner) && no_forwarders {
+        let owner_name = if self.l.u.is_module_class(owner) && no_forwarders {
             type_name
         } else {
             let id = self.pool.top_name(type_name).to_owned();

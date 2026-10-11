@@ -3,10 +3,7 @@
 
 use super::Gen;
 use super::method::Method;
-use crate::symbols::{
-    companion_class, companion_module, has, is_constructor, is_extern, is_module_class, is_static,
-    is_static_module, is_trait,
-};
+use crate::symbols::{has, is_extern, is_static, is_static_module};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use syntax::ast::Span;
@@ -28,17 +25,17 @@ impl Gen<'_, '_> {
         if !self.is_candidate_for_forwarders(c) || is_static_module(self.l.u, c) {
             return Ok(Vec::new());
         }
-        let Some(module) = companion_module(self.l.u, c) else { return Ok(Vec::new()) };
+        let Some(module) = self.l.u.companion_module(c) else { return Ok(Vec::new()) };
         let Some(module_class) = self.l.u.module_class(module) else { return Ok(Vec::new()) };
         self.forwarders_from_module_class(existing, module_class)
     }
 
     /// A class `C` of forwarders for a top-level object `C` without a companion class.
     pub fn gen_mirror_class(&mut self, c: SymbolId, pos: PosId) -> Result<()> {
-        if !is_module_class(self.l.u, c) || !self.is_candidate_for_forwarders(c) {
+        if !self.l.u.is_module_class(c) || !self.is_candidate_for_forwarders(c) {
             return Ok(());
         }
-        if companion_class(self.l.u, c).is_some() {
+        if self.l.u.companion_class(c).is_some() {
             return Ok(());
         }
         let module_name = self.type_name(c);
@@ -68,7 +65,7 @@ impl Gen<'_, '_> {
         let classes: Vec<SymbolId> = bases
             .into_iter()
             .filter(|&b| {
-                let library_trait = is_trait(self.l.u, b) && self.l.u.symbol(b).tree.is_some();
+                let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
                 !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait
             })
             .collect();
@@ -83,7 +80,7 @@ impl Gen<'_, '_> {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PRIVATEqualified, PROTECTEDqualified];
             let method = self.l.u.symbol(m).kind == Kind::Def || has(self.l.u, m, FIELDaccessor);
             if !method
-                || is_constructor(self.l.u, m)
+                || self.l.u.is_constructor(m)
                 || is_extern(self.l.u, m)
                 || self.l.u.is_deferred(m)
                 || excluded.iter().any(|&f| has(self.l.u, m, f))

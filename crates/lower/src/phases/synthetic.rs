@@ -5,7 +5,7 @@ use super::case_members::case_members;
 use super::enum_values::enum_value_members;
 use super::mirrors::mirror_support;
 use crate::definitions::{applied, symbol, type_ref};
-use crate::symbols::{is_module_class, is_static, source_module};
+use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, SYNTHETIC};
@@ -46,11 +46,11 @@ pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Resul
 /// `private def writeReplace(): AnyRef = new ModuleSerializationProxy(classOf[C.type])` for a
 /// static object `C` without one.
 fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
-    if !is_module_class(l.u, class) || !is_static(l.u, class) || has_write_replace(l, class) {
+    if !is_static_module(l.u, class) || has_write_replace(l, class) {
         return Ok(Vec::new());
     }
     let span = if span.exists() { Span::synthetic(span.point(), span.point()) } else { span };
-    let Some(module) = source_module(l.u, class) else {
+    let Some(module) = l.u.source_module(class) else {
         return unsupported(span, "an object without its value");
     };
     let (sym, any_ref) = private_method(l, class, "writeReplace");

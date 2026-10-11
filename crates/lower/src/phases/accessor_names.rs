@@ -2,7 +2,7 @@
 //! and the expanded names `p$T$$x` of private trait members (dotty's `expandedName`).
 
 use crate::Lower;
-use crate::symbols::{has, is_constructor, is_trait};
+use crate::symbols::has;
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
 use tasty::{Kind, SymbolId};
 
@@ -25,7 +25,7 @@ pub fn setter_getter_name(setter: &str) -> &str {
 pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
-        Some(o) if has(l.u, s, PRIVATE) && is_trait(l.u, o) => {
+        Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
             format!("{}$${}", expanded_prefix(l, o), sym.name)
         }
         _ => sym.name.clone(),
@@ -44,7 +44,7 @@ pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
 /// Gives private member `s` other than a constructor its expanded name `p$C$$x` (`p$O$$$x` in
 /// object `O`) and makes it neither private nor local (dotty's `ensureNotPrivate`).
 pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
-    if !is_constructor(l.u, s) {
+    if !l.u.is_constructor(s) {
         let owner = l.u.symbol(s).owner.expect("a member's owner");
         let module = if l.u.symbol(owner).name.ends_with('$') { "$" } else { "" };
         let name = format!("{}{module}$${}", expanded_prefix(l, owner), l.u.symbol(s).name);

@@ -6,7 +6,7 @@ use super::adapt::adapt;
 use super::lazy_init::init_method;
 use super::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
 use crate::definitions::symbol;
-use crate::symbols::{has, is_module, is_singleton, is_trait};
+use crate::symbols::{has, is_singleton};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
@@ -44,11 +44,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         };
         let span = l.tpd.span(stat);
-        if is_trait(l.u, class) && is_module(l.u, accessor) {
+        if l.u.is_trait(class) && l.u.is_module(accessor) {
             stats.push(stat);
             continue;
         }
-        if is_trait(l.u, class) {
+        if l.u.is_trait(class) {
             return unsupported(span, "lazy values in traits");
         }
         let info = l.u.info(accessor);

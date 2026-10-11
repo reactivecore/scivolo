@@ -4,7 +4,7 @@
 use super::Gen;
 use super::branch::Part;
 use crate::Result;
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
 use nir::{Bin, Comp, Op, Type, Val, ValId};
 use std::cell::Cell;
 use syntax::ast::Span;
@@ -99,7 +99,7 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     fn is_non_null(&self, t: TNodeId) -> bool {
         matches!(self.l.tpd.tree(t), Tree::Literal { .. })
-            || self.l.tpd.sym(t).is_some_and(|s| is_module(self.l.u, s))
+            || self.l.tpd.sym(t).is_some_and(|s| self.l.u.is_module(s))
     }
 
     /// Whether either side may be a boxed number, character or boolean at run time, unless both

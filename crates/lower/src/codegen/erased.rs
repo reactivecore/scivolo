@@ -2,7 +2,7 @@
 
 use super::Gen;
 use super::names::mapped;
-use crate::symbols::{is_constructor, is_java_static};
+use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
 use nir::{Type, TypeId, Val, ValId};
 use syntax::ast::Span;
@@ -86,7 +86,7 @@ impl Gen<'_, '_> {
             args.push(self.class_ref(owner));
         }
         args.extend(self.param_types(m));
-        let ret = if is_constructor(self.l.u, m) { self.ty(Type::Unit) } else { self.result_type(m) };
+        let ret = if self.l.u.is_constructor(m) { self.ty(Type::Unit) } else { self.result_type(m) };
         self.ty(Type::Function(args, ret))
     }
 }

@@ -113,7 +113,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         tailrec::transform(l, td);
     }
     let (traits, others): (Vec<TNodeId>, Vec<TNodeId>) =
-        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| crate::symbols::is_trait(l.u, c)));
+        classes.iter().partition(|&&td| l.tpd.sym(td).is_some_and(|c| l.u.is_trait(c)));
     for &td in traits.iter().chain(&others) {
         mixin::transform(l, td)?;
     }

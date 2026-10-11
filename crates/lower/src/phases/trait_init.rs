@@ -4,7 +4,7 @@
 use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
-use crate::symbols::{has, is_module};
+use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY};
@@ -45,7 +45,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                     has(l.u, s, FIELDaccessor)
                         && !is_setter(l, s)
                         && !is_const_final(l, s)
-                        && !is_module(l.u, s)
+                        && !l.u.is_module(s)
                 }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");

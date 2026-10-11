@@ -8,7 +8,7 @@ use super::getters::{is_const_final, is_setter};
 use super::library_traits::define_setter;
 use super::mixin::has_body;
 use crate::definitions::symbol;
-use crate::symbols::{has, is_module, is_trait};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
@@ -18,7 +18,7 @@ use typer::tpd::{TNodeId, Tree};
 /// Records the unit's traits among `classes` whose bodies have values or statements.
 pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
     for &td in classes {
-        let Some(class) = l.tpd.sym(td).filter(|&c| is_trait(l.u, c)) else { continue };
+        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { continue };
         let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
         let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
@@ -59,7 +59,7 @@ pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
             continue;
         };
         let abstract_getter = rhs.is_none() && !is_setter(l, s);
-        let skip = !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || is_module(l.u, s);
+        let skip = !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || l.u.is_module(s);
         if skip || is_const_final(l, s) || abstract_getter {
             continue;
         }
@@ -101,10 +101,10 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
     let decls = l.u.decls(mixin).unwrap_or_default();
     for &getter in &decls {
         let library = l.u.symbol(getter).tree.is_some();
-        if is_module(l.u, getter) && library {
+        if l.u.is_module(getter) && library {
             return unsupported(span, "objects in library traits");
         }
-        if is_module(l.u, getter) {
+        if l.u.is_module(getter) {
             out.push(module_forwarder(l, class, getter, span)?);
         } else if is_trait_getter(l, getter) && !is_const_final(l, getter) && implemented_by(l, class, getter)
         {

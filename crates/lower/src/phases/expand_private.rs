@@ -2,7 +2,7 @@
 //! companion, get expanded names and become public.
 
 use crate::Lower;
-use crate::symbols::{has, is_class};
+use crate::symbols::has;
 use tasty::tags::PRIVATE;
 use typer::tpd::{TNodeId, Tree};
 
@@ -15,8 +15,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             }
             let Some(s) = l.tpd.sym(t) else { continue };
             let Some(owner) = l.u.symbol(s).owner else { continue };
-            if owner != class && is_class(l.u, owner) && has(l.u, s, PRIVATE) && l.u.symbol(s).kind.is_term()
-            {
+            if owner != class && l.u.is_class(owner) && has(l.u, s, PRIVATE) && l.u.symbol(s).kind.is_term() {
                 super::accessor_names::ensure_not_private(l, s);
             }
         }
