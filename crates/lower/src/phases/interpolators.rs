@@ -2,23 +2,25 @@
 //! `StringContext(p0, p1, …).s(a1, …)` becomes `p0 + a1 + p1 + …`, empty parts dropped and the
 //! parts of `s` with their escapes processed.
 
+use super::standard_interpolator;
 use super::walk::try_walk_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::constant::Constant;
 use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
-/// Rewrites the interpolations in class definition `td`; fails for one that is not `s` or `raw`
-/// of literal parts with valid escapes.
+/// Rewrites the `s` and `raw` interpolations in class definition `td`; fails for literal parts
+/// with invalid escapes.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    try_walk_class(l, td, &mut |l, t, _| {
+    try_walk_class(l, td, &mut |l, t, owner| {
         let Some(raw) = interpolator(l, t) else { return Ok(Walk::Children) };
         let span = l.tpd.span(t);
         let literals = |l: &Lower, parts: &[TNodeId]| {
             parts.iter().all(|&p| matches!(l.tpd.tree(p), Tree::Literal { value: Constant::String(_) }))
         };
         let Some((parts, args)) = interpolation(l, t).filter(|(parts, _)| literals(l, parts)) else {
-            return unsupported(span, "interpolations of parts that are not literals");
+            standard_interpolator::transform(l, t, raw, owner)?;
+            return Ok(Walk::Children);
         };
         let Some(texts) = parts.iter().map(|&p| text(l, p, raw)).collect::<Option<Vec<_>>>() else {
             return unsupported(span, "interpolations with invalid escapes");
@@ -53,9 +55,12 @@ fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId>)> 
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
     let Tree::Apply { fun: apply, args: parts } = *l.tpd.tree(qualifier) else { return None };
+    let Tree::Select { qualifier: module, .. } = *l.tpd.tree(apply) else { return None };
+    let module = l.tpd.sym(module).map(|m| l.u.full_name(m));
     let apply = l.u.symbol(l.tpd.sym(apply)?);
     if apply.name != "apply"
         || apply.owner.map(|o| l.u.full_name(o)).as_deref() != Some("scala.StringContext$")
+        || module.as_deref() != Some("scala.StringContext")
     {
         return None;
     }

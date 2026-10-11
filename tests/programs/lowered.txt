@@ -69,4 +69,5 @@ innertraits
 bytes_shorts
 intersections
 supertraits
+exprforms2
 localclasses2

@@ -43,6 +43,12 @@ impl Universe {
                     .base_type_within(a, base, depth)
                     .or_else(|| self.base_type_within(b, base, depth));
             }
+            Type::Or(a, b) if self.is_bottom_ref(a) => return self.base_type_within(b, base, depth),
+            Type::Or(a, b) if self.is_bottom_ref(b) => return self.base_type_within(a, base, depth),
+            Type::Or(a, b) => {
+                let x = self.base_type_within(a, base, depth)?;
+                return (self.base_type_within(b, base, depth)? == x).then_some(x);
+            }
             Type::This(u)
             | Type::Super(_, u)
             | Type::Annotated(u, _)
@@ -94,6 +100,12 @@ impl Universe {
             }
         }
         None
+    }
+
+    /// Whether `t` refers to `Nothing` or `Null`.
+    fn is_bottom_ref(&self, t: TypeId) -> bool {
+        let b = self.builtins();
+        matches!(*self.types().get(t), Type::Sym(_, s) if s == b.nothing || s == b.null)
     }
 
     /// `t` with the type parameters of class `c` replaced by `args`.
