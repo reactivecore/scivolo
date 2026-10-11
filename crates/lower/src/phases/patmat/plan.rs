@@ -148,7 +148,7 @@ impl Translator<'_, '_> {
                 let bound = self.l.tpd.sym(pat).expect("a bound symbol");
                 let value = self.l.ident(scrutinee, Span::NONE);
                 self.initializer.insert(bound, value);
-                self.spans.insert(bound, span);
+                self.spans.insert(bound, super::coord(span));
                 let on_success = self.add(Plan::Let { sym: bound, body: on_success });
                 self.pattern_plan(scrutinee, body, on_success)
             }

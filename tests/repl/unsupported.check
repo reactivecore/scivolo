@@ -1,8 +1,8 @@
 scala> class A(private var p: Int) { def f = p }
 -- unsupported: private mutable class parameters
 
-scala> class B { trait T }
--- unsupported: traits in classes and traits
+scala> trait T { var x: Int }
+-- unsupported: abstract variables
 
 scala> val y = 2
 val y: Int = 2
