@@ -70,6 +70,10 @@ const CASES: &[(&str, &str)] = &[
         "local classes calling local methods that use the enclosing instance",
     ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
+    (
+        "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
+        "classes in local classes calling local methods",
+    ),
     ("trait T { var x: Int }", "abstract variables"),
     ("object O { def f() = ((x: Int) => x + 1)(2) }", "applications of a lambda"),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),

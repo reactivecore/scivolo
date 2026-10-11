@@ -16,12 +16,13 @@ use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// The class whose superclass call is hoisted from, its constructor definition, whether it is
-/// local, the methods hoisted so far.
+/// local, the methods hoisted so far, where a hoisting involves a method the call defines.
 struct Hoister {
     class: SymbolId,
     constr: TNodeId,
     local: bool,
     defs: Vec<TNodeId>,
+    refused: Option<Span>,
 }
 
 pub fn transform(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
@@ -30,13 +31,11 @@ pub fn transform(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let Some(&parent) = l.tpd.items(parents).first() else { return Ok(()) };
     let local = l.u.symbol(class).owner.is_some_and(|o| is_term(l, o));
-    if let Tree::Block { stats, .. } = *l.tpd.tree(parent)
-        && let Some(&def) = l.tpd.items(stats).iter().find(|&&s| matches!(l.tpd.tree(s), Tree::DefDef { .. }))
-    {
-        return unsupported(l.tpd.span(def), "methods defined in a superclass constructor call");
-    }
-    let mut h = Hoister { class, constr, local, defs: Vec::new() };
+    let mut h = Hoister { class, constr, local, defs: Vec::new(), refused: None };
     from_call(l, &mut h, parent, &mut Vec::new());
+    if let Some(span) = h.refused {
+        return unsupported(span, "hoisting superclass constructor arguments with methods the call defines");
+    }
     if h.defs.is_empty() {
         return Ok(());
     }
@@ -64,6 +63,13 @@ fn from_call(l: &mut Lower, h: &mut Hoister, call: TNodeId, lifted: &mut Vec<Sym
     match *l.tpd.tree(call) {
         Tree::Block { stats, expr } => {
             for stat in l.tpd.items(stats).to_vec() {
+                if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(stat) {
+                    if needs_hoist(l, rhs) {
+                        h.refused = Some(l.tpd.span(stat));
+                    }
+                    lifted.extend(l.tpd.sym(stat));
+                    continue;
+                }
                 let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(stat) else { continue };
                 if needs_hoist(l, rhs) {
                     let at = Span::at(l.tpd.span(rhs).end());
@@ -114,6 +120,9 @@ pub fn needs_hoist(l: &mut Lower, arg: TNodeId) -> bool {
 /// parameters, else at the argument; the call of it at `span`.
 fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span: Span) -> TNodeId {
     let (class, constr) = (h.class, h.constr);
+    if lifted.iter().any(|&s| l.u.symbol(s).kind == Kind::Def) {
+        h.refused = Some(l.tpd.span(arg));
+    }
     let mut originals = params(l, constr);
     originals.extend(lifted);
     let name = fresh(l, &format!("{}$superArg", l.u.symbol(class).name));

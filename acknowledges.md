@@ -40,7 +40,8 @@ Apache-2.0. Rust translations of:
     (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
-    and creating local classes, returns of blocks), `CapturedVars`, `ElimByName` (calls),
+    and creating local classes, the naming order of proxies, `setLogicOwner` of classes,
+    returns of blocks), `CapturedVars`, `ElimByName` (calls),
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
     classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
