@@ -64,7 +64,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
     let bottom = bottom(l, getter);
     let span = l.tpd.span(stat);
     let field = (!(mixed_in && bottom.is_some())).then(|| {
-        let name_text = l.u.symbol(getter).name.clone();
+        let name_text = super::accessor_names::run_name(l, getter).to_owned();
         let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
         if has(l.u, getter, MUTABLE) {
             flags = flags.with(MUTABLE);

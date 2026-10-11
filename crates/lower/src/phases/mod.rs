@@ -51,6 +51,7 @@ mod mirrors;
 mod mixin;
 mod non_local_returns;
 mod outer_args;
+mod outer_traits;
 mod package_objects;
 mod patmat;
 mod repeated;

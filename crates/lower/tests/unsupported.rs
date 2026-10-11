@@ -18,7 +18,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
         "casts between primitive values or to references",
     ),
-    ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
     (
         "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
         "ascriptions to Unit of values other than literals",
@@ -50,13 +49,11 @@ const CASES: &[(&str, &str)] = &[
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    ("trait A { private object B; def f = B }", "private objects in traits"),
     (
         "class A { class B }; object O { val a = new A; class D { def f = new O.a.B } }",
         "creating an inner class through this prefix",
     ),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
-    ("class A { trait B }", "traits in classes and traits"),
     ("class A { class B; class C extends B }", "subclasses of classes in classes"),
     (
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
@@ -67,10 +64,6 @@ const CASES: &[(&str, &str)] = &[
     (
         "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
         "local classes using the enclosing instance",
-    ),
-    (
-        "abstract class A { def u: Unit }; class B extends A { val u: Unit = () }",
-        "values of type Unit overriding",
     ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     (
@@ -97,6 +90,10 @@ const CASES: &[(&str, &str)] = &[
     (
         "object O { def f() = { class C { val g = (x: Int) => x }; new C().g(1) } }",
         "lambdas and local methods in local classes",
+    ),
+    (
+        "class B { trait T { def f = 1 } }; object O { def g(b: B) = { class C extends b.T; new C().f } }",
+        "local classes using the enclosing instance",
     ),
     (
         "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",

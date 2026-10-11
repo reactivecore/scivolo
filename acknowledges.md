@@ -34,7 +34,9 @@ Apache-2.0. Rust translations of:
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
   - `BetaReduce`, `LetOverApply`, `NonLocalReturns`
-  - `Erasure` (boxing, `adaptClosure`, `cast` of primitive arrays),
+  - `ExplicitOuter` (outer accessors of classes and traits, their implementations for mixed-in
+    traits, `needsOuterIfReferenced`), `TreeInfo.bodyKind` (`PureInterface`)
+  - `Erasure` (boxing, `adaptClosure`, `typedTyped`, `cast` of primitive arrays),
     `TypeErasure.additionalAdaptationNeeded`, `Bridges` (result-type bridges, inherited pairs),
     `core/Decorators.reduceBalanced`
   - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,

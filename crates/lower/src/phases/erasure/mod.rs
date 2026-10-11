@@ -148,6 +148,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             if written && ascribed == Erased::Unit && !matches!(l.tpd.tree(expr), Tree::Literal { .. }) {
                 return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
             }
+            if ascribed == Erased::Unit {
+                let expr = typed(l, expr, Some(&Erased::Unit))?;
+                return Ok(pt.map_or(expr, |pt| adapt(l, expr, pt)));
+            }
             typed_except(l, t, tpt, Some(&ascribed))?;
             None
         }
