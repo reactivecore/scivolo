@@ -31,7 +31,13 @@ pub fn plan(
     deferred: &mut Vec<SymbolId>,
 ) -> Result<Plan> {
     let closure = f.closure.expect("a lambda's closure");
-    let erased: Vec<Erased> = params.iter().map(|&(_, t)| l.u.erase(t)).collect();
+    let erased: Vec<Erased> = params
+        .iter()
+        .map(|&(_, t)| match l.u.erase(t) {
+            Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
+            e => e,
+        })
+        .collect();
     let erased_result = l.u.erase(result);
     let unit = erased_result == Erased::Unit;
     let primitive = erased.iter().any(|e| matches!(e, Erased::Prim(_) | Erased::Unit));

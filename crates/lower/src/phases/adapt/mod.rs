@@ -1,6 +1,8 @@
 //! Erasure's adaptation of a typed tree to its expected erased type: parameterless methods
 //! applied, values boxed, unboxed or cast.
 
+mod units;
+
 use super::casts::{cast, conforms};
 use super::select_static::is_static_enum_value;
 use crate::symbols::{has, is_java_static};
@@ -9,6 +11,7 @@ use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
+use units::boxed_unit;
 
 /// Whether `t` refers to a method without parameter lists: a getter, a value of a class other
 /// than a field, or a parameterless `def`.
@@ -17,7 +20,7 @@ pub fn is_parameterless_ref(l: &mut Lower, t: TNodeId) -> bool {
         return false;
     };
     let in_class = l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o));
-    let class_value = l.u.symbol(s).kind == Kind::Val
+    let class_value = matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
         && in_class
         && !l.u.is_module(s)
         && !l.fields.contains_key(&s)
@@ -168,11 +171,7 @@ pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
             }
             None => t,
         },
-        (from, Erased::Unit) if reference(from) => {
-            let span = l.tpd.span(t);
-            let unit = l.unit_literal(span);
-            if super::first_transform::is_pure(l, t) { unit } else { l.block(&[t], unit, span) }
-        }
+        (from, Erased::Unit) if reference(from) || matches!(from, Erased::Prim(_)) => units::discarded(l, t),
         (from, to) if reference(from) && reference(to) && !conforms(l, from, to) => cast(l, t, to),
         _ => t,
     }
@@ -186,15 +185,4 @@ pub fn converted(l: &mut Lower, t: TNodeId, module: SymbolId, m: SymbolId) -> TN
     let info = l.u.info(m);
     let result = l.u.result_type(info);
     l.apply(fun, &[t], result, span)
-}
-
-/// `BoxedUnit.UNIT` for unit value `t`, after `t` unless it is pure.
-fn boxed_unit(l: &mut Lower, t: TNodeId) -> TNodeId {
-    let span = from_start(l.tpd.span(t));
-    let unit = l.defs.boxed_unit_unit;
-    let unit = l.ident(unit, span);
-    match l.tpd.tree(t) {
-        Tree::Literal { .. } | Tree::Ident { .. } | Tree::This { .. } => unit,
-        _ => l.block(&[t], unit, l.tpd.span(t)),
-    }
 }

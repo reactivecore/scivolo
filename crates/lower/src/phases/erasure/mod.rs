@@ -23,8 +23,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
                 let sym = l.tpd.sym(stat).expect("a method definition's symbol");
                 let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
+                let before = l.tpd.span(rhs);
                 let rhs = typed(l, rhs, Some(&pt))?;
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+                if l.u.symbol(sym).kind == Kind::Val
+                    || crate::symbols::has(l.u, sym, tasty::tags::FIELDaccessor)
+                {
+                    keep_class_literal_start(l, stat, before);
+                }
                 l.recopy_class_literals(stat);
                 stats.push(stat);
             }
@@ -129,14 +135,16 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             typed_except(l, t, tpt, Some(&ascribed))?;
             None
         }
-        Tree::ValDef { tpt, rhs: Some(_), .. } => {
+        Tree::ValDef { tpt, rhs: Some(rhs), .. } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
             let erased = match l.u.erase(info) {
                 Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
                 e => e,
             };
+            let span = l.tpd.span(rhs);
             typed_except(l, t, tpt, Some(&erased))?;
+            keep_class_literal_start(l, t, span);
             None
         }
         Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
@@ -155,6 +163,17 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Some(pt) => adapt(l, t, pt),
         None => t,
     })
+}
+
+/// Gives the right-hand side of value definition `t` the start of its span `before` erasure if
+/// it is a class literal.
+fn keep_class_literal_start(l: &mut Lower, t: TNodeId, before: syntax::ast::Span) {
+    let (Tree::ValDef { rhs: Some(rhs), .. } | Tree::DefDef { rhs: Some(rhs), .. }) = *l.tpd.tree(t) else {
+        return;
+    };
+    if matches!(l.tpd.tree(rhs), Tree::ClassLiteral { .. }) && !l.tpd.span(rhs).exists() && before.exists() {
+        l.tpd.get_mut(rhs).span = before.start_pos();
+    }
 }
 
 /// Types each child of `t` but `kept` against `pt`, rebuilding `t` in place.

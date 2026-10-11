@@ -58,9 +58,6 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         let node = l.tpd.get_mut(t);
         node.tree = Tree::ClassLiteral { tpe };
         node.sym = None;
-        if node.span.exists() {
-            node.span = node.span.with_point(node.span.start());
-        }
         return;
     }
     if is_constant_op(l, t, inits)
@@ -145,7 +142,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
         }
         _ => false,
     };
-    l.tpd.items(stats).iter().all(pure_stat) && is_literal(l, expr)
+    l.tpd.items(stats).iter().all(pure_stat) && matches!(l.tpd.tree(expr), Tree::Literal { .. })
 }
 
 fn is_literal(l: &Lower, t: TNodeId) -> bool {
