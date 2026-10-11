@@ -28,6 +28,7 @@ mod expand_private;
 mod explicit_outer;
 mod first_transform;
 mod getters;
+mod hoist_super_args;
 mod initializers;
 mod interpolators;
 mod lambda_lift;
@@ -91,6 +92,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         interpolators::transform(l, td)?;
         by_name::transform(l, td);
+        hoist_super_args::transform(l, td)?;
         patmat::transform(l, td)?;
         captured_vars::transform(l, td)?;
         getters::record_rhs(l, td);
