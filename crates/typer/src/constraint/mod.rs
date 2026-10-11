@@ -31,7 +31,7 @@ pub struct Constraint {
 const MAX_CHECKS: u32 = 8;
 
 impl Constraint {
-    /// A fresh variable without bounds.
+    /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
         self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, soft: false, hard: false });
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
@@ -118,7 +118,7 @@ impl TypeVars for Constraint {
         {
             return false;
         }
-        if !self.satisfiable(u, unchecked, e.hi) {
+        if e.hi != ANY && !self.satisfiable(u, unchecked, e.hi) {
             return false;
         }
         self.set(v, lo, e.hi, soft);
@@ -133,7 +133,9 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, t, hi);
         }
-        let hi = if u.is_subtype(e.hi, hi) {
+        let hi = if e.hi == ANY {
+            hi
+        } else if u.is_subtype(e.hi, hi) {
             e.hi
         } else if u.is_subtype(hi, e.hi) {
             hi

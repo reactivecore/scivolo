@@ -5,6 +5,7 @@ mod can_equal;
 mod candidates;
 pub(super) mod conversions;
 mod ranking;
+mod scope;
 mod search;
 mod synthesis;
 
