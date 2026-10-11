@@ -3,7 +3,6 @@
 
 use super::array_apply::{applied, qualifier_symbol, wrapped_literal};
 use crate::Lower;
-use crate::symbols::is_module;
 use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree};
 
@@ -11,7 +10,7 @@ use typer::tpd::{TNodeId, Tree};
 pub fn array_literal(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     let Tree::Apply { args, .. } = *l.tpd.tree(t) else { return None };
     let (m, qual) = applied(l, t)?;
-    let module = qualifier_symbol(l, qual).filter(|&q| is_module(l.u, q))?;
+    let module = qualifier_symbol(l, qual).filter(|&q| l.u.is_module(q))?;
     if l.u.symbol(m).name != "apply" || l.u.full_name(module) != "scala.Array" {
         return None;
     }

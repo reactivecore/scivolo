@@ -2,7 +2,7 @@
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 
 use super::Gen;
-use crate::symbols::{is_java_static, is_package_object, is_trait};
+use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Defn, DefnKind, GlobalId, Op, Type, TypeId, Val, ValId};
@@ -27,7 +27,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "closures of a type that is not a class");
         };
         let bases = self.l.u.linearization(function);
-        if bases.iter().any(|&b| is_trait(self.l.u, b) && !self.l.u.no_inits(b)) {
+        if bases.iter().any(|&b| self.l.u.is_trait(b) && !self.l.u.no_inits(b)) {
             return unsupported(span, "closures of traits with initialization");
         }
         let sams = self.abstract_methods(function);
@@ -54,7 +54,7 @@ impl Gen<'_, '_> {
         if tpt.is_some() {
             let parents: Vec<SymbolId> =
                 self.l.u.parents(function).into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
-            let parents: Vec<SymbolId> = parents.into_iter().filter(|&p| is_trait(self.l.u, p)).collect();
+            let parents: Vec<SymbolId> = parents.into_iter().filter(|&p| self.l.u.is_trait(p)).collect();
             traits.extend(parents.into_iter().map(|p| self.type_name(p)));
         }
         let parent = Some(self.type_name(self.l.defs.object));
@@ -76,7 +76,7 @@ impl Gen<'_, '_> {
         let alloc = self.emit(Op::Classalloc { name: anon, zone: None });
         let mut args = vec![alloc];
         if instance {
-            let this = match is_package_object(self.l.u, class) {
+            let this = match self.l.u.is_package_object(class) {
                 true => {
                     let scope = self.m.scopes.iter().find(|s| s.id == self.m.scope).map(|s| s.pos);
                     let outer = self.at(scope.unwrap_or(self.m.pos));

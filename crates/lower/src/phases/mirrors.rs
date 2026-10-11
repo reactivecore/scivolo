@@ -6,7 +6,7 @@ use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
 use super::lambda_lift::fresh;
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{companion_class, has, is_module_class};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
@@ -23,13 +23,13 @@ pub fn mirror_support(
     if is_enum_value(l, class) {
         return Ok(Some((cc.mirror_singleton, Vec::new())));
     }
-    if !is_module_class(l.u, class) {
+    if !l.u.is_module_class(class) {
         return Ok(None);
     }
     if has(l.u, class, CASE) {
         return Ok(Some((cc.mirror_singleton, Vec::new())));
     }
-    let Some(linked) = companion_class(l.u, class) else { return Ok(None) };
+    let Some(linked) = l.u.companion_class(class) else { return Ok(None) };
     if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
         mono_type(l, class, linked);
         let focus = Span::new(span.point(), span.point(), span.point());

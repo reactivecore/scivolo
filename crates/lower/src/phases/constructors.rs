@@ -6,7 +6,6 @@ use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_param_accessor};
 use super::initializers::constructor_params;
 use super::memoize::bottom;
-use crate::symbols::{is_constructor, is_trait};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -14,7 +13,7 @@ use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    if is_trait(l.u, class) {
+    if l.u.is_trait(class) {
         return super::trait_init::transform(l, td);
     }
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
@@ -174,7 +173,7 @@ fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId
             _ => break,
         }
     }
-    let Some(ctor) = l.tpd.sym(fun).filter(|&s| is_constructor(l.u, s)) else {
+    let Some(ctor) = l.tpd.sym(fun).filter(|&s| l.u.is_constructor(s)) else {
         return unsupported(span, "a superclass constructor call without a constructor");
     };
     let parent_type = l.tpd.tpe(parent);

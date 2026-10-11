@@ -8,7 +8,7 @@ use super::casts::conforms;
 use super::first_transform::is_pure;
 use super::walk::subtrees;
 use crate::Lower;
-use crate::symbols::{has, is_class, is_module, is_trait};
+use crate::symbols::has;
 use tasty::tags::{LAZY, LOCAL, PRIVATE};
 use tasty::{Erased, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -77,10 +77,10 @@ fn reduced(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
 /// object, nor a private local non-lazy field of a class.
 fn has_getter(l: &Lower, s: SymbolId) -> bool {
     let Some(owner) = l.u.symbol(s).owner else { return false };
-    if l.u.symbol(s).kind != Kind::Val || !is_class(l.u, owner) || is_module(l.u, s) {
+    if l.u.symbol(s).kind != Kind::Val || !l.u.is_class(owner) || l.u.is_module(s) {
         return false;
     }
-    let field = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL) && !has(l.u, s, LAZY) && !is_trait(l.u, owner);
+    let field = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL) && !has(l.u, s, LAZY) && !l.u.is_trait(owner);
     !field
 }
 

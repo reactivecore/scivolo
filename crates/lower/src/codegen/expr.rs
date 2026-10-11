@@ -2,7 +2,7 @@
 
 use super::Gen;
 use crate::phases::select_static::is_static_enum_value;
-use crate::symbols::{has, is_module, is_static};
+use crate::symbols::{has, is_static};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use tasty::tags::{FIELDaccessor, LAZY};
@@ -69,7 +69,7 @@ impl Gen<'_, '_> {
         let saved = self.at_span(span);
         let value = if sym == self.l.defs.boxed_unit_unit {
             self.val(Val::Unit)
-        } else if is_module(self.l.u, sym) {
+        } else if self.l.u.is_module(sym) {
             self.gen_module(sym)
         } else if let Some(&slot) = self.m.env.get(&sym).filter(|_| self.m.mutable.contains(&sym)) {
             self.emit(Op::Varload(slot))
@@ -97,11 +97,11 @@ impl Gen<'_, '_> {
         let Some(sym) = self.l.tpd.sym(t) else { return unsupported(span, "a selection without a symbol") };
         let owner = self.l.u.symbol(sym).owner.expect("a member's owner");
         let accessor = !is_static(self.l.u, sym);
-        if is_module(self.l.u, sym) && !accessor && self.l.u.symbol(owner).kind != tasty::Kind::Package {
+        if self.l.u.is_module(sym) && !accessor && self.l.u.symbol(owner).kind != tasty::Kind::Package {
             return self.gen_nested_module(t, sym, qual);
         }
         let saved = self.at_span(span);
-        let v = if is_module(self.l.u, sym) && !accessor {
+        let v = if self.l.u.is_module(sym) && !accessor {
             self.gen_module(sym)
         } else if self.is_field(sym) {
             self.gen_field_load(t, sym, Some(qual))?

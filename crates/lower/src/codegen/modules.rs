@@ -3,7 +3,7 @@
 
 use super::Gen;
 use crate::phases::select_static::is_static_owner_ref;
-use crate::symbols::{is_module_class, is_package_object, is_static};
+use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Op, ValId};
 use syntax::ast::Span;
@@ -13,7 +13,7 @@ use typer::tpd::TNodeId;
 impl Gen<'_, '_> {
     /// The instance of object `sym`, its value or its class.
     pub fn gen_module(&mut self, sym: SymbolId) -> ValId {
-        let class = if is_module_class(self.l.u, sym) { Some(sym) } else { self.l.u.module_class(sym) };
+        let class = if self.l.u.is_module_class(sym) { Some(sym) } else { self.l.u.module_class(sym) };
         let name = self.module_name(class.unwrap_or(sym));
         self.emit(Op::Module(name))
     }
@@ -51,9 +51,9 @@ impl Gen<'_, '_> {
     /// `C.this` for class `c`: an object's instance, or the method's `this`.
     pub fn this_of(&mut self, c: SymbolId, span: Span) -> Result<ValId> {
         let class = self.class.expect("a class");
-        let package_object = is_package_object(self.l.u, c);
+        let package_object = self.l.u.is_package_object(c);
         let static_method = self.m.this.is_none();
-        let static_module = is_module_class(self.l.u, c) && is_static(self.l.u, c);
+        let static_module = is_static_module(self.l.u, c);
         if (c != class || static_method) && static_module || package_object {
             return Ok(self.gen_module(c));
         }

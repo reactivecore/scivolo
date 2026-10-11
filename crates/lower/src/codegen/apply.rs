@@ -2,7 +2,7 @@
 
 use super::Gen;
 use crate::phases::adapt::from_start;
-use crate::symbols::{is_constructor, is_java_static, is_module};
+use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
@@ -54,12 +54,12 @@ impl Gen<'_, '_> {
                     let args = self.gen_args(sym, &args, span)?;
                     self.call_method(sym, true, this, args)
                 }
-                Tree::New { tpt } if is_constructor(self.l.u, sym) => {
+                Tree::New { tpt } if self.l.u.is_constructor(sym) => {
                     self.gen_apply_new(tpt, sym, &args, span)?
                 }
                 _ => self.gen_apply_method(
                     sym,
-                    is_constructor(self.l.u, sym),
+                    self.l.u.is_constructor(sym),
                     Receiver::Tree(qualifier),
                     &args,
                     span,
@@ -178,7 +178,7 @@ impl Gen<'_, '_> {
                 Some(c) => self.this_of(c, span),
                 None => unsupported(span, "`this` of a type that is not a class"),
             },
-            tasty::Type::Sym(_, s) if is_module(self.l.u, s) => Ok(self.gen_module(s)),
+            tasty::Type::Sym(_, s) if self.l.u.is_module(s) => Ok(self.gen_module(s)),
             _ => unsupported(span, "a prefix that is not an object or `this`"),
         }
     }

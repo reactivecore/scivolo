@@ -4,7 +4,6 @@
 
 use super::Gen;
 use super::method::Method;
-use crate::symbols::is_module_class;
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, PosId, Type, Val};
 use tasty::{Kind, SymbolId};
@@ -27,7 +26,7 @@ impl Gen<'_, '_> {
     /// objects', first in their companions' files.
     pub fn gen_companion_handle_fields(&mut self, type_defs: &[TNodeId]) {
         for &td in type_defs {
-            let Some(c) = self.l.tpd.sym(td).filter(|&c| !is_module_class(self.l.u, c)) else { continue };
+            let Some(c) = self.l.tpd.sym(td).filter(|&c| !self.l.u.is_module_class(c)) else { continue };
             let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
             self.gen_lazy_handle_fields(c, pos);
         }
@@ -80,7 +79,7 @@ impl Gen<'_, '_> {
     /// The object class holding the `VarHandle`s of class `c`'s lazy values: `c` itself, or its
     /// companion's class if the unit defines one.
     fn handle_holder_class(&mut self, c: SymbolId) -> Option<SymbolId> {
-        if is_module_class(self.l.u, c) {
+        if self.l.u.is_module_class(c) {
             return Some(c);
         }
         let owner = self.l.u.symbol(c).owner?;

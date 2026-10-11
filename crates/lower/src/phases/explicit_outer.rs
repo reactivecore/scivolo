@@ -4,7 +4,7 @@
 //! the field.
 
 use crate::definitions::{symbol, type_ref};
-use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_trait};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PRIVATE};
@@ -20,8 +20,8 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             return unsupported(l.tpd.span(t), "the enclosing instance two classes out");
         }
         let uses = own.iter().any(|&t| is_this_of(l, t, outer) || creates_inner_of(l, t, outer));
-        let always = match is_module_class(l.u, class) {
-            true => is_trait(l.u, outer),
+        let always = match l.u.is_module_class(class) {
+            true => l.u.is_trait(outer),
             false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
         };
         if always || uses {
@@ -38,7 +38,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
 /// `needsOuterIfReferenced`), unless static or a trait.
 pub fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(class).owner?;
-    let nested = is_class(l.u, owner) && !is_trait(l.u, class);
+    let nested = l.u.is_class(owner) && !l.u.is_trait(class);
     (nested && !is_static(l.u, class)).then_some(owner)
 }
 
@@ -66,7 +66,7 @@ fn creates_inner_of(l: &mut Lower, t: TNodeId, outer: SymbolId) -> bool {
 /// class that may test its enclosing instance (dotty's `addOuterTest`).
 pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) -> Option<&'static str> {
     if let Type::Sym(_, s) = *l.u.types().get(target)
-        && is_module(l.u, s)
+        && l.u.is_module(s)
         && !is_static(l.u, s)
     {
         return Some("type tests of objects nested in classes");

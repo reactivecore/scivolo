@@ -6,7 +6,7 @@ use super::lazy_trees::{block, local, return_, val_def};
 use super::tail_calls::TailCalls;
 use super::walk::subtrees;
 use crate::Lower;
-use crate::symbols::{has, is_constructor, is_effectively_final, is_module, is_static};
+use crate::symbols::{has, is_effectively_final, is_static};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
@@ -24,7 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         else {
             continue;
         };
-        if !is_effectively_final(l.u, class, m) || has(l.u, m, FIELDaccessor) || is_constructor(l.u, m) {
+        if !is_effectively_final(l.u, class, m) || has(l.u, m, FIELDaccessor) || l.u.is_constructor(m) {
             continue;
         }
         let params: Vec<_> =
@@ -140,6 +140,6 @@ fn is_member(l: &Lower, bases: &[SymbolId], s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     sym.owner.is_some_and(|o| bases.contains(&o))
         && matches!(sym.kind, Kind::Def | Kind::Val)
-        && !is_module(l.u, s)
+        && !l.u.is_module(s)
         && !is_static(l.u, s)
 }

@@ -2,7 +2,6 @@
 //! tree dotty's typer gives them.
 
 use crate::Lower;
-use crate::symbols::is_package_object;
 use tasty::Kind;
 use typer::tpd::{TNodeId, Tree};
 
@@ -11,7 +10,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
         let Tree::Select { qualifier, name } = *l.tpd.tree(t) else { continue };
         let package = l.tpd.sym(qualifier).is_some_and(|s| l.u.symbol(s).kind == Kind::Package);
         let Some(owner) = l.tpd.sym(t).and_then(|s| l.u.symbol(s).owner) else { continue };
-        if !package || !is_package_object(l.u, owner) {
+        if !package || !l.u.is_package_object(owner) {
             continue;
         }
         let Some(module) = l.u.source_module(owner) else { continue };

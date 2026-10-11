@@ -4,7 +4,7 @@
 
 use super::walk::{children, subtrees};
 use crate::Lower;
-use crate::symbols::{has, is_module, is_static};
+use crate::symbols::{has, is_static};
 use syntax::ast::Span;
 use tasty::tags::{ENUM, STATIC};
 use tasty::{Kind, SymbolId};
@@ -46,6 +46,6 @@ pub fn is_static_owner_ref(l: &mut Lower, t: TNodeId) -> bool {
         Tree::Select { qualifier, .. } => is_static_owner_ref(l, qualifier),
         _ => false,
     };
-    let Some(s) = l.tpd.sym(t).filter(|&s| prefix && is_module(l.u, s)) else { return false };
+    let Some(s) = l.tpd.sym(t).filter(|&s| prefix && l.u.is_module(s)) else { return false };
     l.u.module_class(s).is_some_and(|c| is_static(l.u, c))
 }

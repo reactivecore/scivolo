@@ -4,7 +4,7 @@
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
 use super::walk::children;
-use crate::symbols::{has, is_module_class};
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::MUTABLE;
@@ -76,7 +76,7 @@ pub fn dependencies(
                     continue;
                 }
                 let owner = l.u.symbol(s).owner;
-                functions[i].this |= owner == Some(class) && !is_module_class(l.u, class);
+                functions[i].this |= owner == Some(class) && !l.u.is_module_class(class);
                 let local = owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
                 if local && mark_free(l, functions, &mut order, s, i) && has(l.u, s, MUTABLE) {
                     return unsupported(l.tpd.span(t), "local methods capturing variables");

@@ -2,7 +2,6 @@
 
 use super::Gen;
 use super::callee::is_primitive;
-use crate::symbols::is_module;
 use crate::{Result, unsupported};
 use nir::{Val, ValId};
 use syntax::ast::constant::Constant;
@@ -31,7 +30,7 @@ impl Gen<'_, '_> {
     /// `classOf[tpe]`: the class of an object for its singleton type.
     pub fn gen_class_literal(&mut self, t: TNodeId, tpe: tasty::TypeId) -> Result<ValId> {
         let class = match *self.l.u.types().get(tpe) {
-            tasty::Type::Sym(_, s) if is_module(self.l.u, s) => self.l.u.module_class(s),
+            tasty::Type::Sym(_, s) if self.l.u.is_module(s) => self.l.u.module_class(s),
             _ => self.l.u.class_symbol(tpe),
         };
         match class {

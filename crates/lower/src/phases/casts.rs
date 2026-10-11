@@ -4,7 +4,7 @@
 use super::adapt::from_start;
 use crate::Lower;
 use crate::definitions::type_ref;
-use crate::symbols::{has, is_class};
+use crate::symbols::has;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -72,7 +72,7 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
         let found = l.u.decl(owner, name).unwrap_or_default();
-        found.into_iter().filter(|&s| is_class(l.u, s)).collect()
+        found.into_iter().filter(|&s| l.u.is_class(s)).collect()
     };
     if let Some(&c) = classes(l, owner, rest).first() {
         return Some(c);
@@ -105,7 +105,7 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Option<
     if matches!(l.tpd.tree(qualifier), Tree::Super { .. }) {
         return None;
     }
-    let owner = l.u.symbol(l.tpd.sym(sel)?).owner.filter(|&o| is_class(l.u, o))?;
+    let owner = l.u.symbol(l.tpd.sym(sel)?).owner.filter(|&o| l.u.is_class(o))?;
     let name = l.u.full_name(owner);
     if name == "scala.Array" {
         let array = l.u.widen(l.tpd.tpe(qualifier));

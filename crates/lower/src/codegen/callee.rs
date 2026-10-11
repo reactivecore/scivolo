@@ -16,7 +16,7 @@ pub fn is_primitive(name: &str) -> bool {
 impl Gen<'_, '_> {
     /// Fails for a method the lowering cannot call yet.
     pub fn check_callee(&mut self, sym: SymbolId, span: Span) -> Result<()> {
-        if !self.l.u.symbol(sym).owner.is_some_and(|o| crate::symbols::is_class(self.l.u, o)) {
+        if !self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.is_class(o)) {
             return unsupported(span, "calls of methods outside classes");
         }
         if self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == "scala.Array") {

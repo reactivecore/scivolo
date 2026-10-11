@@ -7,7 +7,7 @@ use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
-use crate::symbols::{has, is_class, is_module_class, is_static};
+use crate::symbols::{has, is_static};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, LAZY};
 use tasty::{Kind, SymbolId};
@@ -116,11 +116,11 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         return Ok(None);
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    if is_class(l.u, owner) && !is_static(l.u, class) {
+    if l.u.is_class(owner) && !is_static(l.u, class) {
         return unsupported(l.tpd.span(functions[0].def), "lambdas and local methods in nested classes");
     }
     let in_class =
-        is_static(l.u, class) && (is_module_class(l.u, class) || l.u.symbol(owner).kind != Kind::Package);
+        is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
         f.this = (f.closure.is_none() || f.ctor) && in_class;
     }
