@@ -170,6 +170,22 @@ pub fn is_jdk(l: &Lower, c: SymbolId) -> bool {
     name.starts_with("java.") || name.starts_with("javax.")
 }
 
+/// The base classes of `class` that javalib gives JDK classes as parents and the JDK does not,
+/// such as `scala.scalanative.runtime.Throwable`.
+pub fn javalib_only_bases(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
+    let jdk_bases: Vec<SymbolId> = l.u.linearization(class).into_iter().filter(|&b| is_jdk(l, b)).collect();
+    let mut out = Vec::new();
+    for b in jdk_bases {
+        for p in l.u.parents(b) {
+            let Some(p) = l.u.class_symbol(p) else { continue };
+            if l.u.full_name(p).starts_with("scala.scalanative.") && !out.contains(&p) {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
 /// Method type `info` of a JDK method with its parameters named as dotty names those of Java
 /// class files: `x$0`, `x$1`, ...
 pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {

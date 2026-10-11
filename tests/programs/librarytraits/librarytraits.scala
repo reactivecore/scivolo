@@ -15,6 +15,20 @@ class UseInc extends Inc
 class Positive extends PartialFunction[Int, String]:
   def isDefinedAt(x: Int) = x > 0
   def apply(x: Int) = "positive " + x
+type I = Int
+class Aliased extends (I => I):
+  def apply(x: I) = x * 3
+class Captured extends (Int => Int):
+  def apply(x: Int) =
+    class Local:
+      def v = x + 1
+    new Local().v
+object Twice extends (Int => Int):
+  def apply(x: Int) = 2 * x
+object Numbers extends Iterable[Int]:
+  def iterator = Iterator(1, 2, 3)
+class Quiet(msg: String) extends Exception(msg):
+  override def fillInStackTrace(): Throwable = this
 
 class Version(val n: Int) extends Ordered[Version]:
   def compare(that: Version) = n - that.n
@@ -67,6 +81,11 @@ class Temporary:
   val f: Int => Int = new UseInc
   println(f(7))
   println(new Positive()(5))
+  println(new Aliased()(2))
+  println(new Captured()(2))
+  println(Twice(4))
+  println(Numbers.sum)
+  println(new Quiet("quiet").getMessage)
   println(new Version(1) < new Version(2))
   println(new ByLength().max("abc", "de"))
   println(new Count(3).toList)

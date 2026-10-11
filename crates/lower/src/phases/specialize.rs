@@ -116,7 +116,17 @@ fn is_function(l: &mut Lower, c: SymbolId, arity: usize) -> bool {
 /// overrides, if `dd` is an `apply` of specializable primitive types.
 fn specialized_of(l: &mut Lower, class: SymbolId, dd: TNodeId) -> Option<SymbolId> {
     let Tree::DefDef { rhs: Some(_), .. } = *l.tpd.tree(dd) else { return None };
-    let sym = l.tpd.sym(dd)?;
+    specialized_for(l, class, l.tpd.sym(dd)?)
+}
+
+/// Whether method `m` with a body is an `apply` this phase gives a specialized copy.
+pub fn is_specialized(l: &mut Lower, m: SymbolId) -> bool {
+    let class = l.u.symbol(m).owner.filter(|&c| l.u.is_class(c));
+    class.is_some_and(|c| specialized_for(l, c, m).is_some())
+}
+
+/// The specialized `apply` method of `FunctionN` that method `sym` of `class` overrides.
+fn specialized_for(l: &mut Lower, class: SymbolId, sym: SymbolId) -> Option<SymbolId> {
     let info = l.u.info(sym);
     let clauses = l.u.param_clauses(info);
     let [(_, param_types)] = clauses.as_slice() else { return None };
@@ -156,7 +166,9 @@ fn specialize_def(l: &mut Lower, class: SymbolId, dd: TNodeId) -> Result<Option<
         l.u.set_owner(old, spec);
         new_params.push(l.param_def(fresh, l.tpd.span(p)));
         args.push(l.ident(fresh, Span::NONE));
+        l.tpd.get_mut(p).span = Span::NONE;
     }
+    l.specialized.insert(spec);
     let rhs_span = l.tpd.span(rhs).to_synthetic();
     let def = l.build().def_def(spec, &[&old_params], tpt, Some(rhs), rhs_span);
     let this = l.this(class, Span::NONE);
@@ -169,9 +181,22 @@ fn specialize_def(l: &mut Lower, class: SymbolId, dd: TNodeId) -> Result<Option<
     Ok(Some(def))
 }
 
-/// The erasure of `t` if it is a primitive class or `Unit`.
+/// The symbol type `t` refers to, an alias not dealiased (dotty's `typeSymbol`).
+fn type_symbol(l: &mut Lower, t: TypeId) -> Option<SymbolId> {
+    match l.u.types().get(t).clone() {
+        Type::Sym(_, s) => Some(s),
+        Type::TypeRef(prefix, name) => l.u.resolve(prefix, &name, true),
+        Type::Annotated(inner, _) => type_symbol(l, inner),
+        _ => None,
+    }
+}
+
+/// The erasure of `t` if its type symbol, not dealiased, is a primitive class or `Unit`.
 fn primitive(l: &mut Lower, t: TypeId) -> Option<Erased> {
-    let class = l.u.class_symbol(t)?;
+    let class = type_symbol(l, t)?;
+    if l.u.symbol(class).kind != Kind::Class {
+        return None;
+    }
     let letter = match l.u.full_name(class).as_str() {
         "scala.Unit" => return Some(Erased::Unit),
         "scala.Boolean" => 'z',

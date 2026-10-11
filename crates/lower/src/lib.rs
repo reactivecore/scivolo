@@ -66,6 +66,8 @@ pub struct Lower<'a> {
     endless_loops: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
     mixed_in: FxHashSet<SymbolId>,
+    /// The specialized `apply` methods `SpecializeFunctions` made, without a position.
+    specialized: FxHashSet<SymbolId>,
     /// The names of the field and `$lzyINIT` method of each lazy value a class gets from a trait
     /// member, by class and member.
     mixed_in_lazy_names: FxHashMap<(SymbolId, SymbolId), (String, String)>,
@@ -105,6 +107,7 @@ pub fn lower(
         local_classes: FxHashSet::default(),
         explicit_casts: FxHashSet::default(),
         mixed_in: FxHashSet::default(),
+        specialized: FxHashSet::default(),
         mixed_in_lazy_names: FxHashMap::default(),
         forwarded: FxHashMap::default(),
         getter_rhs: FxHashMap::default(),
