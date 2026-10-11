@@ -21,6 +21,8 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
     let t = match *c {
         Constant::Unit => Type::Constant(UNITconst, 0),
         Constant::Boolean(b) => Type::Constant(if b { TRUEconst } else { FALSEconst }, 0),
+        Constant::Byte(b) => Type::Constant(BYTEconst, b as i64),
+        Constant::Short(s) => Type::Constant(SHORTconst, s as i64),
         Constant::Char(c) => Type::Constant(CHARconst, c as i64),
         Constant::Int(i) => Type::Constant(INTconst, i as i64),
         Constant::Long(l) => Type::Constant(LONGconst, l),

@@ -123,6 +123,10 @@ script-profile file *args: release
 dotty-fetch:
     test -d ref/scala3 || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3 && git -C ref/scala3 sparse-checkout set tests/run)
 
+# Add dotty's compiler sources (typer, transforms) to ref/scala3.
+dotty-sources: dotty-fetch
+    git -C ref/scala3 sparse-checkout add compiler/src
+
 # Compile dotty's tests/run (those whose names contain `filter`) to NIR under tmp/dotty.
 dotty-build filter="": dotty-fetch
     python3 scripts/dotty-tests.py build {{ filter }}

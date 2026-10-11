@@ -82,6 +82,8 @@ pub struct Lower<'a> {
     outer_accessors: FxHashMap<SymbolId, SymbolId>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
+    /// The member each super accessor of the unit accesses, whether through a named mixin.
+    super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -119,6 +121,7 @@ pub fn lower(
         outers: FxHashMap::default(),
         outer_accessors: FxHashMap::default(),
         lifted_from: FxHashMap::default(),
+        super_accessors: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

@@ -7,6 +7,7 @@ impl Typer<'_> {
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match sym.kind {
+            Kind::Param if sym.flags.has(tasty::tags::INLINE) => false,
             Kind::Param => {
                 let info = self.u.info(s);
                 !matches!(self.u.types().get(info), Type::ByName(_))

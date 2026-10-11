@@ -23,6 +23,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
                 let info = self.result_type(sym, tpt, rhs, ctx.with_owner(sym));
@@ -143,7 +144,7 @@ impl Typer<'_> {
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =
-                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.param_type(p))).collect();
+                clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.method_param_type(p))).collect();
             if clause.first().is_some_and(|&p| self.u.is_type_symbol(p)) {
                 let params =
                     params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
@@ -156,6 +157,26 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
         })
+    }
+
+    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
+    /// by-name type (dotty's `adaptParamInfo`).
+    fn method_param_type(&mut self, p: SymbolId) -> TypeId {
+        let t = self.param_type(p);
+        if !self.syms.flags.get(&p).is_some_and(|fl| fl.is(syntax::ast::flags::INLINE)) {
+            return t;
+        }
+        let Some(class) = self.resolve_full_name("scala.annotation.internal.InlineParam", true) else {
+            return t;
+        };
+        let annot = crate::defn::type_ref(self.u, class);
+        match *self.u.types().get(t) {
+            Type::ByName(r) => {
+                let r = self.u.intern_type(Type::Annotated(r, annot));
+                self.u.intern_type(Type::ByName(r))
+            }
+            _ => self.u.intern_type(Type::Annotated(t, annot)),
+        }
     }
 
     /// `t` with references to type parameters `tparams` made references to the parameters of

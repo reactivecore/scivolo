@@ -56,10 +56,12 @@ mod package_objects;
 mod patmat;
 mod pure_stats;
 mod repeated;
+mod resolve_super;
 mod returns;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;
+mod super_accessors;
 mod super_args;
 mod synthetic;
 mod tail_calls;
@@ -77,6 +79,7 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut classes = class_defs(l.tpd, root);
     let inits = first_transform::objects_with_inits(l, &classes);
+    super_accessors::transform(l, &classes)?;
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
@@ -115,6 +118,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
         repeated::transform(l, td)?;
+        resolve_super::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }

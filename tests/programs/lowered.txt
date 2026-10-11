@@ -65,4 +65,7 @@ librarytraits
 superargs2
 exprforms
 innerclasses2
+bytes_shorts
+intersections
+supertraits
 localclasses2

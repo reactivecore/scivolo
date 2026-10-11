@@ -6,6 +6,7 @@
 pub fn java_members(class: &str) -> Option<impl Iterator<Item = &'static str>> {
     let parts: &[&str] = match class {
         "scala.math.ScalaNumber" => &[NUMBER, "isWhole underlying"],
+        "java.lang.Number" => &[NUMBER],
         "java.lang.Integer" | "java.lang.Long" => &[NUMBER, CONSTANT, "resolveConstantDesc"],
         "java.lang.Double" | "java.lang.Float" => &[NUMBER, CONSTANT, "resolveConstantDesc isNaN isInfinite"],
         "java.lang.Short" | "java.lang.Byte" => &[NUMBER, CONSTANT],

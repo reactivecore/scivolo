@@ -24,7 +24,7 @@ Apache-2.0. Rust translations of:
 - `crates/syntax/src/parse/xml`: `parsing/xml/*` (`MarkupParsers`, `MarkupParserCommon`,
   `SymbolicXMLBuilder`, `Utility`).
 - `crates/syntax/src/desugar`: `ast/Desugar`, `ast/DesugarEnums`, the tree copier of `ast/Trees`.
-- `crates/typer`: `typer/{Typer,Namer}`, `ast/MainProxies`, the flag pickling of
+- `crates/typer`: `typer/{Typer,Namer}`, `typer/TypeAssigner.superType`, `ast/MainProxies`, the flag pickling of
   `core/tasty/TreePickler`, `SymDenotations.fullName`; `crates/typer/src/tpd/walk.rs`:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
 - `crates/lower/src/phases`, from `transform/`:
@@ -49,6 +49,8 @@ Apache-2.0. Rust translations of:
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
+  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
+    (`rebindSuper`)
   - `localopt/StringInterpolatorOpt` (`s`, `raw`)
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,

@@ -137,7 +137,7 @@ impl Typer<'_> {
     ) -> Vec<TNodeId> {
         let mut out = Vec::new();
         for (i, (&arg, (name, p))) in args.iter().zip(params).enumerate() {
-            if matches!(self.u.types().get(*p), Type::ByName(_)) {
+            if matches!(self.u.types().get(*p), Type::ByName(_)) || self.is_inline_param_type(*p) {
                 out.push(arg);
                 continue;
             }
@@ -159,6 +159,14 @@ impl Typer<'_> {
             out.push(lifted);
         }
         out
+    }
+
+    /// Whether parameter type `p` is annotated `@InlineParam`.
+    pub fn is_inline_param_type(&mut self, p: TypeId) -> bool {
+        let Type::Annotated(_, annot) = *self.u.types().get(p) else { return false };
+        self.u
+            .class_symbol(annot)
+            .is_some_and(|c| self.u.full_name(c) == "scala.annotation.internal.InlineParam")
     }
 
     /// The result type of method reference `f`.
