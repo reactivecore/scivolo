@@ -1,5 +1,7 @@
 //! dotty's `TreeTraverser` and `TreeAccumulator` over typed trees: children in the order of
-//! `Tpd::children`, each with the owner dotty's `localCtx` gives it.
+//! `Tpd::children`, each with the owner dotty's `localCtx` gives it and, for a template, the
+//! owners of `MegaPhase` and `TreeMap.transformStats` (`superCallContext` for the parents,
+//! `mapStatements` for the statements), which dotty's `TreeAccumulator` does not apply.
 
 use super::{TNodeId, Tpd, Tree};
 use std::ops::ControlFlow;
@@ -90,9 +92,9 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
 }
 
 impl Tpd {
-    /// The children of `t`, a tree owned by `owner`, each with its owner (dotty's `localCtx` and
-    /// `mapStatements`): `t`'s symbol if `t` is a definition that has one; for a template, its
-    /// symbol (the local dummy) for the statements that are not definitions or imports; else
+    /// The children of `t`, a tree owned by `owner`, each with its owner: `t`'s symbol if `t` is
+    /// a definition that has one; for a template, the primary constructor for the parents and
+    /// the template's symbol for the statements that are not definitions or imports; else
     /// `owner`.
     pub fn owned_children(&self, t: TNodeId, owner: SymbolId) -> Vec<(TNodeId, SymbolId)> {
         let children = self.children(t).into_iter();
@@ -101,9 +103,11 @@ impl Tpd {
                 let inner = self.sym(t).unwrap_or(owner);
                 children.map(|c| (c, inner)).collect()
             }
-            Tree::Template { body, .. } => {
+            Tree::Template { constr, parents, body, .. } => {
                 let dummy = self.sym(t).unwrap_or(owner);
-                let stats = self.items(body);
+                let constructor = self.sym(constr).unwrap_or(owner);
+                let parents = 1..=self.items(parents).len();
+                let stats = children.len() - self.items(body).len();
                 let is_def = |c| {
                     matches!(
                         self.tree(c),
@@ -113,7 +117,12 @@ impl Tpd {
                             | Tree::Import { .. }
                     )
                 };
-                children.map(|c| (c, if stats.contains(&c) && !is_def(c) { dummy } else { owner })).collect()
+                let inner = |i, c| match i {
+                    _ if parents.contains(&i) => constructor,
+                    _ if i >= stats && !is_def(c) => dummy,
+                    _ => owner,
+                };
+                children.enumerate().map(|(i, c)| (c, inner(i, c))).collect()
             }
             _ => children.map(|c| (c, owner)).collect(),
         }
@@ -200,13 +209,42 @@ mod tests {
         let parent = node(&mut tpd, Tree::Ident { name }, None);
         let tpt2 = node(&mut tpd, Tree::TypeTree { inferred: true }, None);
         let v = node(&mut tpd, Tree::ValDef { name, tpt: tpt2, rhs: None }, Some(7));
+        let expr = node(&mut tpd, Tree::Ident { name }, None);
+        let selectors = tpd.list(&[]);
+        let import = node(&mut tpd, Tree::Import { expr, selectors }, None);
         let e = node(&mut tpd, Tree::Ident { name }, None);
-        let (parents, body) = (tpd.list(&[parent]), tpd.list(&[v, e]));
+        let (parents, body) = (tpd.list(&[parent]), tpd.list(&[v, import, e]));
         let template = Tree::Template { constr, parents, self_: None, body };
         let template = node(&mut tpd, template, Some(8));
         let class = node(&mut tpd, Tree::TypeDef { name, rhs: template }, Some(5));
-        let expected =
-            [(class, 1), (template, 5), (constr, 5), (tpt, 6), (parent, 5), (v, 5), (tpt2, 7), (e, 8)];
+        let expected = [
+            (class, 1),
+            (template, 5),
+            (constr, 5),
+            (tpt, 6),
+            (parent, 6),
+            (v, 5),
+            (tpt2, 7),
+            (import, 5),
+            (expr, 5),
+            (e, 8),
+        ];
+        assert_eq!(owners(&mut tpd, class), expected);
+    }
+
+    #[test]
+    fn a_template_of_the_class_symbol_gives_its_definitions_the_class() {
+        let name = name();
+        let mut tpd = Tpd::default();
+        let (paramss, tpt) = (tpd.clauses(&[]), node(&mut tpd, Tree::TypeTree { inferred: true }, None));
+        let constr = node(&mut tpd, Tree::DefDef { name, paramss, tpt, rhs: None }, Some(6));
+        let tpt2 = node(&mut tpd, Tree::TypeTree { inferred: true }, None);
+        let v = node(&mut tpd, Tree::ValDef { name, tpt: tpt2, rhs: None }, Some(7));
+        let (parents, body) = (tpd.list(&[]), tpd.list(&[v]));
+        let template = Tree::Template { constr, parents, self_: None, body };
+        let template = node(&mut tpd, template, Some(5));
+        let class = node(&mut tpd, Tree::TypeDef { name, rhs: template }, Some(5));
+        let expected = [(class, 1), (template, 5), (constr, 5), (tpt, 6), (v, 5), (tpt2, 7)];
         assert_eq!(owners(&mut tpd, class), expected);
     }
 
