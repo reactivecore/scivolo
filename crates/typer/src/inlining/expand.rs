@@ -79,7 +79,10 @@ impl<'i, 'a> Expansion<'i, 'a> {
             .iter()
             .filter_map(|&b| {
                 let s = self.i.tpd.sym(b)?;
-                let T::ValDef { rhs: Some(r), .. } = *self.i.tpd.tree(b) else { return None };
+                let (T::ValDef { rhs: Some(r), .. } | T::DefDef { rhs: Some(r), .. }) = *self.i.tpd.tree(b)
+                else {
+                    return None;
+                };
                 self.i.u.symbol(s).flags.has(INLINE).then_some((s, r))
             })
             .collect();
@@ -141,15 +144,16 @@ impl<'i, 'a> Expansion<'i, 'a> {
         }
         for ((&param, &arg), (_, formal)) in params.iter().zip(&args).zip(formals) {
             let p = self.i.tpd.sym(param).ok_or(self.err("parameter"))?;
+            self.arg_span.insert(p, self.i.tpd.span(arg));
             let arg = match *self.i.tpd.tree(arg) {
                 T::NamedArg { arg: inner, .. } => inner,
                 _ => arg,
             };
-            self.arg_span.insert(p, self.i.tpd.span(arg));
             let tpe = self.i.tpd.tpe(arg);
             let singleton = match *self.i.u.types().get(tpe) {
                 Type::Constant(..) | Type::Str(_) => true,
                 Type::Sym(None, s) => !self.i.u.is_type_symbol(s),
+                Type::Sym(Some(p), s) => !self.i.u.is_type_symbol(s) && self.i.is_elidable_prefix(p),
                 _ => false,
             };
             let bound =

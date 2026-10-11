@@ -6,7 +6,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::{Const, Type, TypeId, constant};
+use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
 
 impl Inlining<'_> {
     /// `t` as a literal if its type is a constant and it is idempotent (dotty's `constToLiteral`).
@@ -54,17 +54,47 @@ impl Inlining<'_> {
 
     /// A tree of singleton type `t` at `span`: a literal or a reference to a local term.
     pub fn singleton(&mut self, t: TypeId, span: Span) -> Option<TNodeId> {
-        match *self.u.types().get(t) {
+        let tpe = self.u.types().get(t).clone();
+        match tpe {
             Type::Constant(..) | Type::Str(_) => {
                 let value = self.constant_of_type(t)?;
                 Some(self.tpd.node(T::Literal { value }, span, Some(t), None))
             }
-            Type::Sym(None, s) => {
+            Type::Sym(prefix, s) if prefix.is_none_or(|p| self.is_elidable_prefix(p)) => {
                 let name = self.names.intern(&self.u.symbol(s).name.clone());
                 let name = TName { name, is_type: false };
                 Some(self.tpd.node(T::Ident { name }, span, Some(t), Some(s)))
             }
             _ => None,
         }
+    }
+
+    /// Whether a reference with prefix `p` is written as an identifier: `p` is a package, a static
+    /// object or the `this` of either (dotty's `prefixIsElidable`, without accessors of `this`).
+    pub fn is_elidable_prefix(&mut self, p: TypeId) -> bool {
+        match *self.u.types().get(p) {
+            Type::Package(_) => true,
+            Type::This(c) => self.u.class_symbol(c).is_some_and(|c| self.is_static_owner(c)),
+            Type::Sym(_, m) => {
+                self.u.is_module(m) && self.u.module_class(m).is_some_and(|c| self.is_static_owner(c))
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether `c` is a package or an object class nested only in packages and objects.
+    fn is_static_owner(&self, c: SymbolId) -> bool {
+        let mut o = Some(c);
+        while let Some(x) = o {
+            let s = self.u.symbol(x);
+            if s.kind == Kind::Package {
+                return true;
+            }
+            if !self.u.is_module_class(x) {
+                return false;
+            }
+            o = s.owner;
+        }
+        false
     }
 }

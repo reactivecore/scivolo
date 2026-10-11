@@ -21,11 +21,23 @@ impl Expansion<'_, '_> {
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
         let inline = i.is_inline_param_type(formal);
         let arg_tpe = i.tpd.tpe(arg);
-        let widened = i.u.widen(arg_tpe);
-        if widened == tasty::NOTHING {
+        let mut widened = i.u.widen(arg_tpe);
+        let builtins = i.u.builtins();
+        let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
+        if bottom && inline {
             return Err(self.err("inline argument of type Nothing"));
         }
-        let info = if by_name { i.u.intern_type(Type::ByName(widened)) } else { widened };
+        let info = if bottom {
+            widened = match *i.u.types().get(formal) {
+                Type::ByName(r) => r,
+                _ => formal,
+            };
+            formal
+        } else if by_name {
+            i.u.intern_type(Type::ByName(widened))
+        } else {
+            widened
+        };
         let mut flags = Flags::default().with(INLINEPROXY);
         if inline {
             flags = flags.with(INLINE);

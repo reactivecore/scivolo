@@ -33,7 +33,22 @@ impl Inlining<'_> {
             T::Ident { .. } => self.ref_purity(t),
             T::Select { qualifier, .. } => self.ref_purity(t).min(self.purity(qualifier)),
             T::New { .. } | T::Closure { .. } => PURE,
-            T::TypeApply { fun, .. } => self.purity(fun),
+            T::TypeApply { fun, .. } => {
+                let applied = self.tpd.get(t).tpe.is_none_or(|x| {
+                    let w = self.u.widen(x);
+                    !matches!(self.u.types().get(w), Type::Method { .. } | Type::Poly { .. })
+                });
+                let callee = self.tpd.sym(fun).map(|s| self.u.full_name(s));
+                match callee.as_deref() {
+                    _ if !applied => self.purity(fun),
+                    Some("scala.Any.asInstanceOf") => match *self.tpd.tree(fun) {
+                        T::Select { qualifier, .. } => self.purity(qualifier).min(PURE),
+                        _ => IMPURE,
+                    },
+                    Some("scala.Predef.classOf") => PURE,
+                    _ => IMPURE,
+                }
+            }
             T::Apply { fun, args } => {
                 let args = self.tpd.items(args).to_vec();
                 let all = args.into_iter().fold(self.purity(fun), |p, a| p.min(self.purity(a)));
@@ -125,8 +140,15 @@ impl Inlining<'_> {
         self.purity(t) >= IDEMPOTENT
     }
 
+    /// Whether `t` is an idempotent path, or idempotent of a constant type (dotty's
+    /// `isIdempotentPath`).
     pub fn is_idempotent_path(&mut self, t: TNodeId) -> bool {
-        self.purity(t) >= IDEMPOTENT_PATH
+        let constant = self
+            .tpd
+            .get(t)
+            .tpe
+            .is_some_and(|x| matches!(self.u.types().get(x), Type::Constant(..) | Type::Str(_)));
+        self.purity(t) >= if constant { IDEMPOTENT } else { IDEMPOTENT_PATH }
     }
 
     /// Whether `t` can be dropped or duplicated by the inliner (dotty's `isElideableExpr`,
