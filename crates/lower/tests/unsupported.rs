@@ -19,6 +19,7 @@ const CASES: &[(&str, &str)] = &[
         "casts between primitive values or to references",
     ),
     ("object O { lazy val _ = 1 }", "lazy pattern definitions without variables"),
+    ("object O { def f(): Any = (1, 2).getClass }", "getClass of specialized tuples"),
     (
         "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
         "ascriptions to Unit of values other than literals",

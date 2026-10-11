@@ -16,6 +16,8 @@ pub enum Pt {
     Fun(usize),
     /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
     PolyFun,
+    /// The method of `m _`, to be eta-expanded (dotty's `AnyFunctionProto`).
+    AnyFunction,
 }
 
 /// The arguments of an application, typed once without an expected type when overloading needs

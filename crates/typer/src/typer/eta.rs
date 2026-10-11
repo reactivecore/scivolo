@@ -1,34 +1,56 @@
 //! Method references as function values (dotty's `etaExpand`): `m` as `(x1, ..., xn) => m(x1,
-//! ..., xn)`, its parameter types from the method unless a function type of that arity is
-//! expected.
+//! ..., xn)`, its impure prefix and arguments lifted into values before the function, its
+//! parameter types from the method unless a function type of that arity is expected.
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
-use syntax::ast::{Span, TName, Tree};
-use tasty::{SymbolId, Type};
+use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::diag::rewrite_notice;
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Method reference `tree` eta-expanded against `pt`.
-    pub fn eta_expansion(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let pure = match *self.tpd.tree(tree) {
-            T::Ident { .. } => true,
-            T::Select { qualifier, .. } => self.is_pure_expr(qualifier),
-            _ => false,
-        };
-        if !pure {
-            return Err("method value of an impure prefix or partial application");
+    /// The arity of the function method reference `tree` is eta-expanded to against `pt`, `None`
+    /// if it is not (dotty's `arity` in `adaptNoArgs`).
+    pub fn eta_arity(&mut self, tree: TNodeId, pt: Pt) -> Option<usize> {
+        let tpe = self.tpd.tpe(tree);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
+        if let Pt::Type(p) = pt
+            && let Some(n) = self.function_arity(p)
+        {
+            return Some(if !self.is_fully_defined(p) && self.is_fully_defined(info) { 0 } else { n });
         }
+        let n = params.len();
+        let varargs = params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some());
+        (n > 1 || n == 1 && !varargs || matches!(pt, Pt::AnyFunction)).then_some(n)
+    }
+
+    /// N if `t` is a `FunctionN` type.
+    fn function_arity(&mut self, t: TypeId) -> Option<usize> {
+        (0..=22).find(|&n| self.function_parts(t, n).is_some())
+    }
+
+    /// Whether `tree` refers to a constructor.
+    pub fn is_constructor_ref(&mut self, tree: TNodeId) -> bool {
+        self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| self.u.symbol(s).name == "<init>")
+    }
+
+    /// Method reference `tree` eta-expanded against `pt` to a function of arity `xarity`.
+    pub fn eta_expansion(
+        &mut self,
+        tree: TNodeId,
+        pt: Pt,
+        xarity: usize,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(tree);
         let info = self.method_info(tpe).unwrap_or(tpe);
         let Type::Method { params, result, contextual: false, .. } = self.u.types().get(info).clone() else {
             return Err("method value");
         };
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
-            return Err("method value of several parameter lists");
-        }
         if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
             return Err("method value with a repeated parameter");
         }
@@ -38,15 +60,20 @@ impl Typer<'_> {
         if self.tpd.sym(tree).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION)) {
             return Err("extension method reference");
         }
-        let inferred = match pt {
-            Pt::Type(p) if self.function_parts(p, params.len()).is_some() => {
-                self.is_fully_defined(p) || !self.is_fully_defined(info)
-            }
+        let last = match self.u.types().get(result) {
+            Type::Method { implicit, .. } => *implicit,
+            _ => true,
+        };
+        let function = match pt {
+            Pt::Type(p) if self.function_parts(p, params.len()).is_some() => true,
             Pt::Type(p) if !matches!(self.sam_parts(p, params.len()), Ok(None)) => {
                 return Err("method value of a single abstract method type");
             }
             _ => false,
         };
+        let inferred = last && params.len() == xarity && function;
+        let mut defs = Vec::new();
+        let lifted = self.lift_app(&mut defs, tree, false, ctx)?;
         let java = self.tpd.sym(tree).is_some_and(|s| self.is_java_member(s));
         let span = self.tpd.span(tree);
         let whole = Span::synthetic(span.start(), span.end());
@@ -71,21 +98,58 @@ impl Typer<'_> {
             ids.push(id);
         }
         let fun = self.ast.node(Tree::TypeTree);
-        self.ast.with_span(fun, span);
-        self.splices.insert(fun, tree);
+        self.ast.with_span(fun, self.tpd.span(lifted));
+        self.splices.insert(fun, lifted);
+        self.splice_owners.insert(fun, ctx.owner);
         let args = self.ast.list(&ids);
         let body = self.ast.node(Tree::Apply { fun, args });
         self.ast.with_span(body, whole);
         let params = self.ast.list(&param_nodes);
         let function = self.ast.node(Tree::Function { args: params, body, mods: None, wildcard: false });
         self.ast.with_span(function, whole);
-        let closure = self.typed_function(function, params, body, pt, ctx);
+        let mut closure = self.typed_function(function, params, body, pt, ctx);
+        if !defs.is_empty() {
+            let block_span = defs.iter().fold(whole, |s, &d| s.union(self.tpd.span(d)));
+            let stats = self.tpd.list(&defs);
+            closure = self.build().block(stats, closure, block_span.to_synthetic());
+        }
         Ok(self.adapt(closure, pt, ctx))
     }
 
-    /// Whether `tree` is a closure of a method whose body spans it, as eta-expansion makes.
+    /// `qual _` (dotty's `typedAsFunction`): `qual` eta-expanded, or a function value already.
+    pub fn typed_as_function(&mut self, id: NodeId, qual: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let pt1 = match pt {
+            Pt::Type(p) if self.function_arity(p).is_some() => pt,
+            _ => Pt::AnyFunction,
+        };
+        let res = self.typed(qual, pt1, ctx);
+        let mut end = res;
+        while let T::Block { expr, .. } = *self.tpd.tree(end) {
+            end = expr;
+        }
+        if !matches!(self.tpd.tree(end), T::Closure { .. }) {
+            let tpe = self.tpd.tpe(res);
+            let widened = self.u.widen(tpe);
+            if self.function_arity(widened).is_none() {
+                return self.unsupported(id, "`_` after a value that is not a function");
+            }
+        }
+        let span = self.ast.span(id);
+        let msg = "The trailing ` _` for eta-expansion is unnecessary;\nthe compiler performs eta-expansion \
+            automatically, so you can write the function value directly instead."
+            .to_owned()
+            + &rewrite_notice("This construct", "3.4-migration", "");
+        self.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        res
+    }
+
+    /// Whether `tree` is a closure of a method whose body spans it, as eta-expansion makes, after
+    /// lifted values or not.
     pub fn is_eta_closure(&mut self, tree: TNodeId) -> bool {
         let T::Block { stats, expr } = *self.tpd.tree(tree) else { return false };
+        if matches!(self.tpd.tree(expr), T::Block { .. }) {
+            return self.is_eta_closure(expr);
+        }
         let (&[def], T::Closure { .. }) = (self.tpd.items(stats), self.tpd.tree(expr)) else { return false };
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return false };
         self.tpd.span(def).to_synthetic() == self.tpd.span(rhs)

@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// `tree` fitted to `pt`: unchanged if it conforms; a tree that needs more of dotty's `adapt`
@@ -42,24 +42,24 @@ impl Typer<'_> {
             let apply = self.build().apply(tree, &args, *result, span.to_synthetic());
             return self.adapt(apply, pt, ctx);
         }
-        if let Some(Type::Method { params, result, implicit: false, .. }) = &method
-            && params.is_empty()
-            && self.is_auto_applicable(tree)
-        {
-            let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
-            return self.adapt(apply, pt, ctx);
-        }
-        if let Some(Type::Method { params, implicit: false, .. }) = &method
-            && !params.is_empty()
-            && !ctx.mode.is(Mode::PATTERN)
-        {
-            return match self.eta_expansion(tree, pt, ctx) {
-                Ok(closure) => closure,
-                Err(what) => {
-                    self.unsupported_at(span, what);
-                    tree
-                }
-            };
+        if let Some(Type::Method { params, result, implicit: false, .. }) = &method {
+            if let Some(arity) = self.eta_arity(tree, pt)
+                && !self.is_constructor_ref(tree)
+                && !ctx.mode.is(Mode::PATTERN)
+            {
+                return match self.eta_expansion(tree, pt, arity, ctx) {
+                    Ok(closure) => closure,
+                    Err(what) => {
+                        self.unsupported_at(span, what);
+                        tree
+                    }
+                };
+            }
+            if params.is_empty() && (self.is_constructor_ref(tree) || self.is_auto_applicable(tree)) {
+                let apply = self.build().apply(tree, &[], *result, span.to_synthetic());
+                self.fold_apply(apply);
+                return self.adapt(apply, pt, ctx);
+            }
         }
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
@@ -96,37 +96,6 @@ impl Typer<'_> {
                 tree
             }
         }
-    }
-
-    /// Whether reference `tree` to a method with an empty parameter list may be called without
-    /// one (dotty's auto-application, `matchNullaryLoosely`): a member of `Any` other than
-    /// `getClass`, or of a `java.*` or `javax.*` class, or one overriding such a member.
-    fn is_auto_applicable(&mut self, tree: TNodeId) -> bool {
-        let Some(s) = self.tpd.sym(tree) else { return false };
-        let Some(owner) = self.u.symbol(s).owner else { return false };
-        if self.is_java_like_member(s) {
-            return true;
-        }
-        let name = self.u.symbol(s).name.clone();
-        let site = crate::defn::type_ref(self.u, owner);
-        for base in self.u.linearization(owner).into_iter().skip(1) {
-            for m in self.u.decl(base, &name).unwrap_or_default() {
-                let private = self.u.symbol(m).flags.has(tasty::tags::PRIVATE);
-                if !private && self.is_java_like_member(m) && self.same_member(site, m, s) {
-                    return true;
-                }
-            }
-        }
-        false
-    }
-
-    /// Whether `s` is a member of `Any` other than `getClass`, or of a `java.*` or `javax.*` class.
-    fn is_java_like_member(&mut self, s: SymbolId) -> bool {
-        let Some(owner) = self.u.symbol(s).owner else { return false };
-        if owner == self.u.builtins().any {
-            return self.u.symbol(s).name != "getClass";
-        }
-        self.is_java_member(s)
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

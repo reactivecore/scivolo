@@ -25,9 +25,16 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     value_method(u, any, "##", int, &[FINAL]);
     let any_bounds = u.types.intern(Type::Bounds(NOTHING, ANY));
     let class = class_type(u, "java.lang", "Class");
-    let wildcard = u.types.intern(Type::Wildcard(Some(any_bounds)));
-    let class_of_any = u.types.intern(Type::Applied(class, vec![wildcard]));
-    method(u, any, "getClass", &[], class_of_any, &[FINAL]);
+    let any_ref = u.types.intern(Type::Sym(None, any));
+    let this_any = u.types.intern(Type::This(any_ref));
+    let get_class_bounds = u.types.intern(Type::Bounds(this_any, ANY));
+    poly(u, any, "getClass", get_class_bounds, |u, x0| {
+        let x0 = u.types.intern(x0.clone());
+        let bounds = u.types.intern(Type::Bounds(NOTHING, x0));
+        let result = u.types.intern(Type::Applied(class, vec![bounds]));
+        let binder = u.fresh_binder();
+        u.types.intern(Type::Method { binder, params: vec![], result, implicit: false, contextual: false })
+    });
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
     let type_test = poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));

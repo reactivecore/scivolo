@@ -63,6 +63,8 @@ impl Attrs {
     pub const ENUM_LOOKUPS: Attrs = Attrs(1 << 18);
     /// A template of an enum value, which gets a singleton mirror.
     pub const SINGLETON_MIRROR: Attrs = Attrs(1 << 19);
+    /// A selection `e._` desugared from `e _` (dotty's `PostfixOp(e, Ident(_))`).
+    pub const ETA_UNDERSCORE: Attrs = Attrs(1 << 20);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

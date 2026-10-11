@@ -64,7 +64,7 @@ impl Typer<'_> {
 
     /// Makes `to` the owner of the definitions in `tree` that `from` owns (dotty's
     /// `changeNonLocalOwners`).
-    fn change_owners(&mut self, tree: TNodeId, from: tasty::SymbolId, to: tasty::SymbolId) {
+    pub fn change_owners(&mut self, tree: TNodeId, from: tasty::SymbolId, to: tasty::SymbolId) {
         let mut todo = vec![tree];
         while let Some(t) = todo.pop() {
             let definition = matches!(
@@ -78,49 +78,6 @@ impl Typer<'_> {
                 self.u.set_owner(s, to);
             }
             todo.extend(self.tpd.children(t));
-        }
-    }
-
-    /// Call `f` with its prefix lifted unless idempotent, or for a method with default
-    /// arguments unless a literal, `this`, `new` or an idempotent reference (dotty's
-    /// `liftApp`, `liftPrefix`); `Err` for a function that is a call or a block.
-    pub fn lift_app(
-        &mut self,
-        defs: &mut Vec<TNodeId>,
-        f: TNodeId,
-        complex: bool,
-        ctx: Ctx,
-    ) -> Result<TNodeId, &'static str> {
-        let span = self.tpd.span(f);
-        match *self.tpd.tree(f) {
-            T::TypeApply { fun, args } => {
-                let lifted = self.lift_app(defs, fun, complex, ctx)?;
-                if lifted == fun {
-                    return Ok(f);
-                }
-                let types: Vec<TypeId> = self.tpd.items(args).iter().map(|&a| self.tpd.tpe(a)).collect();
-                let tpe = self.instantiated(lifted, &types)?;
-                Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, Some(tpe), None))
-            }
-            T::Select { qualifier, name } => {
-                let sym = self.tpd.sym(f).ok_or("lifting")?;
-                let defaults = self.has_defaults(sym);
-                let keep = match *self.tpd.tree(qualifier) {
-                    T::Literal { .. } | T::This { .. } | T::New { .. } => true,
-                    T::Ident { .. } | T::Select { .. } => self.is_idempotent_expr(qualifier),
-                    _ => !defaults && self.is_idempotent_expr(qualifier),
-                };
-                let lifted = if keep { qualifier } else { self.lift(defs, qualifier, "", complex, ctx) };
-                if lifted == qualifier {
-                    return Ok(f);
-                }
-                let site = self.tpd.tpe(lifted);
-                let tpe = self.ref_type(Some(site), sym);
-                Ok(self.tpd.node(T::Select { qualifier: lifted, name }, span, Some(tpe), Some(sym)))
-            }
-            T::New { .. } => Ok(f),
-            T::Ident { .. } => Ok(self.lift(defs, f, "", complex, ctx)),
-            _ => Err("lifting of a call or block"),
         }
     }
 

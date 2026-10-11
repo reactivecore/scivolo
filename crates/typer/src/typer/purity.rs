@@ -27,6 +27,10 @@ const PURE_OP_OWNERS: [&str; 10] = [
     "java.lang.String",
 ];
 
+/// The members of `Any` that do not observe their arguments (dotty's `pureMethods`).
+const PURE_ANY_METHODS: [&str; 9] =
+    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf"];
+
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
     pub fn is_pure_expr(&mut self, tree: TNodeId) -> bool {
@@ -113,8 +117,9 @@ impl Typer<'_> {
         matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. })
     }
 
-    /// dotty's `isPureApply`: a constant operation of a primitive class, a stable constructor, or
-    /// the synthetic `apply` of a case class that initializes nothing.
+    /// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
+    /// of `Any`, a stable constructor, or the synthetic `apply` of a case class that initializes
+    /// nothing.
     fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
         if self.u.symbol(s).name == "<init>" {
@@ -124,7 +129,14 @@ impl Typer<'_> {
             return true;
         }
         let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-        self.has_constant_type(tree) && owner.is_some_and(|o| PURE_OP_OWNERS.contains(&o.as_str()))
+        let name = self.u.symbol(s).name.as_str();
+        let known = match owner.as_deref() {
+            Some("scala.Any") => PURE_ANY_METHODS.contains(&name),
+            Some("java.lang.Object") => name == "eq" || name == "ne",
+            Some(o) => PURE_OP_OWNERS.contains(&o),
+            None => false,
+        };
+        self.has_constant_type(tree) && known
     }
 
     /// dotty's `isPureSyntheticCaseApply`.

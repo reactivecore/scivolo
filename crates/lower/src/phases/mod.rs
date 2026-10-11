@@ -56,6 +56,7 @@ mod returns;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;
+mod specialize_tuples;
 mod super_args;
 mod synthetic;
 mod tail_calls;
@@ -107,6 +108,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         value_classes::transform(l, td)?;
         specialize::transform(l, td)?;
+        specialize_tuples::check(l, td)?;
         repeated::transform(l, td)?;
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
