@@ -143,11 +143,11 @@ Results (2026-10-11):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 376 |
+| passed | 396 |
 | wrong output | 1 |
 | crashed | 0 |
-| lowering refused | 40 |
-| typer refused | 1016 |
+| lowering refused | 45 |
+| typer refused | 991 |
 | parser refused | 13 |
 | several files | 59 |
 | fails in the VM | 31 |
@@ -155,8 +155,8 @@ Results (2026-10-11):
 | **total** | **1711** |
 
 - **Wrong output:** i9939, numeric harmonization in the typer (#60).
-- **Lowering refused:** many reasons, none above 11 tests.
-- **Typer refused:** mostly calls of transparent inline methods (306).
+- **Lowering refused:** many reasons, none above 13 tests.
+- **Typer refused:** mostly calls of transparent inline methods (313).
 
 ## M5: scala/scala `test/junit`
 

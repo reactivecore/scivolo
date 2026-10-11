@@ -2,6 +2,19 @@
 
 use super::{Erased, OBJECT};
 
+/// The primitive value classes (dotty's `ScalaValueClasses`), `Unit` last.
+pub const PRIMITIVE_VALUE_CLASSES: [&str; 9] = [
+    "scala.Boolean",
+    "scala.Char",
+    "scala.Byte",
+    "scala.Short",
+    "scala.Int",
+    "scala.Long",
+    "scala.Float",
+    "scala.Double",
+    "scala.Unit",
+];
+
 /// The erasure of a class by its qualified name, if it is special.
 pub fn special(full: &str) -> Option<Erased> {
     Some(match full {

@@ -27,6 +27,11 @@ impl Typer<'_> {
         }
         let &t = self.splices.get(&id)?;
         self.tpd.get_mut(t).span = self.ast.span(id);
+        if let Some(&owner) = self.splice_owners.get(&id)
+            && owner != ctx.owner
+        {
+            self.change_owners(t, owner, ctx.owner);
+        }
         Some(t)
     }
 }

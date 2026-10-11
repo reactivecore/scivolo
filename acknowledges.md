@@ -24,12 +24,13 @@ Apache-2.0. Rust translations of:
 - `crates/syntax/src/parse/xml`: `parsing/xml/*` (`MarkupParsers`, `MarkupParserCommon`,
   `SymbolicXMLBuilder`, `Utility`).
 - `crates/syntax/src/desugar`: `ast/Desugar`, `ast/DesugarEnums`, the tree copier of `ast/Trees`.
-- `crates/typer`: `typer/{Typer,Namer}`, `typer/TypeAssigner.superType`, `ast/MainProxies`, the flag pickling of
+- `crates/typer`: `typer/{Typer,Namer,EtaExpansion,ConstFold}`, `typer/TypeAssigner.superType`,
+  `Migrations.typedAsFunction`, `ast/MainProxies`, the flag pickling of
   `core/tasty/TreePickler`, `SymDenotations.fullName`; `crates/typer/src/tpd/walk.rs`:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
-    `FirstTransform` (constant folding, `classOf`)
+    `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
@@ -52,7 +53,8 @@ Apache-2.0. Rust translations of:
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
     casts of primitives, `primitiveConversion`),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
-  - `SpecializeFunctions`, `SpecializeApplyMethods`
+  - `SpecializeFunctions`, `SpecializeApplyMethods`, `SpecializeTuples` (with
+    `inlines/Inliner.isElideableExpr`, `Definitions.withSpecMethods`)
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
   - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
     (`rebindSuper`)

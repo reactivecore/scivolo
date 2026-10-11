@@ -13,7 +13,7 @@ use syntax::names::to_utf16;
 use tasty::tags::{
     CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Folds the references to values of constant type and the constant blocks in class definition
@@ -29,13 +29,23 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
 }
 
 /// The objects among class definitions `classes` with initialization code: a value with an
-/// initializer or a statement (dotty's not `NoInits`).
+/// initializer, a statement or a parent constructor called with arguments (dotty's not
+/// `NoInits`).
 pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+        let Tree::Template { body, parents, .. } = *l.tpd.tree(rhs) else { continue };
+        let calls_with_args = |&p: &TNodeId| match *l.tpd.tree(p) {
+            Tree::Apply { args, .. } => !l.tpd.items(args).is_empty(),
+            Tree::Block { .. } => true,
+            _ => false,
+        };
+        if l.tpd.items(parents).iter().any(calls_with_args) {
+            out.extend(l.u.source_module(class));
+            continue;
+        }
         let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
             Tree::ValDef { rhs, .. } => {
@@ -60,6 +70,9 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
         node.sym = None;
         return;
     }
+    if super::get_class::fold(l, t, inits) {
+        return;
+    }
     if is_constant_op(l, t, inits)
         && let Some(lit) = literal(l.u.types().get(l.tpd.tpe(t)))
     {
@@ -82,12 +95,29 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
     if !is_const_final(l, s) && through(l, t, inits) {
         return;
     }
-    let info = l.u.info(s);
+    let underlying = term_ref_underlying(l, l.tpd.tpe(t));
+    let info = if literal(l.u.types().get(underlying)).is_some() { underlying } else { l.u.info(s) };
     let Some(lit) = literal(l.u.types().get(info)) else { return };
     let node = l.tpd.get_mut(t);
     node.tree = lit;
     node.tpe = Some(info);
     node.sym = None;
+}
+
+/// `t` with references to terms and by-name types replaced by their underlying types, as seen
+/// from their prefixes (dotty's `widenTermRefExpr`).
+fn term_ref_underlying(l: &mut Lower, mut t: TypeId) -> TypeId {
+    for _ in 0..64 {
+        let next = match *l.u.types().get(t) {
+            Type::ByName(r) => Some(r),
+            Type::TermRef(..) => l.u.widen_once(t),
+            Type::Sym(_, s) if !l.u.is_type_symbol(s) => l.u.widen_once(t),
+            _ => None,
+        };
+        let Some(next) = next else { return t };
+        t = next;
+    }
+    t
 }
 
 /// `C` if `t` is `classOf[C]`.
@@ -98,7 +128,7 @@ fn class_of_arg(l: &Lower, t: TNodeId) -> Option<TypeId> {
 }
 
 /// Whether path `t` selects through one of objects `inits`.
-fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
+pub fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(t) else { return false };
     l.tpd.sym(qualifier).is_some_and(|q| inits.contains(&q)) || through(l, qualifier, inits)
 }
@@ -115,20 +145,9 @@ fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
     let Some(owner) = l.tpd.sym(fun).and_then(|m| l.u.symbol(m).owner) else { return false };
     let owner = l.u.full_name(owner);
-    let known = PRIMITIVES.contains(&owner.as_str()) || owner == "java.lang.String";
+    let known = PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == "java.lang.String";
     known && operand(qualifier) && args.into_iter().all(operand)
 }
-
-const PRIMITIVES: [&str; 8] = [
-    "scala.Boolean",
-    "scala.Byte",
-    "scala.Short",
-    "scala.Char",
-    "scala.Int",
-    "scala.Long",
-    "scala.Float",
-    "scala.Double",
-];
 
 /// Whether `t` is a block of pure definitions ending in a literal (dotty's `isIdempotentExpr`
 /// with `statPurity`).
@@ -164,7 +183,7 @@ pub fn is_pure_with_by_name(l: &Lower, t: TNodeId) -> bool {
     }
 }
 
-fn is_literal(l: &Lower, t: TNodeId) -> bool {
+pub fn is_literal(l: &Lower, t: TNodeId) -> bool {
     matches!(l.tpd.tree(t), Tree::Literal { .. } | Tree::ClassLiteral { .. })
 }
 
@@ -186,7 +205,7 @@ pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
 }
 
 /// The literal of constant type `t`, if the syntax has one for it.
-fn literal(t: &Type) -> Option<Tree> {
+pub fn literal(t: &Type) -> Option<Tree> {
     if let Type::Constant(CLASSconst, bits) = *t {
         return Some(Tree::ClassLiteral { tpe: TypeId(bits as u32) });
     }

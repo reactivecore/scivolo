@@ -71,3 +71,5 @@ intersections
 supertraits
 exprforms2
 localclasses2
+methodvalues
+tuplespec

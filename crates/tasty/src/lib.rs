@@ -15,7 +15,7 @@ mod tree;
 mod types;
 mod view;
 
-pub use erasure::Erased;
+pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use subtype::{Mark, NoVars, TypeVars};
 pub use symbols::{
     ANY, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe, encode,

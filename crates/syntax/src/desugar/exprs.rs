@@ -91,7 +91,11 @@ impl Desugar<'_> {
             let annot = self.apply(init, &[]);
             self.ast.node(Tree::Annotated { arg: seq, annot })
         } else {
-            self.select(od, name)
+            let select = self.select(od, name);
+            if self.text(name) == "_" {
+                self.ast.add_attrs(select, Attrs::ETA_UNDERSCORE);
+            }
+            select
         }
     }
 
