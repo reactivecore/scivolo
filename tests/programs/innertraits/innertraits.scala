@@ -17,6 +17,16 @@ class Box(val label: String):
     def quiet = 0
   private class Hush extends Silent
   def hush = new Hush().quiet
+  private trait Holder:
+    class Inside extends Shown:
+      def name = "inside"
+    def make: Shown = new Inside
+  private class HolderImpl extends Holder
+  def inside = new HolderImpl().make.show
+  private trait Loud extends Shown:
+    def name = "loud"
+  private class LoudImpl extends Loud
+  def loud = new LoudImpl().show
 
 object Boxes:
   val box = Box("Box")
@@ -54,6 +64,8 @@ object Patterns:
   println(box.muted)
   println(new box.Tagged().show)
   println(box.hush)
+  println(box.inside)
+  println(box.loud)
   println(new Outside().show)
   val rack = new Rack
   println(rack.Top.describe)

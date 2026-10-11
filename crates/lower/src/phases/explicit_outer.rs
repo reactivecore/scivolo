@@ -13,14 +13,20 @@ use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+    let mut mixes_inner = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        let mixes_inner = super::outer_traits::implement(l, td, class)?;
+        mixes_inner.push(super::outer_traits::implement(l, td, class)?);
+    }
+    for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {
+        let class = l.tpd.sym(td).expect("a class definition's symbol");
         let Some(outer) = outer_class(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
         let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
         let uses = all.iter().any(|&t| outward(l, t)) || own.iter().any(|&t| creates_inner_of(l, t, outer));
+        let inner_parent = l.u.is_trait(class) && super::outer_traits::has_inner_parent(l, class);
         let always = mixes_inner
+            || inner_parent
             || match l.u.is_module_class(class) {
                 true => l.u.is_trait(outer),
                 false => !has(l.u, class, PRIVATE) && !is_local(l, outer),

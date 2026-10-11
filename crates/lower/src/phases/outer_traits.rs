@@ -44,10 +44,13 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
     }
     let linearization = l.u.linearization(class);
     let mixins: Vec<SymbolId> = linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
+    let local = l.u.symbol(class).owner.is_some_and(|o| l.u.symbol(o).kind.is_term());
     let mut defs = Vec::new();
     for m in mixins {
-        let _ = l.u.decls(m);
         let Some(outer) = outer_class(l, m) else { continue };
+        if local {
+            return unsupported(l.tpd.span(td), "local classes using the enclosing instance");
+        }
         let span = end_span(l, td);
         let prefix = prefix(l, class, m, outer);
         let rhs = path(l, class, prefix, span)?;
@@ -62,6 +65,12 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
     let any = !defs.is_empty();
     append(l, td, &defs);
     Ok(any)
+}
+
+/// Whether a parent of `class` may use its enclosing instance.
+pub fn has_inner_parent(l: &mut Lower, class: SymbolId) -> bool {
+    let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
+    parents.into_iter().any(|p| outer_class(l, p).is_some())
 }
 
 /// Gives trait definition `td` of `trait_` its deferred outer accessor and makes its references

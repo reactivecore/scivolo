@@ -89,6 +89,10 @@ const CASES: &[(&str, &str)] = &[
         "lambdas and local methods in local classes",
     ),
     (
+        "class B { trait T { def f = 1 } }; object O { def g(b: B) = { class C extends b.T; new C().f } }",
+        "local classes using the enclosing instance",
+    ),
+    (
         "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",
         "local classes using the enclosing instance",
     ),
