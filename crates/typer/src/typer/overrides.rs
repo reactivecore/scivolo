@@ -16,7 +16,7 @@ impl Typer<'_> {
     }
 
     /// The name `s` has at run time: its `@targetName`, else its name.
-    fn run_name(&self, s: SymbolId) -> &str {
+    pub fn run_name(&self, s: SymbolId) -> &str {
         let s = self.u.symbol(s);
         s.target.as_deref().unwrap_or(&s.name)
     }
@@ -77,29 +77,18 @@ impl Typer<'_> {
             own.iter().copied().filter(|&d| self.u.symbol(d).kind == Kind::Def).collect();
         for (k, &a) in defs.iter().enumerate() {
             for &b in &defs[..k] {
-                let same_name = self.u.symbol(a).name == self.u.symbol(b).name;
-                let same_run_name = self.run_name(a) == self.run_name(b);
-                if !same_name && !same_run_name {
+                if self.u.symbol(a).name != self.u.symbol(b).name {
                     continue;
                 }
-                let type_params = |t: &mut Self, m| {
-                    let info = t.u.info(m);
-                    match t.u.types().get(info) {
-                        Type::Poly { params, .. } => params.len(),
-                        _ => 0,
-                    }
-                };
-                let same_arity = type_params(self, a) == type_params(self, b);
-                let erased_clash =
-                    same_run_name && same_arity && self.u.erased_method(a) == self.u.erased_method(b);
-                if same_name && self.u.matches(site, a, b) || erased_clash {
+                if self.run_name(a) == self.run_name(b) && self.u.matches(site, a, b) {
                     return self.unsupported_at(span, "double definition");
                 }
-                if same_name && self.has_default_args(a) && self.has_default_args(b) {
+                if self.has_default_args(a) && self.has_default_args(b) {
                     return self.unsupported_at(span, "overloads with default arguments");
                 }
             }
         }
+        self.check_no_clashes(cls, span);
         for d in own {
             let (name, kind) = (self.u.symbol(d).name.clone(), self.u.symbol(d).kind);
             let exempt = f::PRIVATE.or(f::SYNTHETIC);

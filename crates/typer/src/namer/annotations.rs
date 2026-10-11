@@ -5,6 +5,7 @@
 use crate::ctx::Ctx;
 use crate::typer::{Pt, Typer};
 use syntax::ast::constant::Constant;
+use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
@@ -54,11 +55,18 @@ impl Typer<'_> {
                 self.unsupported(annot, "annotation");
                 continue;
             }
-            if name == "scala.annotation.targetName" {
-                self.enter_target_name(sym, annot);
+            match name.as_str() {
+                "scala.annotation.targetName" => self.enter_target_name(sym, annot),
+                "scala.annotation.unroll" => self.check_unroll(sym, annot),
+                "scala.annotation.implicitNotFound" if self.string_arg(annot).is_none() => {
+                    self.unsupported(annot, "@implicitNotFound without a string literal");
+                }
+                _ => {}
             }
             classes.push((class, self.ast.span(annot)));
-            self.syms.annotation_trees.push((sym, annot, ctx));
+            if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {
+                self.syms.annotation_trees.push((sym, annot, ctx));
+            }
         }
         if !classes.is_empty() {
             self.syms.annotations.insert(sym, classes);
@@ -81,17 +89,7 @@ impl Typer<'_> {
     /// Gives method or value `sym` the run-time name of `@targetName` annotation `annot`, whose
     /// argument must be a nonempty string literal.
     fn enter_target_name(&mut self, sym: SymbolId, annot: NodeId) {
-        let arg = match *self.ast.tree(annot) {
-            Tree::Apply { args, .. } => match *self.ast.items(args) {
-                [arg] => Some(arg),
-                _ => None,
-            },
-            _ => None,
-        };
-        let name = arg.and_then(|a| match self.ast.tree(a) {
-            Tree::Literal { value: Constant::String(s) } if !s.is_empty() => String::from_utf16(s).ok(),
-            _ => None,
-        });
+        let name = self.string_arg(annot).filter(|n| !n.is_empty());
         let s = self.u.symbol(sym);
         let in_class = s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
         let member = in_class && matches!(s.kind, Kind::Def | Kind::Val) && s.name != "<init>";
@@ -100,6 +98,37 @@ impl Typer<'_> {
             _ => {
                 self.unsupported(annot, "@targetName other than a string on a method or value member");
             }
+        }
+    }
+
+    /// The string literal that is the only argument of annotation `annot`.
+    fn string_arg(&self, annot: NodeId) -> Option<String> {
+        let Tree::Apply { args, .. } = *self.ast.tree(annot) else { return None };
+        let &[arg] = self.ast.items(args) else { return None };
+        match self.ast.tree(arg) {
+            Tree::Literal { value: Constant::String(s) } => String::from_utf16(s).ok(),
+            _ => None,
+        }
+    }
+
+    /// Refuses `@unroll` annotation `annot` of `sym` unless `sym` is a parameter with a default
+    /// argument of a constructor or of a final member method (dotty's `PostTyper` checks).
+    fn check_unroll(&mut self, sym: SymbolId, annot: NodeId) {
+        let flags = self.syms.flags.get(&sym).copied().unwrap_or_default();
+        if flags.is(f::PARAM_ACCESSOR) {
+            return;
+        }
+        let has_default = flags.is(f::HAS_DEFAULT);
+        let method = self.u.symbol(sym).owner.filter(|_| self.u.symbol(sym).kind == Kind::Param);
+        let class =
+            method.and_then(|m| self.u.symbol(m).owner).filter(|&c| self.u.symbol(c).kind == Kind::Class);
+        let unrollable = method.zip(class).is_some_and(|(m, c)| {
+            let final_method = self.syms.flags.get(&m).is_some_and(|fl| fl.is(f::FINAL));
+            let final_class = self.u.symbol(c).flags.has(tasty::tags::FINAL) || self.u.is_module_class(c);
+            self.u.symbol(m).name == "<init>" || final_method || final_class
+        });
+        if !(has_default && unrollable) {
+            self.unsupported(annot, "@unroll other than on a defaulted parameter of a final method");
         }
     }
 
