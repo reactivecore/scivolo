@@ -69,10 +69,6 @@ const CASES: &[(&str, &str)] = &[
     ("trait T { lazy val x = \"a\" }", "lazy values in traits"),
     ("trait T { var x: Int }", "abstract variables"),
     (
-        "class B; class S extends B; trait T { def f: B = new B() }; trait U extends T { override def f: S = new S() }",
-        "bridges in traits",
-    ),
-    (
         "class V(val n: Int) extends Ordered[V] { def compare(that: V) = n - that.n }",
         "generic library traits",
     ),

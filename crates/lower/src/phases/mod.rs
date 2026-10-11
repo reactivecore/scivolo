@@ -69,12 +69,13 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let classes = class_defs(l.tpd, root);
+    let inits = first_transform::objects_with_inits(l, &classes);
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
         super_args::check(l, td)?;
         package_objects::transform(l, td);
-        first_transform::transform(l, td);
+        first_transform::transform(l, td, &inits);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
     trait_fields::find_inits(l, &classes);

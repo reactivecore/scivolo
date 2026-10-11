@@ -8,7 +8,7 @@ use crate::symbols::{has, is_class, is_module, is_module_class, is_static, is_tr
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC};
-use tasty::{Erased, SymbolId, Type};
+use tasty::{Erased, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -178,7 +178,8 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
 
 /// Whether `s` is a `final` value of a constant type.
 pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
-    if !has(l.u, s, FINAL) {
+    let value = l.u.symbol(s).kind == Kind::Val || has(l.u, s, FIELDaccessor);
+    if !has(l.u, s, FINAL) || !value {
         return false;
     }
     let info = l.u.info(s);
