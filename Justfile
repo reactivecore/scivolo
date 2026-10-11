@@ -79,6 +79,16 @@ nir-cmp file class:
         echo "same: {{ class }}"
     fi
 
+# Search the files under `paths` (default: the repository but target/ and .git/) for extended
+# regular expression `pattern`, with line numbers; `.` may stand for `$`.
+grep pattern *paths='.':
+    grep -rnE --exclude-dir=target --exclude-dir=.git -e '{{ pattern }}' {{ paths }}
+
+# List the files under `dir` (default: the repository but target/ and .git/) whose name matches
+# glob `name`; `?` may stand for `$`.
+files name dir='.':
+    find {{ dir }} \( -name target -o -name .git \) -prune -o -name '{{ name }}' -print
+
 # Compile the library overlay (overlay/src) with Scala Native into its committed NIR (overlay/nir).
 overlay:
     python3 scripts/overlay.py build

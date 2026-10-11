@@ -55,8 +55,10 @@ redirection, heredocs or `sed -i`; read them with the Read tool, never with
 `cat`, `head`, `tail` or `sed -n`. Those tools are pre-approved, the shell
 forms are not. The shell already starts in the repository root:
 never `cd`, not even as the first part of a compound command (`cd dir; grep …`
-needs approval). Name files by their path from the root instead, e.g.
-`grep -n "def genMethodSig" ref/scala-native/nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenType.scala`.
+needs approval). Name files by their path from the root instead. Search with the
+Grep/Glob tools; where a session lacks them, with `just grep PATTERN [PATHS]` and
+`just files NAME [DIR]`, e.g.
+`just grep 'def genMethodSig' ref/scala-native/nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenType.scala`.
 No literal `$` in a command either: `?` globs stand for Scala's `$` in file names
 (`just nir-dump tmp/lowered/x/Test?.nir`, `just nir-cmp FILE 'Test?'`), `.` replaces `\$`
 in regexes, and texts go through files (`just mr-create`, `just issue-create`).
