@@ -24,7 +24,9 @@ impl Typer<'_> {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
-        if matches!(self.tpd.tree(qualifier), T::Apply { .. }) && self.tpd.span(qualifier).is_synthetic() {
+        if matches!(*self.tpd.tree(qualifier), T::Apply { args, .. } if !self.tpd.items(args).is_empty())
+            && self.tpd.span(qualifier).is_synthetic()
+        {
             return Err("comparison of a converted value");
         }
         let a = self.tpd.tpe(qualifier);
