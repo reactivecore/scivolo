@@ -68,7 +68,7 @@ impl Typer<'_> {
         let decls = self.u.symbol(ctor).decls.clone();
         let original = decls
             .into_iter()
-            .find(|&p| self.u.symbol(p).name == name && self.is_type_symbol(p) == is_type)?;
+            .find(|&p| self.u.symbol(p).name == name && self.u.is_type_symbol(p) == is_type)?;
         let info = match self.syms.repeated_params.get(&original) {
             Some(&written) => written,
             None => self.u.info(original),
@@ -84,7 +84,7 @@ impl Typer<'_> {
         });
         let mut replacements = Vec::new();
         for s in siblings {
-            let (n, ty) = (self.u.symbol(s).name.clone(), self.is_type_symbol(s));
+            let (n, ty) = (self.u.symbol(s).name.clone(), self.u.is_type_symbol(s));
             let local = self.param_or_accessor(&n, ty, ctx)?;
             replacements.push((s, local));
         }
@@ -111,7 +111,7 @@ impl Typer<'_> {
                 _ => Vec::new(),
             };
             let found = candidates.into_iter().find(|&s| {
-                self.is_type_symbol(s) == is_type
+                self.u.is_type_symbol(s) == is_type
                     && self.syms.flags.get(&s).is_some_and(|f| f.is(PARAM) || f.is(PARAM_ACCESSOR))
             });
             if let Some(s) = found {

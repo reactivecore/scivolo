@@ -119,14 +119,14 @@ impl Typer<'_> {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
         let clauses = self.enter_params(sym, tree, mctx);
-        let value_clauses =
-            clauses.iter().filter(|c| c.first().is_some_and(|&p| !self.is_type_symbol(p))).cloned().collect();
+        let is_value = |c: &&Vec<SymbolId>| c.first().is_some_and(|&p| !self.u.is_type_symbol(p));
+        let value_clauses = clauses.iter().filter(is_value).cloned().collect();
         self.syms.param_clauses.insert(sym, value_clauses);
         let result = if self.u.symbol(sym).name == "<init>" {
             let class = self.u.symbol(sym).owner.expect("a constructor's class");
             let class_ref = crate::defn::type_ref(self.u, class);
             let tparams: Vec<SymbolId> =
-                clauses.iter().flatten().copied().filter(|&p| self.is_type_symbol(p)).collect();
+                clauses.iter().flatten().copied().filter(|&p| self.u.is_type_symbol(p)).collect();
             if tparams.is_empty() {
                 class_ref
             } else {
@@ -144,7 +144,7 @@ impl Typer<'_> {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =
                 clause.iter().map(|&p| (self.u.symbol(p).name.clone(), self.param_type(p))).collect();
-            if clause.first().is_some_and(|&p| self.is_type_symbol(p)) {
+            if clause.first().is_some_and(|&p| self.u.is_type_symbol(p)) {
                 let params =
                     params.into_iter().map(|(n, i)| (n, self.param_refs(i, &clause, binder))).collect();
                 let result = self.param_refs(result, &clause, binder);
@@ -179,7 +179,7 @@ impl Typer<'_> {
             Type::Constant(..) | Type::Str(_) => self.u.widen(t),
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => seq,
             Type::Sym(_, s) if self.u.symbol(s).flags.has(tasty::tags::OBJECT) => t,
-            Type::Sym(_, s) if !self.is_type_symbol(s) && self.u.symbol(s).kind != Kind::Package => {
+            Type::Sym(_, s) if !self.u.is_type_symbol(s) && self.u.symbol(s).kind != Kind::Package => {
                 let info = self.method_info(t).unwrap_or(t);
                 self.widen_rhs(sym, info)
             }

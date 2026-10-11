@@ -32,7 +32,7 @@ impl Typer<'_> {
             let syms: Vec<SymbolId> = self
                 .type_members(qual_tpe, &text)
                 .into_iter()
-                .filter(|&s| self.is_type_symbol(s) == name.is_type)
+                .filter(|&s| self.u.is_type_symbol(s) == name.is_type)
                 .collect();
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
@@ -85,7 +85,7 @@ impl Typer<'_> {
         if protected && !super_call && !matches!(self.u.types().get(qual_tpe), Type::This(_)) {
             return self.unsupported(id, "protected member through a path");
         }
-        let projection = self.tpd.sym(qual).is_some_and(|q| self.is_type_symbol(q))
+        let projection = self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. });
         if projection && self.u.symbol(sym).kind == Kind::Type {
             self.complete(sym);

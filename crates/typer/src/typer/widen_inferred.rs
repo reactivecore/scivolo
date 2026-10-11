@@ -8,7 +8,7 @@ impl Typer<'_> {
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
             Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) => true,
-            Type::Sym(_, s) => !self.is_type_symbol(s),
+            Type::Sym(_, s) => !self.u.is_type_symbol(s),
             _ => false,
         }
     }

@@ -78,7 +78,7 @@ impl Typer<'_> {
             _ => self.u.intern_type(Type::Error),
         };
         self.u.set_info(s, info);
-        if self.is_type_symbol(s) {
+        if self.u.is_type_symbol(s) {
             self.check_non_cyclic(s, info, p);
         }
     }

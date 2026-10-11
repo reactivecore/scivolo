@@ -176,7 +176,7 @@ impl Typer<'_> {
                 let found = entries
                     .iter()
                     .rev()
-                    .find(|(n, s)| n == name.text && self.is_type_symbol(*s) == name.is_type);
+                    .find(|(n, s)| n == name.text && self.u.is_type_symbol(*s) == name.is_type);
                 let sym = found?.1;
                 let owner = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class);
                 let prefix = owner.map(|o| crate::defn::owner_prefix(self.u, o));

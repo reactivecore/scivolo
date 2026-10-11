@@ -22,7 +22,7 @@ impl Typer<'_> {
             Type::Sym(prefix, s) => {
                 let kind = self.u.symbol(s).kind;
                 kind == Kind::Package
-                    || !self.is_type_symbol(s)
+                    || !self.u.is_type_symbol(s)
                         && self.is_stable_member(s)
                         && prefix.is_none_or(|p| self.is_stable_type(p))
             }
