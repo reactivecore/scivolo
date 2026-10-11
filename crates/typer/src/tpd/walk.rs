@@ -8,7 +8,7 @@ use tasty::SymbolId;
 /// What a walk does after entering a tree.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Walk {
-    /// Enters the children, owned by the tree's symbol if it is a definition (`Tpd::local_owner`).
+    /// Enters the children, with the owners `Tpd::owned_children` gives them.
     Children,
     /// Enters the children, owned by the given symbol.
     Within(SymbolId),
@@ -65,19 +65,20 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
     while let Some(step) = todo.pop() {
         match step {
             Step::Enter(t, owner) => {
-                let inner = match enter(cx, t, owner) {
-                    Walk::Stop => return,
-                    Walk::Skip => None,
-                    Walk::Children => Some(cx.as_ref().local_owner(t, owner)),
-                    Walk::Within(inner) => Some(inner),
-                };
+                let walk = enter(cx, t, owner);
+                if walk == Walk::Stop {
+                    return;
+                }
                 if leave.is_some() {
                     todo.push(Step::Leave(t, owner));
                 }
-                if let Some(inner) = inner {
-                    let children = cx.as_ref().children(t);
-                    todo.extend(children.into_iter().rev().map(|c| Step::Enter(c, inner)));
-                }
+                let tpd = cx.as_ref();
+                let children = match walk {
+                    Walk::Children => tpd.owned_children(t, owner),
+                    Walk::Within(inner) => tpd.children(t).into_iter().map(|c| (c, inner)).collect(),
+                    _ => Vec::new(),
+                };
+                todo.extend(children.into_iter().rev().map(|(c, owner)| Step::Enter(c, owner)));
             }
             Step::Leave(t, owner) => {
                 if leave.as_mut().is_some_and(|leave| leave(cx, t, owner).is_break()) {
@@ -89,15 +90,32 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
 }
 
 impl Tpd {
-    /// The owner of the children of `t`, a tree owned by `owner` (dotty's `localCtx`): `t`'s
-    /// symbol if `t` defines one, else `owner`, also for a template's statements, which dotty
-    /// gives the template's local dummy.
-    pub fn local_owner(&self, t: TNodeId, owner: SymbolId) -> SymbolId {
-        match self.tree(t) {
+    /// The children of `t`, a tree owned by `owner`, each with its owner (dotty's `localCtx` and
+    /// `mapStatements`): `t`'s symbol if `t` is a definition that has one; for a template, its
+    /// symbol (the local dummy) for the statements that are not definitions or imports; else
+    /// `owner`.
+    pub fn owned_children(&self, t: TNodeId, owner: SymbolId) -> Vec<(TNodeId, SymbolId)> {
+        let children = self.children(t).into_iter();
+        match *self.tree(t) {
             Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::PackageDef { .. } => {
-                self.sym(t).unwrap_or(owner)
+                let inner = self.sym(t).unwrap_or(owner);
+                children.map(|c| (c, inner)).collect()
             }
-            _ => owner,
+            Tree::Template { body, .. } => {
+                let dummy = self.sym(t).unwrap_or(owner);
+                let stats = self.items(body);
+                let is_def = |c| {
+                    matches!(
+                        self.tree(c),
+                        Tree::ValDef { .. }
+                            | Tree::DefDef { .. }
+                            | Tree::TypeDef { .. }
+                            | Tree::Import { .. }
+                    )
+                };
+                children.map(|c| (c, if stats.contains(&c) && !is_def(c) { dummy } else { owner })).collect()
+            }
+            _ => children.map(|c| (c, owner)).collect(),
         }
     }
 
@@ -171,6 +189,25 @@ mod tests {
         let anonymous = node(&mut tpd, Tree::ValDef { name, tpt, rhs: Some(b) }, None);
         assert_eq!(owners(&mut tpd, class), [(class, 1), (a, 5)]);
         assert_eq!(owners(&mut tpd, anonymous), [(anonymous, 1), (tpt, 1), (b, 1)]);
+    }
+
+    #[test]
+    fn template_statements_but_definitions_are_owned_by_the_local_dummy() {
+        let name = name();
+        let mut tpd = Tpd::default();
+        let (paramss, tpt) = (tpd.clauses(&[]), node(&mut tpd, Tree::TypeTree { inferred: true }, None));
+        let constr = node(&mut tpd, Tree::DefDef { name, paramss, tpt, rhs: None }, Some(6));
+        let parent = node(&mut tpd, Tree::Ident { name }, None);
+        let tpt2 = node(&mut tpd, Tree::TypeTree { inferred: true }, None);
+        let v = node(&mut tpd, Tree::ValDef { name, tpt: tpt2, rhs: None }, Some(7));
+        let e = node(&mut tpd, Tree::Ident { name }, None);
+        let (parents, body) = (tpd.list(&[parent]), tpd.list(&[v, e]));
+        let template = Tree::Template { constr, parents, self_: None, body };
+        let template = node(&mut tpd, template, Some(8));
+        let class = node(&mut tpd, Tree::TypeDef { name, rhs: template }, Some(5));
+        let expected =
+            [(class, 1), (template, 5), (constr, 5), (tpt, 6), (parent, 5), (v, 5), (tpt2, 7), (e, 8)];
+        assert_eq!(owners(&mut tpd, class), expected);
     }
 
     #[test]
