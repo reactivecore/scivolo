@@ -1,6 +1,7 @@
 //! The members of a type (dotty's `Type.member`, `findMember`).
 
 use super::Typer;
+use crate::ctx::Ctx;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 /// How many steps through bounds, aliases and parts finding a member may take.
@@ -9,19 +10,26 @@ const MAX_MEMBER_DEPTH: u32 = 32;
 impl Typer<'_> {
     /// The members named `name` of type `t`.
     pub fn type_members(&mut self, t: TypeId, name: &str) -> Vec<SymbolId> {
-        self.members_within(t, name, MAX_MEMBER_DEPTH)
+        self.members_within(t, name, (MAX_MEMBER_DEPTH, None))
+    }
+
+    /// The members named `name` of type `t` as selected in `ctx`: of an intersection's matching
+    /// members, those inaccessible in `ctx` hidden.
+    pub fn type_members_in(&mut self, t: TypeId, name: &str, ctx: Ctx) -> Vec<SymbolId> {
+        self.members_within(t, name, (MAX_MEMBER_DEPTH, Some(ctx)))
     }
 
     /// The members named `name` of type `t`, none if finding them takes more than `depth` steps
     /// through bounds, aliases and parts.
-    fn members_within(&mut self, t: TypeId, name: &str, depth: u32) -> Vec<SymbolId> {
+    fn members_within(&mut self, t: TypeId, name: &str, (depth, ctx): (u32, Option<Ctx>)) -> Vec<SymbolId> {
         let Some(depth) = depth.checked_sub(1) else { return Vec::new() };
+        let within = (depth, ctx);
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
-            Type::This(c) => self.members_within(c, name, depth),
+            Type::This(c) => self.members_within(c, name, within),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
-                self.members_within(widened, name, depth)
+                self.members_within(widened, name, within)
             }
             Type::Sym(prefix, s) => match self.u.symbol(s).kind {
                 Kind::Package => self.package_members(s, name),
@@ -43,21 +51,21 @@ impl Typer<'_> {
                         Type::ByName(r) => r,
                         _ => info,
                     };
-                    self.members_within(info, name, depth)
+                    self.members_within(info, name, within)
                 }
             },
-            Type::Alias(a) | Type::Bounds(_, a) => self.members_within(a, name, depth),
+            Type::Alias(a) | Type::Bounds(_, a) => self.members_within(a, name, within),
             Type::Applied(..) if self.u.dealias(t) != t => {
                 let dealiased = self.u.dealias(t);
-                self.members_within(dealiased, name, depth)
+                self.members_within(dealiased, name, within)
             }
             Type::And(a, b) => {
-                let (ma, mb) = (self.members_within(a, name, depth), self.members_within(b, name, depth));
-                self.and_members(t, ma, mb)
+                let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
+                self.and_members(t, (ma, mb), ctx)
             }
             Type::Or(..) => match self.u.join(t) {
                 Some(j) if !matches!(self.u.types().get(j), Type::Or(..)) => {
-                    self.members_within(j, name, depth)
+                    self.members_within(j, name, within)
                 }
                 _ => Vec::new(),
             },

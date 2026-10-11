@@ -2,14 +2,24 @@
 //! with `mergeSingleDenot`).
 
 use super::Typer;
+use crate::ctx::Ctx;
 use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The members of `site`, an intersection, from those of its sides `ma` and `mb`: of each pair
-    /// of matching term members the one dotty picks, the others overloaded; none for two
-    /// different type members.
-    pub fn and_members(&mut self, site: TypeId, ma: Vec<SymbolId>, mb: Vec<SymbolId>) -> Vec<SymbolId> {
+    /// The members of `site`, an intersection, from those of its sides `ma` and `mb` as selected
+    /// in `ctx`: of each pair of matching term members the one dotty keeps, the others
+    /// overloaded; none for two different type members or a pair dotty joins
+    /// (`needs_joint_member`).
+    pub fn and_members(
+        &mut self,
+        site: TypeId,
+        (ma, mb): (Vec<SymbolId>, Vec<SymbolId>),
+        ctx: Option<Ctx>,
+    ) -> Vec<SymbolId> {
+        if ma.is_empty() || mb.is_empty() {
+            return if ma.is_empty() { mb } else { ma };
+        }
         let mut out = ma;
         for m in mb {
             if out.contains(&m) {
@@ -22,23 +32,42 @@ impl Typer<'_> {
                 self.complete(s);
             }
             match out.iter().position(|&o| self.same_member(site, o, m)) {
-                Some(k) => out[k] = self.merged(site, out[k], m),
+                Some(k) => match self.merged(site, (out[k], m), ctx) {
+                    Some(s) => out[k] = s,
+                    None => return Vec::new(),
+                },
                 None => out.push(m),
             }
         }
         out
     }
 
-    /// Of matching members `a` and `b` of `site`, the one whose denotation dotty keeps: by
-    /// `symScore`, a tie to the one whose type conforms to the other's.
-    fn merged(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> SymbolId {
-        let score = self.sym_score(site, a, b);
-        if score == 0 {
-            let (ia, ib) = (self.u.member_info(site, a), self.u.member_info(site, b));
-            let (ra, rb) = (self.u.result_type(ia), self.u.result_type(ib));
-            return if self.u.is_subtype(rb, ra) { b } else { a };
+    /// Of matching members `a` and `b` of `site`, the one whose denotation dotty keeps: the one
+    /// accessible in `ctx` if the other is not, else by `symScore` the one whose type conforms to
+    /// the other's; `None` where dotty joins both with the intersection of their types.
+    fn merged(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), ctx: Option<Ctx>) -> Option<SymbolId> {
+        if let Some(ctx) = ctx {
+            let (hidden_a, hidden_b) = (!self.is_accessible(a, ctx), !self.is_accessible(b, ctx));
+            if hidden_a != hidden_b {
+                return Some(if hidden_a { b } else { a });
+            }
         }
-        if score > 0 { a } else { b }
+        let score = self.sym_score(site, a, b);
+        let (ia, ib) = (self.u.member_info(site, a), self.u.member_info(site, b));
+        let (ra, rb) = (self.u.result_type(ia), self.u.result_type(ib));
+        if score <= 0 && self.u.is_subtype(rb, ra) {
+            return Some(b);
+        }
+        (score >= 0 && self.u.is_subtype(ra, rb)).then_some(a)
+    }
+
+    /// Whether both sides of intersection `t` have members `name`, which `and_members` cannot
+    /// merge into one.
+    pub fn needs_joint_member(&mut self, t: TypeId, name: &str) -> bool {
+        let t = self.u.widen(t);
+        let t = self.u.dealias(t);
+        let Type::And(a, b) = *self.u.types().get(t) else { return false };
+        !self.type_members(a, name).is_empty() && !self.type_members(b, name).is_empty()
     }
 
     /// Positive to pick `a`, negative to pick `b` (dotty's `symScore`): the concrete one, the one

@@ -135,8 +135,8 @@ impl Typer<'_> {
         convert_to(c, &self.u.full_name(target))
     }
 
-    /// The class of `pt` through aliases, type variables and lower bounds of abstract types
-    /// (dotty's `classBound(pt).typeSymbol`).
+    /// The class of `pt` through aliases, type variables, `| Null` and lower bounds of abstract
+    /// types (dotty's `classBound(pt).typeSymbol`).
     pub fn class_bound(&mut self, pt: TypeId) -> Option<SymbolId> {
         self.class_bound_within(pt, 8)
     }
@@ -153,6 +153,14 @@ impl Typer<'_> {
                 match self.u.class_symbol(hi) {
                     Some(c) if CLASSES[..9].contains(&&*self.u.full_name(c)) => Some(c),
                     _ => self.class_bound_within(lo, depth),
+                }
+            }
+            Type::Or(a, b) => {
+                let null = self.u.builtins().null;
+                match (self.u.class_symbol(a), self.u.class_symbol(b)) {
+                    (_, Some(c)) if c == null => self.class_bound_within(a, depth),
+                    (Some(c), _) if c == null => self.class_bound_within(b, depth),
+                    _ => None,
                 }
             }
             Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {

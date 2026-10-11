@@ -140,7 +140,7 @@ impl Typer<'_> {
     /// `adaptConstant`).
     fn converted_constant(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
         let value = self.constant_of(tree)?;
-        let converted = self.convert_constant(&value, pt).filter(|c| *c != value)?;
+        let converted = self.convert_constant(&value, pt).filter(|c| c.tag() != value.tag())?;
         let lossy = match (&value, &converted) {
             (Constant::Int(i), Constant::Float(f)) => *f as i32 != *i,
             (Constant::Long(l), Constant::Float(f)) => *f as i64 != *l,
