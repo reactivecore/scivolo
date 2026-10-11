@@ -152,4 +152,4 @@ scala> def one: 1 = 1
 def one: 1
 
 scala> val b: Byte = one
--- unsupported: adaptation
+val b: Byte = 1

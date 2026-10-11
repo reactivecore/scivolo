@@ -2,11 +2,12 @@
 //! `TypeMismatch`), reported where dotty adapts no further and adds neither a note nor an addendum.
 
 use super::Typer;
+use super::constants::{is_numeric, of_type};
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Const, Type, TypeId, constant};
+use tasty::{Type, TypeId};
 
 /// The classes an expected type may not be for dotty to search a conversion.
 const UNSPECIFIC: [&str; 5] =
@@ -104,27 +105,8 @@ impl Typer<'_> {
         let Type::Constant(tag, bits) = *self.u.types().get(found) else {
             return !matches!(self.u.types().get(found), Type::Str(_)) && self.constant_of(tree).is_some();
         };
-        let pt = self.u.dealias(pt);
-        let Some(target) = self.direct_class(pt).map(|c| self.u.full_name(c)) else { return true };
-        let (int, long) = match constant(tag, bits) {
-            Some(Const::Byte(n)) => (Some(n as i64), Some(n as i64)),
-            Some(Const::Short(n)) => (Some(n as i64), Some(n as i64)),
-            Some(Const::Char(c)) => (Some(c as i64), Some(c as i64)),
-            Some(Const::Int(n)) => (Some(n as i64), Some(n as i64)),
-            Some(Const::Long(n)) => (None, Some(n)),
-            Some(Const::Float(_)) => (None, None),
-            Some(Const::Double(_)) => return target == "scala.Double",
-            _ => return false,
-        };
-        match &*target {
-            "scala.Byte" => int.is_some_and(|n| i8::try_from(n).is_ok()),
-            "scala.Short" => int.is_some_and(|n| i16::try_from(n).is_ok()),
-            "scala.Char" => int.is_some_and(|n| u16::try_from(n).is_ok()),
-            "scala.Int" => int.is_some(),
-            "scala.Long" => long.is_some(),
-            "scala.Float" | "scala.Double" => true,
-            _ => false,
-        }
+        let Some(c) = of_type(tag, bits).filter(is_numeric) else { return false };
+        self.class_bound(pt).is_none() || self.convert_constant(&c, pt).is_some()
     }
 
     /// Whether an implicit in the unit, the implicit scope of `from` or `to`, or an object dotty's

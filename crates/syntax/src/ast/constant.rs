@@ -4,6 +4,8 @@
 pub enum Constant {
     Unit,
     Boolean(bool),
+    Byte(i8),
+    Short(i16),
     Char(u16),
     Int(i32),
     Long(i64),
@@ -20,6 +22,8 @@ impl Constant {
         match self {
             Constant::Unit => "Unit",
             Constant::Boolean(_) => "Boolean",
+            Constant::Byte(_) => "Byte",
+            Constant::Short(_) => "Short",
             Constant::Char(_) => "Char",
             Constant::Int(_) => "Int",
             Constant::Long(_) => "Long",
@@ -35,6 +39,8 @@ impl Constant {
         let s = match self {
             Constant::Unit => "()".to_string(),
             Constant::Boolean(b) => b.to_string(),
+            Constant::Byte(b) => b.to_string(),
+            Constant::Short(s) => s.to_string(),
             Constant::Char(c) => return vec![*c],
             Constant::Int(i) => i.to_string(),
             Constant::Long(l) => l.to_string(),
