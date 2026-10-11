@@ -216,6 +216,20 @@ snapshot-diff *oracles: release
     cargo build -q --release -p typer -p lower -p syntax
     python3 scripts/snapshot.py diff {{ oracles }}
 
+# In a linked worktree (e.g. an agent's): link the main checkout's ref/ and copy the oracle data
+# the snapshots read from its tmp/.
+worktree-setup:
+    #!/usr/bin/env bash
+    set -eu
+    main=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+    if [ "$main" = "$PWD" ]; then echo "the main checkout needs no setup"; exit 0; fi
+    [ -e ref ] || ln -s "$main/ref" ref
+    for f in tmp/typer/3.9.0/expected.txt tmp/dotty/3.9.0-0.5.12/results.tsv; do
+        if [ -f "$main/$f" ]; then mkdir -p "$(dirname "$f")"; cp "$main/$f" "$f"
+        else echo "not in the main checkout: $f"; fi
+    done
+    [ -d ref/scala3 ] || echo "not in the main checkout: ref/scala3 (just dotty-fetch there)"
+
 # Format, run the gates, commit every change not ignored with message `msg` and push the branch.
 ship msg: fmt gates lint-msrv
     git add -A
