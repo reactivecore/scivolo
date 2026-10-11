@@ -5,6 +5,7 @@ mod check_static;
 mod checks;
 mod complete;
 mod defaults;
+mod double_definitions;
 mod inheritance;
 mod inherited;
 mod params;
