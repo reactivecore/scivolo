@@ -268,9 +268,11 @@ highlight-oracle:
     scala-cli --power run --server=false --quiet --workspace tmp/highlight-oracle-ws scripts/highlight-oracle -- tests/highlight/cases.txt > tmp/highlight-cases.check
     mv tmp/highlight-cases.check tests/highlight/cases.check
 
-# Record dotty's typed trees of the golden tests in crates/typer/tests/typed (JVM).
+# Record dotty's typed trees of the golden tests in crates/typer/tests/typed, and its `Inlined`
+# trees after the `inlining` phase of those in crates/typer/tests/inlined (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed
+    python3 scripts/typer-tests.py checks crates/typer/tests/inlined
 
 # The difference between dotty's and the Rust typed trees of one file.
 typer-diff path:
@@ -377,3 +379,7 @@ mr-create-from source title *flags:
 # Create an issue with comma-separated `labels`, described by tmp/issue.md.
 issue-create title labels:
     glab issue create --title '{{ title }}' --label '{{ labels }}' --description "$(cat tmp/issue.md)"
+
+# Comment on issue `id` with the text in tmp/issue.md.
+issue-note id:
+    glab issue note {{ id }} --message "$(cat tmp/issue.md)"

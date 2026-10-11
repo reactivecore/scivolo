@@ -244,6 +244,13 @@ pub enum Tree {
         pid: TNodeId,
         stats: List,
     },
+    /// The expansion of inline call `call` after its `bindings`; `call` is `None` for an
+    /// argument inlined from the outer scope.
+    Inlined {
+        call: Option<TNodeId>,
+        bindings: List,
+        expansion: TNodeId,
+    },
 }
 
 /// A field of a tree, as `Tree::fields` hands it out: the subtrees as slots that can be
@@ -385,6 +392,11 @@ impl Tree {
             Tree::PackageDef { pid, stats } => {
                 f(N(pid));
                 f(L(stats));
+            }
+            Tree::Inlined { call, bindings, expansion } => {
+                f(O(call));
+                f(L(bindings));
+                f(N(expansion));
             }
         }
     }
