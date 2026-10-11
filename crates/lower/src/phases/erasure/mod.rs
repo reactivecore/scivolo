@@ -41,7 +41,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let body = l.tpd.list(&stats[1..]);
     let mut typed_parents = Vec::new();
     for parent in l.tpd.items(parents).to_vec() {
-        let call = matches!(l.tpd.tree(parent), Tree::Apply { .. });
+        let call = matches!(l.tpd.tree(parent), Tree::Apply { .. } | Tree::Block { .. });
         typed_parents.push(if call { typed(l, parent, None)? } else { parent });
     }
     let parents = l.tpd.list(&typed_parents);
@@ -85,7 +85,11 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 .items(stats)
                 .iter()
                 .copied()
-                .filter(|&s| !matches!(l.tpd.tree(s), Tree::Import { .. }))
+                .filter(|&s| match *l.tpd.tree(s) {
+                    Tree::Import { .. } => false,
+                    Tree::TypeDef { rhs, .. } => matches!(l.tpd.tree(rhs), Tree::Template { .. }),
+                    _ => true,
+                })
                 .collect();
             l.tpd.get_mut(t).tree = Tree::Block { stats: l.tpd.list(&kept), expr };
             map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
@@ -128,7 +132,12 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Tree::SeqLiteral { elemtpt, .. } => {
             let elem = match l.u.erase(l.tpd.tpe(t)) {
                 Erased::Array(e) => *e,
-                _ => return unsupported(l.tpd.span(t), "a sequence literal that is not an array"),
+                _ => {
+                    let elem = l.u.erase(l.tpd.tpe(elemtpt));
+                    let array = Erased::Array(Box::new(elem.clone()));
+                    l.tpd.get_mut(t).tpe = Some(super::casts::type_of(l, &array));
+                    elem
+                }
             };
             typed_except(l, t, elemtpt, Some(&elem))?;
             None
@@ -138,6 +147,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
             if written && ascribed == Erased::Unit && !matches!(l.tpd.tree(expr), Tree::Literal { .. }) {
                 return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
+            }
+            if ascribed == Erased::Unit {
+                let expr = typed(l, expr, Some(&Erased::Unit))?;
+                return Ok(pt.map_or(expr, |pt| adapt(l, expr, pt)));
             }
             typed_except(l, t, tpt, Some(&ascribed))?;
             None

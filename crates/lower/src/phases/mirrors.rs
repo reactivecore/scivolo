@@ -39,13 +39,27 @@ pub fn mirror_support(
     if has(l.u, linked, SEALED) {
         return unsupported(span, "companions of sealed classes other than enums");
     }
-    if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) {
+    if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) || param_lists(l, linked) != 1 {
         return Ok(None);
     }
     mono_type(l, class, linked);
     let focus = Span::new(span.point(), span.point(), span.point());
     let from_product = from_product(l, class, linked, focus)?;
     Ok(Some((cc.mirror_product, vec![from_product])))
+}
+
+/// The number of parameter lists of the primary constructor of class `c`.
+fn param_lists(l: &mut Lower, c: SymbolId) -> usize {
+    let Some(&ctor) = l.u.decl(c, "<init>").unwrap_or_default().first() else { return 0 };
+    let mut t = l.u.info(ctor);
+    let mut lists = 0;
+    loop {
+        match l.u.types().get(t) {
+            Type::Poly { result, .. } => t = *result,
+            Type::Method { result, .. } => (t, lists) = (*result, lists + 1),
+            _ => return lists,
+        }
+    }
 }
 
 /// `type MirroredMonoType = C` in object class `class` for its companion class `linked`.

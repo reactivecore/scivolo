@@ -93,6 +93,7 @@ impl Gen<'_, '_> {
                 || is_extern(self.l.u, m)
                 || deferred
                 || excluded.iter().any(|&f| has(self.l.u, m, f))
+                || self.l.lifted_from.contains_key(&m)
                 || jdk && has(self.l.u, m, PRIVATEqualified)
             {
                 continue;

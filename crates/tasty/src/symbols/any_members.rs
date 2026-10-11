@@ -68,7 +68,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
 }
 
 /// A reference to class `name` of package `pkg`, resolved when used.
-fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
+pub fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
     let prefix = match u.package(pkg) {
         Some(p) => u.types.intern(Type::Package(p)),
         None => u.types.intern(Type::PackageName(pkg.into())),
@@ -76,7 +76,7 @@ fn class_type(u: &mut Universe, pkg: &str, name: &str) -> TypeId {
     u.types.intern(Type::TypeRef(prefix, name.into()))
 }
 
-fn method(
+pub fn method(
     u: &mut Universe,
     owner: SymbolId,
     name: &str,

@@ -14,7 +14,7 @@ impl Typer<'_> {
         let name = self.u.symbol(sym).name.clone();
         let decls = self.u.symbol(sym).decls.clone();
         if decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam) {
-            if !self.class_members(cls, &name).iter().all(|&m| m == sym) {
+            if !self.class_members(cls, &name).iter().all(|&m| self.u.symbol(m).owner == Some(cls)) {
                 self.unsupported_at(syntax::ast::Span::NONE, "polymorphic method overriding a member");
             }
             return None;
@@ -52,9 +52,10 @@ impl Typer<'_> {
     }
 
     /// The result type of member `m` as seen from `site` if its value parameters have the types
-    /// `params`, clause by clause.
+    /// `params`, clause by clause, `Any` matching a Java method's `Object`.
     fn matching_result(&mut self, site: TypeId, m: SymbolId, params: &[Vec<TypeId>]) -> Option<TypeId> {
         self.complete(m);
+        let java = self.is_java_member(m);
         let mut t = self.u.member_info(site, m);
         for clause in params {
             let Type::Method { params: ps, result, .. } = self.u.types().get(t).clone() else { return None };
@@ -62,7 +63,10 @@ impl Typer<'_> {
                 return None;
             }
             for (&(_, p), &own) in ps.iter().zip(clause) {
-                if !(self.u.is_subtype(p, own) && self.u.is_subtype(own, p)) {
+                let same = self.u.is_subtype(p, own) && self.u.is_subtype(own, p);
+                let object_any =
+                    java && self.is_class(p, "java.lang.Object") && self.is_class(own, "scala.Any");
+                if !same && !object_any {
                     return None;
                 }
             }
@@ -80,6 +84,11 @@ impl Typer<'_> {
                 (!depends).then_some(t)
             }
         }
+    }
+
+    /// Whether `t` is a reference to the class named `name`.
+    fn is_class(&mut self, t: TypeId, name: &str) -> bool {
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == name)
     }
 
     /// Whether `sym` keeps its right-hand side's type over an inherited one: an inline value.

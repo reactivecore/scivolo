@@ -65,5 +65,11 @@ librarytraits
 superargs2
 exprforms
 innerclasses2
+innertraits
+bytes_shorts
+intersections
+supertraits
+exprforms2
+localclasses2
 methodvalues
 tuplespec

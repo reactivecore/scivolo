@@ -104,12 +104,12 @@ impl Typer<'_> {
     }
 
     /// dotty's `isPureApply`: a constant operation of a primitive class, `String` or a pure member
-    /// of `Any`, a stable constructor, or the synthetic `apply` of a case class that initializes
-    /// nothing.
+    /// of `Any`, a stable constructor of a class outside the JDK, or the synthetic `apply` of a
+    /// case class that initializes nothing.
     fn is_pure_apply(&mut self, tree: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
         if self.u.symbol(s).name == "<init>" {
-            return self.is_stable_member(s);
+            return self.is_stable_member(s) && !self.is_java_member(s);
         }
         if self.is_pure_case_apply(s) {
             return true;

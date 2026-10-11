@@ -1,56 +1,105 @@
-//! dotty's `HoistSuperArgs` for top-level classes: a superclass constructor argument defining
-//! methods or classes or creating instances of classes that are not static becomes a private
-//! static method `C$superArg$N` of the class taking the constructor's parameters, called in its
-//! place.
+//! dotty's `HoistSuperArgs` for top-level and local classes: a superclass constructor argument
+//! defining methods or classes or creating instances of classes that are not static becomes a
+//! private method `C$superArg$N` taking the constructor's parameters and the values the call
+//! defines before it, called in its place: a static method of a top-level class, a local method
+//! after a local class.
 
 use super::lambda_lift::fresh;
+use super::local_free::is_term;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::is_static;
-use crate::{Lower, Result};
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+/// The class whose superclass call is hoisted from, its constructor definition, whether it is
+/// local, the methods hoisted so far, where a hoisting involves a method the call defines.
+struct Hoister {
+    class: SymbolId,
+    constr: TNodeId,
+    local: bool,
+    defs: Vec<TNodeId>,
+    refused: Option<Span>,
+}
+
+pub fn transform(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { return Ok(()) };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let Some(&parent) = l.tpd.items(parents).first() else { return Ok(()) };
-    let mut calls = Vec::new();
-    let mut call = parent;
-    while let Tree::Apply { fun, .. } = *l.tpd.tree(call) {
-        calls.push(call);
-        call = fun;
+    let local = l.u.symbol(class).owner.is_some_and(|o| is_term(l, o));
+    let mut h = Hoister { class, constr, local, defs: Vec::new(), refused: None };
+    from_call(l, &mut h, parent, &mut Vec::new());
+    if let Some(span) = h.refused {
+        return unsupported(span, "hoisting superclass constructor arguments with methods the call defines");
     }
-    let mut hoisted = Vec::new();
-    for &call in calls.iter().rev() {
-        let Tree::Apply { fun, args } = *l.tpd.tree(call) else { unreachable!("an application") };
-        let mut items = l.tpd.items(args).to_vec();
-        let mut end = l.tpd.span(fun).end();
-        let mut changed = false;
-        for arg in &mut items {
-            if needs_hoist(l, *arg) {
-                let (def, call) = hoist(l, class, constr, *arg, Span::at(end));
-                hoisted.push(def);
-                *arg = call;
-                changed = true;
-            } else if l.tpd.span(*arg).exists() {
-                end = end.max(l.tpd.span(*arg).end());
-            }
-        }
-        if changed {
-            let args = l.tpd.list(&items);
-            l.tpd.get_mut(call).tree = Tree::Apply { fun, args };
-        }
+    if h.defs.is_empty() {
+        return Ok(());
     }
-    if !hoisted.is_empty() {
-        let stats: Vec<TNodeId> = l.tpd.items(body).iter().copied().chain(hoisted).collect();
+    if !local {
+        let stats: Vec<TNodeId> = l.tpd.items(body).iter().copied().chain(h.defs).collect();
         let body = l.tpd.list(&stats);
         l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
+        return Ok(());
+    }
+    for t in subtrees(l.tpd, root) {
+        let Tree::Block { stats, expr } = *l.tpd.tree(t) else { continue };
+        let mut items = l.tpd.items(stats).to_vec();
+        let Some(i) = items.iter().position(|&s| s == td) else { continue };
+        items.splice(i + 1..i + 1, h.defs);
+        let stats = l.tpd.list(&items);
+        l.tpd.get_mut(t).tree = Tree::Block { stats, expr };
+        break;
     }
     Ok(())
+}
+
+/// Hoists the arguments of superclass call `call`, a block defining values `lifted` and those
+/// of its statements (dotty's `hoistSuperArgsFromCall`).
+fn from_call(l: &mut Lower, h: &mut Hoister, call: TNodeId, lifted: &mut Vec<SymbolId>) {
+    match *l.tpd.tree(call) {
+        Tree::Block { stats, expr } => {
+            for stat in l.tpd.items(stats).to_vec() {
+                if let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(stat) {
+                    if needs_hoist(l, rhs) {
+                        h.refused = Some(l.tpd.span(stat));
+                    }
+                    lifted.extend(l.tpd.sym(stat));
+                    continue;
+                }
+                let Tree::ValDef { name, tpt, rhs: Some(rhs) } = *l.tpd.tree(stat) else { continue };
+                if needs_hoist(l, rhs) {
+                    let at = Span::at(l.tpd.span(rhs).end());
+                    let rhs = hoist(l, h, rhs, lifted, at);
+                    l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: Some(rhs) };
+                }
+                lifted.extend(l.tpd.sym(stat));
+            }
+            from_call(l, h, expr, lifted);
+        }
+        Tree::Apply { fun, args } => {
+            from_call(l, h, fun, lifted);
+            let mut items = l.tpd.items(args).to_vec();
+            let mut end = l.tpd.span(fun).end();
+            let mut changed = false;
+            for arg in &mut items {
+                if needs_hoist(l, *arg) {
+                    *arg = hoist(l, h, *arg, lifted, Span::at(end));
+                    changed = true;
+                } else if l.tpd.span(*arg).exists() {
+                    end = end.max(l.tpd.span(*arg).end());
+                }
+            }
+            if changed {
+                let args = l.tpd.list(&items);
+                l.tpd.get_mut(call).tree = Tree::Apply { fun, args };
+            }
+        }
+        _ => {}
+    }
 }
 
 /// Whether superclass constructor argument `arg` defines methods or classes or creates instances
@@ -66,14 +115,23 @@ pub fn needs_hoist(l: &mut Lower, arg: TNodeId) -> bool {
     })
 }
 
-/// The definition of the method `class` gets for argument `arg` of the superclass constructor
-/// call in constructor definition `constr`, at the constructor if it has value or type parameters,
-/// else at the argument, and the call of it with the constructor's parameters, at `span`.
-fn hoist(l: &mut Lower, class: SymbolId, constr: TNodeId, arg: TNodeId, span: Span) -> (TNodeId, TNodeId) {
-    let originals = params(l, constr);
+/// Hoists argument `arg` of the superclass constructor call of `h` into a method taking the
+/// constructor's parameters and `lifted`, defined at the constructor if it has value or type
+/// parameters, else at the argument; the call of it at `span`.
+fn hoist(l: &mut Lower, h: &mut Hoister, arg: TNodeId, lifted: &[SymbolId], span: Span) -> TNodeId {
+    let (class, constr) = (h.class, h.constr);
+    if lifted.iter().any(|&s| l.u.symbol(s).kind == Kind::Def) {
+        h.refused = Some(l.tpd.span(arg));
+    }
+    let mut originals = params(l, constr);
+    originals.extend(lifted);
     let name = fresh(l, &format!("{}$superArg", l.u.symbol(class).name));
-    let flags = Flags::default().with(PRIVATE).with(SYNTHETIC).with(STATIC);
-    let m = l.u.define(symbol(&name, Kind::Def, class, flags));
+    let flags = Flags::default().with(PRIVATE).with(SYNTHETIC);
+    let (flags, owner) = match h.local {
+        true => (flags, l.u.symbol(class).owner.expect("a local class's owner")),
+        false => (flags.with(STATIC), class),
+    };
+    let m = l.u.define(symbol(&name, Kind::Def, owner, flags));
     let mut params = Vec::new();
     for &p in &originals {
         let name = l.u.symbol(p).name.clone();
@@ -90,8 +148,13 @@ fn hoist(l: &mut Lower, class: SymbolId, constr: TNodeId, arg: TNodeId, span: Sp
     l.u.set_info(m, info);
     let at = l.tpd.span(arg);
     let args: Vec<TNodeId> = originals.iter().map(|&p| l.ident(p, span)).collect();
-    let this = l.this(class, span);
-    let fun = l.select(this, m, span);
+    let fun = match h.local {
+        true => l.ident(m, span),
+        false => {
+            let this = l.this(class, span);
+            l.select(this, m, span)
+        }
+    };
     let call = l.apply(fun, &args, result, span);
     let defined: Vec<SymbolId> = subtrees(l.tpd, arg)
         .into_iter()
@@ -116,7 +179,8 @@ fn hoist(l: &mut Lower, class: SymbolId, constr: TNodeId, arg: TNodeId, span: Sp
     let tpt = l.type_tree(result, at);
     let none = params.is_empty() && l.u.type_params(class).is_empty();
     let def = l.method_def(m, &param_defs, tpt, arg, if none { at } else { ctor_at });
-    (def, call)
+    h.defs.push(def);
+    call
 }
 
 /// The value parameters of constructor definition `constr`.

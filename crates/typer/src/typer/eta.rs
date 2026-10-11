@@ -167,10 +167,14 @@ impl Typer<'_> {
         self.tpd.span(def).to_synthetic() == self.tpd.span(rhs)
     }
 
-    /// Whether `s` is a member of a `java.*` or `javax.*` class, its parameter names unknown.
+    /// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
+    /// library, its parameter names unknown.
     pub fn is_java_member(&mut self, s: SymbolId) -> bool {
         let Some(owner) = self.u.symbol(s).owner else { return false };
         let name = self.u.full_name(owner);
-        name.starts_with("java.") || name.starts_with("javax.")
+        let library_java = name
+            .rsplit_once('.')
+            .is_some_and(|(pkg, simple)| super::java_classes::java_classes(pkg).any(|c| c == simple));
+        name.starts_with("java.") || name.starts_with("javax.") || library_java
     }
 }

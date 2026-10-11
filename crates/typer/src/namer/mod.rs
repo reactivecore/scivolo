@@ -1,12 +1,14 @@
 //! Entering the symbols of definitions before their statements are typed (dotty's `Namer`).
 
 mod annotations;
+mod check_static;
 mod checks;
 mod complete;
 mod defaults;
 mod inheritance;
 mod inherited;
 mod params;
+mod value_classes;
 
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
@@ -112,7 +114,6 @@ impl Typer<'_> {
         if self.syms.by_tree.insert(tree, sym).is_some() {
             self.unsupported(tree, "definition tree shared by two definitions");
         }
-        self.index_annotations(sym, mods, ctx);
         Some(sym)
     }
 
@@ -120,32 +121,5 @@ impl Typer<'_> {
     /// package (dotty's `skipWeakOwner`).
     fn is_package_level(&self, owner: SymbolId) -> bool {
         self.u.symbol(owner).kind == Kind::Package || self.is_named_package_object(owner)
-    }
-
-    /// Records the classes of the annotations in `mods` on `sym`.
-    fn index_annotations(&mut self, sym: SymbolId, mods: syntax::ast::tree::ModsId, ctx: Ctx) {
-        let annots = self.ast.items(self.ast.modifiers(mods).annotations).to_vec();
-        let mut classes = Vec::new();
-        for annot in annots {
-            let mut t = annot;
-            while let Tree::Apply { fun: inner, .. } | Tree::Select { qualifier: inner, .. } =
-                *self.ast.tree(t)
-            {
-                t = inner;
-            }
-            let Tree::New { tpt } = *self.ast.tree(t) else {
-                self.unsupported(annot, "annotation");
-                continue;
-            };
-            let typed = self.typed_type(tpt, ctx);
-            let tpe = self.tpd.tpe(typed);
-            let class = self.u.class_symbol(tpe);
-            self.check_annotation(annot, class);
-            let span = self.ast.span(annot);
-            classes.extend(class.map(|c| (c, span)));
-        }
-        if !classes.is_empty() {
-            self.syms.annotations.insert(sym, classes);
-        }
     }
 }

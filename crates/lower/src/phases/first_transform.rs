@@ -137,6 +137,25 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
     l.tpd.items(stats).iter().all(pure_stat) && matches!(l.tpd.tree(expr), Tree::Literal { .. })
 }
 
+/// Whether parameter `s` is by-name, its type known.
+pub fn is_by_name(l: &Lower, s: tasty::SymbolId) -> bool {
+    l.u.known_info(s).is_some_and(|t| matches!(l.u.types().get(t), Type::ByName(_)))
+}
+
+/// `is_pure` before `ElimByName`: a reference to a by-name parameter evaluates it.
+pub fn is_pure_with_by_name(l: &Lower, t: TNodeId) -> bool {
+    let mut path = t;
+    loop {
+        if l.tpd.sym(path).is_some_and(|s| is_by_name(l, s)) {
+            return false;
+        }
+        match *l.tpd.tree(path) {
+            Tree::Select { qualifier, .. } => path = qualifier,
+            _ => return is_pure(l, t),
+        }
+    }
+}
+
 pub fn is_literal(l: &Lower, t: TNodeId) -> bool {
     matches!(l.tpd.tree(t), Tree::Literal { .. } | Tree::ClassLiteral { .. })
 }

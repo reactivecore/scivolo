@@ -59,7 +59,7 @@ nir-dump path *args:
 
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
 # the lowering compile it, definitions sorted, with positions; Scala Native's from the test
-# program of that name, else compiled into tmp/sn/ when older than `file`.
+# program of that name, else compiled with Scala 3.9.0 into tmp/sn/3.9.0/ when older than `file`.
 nir-cmp file class:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -67,10 +67,10 @@ nir-cmp file class:
     base=$(basename '{{ file }}' .scala)
     sn="tests/programs/$base"
     if [ ! -d "$sn" ]; then
-        sn="tmp/sn/$base"
+        sn="tmp/sn/3.9.0/$base"
         if [ ! -d "$sn" ] || [ '{{ file }}' -nt "$sn" ]; then
             rm -rf "$sn"
-            scala-cli --power compile --native --native-version 0.5.12 --server=false -d "$sn" '{{ file }}' > /dev/null
+            scala-cli --power compile --native --native-version 0.5.12 -S 3.9.0 --server=false -d "$sn" '{{ file }}' > /dev/null
         fi
     fi
     target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null
@@ -122,6 +122,10 @@ script-profile file *args: release
 # Check out dotty's tests/run at the Scala version the VM runs into ref/scala3 (M4).
 dotty-fetch:
     test -d ref/scala3 || (git clone -q --depth 1 --branch 3.9.0 --filter=blob:none --sparse https://github.com/scala/scala3 ref/scala3 && git -C ref/scala3 sparse-checkout set tests/run)
+
+# Add dotty's compiler sources (typer, transforms) to ref/scala3.
+dotty-sources: dotty-fetch
+    git -C ref/scala3 sparse-checkout add compiler/src
 
 # Compile dotty's tests/run (those whose names contain `filter`) to NIR under tmp/dotty.
 dotty-build filter="": dotty-fetch

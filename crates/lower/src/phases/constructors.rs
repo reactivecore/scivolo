@@ -95,7 +95,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     let outer = l.outers.get(&class).copied();
     let null_test_at = stats.len();
-    if let Some((field, param)) = outer {
+    if let Some((Some(field), param)) = outer {
         let lhs = l.field_ref(field, template_span);
         let value = l.ident(param, template_span);
         stats.push(assign(l, lhs, value, template_span));
@@ -105,7 +105,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     };
     stats.push(super_call(l, class, first)?);
     stats.extend(inits);
-    let block_span = stats.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
+    let dropped_outer = matches!(outer, Some((None, _))).then_some(template_span);
+    let spans = stats.iter().map(|&s| l.tpd.span(s)).chain(dropped_outer);
+    let block_span = spans.filter(|s| s.exists()).reduce(|a, b| a.union(b));
     let block_span = block_span.map_or(span, |s| s.with_point(s.start()));
     let at = block_span.start_pos();
     if let Some((_, param)) = outer {
@@ -157,9 +159,15 @@ fn assign(l: &mut Lower, lhs: TNodeId, rhs: TNodeId, span: Span) -> TNodeId {
     l.tpd.node(Tree::Assign { lhs, rhs }, span, Some(unit), None)
 }
 
-/// `super.<init>(args)` for parent `new P[Ts](args1)...(argsN)`, the argument lists joined.
+/// `super.<init>(args)` for parent `new P[Ts](args1)...(argsN)`, the argument lists joined; in
+/// the block of a parent that is one.
 fn super_call(l: &mut Lower, class: SymbolId, parent: TNodeId) -> Result<TNodeId> {
     let span = l.tpd.span(parent);
+    if let Tree::Block { stats, expr } = *l.tpd.tree(parent) {
+        let call = super_call(l, class, expr)?;
+        let unit = l.u.intern_type(tasty::Type::Constant(tasty::tags::UNITconst, 0));
+        return Ok(l.tpd.node(Tree::Block { stats, expr: call }, span, Some(unit), None));
+    }
     let Tree::Apply { mut fun, args } = *l.tpd.tree(parent) else {
         return unsupported(span, "a superclass without a constructor call");
     };

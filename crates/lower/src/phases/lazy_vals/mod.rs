@@ -9,11 +9,11 @@ use super::lazy_init::init_method;
 use super::lazy_trees::object;
 use crate::definitions::symbol;
 use crate::symbols::has;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use accessor::accessor_body;
 use syntax::ast::Span;
 use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// A lazy value's field: its class, the field, its accessor and the accessor's definition span
@@ -53,9 +53,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             continue;
         }
         let info = l.u.info(accessor);
-        if has(l.u, accessor, SYNTHETIC) && l.u.erase(info) == Erased::Unit {
-            return unsupported(span, "lazy pattern definitions without variables");
-        }
         let lazy = define(l, class, accessor);
         let object = object(l);
         let field_tpt = l.type_tree(object, Span::NONE);

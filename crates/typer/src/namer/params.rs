@@ -71,6 +71,7 @@ impl Typer<'_> {
 
     /// Sets the info of parameter `s` from its type or bounds in `p`, typed in `ctx`.
     fn param_info(&mut self, s: SymbolId, p: NodeId, ctx: Ctx) {
+        self.add_annotations(s, p, ctx);
         let info = match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => {
                 let info = self.value_type_ahead(tpt, ctx);

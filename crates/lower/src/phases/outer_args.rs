@@ -2,6 +2,7 @@
 //! enclosing instance becomes `new p.C(p, args)`, `this` for a prefix `Outer.this`.
 
 use super::explicit_outer::{enclosing_instance, terms};
+use super::local_free::{enclosing_class, is_term};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -31,14 +32,20 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         let tpe = l.tpd.tpe(new);
         let Some(created) = l.u.class_symbol(tpe) else { continue };
         let span = l.tpd.span(t);
-        if parents.contains(&t) && enclosing_instance(l, created).is_some() {
+        let parent = parents.contains(&t);
+        if parent && (enclosing_instance(l, created).is_some() || l.outers.contains_key(&created)) {
             return unsupported(span, "subclasses of classes in classes");
         }
         if !l.outers.contains_key(&created) {
             continue;
         }
         let at = Span::at(l.tpd.span(ctor).start());
-        let instance = instance(l, class, tpe, at)?;
+        let owner = l.u.symbol(created).owner.filter(|&o| is_term(l, o));
+        let instance = match owner.map(|o| enclosing_class(l, o)) {
+            Some(outer) if outer == class => l.this(class, at),
+            Some(_) => return unsupported(span, "creating a local class from another class"),
+            None => instance(l, class, tpe, at)?,
+        };
         let all: Vec<TNodeId> = std::iter::once(instance).chain(l.tpd.items(args).iter().copied()).collect();
         let args = l.tpd.list(&all);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };

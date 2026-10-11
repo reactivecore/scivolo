@@ -1,0 +1,11 @@
+step
+start
+named:1+2
+base 4
+true
+25
+5
+10
+Parent(Wrap(5))
+Wrap(o)
+true

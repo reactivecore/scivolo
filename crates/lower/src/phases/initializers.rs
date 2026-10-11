@@ -17,7 +17,6 @@ use typer::tpd::{TNodeId, Tree};
 /// names, and those to the private local values it does not retain plain references; the
 /// parameter fields and private local values `retained` keeps.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
-    super::beta_reduce::check(l, td)?;
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(FxHashSet::default()) };
@@ -50,10 +49,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
             }
             let Some(field) = field_ref(l, class, t).filter(|&f| !has(l.u, f, MUTABLE)) else { continue };
             if matches!(l.tpd.tree(t), Tree::Select { .. }) && !is_effectively_final(l.u, class, field) {
-                return unsupported(
-                    l.tpd.span(t),
-                    "overridable class parameters selected on this in the constructor",
-                );
+                continue;
             }
             to_param(l, &params, t, field);
         }

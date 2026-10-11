@@ -11,7 +11,7 @@ impl Tpd {
             Field::Opt(c) => out.extend(*c),
             Field::List(l) => out.extend_from_slice(self.items(*l)),
             Field::Clauses(c) => out.extend(self.clause_items(*c).iter().flat_map(|&l| self.items(l))),
-            Field::Name(_) | Field::OptName(_) | Field::Constant(_) | Field::Class(_) => {}
+            Field::Name(_) | Field::Constant(_) | Field::Class(_) => {}
         });
         out
     }
@@ -46,7 +46,7 @@ pub fn map_children<C: AsMut<Tpd> + ?Sized>(cx: &mut C, t: TNodeId, f: &mut MapC
                 changed = true;
             }
         }
-        Field::Name(_) | Field::OptName(_) | Field::Constant(_) | Field::Class(_) => {}
+        Field::Name(_) | Field::Constant(_) | Field::Class(_) => {}
     });
     if changed {
         cx.as_mut().get_mut(t).tree = tree;

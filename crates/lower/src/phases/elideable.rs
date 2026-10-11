@@ -92,7 +92,8 @@ fn callee(l: &Lower, fun: TNodeId) -> Option<SymbolId> {
 }
 
 /// dotty's `isPureApply`: a constant operation of a primitive class or `String`, a stable
-/// constructor, or the synthetic `apply` of a case class that initializes nothing.
+/// constructor of a class outside the JDK, or the synthetic `apply` of a case class that
+/// initializes nothing.
 fn is_pure_apply(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let Some(s) = callee(l, fun) else { return false };
     let constant = matches!(l.u.types().get(l.tpd.tpe(t)), Type::Constant(..) | Type::Str(_));
@@ -103,7 +104,9 @@ fn is_pure_apply(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<Symb
         }
     }
     if l.u.symbol(s).name == "<init>" {
-        return has(l.u, s, STABLE);
+        let owner = l.u.symbol(s).owner.map(|o| l.u.full_name(o)).unwrap_or_default();
+        let jdk = owner.starts_with("java.") || owner.starts_with("javax.");
+        return has(l.u, s, STABLE) && !jdk;
     }
     is_pure_case_apply(l, s, inits)
 }
