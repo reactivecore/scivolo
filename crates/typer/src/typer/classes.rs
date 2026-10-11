@@ -57,6 +57,9 @@ impl Typer<'_> {
         self.check_module_owner(cls, rhs);
         let no_inits = self.has_no_inits(&t.parents, &t.body);
         self.syms.no_inits.insert(cls, no_inits);
+        if !no_inits && !self.u.symbol(cls).flags.has(tasty::tags::TRAIT) {
+            self.u.set_inits(cls);
+        }
         self.set_stable_constructor(cls, t.constr);
     }
 

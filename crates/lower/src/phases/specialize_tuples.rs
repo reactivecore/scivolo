@@ -46,8 +46,13 @@ fn tuple_of(l: &mut Lower, s: SymbolId) -> Option<SymbolId> {
 
 /// The type tags of the specialized class of a tuple of element types `elems`, if any.
 fn tags(l: &mut Lower, elems: &[TypeId]) -> Option<String> {
-    let names: Option<Vec<String>> =
-        elems.iter().map(|&e| l.u.class_symbol(e).map(|c| l.u.full_name(c))).collect();
+    let names: Option<Vec<String>> = elems
+        .iter()
+        .map(|&e| {
+            let widened = l.u.widen(e);
+            l.u.class_symbol(widened).map(|c| l.u.full_name(c))
+        })
+        .collect();
     tuple_tags(&names?)
 }
 
@@ -68,7 +73,7 @@ fn creation(l: &mut Lower, t: TNodeId, fun: TNodeId, inits: &FxHashSet<SymbolId>
     if !is_elideable(l, t, inits) {
         return Ok(());
     }
-    let ctor = specialized_tuple_ctor(l.u, &tags, &elems).or_else(|e| unsupported(l.tpd.span(t), e))?;
+    let ctor = specialized_tuple_ctor(l.u, &tags).or_else(|e| unsupported(l.tpd.span(t), e))?;
     let class = l.u.symbol(ctor).owner.expect("a constructor's class");
     let new = l.new_(class, Span::NONE);
     let select = l.select(new, ctor, Span::NONE);
@@ -97,8 +102,7 @@ fn selection(l: &mut Lower, t: TNodeId, qual: TNodeId) -> Result<()> {
     let Some(tags) = tags(l, &elems) else { return Ok(()) };
     let i = if field == "_1" { 0 } else { 1 };
     let tag = tags.chars().nth(i).expect("a tag per element");
-    let accessor =
-        specialized_accessor(l.u, n, &field, tag, elems[i]).or_else(|e| unsupported(l.tpd.span(t), e))?;
+    let accessor = specialized_accessor(l.u, n, &field, tag).or_else(|e| unsupported(l.tpd.span(t), e))?;
     let name = l.term_name(&format!("{field}$mc{tag}$sp"));
     let node = l.tpd.get_mut(t);
     (node.tree, node.sym, node.tpe) =

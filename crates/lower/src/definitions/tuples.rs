@@ -28,9 +28,16 @@ pub fn tuple_tags(elems: &[String]) -> Option<String> {
     elems.iter().map(|e| table.iter().find(|(n, _)| n == e).map(|&(_, t)| t)).collect()
 }
 
-/// The constructor of `Tuple{n}$mc<tags>$sp`, of element types `elems`, the class entered if
-/// missing as a final subclass of `Tuple{n}[elems]`.
-pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str, elems: &[TypeId]) -> Result<SymbolId, String> {
+/// The primitive class type of type tag `tag`.
+fn tag_type(u: &mut Universe, tag: char) -> TypeId {
+    let name = TUPLE2.iter().find(|&&(_, t)| t == tag).map_or("scala.Int", |&(n, _)| n);
+    u.class_ref(name)
+}
+
+/// The constructor of `Tuple{n}$mc<tags>$sp`, the class entered if missing as a final subclass
+/// of `Tuple{n}` of the tags' primitive types.
+pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str) -> Result<SymbolId, String> {
+    let elems: Vec<TypeId> = tags.chars().map(|t| tag_type(u, t)).collect();
     let scala = package(u, "scala")?;
     let base = member(u, scala, &format!("Tuple{}", elems.len()), Kind::Class)?;
     let name = format!("Tuple{}$mc{tags}$sp", elems.len());
@@ -48,7 +55,7 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str, elems: &[TypeId]) ->
     }
     let ctor = u.define(symbol("<init>", Kind::Def, class, Flags::default()));
     let params = tags.chars().zip(elems).enumerate();
-    let params = params.map(|(i, (t, &e))| (format!("_{}$mc{t}$sp", i + 1), e)).collect();
+    let params = params.map(|(i, (t, e))| (format!("_{}$mc{t}$sp", i + 1), e)).collect();
     let result = type_ref(u, class);
     let binder = u.fresh_binder();
     let info = u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
@@ -56,14 +63,9 @@ pub fn specialized_tuple_ctor(u: &mut Universe, tags: &str, elems: &[TypeId]) ->
     Ok(ctor)
 }
 
-/// Accessor `{field}$mc{tag}$sp` of `Tuple{n}`, of type `elem`, entered if missing.
-pub fn specialized_accessor(
-    u: &mut Universe,
-    n: usize,
-    field: &str,
-    tag: char,
-    elem: TypeId,
-) -> Result<SymbolId, String> {
+/// Accessor `{field}$mc{tag}$sp` of `Tuple{n}`, of the tag's primitive type, entered if missing.
+pub fn specialized_accessor(u: &mut Universe, n: usize, field: &str, tag: char) -> Result<SymbolId, String> {
+    let elem = tag_type(u, tag);
     let scala = package(u, "scala")?;
     let base = member(u, scala, &format!("Tuple{n}"), Kind::Class)?;
     let name = format!("{field}$mc{tag}$sp");

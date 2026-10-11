@@ -29,13 +29,23 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
 }
 
 /// The objects among class definitions `classes` with initialization code: a value with an
-/// initializer or a statement (dotty's not `NoInits`).
+/// initializer, a statement or a parent constructor called with arguments (dotty's not
+/// `NoInits`).
 pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
+        let Tree::Template { body, parents, .. } = *l.tpd.tree(rhs) else { continue };
+        let calls_with_args = |&p: &TNodeId| match *l.tpd.tree(p) {
+            Tree::Apply { args, .. } => !l.tpd.items(args).is_empty(),
+            Tree::Block { .. } => true,
+            _ => false,
+        };
+        if l.tpd.items(parents).iter().any(calls_with_args) {
+            out.extend(l.u.source_module(class));
+            continue;
+        }
         let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
             Tree::ValDef { rhs, .. } => {
@@ -85,12 +95,29 @@ fn const_to_literal(l: &mut Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) {
     if !is_const_final(l, s) && through(l, t, inits) {
         return;
     }
-    let info = l.u.info(s);
+    let underlying = term_ref_underlying(l, l.tpd.tpe(t));
+    let info = if literal(l.u.types().get(underlying)).is_some() { underlying } else { l.u.info(s) };
     let Some(lit) = literal(l.u.types().get(info)) else { return };
     let node = l.tpd.get_mut(t);
     node.tree = lit;
     node.tpe = Some(info);
     node.sym = None;
+}
+
+/// `t` with references to terms and by-name types replaced by their underlying types, as seen
+/// from their prefixes (dotty's `widenTermRefExpr`).
+fn term_ref_underlying(l: &mut Lower, mut t: TypeId) -> TypeId {
+    for _ in 0..64 {
+        let next = match *l.u.types().get(t) {
+            Type::ByName(r) => Some(r),
+            Type::TermRef(..) => l.u.widen_once(t),
+            Type::Sym(_, s) if !l.u.is_type_symbol(s) => l.u.widen_once(t),
+            _ => None,
+        };
+        let Some(next) = next else { return t };
+        t = next;
+    }
+    t
 }
 
 /// `C` if `t` is `classOf[C]`.
