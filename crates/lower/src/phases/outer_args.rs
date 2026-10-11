@@ -56,11 +56,15 @@ fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<T
     path(l, class, prefix, span)
 }
 
-/// Stable path `p` as a tree in `class`: `this` of `class`, a local value or parameter, or a
-/// value of `class`.
+/// Stable path `p` as a tree in `class`: `this` of `class`, a local value or parameter, a value
+/// of `class`, or an object selected on such a path.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
     match l.u.types().get(p).clone() {
         Type::This(c) if l.u.class_symbol(c) == Some(class) => Ok(l.this(class, Span::NONE)),
+        Type::Sym(Some(q), s) if l.u.is_module(s) && !matches!(l.u.types().get(q), Type::This(_)) => {
+            let qualifier = path(l, class, q, span)?;
+            Ok(l.select(qualifier, s, span))
+        }
         Type::Sym(_, s) if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
             let owner = l.u.symbol(s).owner;
             if owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Def) {

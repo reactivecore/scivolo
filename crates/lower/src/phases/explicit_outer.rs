@@ -5,7 +5,7 @@
 
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId, Type};
@@ -16,10 +16,8 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         let Some(outer) = enclosing_instance(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
-        if let Some(&t) = all.iter().find(|&&t| is_this_of(l, t, outer) && !own.contains(&t)) {
-            return unsupported(l.tpd.span(t), "the enclosing instance two classes out");
-        }
-        let uses = own.iter().any(|&t| is_this_of(l, t, outer) || creates_inner_of(l, t, outer));
+        let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
+        let uses = all.iter().any(|&t| outward(l, t)) || own.iter().any(|&t| creates_inner_of(l, t, outer));
         let always = match l.u.is_module_class(class) {
             true => l.u.is_trait(outer),
             false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
@@ -110,8 +108,20 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
     out
 }
 
-fn is_this_of(l: &Lower, t: TNodeId, class: SymbolId) -> bool {
-    matches!(l.tpd.tree(t), Tree::This { .. }) && l.tpd.sym(t) == Some(class)
+/// The classes from the enclosing instance of `class` out to the one `t` is `this` of, if `t`
+/// is `this` of a class enclosing `class` through enclosing instances (dotty's `outer.path`).
+fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
+    let target = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::This { .. }))?;
+    let mut chain = Vec::new();
+    let mut cur = enclosing_instance(l, class);
+    while let Some(c) = cur {
+        chain.push(c);
+        if c == target {
+            return Some(chain);
+        }
+        cur = enclosing_instance(l, c);
+    }
+    None
 }
 
 /// Gives object `class` of definition `td` its field, constructor parameter and accessor for
@@ -133,21 +143,28 @@ fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
     let stats = l.tpd.items(body).to_vec();
     let parent_args = l.tpd.items(parents).to_vec();
     for &stat in stats.iter().chain(&parent_args) {
+        if matches!(l.tpd.tree(stat), Tree::TypeDef { .. }) {
+            continue;
+        }
         let method = match (l.tpd.tree(stat), l.tpd.sym(stat)) {
             (Tree::DefDef { .. }, Some(s)) => !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY),
             _ => false,
         };
         for t in terms(l, stat, false) {
-            if !is_this_of(l, t, outer) {
-                continue;
-            }
+            let Some(chain) = outer_this(l, t, class) else { continue };
             let span = l.tpd.span(t);
-            let read = if method {
+            let mut read = if method {
                 let this = l.this(class, span);
                 l.select(this, field, span)
             } else {
                 l.ident(param, span)
             };
+            for pair in chain.windows(2) {
+                let accessor = outer_accessor(l, pair[0]);
+                let fun = l.select(read, accessor, span);
+                let tpe = type_ref(l.u, pair[1]);
+                read = l.apply(fun, &[], tpe, span);
+            }
             l.copy_node(t, read);
         }
     }

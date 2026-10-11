@@ -43,7 +43,10 @@ const CASES: &[(&str, &str)] = &[
         "type tests of objects nested in classes",
     ),
     ("trait A { private object B; def f = B }", "private objects in traits"),
-    ("class A { val p = 1; object B { object C { def f = p } } }", "the enclosing instance two classes out"),
+    (
+        "class A { class B }; object O { val a = new A; class D { def f = new O.a.B } }",
+        "creating an inner class through this prefix",
+    ),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
     ("class A { trait B }", "traits in classes and traits"),
     ("class A { class B; class C extends B }", "subclasses of classes in classes"),
