@@ -227,14 +227,14 @@ with no JVM involved.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 399 of 1711
-pass, 987 stop at the typer, 46 at the lowering. Open: #82 step 2b (!223), inline methods of classes, nested inline
-calls.
+pass, 987 stop at the typer, 46 at the lowering. No merge requests are open.
 
 Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
 traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
 non-local returns, string interpolators, annotations, constants, intersection members, the
 typer half of value classes, type tests against value classes (#87), inline definitions
-(#82 step 1), the typer's inlining phase for inline methods of scripts (#82 step 2a), method
+(#82 step 1), the typer's inlining phase for inline methods of scripts, of classes and nested inline calls
+(#82 steps 2a and 2b), method
 values with eta-expansion and lifting, SpecializeTuples, views in implicit search, no false
 double definition between a method and a module.
 
