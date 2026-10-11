@@ -8,8 +8,8 @@ use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTED
 
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro, a transparent inline method or an
-    /// inline `scala.compiletime` operation; from an inline body, neither to a script inline method nor
-    /// to a member that needs an inline accessor.
+    /// inline `scala.compiletime` operation, nor from an inline body to a member that needs an
+    /// inline accessor.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
         if flags.has(INLINE) && (flags.has(TRANSPARENT) || flags.has(MACRO)) {
@@ -23,13 +23,6 @@ impl Typer<'_> {
             && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."));
         if erased_value {
             return Err("reference to an erased definition");
-        }
-        if self.enclosing_inline(ctx.owner).is_some()
-            && flags.has(INLINE)
-            && self.syms.flags.contains_key(&sym)
-            && self.u.symbol(sym).kind == tasty::Kind::Def
-        {
-            return Err("inline method calling a script inline method");
         }
         if self.needs_inline_accessor(sym, ctx) {
             return Err("non-public member in an inline method");

@@ -15,8 +15,8 @@ impl Expansion<'_, '_> {
     /// or a method for a by-name parameter.
     pub fn proxy(&mut self, p: SymbolId, formal: TypeId, arg: TNodeId) -> Result<TypeId, Unsupported> {
         let i = &mut *self.i;
-        if i.has_definitions(arg) || matches!(i.tpd.tree(arg), T::Typed { .. }) {
-            return Err(self.err("inline argument defining symbols or repeated"));
+        if matches!(i.tpd.tree(arg), T::Typed { .. }) {
+            return Err(self.err("repeated inline argument"));
         }
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
         let inline = i.is_inline_param_type(formal);
@@ -58,7 +58,8 @@ impl Expansion<'_, '_> {
             tree: None,
         });
         i.u.set_info(s, info);
-        let rhs = i.copy(&mut TreeTypeMap::default(), arg, &mut |_, _, _| None)?;
+        let mut m = TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
+        let rhs = i.copy(&mut m, arg, &mut |_, _, _| None)?;
         let span = i.tpd.span(self.call);
         let tpt_span = Span::at(i.tpd.span(arg).start());
         let name = TName { name, is_type: false };
