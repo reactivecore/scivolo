@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """The oracles' outcomes, recorded under tmp/snapshot before a refactor and compared after it.
 
-Usage: scripts/snapshot.py record|check [ORACLE...]
+Usage: scripts/snapshot.py record|check|diff [ORACLE...]
 
 An oracle whose inputs are missing locally is skipped, and `record` keeps its old snapshot.
-`check` fails on any outcome that differs from the snapshot, on an oracle that runs without a
-snapshot or is skipped with one, and when it compared no oracle.
+`check` prints the rows that differ from the snapshot as worsened, improved and other changes,
+and fails on any of them, on an oracle that runs without a snapshot or is skipped with one, and
+when it compared no oracle. `diff` prints the same but does not fail on differing rows.
 """
 import subprocess
 import sys
@@ -13,6 +14,7 @@ import time
 from pathlib import Path
 
 import program_runs as test_programs
+import snapshot_directions as directions
 
 ROOT = Path(__file__).resolve().parent.parent
 SNAPSHOT = ROOT / "tmp/snapshot"
@@ -74,18 +76,8 @@ def rows(text):
     return dict((l.split("\t", 1) + [""])[:2] for l in text.splitlines() if l)
 
 
-def differences(before, after):
-    """The lines describing each row that differs between two result files."""
-    out = []
-    for name in sorted(before.keys() | after.keys()):
-        b, a = before.get(name, "missing"), after.get(name, "missing")
-        if b != a:
-            out.append(f"    {name}: {b.replace(chr(9), ' ')[:120]} -> {a.replace(chr(9), ' ')[:120]}")
-    return out
-
-
 def one(command, name):
-    """Runs oracle `name`: its summary and difference lines, and `ok`, `skipped` or `failed`."""
+    """Runs oracle `name`: its summary and difference lines, and `ok`, `differs`, `skipped` or `failed`."""
     path = SNAPSHOT / f"{name}.tsv"
     start = time.monotonic()
     try:
@@ -106,26 +98,26 @@ def one(command, name):
         return [f"{name:<9} recorded {count} rows  {took}"], "ok"
     if not path.exists():
         return [f"{name:<9} FAILED: no snapshot: run `just snapshot {name}`"], "failed"
-    diff = differences(rows(path.read_text(errors="replace")), rows(text))
-    if not diff:
+    groups = directions.grouped(name, rows(path.read_text(errors="replace")), rows(text))
+    changed = sum(map(len, groups.values()))
+    if not changed:
         return [f"{name:<9} same     {count} rows  {took}"], "ok"
-    shown = diff[:SHOWN] + ([f"    ... {len(diff) - SHOWN} more"] if len(diff) > SHOWN else [])
-    return [f"{name:<9} DIFFERS  {len(diff)} of {count} rows  {took}", *shown], "failed"
+    return [f"{name:<9} DIFFERS  {changed} of {count} rows  {took}", *directions.lines(groups, SHOWN)], "differs"
 
 
 def main(command, names):
     unknown = [n for n in names if n not in ORACLES]
-    if command not in ("record", "check") or unknown:
+    if command not in ("record", "check", "diff") or unknown:
         sys.exit(__doc__ + f"\nORACLE = {' | '.join(ORACLES)}")
     SNAPSHOT.mkdir(parents=True, exist_ok=True)
     states = []
     for name in names or ORACLES:
         lines, state = one(command, name)
         print(*lines, sep="\n", flush=True)
-        states.append(state)
-    if "ok" not in states:
+        states.append("ok" if state == "differs" and command == "diff" else state)
+    if not {"ok", "differs"} & set(states):
         print(f"FAILED: no oracle {'recorded' if command == 'record' else 'compared'}")
-    sys.exit(0 if "ok" in states and "failed" not in states else 1)
+    sys.exit(0 if "ok" in states and not {"failed", "differs"} & set(states) else 1)
 
 
 if __name__ == "__main__":
