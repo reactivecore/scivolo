@@ -147,13 +147,7 @@ impl TypeVars for Constraint {
         {
             return false;
         }
-        if let Type::Var(w) = *u.types().get(hi)
-            && self.instance(w).is_none()
-        {
-            if !self.propagated(u, w, e.lo, true) {
-                return false;
-            }
-        } else if !self.satisfiable(u, e.lo, hi) {
+        if !self.satisfiable(u, e.lo, hi) {
             return false;
         }
         self.set(v, e.lo, hi, e.soft);
