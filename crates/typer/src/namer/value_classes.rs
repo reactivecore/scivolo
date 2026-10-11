@@ -6,7 +6,7 @@ use crate::typer::Typer;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span, Tree};
 use syntax::diag::{Message, MessageId};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type};
 
 const PRIMITIVES: [&str; 9] = [
     "scala.Boolean",
@@ -33,16 +33,6 @@ impl Typer<'_> {
             && c != any_val
             && self.u.derives_from(c, any_val)
             && !PRIMITIVES.contains(&self.u.full_name(c).as_str())
-    }
-
-    /// Whether a type test or cast to `t` tests for a value class: `t` or a part of its union or
-    /// intersection is one.
-    pub fn tests_value_class(&mut self, t: TypeId) -> bool {
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b) => self.tests_value_class(a) || self.tests_value_class(b),
-            _ => self.u.class_symbol(t).is_some_and(|c| self.is_derived_value_class(c)),
-        }
     }
 
     /// Makes class `cls` final if it is a value class, its parents set.
