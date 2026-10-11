@@ -76,7 +76,7 @@ impl Gen<'_, '_> {
         self.label(entry, params);
         for var in self.mutable_vars(rhs) {
             let info = self.l.u.info(var);
-            let ty = self.gen_type(info);
+            let ty = self.value_type(info);
             let name = self.local_name(var);
             let slot = self.emit_named(Op::Var(ty), &name);
             self.m.env.insert(var, slot);

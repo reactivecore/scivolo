@@ -10,6 +10,7 @@ mod merge;
 mod plan;
 mod sequences;
 mod switch;
+mod try_catch;
 mod types;
 
 use super::walk::children;
@@ -33,6 +34,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             if matches!(l.tpd.tree(t), Tree::Match { .. }) {
                 matches.push((t, owner));
             }
+            matches.extend(try_catch::fallback(l, t, owner)?.map(|m| (m, owner)));
             continue;
         }
         let inner = match *l.tpd.tree(t) {

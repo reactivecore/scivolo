@@ -154,10 +154,6 @@ impl Typer<'_> {
             && tasty::is_package_object_name(&s.name)
     }
 
-    pub fn is_package_object(&self, c: SymbolId) -> bool {
-        self.is_named_package_object(c)
-    }
-
     /// The reference to the package object that declares `sym`, if one does.
     fn package_object_prefix(&mut self, sym: SymbolId) -> Option<TypeId> {
         let obj_class = self.u.symbol(sym).owner?;

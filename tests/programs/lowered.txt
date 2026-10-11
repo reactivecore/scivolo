@@ -62,4 +62,5 @@ parameterless
 traitbridges
 constfinals
 superargs2
+exprforms
 innerclasses2

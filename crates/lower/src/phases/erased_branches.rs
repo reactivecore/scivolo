@@ -25,6 +25,7 @@ pub fn typed_try(
     for (&c, &body) in cases.iter().zip(&typed_bodies[1..]) {
         if let Tree::CaseDef { pat, guard, .. } = *l.tpd.tree(c) {
             l.tpd.get_mut(c).tree = Tree::CaseDef { pat, guard, body };
+            l.recopy_class_literals(c);
         }
     }
     let finalizer = match finalizer {
@@ -39,6 +40,7 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
     for c in l.tpd.items(cases).to_vec() {
         if let Tree::CaseDef { pat, guard, body } = *l.tpd.tree(c) {
             l.tpd.get_mut(c).tree = Tree::CaseDef { pat, guard, body: typed(l, body, None)? };
+            l.recopy_class_literals(c);
         }
     }
     Ok(Tree::Match { selector: typed(l, selector, None)?, cases })

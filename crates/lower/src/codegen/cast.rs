@@ -84,6 +84,7 @@ impl Gen<'_, '_> {
                 unreachable!("a type application")
             };
             let ty = self.gen_type(self.l.tpd.tpe(self.l.tpd.items(args)[0]));
+            let ty = self.bottom_box(ty).unwrap_or(ty);
             let v = self.emit(Op::Is { ty, obj: value });
             self.m.pos = saved;
             return Ok(v);
@@ -99,14 +100,58 @@ impl Gen<'_, '_> {
         let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, ty) = (self.pool.ty(from).clone(), self.pool.ty(to).clone());
         let null_conforms = f == Type::Null && !is_singleton(self.l.u, self.l.tpd.tpe(t));
+        let same = match (&f, &ty) {
+            (Type::Ref { name: a, .. }, Type::Ref { name: b, .. }) => a == b,
+            (Type::Array { elem: a, .. }, Type::Array { elem: b, .. }) => a == b,
+            _ => f == ty,
+        };
         let v = match () {
-            _ if f == ty || null_conforms || f == Type::Nothing || (subtype && reference(&f)) => value,
+            _ if same || f == Type::Nothing => value,
+            _ if ty == Type::Nothing && (reference(&f) || f == Type::Null) => {
+                self.gen_cast_to_nothing(value, from)
+            }
+            _ if null_conforms || (subtype && reference(&f)) => value,
             _ if (reference(&f) || f == Type::Null) && reference(&ty) => {
                 self.emit(Op::As { ty: to, obj: value })
+            }
+            _ if ty == Type::Null && reference(&f) => {
+                let ty = self.bottom_box(to).expect("`Null$`");
+                self.emit(Op::As { ty, obj: value })
             }
             _ => return unsupported(span, "casts to or from primitive values"),
         };
         self.m.pos = saved;
         Ok(v)
+    }
+
+    /// `value` of type `from` cast to `Nothing`: a throw of `null` if it is null, else a cast to
+    /// `Nothing$` that does not return (nscplugin's `genTypeApply`).
+    fn gen_cast_to_nothing(&mut self, value: ValId, from: TypeId) -> ValId {
+        let (is_null, not_null) = (self.fresh(), self.fresh());
+        let null = self.val(nir::Val::Null);
+        let cond = self.emit(Op::Comp { comp: nir::Comp::Ieq, ty: from, l: value, r: null });
+        self.branch(cond, is_null, not_null);
+        self.label(is_null, Vec::new());
+        self.raise(null);
+        self.label(not_null, Vec::new());
+        let nothing = self.ty(Type::Nothing);
+        let ty = self.bottom_box(nothing).expect("`Nothing$`");
+        self.emit(Op::As { ty, obj: value });
+        let unwind = self.unwind();
+        self.emit_inst(nir::Inst::Unreachable(unwind));
+        let dead = self.fresh();
+        self.label(dead, Vec::new());
+        self.val(nir::Val::Zero(nothing))
+    }
+
+    /// The class standing for the values of `Null` or `Nothing` type `t` (nscplugin's
+    /// `genRefType`).
+    fn bottom_box(&mut self, t: TypeId) -> Option<TypeId> {
+        let name = match self.pool.ty(t) {
+            Type::Null => "scala.runtime.Null$",
+            Type::Nothing => "scala.runtime.Nothing$",
+            _ => return None,
+        };
+        Some(self.class_type(name, false))
     }
 }

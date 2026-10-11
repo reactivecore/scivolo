@@ -70,8 +70,8 @@ pub const UNBOUNDED: [&str; 4] = ["scala.Any", "scala.AnyVal", "scala.Matchable"
 
 pub fn constant(tag: u8) -> Erased {
     use crate::tags::{
-        BYTEconst, CHARconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LONGconst, NULLconst,
-        SHORTconst, STRINGconst, TRUEconst, UNITconst,
+        BYTEconst, CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LONGconst,
+        NULLconst, SHORTconst, STRINGconst, TRUEconst, UNITconst,
     };
     match tag {
         TRUEconst | FALSEconst => Erased::Prim('z'),
@@ -85,6 +85,7 @@ pub fn constant(tag: u8) -> Erased {
         UNITconst => Erased::Unit,
         NULLconst => Erased::Null,
         STRINGconst => Erased::Class("java.lang.String".into()),
+        CLASSconst => Erased::Class("java.lang.Class".into()),
         _ => Erased::Class(OBJECT.into()),
     }
 }

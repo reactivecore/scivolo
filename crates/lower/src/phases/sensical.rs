@@ -18,6 +18,10 @@ pub fn sensical(l: &mut Lower, tpe: TypeId, test: &Erased, unboxed: &Erased) -> 
 }
 
 fn check(l: &mut Lower, found: SymbolId, test: SymbolId, unboxed: SymbolId) -> bool {
+    let b = l.u.builtins();
+    if [b.any, b.object, b.any_ref, b.matchable].contains(&found) {
+        return true;
+    }
     if !checkable(l, found, test) || l.u.derives_from(found, test) {
         return true;
     }

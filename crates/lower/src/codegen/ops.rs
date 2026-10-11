@@ -100,7 +100,7 @@ impl Gen<'_, '_> {
             Val::Double(_) => Type::Double,
             Val::Size(_) => Type::Size,
             Val::String(_) => return self.class_type("java.lang.String", true),
-            Val::ClassOf(_) => return self.class_type("java.lang.Class", true),
+            Val::ClassOf(_) => return self.class_type("java.lang.Class", false),
             v => unreachable!("not generated yet: {v:?}"),
         };
         self.ty(t)

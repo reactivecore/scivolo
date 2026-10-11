@@ -1,9 +1,10 @@
 //! The boxing of dotty's `Erasure`: each expression typed against the erasure of what is
 //! expected there and adapted to it (`adapt.rs`).
 
-use super::adapt::{adapt, applied_to_none, array_op, erased_type, is_parameterless_ref};
-use super::adapt::{is_synchronized, qualify_synchronized, synchronized_type};
-use super::casts::{is_cast, receiver_type};
+mod calls;
+
+use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
+use super::casts::receiver_type;
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
 use super::walk::map_children;
@@ -22,8 +23,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
                 let sym = l.tpd.sym(stat).expect("a method definition's symbol");
                 let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
+                let before = l.tpd.span(rhs);
                 let rhs = typed(l, rhs, Some(&pt))?;
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
+                if l.u.symbol(sym).kind == Kind::Val
+                    || crate::symbols::has(l.u, sym, tasty::tags::FIELDaccessor)
+                {
+                    keep_class_literal_start(l, stat, before);
+                }
+                l.recopy_class_literals(stat);
                 stats.push(stat);
             }
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => stats.push(stat),
@@ -59,49 +67,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         intercept(l, t)?;
     }
     let new = match *l.tpd.tree(t) {
-        Tree::Apply { mut fun, args } => {
-            let mut all = l.tpd.items(args).to_vec();
-            loop {
-                match *l.tpd.tree(fun) {
-                    Tree::Apply { fun: inner, args } => {
-                        all.splice(0..0, l.tpd.items(args).iter().copied());
-                        fun = inner;
-                    }
-                    Tree::TypeApply { fun: inner, .. } if !is_cast(l, fun) && !is_synchronized(l, fun) => {
-                        fun = inner
-                    }
-                    _ => break,
-                }
-            }
-            let sel = match *l.tpd.tree(fun) {
-                Tree::TypeApply { fun: inner, .. } if is_synchronized(l, fun) => {
-                    qualify_synchronized(l, inner)?;
-                    inner
-                }
-                _ => fun,
-            };
-            if let Tree::Select { qualifier, name } = *l.tpd.tree(sel) {
-                let qualifier = typed_qualifier(l, sel, qualifier)?;
-                l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
-            }
-            if l.tpd.sym(fun) == Some(l.defs.array_clone) {
-                let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
-                if !matches!(erased_type(l, qualifier), Erased::Array(_)) {
-                    return unsupported(l.tpd.span(t), "`clone` of a generic array");
-                }
-                l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
-            }
-            let params = match (array_op(l, fun), synchronized_type(l, fun)) {
-                (Some((params, _)), _) => params,
-                (None, Some(e)) => vec![e],
-                (None, None) => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),
-            };
-            let mut typed_args = Vec::new();
-            for (i, &a) in all.iter().enumerate() {
-                typed_args.push(typed(l, a, params.get(i))?);
-            }
-            Some(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
-        }
+        Tree::Apply { fun, args } => Some(calls::typed_apply(l, t, fun, args)?),
         Tree::Select { qualifier, name } => {
             Some(Tree::Select { qualifier: typed_qualifier(l, t, qualifier)?, name })
         }
@@ -113,7 +79,15 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             }
             Some(Tree::TypeApply { fun, args })
         }
-        Tree::Block { expr, .. } => {
+        Tree::Block { stats, expr } => {
+            let kept: Vec<_> = l
+                .tpd
+                .items(stats)
+                .iter()
+                .copied()
+                .filter(|&s| !matches!(l.tpd.tree(s), Tree::Import { .. }))
+                .collect();
+            l.tpd.get_mut(t).tree = Tree::Block { stats: l.tpd.list(&kept), expr };
             map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
             None
         }
@@ -126,7 +100,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             map_children(l, t, &mut |l, c| typed(l, c, if c == cond { Some(&boolean) } else { None }))?;
             None
         }
-        Tree::Return { from, .. } => {
+        Tree::Return { expr, from } => {
+            if is_unit_member(l, expr) {
+                return unsupported(l.tpd.span(t), "returns of Unit values of class members");
+            }
             let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {
                 Kind::Def => l.u.erased_method(m).1,
                 _ => {
@@ -144,7 +121,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         }
         Tree::Match { selector, cases } => Some(typed_switch(l, selector, cases)?),
         Tree::Assign { lhs, .. } => {
-            let erased = l.u.erase(l.tpd.tpe(lhs));
+            let erased = erased_type(l, lhs);
             typed_except(l, t, lhs, Some(&erased))?;
             None
         }
@@ -156,32 +133,65 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             typed_except(l, t, elemtpt, Some(&elem))?;
             None
         }
-        Tree::Typed { tpt, .. } => {
+        Tree::Typed { expr, tpt } => {
             let ascribed = l.u.erase(l.tpd.tpe(tpt));
+            let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
+            if written && ascribed == Erased::Unit && !matches!(l.tpd.tree(expr), Tree::Literal { .. }) {
+                return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
+            }
             typed_except(l, t, tpt, Some(&ascribed))?;
             None
         }
-        Tree::ValDef { tpt, rhs: Some(_), .. } => {
+        Tree::ValDef { tpt, rhs: Some(rhs), .. } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
             let erased = match l.u.erase(info) {
                 Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
                 e => e,
             };
+            let span = l.tpd.span(rhs);
             typed_except(l, t, tpt, Some(&erased))?;
+            keep_class_literal_start(l, t, span);
             None
         }
         Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
+        Tree::ClassLiteral { .. } => {
+            l.tpd.get_mut(t).span = syntax::ast::Span::NONE;
+            None
+        }
         _ => None,
     };
     if let Some(new) = new {
         l.tpd.get_mut(t).tree = new;
     }
+    l.recopy_class_literals(t);
     let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
     Ok(match pt {
         Some(pt) => adapt(l, t, pt),
         None => t,
     })
+}
+
+/// Gives the right-hand side of value definition `t` the start of its span `before` erasure if
+/// it is a class literal.
+fn keep_class_literal_start(l: &mut Lower, t: TNodeId, before: syntax::ast::Span) {
+    let (Tree::ValDef { rhs: Some(rhs), .. } | Tree::DefDef { rhs: Some(rhs), .. }) = *l.tpd.tree(t) else {
+        return;
+    };
+    if matches!(l.tpd.tree(rhs), Tree::ClassLiteral { .. }) && !l.tpd.span(rhs).exists() && before.exists() {
+        l.tpd.get_mut(rhs).span = before.start_pos();
+    }
+}
+
+/// Whether `t` refers to a `Unit` value or getter of a class.
+fn is_unit_member(l: &mut Lower, t: TNodeId) -> bool {
+    let (Tree::Ident { .. } | Tree::Select { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else {
+        return false;
+    };
+    let in_class = l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o));
+    let info = l.u.info(s);
+    let result = l.u.result_type(info);
+    in_class && l.u.symbol(s).kind.is_term() && l.u.erase(result) == Erased::Unit
 }
 
 /// Types each child of `t` but `kept` against `pt`, rebuilding `t` in place.

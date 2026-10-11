@@ -6,7 +6,7 @@ use super::walk::children;
 use crate::Lower;
 use syntax::ast::Span;
 use syntax::source::Offset;
-use typer::tpd::TNodeId;
+use typer::tpd::{TNodeId, Tree};
 
 /// dotty's `MaxOffset`, the end of a span marking children whose spans are still to assign.
 const MAX_OFFSET: Offset = (1 << 26) - 1;
@@ -38,6 +38,17 @@ impl Lower<'_> {
         self.tpd.get_mut(t).span = Span::NONE;
         self.positioned(t);
         self.with_span(t, span);
+    }
+
+    /// Recopies `t` if one of its children is a class literal without a span, as erasure leaves
+    /// them.
+    pub fn recopy_class_literals(&mut self, t: TNodeId) {
+        let unpositioned = |&c: &TNodeId| {
+            matches!(self.tpd.tree(c), Tree::ClassLiteral { .. }) && !self.tpd.span(c).exists()
+        };
+        if children(self.tpd, t).iter().any(unpositioned) {
+            self.recopy(t);
+        }
     }
 
     /// Assigns spans to those of `trees` without, as a dotty `Thicket` of them does.
