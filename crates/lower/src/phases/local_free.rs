@@ -2,7 +2,7 @@
 //! where its methods use them, else only in its constructor.
 
 use super::walk::children;
-use crate::symbols::{has, is_static_module};
+use crate::symbols::{has, is_static, is_static_module};
 use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
@@ -10,20 +10,35 @@ use typer::tpd::{TNodeId, Tree};
 
 /// The local values of the enclosing methods a local class uses.
 pub struct Free {
-    /// Those its constructor takes: those it uses, then if any the others its methods use, each
-    /// in the order used, then those `class_deps` adds.
+    /// Those its constructor takes, its own and those of what it calls.
     pub values: Vec<SymbolId>,
-    /// Those its methods use, in the order used, which need fields.
+    /// Those its methods use, its own and those of what they call, which need fields.
     pub in_methods: Vec<SymbolId>,
-    /// Whether its constructor uses some, which names the parameters first.
-    pub constructor_first: bool,
     /// The local methods it calls and the local classes it creates, each with whether from a
     /// method.
     pub called: Vec<(SymbolId, bool)>,
-    /// For each of `values` and of `in_methods`, the round of dotty's `computeFreeVars` that
-    /// finds it, 0 for a use in the class.
-    pub rounds: Vec<usize>,
-    pub field_rounds: Vec<usize>,
+}
+
+/// A local class to lift: its definition, its class, the class whose name prefixes its lifted
+/// name, the values it uses.
+pub struct Local {
+    pub td: TNodeId,
+    pub class: SymbolId,
+    pub named_in: SymbolId,
+    pub free: Free,
+}
+
+/// The class a local class in a block of class `outer` is lifted into (dotty's `logicOwner` of
+/// a class using no enclosing instance): `outer` if static, else its top-level class.
+pub fn lifted_into(l: &Lower, outer: SymbolId) -> SymbolId {
+    if is_static(l.u, outer) {
+        return outer;
+    }
+    let mut c = outer;
+    while let Some(o) = l.u.symbol(c).owner.filter(|&o| l.u.symbol(o).kind != Kind::Package) {
+        c = o;
+    }
+    c
 }
 
 pub fn is_term(l: &Lower, s: SymbolId) -> bool {
@@ -75,14 +90,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     }
     let l: &Lower = l;
     let static_outer = is_static_module(l.u, outer) || l.u.symbol(outer).kind == Kind::Package;
-    let mut free = Free {
-        values: Vec::new(),
-        in_methods: Vec::new(),
-        constructor_first: false,
-        called: Vec::new(),
-        rounds: Vec::new(),
-        field_rounds: Vec::new(),
-    };
+    let mut free = Free { values: Vec::new(), in_methods: Vec::new(), called: Vec::new() };
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
         let inner = in_method || matches!(l.tpd.tree(t), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(t));
@@ -143,19 +151,22 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         matches!(l.tpd.tree(t), Tree::Ident { .. })
             && l.tpd.sym(t).is_some_and(|s| free.values.contains(&s) || free.in_methods.contains(&s))
     };
+    let outside_call = |t: TNodeId| {
+        let Some(s) = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::Ident { .. })) else {
+            return false;
+        };
+        let owner = l.u.symbol(s).owner;
+        l.u.symbol(s).kind == Kind::Def && owner.is_some_and(|o| is_term(l, o) && !within(l, o, class))
+    };
     for c in super::explicit_outer::terms(l, td, true).into_iter().filter(|&t| nested(t)) {
-        if let Some(t) = super::explicit_outer::terms(l, c, true).into_iter().find(|&t| free_ref(t)) {
+        let terms = super::explicit_outer::terms(l, c, true);
+        if let Some(&t) = terms.iter().find(|&&t| free_ref(t)) {
             return unsupported(l.tpd.span(t), "classes in local classes capturing values");
         }
-    }
-    free.constructor_first = !free.values.is_empty();
-    for &s in free.in_methods.iter().filter(|_| free.constructor_first) {
-        if !free.values.contains(&s) {
-            free.values.push(s);
+        if let Some(&t) = terms.iter().find(|&&t| outside_call(t)) {
+            return unsupported(l.tpd.span(t), "classes in local classes calling local methods");
         }
     }
-    free.rounds = vec![0; free.values.len()];
-    free.field_rounds = vec![0; free.in_methods.len()];
     Ok(free)
 }
 

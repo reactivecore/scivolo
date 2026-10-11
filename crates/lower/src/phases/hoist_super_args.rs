@@ -9,7 +9,7 @@ use super::local_free::is_term;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::is_static;
-use crate::{Lower, Result};
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{PRIVATE, STATIC, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
@@ -30,6 +30,11 @@ pub fn transform(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let Some(&parent) = l.tpd.items(parents).first() else { return Ok(()) };
     let local = l.u.symbol(class).owner.is_some_and(|o| is_term(l, o));
+    if let Tree::Block { stats, .. } = *l.tpd.tree(parent)
+        && let Some(&def) = l.tpd.items(stats).iter().find(|&&s| matches!(l.tpd.tree(s), Tree::DefDef { .. }))
+    {
+        return unsupported(l.tpd.span(def), "methods defined in a superclass constructor call");
+    }
     let mut h = Hoister { class, constr, local, defs: Vec::new() };
     from_call(l, &mut h, parent, &mut Vec::new());
     if h.defs.is_empty() {

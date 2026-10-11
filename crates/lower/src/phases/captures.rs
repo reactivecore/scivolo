@@ -26,15 +26,14 @@ enum Callee {
 
 /// Sets the captured values and `this` of `functions` of `class`, whose methods have the bodies
 /// `roots`, local classes lifted into `class` if `in_class`, those of `pending` using values where
-/// they were defined and passed them where created; the functions in the order they first
-/// captured a value, those capturing one directly first, and their number.
+/// they were defined and passed them where created.
 pub fn dependencies(
     l: &Lower,
     functions: &mut [Function],
     class: SymbolId,
     roots: &[TNodeId],
     (in_class, pending): (bool, &Pending),
-) -> Result<(Vec<usize>, usize)> {
+) -> Result<()> {
     let defs: FxHashMap<TNodeId, usize> = functions.iter().enumerate().map(|(i, f)| (f.def, i)).collect();
     let (mut order, mut called) = (Vec::new(), Vec::<(usize, Vec<Callee>)>::new());
     let mut todo: Vec<(Step, Option<usize>)> = roots.iter().rev().map(|&r| (Step::Tree(r), None)).collect();
@@ -77,7 +76,8 @@ pub fn dependencies(
                 }
                 let owner = l.u.symbol(s).owner;
                 functions[i].this |= owner == Some(class) && !l.u.is_module_class(class);
-                let local = owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val));
+                let local = owner.is_some_and(|o| matches!(l.u.symbol(o).kind, Kind::Def | Kind::Val))
+                    && matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param);
                 if local && mark_free(l, functions, &mut order, s, i) && has(l.u, s, MUTABLE) {
                     return unsupported(l.tpd.span(t), "local methods capturing variables");
                 }
@@ -85,7 +85,6 @@ pub fn dependencies(
             _ => {}
         }
     }
-    let direct = order.len();
     loop {
         let mut changed = false;
         for (caller, callees) in &called {
@@ -104,7 +103,7 @@ pub fn dependencies(
             }
         }
         if !changed {
-            return Ok((order, direct));
+            return Ok(());
         }
     }
 }

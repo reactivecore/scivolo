@@ -1,21 +1,23 @@
 //! The order in which dotty's `LambdaLift` names what it lifts: the proxies of the functions and
-//! local classes by the round of `computeFreeVars` finding them, each round by position; then the
-//! lifted functions and classes in the order they are defined.
+//! local classes in the order of the unit's dependencies; then the lifted functions and classes
+//! in the order they are defined.
 
+use super::dependencies::Dependencies;
 use super::lambda_lift::{Function, fresh};
 use super::lifted::Method;
-use crate::Lower;
+use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
+use syntax::ast::Span;
 use syntax::source::Offset;
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
-/// The proxies of a function, local class or constructor, at the definition's start; the round
-/// of dotty's `computeFreeVars` that finds them, 0 where it uses the values itself.
-pub struct Proxies {
-    pub at: Offset,
-    pub round: usize,
-    pub syms: Vec<SymbolId>,
+/// The proxy `sym` of a function, local class or constructor `owner` for value `value`.
+#[derive(Clone, Copy)]
+pub struct Proxy {
+    pub owner: SymbolId,
+    pub value: SymbolId,
+    pub sym: SymbolId,
 }
 
 /// A lifted local class to name, at its definition's start, and the class it is in.
@@ -36,10 +38,12 @@ pub struct Caller {
 
 /// The proxies and local classes `local_classes` leaves for `lambda_lift` to name, and where the
 /// classes were: the values each used at its definition, by block and statement index, the
-/// values passed to its constructor calls, and the classes calling local methods.
+/// values passed to its constructor calls, the classes calling local methods, and the unit's
+/// dependencies.
 #[derive(Default)]
 pub struct Pending {
-    pub proxies: Vec<Proxies>,
+    pub proxies: Vec<Proxy>,
+    pub deps: Option<Dependencies>,
     pub classes: Vec<LocalClass>,
     pub definitions: Vec<(TNodeId, usize, Vec<SymbolId>)>,
     pub passed: FxHashSet<TNodeId>,
@@ -60,34 +64,24 @@ impl Pending {
     }
 }
 
-/// The functions of a class to lift and their methods, the functions in the order their proxies
-/// are named and the number of those capturing directly.
+/// The functions of a class to lift and their methods.
 pub struct Named<'a> {
     pub class: SymbolId,
     pub functions: &'a [Function],
     pub methods: &'a [Method],
-    pub order: &'a [usize],
-    pub direct: usize,
 }
 
 /// Names the proxies of the functions of `named` and of the local classes of `pending`, then the
 /// functions' methods and the local classes, each class's in order, merged by position.
-pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) {
-    let proxies: Vec<Vec<Proxies>> = named
-        .iter()
-        .map(|c| {
-            let at = |i: usize| l.tpd.span(c.functions[i].def).start();
-            let proxies = c.order.iter().enumerate();
-            proxies
-                .map(|(k, &i)| Proxies {
-                    at: at(i),
-                    round: usize::from(k >= c.direct),
-                    syms: c.methods[i].proxies.clone(),
-                })
-                .collect()
-        })
-        .collect();
-    name_proxies(l, &proxies, pending);
+pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result<()> {
+    let mut proxies: Vec<Proxy> = pending.proxies.clone();
+    for n in named {
+        for (f, m) in n.functions.iter().zip(n.methods) {
+            let pairs = f.captured.iter().zip(&m.proxies);
+            proxies.extend(pairs.map(|(&value, &sym)| Proxy { owner: f.sym, value, sym }));
+        }
+    }
+    name_proxies(l, &proxies, pending)?;
     let functions: Vec<Vec<(Offset, (usize, usize))>> = named
         .iter()
         .enumerate()
@@ -106,6 +100,7 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) {
         l.u.rename(n.methods[i].sym, &name);
     }
     pending.name_classes_before(l, None);
+    Ok(())
 }
 
 /// The prefix of the name of lambda `f` of `functions` of `class`: the name of the method it is
@@ -127,23 +122,23 @@ pub fn prefix(
     }
 }
 
-/// Names the proxies of the functions of each class of `functions` and of the local classes of
-/// `pending` by round, each class's in order, merged by position, functions' first on a tie.
-fn name_proxies(l: &mut Lower, functions: &[Vec<Proxies>], pending: &Pending) {
-    let rounds = functions.iter().flatten().chain(&pending.proxies).map(|p| p.round).max().unwrap_or(0);
-    for round in 0..=rounds {
-        let group = |ps: &[Proxies]| -> Vec<(Offset, SymbolId)> {
-            let ps = ps.iter().filter(|p| p.round == round);
-            ps.flat_map(|p| p.syms.iter().map(|&s| (p.at, s))).collect()
+/// Names `proxies` in the order of the dependencies of `pending`: by owner, then by value (dotty's
+/// `generateProxies`).
+fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &Pending) -> Result<()> {
+    let mut ranked = Vec::new();
+    for p in proxies {
+        let Some(rank) = pending.deps.as_ref().and_then(|d| d.rank(p.owner, p.value)) else {
+            return unsupported(Span::NONE, "lifting a value the dependencies of the unit do not record");
         };
-        let mut sequences: Vec<_> = functions.iter().map(|ps| group(ps)).collect();
-        sequences.push(group(&pending.proxies));
-        for s in merged(&sequences) {
-            let base = l.u.symbol(s).name.clone();
-            let name = fresh(l, &base);
-            l.u.rename(s, &name);
-        }
+        ranked.push((rank, p.sym));
     }
+    ranked.sort_by_key(|&(rank, _)| rank);
+    for (_, s) in ranked {
+        let base = l.u.symbol(s).name.clone();
+        let name = fresh(l, &base);
+        l.u.rename(s, &name);
+    }
+    Ok(())
 }
 
 /// The items of `sequences` merged by position, each sequence's in its order, an earlier

@@ -2,35 +2,45 @@
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.
 
+use super::dependencies::dependencies;
 use super::lift_names::{Caller, LocalClass, Pending};
-use super::local_free::{Free, enclosing_class, free_values, is_method, is_term};
+use super::local_free::{Free, Local, enclosing_class, free_values, is_method, is_term, lifted_into};
 use super::local_lift::{lift, pass_values};
-use super::local_proxies::make_proxies;
-use crate::{Lower, Result};
+use super::local_proxies::{constructor, definition_order, make_proxies};
+use crate::symbols::has;
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
+use tasty::tags::MUTABLE;
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
 /// those of their proxies are left to `lambda_lift`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pending> {
+    let deps = dependencies(l, root);
     let mut locals = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         let Some(owner) = l.u.symbol(class).owner.filter(|&o| is_term(l, o)) else { continue };
         let outer = enclosing_class(l, owner);
-        let free = free_values(l, td, class, outer)?;
-        locals.push((td, class, outer, free));
+        let mut free = free_values(l, td, class, outer)?;
+        free.values = deps.of(constructor(l, td)).to_vec();
+        free.in_methods = deps.of(class).to_vec();
+        if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) {
+            return unsupported(l.tpd.span(td), "local classes capturing variables");
+        }
+        let named_in = lifted_into(l, outer);
+        locals.push(Local { td, class, named_in, free });
     }
-    let added = super::class_deps::close(l, root, &mut locals)?;
-    let order = super::class_deps::definition_order(l, &locals);
+    let order = definition_order(l, &locals);
     let mut pending = Pending::default();
-    let proxies = make_proxies(l, &locals, &added, &mut pending);
-    for ((_, class, _, free), (fields, _)) in locals.iter().zip(&proxies) {
-        pass_values(l, root, *class, free, fields, &mut pending.passed)?;
+    pending.deps = Some(deps);
+    let proxies = make_proxies(l, &locals, &mut pending);
+    for (c, (fields, _)) in locals.iter().zip(&proxies) {
+        pass_values(l, root, c.class, &c.free, fields, &mut pending.passed)?;
     }
     let mut classes = Vec::new();
-    for ((td, class, outer, free), (fields, params)) in locals.into_iter().zip(proxies) {
+    for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
         add_proxies(l, td, class, &free, (&fields, &params), &spans);
         if free.called.iter().any(|&(f, _)| l.u.symbol(f).kind == Kind::Def) {
@@ -41,7 +51,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        classes.push(LocalClass { at: l.tpd.span(td).start(), class, outer });
+        classes.push(LocalClass { at: l.tpd.span(td).start(), class, outer: named_in });
     }
     let mut last = None;
     for i in order {
