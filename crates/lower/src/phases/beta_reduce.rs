@@ -1,7 +1,7 @@
 //! dotty's `BetaReduce`: `apply` of a function type called on a lambda or on a new anonymous
 //! class with only that method becomes the method's body, its parameters bound to the arguments.
 
-use super::first_transform::{is_pure, literal_of};
+use super::first_transform::{is_pure_with_by_name as is_pure, literal_of};
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -61,7 +61,8 @@ fn is_function_type(l: &mut Lower, t: TNodeId) -> bool {
     arity.is_some_and(|n| n.parse::<u32>().is_ok())
 }
 
-/// The reduction of the call of function `fun` to `args`, past ascriptions, casts and blocks.
+/// The reduction of the call of function `fun` to `args`, past ascriptions and blocks of pure
+/// bindings, those blocks kept around it.
 fn recur(
     l: &mut Lower,
     fun: TNodeId,
@@ -71,14 +72,8 @@ fn recur(
 ) -> Result<Option<TNodeId>> {
     match *l.tpd.tree(fun) {
         Tree::Typed { expr, .. } => recur(l, expr, args, owner, bindings),
-        Tree::TypeApply { fun: sel, .. } => match *l.tpd.tree(sel) {
-            Tree::Select { qualifier, .. } if l.tpd.sym(sel) == Some(l.defs.as_instance_of) => {
-                recur(l, qualifier, args, owner, bindings)
-            }
-            _ => Ok(None),
-        },
-        Tree::Block { stats, expr } => {
-            let stats = l.tpd.items(stats).to_vec();
+        Tree::Block { stats: list, expr } => {
+            let stats = l.tpd.items(list).to_vec();
             if let (&[def], Tree::Closure { meth, .. }) = (&stats[..], l.tpd.tree(expr))
                 && matches!(l.tpd.tree(def), Tree::DefDef { .. })
                 && l.tpd.sym(def).is_some()
@@ -91,13 +86,29 @@ fn recur(
             {
                 return application(l, method, args, owner, bindings);
             }
-            let Some(reduced) = recur(l, expr, args, owner, bindings)? else { return Ok(None) };
-            if !stats.is_empty() {
-                return unsupported(l.tpd.span(fun), "applications of a lambda after statements");
+            if !stats.iter().all(|&s| is_pure_binding(l, s)) {
+                return Ok(None);
             }
-            Ok(Some(reduced))
+            let Some(reduced) = recur(l, expr, args, owner, bindings)? else { return Ok(None) };
+            let tpe = l.tpd.tpe(reduced);
+            let node = l.tpd.get_mut(fun);
+            (node.tree, node.tpe) = (Tree::Block { stats: list, expr: reduced }, Some(tpe));
+            Ok(Some(fun))
         }
         _ => Ok(None),
+    }
+}
+
+/// Whether statement `s` defines a method or type, or an immutable value of a literal or pure
+/// path (dotty's `isPureBinding`).
+fn is_pure_binding(l: &Lower, s: TNodeId) -> bool {
+    match *l.tpd.tree(s) {
+        Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
+        Tree::ValDef { rhs: Some(rhs), .. } => {
+            let mutable = l.tpd.sym(s).is_some_and(|v| crate::symbols::has(l.u, v, tasty::tags::MUTABLE));
+            !mutable && (matches!(l.tpd.tree(rhs), Tree::Literal { .. }) || is_pure(l, rhs))
+        }
+        _ => false,
     }
 }
 
@@ -132,17 +143,23 @@ fn application(
     if params.len() != args.len() || params.iter().any(|&p| !matches!(l.tpd.tree(p), Tree::ValDef { .. })) {
         return Ok(None);
     }
-    let defines_class = |l: &Lower, t: TNodeId| matches!(*l.tpd.tree(t), Tree::TypeDef { rhs, .. } if matches!(l.tpd.tree(rhs), Tree::Template { .. }));
+    let defines_class = |l: &Lower, t: TNodeId| match *l.tpd.tree(t) {
+        Tree::TypeDef { rhs, .. } => matches!(l.tpd.tree(rhs), Tree::Template { .. }),
+        _ => false,
+    };
     if subtrees(l.tpd, rhs).into_iter().any(|t| defines_class(l, t)) {
         return unsupported(l.tpd.span(def), "applications of a lambda defining classes");
     }
-    let mut subst = FxHashMap::default();
+    let params: Vec<SymbolId> = params.iter().map(|&p| l.tpd.sym(p).expect("a parameter's symbol")).collect();
     for (&arg, &param) in args.iter().zip(&params) {
-        let param = l.tpd.sym(param).expect("a parameter's symbol");
         let info = l.u.info(param);
         if matches!(l.u.types().get(info), Type::ByName(_)) {
             return unsupported(l.tpd.span(arg), "applications of a lambda with by-name parameters");
         }
+    }
+    let mut subst = FxHashMap::default();
+    for (&arg, &param) in args.iter().zip(&params) {
+        let arg = literalized(l, arg);
         if let Tree::Ident { .. } = l.tpd.tree(arg)
             && is_pure(l, arg)
             && let Some(s) = l.tpd.sym(arg).filter(|&s| is_local(l, s))
@@ -166,6 +183,14 @@ fn application(
     }
     fold_constants(l, rhs);
     Ok(Some(rhs))
+}
+
+/// `arg` as a literal if it is a pure reference to a constant value (dotty's `constToLiteral`).
+fn literalized(l: &mut Lower, arg: TNodeId) -> TNodeId {
+    let reference = matches!(l.tpd.tree(arg), Tree::Ident { .. } | Tree::Select { .. });
+    let Some(s) = l.tpd.sym(arg).filter(|_| reference && is_pure(l, arg)) else { return arg };
+    let span = l.tpd.span(arg);
+    literal_of(l, s, span).unwrap_or(arg)
 }
 
 /// Whether `s` is a value local to a method.
@@ -204,12 +229,15 @@ fn binding(
     sym
 }
 
-/// Makes the references to constant values under `t` literals, then the operations on literals
-/// their results (dotty's `ConstFold` as `StringInterpolatorOpt` applies it), inner trees first.
+/// Makes the references to constant and `Unit` values under `t` literals, then the operations on
+/// literals their results (dotty's `ConstFold` as `StringInterpolatorOpt` applies it), inner
+/// trees first.
 fn fold_constants(l: &mut Lower, t: TNodeId) {
     for t in subtrees(l.tpd, t).into_iter().rev() {
         let span = l.tpd.span(t);
-        let folded = match *l.tpd.tree(t) {
+        let tree = l.tpd.tree(t).clone();
+        let folded = match tree {
+            Tree::Ident { .. } if is_unit_value(l, t) => Some(literal(l, Constant::Unit, span)),
             Tree::Ident { .. } => l.tpd.sym(t).and_then(|s| literal_of(l, s, span)),
             Tree::Apply { fun, args } => match (l.tpd.tree(fun), l.tpd.items(args)) {
                 (&Tree::Select { qualifier, name }, &[arg]) => {
@@ -233,6 +261,16 @@ fn fold_constants(l: &mut Lower, t: TNodeId) {
     }
 }
 
+/// Whether `t` is a pure reference to a value of type `Unit`.
+fn is_unit_value(l: &mut Lower, t: TNodeId) -> bool {
+    let Some(s) = l.tpd.sym(t).filter(|&s| matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)) else {
+        return false;
+    };
+    let info = l.u.info(s);
+    is_pure(l, t) && l.u.erase(info) == Erased::Unit
+}
+
+/// The constant literal `t` is, but `()` and `null`.
 fn constant(l: &Lower, t: TNodeId) -> Option<Constant> {
     match l.tpd.tree(t) {
         Tree::Literal { value } if !matches!(value, Constant::Unit | Constant::Null) => Some(value.clone()),
@@ -240,6 +278,7 @@ fn constant(l: &Lower, t: TNodeId) -> Option<Constant> {
     }
 }
 
+/// Literal `value` of its constant type at `span`.
 fn literal(l: &mut Lower, value: Constant, span: Span) -> TNodeId {
     let tpe = typer::tpd::constant_type_of(l.u, &value);
     l.tpd.node(Tree::Literal { value }, span, Some(tpe), None)

@@ -140,7 +140,13 @@ fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: Sy
     let value = field(l, ex_ref, class, "value");
     let info = l.u.info(method);
     let result = l.u.result_type(info);
-    let value = l.ensure_conforms(value, result);
+    let value = if l.u.erase(result) == tasty::Erased::Unit {
+        let unit = l.unit_literal(Span::NONE);
+        let block = l.block(&[value], unit, Span::NONE);
+        l.positioned(block)
+    } else {
+        l.ensure_conforms(value, result)
+    };
     let ex_ref = l.ident(ex, Span::NONE);
     let rethrow = l.throw_(ex_ref);
     let cond =

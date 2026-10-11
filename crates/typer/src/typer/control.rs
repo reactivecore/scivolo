@@ -126,13 +126,13 @@ impl Typer<'_> {
         self.build().return_(expr, method, span)
     }
 
-    /// The method `owner` is in, not a constructor.
+    /// The method `owner` is in, not a constructor or a lambda (dotty's `isRealMethod`).
     fn enclosing_method(&self, owner: SymbolId) -> Option<SymbolId> {
         let mut o = Some(owner);
         while let Some(s) = o {
             let sym = self.u.symbol(s);
             match sym.kind {
-                Kind::Def if sym.name != "<init>" => return Some(s),
+                Kind::Def if sym.name != "<init>" && sym.name != "$anonfun" => return Some(s),
                 Kind::Class | Kind::Package => return None,
                 _ => o = sym.owner,
             }

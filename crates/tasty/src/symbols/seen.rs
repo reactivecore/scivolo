@@ -43,6 +43,8 @@ impl Universe {
                     .base_type_within(a, base, depth)
                     .or_else(|| self.base_type_within(b, base, depth));
             }
+            Type::Or(a, b) if self.is_bottom(a) => return self.base_type_within(b, base, depth),
+            Type::Or(a, b) if self.is_bottom(b) => return self.base_type_within(a, base, depth),
             Type::Or(a, b) => {
                 let x = self.base_type_within(a, base, depth)?;
                 return (self.base_type_within(b, base, depth)? == x).then_some(x);

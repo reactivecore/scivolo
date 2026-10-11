@@ -106,7 +106,10 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
     let stable = |l: &mut Lower, s: Option<SymbolId>| {
         s.is_some_and(|s| {
-            l.u.is_module(s) || matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) && !has(l.u, s, MUTABLE)
+            l.u.is_module(s)
+                || matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param)
+                    && !has(l.u, s, MUTABLE)
+                    && !super::first_transform::is_by_name(l, s)
         })
     };
     match *l.tpd.tree(t) {

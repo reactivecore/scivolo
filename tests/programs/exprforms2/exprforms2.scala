@@ -89,10 +89,25 @@ object Reduced:
   def anon(): Unit = (new Function0[Unit] { def apply() = println("anon") })()
   def two(k: Int): Unit = ((x: Int, y: String) => println(y + x))(k, "k" + k)
   def folded(): Int = ((x: Int) => x * 3)(2)
+  final val C = 2
+  def constArg(): Int = ((x: Int) => x * 3)(C)
+  def unitArg(): Unit = ((u: Unit) => u)(())
+  def byName(y: => Int): Int = ((x: Int) => x + x)(y)
+  def ascribed(): Int = ((x: Int) => (x: Int) * 3)(2)
+  def cast(): Int = ((x: Int) => x + 1).asInstanceOf[Int => Int](2)
+  def block(): Int = ({ val a = 1; (y: Int) => y + a })(2)
+  def unitReturn(xs: List[Int]): Unit = xs.foreach(x => if x > 1 then { println("ret"); return })
   def run(): Unit =
     anon()
     two(5)
     println(folded())
+    println(constArg())
+    unitArg()
+    println(byName({ println("eval"); 1 }))
+    println(ascribed())
+    println(cast())
+    println(block())
+    unitReturn(List(1, 2, 3))
 
 object Statement:
   val x: Option[String] = Some("stmt")
