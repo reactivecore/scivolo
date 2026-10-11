@@ -165,18 +165,18 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    Leave out match types, GADTs and capture checking until they are needed.
    Anything unsupported falls back to the phase 1 path, never silently.
    Status (2026-10-11): `crates/typer`, typed trees matching dotty's on the golden tests
-   (`just typer-checks`); of dotty's `tests/run`, 991 tests still stop at the typer, most
+   (`just typer-checks`); of dotty's `tests/run`, 987 tests still stop at the typer, most
    of them at calls of transparent inline methods (#82). Done in the last weeks: `super`,
-   method values, annotations, constants, intersection members, the typer half of value
-   classes (#83), non-transparent inline definitions and calls, the inlining of script
+   method values, annotations, constants, intersection members, views in implicit search,
+   the typer half of value classes (#83), non-transparent inline definitions and calls, the inlining of script
    inline methods (#82).
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
    nscplugin does (ADR 0001). Status (2026-10-11): `crates/lower` ports dotty's phases
    from FirstTransform to Constructors plus nscplugin's NIR generation; every lowered program
    is compared byte for byte with Scala Native's NIR, positions included
-   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 396 pass through
-   typer, lowering and VM (278 on 2026-10-09), 45 are refused by the lowering, 1 gives wrong
+   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 399 pass through
+   typer, lowering and VM (278 on 2026-10-09), 46 are refused by the lowering, 1 gives wrong
    output (i9939, #60); see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
@@ -226,28 +226,25 @@ with no JVM involved.
 ## Where we are and what's next (2026-10-11)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 396 of 1711
-pass, 991 stop at the typer, 45 at the lowering.
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 399 of 1711
+pass, 987 stop at the typer, 46 at the lowering. No merge requests are open.
 
 Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
 traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
 non-local returns, string interpolators, annotations, constants, intersection members, the
 typer half of value classes, type tests against value classes (#87), inline definitions
 (#82 step 1), the typer's inlining phase for inline methods of scripts (#82 step 2a), method
-values with eta-expansion and lifting, SpecializeTuples.
-
-Open merge requests:
-- #83: no false double definition between a method and a module (!217); views in implicit
-  search (!222).
+values with eta-expansion and lifting, SpecializeTuples, views in implicit search, no false
+double definition between a method and a module.
 
 Next, in order of the tests they unblock:
 1. **Inlining (#82).** In the lowering: call `typer::inlining::run` before FirstTransform and
    lower `Inlined` trees (their `call` child is not code). In the typer: step 2b (in
    progress), inline methods of classes, nested inline calls; step 3:
-   inline match and if; transparent inline methods (306 tests); a reader of library inline
+   inline match and if; transparent inline methods (314 tests); a reader of library inline
    bodies from TASTy (`locally`, `require`).
 2. **Value classes, lowering half (#88):** ExtensionMethods, boxing and unboxing at erasure,
-   their synthetic members; 14 tests.
+   their synthetic members; 14 tests refused as "members value classes inherit".
 3. **Typer groups** (#83 and new): adaptation, opaque types, missing implicit arguments,
    union widening, self types, secondary constructors, higher-kinded abstract types.
 4. **Lowering gaps:** local classes using the enclosing instance, classes nested in local
