@@ -5,7 +5,7 @@
 use super::getters::is_const_final;
 use super::walk::walk_class_up;
 use crate::Lower;
-use crate::symbols::{has, is_module, is_module_class};
+use crate::symbols::has;
 use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
@@ -33,13 +33,13 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
 pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     for &td in classes {
-        let Some(class) = l.tpd.sym(td).filter(|&c| is_module_class(l.u, c)) else { continue };
+        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
         let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
         let Tree::Template { body, .. } = *l.tpd.tree(rhs) else { continue };
         let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
             Tree::ValDef { rhs, .. } => {
-                rhs.is_some() && l.tpd.sym(s).is_some_and(|v| !has(l.u, v, LAZY) && !is_module(l.u, v))
+                rhs.is_some() && l.tpd.sym(s).is_some_and(|v| !has(l.u, v, LAZY) && !l.u.is_module(v))
             }
             _ => true,
         };
@@ -138,7 +138,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
 pub fn is_pure(l: &Lower, t: TNodeId) -> bool {
     let stable = |s| {
         let sym = l.u.symbol(s);
-        is_module(l.u, s)
+        l.u.is_module(s)
             || sym.kind == Kind::Param
             || (sym.kind == Kind::Val && !has(l.u, s, LAZY) && !has(l.u, s, MUTABLE))
     };
