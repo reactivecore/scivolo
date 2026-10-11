@@ -17,11 +17,7 @@ use typer::tpd::{TNodeId, Tree, Walk};
 /// Rewrites the by-name arguments and references in class definition `td`.
 pub fn transform(l: &mut Lower, td: TNodeId) {
     let mut passed = FxHashSet::default();
-    let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let dummy = format!("<local {}>", l.u.symbol(class).name);
-    let dummy = l.u.decl(class, &dummy).ok().and_then(|d| d.first().copied());
     walk_class(l, td, &mut |l, t, owner| {
-        let owner = if owner == class { dummy.unwrap_or(owner) } else { owner };
         rewrite_args(l, t, owner, &mut passed);
         if by_name_ref(l, t) && !passed.contains(&t) {
             apply_reference(l, t);
