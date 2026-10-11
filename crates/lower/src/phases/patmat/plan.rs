@@ -83,6 +83,11 @@ impl Translator<'_, '_> {
     pub fn match_plan(&mut self, m: TNodeId) -> Result<PlanId> {
         let Tree::Match { selector, cases } = *self.l.tpd.tree(m) else { unreachable!("a match") };
         let cases = self.l.tpd.items(cases).to_vec();
+        let selector_type = self.l.u.widen(self.l.tpd.tpe(selector));
+        let bottom = matches!(self.l.u.erase(selector_type), tasty::Erased::Null | tasty::Erased::Nothing);
+        if bottom && !cases.iter().all(|&c| self.is_simple_case(c)) {
+            return unsupported(self.l.tpd.span(m), "matches on values of type Null or Nothing");
+        }
         self.let_abstract(selector, None, |t, scrutinee| {
             let error = t.match_error(scrutinee);
             let mut next = t.add(Plan::Result { tree: error });
@@ -92,6 +97,15 @@ impl Translator<'_, '_> {
             }
             Ok(next)
         })
+    }
+
+    /// Whether case `c` matches a wildcard or a literal, bound or not.
+    fn is_simple_case(&self, c: TNodeId) -> bool {
+        let Tree::CaseDef { mut pat, .. } = *self.l.tpd.tree(c) else { return false };
+        while let Tree::Bind { body, .. } = *self.l.tpd.tree(pat) {
+            pat = body;
+        }
+        matches!(self.l.tpd.tree(pat), Tree::Ident { .. } | Tree::Literal { .. })
     }
 
     /// `throw new MatchError(scrutinee)`.

@@ -63,10 +63,23 @@ impl Translator<'_, '_> {
         if self.l.u.symbol(extractor).name == "unapplySeq" {
             return self.let_abstract(unapp, None, |t, result| {
                 let result_type = t.l.u.info(result);
-                if !t.is_sequence(result_type) {
-                    return unsupported(span, "sequence extractors not returning a sequence");
+                if t.is_sequence(result_type) {
+                    return t.unapply_seq_plan(result, args, on_success);
                 }
-                t.unapply_seq_plan(result, args, on_success)
+                let Some(get) = t.member_named(result_type, "get") else {
+                    return unsupported(span, "sequence extractors without `get`");
+                };
+                let value = t.l.ident(result, Span::NONE);
+                let get = t.select_member(value, get);
+                let args_plan = t.let_abstract(get, None, |t, get_result| {
+                    let get_type = t.l.u.info(get_result);
+                    if !t.is_sequence(get_type) {
+                        return unsupported(span, "sequence extractors of a product and a sequence");
+                    }
+                    t.unapply_seq_plan(get_result, args, on_success)
+                })?;
+                let scrutinee = t.l.ident(result, Span::NONE);
+                Ok(t.add(Plan::Test { test: Test::NonEmpty, scrutinee, span, on_success: args_plan }))
             });
         }
         let owner = self.l.u.symbol(extractor).owner.expect("an extractor's owner");

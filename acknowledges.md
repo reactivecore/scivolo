@@ -33,12 +33,14 @@ Apache-2.0. Rust translations of:
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
-  - `BetaReduce` (the applications it rewrites, refused)
+  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`
   - `ExplicitOuter` (outer accessors of classes and traits, their implementations for mixed-in
     traits, `needsOuterIfReferenced`), `TreeInfo.bodyKind` (`PureInterface`)
-  - `Erasure` (boxing, `adaptClosure`, `typedTyped`), `TypeErasure.additionalAdaptationNeeded`, `Bridges`
-    (result-type bridges, inherited pairs), `core/Decorators.reduceBalanced`
-  - `InterceptedMethods` (`!=`), `ElimRepeated`, `SeqLiterals`, `tpd.wrapArrayMethodName`
+  - `Erasure` (boxing, `adaptClosure`, `typedTyped`, `cast` of primitive arrays),
+    `TypeErasure.additionalAdaptationNeeded`, `Bridges` (result-type bridges, inherited pairs),
+    `core/Decorators.reduceBalanced`
+  - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,
+    `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, returns of blocks), `CapturedVars`,
     `ElimByName` (calls)
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
@@ -50,7 +52,7 @@ Apache-2.0. Rust translations of:
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
   - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
     (`rebindSuper`)
-  - `localopt/StringInterpolatorOpt` (`s`, `raw`)
+  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods)
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)

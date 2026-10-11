@@ -25,6 +25,11 @@ impl Universe {
         t
     }
 
+    /// The declared type of `sym` if it is set or decoded already.
+    pub fn known_info(&self, sym: SymbolId) -> Option<TypeId> {
+        self.infos.get(&sym).copied()
+    }
+
     /// The right-hand side of method or value `sym`: its file and tree, for `inline` methods
     /// the body to expand; `None` for abstract members and symbols without TASTy.
     pub fn body(&self, sym: SymbolId) -> Option<(FileId, NodeId)> {
