@@ -155,6 +155,9 @@ impl Typer<'_> {
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
     /// selection from `this`.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        if self.needs_inline_accessor(c.sym, ctx) {
+            return Err("non-public implicit in an inline method");
+        }
         let package_object = self.u.symbol(c.sym).owner.filter(|&o| self.is_named_package_object(o));
         let through_object = |t: &mut Self, p: Option<Type>, o: SymbolId| match p {
             Some(Type::Package(_)) => true,

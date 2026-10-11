@@ -52,6 +52,15 @@ impl Typer<'_> {
         };
         let flags = self.ast.modifiers(mods).flags.or(extra);
         let flags = if kind == Kind::Param { flags.to_term_flags() } else { flags.to_type_flags() };
+        if flags.is(f::INLINE) && !self.u.symbol(method).flags.has(tasty::tags::INLINE) {
+            self.unsupported(p, "inline parameter of a method that is not inline");
+        }
+        if flags.is_all_of(f::INLINE.or(f::HAS_DEFAULT)) {
+            self.unsupported(p, "default argument of an inline parameter");
+        }
+        if flags.is(f::ERASED) {
+            self.unsupported(p, "erased parameter");
+        }
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);
         if self.syms.by_tree.insert(p, s).is_some() {
