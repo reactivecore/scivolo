@@ -59,7 +59,7 @@ nir-dump path *args:
 
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
 # the lowering compile it, definitions sorted, with positions; Scala Native's from the test
-# program of that name, else compiled into tmp/sn/ when older than `file`.
+# program of that name, else compiled with Scala 3.9.0 into tmp/sn/3.9.0/ when older than `file`.
 nir-cmp file class:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -67,10 +67,10 @@ nir-cmp file class:
     base=$(basename '{{ file }}' .scala)
     sn="tests/programs/$base"
     if [ ! -d "$sn" ]; then
-        sn="tmp/sn/$base"
+        sn="tmp/sn/3.9.0/$base"
         if [ ! -d "$sn" ] || [ '{{ file }}' -nt "$sn" ]; then
             rm -rf "$sn"
-            scala-cli --power compile --native --native-version 0.5.12 --server=false -d "$sn" '{{ file }}' > /dev/null
+            scala-cli --power compile --native --native-version 0.5.12 -S 3.9.0 --server=false -d "$sn" '{{ file }}' > /dev/null
         fi
     fi
     target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null

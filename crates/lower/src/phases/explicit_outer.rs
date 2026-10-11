@@ -20,6 +20,11 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     }
     for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
+        if let Some(outer) = super::local_outer::local_outer(l, td, class) {
+            let field = !super::local_outer::is_anonymous(l, class);
+            add_outer(l, td, class, outer, field);
+            continue;
+        }
         let Some(outer) = outer_class(l, class) else { continue };
         let (own, all) = (terms(l, td, false), terms(l, td, true));
         let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
@@ -34,7 +39,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         match (always || uses || l.outer_accessors.contains_key(&class), l.u.is_trait(class)) {
             (false, _) => {}
             (true, true) => super::outer_traits::add_outer(l, td, class),
-            (true, false) => add_outer(l, td, class, outer),
+            (true, false) => add_outer(l, td, class, outer, true),
         }
     }
     for &td in classes {
@@ -135,22 +140,27 @@ pub fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId
     None
 }
 
-/// Gives object `class` of definition `td` its field, constructor parameter and accessor for
-/// the instance of `outer`, and makes its references to that instance read them.
-fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
+/// Gives object `class` of definition `td` its constructor parameter for the instance of
+/// `outer`, and if `with_field` its field and accessor, and makes its references to that
+/// instance read them.
+fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId, with_field: bool) {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
         unreachable!("a template")
     };
     let tpe = type_ref(l.u, outer);
-    let field = l.u.define(symbol("$outer", Kind::Val, class, Flags::default().with(PRIVATE).with(LOCAL)));
-    l.u.set_info(field, tpe);
-    l.fields.insert(field, field);
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
     let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
     l.u.set_info(param, tpe);
     super::local_classes::add_params(l, constr, ctor, &[param]);
-    l.outers.insert(class, (field, param));
+    if !with_field {
+        l.outers.insert(class, (None, param));
+        return;
+    }
+    let field = l.u.define(symbol("$outer", Kind::Val, class, Flags::default().with(PRIVATE).with(LOCAL)));
+    l.u.set_info(field, tpe);
+    l.fields.insert(field, field);
+    l.outers.insert(class, (Some(field), param));
     let stats = l.tpd.items(body).to_vec();
     let parent_args = l.tpd.items(parents).to_vec();
     for &stat in stats.iter().chain(&parent_args) {
@@ -211,9 +221,18 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     if let Some(&m) = l.outer_accessors.get(&class) {
         return m;
     }
-    let name = outer_accessor_name(l, class);
+    let owner = l.u.symbol(class).owner.expect("a class's owner");
+    let (name, outer) = match super::local_free::is_term(l, owner) {
+        true => (
+            format!("{}$$$outer", super::local_outer::accessor_prefix(l, class)),
+            super::local_free::enclosing_class(l, owner),
+        ),
+        false => (
+            outer_accessor_name(l, class),
+            outer_class(l, class).expect("a class with an enclosing instance"),
+        ),
+    };
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
-    let outer = outer_class(l, class).expect("a class with an enclosing instance");
     let result = type_ref(l.u, outer);
     let binder = l.u.fresh_binder();
     let info = l.u.intern_type(Type::Method {

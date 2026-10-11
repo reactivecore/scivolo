@@ -32,7 +32,7 @@ pub fn pass_values(
         for &v in &free.values {
             let value = match free.in_methods.iter().position(|&w| w == v) {
                 _ if !inside => {
-                    let value = l.ident(v, span);
+                    let value = l.ident(v, l.tpd.span(fun).end_pos());
                     passed.insert(value);
                     value
                 }

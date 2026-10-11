@@ -49,10 +49,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
             }
             let Some(field) = field_ref(l, class, t).filter(|&f| !has(l.u, f, MUTABLE)) else { continue };
             if matches!(l.tpd.tree(t), Tree::Select { .. }) && !is_effectively_final(l.u, class, field) {
-                return unsupported(
-                    l.tpd.span(t),
-                    "overridable class parameters selected on this in the constructor",
-                );
+                continue;
             }
             to_param(l, &params, t, field);
         }

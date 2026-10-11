@@ -29,6 +29,9 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
         }
+        if let Some(owner) = l.u.symbol(f.sym).owner {
+            l.lifted_from.insert(method.sym, owner);
+        }
         methods.push(method);
     }
     Ok(methods)

@@ -40,10 +40,6 @@ const CASES: &[(&str, &str)] = &[
         "branches of arrays and other erased classes",
     ),
     ("class A(private var p: Int) { def f = p }", "private mutable class parameters"),
-    (
-        "class A(val x: Int) { println(this.x) }",
-        "overridable class parameters selected on this in the constructor",
-    ),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
@@ -59,7 +55,6 @@ const CASES: &[(&str, &str)] = &[
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
         "patterns of classes in classes",
     ),
-    ("object O { def f() = { case class P(x: Int); P(1) } }", "local case classes"),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     (
         "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
@@ -67,10 +62,14 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { inline def f(): String = \"a\" }", "inline methods"),
     (
-        "object O { def f(): String = { lazy val x = \"a\"; class C { def g = x }; new C().g } }",
-        "local classes calling local methods",
+        "class A(n: Int) { def f() = { def g = n; class C { def h = g }; new C().h } }",
+        "local classes calling local methods that use the enclosing instance",
     ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
+    (
+        "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
+        "classes in local classes calling local methods",
+    ),
     ("trait T { var x: Int }", "abstract variables"),
     (
         "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",

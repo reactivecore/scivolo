@@ -75,10 +75,13 @@ pub struct Lower<'a> {
     forwarded: FxHashMap<SymbolId, SymbolId>,
     /// The span of each getter's right-hand side as `Getters` made it, its point at its start.
     getter_rhs: FxHashMap<SymbolId, Span>,
-    /// The field and constructor parameter of each class holding its enclosing instance.
-    outers: FxHashMap<SymbolId, (SymbolId, SymbolId)>,
+    /// The field, unless dropped, and constructor parameter of each class holding its enclosing
+    /// instance.
+    outers: FxHashMap<SymbolId, (Option<SymbolId>, SymbolId)>,
     /// The accessor of the enclosing instance of each class needing one.
     outer_accessors: FxHashMap<SymbolId, SymbolId>,
+    /// The term each method `LambdaLift` lifted was defined in.
+    lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The member each super accessor of the unit accesses, whether through a named mixin.
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
 }
@@ -117,6 +120,7 @@ pub fn lower(
         getter_rhs: FxHashMap::default(),
         outers: FxHashMap::default(),
         outer_accessors: FxHashMap::default(),
+        lifted_from: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
     };
     phases::run(&mut l, root)?;
