@@ -1,5 +1,5 @@
-//! Instantiating type variables (dotty's `interpolateTypeVars`, `instantiateTypeVars`,
-//! `instanceType`, `isFullyDefined`), and substituting their instances.
+//! Instantiating type variables (dotty's `instanceType`, `isFullyDefined`), and substituting
+//! their instances.
 
 use super::Typer;
 use crate::tpd::TNodeId;
@@ -29,32 +29,6 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// Instantiates the type variables of id `from` or later that `tree`'s type determines:
-    /// minimized where they occur covariantly, maximized where contravariantly, by their
-    /// lower bound if they do not occur and have one; invariant ones stay, and all stay while
-    /// `tree` is a method not applied to all its parameter clauses.
-    pub fn interpolate(&mut self, tree: TNodeId, from: usize) -> Result<(), &'static str> {
-        let Some(tpe) = self.tpd.get(tree).tpe else { return Ok(()) };
-        if matches!(self.u.types().get(tpe), Type::Method { .. } | Type::Poly { .. }) {
-            return Ok(());
-        }
-        let variances = self.variances(tpe, from);
-        for i in from..self.constraint.count() {
-            let v = VarId(i as u32);
-            if self.constraint.instance(v).is_some() {
-                continue;
-            }
-            let from_below = match variances.get(&v.0) {
-                Some(1) => true,
-                Some(-1) => false,
-                Some(_) => continue,
-                None => self.constraint.bounds(v).0 != NOTHING,
-            };
-            self.instantiate_var(v, from_below)?;
-        }
-        Ok(())
-    }
-
     /// Instantiates `v` to its lower bound widened (dotty's `widenInferred`), or its upper bound.
     pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
@@ -65,6 +39,9 @@ impl Typer<'_> {
             let widened = self.widen_singleton(inst);
             if self.conforms(widened, hi) {
                 inst = self.module_ref(widened);
+            }
+            if self.constraint.soft_lower(v) {
+                inst = self.constraining_lub(inst);
             }
             if self.constraint.soft_lower(v)
                 && matches!(self.u.types().get(inst), Type::Or(..))
@@ -129,7 +106,8 @@ impl Typer<'_> {
             });
             let Some(v) = open else { return Ok(t) };
             let (lo, hi) = self.constraint.bounds(v);
-            let variance = if bottom_ok { self.variances(t, 0).get(&v.0).copied().unwrap_or(0) } else { 0 };
+            let variance =
+                if bottom_ok { self.occurrence_variances(t).get(&v.0).copied().unwrap_or(0) } else { 0 };
             let from_below = match lo != NOTHING {
                 true => variance >= 0,
                 false => bottom_ok && (variance > 0 || variance == 0 && hi == ANY),

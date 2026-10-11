@@ -58,14 +58,19 @@ impl Cmp<'_> {
         if atom || path && self.same_path(a, b) {
             return true;
         }
-        if path
-            && let Some(n) = self.named(a)
+        if let Some(n) = self.named(a)
             && let Some(s) = n.sym
             && matches!(self.u.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def)
         {
             let underlying = self.u.term_type(n.prefix, s);
-            let singleton =
-                matches!(self.u.types().get(underlying), Type::TermRef(..) | Type::Sym(..) | Type::This(_));
+            let underlying = match *self.u.types().get(underlying) {
+                Type::ByName(r) => r,
+                _ => underlying,
+            };
+            let singleton = matches!(
+                self.u.types().get(underlying),
+                Type::TermRef(..) | Type::Sym(..) | Type::This(_) | Type::Constant(..) | Type::Str(_)
+            );
             if singleton && underlying != a && self.recur(underlying, b) {
                 return true;
             }

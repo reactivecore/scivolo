@@ -33,6 +33,42 @@ impl Typer<'_> {
         }
     }
 
+    /// Soft union `t` without the operands that conform to another one, type variables
+    /// constrained to make them conform (dotty's `widenUnionWithoutNull` before the join, a `lub`
+    /// with `canConstrain`).
+    pub fn constraining_lub(&mut self, t: TypeId) -> TypeId {
+        let Type::Or(a, b) = *self.u.types().get(t) else { return t };
+        if self.is_fully_defined(t) {
+            return t;
+        }
+        let (a, b) = (self.constraining_lub(a), self.constraining_lub(b));
+        let (fa, fb) = (self.union_parts(a), self.union_parts(b));
+        let fb: Vec<TypeId> =
+            fb.into_iter().filter(|&x| !fa.iter().any(|&y| self.conforms_or_undo(x, y))).collect();
+        let fa: Vec<TypeId> =
+            fa.into_iter().filter(|&x| !fb.iter().any(|&y| self.conforms_or_undo(x, y))).collect();
+        let parts = [fa, fb].concat();
+        let first = parts[0];
+        parts[1..].iter().fold(first, |acc, &p| self.u.intern_type(Type::Or(acc, p)))
+    }
+
+    fn union_parts(&self, t: TypeId) -> Vec<TypeId> {
+        match *self.u.types().get(t) {
+            Type::Or(a, b) => [self.union_parts(a), self.union_parts(b)].concat(),
+            _ => vec![t],
+        }
+    }
+
+    /// Whether `a` conforms to `b`, the constraint unchanged if not.
+    fn conforms_or_undo(&mut self, a: TypeId, b: TypeId) -> bool {
+        let mark = self.constraint.mark();
+        let ok = self.conforms(a, b);
+        if !ok {
+            self.constraint.rollback(mark);
+        }
+        ok
+    }
+
     /// `t` without transparent traits among its intersection parts, one at a time while the
     /// result conforms to `bound`; `t` if each dropped trait contains the result (dotty's
     /// `dropTransparentTraits`).

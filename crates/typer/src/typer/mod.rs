@@ -38,6 +38,7 @@ mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
+mod interpolate;
 mod java_classes;
 mod java_members;
 mod lift;
@@ -190,7 +191,7 @@ impl<'a> Typer<'a> {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, ctx),
         };
-        if let Err(what) = self.interpolate(tree, vars) {
+        if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);
         }
         self.settle_type(tree, ctx);
