@@ -12,17 +12,39 @@ use syntax::ast::constant::Constant as C;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
-    /// `t` retyped, the proxies of inline arguments in `args` replaced by copies of them.
+    /// `t`, owned by `owner`, retyped, the proxies of inline arguments in `args` replaced by copies
+    /// of them and the inline calls in it expanded.
     pub fn retype(
         &mut self,
         t: TNodeId,
         args: &FxHashMap<SymbolId, TNodeId>,
+        owner: SymbolId,
+    ) -> Result<TNodeId, Unsupported> {
+        let t = self.retype_node(t, args, owner)?;
+        match self.inline_method(t)? {
+            Some(def) => self.inline_call(t, def, owner),
+            None => Ok(t),
+        }
+    }
+
+    fn retype_node(
+        &mut self,
+        t: TNodeId,
+        args: &FxHashMap<SymbolId, TNodeId>,
+        owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(t);
         match self.tpd.tree(t).clone() {
-            T::Ident { .. } => match self.tpd.sym(t).and_then(|s| args.get(&s)) {
-                Some(&rhs) => self.copy(&mut TreeTypeMap::default(), rhs, &mut |_, _, _| None),
-                None => Ok(t),
+            T::Ident { .. } => match self.tpd.sym(t).and_then(|s| args.get(&s).map(|&r| (s, r))) {
+                Some((proxy, rhs)) => {
+                    let mut m = TreeTypeMap {
+                        old_owner: Some(proxy),
+                        new_owner: Some(owner),
+                        ..TreeTypeMap::default()
+                    };
+                    self.copy(&mut m, rhs, &mut |_, _, _| None)
+                }
+                None => self.ident_as_select(t),
             },
             T::Literal { .. } | T::ClassLiteral { .. } | T::This { .. } => Ok(t),
             T::TypeTree { .. }
@@ -33,20 +55,20 @@ impl Inlining<'_> {
             | T::LambdaTypeTree { .. }
             | T::Annotated { .. } => Ok(t),
             T::If { cond, thenp, elsep } => {
-                let cond = self.retype(cond, args)?;
+                let cond = self.retype(cond, args, owner)?;
                 if let Some(C::Boolean(b)) = self.constant_of(cond) {
                     if !self.is_idempotent_expr(cond) {
                         return Err((span, "inline if on an impure constant condition"));
                     }
-                    return self.retype(if b { thenp } else { elsep }, args);
+                    return self.retype(if b { thenp } else { elsep }, args, owner);
                 }
-                let (thenp, elsep) = (self.retype(thenp, args)?, self.retype(elsep, args)?);
+                let (thenp, elsep) = (self.retype(thenp, args, owner)?, self.retype(elsep, args, owner)?);
                 let tpe = self.u.lub(self.tpd.tpe(thenp), self.tpd.tpe(elsep));
                 Ok(self.tpd.node(T::If { cond, thenp, elsep }, span, Some(tpe), None))
             }
             T::Select { qualifier, name } => {
                 let before = self.tpd.get(qualifier).tpe;
-                let qualifier = self.retype(qualifier, args)?;
+                let qualifier = self.retype(qualifier, args, owner)?;
                 if let T::Select { qualifier: q, .. } = &mut self.tpd.get_mut(t).tree {
                     *q = qualifier;
                 }
@@ -60,7 +82,7 @@ impl Inlining<'_> {
                 {
                     self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(b), s)));
                 }
-                self.retyped(t)
+                self.retyped(t, owner)
             }
             T::Apply { .. }
             | T::TypeApply { .. }
@@ -75,8 +97,12 @@ impl Inlining<'_> {
             | T::SeqLiteral { .. }
             | T::WhileDo { .. }
             | T::Assign { .. } => {
+                let inner = match self.tpd.tree(t) {
+                    T::ValDef { .. } | T::DefDef { .. } => self.tpd.sym(t).unwrap_or(owner),
+                    _ => owner,
+                };
                 let mut failed = None;
-                map_children(self, t, &mut |i, c| match i.retype(c, args) {
+                map_children(self, t, &mut |i, c| match i.retype(c, args, inner) {
                     Ok(n) => n,
                     Err(e) => {
                         failed.get_or_insert(e);
@@ -86,35 +112,22 @@ impl Inlining<'_> {
                 if let Some(e) = failed {
                     return Err(e);
                 }
-                self.retyped(t)
+                self.retyped(t, owner)
             }
             _ => Err((span, "inline body with a match, try or return")),
         }
     }
 
     /// Node `t`, whose children are retyped, retyped itself.
-    fn retyped(&mut self, t: TNodeId) -> Result<TNodeId, Unsupported> {
+    fn retyped(&mut self, t: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
+        let applied = matches!(self.tpd.tree(t), T::Apply { .. });
+        let t = self.beta_reduce(t, owner)?;
         match *self.tpd.tree(t) {
-            T::Select { qualifier, name } => {
-                let owner = self.tpd.sym(t).and_then(|s| self.u.symbol(s).owner).map(|o| self.u.full_name(o));
-                if owner.is_some_and(|o| PRIMITIVE_OWNERS.contains(&o.as_str()))
-                    && let Some(c) =
-                        self.constant_of(qualifier).and_then(|x| fold_unop(self.names.text(name.name), &x))
-                {
-                    self.tpd.get_mut(t).tpe = Some(constant_type_of(self.u, &c));
-                }
-                self.const_to_literal(t)
+            T::Select { .. } | T::Apply { .. } => {
+                self.fold_constants(t);
+                Ok(self.const_to_literal(t))
             }
-            T::Apply { fun, args } => {
-                if let T::Select { qualifier, name } = *self.tpd.tree(fun)
-                    && let &[arg] = self.tpd.items(args)
-                    && let (Some(x), Some(y)) = (self.constant_of(qualifier), self.constant_of(arg))
-                    && let Some(c) = fold_binop(self.names.text(name.name), &x, &y)
-                {
-                    self.tpd.get_mut(t).tpe = Some(constant_type_of(self.u, &c));
-                }
-                self.const_to_literal(t)
-            }
+            _ if applied => Ok(self.const_to_literal(t)),
             T::Block { stats, expr } => {
                 let locals: Vec<SymbolId> =
                     self.tpd.items(stats).iter().filter_map(|&s| self.tpd.sym(s)).collect();
@@ -129,6 +142,32 @@ impl Inlining<'_> {
                 Ok(t)
             }
             _ => Ok(t),
+        }
+    }
+
+    /// Gives selection or application `t` the constant type of its operation on constants, if it
+    /// is one (dotty's `ConstFold`, which also runs when trees are copied).
+    pub fn fold_constants(&mut self, t: TNodeId) {
+        let folded = match *self.tpd.tree(t) {
+            T::Select { qualifier, name } => {
+                let owner = self.tpd.sym(t).and_then(|s| self.u.symbol(s).owner).map(|o| self.u.full_name(o));
+                let primitive = owner.is_some_and(|o| PRIMITIVE_OWNERS.contains(&o.as_str()));
+                let x = if primitive { self.constant_operand(qualifier) } else { None };
+                x.and_then(|x| fold_unop(self.names.text(name.name), &x))
+            }
+            T::Apply { fun, args } => match (self.tpd.tree(fun).clone(), self.tpd.items(args)) {
+                (T::Select { qualifier, name }, &[arg]) => {
+                    match (self.constant_operand(qualifier), self.constant_operand(arg)) {
+                        (Some(x), Some(y)) => fold_binop(self.names.text(name.name), &x, &y),
+                        _ => None,
+                    }
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some(c) = folded {
+            self.tpd.get_mut(t).tpe = Some(constant_type_of(self.u, &c));
         }
     }
 

@@ -100,7 +100,10 @@ impl Typer<'_> {
             return IMPURE;
         }
         if self.u.is_module(s) {
-            let no_inits = self.u.module_class(s).is_some_and(|c| self.is_no_inits(c));
+            let no_inits = self.u.module_class(s).is_some_and(|c| {
+                let bases = self.u.linearization(c);
+                bases.iter().all(|&b| self.is_no_inits(b))
+            });
             return if no_inits { PURE_PATH } else { IDEMPOTENT_PATH };
         }
         if self.u.symbol(s).flags.has(tasty::tags::LAZY) { IDEMPOTENT_PATH } else { PURE_PATH }

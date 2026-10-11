@@ -15,6 +15,8 @@ pub struct TreeTypeMap {
     /// The owner whose definitions get `new_owner` as owner when copied.
     pub old_owner: Option<SymbolId>,
     pub new_owner: Option<SymbolId>,
+    /// The class whose `this` is replaced, with the type replacing it.
+    pub this: Option<(SymbolId, TypeId)>,
 }
 
 /// What replaces a tree instead of its copy, if anything (dotty's `treeMap`).
@@ -28,6 +30,7 @@ impl<'a> Inlining<'a> {
                 Some(&r) => Some(r),
                 None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
             },
+            Type::This(c) => m.this.filter(|&(cls, _)| u.class_symbol(c) == Some(cls)).map(|(_, to)| to),
             _ => None,
         })
     }
@@ -62,13 +65,19 @@ impl<'a> Inlining<'a> {
                     self.fresh_symbol(m, s);
                 }
             }
-            T::TypeDef { .. } | T::Template { .. } | T::Inlined { .. } | T::Import { .. } => {
-                return Err((span, "inline body with a local type, class, import or inlined code"));
+            T::TypeDef { .. } | T::Template { .. } | T::Import { .. } => {
+                return Err((span, "inline body with a local type, class or import"));
             }
             _ => {}
         }
         let tpe = tpe.map(|t| self.map_type(m, t));
         let sym = sym.map(|s| m.syms.get(&s).copied().unwrap_or(s));
+        let (tree, call) = match tree {
+            T::Inlined { call, bindings, expansion } => {
+                (T::Inlined { call: None, bindings, expansion }, call)
+            }
+            tree => (tree, None),
+        };
         let copy = self.tpd.node(tree, span, tpe, sym);
         let mut failed = None;
         map_children(self, copy, &mut |i, c| match i.copy(m, c, hook) {
@@ -78,7 +87,14 @@ impl<'a> Inlining<'a> {
                 c
             }
         });
-        failed.map_or(Ok(copy), Err)
+        if let Some(e) = failed {
+            return Err(e);
+        }
+        if let T::Inlined { call: c, .. } = &mut self.tpd.get_mut(copy).tree {
+            *c = call;
+        }
+        self.fold_constants(copy);
+        Ok(copy)
     }
 
     /// The fresh symbol of local definition `s` in `m`, made if it is not yet: owned by what

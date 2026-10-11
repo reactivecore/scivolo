@@ -2,16 +2,19 @@
 //! replaced by an `Inlined` tree of the method's body with the arguments bound (`Inlining`,
 //! `Inlines.inlineCall`).
 
+mod beta;
 mod constants;
 mod copy;
 mod expand;
+mod no_inits;
 mod proxies;
 mod purity;
 mod retype;
+mod this_proxy;
 mod unused;
 
 use crate::tpd::{TNodeId, Tpd, Tree as T, map_children};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use tasty::tags::INLINE;
@@ -32,6 +35,10 @@ pub struct Inlining<'a> {
     bodies: FxHashMap<SymbolId, TNodeId>,
     /// How many inline calls are being expanded, one inside another.
     depth: u32,
+    /// The class enclosing the call being expanded.
+    pub enclosing_class: Option<SymbolId>,
+    /// The classes of the unit whose templates run code.
+    with_inits: FxHashSet<SymbolId>,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -48,7 +55,16 @@ pub fn run(
     fresh: &mut FreshNames,
     root: TNodeId,
 ) -> Result<(), Unsupported> {
-    let mut i = Inlining { u, tpd, names, fresh, bodies: FxHashMap::default(), depth: 0 };
+    let mut i = Inlining {
+        u,
+        tpd,
+        names,
+        fresh,
+        bodies: FxHashMap::default(),
+        depth: 0,
+        enclosing_class: None,
+        with_inits: FxHashSet::default(),
+    };
     i.collect_bodies(root);
     let owner = i.u.root();
     let new_root = i.transform(root, owner)?;
@@ -64,6 +80,7 @@ impl Inlining<'_> {
         {
             self.bodies.insert(s, t);
         }
+        self.note_inits(t);
         for c in self.tpd.children(t) {
             self.collect_bodies(c);
         }
@@ -148,6 +165,12 @@ impl Inlining<'_> {
             return Err((span, "maximal number of successive inlines exceeded"));
         }
         self.depth += 1;
+        let mut o = Some(owner);
+        while let Some(x) = o.filter(|&x| self.u.symbol(x).kind != Kind::Class) {
+            o = self.u.symbol(x).owner;
+        }
+        self.enclosing_class = o;
+        self.type_this_qualifiers(call);
         let expanded = expand::Expansion::new(self, call, owner).inlined(def);
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
@@ -162,10 +185,30 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None))
     }
 
+    /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of
+    /// the call in `inlineCall` does.
+    pub fn type_this_qualifiers(&mut self, t: TNodeId) {
+        if let T::This { qual } = *self.tpd.tree(t)
+            && let Some(c) = self.tpd.sym(t)
+            && self.tpd.get(qual).tpe.is_none()
+        {
+            let tpe = crate::defn::type_ref(self.u, c);
+            let node = self.tpd.get_mut(qual);
+            (node.sym, node.tpe) = (Some(c), Some(tpe));
+        }
+        for c in self.tpd.children(t) {
+            self.type_this_qualifiers(c);
+        }
+    }
+
     /// A reference to an inline method in `t`, outside the arguments inlined from outside.
     fn inline_ref_in(&self, t: TNodeId) -> Option<TNodeId> {
-        match self.tpd.tree(t) {
+        match *self.tpd.tree(t) {
             T::Inlined { call: None, .. } => return None,
+            T::Inlined { bindings, expansion, .. } => {
+                let parts = [self.tpd.items(bindings), &[expansion]].concat();
+                return parts.into_iter().find_map(|c| self.inline_ref_in(c));
+            }
             T::Ident { .. } | T::Select { .. } => {
                 let inline = self.tpd.sym(t).is_some_and(|s| {
                     let s = self.u.symbol(s);
