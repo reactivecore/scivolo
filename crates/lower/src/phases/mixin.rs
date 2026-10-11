@@ -59,6 +59,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
         return Ok(());
     }
+    let at = if span.exists() { Span::at(span.point()) } else { span };
     let mut forwarders = Vec::new();
     for mixin in mixins(l, class) {
         let library = l.u.symbol(mixin).tree.is_some();
@@ -75,7 +76,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         for meth in l.u.decls(mixin).unwrap_or_default() {
             if has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth) {
-                let at = if span.exists() { Span::at(span.point()) } else { span };
                 forwarders.push(forwarder(l, class, mixin, meth, at)?);
             }
         }

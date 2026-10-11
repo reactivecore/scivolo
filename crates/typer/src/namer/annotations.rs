@@ -94,11 +94,20 @@ impl Typer<'_> {
         let in_class = s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Class);
         let member = in_class && matches!(s.kind, Kind::Def | Kind::Val) && s.name != "<init>";
         match name {
+            Some(_) if self.trait_field(sym) => {
+                self.unsupported(annot, "@targetName on a trait field");
+            }
             Some(n) if member && !self.u.is_module(sym) => self.u.set_target(sym, &n),
             _ => {
                 self.unsupported(annot, "@targetName other than a string on a method or value member");
             }
         }
+    }
+
+    /// Whether `sym` is a val, var or lazy val member of a trait.
+    fn trait_field(&self, sym: SymbolId) -> bool {
+        let s = self.u.symbol(sym);
+        s.kind == Kind::Val && !self.u.is_module(sym) && s.owner.is_some_and(|o| self.u.is_trait(o))
     }
 
     /// The string literal that is the only argument of annotation `annot`.

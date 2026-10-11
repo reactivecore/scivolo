@@ -71,7 +71,8 @@ impl Universe {
     }
 
     /// Whether methods `a` and `b`, as members of `site`, take the same numbers of type
-    /// parameters and the same parameter types, `b`'s type parameters renamed to `a`'s.
+    /// parameters and the same parameter types, `b`'s type parameters, symbols or those of its
+    /// polymorphic type, renamed to `a`'s.
     pub fn matches(&mut self, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
         let (ta, tb) = (self.type_params(a), self.type_params(b));
         if ta.len() != tb.len() {
@@ -80,7 +81,13 @@ impl Universe {
         let renamed: Vec<TypeId> = ta.iter().map(|&p| self.intern_type(Type::Sym(None, p))).collect();
         let (ia, ib) = (self.member_info(site, a), self.member_info(site, b));
         let binders = match (self.types().get(ia), self.types().get(ib)) {
-            (&Type::Poly { binder: x, .. }, &Type::Poly { binder: y, .. }) => Some((x, y)),
+            (Type::Poly { binder: ba, params: pa, .. }, Type::Poly { binder: bb, params: pb, .. }) => {
+                if pa.len() != pb.len() {
+                    return false;
+                }
+                Some((*ba, *bb))
+            }
+            (Type::Poly { .. }, _) | (_, Type::Poly { .. }) => return false,
             _ => None,
         };
         let (ca, cb) = (self.param_clauses(ia), self.param_clauses(ib));
@@ -93,9 +100,10 @@ impl Universe {
             let (x, y) = (self.normalize(x), self.normalize(y));
             let y = self.map_type(y, &mut |u, t| match *u.types().get(t) {
                 Type::Sym(_, s) => tb.iter().position(|&p| p == s).map(|i| renamed[i]),
-                Type::Param(b, i) => {
-                    binders.filter(|&(_, y)| y == b).map(|(x, _)| u.intern_type(Type::Param(x, i)))
-                }
+                Type::Param(b, i) => match binders {
+                    Some((ba, bb)) if b == bb => Some(u.intern_type(Type::Param(ba, i))),
+                    _ => None,
+                },
                 _ => None,
             });
             x == y

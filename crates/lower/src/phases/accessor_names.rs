@@ -61,7 +61,7 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
 }
 
 /// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
-fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
+pub fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     let name = tasty::module_name(&sym.name).unwrap_or(&sym.name);
     match sym.owner {

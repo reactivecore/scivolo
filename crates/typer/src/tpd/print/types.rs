@@ -98,6 +98,7 @@ impl Printer<'_> {
             Type::Package(p) => format!("t:{}", full_name(self.u, p)),
             Type::PackageName(p) => format!("t:{p}"),
             Type::This(c) => format!("{}.this", self.tpe(c, n)),
+            Type::Super(t, p) => format!("{}.super[{}]", self.tpe(t, n), self.tpe(p, n)),
             Type::Applied(c, args) => {
                 let args: Vec<String> = args.iter().map(|&a| self.tpe(a, n)).collect();
                 format!("{}[{}]", self.tpe(c, n), args.join(" "))

@@ -23,6 +23,7 @@ impl Universe {
             Type::Package(p) => self.full_name(*p),
             Type::PackageName(p) => p.clone(),
             Type::This(c) => format!("{}.this", self.show(*c)),
+            Type::Super(t, p) => format!("{}.super[{}]", self.show(*t), self.show(*p)),
             Type::Applied(c, args) => {
                 format!(
                     "{}[{}]",
