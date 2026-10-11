@@ -2,8 +2,8 @@
 //! `C`, becomes `C.this.acc` of a super accessor `C` declares. A trait's accessors have no body
 //! and the classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`.
 
-use super::explicit_outer::terms;
 use super::mixin::has_body;
+use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -28,18 +28,28 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         .iter()
         .map(|&td| (l.tpd.sym(td).expect("a class definition's symbol"), Span::at(l.tpd.span(td).point())))
         .collect();
-    for &td in classes {
-        let current = l.tpd.sym(td).expect("a class definition's symbol");
-        for s in super_selects(l, td) {
+    let selects: Vec<(SymbolId, Vec<SuperSelect>)> = classes
+        .iter()
+        .map(|&td| (l.tpd.sym(td).expect("a class definition's symbol"), super_selects(l, td)))
+        .collect();
+    for (current, ss) in &selects {
+        for s in ss {
             let span = l.tpd.span(s.sel);
-            if !has_body(l, s.member) && !is_abstract_override(l, s.clazz, s.member) {
+            if matches!(l.u.symbol(s.member).kind, Kind::Val | Kind::Param) {
+                return unsupported(span, "super calls of values");
+            }
+            let abstract_override = s.mix.is_empty() && is_abstract_override(l, s.clazz, s.member);
+            if !has_body(l, s.member) && !abstract_override {
                 return unsupported(span, "super calls of abstract members");
             }
-            if s.clazz == current && !(s.mix.is_empty() && l.u.is_trait(s.clazz)) {
+            if s.clazz == *current && !(s.mix.is_empty() && l.u.is_trait(s.clazz)) {
                 continue;
             }
-            let point = points.get(&s.clazz).copied().unwrap_or(Span::NONE);
-            let acc = accessor(l, &s, point, defs.entry(s.clazz).or_default())?;
+            let point = match l.u.is_trait(s.clazz) {
+                true => Span::at(span.point()),
+                false => points.get(&s.clazz).copied().unwrap_or(Span::NONE),
+            };
+            let acc = accessor(l, s, point, defs.entry(s.clazz).or_default())?;
             let this = l.this(s.clazz, Span::NONE);
             let sel = l.select(this, acc, Span::NONE);
             l.with_span(sel, span);
@@ -57,10 +67,11 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     Ok(())
 }
 
-/// The term selections on `super` in class definition `td`, outside its nested classes.
+/// The term selections on `super` in class definition `td`, outside its nested classes, in the
+/// order dotty's `PostTyper` visits them.
 fn super_selects(l: &Lower, td: TNodeId) -> Vec<SuperSelect> {
     let mut out = Vec::new();
-    for t in terms(l, td, false) {
+    for t in post_typer_order(l, td) {
         let Tree::Select { qualifier, name } = *l.tpd.tree(t) else { continue };
         let Tree::Super { mix, .. } = *l.tpd.tree(qualifier) else { continue };
         let (Some(clazz), Some(member)) = (l.tpd.sym(qualifier), l.tpd.sym(t)) else { continue };
@@ -69,6 +80,29 @@ fn super_selects(l: &Lower, td: TNodeId) -> Vec<SuperSelect> {
             let mix = l.names.text(mix.name).to_owned();
             out.push(SuperSelect { sel: t, clazz, mix, member });
         }
+    }
+    out
+}
+
+/// The trees of class definition `td` but type trees and nested classes, in pre-order, the
+/// arguments of an application before its function.
+fn post_typer_order(l: &Lower, td: TNodeId) -> Vec<TNodeId> {
+    let mut out = Vec::new();
+    let mut todo = vec![td];
+    while let Some(t) = todo.pop() {
+        out.push(t);
+        let mut kids = match *l.tpd.tree(t) {
+            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => continue,
+            Tree::TypeDef { .. } if t != td => continue,
+            Tree::Apply { fun, args } => {
+                let mut kids = l.tpd.items(args).to_vec();
+                kids.push(fun);
+                kids
+            }
+            _ => walk::children(l.tpd, t),
+        };
+        kids.reverse();
+        todo.extend(kids);
     }
     out
 }
@@ -106,8 +140,8 @@ fn is_param(l: &Lower, s: TNodeId) -> bool {
 }
 
 /// The super accessor of `s.clazz` for `s`: the one already there, else a new one whose
-/// definition joins `defs`, at `class_point` in a class.
-fn accessor(l: &mut Lower, s: &SuperSelect, class_point: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
+/// definition joins `defs`, at `span`.
+fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>) -> Result<SymbolId> {
     let original = l.u.symbol(s.member).name.clone();
     let unexpanded = match s.mix.as_str() {
         "" => format!("super${original}"),
@@ -123,10 +157,6 @@ fn accessor(l: &mut Lower, s: &SuperSelect, class_point: Span, defs: &mut Vec<TN
     if let Some(acc) = declared.into_iter().find(|&a| l.u.info(a) == info) {
         return Ok(acc);
     }
-    let span = match trait_ {
-        true => Span::at(l.tpd.span(s.sel).point()),
-        false => class_point,
-    };
     if matches!(l.u.types().get(info), Type::Poly { .. }) {
         return unsupported(span, "super calls of polymorphic methods");
     }

@@ -57,8 +57,8 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
 }
 
 /// The member super accessor `acc` calls in `base`: the one of the named mixin, else the first
-/// concrete one of the accessed member's name and signature in the base classes of `base` after
-/// the accessor's trait.
+/// concrete one of the accessed member's name in the base classes of `base` after the accessor's
+/// trait whose type seen from `base` matches the accessor's, bridges left out.
 fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, span: Span) -> Result<SymbolId> {
     let (member, mixed) = l.super_accessors[&acc];
     if mixed {
@@ -66,11 +66,12 @@ fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, span: Span) -> Res
     }
     let owner = l.u.symbol(acc).owner;
     let name = l.u.symbol(member).name.clone();
-    let signature = l.u.erased_method(member);
+    let site = l.u.this_type(base);
     let bases = l.u.linearization(base);
     for &b in bases.iter().skip_while(|&&b| Some(b) != owner).skip(1) {
         for other in l.u.decl(b, &name).unwrap_or_default() {
-            if !has(l.u, other, PRIVATE) && has_body(l, other) && l.u.erased_method(other) == signature {
+            let candidate = !has(l.u, other, PRIVATE) && !l.bridges.contains(&other) && has_body(l, other);
+            if candidate && l.u.matches(site, other, acc) {
                 return Ok(other);
             }
         }

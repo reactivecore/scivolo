@@ -107,10 +107,15 @@ impl Universe {
         })
     }
 
-    /// `t`, a type in class `owner`, as seen from `prefix`: the `this` of `owner`, of its base
-    /// classes and of its enclosing classes replaced by `prefix` or the prefix `prefix` gives
-    /// them, the type parameters of `owner` by the arguments `prefix` gives them.
+    /// `t`, a type in class `owner`, as seen from `prefix`, from its `this` for a `super`: the
+    /// `this` of `owner`, of its base classes and of its enclosing classes replaced by `prefix`
+    /// or the prefix `prefix` gives them, the type parameters of `owner` by the arguments
+    /// `prefix` gives them.
     pub fn as_seen_from(&mut self, t: TypeId, prefix: TypeId, owner: SymbolId) -> TypeId {
+        let prefix = match *self.types().get(prefix) {
+            Type::Super(this, _) => this,
+            _ => prefix,
+        };
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
             Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
             Type::This(c) => {
@@ -156,9 +161,6 @@ impl Universe {
     ) -> Option<TypeId> {
         let depth = depth.checked_sub(1)?;
         let pre_kind = self.types().get(pre).clone();
-        if let Type::Super(this, _) = pre_kind {
-            return self.this_seen_from(this, cls, this_cls, depth);
-        }
         if self.symbol(cls).kind == Kind::Package || matches!(pre_kind, Type::NoPrefix) {
             return None;
         }

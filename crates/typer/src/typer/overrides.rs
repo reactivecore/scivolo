@@ -161,7 +161,8 @@ impl Typer<'_> {
     fn overrides_in_common(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), m: SymbolId) -> bool {
         let name = self.u.symbol(m).name.clone();
         let bases: Vec<SymbolId> = self.u.linearization(a).into_iter().skip(1).collect();
-        let common: Vec<SymbolId> = bases.into_iter().filter(|&c| c != b && self.u.derives_from(b, c)).collect();
+        let common: Vec<SymbolId> =
+            bases.into_iter().filter(|&c| c != b && self.u.derives_from(b, c)).collect();
         common.into_iter().any(|c| {
             let members = self.overridable(c, &name);
             members.into_iter().any(|o| self.same_member(site, m, o))
