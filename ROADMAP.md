@@ -237,8 +237,8 @@ typer half of value classes, type tests against value classes (#87), inline defi
 values with eta-expansion and lifting, SpecializeTuples.
 
 Open merge requests:
-- #83: no false double definition between a method and a module (Draft !217); views in
-  implicit search (Draft !222).
+- #83: no false double definition between a method and a module (!217); views in implicit
+  search (!222).
 
 Next, in order of the tests they unblock:
 1. **Inlining (#82).** In the lowering: call `typer::inlining::run` before FirstTransform and
