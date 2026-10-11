@@ -119,13 +119,17 @@ impl Typer<'_> {
         }
     }
 
-    /// The classes `t` refers to, both sides of a union or intersection (dotty's
-    /// `classSymbols`).
+    /// The classes `t` refers to: those of either side of an intersection, those common to both
+    /// sides of a union (dotty's `classSymbols`).
     fn class_symbols(&mut self, t: TypeId) -> Vec<SymbolId> {
         let t = self.u.widen(t);
         let t = self.u.dealias(t);
         match *self.u.types().get(t) {
-            Type::Or(a, b) | Type::And(a, b) => [self.class_symbols(a), self.class_symbols(b)].concat(),
+            Type::And(a, b) => [self.class_symbols(a), self.class_symbols(b)].concat(),
+            Type::Or(a, b) => {
+                let right = self.class_symbols(b);
+                self.class_symbols(a).into_iter().filter(|c| right.contains(c)).collect()
+            }
             _ => self.u.class_symbol(t).into_iter().collect(),
         }
     }

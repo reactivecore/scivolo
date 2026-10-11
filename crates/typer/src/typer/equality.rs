@@ -24,6 +24,9 @@ impl Typer<'_> {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
+        if matches!(self.tpd.tree(qualifier), T::Apply { .. }) && self.tpd.span(qualifier).is_synthetic() {
+            return Err("comparison of a converted value");
+        }
         let a = self.tpd.tpe(qualifier);
         self.check_comparable(a, arg_tpe, at, true, ctx)
     }
@@ -86,7 +89,7 @@ impl Typer<'_> {
 
     /// Whether dotty finds no `CanEqual[a, b]` at `at` in `ctx` either, as far as the search can
     /// tell: outside `strictEquality`, the unit defines no implicit and derives nothing, and every
-    /// class `a` and `b` refer to has all its base classes in the library.
+    /// class `a` and `b` refer to is no object's and has all its base classes in the library.
     fn certainly_incomparable(&mut self, a: TypeId, b: TypeId, at: Span, ctx: Ctx) -> bool {
         let derives = |ast: &Ast, n: NodeId| matches!(*ast.tree(n), Tree::Template { derived: Some(_), .. });
         if self.is_strict_equality(ctx)
@@ -97,7 +100,8 @@ impl Typer<'_> {
         }
         let parts = [self.type_parts(a), self.type_parts(b)].concat();
         let classes: Vec<_> = parts.into_iter().filter_map(|p| self.u.class_symbol(p)).collect();
-        classes.into_iter().all(|c| self.has_known_bases(c)) && self.certain_context(at, ctx)
+        classes.into_iter().all(|c| !self.u.is_module_class(c) && self.has_known_bases(c))
+            && self.certain_context(at, ctx)
     }
 
     /// Whether every parent of class `c` and of its base classes resolves to a class.
