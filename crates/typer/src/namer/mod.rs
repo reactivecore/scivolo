@@ -8,6 +8,7 @@ mod defaults;
 mod inheritance;
 mod inherited;
 mod params;
+mod value_classes;
 
 use crate::ctx::{Ctx, Level};
 use crate::symbols::Completion;
