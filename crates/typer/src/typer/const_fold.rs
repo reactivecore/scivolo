@@ -19,7 +19,7 @@ impl Typer<'_> {
         loop {
             t = match self.u.types().get(t).clone() {
                 Type::ByName(r) => r,
-                Type::Sym(_, s) if !self.is_type_symbol(s) => match self.method_info(t) {
+                Type::Sym(_, s) if !self.u.is_type_symbol(s) => match self.method_info(t) {
                     Some(info) if info != t => info,
                     _ => return None,
                 },

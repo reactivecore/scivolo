@@ -14,10 +14,6 @@ pub struct Found {
 }
 
 impl Typer<'_> {
-    pub fn is_type_symbol(&self, s: SymbolId) -> bool {
-        self.u.is_type_symbol(s)
-    }
-
     /// Whether `c` is a package, or an object whose owners are all packages or objects.
     pub fn is_static_owner(&self, c: SymbolId) -> bool {
         let s = self.u.symbol(c);
@@ -34,7 +30,7 @@ impl Typer<'_> {
         let syms: Vec<SymbolId> = self
             .type_members(prefix, name)
             .into_iter()
-            .filter(|&s| self.is_type_symbol(s) == is_type)
+            .filter(|&s| self.u.is_type_symbol(s) == is_type)
             .collect();
         (!syms.is_empty()).then_some(Found { prefix: Some(prefix), syms })
     }
@@ -127,7 +123,7 @@ impl Typer<'_> {
             Kind::Class => self.class_members(owner, last),
             _ => self.u.decl(owner, last).ok()?,
         };
-        let mut found = decls.into_iter().filter(|&d| self.is_type_symbol(d) == is_type);
+        let mut found = decls.into_iter().filter(|&d| self.u.is_type_symbol(d) == is_type);
         let s = found.next()?;
         found.next().is_none().then_some(s)
     }

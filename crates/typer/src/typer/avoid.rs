@@ -84,7 +84,7 @@ impl Typer<'_> {
                 checked = true;
                 break;
             }
-            if self.is_type_symbol(s) {
+            if self.u.is_type_symbol(s) {
                 break;
             }
             let pre = match *self.u.types().get(avoided) {
@@ -133,7 +133,7 @@ impl Typer<'_> {
             if sym.flags.has(tasty::tags::PRIVATE) || sym.name == "<init>" || sym.kind == tasty::Kind::Class {
                 continue;
             }
-            if self.is_type_symbol(d) {
+            if self.u.is_type_symbol(d) {
                 return true;
             }
             let name = sym.name.clone();
@@ -146,7 +146,7 @@ impl Typer<'_> {
             let inherited: Vec<SymbolId> = self
                 .type_members(parent, &name)
                 .into_iter()
-                .filter(|&m| !self.is_type_symbol(m) && self.same_member(site, m, d))
+                .filter(|&m| !self.u.is_type_symbol(m) && self.same_member(site, m, d))
                 .collect();
             if inherited.is_empty() {
                 if selectable {

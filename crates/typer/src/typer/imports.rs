@@ -170,7 +170,7 @@ impl Typer<'_> {
         let syms: Vec<SymbolId> = self
             .type_members(qual, member)
             .into_iter()
-            .filter(|&s| self.is_type_symbol(s) == is_type)
+            .filter(|&s| self.u.is_type_symbol(s) == is_type)
             .filter(|&s| {
                 let given = self.u.symbol(s).flags.has(tasty::tags::GIVEN);
                 !wildcard || if given { given_wild } else { plain_wild }

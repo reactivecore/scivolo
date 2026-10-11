@@ -21,7 +21,7 @@ impl Typer<'_> {
     /// extend it, words the message otherwise, or types trees that typing skips after the error.
     pub fn not_a_member(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> Option<TNodeId> {
         let this = matches!(self.tpd.tree(qual), T::This { .. });
-        let type_qual = !this && self.tpd.sym(qual).is_some_and(|q| self.is_type_symbol(q))
+        let type_qual = !this && self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(
                 self.tpd.tree(qual),
                 T::TypeTree { .. }
