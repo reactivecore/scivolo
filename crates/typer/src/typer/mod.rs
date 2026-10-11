@@ -12,7 +12,7 @@ mod avoid;
 mod classes;
 mod closures;
 mod const_fold;
-mod const_ops;
+pub(crate) mod const_ops;
 mod constructor_proxies;
 mod constructors;
 mod control;

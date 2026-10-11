@@ -7,6 +7,7 @@ mod constraint;
 mod ctx;
 mod defn;
 pub mod dump;
+pub mod inlining;
 mod main_proxies;
 mod namer;
 mod symbols;
