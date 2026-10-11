@@ -23,7 +23,22 @@ class C:
     object InnerObj:
       def xy = x + y
 
+class S:
+  class K:
+    class In3:
+      def f = 1
+  val k = new K
+  def r(h: S) = new h.k.In3().f
+
+class W3:
+  object O1:
+    object O2:
+      class In:
+        def g = 2
+      def mk(w: W3) = new w.O1.O2.In
+
 @main def innerclasses2(): Unit =
+  println(S().r(S()))
   val a = C1()
   println(a.isC2(a.make))
   println(C1().isC2(a.make))
