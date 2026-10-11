@@ -20,6 +20,10 @@ impl Universe {
             Type::TermRef(p, n) => Type::TermRef(m(self, p), n),
             Type::Sym(Some(p), s) => Type::Sym(Some(m(self, p)), s),
             Type::This(c) => Type::This(m(self, c)),
+            Type::Super(t, p) => {
+                let t = m(self, t);
+                Type::Super(t, m(self, p))
+            }
             Type::Applied(c, args) => {
                 let c = m(self, c);
                 Type::Applied(c, args.into_iter().map(|a| m(self, a)).collect())

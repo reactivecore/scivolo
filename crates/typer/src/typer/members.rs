@@ -27,6 +27,14 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
             Type::This(c) => self.members_within(c, name, within),
+            Type::Super(this, p) if matches!(self.u.types().get(p), Type::And(..)) => {
+                let class = match *self.u.types().get(this) {
+                    Type::This(c) => self.u.class_symbol(c),
+                    _ => None,
+                };
+                class.map_or_else(Vec::new, |c| self.super_members(c, name))
+            }
+            Type::Super(_, p) => self.members_within(p, name, within),
             Type::Constant(..) | Type::Str(_) | Type::TermRef(..) => {
                 let widened = self.u.widen(t);
                 self.members_within(widened, name, within)
@@ -114,9 +122,25 @@ impl Typer<'_> {
         if name == "<init>" {
             return self.u.decl(c, name).unwrap_or_default();
         }
+        self.members_of_bases(c, &classes, name)
+    }
+
+    /// The members named `name` that `super` selects in class `c`: those of its base classes but
+    /// `c`.
+    fn super_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+        self.complete(c);
+        let classes = self.u.linearization(c);
+        for &base in classes.iter().skip(1) {
+            self.complete(base);
+        }
+        self.members_of_bases(c, &classes[1..], name)
+    }
+
+    /// The members named `name` of `classes`, base classes of `c` in linearization order.
+    fn members_of_bases(&mut self, c: SymbolId, classes: &[SymbolId], name: &str) -> Vec<SymbolId> {
         let site = crate::defn::type_ref(self.u, c);
         let mut out: Vec<SymbolId> = Vec::new();
-        for base in classes {
+        for &base in classes {
             let decls: Vec<SymbolId> = self.u.decl(base, name).unwrap_or_default();
             let decls: Vec<SymbolId> = decls
                 .into_iter()

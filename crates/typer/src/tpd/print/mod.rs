@@ -70,8 +70,6 @@ impl Printer<'_> {
             Field::List(l) => self.list(*l),
             Field::Clauses(c) => self.clauses(*c),
             Field::Name(n) => self.name(n),
-            Field::OptName(Some(n)) => self.name(n),
-            Field::OptName(None) => self.out.push_str(" _"),
             Field::Constant(c) => self.constant(c),
             Field::Class(tpe) => {
                 let shown = types::tpe(self.u, tpe);

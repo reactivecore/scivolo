@@ -140,13 +140,32 @@ impl Typer<'_> {
                     .collect();
                 let Some((&winner, rest)) = concrete.split_first() else { continue };
                 let Some(winner_owner) = self.u.symbol(winner).owner else { continue };
+                let overrides = match self.syms.flags.get(&winner) {
+                    Some(fl) => fl.is(f::OVERRIDE) || fl.is(f::ABS_OVERRIDE),
+                    None => self.u.symbol(winner).flags.has(tasty::tags::OVERRIDE),
+                };
                 for &m in rest {
                     let owner = self.u.symbol(m).owner.expect("a member");
-                    if !self.u.derives_from(winner_owner, owner) && self.same_member(site, winner, m) {
+                    if self.u.derives_from(winner_owner, owner) || !self.same_member(site, winner, m) {
+                        continue;
+                    }
+                    if !overrides || !self.overrides_in_common(site, (winner_owner, owner), winner) {
                         return self.unsupported_at(span, "conflicting inherited members");
                     }
                 }
             }
         }
+    }
+
+    /// Whether classes `a` and `b` both derive from a third class with a member `m` matches.
+    fn overrides_in_common(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), m: SymbolId) -> bool {
+        let name = self.u.symbol(m).name.clone();
+        let bases: Vec<SymbolId> = self.u.linearization(a).into_iter().skip(1).collect();
+        let common: Vec<SymbolId> =
+            bases.into_iter().filter(|&c| c != b && self.u.derives_from(b, c)).collect();
+        common.into_iter().any(|c| {
+            let members = self.overridable(c, &name);
+            members.into_iter().any(|o| self.same_member(site, m, o))
+        })
     }
 }

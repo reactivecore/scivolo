@@ -70,16 +70,19 @@ impl Lower<'_> {
     /// `C.super`, of class `c`, with the type of its superclass `parent`.
     pub fn super_(&mut self, c: SymbolId, parent: TypeId, span: Span) -> TNodeId {
         let qual = self.this(c, span);
-        self.tpd.node(Tree::Super { qual, mix: None }, span, Some(parent), None)
+        let name = TName { name: self.names.intern(""), is_type: true };
+        let mix = self.tpd.node(Tree::Ident { name }, Span::NONE, None, None);
+        self.tpd.node(Tree::Super { qual, mix }, span, Some(parent), None)
     }
 
     /// `C.super[T]`, of class `c` and its trait `t`.
     pub fn super_mix(&mut self, c: SymbolId, t: SymbolId, span: Span) -> TNodeId {
         let qual = self.this(c, span);
         let name = self.u.symbol(t).name.clone();
-        let mix = TName { name: self.names.intern(&name), is_type: true };
+        let name = TName { name: self.names.intern(&name), is_type: true };
+        let mix = self.tpd.node(Tree::Ident { name }, span, None, None);
         let tpe = type_ref(self.u, t);
-        self.tpd.node(Tree::Super { qual, mix: Some(mix) }, span, Some(tpe), None)
+        self.tpd.node(Tree::Super { qual, mix }, span, Some(tpe), None)
     }
 
     /// Literal `value` of its constant type, also for `()` and `null`.
