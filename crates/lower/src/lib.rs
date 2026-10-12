@@ -7,7 +7,7 @@ mod definitions;
 mod phases;
 mod symbols;
 
-pub use compile::compile;
+pub use compile::{Refusal, compile};
 use definitions::Definitions;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;

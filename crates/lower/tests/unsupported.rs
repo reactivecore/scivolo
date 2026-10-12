@@ -126,7 +126,7 @@ fn constructs_not_lowered_yet_are_refused() {
     let mut failures = Vec::new();
     for &(source, refusal) in CASES {
         let mut u = Universe::open(&jars).unwrap();
-        let result = lower::compile(&mut u, &SourceFile::new("case.scala", source), &[]);
+        let result = lower::compile(&mut u, &SourceFile::new("case.scala", source), &[]).map_err(|r| r.what);
         match result {
             Err(e) if e.starts_with("the typer does not support") => {}
             Err(e) if e.starts_with("the lowering does not support") && e.contains(refusal) => {}
