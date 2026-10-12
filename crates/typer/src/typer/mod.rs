@@ -6,6 +6,7 @@ mod ahead;
 mod alternatives;
 mod and_members;
 mod and_or_types;
+mod annotated;
 mod anon_classes;
 mod applicability;
 mod apply;

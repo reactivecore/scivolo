@@ -154,7 +154,7 @@ impl Typer<'_> {
     /// `_` as a pattern: of the expected type, with that type's class as its symbol.
     pub fn wildcard_pattern(&mut self, id: NodeId, name: TName, pt: Pt) -> TNodeId {
         let Pt::Type(tpe) = pt else { return self.unsupported(id, "wildcard without expected type") };
-        let sym = match self.u.types().get(tpe).clone() {
+        let sym = match self.u.types().get(self.stripped(tpe)).clone() {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
             Type::TermRef(p, name) => self.u.resolve(p, &name, false),

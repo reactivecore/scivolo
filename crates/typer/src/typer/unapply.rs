@@ -72,7 +72,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
         let sel = self.zonk(sel);
-        if own == sel || sel == tasty::NOTHING {
+        if self.stripped(own) == self.stripped(sel) || sel == tasty::NOTHING {
             return Ok(tree);
         }
         let tpt = self.type_tree(own, span.end_pos(), false);
@@ -139,7 +139,7 @@ impl Typer<'_> {
         let mark = self.constraint.mark();
         if self.conforms(sel, arg_type) {
             self.fully_defined_as(arg_type, true)?;
-            return Ok(if sel == tasty::NOTHING { self.zonk(arg_type) } else { sel });
+            return Ok(if sel == tasty::NOTHING { self.zonk(arg_type) } else { self.without_unchecked(sel) });
         }
         self.constraint.rollback(mark);
         let open = self.u.class_symbol(arg_type).is_none_or(|c| {
