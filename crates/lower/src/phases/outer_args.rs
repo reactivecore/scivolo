@@ -14,13 +14,6 @@ use typer::tpd::{TNodeId, Tree};
 /// takes it.
 pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
-    let parents = match *l.tpd.tree(td) {
-        Tree::TypeDef { rhs, .. } => match *l.tpd.tree(rhs) {
-            Tree::Template { parents, .. } => l.tpd.items(parents).to_vec(),
-            _ => Vec::new(),
-        },
-        _ => Vec::new(),
-    };
     for t in terms(l, td, false) {
         let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
         let ctor = match *l.tpd.tree(fun) {
@@ -34,11 +27,10 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         let tpe = l.tpd.tpe(new);
         let Some(created) = l.u.class_symbol(tpe) else { continue };
         let span = l.tpd.span(t);
-        let parent = parents.contains(&t);
-        if parent && (enclosing_instance(l, created).is_some() || l.outers.contains_key(&created)) {
-            return unsupported(span, "subclasses of classes in classes");
-        }
         if !l.outers.contains_key(&created) {
+            if l.u.symbol(created).tree.is_some() && enclosing_instance(l, created).is_some() {
+                return unsupported(span, "library classes nested in classes");
+            }
             continue;
         }
         let at = Span::at(l.tpd.span(ctor).start());
@@ -103,6 +95,9 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             let module = l.u.module_class(s).filter(|_| l.u.is_module(s));
             if module == Some(class) {
                 return Ok(l.this(class, Span::NONE));
+            }
+            if module.is_some() && is_static(l.u, s) {
+                return Ok(l.ident(s, span));
             }
             if module.is_some_and(|m| within(l, class, m)) {
                 return unsupported(span, refused);

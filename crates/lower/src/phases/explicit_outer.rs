@@ -28,7 +28,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         }
         let Some(outer) = outer_class(l, class) else { continue };
         let uses = references_outer(l, class, td);
-        let inner_parent = l.u.is_trait(class) && super::outer_traits::has_inner_parent(l, class);
+        let inner_parent = super::outer_traits::has_inner_parent(l, class);
         let always = mixes_inner
             || inner_parent
             || match l.u.is_module_class(class) {
