@@ -186,8 +186,15 @@ impl Inlining<'_> {
         ) || matches!(*self.tpd.tree(t), T::Ident { name } | T::Select { name, .. } if name.is_type)
     }
 
-    /// Call `call`, owned by `owner`, of the inline method defined by `def`, expanded.
+    /// Call `call`, owned by `owner`, of the inline method defined by `def`, expanded; what is
+    /// outside the subset in another source reported at the call.
     fn inline_call(&mut self, call: TNodeId, def: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
+        let span = self.tpd.span(call);
+        self.expand_call(call, def, owner)
+            .map_err(|(at, what)| (if at.is_in_other_source() { span } else { at }, what))
+    }
+
+    fn expand_call(&mut self, call: TNodeId, def: TNodeId, owner: SymbolId) -> Result<TNodeId, Unsupported> {
         let span = self.tpd.span(call);
         if self.depth >= MAX_INLINES {
             return Err((span, "maximal number of successive inlines exceeded"));

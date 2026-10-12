@@ -99,7 +99,8 @@ impl Unpickler<'_> {
     /// `<repeated>[elem]`.
     fn repeated_type(&mut self, elem: TypeId) -> TypeId {
         let scala = self.u.package("scala").expect("package scala");
-        let class = self.special(scala, "<repeated>", Kind::Class, Flags::default().with(SYNTHETIC));
+        let synthetic = Flags::default().with(SYNTHETIC);
+        let class = crate::defn::special(self.u, scala, "<repeated>", Kind::Class, synthetic);
         let class = type_ref(self.u, class);
         self.u.intern_type(Type::Applied(class, vec![elem]))
     }

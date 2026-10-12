@@ -25,6 +25,7 @@ mod default_params;
 mod defs;
 pub(crate) mod dependent_params;
 mod derived;
+pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
 mod enum_case_refs;

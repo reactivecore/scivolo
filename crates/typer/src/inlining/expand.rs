@@ -4,11 +4,11 @@
 
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
-use super::skolems::call_skolem;
+use super::skolems::call_skolems;
 use super::this_proxy::replace_this;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use crate::typer::stability::is_stable_path;
+use crate::typer::deskolemize::has_skolem;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::INLINE;
@@ -135,21 +135,30 @@ impl<'i, 'a> Expansion<'i, 'a> {
         if formals.len() != args.len() || params.len() != args.len() {
             return Err(self.err("inline call with missing arguments"));
         }
+        let spans: Vec<Span> = args.iter().map(|&a| self.i.tpd.span(a)).collect();
+        let args: Vec<TNodeId> = args
+            .into_iter()
+            .map(|a| match *self.i.tpd.tree(a) {
+                T::NamedArg { arg, .. } => arg,
+                _ => a,
+            })
+            .collect();
+        let syms = params
+            .iter()
+            .map(|&p| self.i.tpd.sym(p).ok_or(self.err("parameter")))
+            .collect::<Result<Vec<_>, _>>()?;
+        let tpes: Vec<TypeId> = args.iter().map(|&a| self.i.tpd.tpe(a)).collect();
         let applied = self.i.tpd.tpe(apply);
-        for (index, ((&param, &arg), (_, formal))) in params.iter().zip(&args).zip(formals).enumerate() {
-            let p = self.i.tpd.sym(param).ok_or(self.err("parameter"))?;
-            self.arg_span.insert(p, self.i.tpd.span(arg));
-            let arg = match *self.i.tpd.tree(arg) {
-                T::NamedArg { arg: inner, .. } => inner,
-                _ => arg,
-            };
+        let skolems = match call_skolems(self.i.u, (result, applied), (binder, &syms), &tpes) {
+            Some(s) => s,
+            None if has_skolem(self.i.u, applied) => return Err(self.err("argument without its skolem")),
+            None => vec![None; args.len()],
+        };
+        for ((((&p, &arg), (_, formal)), skolem), span) in
+            syms.iter().zip(&args).zip(formals).zip(skolems).zip(spans)
+        {
+            self.arg_span.insert(p, span);
             let tpe = self.i.tpd.tpe(arg);
-            let skolem = match call_skolem(self.i.u, (result, applied), binder, (index, p)) {
-                Some(None) if !is_stable_path(self.i.u, tpe) => {
-                    return Err(self.err("argument without its skolem"));
-                }
-                found => found.flatten(),
-            };
             let bound = if self.i.is_singleton_path(tpe) && self.i.is_idempotent_path(arg) {
                 tpe
             } else {

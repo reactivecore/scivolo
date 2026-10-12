@@ -45,7 +45,7 @@ pub fn inline_def(
     let mut unpickler = Unpickler { u, tpd, names, file, meth, owner: meth };
     let scala = unpickler.u.package("scala").ok_or("a library without package scala")?;
     let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
-    unpickler.special(scala, "<repeated>", tasty::Kind::Class, synthetic);
+    crate::defn::special(unpickler.u, scala, "<repeated>", tasty::Kind::Class, synthetic);
     unpickler.inline_def(id)
 }
 

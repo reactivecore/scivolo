@@ -11,6 +11,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from typer_corpus import USING
+
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/typer/compare"
 DUMP = ROOT / "target/release/typer-dump"
@@ -30,7 +32,8 @@ def main(files, inlined):
     WORK.mkdir(parents=True, exist_ok=True)
     paths = [str(Path(f).resolve()) for f in files]
     lst = WORK / "list.tsv"
-    lst.write_text("".join(f"{p}\t\n" for p in paths))
+    options = lambda p: " ".join(o for u in USING.findall(Path(p).read_text()) for o in u.split())
+    lst.write_text("".join(f"{p}\t{options(p)}\n" for p in paths))
     mode = ["--inlined"] if inlined else []
     oracle = subprocess.run(["scala-cli", "--power", "run", "--server=false", "--quiet", "--workspace",
                              str(ROOT / "tmp/typer/3.9.0/oracle-ws"), str(ROOT / "scripts/typer-oracle"), "--",

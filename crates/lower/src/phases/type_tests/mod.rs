@@ -18,17 +18,17 @@ use typer::tpd::{TNodeId, Tree};
 /// `x.asInstanceOf[T]` or `x.$asInstanceOf$[T]`.
 pub fn is_test_or_cast(l: &Lower, t: TNodeId) -> bool {
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { return false };
-    let (p, d) = (l.defs.patmat, &l.defs);
+    let p = l.defs.patmat;
     l.tpd
         .sym(fun)
-        .is_some_and(|s| [p.is_instance_of, p.type_test, d.as_instance_of, d.type_cast].contains(&s))
+        .is_some_and(|s| [p.is_instance_of, p.type_test, l.defs.as_instance_of, p.type_cast].contains(&s))
 }
 
 /// Makes type test or cast `t` its erased form, at `t`'s span; `$asInstanceOf$` as
 /// `asInstanceOf`.
 pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
     let Tree::TypeApply { fun, args } = *l.tpd.tree(t) else { unreachable!("a type application") };
-    if l.tpd.sym(fun) == Some(l.defs.type_cast) {
+    if l.tpd.sym(fun) == Some(l.defs.patmat.type_cast) {
         l.tpd.get_mut(fun).sym = Some(l.defs.as_instance_of);
     }
     let span = l.tpd.span(t);

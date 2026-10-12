@@ -101,6 +101,13 @@ pub fn replace_param(
     let T::Ident { name } = *i.tpd.tree(t) else { return None };
     let s = i.tpd.sym(t)?;
     let &bound = binding.get(&s)?;
+    if i.names.text(name.name) == "_" {
+        let sym = match *i.u.types().get(bound) {
+            Type::Sym(_, c) => Some(c),
+            _ => None,
+        };
+        return Some(i.tpd.node(T::Ident { name }, i.tpd.span(t), Some(bound), sym));
+    }
     let span = *arg_span.get(&s)?;
     if name.is_type {
         return Some(i.tpd.node(T::TypeTree { inferred: true }, span, Some(bound), None));

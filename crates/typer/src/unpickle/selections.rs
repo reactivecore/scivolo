@@ -15,11 +15,15 @@ impl Unpickler<'_> {
         let tpe = self.ty(self.kids(id)[0]);
         let tpe = self.resolved(tpe);
         let name = self.tname(id, false);
-        let sym = match self.u.types().get(tpe).clone() {
-            Type::TypeRef(p, n) if self.name(id) == "_" => self.u.resolve(p, &n, true),
-            _ => self.symbol_of(tpe),
-        };
-        let sym = sym.ok_or("identifier of an unknown symbol in a library inline body")?;
+        if self.name(id) == "_" {
+            let sym = match self.u.types().get(tpe).clone() {
+                Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+                Type::Sym(_, s) => Some(s),
+                _ => None,
+            };
+            return Ok(self.bare(T::Ident { name }, Some(tpe), sym));
+        }
+        let sym = self.symbol_of(tpe).ok_or("identifier of an unknown symbol in a library inline body")?;
         Ok(self.bare(T::Ident { name }, Some(tpe), Some(sym)))
     }
 

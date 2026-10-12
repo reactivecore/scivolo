@@ -4,46 +4,49 @@
 
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::stability::is_stable_path;
 use syntax::ast::{Span, TName};
 use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
-/// The skolem, if any, that type `actual` of an application has where the result type `result`
-/// of its method type of binder `binder` refers to parameter `index`, also as symbol `param`;
-/// `None` if `result` does not refer to it.
-pub fn call_skolem(
+/// The skolem standing for each argument, of types `args`, in type `actual` of an application:
+/// the one of the argument's widened type, checked by substituting them for parameters `params`
+/// of binder `binder` in the method's result type `result`, as `applied_result` does; `None` if
+/// that does not give `actual`.
+pub fn call_skolems(
     u: &mut Universe,
     (result, actual): (TypeId, TypeId),
-    binder: Binder,
-    (index, param): (usize, SymbolId),
-) -> Option<Option<TypeId>> {
-    let method = u.symbol(param).owner;
-    let param_index = |u: &Universe, t: TypeId| match *u.types().get(t) {
-        Type::Param(b, i) if b == binder => Some(i as usize),
-        Type::Sym(None, s) if s == param => Some(index),
-        Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param && u.symbol(s).owner == method => {
-            Some(usize::MAX)
-        }
-        _ => None,
-    };
-    let mut pattern = Vec::new();
-    u.map_type(result, &mut |u, part| {
-        let p = param_index(u, part);
-        pattern.push(p);
-        p.map(|_| part)
-    });
-    if !pattern.contains(&Some(index)) {
-        return None;
-    }
-    let (mut k, mut found) = (0, None);
+    (binder, params): (Binder, &[SymbolId]),
+    args: &[TypeId],
+) -> Option<Vec<Option<TypeId>>> {
+    let mut skolems = Vec::new();
     u.map_type(actual, &mut |u, part| {
-        let p = *pattern.get(k)?;
-        k += 1;
-        if p == Some(index) && matches!(u.types().get(part), Type::Skolem(..)) {
-            found = Some(part);
+        if matches!(u.types().get(part), Type::Skolem(..)) && !skolems.contains(&part) {
+            skolems.push(part);
         }
-        p.map(|_| part)
+        None
     });
-    Some(found)
+    let mut chosen = Vec::new();
+    for &a in args {
+        let w = u.widen(a);
+        let found: Vec<TypeId> = skolems
+            .iter()
+            .copied()
+            .filter(|&s| matches!(*u.types().get(s), Type::Skolem(_, i) if i == w))
+            .collect();
+        chosen.push(match found[..] {
+            [s] if !is_stable_path(u, a) => Some(s),
+            _ => None,
+        });
+    }
+    let substituted = u.map_type(result, &mut |u, part| {
+        let i = match *u.types().get(part) {
+            Type::Param(b, i) if b == binder => i as usize,
+            Type::Sym(None, s) => params.iter().position(|&p| p == s)?,
+            _ => return None,
+        };
+        chosen.get(i).copied().flatten().or_else(|| args.get(i).copied())
+    });
+    (substituted == actual).then_some(chosen)
 }
 
 impl Inlining<'_> {

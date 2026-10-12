@@ -2,8 +2,22 @@
 //! their instances.
 
 use super::Typer;
-use crate::tpd::TNodeId;
-use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, VarId};
+use crate::constraint::Constraint;
+use crate::tpd::{TNodeId, Tree as T};
+use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+
+/// `t` with the type variables that have instances in `constraint` replaced by them once, a
+/// skolem keeping its identity.
+fn substituted(u: &mut Universe, constraint: &Constraint, t: TypeId, changed: &mut bool) -> TypeId {
+    u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        Type::Var(v) => constraint.instance(v).inspect(|_| *changed = true),
+        Type::Skolem(b, info) => {
+            let info = substituted(u, constraint, info, changed);
+            Some(u.intern_type(Type::Skolem(b, info)))
+        }
+        _ => None,
+    })
+}
 
 impl Typer<'_> {
     /// Whether `a` conforms to `b`, constraining type variables.
@@ -13,7 +27,6 @@ impl Typer<'_> {
 
     /// `t` with instantiated type variables replaced by their instances, normalized.
     pub fn zonk(&mut self, t: TypeId) -> TypeId {
-        let constraint = &self.constraint;
         let mut changed = true;
         let mut t = t;
         for _ in 0..16 {
@@ -21,10 +34,7 @@ impl Typer<'_> {
                 break;
             }
             changed = false;
-            t = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-                Type::Var(v) => constraint.instance(v).inspect(|_| changed = true),
-                _ => None,
-            });
+            t = substituted(self.u, &self.constraint, t, &mut changed);
         }
         self.normalized(t)
     }
@@ -129,6 +139,15 @@ impl Typer<'_> {
             if let Some(t) = self.tpd.get(id).tpe {
                 let t = self.fully_defined(t)?;
                 self.tpd.get_mut(id).tpe = Some(t);
+            }
+            let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
+            if let Some(s) = self.tpd.sym(id).filter(|_| defines)
+                && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
+            {
+                let info = self.u.info(s);
+                if super::deskolemize::has_skolem(self.u, info) {
+                    return Err("skolem in the type of a definition");
+                }
             }
         }
         Ok(())

@@ -41,7 +41,7 @@ impl Unpickler<'_> {
     /// `THROW`: a call of dotty's `<special-ops>.throw`, its function at the call's span.
     pub fn throw(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let expr = self.term(self.kids(id)[0])?;
-        let throw = self.throw_method()?;
+        let throw = crate::defn::throw_method(self.u);
         let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
         let name = TName { name: self.names.intern("throw"), is_type: false };
         let fun = self.bare(T::Ident { name }, Some(fun_tpe), Some(throw));
@@ -124,45 +124,5 @@ impl Unpickler<'_> {
     /// The lub of the types of `trees`, of a case its body's.
     fn lub_of(&mut self, trees: &[TNodeId]) -> TypeId {
         crate::tpd::lub_of(self.tpd, self.u, trees)
-    }
-
-    /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined if no one has.
-    fn throw_method(&mut self) -> Result<SymbolId, Refusal> {
-        let ops = self.u.enter_package("<special-ops>");
-        if let Some(t) = crate::defn::entered(self.u, ops, "throw", Kind::Def) {
-            return Ok(t);
-        }
-        let throwable = self.class_type("java.lang.Throwable")?;
-        let nothing = self.class_type("scala.Nothing")?;
-        let binder = self.u.fresh_binder();
-        let params = vec![("x".into(), throwable)];
-        let info = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: nothing,
-            implicit: false,
-            contextual: false,
-        });
-        let throw = self.special(ops, "throw", Kind::Def, Flags::default());
-        self.u.set_info(throw, info);
-        Ok(throw)
-    }
-
-    /// The symbol `name` of kind `kind` in `owner`, defined with `flags` if no one has.
-    pub fn special(&mut self, owner: SymbolId, name: &str, kind: Kind, flags: Flags) -> SymbolId {
-        if let Some(s) = crate::defn::entered(self.u, owner, name, kind) {
-            return s;
-        }
-        self.u.define(Symbol {
-            name: name.into(),
-            kind,
-            owner: Some(owner),
-            flags,
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        })
     }
 }
