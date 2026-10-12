@@ -211,8 +211,8 @@ worsened tests, and a `tests/programs` entry in `lowered.txt` compared with `jus
 |---|---|---|---|
 | 1 wiring (~400) | §2.2 steps 1-4, `docs/conformance.md`, ROADMAP | the ≤ 50 ms exit criterion becomes measurable | typer or lowering bugs now reach scripts: `strict` in CI, the fallback line in every other run |
 | 2 REPL transcripts (~150) | §2.3 | — | none |
-| 3 outer instances of local classes (~600) | §1.1, §1.2 prefixes; program `localouter` | 4 / 11 | `referencesOuter` over-approximates: an `$outer` dotty adds but never reads still changes the constructor signature; `$outer` of anonymous classes dropped by `DropOuterAccessors` |
-| 4 subclasses of inner classes (~400) | §1.3, i2163's super-argument locals; program `innersubclasses` | 1 / 4 | the outer argument's prefix path inside constructors; Constructors' rewiring of `$outer` |
+| 3 outer instances of local classes (~600) | §1.1, §1.2 prefixes; program `outerclasses` | 4 / 11 | `referencesOuter` over-approximates: an `$outer` dotty adds but never reads still changes the constructor signature; `$outer` of anonymous classes dropped by `DropOuterAccessors` |
+| 4 subclasses of inner classes (~400) | §1.3, i2163's super-argument locals; shipped with 3 | 1 / 4 | the outer argument's prefix path inside constructors; Constructors' rewiring of `$outer` |
 | 5 ProtectedAccessors (~350) | §1.4; program `protectedaccess` | 0 / 2 (with 3) | access boundaries of qualified `protected[p]`; Java statics |
 | 6 local traits, lambdas in inner classes, classes in local classes (~700) | §1.6, §1.2 second part | 3 / 5 | free variables through trait methods; `logicOwner` narrowing vs our static-first lifting |
 | 7 small refusals (~600) | §1.7 but closure bridges | 10 / 14 | `ScalaRunTime` array helpers on primitive arrays; `Erased::Unit` ascriptions in `adapt` |

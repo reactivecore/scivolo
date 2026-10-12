@@ -56,7 +56,9 @@ pub fn calls_from_class(
             };
             let span = l.tpd.span(reference);
             let receiver = match f.this && !is_static_module(l.u, class) {
-                true => super::outer_fields::outer_path(l, caller.class, class, in_method, span)?,
+                true => {
+                    super::outer_fields::outer_path(l, (caller.td, caller.class), class, in_method, span)?
+                }
                 false => l.this(class, span),
             };
             let mut captured = Vec::new();

@@ -91,29 +91,45 @@ fn through(l: &mut Lower, start: TNodeId, chain: &[SymbolId], span: Span) -> Res
     Ok(read)
 }
 
-/// The instance of `target` enclosing `class` read in a method of `class` if `in_method`, else
-/// in its constructor; fails where `class` holds no instance or, in a method, no field.
+/// The instance of `target` enclosing `class` of definition `td` read in a method of `class` if
+/// `in_method`, else in its constructor, adding the field it reads; fails where `class` holds no
+/// instance.
 pub fn outer_path(
     l: &mut Lower,
-    class: SymbolId,
+    (td, class): (TNodeId, SymbolId),
     target: SymbolId,
     in_method: bool,
     span: Span,
 ) -> Result<TNodeId> {
     let refused = "local classes calling local methods that use the enclosing instance";
     let chain = super::explicit_outer::outer_chain(l, class, target);
-    let (Some(chain), Some(&(field, param))) = (chain, l.outers.get(&class)) else {
+    let (Some(chain), Some(&(had, param))) = (chain, l.outers.get(&class)) else {
         return unsupported(span, refused);
     };
-    let start = match (in_method, field) {
-        (true, Some(f)) => {
+    let start = match in_method {
+        true => {
+            let f = field(l, class);
+            if had.is_none() {
+                append_field(l, td, f);
+            }
             let this = l.this(class, span);
             l.select(this, f, span)
         }
-        (true, None) => return unsupported(span, refused),
-        (false, _) => l.ident(param, span),
+        false => l.ident(param, span),
     };
     through(l, start, &chain, span)
+}
+
+/// Appends the definition of field `f` to class definition `td`.
+fn append_field(l: &mut Lower, td: TNodeId, f: SymbolId) {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
+        unreachable!("a template")
+    };
+    let def = field_def(l, f, Span::at(l.tpd.span(td).point()));
+    let stats: Vec<TNodeId> = l.tpd.items(body).iter().copied().chain([def]).collect();
+    let body = l.tpd.list(&stats);
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
 }
 
 /// The field holding the enclosing instance of `class`, defined once.

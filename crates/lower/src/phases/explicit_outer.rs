@@ -33,7 +33,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             || inner_parent
             || match l.u.is_module_class(class) {
                 true => l.u.is_trait(outer),
-                false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
+                false => !has(l.u, class, PRIVATE) && !in_term(l, outer),
             };
         if always || uses || l.outer_accessors.contains_key(&class) {
             if !l.u.is_trait(class) {
@@ -63,7 +63,7 @@ pub fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
 }
 
 /// Whether `class` is defined in a method or value, directly or through other classes.
-fn is_local(l: &Lower, class: SymbolId) -> bool {
+fn in_term(l: &Lower, class: SymbolId) -> bool {
     let mut owner = l.u.symbol(class).owner;
     while let Some(o) = owner {
         if l.u.symbol(o).kind.is_term() {

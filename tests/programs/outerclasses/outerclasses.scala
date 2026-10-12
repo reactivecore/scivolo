@@ -45,6 +45,17 @@ class Shelf(label: String) {
 object Shelves { val main = new Shelf("main") }
 class Extra extends Shelves.main.Item(5)
 
+object Extras extends Shelf("x") { class Sub extends Item(9) }
+
+trait Hook { def h: Int }
+class Caller(n: Int) {
+  def f() = { def g = n; new Hook { def h = g }.h }
+  val r = { val o = new Shelf("r"); new o.Item(2).show }
+  class M { def mk = new N().i; class N { def i = 3 } }
+  object Mo { class I { def i = 1 }; class J { def f = new Mo.I } }
+  def mo = new Mo.J().f.i
+}
+
 class Base(f: Int => Int) { def result = f(3) }
 class Holder(z: Int) {
   class Base2(f: Int => Int) { def result = f(3) }
@@ -82,6 +93,12 @@ object Test {
     println(sub(5))
     val h = new Holder(2)
     println(new h.Child(2).result)
+    println(new Extras.Sub().show)
+    val k = new Caller(6)
+    println(k.f())
+    println(k.r)
+    println(new k.M().mk)
+    println(k.mo)
   }
 }
 

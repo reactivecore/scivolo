@@ -41,8 +41,12 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
             Some(_) => return unsupported(span, "creating a local class from another class"),
             None => instance(l, class, tpe, at)?,
         };
-        if matches!(l.tpd.tree(instance), Tree::This { .. }) && l.tpd.sym(instance) != Some(class) {
-            let end = Span::at(l.tpd.span(fun).end());
+        let outer_this = l.tpd.sym(instance).filter(|&c| c != class);
+        if let (Tree::This { .. }, Some(c)) = (l.tpd.tree(instance), outer_this) {
+            let end = match is_static_module(l.u, c) {
+                true => l.tpd.span(fun),
+                false => Span::at(l.tpd.span(fun).end()),
+            };
             let qual = match *l.tpd.tree(instance) {
                 Tree::This { qual } => qual,
                 _ => unreachable!("a `this`"),
@@ -79,7 +83,6 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
             match module.filter(|_| !within(l, class, c)) {
                 _ if c == class || is_static_module(l.u, c) => Ok(l.this(c, Span::NONE)),
-                Some(m) if is_static(l.u, m) => Ok(l.ident(m, span)),
                 Some(m) => {
                     let owner = l.u.symbol(c).owner.expect("an object's owner");
                     let owner = type_ref(l.u, owner);
@@ -103,7 +106,7 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
                 return unsupported(span, refused);
             }
             let owner = l.u.symbol(s).owner;
-            if owner.is_some_and(|o| l.u.symbol(o).kind == Kind::Def) {
+            if owner.is_some_and(|o| is_term(l, o)) {
                 return Ok(l.ident(s, span));
             }
             let this_class = match q.map(|q| l.u.types().get(q).clone()) {
