@@ -10,10 +10,11 @@ pub mod dump;
 pub mod inlining;
 mod main_proxies;
 mod namer;
+mod signatures;
 mod symbols;
 pub mod tpd;
 mod typer;
-mod unpickle;
+pub mod unpickle;
 
 use crate::ctx::{Ctx, Level, Mode};
 use syntax::ast::{Ast, NodeId, Span};

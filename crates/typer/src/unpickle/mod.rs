@@ -2,6 +2,7 @@
 //! read into typed trees, typed as `TypeAssigner` types them, in the spans of the library's
 //! source. Bodies outside the subset read are refused.
 
+mod admitted;
 mod assign;
 mod defs;
 mod paths;
@@ -24,8 +25,6 @@ pub struct Unpickler<'a> {
     file: FileId,
     /// The inline method whose body is read.
     meth: SymbolId,
-    /// The owner of the local definitions read.
-    owner: SymbolId,
 }
 
 /// The definition of inline method `meth` of the library, with its body read from its TASTy.
@@ -39,7 +38,7 @@ pub fn inline_def(
     if u.body_info(file).is_err() {
         return Err("inline method of an unreadable TASTy file");
     }
-    Unpickler { u, tpd, names, file, meth, owner: meth }.inline_def(id)
+    Unpickler { u, tpd, names, file, meth }.inline_def(id)
 }
 
 impl Unpickler<'_> {

@@ -128,17 +128,11 @@ impl Typer<'_> {
         found.next().is_none().then_some(s)
     }
 
-    /// The type of a reference to `sym` through `prefix` (dotty's `TermRef`/`TypeRef`), a
-    /// member of a package object through the object (`makePackageObjPrefixExplicit`).
     pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
         crate::defn::ref_type(self.u, prefix, sym)
     }
 
-    /// Whether `c` is declared in a package under a package object's class name: `package$`, or a
-    /// file's `<name>$package$`.
     pub fn is_named_package_object(&self, c: SymbolId) -> bool {
-        let s = self.u.symbol(c);
-        s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package)
-            && tasty::is_package_object_name(&s.name)
+        crate::defn::is_named_package_object(self.u, c)
     }
 }

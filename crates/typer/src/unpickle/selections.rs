@@ -3,8 +3,9 @@
 
 use super::{Refusal, Unpickler};
 use crate::defn::{ref_type, type_ref};
-use crate::tpd::print::symbols::params_sig;
+use crate::signatures::params_sig;
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::stability::is_stable_member;
 use tasty::tags::*;
 use tasty::{Kind, NodeId, SymbolId, Type, TypeId};
 
@@ -102,7 +103,8 @@ impl Unpickler<'_> {
     }
 
     /// `t` widened while it is a by-name type or a reference to a term that is not stable
-    /// (dotty's `widenIfUnstable`); parameters, inline ones too, are stable.
+    /// (dotty's `widenIfUnstable`), an inline parameter counting as stable, unlike in dotty's
+    /// `isStableMember`, as dotty's prefixes of selections in inline bodies show.
     fn widen_if_unstable(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
             Type::ByName(r) => self.widen_if_unstable(r),
@@ -118,15 +120,12 @@ impl Unpickler<'_> {
     }
 
     fn is_stable(&mut self, s: SymbolId) -> bool {
-        let flags = self.u.symbol(s).flags;
-        match self.u.symbol(s).kind {
-            Kind::Param => {
-                let info = self.u.info(s);
-                !matches!(self.u.types().get(info), Type::ByName(_))
-            }
-            Kind::Val => !flags.has(MUTABLE),
-            Kind::Def => flags.has(STABLE),
-            _ => true,
+        let sym = self.u.symbol(s);
+        let inline_param = sym.kind == Kind::Param && sym.flags.has(INLINE);
+        if inline_param {
+            let info = self.u.info(s);
+            return !matches!(self.u.types().get(info), Type::ByName(_));
         }
+        is_stable_member(self.u, s)
     }
 }

@@ -1,7 +1,6 @@
 //! dotty's `Inlines.dropInlined`, run before the other phases: each `Inlined` tree becomes the
 //! block of its bindings and expansion, or its expansion alone; its call is dropped. Under the
-//! outermost one, the trees from another source take its span, definitions their own offsets in
-//! the unit (`reposition`).
+//! outermost one, the trees from another source take its span (`reposition`).
 
 use crate::Lower;
 use syntax::ast::Span;
@@ -35,17 +34,11 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>) -> TNodeId {
 }
 
 /// Gives `t`, if its span is in another source, the span `at` of the call, which the spans
-/// derived from it until erasure keep, a definition its offsets.
+/// derived from it until erasure keep; library bodies define no locals.
 fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
-    let span = l.tpd.span(t);
-    if !span.is_in_other_source() {
-        return;
+    if l.tpd.span(t).is_in_other_source() {
+        l.tpd.get_mut(t).span = at.as_inlined_call();
     }
-    let definition = matches!(
-        l.tpd.tree(t),
-        Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Bind { .. }
-    );
-    l.tpd.get_mut(t).span = if definition { span.in_own_source() } else { at.as_inlined_call() };
 }
 
 /// Makes the spans of inline calls given to trees from another source plain spans, as erasure

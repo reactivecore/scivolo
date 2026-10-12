@@ -46,3 +46,17 @@ pub fn decode_positions(bytes: &[u8]) -> Result<FxHashMap<u32, TastySpan>> {
     }
     Ok(spans)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{TastySpan, decode_positions};
+
+    #[test]
+    fn deltas_accumulate_and_source_changes_are_skipped() {
+        let bytes = [0x81, 0x85, 0x97, 0x8A, 0x94, 0x83, 0x84, 0x81, 0x8A, 0x85];
+        let spans = decode_positions(&bytes).unwrap();
+        assert_eq!(spans.len(), 2);
+        assert_eq!(spans[&2], TastySpan { start: 10, end: 20, point: Some(13) });
+        assert_eq!(spans[&3], TastySpan { start: 10, end: 25, point: None });
+    }
+}

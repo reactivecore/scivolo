@@ -75,18 +75,7 @@ impl Printer<'_> {
         let sym = self.u.symbol(s);
         let (Kind::Param, Some(owner)) = (sym.kind, sym.owner) else { return false };
         let name = sym.name.clone();
-        let mut info = self.u.info(owner);
-        let mut binders = Vec::new();
-        loop {
-            match self.u.types().get(info).clone() {
-                Type::Poly { result, .. } => info = result,
-                Type::Method { binder, result, .. } => {
-                    binders.push(binder);
-                    info = result;
-                }
-                _ => break,
-            }
-        }
+        let binders = crate::signatures::method_binders(self.u, owner);
         self.binders.iter().any(|(b, names, terms)| *terms && binders.contains(b) && names.contains(&name))
     }
 

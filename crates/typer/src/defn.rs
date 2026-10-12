@@ -78,19 +78,21 @@ pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> Type
     if u.symbol(sym).kind == Kind::Package {
         return u.intern_type(Type::Package(sym));
     }
-    let in_package_object = |u: &mut Universe, c: TypeId| {
-        u.class_symbol(c).is_some_and(|c| {
-            let s = u.symbol(c);
-            s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Package)
-                && tasty::is_package_object_name(&s.name)
-        })
-    };
+    let in_package_object =
+        |u: &mut Universe, c: TypeId| u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c));
     let prefix = match prefix.map(|p| u.types().get(p).clone()) {
         Some(Type::Package(_)) => package_object_prefix(u, sym).or(prefix),
         Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, sym).or(prefix),
         _ => prefix,
     };
     u.intern_type(Type::Sym(prefix, sym))
+}
+
+/// Whether `c` is declared in a package under a package object's class name: `package$`, or a
+/// file's `<name>$package$`.
+pub fn is_named_package_object(u: &Universe, c: SymbolId) -> bool {
+    let s = u.symbol(c);
+    s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Package) && tasty::is_package_object_name(&s.name)
 }
 
 /// The reference to the package object that declares `sym`, if one does.

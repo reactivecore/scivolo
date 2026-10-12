@@ -31,6 +31,8 @@ pub struct Syms {
     pub annotation_trees: Vec<(SymbolId, NodeId, Ctx)>,
     /// The symbol each definition tree defines.
     pub by_tree: FxHashMap<NodeId, SymbolId>,
+    /// The definition tree of each member and local of the unit.
+    pub def_trees: FxHashMap<SymbolId, NodeId>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
     pub no_inits: FxHashMap<SymbolId, bool>,
     /// The package a package-level `private` definition is private to (dotty's `privateWithin`).
@@ -107,6 +109,7 @@ impl Syms {
             }
         }
         self.by_tree.clear();
+        self.def_trees.clear();
         self.closure_syms.clear();
         self.annotation_trees.clear();
     }

@@ -11,6 +11,9 @@ const OTHER_SOURCE: Offset = 1 << 31;
 /// The offset bit marking the span of an inline call given to trees from another source.
 const INLINED_CALL: Offset = 1 << 30;
 
+/// The length a source may not reach, below the offset bits of spans.
+pub const MAX_SOURCE_LEN: usize = INLINED_CALL as usize;
+
 /// `point - start` in the 12 bits of dotty's point delta; 4095 reads as synthetic.
 fn wrapped_delta(start: Offset, point: Offset) -> u16 {
     (point.wrapping_sub(start) & SYNTHETIC as u32) as u16

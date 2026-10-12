@@ -33,7 +33,7 @@ impl Typer<'_> {
 
     /// The start of the definition of `s` in the unit, if it is defined there.
     fn def_start(&self, s: SymbolId) -> Option<u32> {
-        let (&tree, _) = self.syms.by_tree.iter().find(|&(_, &x)| x == s)?;
+        let &tree = self.syms.def_trees.get(&s)?;
         Some(self.ast.span(tree).start())
     }
 }

@@ -40,14 +40,11 @@ pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
 /// A decoded top-level file: its trees, and its name table shown as text.
-#[derive(Default)]
 struct Loaded {
     ast: Ast,
     names: Vec<String>,
     /// Whether the file is of the Scala 2 standard library (`SCALA2STANDARDLIBRARY`).
     scala2: bool,
-    /// Whether each name is of a kind other than `Utf8`.
-    derived: Vec<bool>,
     /// Its path in the library.
     path: String,
     /// Its spans and signatures, decoded when a body is first read.

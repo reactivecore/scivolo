@@ -6,7 +6,7 @@ use crate::tpd::{Build, TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{Span, TName};
 use tasty::tags::*;
-use tasty::{Kind, NodeId, SymbolId, Type, TypeId};
+use tasty::{Const, Kind, NodeId, SymbolId, Type, TypeId};
 
 impl Unpickler<'_> {
     /// A path, a type or a constant as a tree.
@@ -41,21 +41,19 @@ impl Unpickler<'_> {
     /// The constant the tree at `id` is, if it is one.
     fn constant(&self, id: NodeId) -> Option<Constant> {
         let (ast, names) = self.u.file(self.file);
-        let a = ast.node(id).a;
-        Some(match ast.tag(id) {
-            UNITconst => Constant::Unit,
-            TRUEconst => Constant::Boolean(true),
-            FALSEconst => Constant::Boolean(false),
-            NULLconst => Constant::Null,
-            BYTEconst => Constant::Byte(a as i8),
-            SHORTconst => Constant::Short(a as i16),
-            CHARconst => Constant::Char(a as u16),
-            INTconst => Constant::Int(a as i32),
-            LONGconst => Constant::Long(a),
-            FLOATconst => Constant::Float(f32::from_bits(a as i32 as u32)),
-            DOUBLEconst => Constant::Double(f64::from_bits(a as u64)),
-            STRINGconst => Constant::String(names.get(a as usize)?.encode_utf16().collect()),
-            _ => return None,
+        let node = ast.node(id);
+        Some(match tasty::constant(node.tag, node.a)? {
+            Const::Unit => Constant::Unit,
+            Const::Bool(b) => Constant::Boolean(b),
+            Const::Null => Constant::Null,
+            Const::Byte(b) => Constant::Byte(b),
+            Const::Short(s) => Constant::Short(s),
+            Const::Char(_) => Constant::Char(node.a as u16),
+            Const::Int(i) => Constant::Int(i),
+            Const::Long(l) => Constant::Long(l),
+            Const::Float(f) => Constant::Float(f),
+            Const::Double(d) => Constant::Double(d),
+            Const::Str(r) => Constant::String(names.get(r.0 as usize)?.encode_utf16().collect()),
         })
     }
 

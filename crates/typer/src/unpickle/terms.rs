@@ -60,7 +60,7 @@ impl Unpickler<'_> {
                 self.bare(T::If { cond, thenp, elsep }, Some(tpe), None)
             }
             BLOCK => self.block(id)?,
-            LAMBDA => self.lambda(id)?,
+            LAMBDA => return Err("closure in a library inline body"),
             INLINED => self.inlined(id)?,
             NEW => {
                 let tpt = self.tpt(k[0])?;
@@ -95,18 +95,5 @@ impl Unpickler<'_> {
         let expansion = self.term(expr)?;
         let (tpe, bindings) = (self.tpd.get(expansion).tpe, self.tpd.list(&[]));
         Ok(self.bare(T::Inlined { call: None, bindings, expansion }, tpe, None))
-    }
-
-    /// `LAMBDA`: the closure of a local method, typed by its target or as a function.
-    fn lambda(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
-        let k = self.kids(id);
-        let meth = self.term(k[0])?;
-        let tpt = k.get(1).map(|&t| self.tpt(t)).transpose()?;
-        let tpe = match tpt {
-            Some(t) => self.tpd.tpe(t),
-            None => self.function_type(meth)?,
-        };
-        let env = self.tpd.list(&[]);
-        Ok(self.bare(T::Closure { env, meth, tpt }, Some(tpe), None))
     }
 }

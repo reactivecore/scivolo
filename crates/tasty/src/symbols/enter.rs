@@ -1,5 +1,5 @@
 //! Entering the symbols a top-level file defines: its packages' classes, types and members, and
-//! recursively their members; the local definitions of method bodies only when read.
+//! recursively their members; method bodies are not entered.
 
 use super::{Error, FileId, Flags, Kind, Loaded, Symbol, SymbolId, Universe};
 use crate::tags::*;
@@ -34,25 +34,8 @@ impl Universe {
         for &root in ast.roots() {
             self.enter_stat(&src, root, self.root());
         }
-        self.files.push(Loaded { ast, names, scala2, derived, path: path.to_owned(), body_info: None });
+        self.files.push(Loaded { ast, names, scala2, path: path.to_owned(), body_info: None });
         Ok(())
-    }
-
-    /// Enters the local definition at `id` of loaded file `file`, and its parameters, owned by
-    /// `owner` but not among its declarations; the symbol entered before if there is one, `None`
-    /// if the tree defines none.
-    pub fn enter_local(&mut self, file: FileId, id: NodeId, owner: SymbolId) -> Option<SymbolId> {
-        if let Some(&s) = self.by_tree.get(&(file, id)) {
-            return Some(s);
-        }
-        let loaded = std::mem::take(&mut self.files[file.0 as usize]);
-        let src = Source { file, ast: &loaded.ast, names: &loaded.names, derived: &loaded.derived };
-        let before = self.symbols.len();
-        self.enter_stat(&src, id, owner);
-        self.files[file.0 as usize] = loaded;
-        let sym = (self.symbols.len() > before).then_some(SymbolId(before as u32))?;
-        self.unenter(sym);
-        Some(sym)
     }
 
     /// The symbol the definition at `id` of loaded file `file` defines, if it is entered.
