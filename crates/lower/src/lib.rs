@@ -103,8 +103,6 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
-    typer::inlining::run(u, tpd, names, fresh, root)
-        .map_err(|(at, what)| Unsupported { at, what: what.into() })?;
     let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
     let mut l = Lower {
         u,

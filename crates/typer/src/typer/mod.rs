@@ -43,6 +43,7 @@ mod implicits;
 mod import_tree;
 mod imports;
 mod infer;
+mod inline_host;
 mod inline_refs;
 mod interpolate;
 mod java_classes;
@@ -150,6 +151,8 @@ pub struct Typer<'a> {
     pub probe: Option<crate::completion::Probe>,
     /// The definitions of the unit's inline methods.
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
+    /// The context of each call of an inline method outside one.
+    pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -194,6 +197,7 @@ impl<'a> Typer<'a> {
             unsupported: None,
             probe: None,
             inline_defs: FxHashMap::default(),
+            inline_ctxs: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();

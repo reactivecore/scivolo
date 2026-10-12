@@ -58,6 +58,8 @@ pub fn type_unit(
 pub struct Units {
     syms: symbols::Syms,
     errors_first: bool,
+    /// Whether typing stops before the inline calls expand (dotty's `-Ystop-after:typer`).
+    typer_only: bool,
 }
 
 impl Units {
@@ -65,6 +67,11 @@ impl Units {
     /// (stress mode).
     pub fn errors_first() -> Self {
         Self { errors_first: true, ..Self::default() }
+    }
+
+    /// These units, typed without expanding their inline calls.
+    pub fn typer_only(self) -> Self {
+        Self { typer_only: true, ..self }
     }
 
     /// Types unit `root` like `type_unit`, the symbols of the units typed before counting as
@@ -84,6 +91,13 @@ impl Units {
         typer.typed_annotations();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
+        }
+        if !self.typer_only
+            && typer.unsupported.is_none()
+            && !typer.diags.has_errors()
+            && let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed))
+        {
+            typer.unsupported_at(at, what);
         }
         self.syms = std::mem::take(&mut typer.syms);
         self.syms.end_unit(typer.u);

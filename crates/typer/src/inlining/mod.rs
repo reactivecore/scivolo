@@ -9,6 +9,7 @@ mod constants;
 mod copy;
 mod erased;
 mod expand;
+mod host;
 mod no_inits;
 mod proxies;
 mod purity;
@@ -21,8 +22,9 @@ mod transparent;
 mod unused;
 
 pub use erased::is_erased_value;
-pub use transparent::inline_transparent;
+pub use host::{Host, Lent};
 
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T, map_children};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
@@ -56,6 +58,13 @@ pub struct Inlining<'a> {
     /// Whether every inline call expands: in the condition of an inline `if` or the selector of
     /// an inline match (dotty's `Mode.ForceInline`).
     force_inline: bool,
+    host: &'a mut dyn Host,
+    /// The context of the outermost call being expanded.
+    pub ctx: Option<Ctx>,
+    /// The span of the outermost call being expanded.
+    pub outermost_span: Span,
+    /// Whether the code being expanded is in the scope of an implicit it defines.
+    pub local_implicits: bool,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -64,26 +73,11 @@ impl AsMut<Tpd> for Inlining<'_> {
     }
 }
 
-/// Expands the inline calls of unit `root`, typed into `tpd`, in place.
-pub fn run(
-    u: &mut Universe,
-    tpd: &mut Tpd,
-    names: &mut Names,
-    fresh: &mut FreshNames,
-    root: TNodeId,
-) -> Result<(), Unsupported> {
-    let mut i = Inlining::new((u, tpd), (names, fresh), false);
-    i.collect_bodies(root);
-    let owner = i.u.root();
-    let new_root = i.transform(root, owner)?;
-    debug_assert_eq!(new_root, root);
-    Ok(())
-}
-
 impl<'a> Inlining<'a> {
-    fn new(
+    pub fn new(
         (u, tpd): (&'a mut Universe, &'a mut Tpd),
         (names, fresh): (&'a mut Names, &'a mut FreshNames),
+        host: &'a mut dyn Host,
         transparent_only: bool,
     ) -> Self {
         Inlining {
@@ -98,11 +92,24 @@ impl<'a> Inlining<'a> {
             with_inits: FxHashSet::default(),
             transparent_only,
             force_inline: false,
+            host,
+            ctx: None,
+            outermost_span: Span::NONE,
+            local_implicits: false,
         }
     }
 }
 
 impl Inlining<'_> {
+    /// Expands the inline calls of unit `root` in place.
+    pub fn run(&mut self, root: TNodeId) -> Result<(), Unsupported> {
+        self.collect_bodies(root);
+        let owner = self.u.root();
+        let new_root = self.transform(root, owner)?;
+        debug_assert_eq!(new_root, root);
+        Ok(())
+    }
+
     fn collect_bodies(&mut self, t: TNodeId) {
         if let T::DefDef { rhs: Some(_), .. } = self.tpd.tree(t)
             && let Some(s) = self.tpd.sym(t)
@@ -215,6 +222,12 @@ impl Inlining<'_> {
         if self.depth >= MAX_INLINES {
             return Err((span, "maximal number of successive inlines exceeded"));
         }
+        if self.depth == 0 {
+            self.outermost_span = span;
+            if !self.transparent_only {
+                self.ctx = self.host.call_ctx(call);
+            }
+        }
         self.depth += 1;
         let mut o = Some(owner);
         while let Some(x) = o.filter(|&x| self.u.symbol(x).kind != Kind::Class) {
@@ -225,8 +238,10 @@ impl Inlining<'_> {
             self.type_this_qualifiers(call);
         }
         let outer_call = std::mem::replace(&mut self.call_span, span);
+        let outer_implicits = self.local_implicits;
+        self.local_implicits |= self.defines_implicit(def);
         let expanded = expand::Expansion::new(self, call, owner).inlined(def);
-        self.call_span = outer_call;
+        (self.call_span, self.local_implicits) = (outer_call, outer_implicits);
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
         if let Some(inner) = self.inline_ref_in(expansion) {

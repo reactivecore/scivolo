@@ -72,6 +72,7 @@ impl Typer<'_> {
         if let Some(inlined) = self.inlined_transparent(tree, pt, ctx) {
             return self.adapt(inlined, pt, ctx);
         }
+        self.record_inline_call(tree, ctx);
         let Pt::Type(pt) = pt else { return tree };
         if ctx.mode.is(Mode::PATTERN) {
             if let Err(what) = self.check_pattern_equality(tree, pt, ctx) {

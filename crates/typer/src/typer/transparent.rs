@@ -3,7 +3,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
-use crate::inlining::{Unsupported, inline_transparent};
+use crate::inlining::Unsupported;
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
@@ -77,13 +77,7 @@ impl Typer<'_> {
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
-        inline_transparent(
-            (&mut *self.u, &mut self.tpd),
-            (&mut *self.names, &mut *self.fresh),
-            (bodies, with_inits),
-            call,
-            ctx.owner,
-        )
+        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), call, ctx))
     }
 
     /// The classes of the unit that initialize something or are not completed yet.
