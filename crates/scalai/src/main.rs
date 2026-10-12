@@ -16,10 +16,10 @@ use vm::{Classpath, Vm, VmError};
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
 /// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_FRONTEND=strict compiles
 /// scripts with the own frontend only, =jvm with scala-cli only (default: the own frontend,
-/// scala-cli where it refuses); SCALAI_SCALA_CLI names the scala-cli binary; SCALAI_TIMEOUT stops the program after that many seconds (exit 124);
-/// SCALAI_TRACE traces exceptions; SCALAI_PROFILE prints the most called methods to stderr;
-/// RUST_BACKTRACE prints panics in full. The REPL keeps its history in ~/.dotty_history, as
-/// Scala's own REPL does.
+/// scala-cli where it refuses); SCALAI_SCALA_CLI names the scala-cli binary; SCALAI_TIMEOUT
+/// stops the program after that many seconds (exit 124); SCALAI_TRACE traces exceptions;
+/// SCALAI_PROFILE prints the most called methods to stderr; RUST_BACKTRACE prints panics in
+/// full. The REPL keeps its history in ~/.dotty_history, as Scala's own REPL does.
 #[derive(Parser)]
 #[command(name = "scalai", override_usage = "scalai [OPTIONS] [TARGET] [ARGS]...")]
 struct Cli {
@@ -84,6 +84,7 @@ fn watch_timeout() {
 
 /// Runs main class `target`, or the main class of source file `target` (`chosen` if given).
 fn run(mut cp: Vec<PathBuf>, target: String, chosen: Option<String>, args: &[String]) -> Result<i32, String> {
+    watch_timeout();
     let jars = libs::jars()?;
     let image = libs::image(&jars);
     let main_class = match script::is_source(&target) {
@@ -94,7 +95,6 @@ fn run(mut cp: Vec<PathBuf>, target: String, chosen: Option<String>, args: &[Str
         }
         false => target,
     };
-    watch_timeout();
     let classpath = match image.and_then(|image| Classpath::with_image(&cp, image)) {
         Ok(c) => c,
         Err(e) => {

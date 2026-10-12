@@ -1,7 +1,7 @@
 //! Compiles a `.scala` or `.sc` file to NIR through the own frontend or scala-cli, cached by
 //! path, content, frontend mode and versions.
 
-use crate::frontend::{self, Mode};
+use crate::frontend::{self, Mode, Refused};
 use crate::libs::{NATIVE, SCALA, cache_dir};
 use libimage::{Image, cache};
 use std::hash::{DefaultHasher, Hash, Hasher};
@@ -10,6 +10,9 @@ use std::process::Command;
 
 /// The mangled signature of the static `main(Array[String]): Unit` of a main class.
 const MAIN: &str = "D4mainLAL16java.lang.String_uEo";
+
+/// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
+const FALLBACK: &str = "fallback";
 
 /// Whether `arg` names a source file to compile rather than a main class.
 pub fn is_source(arg: &str) -> bool {
@@ -43,11 +46,14 @@ fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(Pat
     let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
-    (&source, &text, mode, env!("CARGO_PKG_VERSION"), SCALA, NATIVE).hash(&mut h);
+    (&source, &text, mode, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
+        if let Ok(why) = std::fs::read_to_string(dir.join(FALLBACK)) {
+            eprintln!("scalai: {file}: compiled by scala-cli ({why})");
+        }
         return Ok(cached);
     }
     cache::prune(&scripts, cache::UNUSED, cache::is_key);
@@ -83,13 +89,15 @@ fn build(
         Mode::Jvm => scala_cli(source, out)?,
         _ => match frontend::compile(source, text, image, &classes) {
             Ok(()) => {}
-            Err(why) if mode == Mode::Strict => {
+            Err(Refused { why, errors }) if mode == Mode::Strict => {
+                errors.iter().for_each(|line| eprintln!("{line}"));
                 return Err(format!("{file}: the own frontend refuses it ({why})"));
             }
-            Err(why) => {
+            Err(Refused { why, .. }) => {
                 eprintln!("scalai: {file}: falling back to scala-cli ({why})");
                 let _ = std::fs::remove_dir_all(&classes);
                 scala_cli(source, out)?;
+                std::fs::write(out.join(FALLBACK), why).map_err(|e| format!("{}: {e}", out.display()))?;
             }
         },
     }

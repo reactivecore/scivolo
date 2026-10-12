@@ -29,6 +29,19 @@ impl Mode {
     }
 }
 
+/// Why the own frontend does not compile a script, and its syntax or type errors as dotty
+/// prints them.
+pub struct Refused {
+    pub why: String,
+    pub errors: Vec<String>,
+}
+
+impl<T: Into<String>> From<T> for Refused {
+    fn from(why: T) -> Self {
+        Refused { why: why.into(), errors: Vec::new() }
+    }
+}
+
 /// Writes the NIR files of `source`, whose content is `text`, under `classes`, or why the own
 /// frontend does not compile it.
 pub fn compile(
@@ -36,20 +49,27 @@ pub fn compile(
     text: &[u8],
     image: Option<&'static Image>,
     classes: &Path,
-) -> Result<(), String> {
+) -> Result<(), Refused> {
     if source.extension().is_some_and(|e| e == "sc") {
         return Err(".sc scripts".into());
     }
     let text = std::str::from_utf8(text).map_err(|_| "a file not in UTF-8")?;
-    if let Some(directive) = text.lines().find_map(foreign_directive) {
-        return Err(format!("`//> using {directive}`"));
+    if let Some(directive) = header(text).find_map(foreign_directive) {
+        return Err(format!("`//> using {directive}`").into());
     }
     let image = image.ok_or("no library image")?;
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     let source = SourceFile::new(name, without_header(text));
     let lowered =
         catch_unwind(AssertUnwindSafe(|| lower::compile(&mut Universe::open_image(image), &source, &[])));
-    let files = lowered.map_err(|p| crate::panicked(p.as_ref()))??;
+    let files = lowered.map_err(|p| crate::panicked(p.as_ref()))?.map_err(|r| Refused {
+        errors: if r.diags.items.is_empty() {
+            Vec::new()
+        } else {
+            repl::compile_errors(&source, &r.diags, 80)
+        },
+        why: r.what,
+    })?;
     std::fs::create_dir_all(classes).map_err(|e| format!("{}: {e}", classes.display()))?;
     for f in files {
         let path = classes.join(format!("{}.nir", f.name.replace('.', "/")));
@@ -58,6 +78,15 @@ pub fn compile(
         std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(())
+}
+
+/// The lines before the code of `text`: blank lines, comments and a first line starting with `#!`.
+fn header(text: &str) -> impl Iterator<Item = &str> {
+    text.lines().enumerate().map_while(|(i, line)| {
+        let l = line.trim();
+        let skipped = l.is_empty() || l.starts_with("//") || l.starts_with("/*") || l.starts_with('*');
+        (skipped || (i == 0 && l.starts_with("#!"))).then_some(line)
+    })
 }
 
 /// The key of the `//> using` directive on `line`, unless it is `scala` with the version
@@ -83,7 +112,13 @@ fn without_header(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{foreign_directive, without_header};
+    use super::{foreign_directive, header, without_header};
+
+    #[test]
+    fn directives_are_read_before_the_code_only() {
+        let text = "#!/usr/bin/env scalai\n\n// c\n//> using dep x\nobject A\n//> using dep y\n";
+        assert_eq!(header(text).filter_map(foreign_directive).collect::<Vec<_>>(), ["dep"]);
+    }
 
     #[test]
     fn accepts_only_the_scala_version_directive() {

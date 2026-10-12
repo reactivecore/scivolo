@@ -9,7 +9,7 @@ use std::process::Command;
 fn lowered_programs_print_what_scala_native_prints() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let libs = root.join("ref/libs");
-    if !libs.join("scala-library-3.9.0.jar").exists() && std::env::var_os("CI").is_none() {
+    if !typer::dump::library_jars(&libs)[0].exists() && std::env::var_os("CI").is_none() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
@@ -23,6 +23,7 @@ fn lowered_programs_print_what_scala_native_prints() {
             .env("SCALAI_CACHE", &cache)
             .env("SCALAI_FRONTEND", "strict")
             .env("SCALAI_SCALA_CLI", "no-scala-cli")
+            .env("SCALAI_TIMEOUT", "60")
             .args(["--main", program])
             .arg(dir.join(format!("{program}.scala")))
             .output()
