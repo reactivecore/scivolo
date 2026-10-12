@@ -77,6 +77,7 @@ mod stability;
 mod stats;
 mod supers;
 mod this;
+mod transparent;
 mod tries;
 mod type_apply;
 mod type_defs;
@@ -106,6 +107,7 @@ use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
+pub use transparent::InlineDef;
 
 pub struct Typer<'a> {
     pub u: &'a mut Universe,
@@ -143,6 +145,8 @@ pub struct Typer<'a> {
     pub unsupported: Option<(Span, String)>,
     /// What a completion request records while typing.
     pub probe: Option<crate::completion::Probe>,
+    /// The definitions of the unit's inline methods.
+    pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -186,6 +190,7 @@ impl<'a> Typer<'a> {
             protos: Vec::new(),
             unsupported: None,
             probe: None,
+            inline_defs: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();

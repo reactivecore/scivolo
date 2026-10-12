@@ -65,6 +65,9 @@ impl Typer<'_> {
             self.unsupported_at(span, "method value");
             return tree;
         }
+        if let Some(inlined) = self.inlined_transparent(tree, pt, ctx) {
+            return self.adapt(inlined, pt, ctx);
+        }
         let Pt::Type(pt) = pt else { return tree };
         if ctx.mode.is(Mode::PATTERN) {
             if let Err(what) = self.check_pattern_equality(tree, pt, ctx) {

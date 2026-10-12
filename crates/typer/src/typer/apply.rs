@@ -44,6 +44,7 @@ impl Typer<'_> {
         if let Pt::Type(p) = pt
             && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
         {
+            let p = self.result_pt(self.tpd.sym(self.tpd.meth_part(f)), p);
             self.conforms(result, p);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
