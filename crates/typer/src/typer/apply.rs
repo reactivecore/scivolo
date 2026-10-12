@@ -62,7 +62,9 @@ impl Typer<'_> {
             return self.unsupported(id, "dependent result type");
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
-        self.constrain_applied_result(meth, result, pt);
+        if let Err(what) = self.constrain_applied_result(meth, result, pt) {
+            return self.unsupported(id, what);
+        }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
         if repeated.is_some() {
             params.pop();

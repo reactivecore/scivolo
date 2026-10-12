@@ -33,11 +33,23 @@ impl Typer<'_> {
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
     /// (dotty's `constrainResult`): normalized against a fully defined `pt` other than `Unit`,
-    /// else a value result only.
-    pub fn constrain_applied_result(&mut self, meth: Option<SymbolId>, result: TypeId, pt: Pt) {
-        let Pt::Type(p) = pt else { return };
+    /// else a value result only; `Err` for an implicit method whose result is a type variable
+    /// under a `pt` with type variables.
+    pub fn constrain_applied_result(
+        &mut self,
+        meth: Option<SymbolId>,
+        result: TypeId,
+        pt: Pt,
+    ) -> Result<(), &'static str> {
+        let Pt::Type(p) = pt else { return Ok(()) };
         let p = self.result_pt(meth, p);
-        let value = match self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit) {
+        let defined = self.is_fully_defined(p);
+        let stripped = self.strip_implicit(result);
+        let stripped = self.zonk(stripped);
+        if !defined && stripped != result && matches!(self.u.types().get(stripped), Type::Var(_)) {
+            return Err("implicit method result under a type with type variables");
+        }
+        let value = match defined && self.u.class_symbol(p) != Some(self.defn.unit) {
             true => self.proto_normalized(result, p, 8),
             false => Some(result)
                 .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. })),
@@ -45,6 +57,7 @@ impl Typer<'_> {
         if let Some(value) = value {
             self.conforms(value, p);
         }
+        Ok(())
     }
 
     /// `t` without its leading implicit parameter clauses (dotty's `stripImplicit`).

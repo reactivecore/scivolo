@@ -274,6 +274,11 @@ fn constructs_diverging_from_dotty_are_refused() {
             "secondary constructor calling a later constructor",
         ),
         (
+            "trait Tag[T]; object Tag { implicit val ti: Tag[Int] = new Tag[Int] {}; implicit val tl: Tag[Long] = new Tag[Long] {} }
+             object Cr8 { def mx[T](x: T)(implicit t: Tag[T]): T = x; val o: Option[Long] = Some(mx(3)) }",
+            "implicit method result under a type with type variables",
+        ),
+        (
             "class O(x: Int) { def this(s: String) = this(this.hashCode) }",
             "this in the arguments of a self-constructor call",
         ),
