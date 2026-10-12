@@ -16,7 +16,8 @@ impl Unpickler<'_> {
         let kind = match prefix {
             Some(INLINE) => MatchKind::Inline,
             Some(SUBMATCH) => MatchKind::Sub,
-            _ => MatchKind::Plain,
+            None => MatchKind::Plain,
+            Some(_) => return Err("match of another kind in a library inline body"),
         };
         let cases = cases.to_vec();
         let selector = self.term(sel)?;

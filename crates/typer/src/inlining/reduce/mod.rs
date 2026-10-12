@@ -1,6 +1,7 @@
 //! Inline matches reduced to the case their scrutinee selects (dotty's
 //! `InlineTyper.typedMatchFinish` and `InlineReducer`).
 
+mod bindings;
 mod cases;
 mod patterns;
 mod projection;

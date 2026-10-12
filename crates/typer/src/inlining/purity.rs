@@ -3,7 +3,7 @@
 
 use super::Inlining;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::tags::{INLINE, LAZY, MUTABLE, STABLE};
+use tasty::tags::{CASE, INLINE, LAZY, MUTABLE, STABLE, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId, Type};
 
 pub const IMPURE: u8 = 0;
@@ -140,18 +140,33 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `t`, a call of `callee`, is a constant operation of a primitive class or a
-    /// constructor call (dotty's `isPureApply`, without synthetic case applies).
+    /// Whether `t`, a call of `callee`, is a constant operation of a primitive class, a
+    /// constructor call or a synthetic case class `apply` (dotty's `isPureApply`).
     pub fn is_pure_apply(&mut self, t: TNodeId, callee: Option<SymbolId>) -> bool {
         let Some(s) = callee else { return false };
         if self.u.symbol(s).name == "<init>" {
             return self.is_stable_member(s);
+        }
+        if self.is_pure_synthetic_case_apply(s) {
+            return true;
         }
         let Some(tpe) = self.tpd.get(t).tpe else { return false };
         let constant = matches!(self.u.types().get(tpe), Type::Constant(..) | Type::Str(_));
         let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
         let pure_method = PURE_METHODS.contains(&self.u.full_name(s).as_str());
         constant && (pure_method || owner.is_some_and(|o| PRIMITIVE_OWNERS.contains(&o.as_str())))
+    }
+
+    /// Whether `s` is the synthetic `apply` of the companion of a case class without
+    /// initialization code (dotty's `isPureSyntheticCaseApply`).
+    fn is_pure_synthetic_case_apply(&mut self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        if sym.kind != Kind::Def || !sym.flags.has(SYNTHETIC) || sym.name != "apply" {
+            return false;
+        }
+        let Some(owner) = sym.owner.filter(|&o| self.u.is_module_class(o)) else { return false };
+        let cls = self.u.companion_class(owner).filter(|&c| self.u.symbol(c).flags.has(CASE));
+        cls.is_some_and(|c| !self.u.symbol(c).flags.has(TRAIT) && self.is_no_inits_class(c))
     }
 
     pub fn is_pure_expr(&mut self, t: TNodeId) -> bool {

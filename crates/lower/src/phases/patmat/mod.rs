@@ -19,9 +19,9 @@ use crate::{Lower, Result};
 use plan::{Plan, PlanId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
-use tasty::tags::LAZY;
+use tasty::tags::{INLINE, LAZY};
 use tasty::{Flags, Kind, SymbolId, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// Compiles the matches in unit `root` in the order of its trees, inner matches first; those
 /// outside methods with their variables owned by the constructor.
@@ -37,6 +37,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
             continue;
         }
         let inner = match *l.tpd.tree(t) {
+            Tree::DefDef { .. } if is_inline_with_sub_match(l, t) => continue,
             Tree::DefDef { .. } | Tree::TypeDef { .. } => l.tpd.sym(t).unwrap_or(owner),
             Tree::ValDef { .. } => {
                 l.tpd.sym(t).filter(|&s| crate::symbols::has(l.u, s, LAZY)).unwrap_or(owner)
@@ -51,6 +52,15 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
         Translator::new(l, m, owner).translate(m)?;
     }
     Ok(())
+}
+
+/// Whether `t` defines an inline method, which erasure drops, with a sub match in its body.
+fn is_inline_with_sub_match(l: &Lower, t: TNodeId) -> bool {
+    fn has_sub_match(l: &Lower, t: TNodeId) -> bool {
+        matches!(l.tpd.tree(t), Tree::Match { kind: MatchKind::Sub, .. })
+            || children(l.tpd, t).into_iter().any(|c| has_sub_match(l, c))
+    }
+    l.tpd.sym(t).is_some_and(|s| crate::symbols::has(l.u, s, INLINE)) && has_sub_match(l, t)
 }
 
 /// The translation of one match: its plans, the variables it defines with their initial values

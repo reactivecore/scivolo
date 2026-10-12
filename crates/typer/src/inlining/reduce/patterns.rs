@@ -51,8 +51,13 @@ impl Reducer<'_, '_> {
             T::Ident { .. } | T::Select { .. } => {
                 let tpe = self.i.tpd.tpe(pat);
                 let module = self.i.u.class_symbol(scrut).is_some_and(|c| self.i.u.is_module_class(c));
+                let prefix = match *self.i.u.types().get(scrut) {
+                    Type::Sym(Some(p), _) => Some(p),
+                    _ => None,
+                };
+                let singleton_prefix = prefix.is_none_or(|p| self.is_singleton(p));
                 self.same_type(scrut, tpe)
-                    || module && {
+                    || module && singleton_prefix && {
                         let (a, b) = (self.i.u.widen(scrut), self.i.u.widen(tpe));
                         self.same_type(a, b)
                     }
@@ -98,9 +103,6 @@ impl Reducer<'_, '_> {
         let at = Span::at(self.i.call_span.point());
         let mut selectors = Vec::new();
         for a in self.param_accessors(cls) {
-            if !matches!(self.i.u.symbol(a).kind, tasty::Kind::Val | tasty::Kind::Param) {
-                return Err((self.i.tpd.span(fun), "inline match on a case class with accessor methods"));
-            }
             let qual = self.reference(scrut, at)?;
             let tpe = self.i.u.intern_type(Type::Sym(Some(scrut), a));
             let name = TName { name: self.i.names.intern(&self.i.u.symbol(a).name.clone()), is_type: false };
@@ -187,6 +189,15 @@ impl Reducer<'_, '_> {
             };
         }
         t
+    }
+
+    /// Whether `t` is a singleton type: a reference to a term, `this`, a constant or a package.
+    fn is_singleton(&mut self, t: TypeId) -> bool {
+        match *self.i.u.types().get(t) {
+            Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term(),
+            Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Package(_) | Type::Skolem(..) => true,
+            _ => false,
+        }
     }
 
     fn same_type(&mut self, a: TypeId, b: TypeId) -> bool {

@@ -82,11 +82,11 @@ impl Reducer<'_, '_> {
                 }
                 let field = self.i.tpd.sym(t);
                 let idx = self.param_accessors(n.cls).iter().position(|&p| Some(p) == field);
-                let Some(&arg) = idx.and_then(|k| n.args.get(k)) else { return Ok(t) };
+                let Some(k) = idx.filter(|&k| k < n.args.len()) else { return Ok(t) };
+                let arg = n.args[k];
                 if n.precomputed {
                     return if self.i.is_elideable(arg) { self.fresh_copy(arg) } else { Ok(t) };
                 }
-                let k = idx.expect("an index");
                 let impure = |r: &mut Self, range: std::ops::Range<usize>| {
                     let args: Vec<TNodeId> = n.args[range].to_vec();
                     args.into_iter().filter(|&a| !r.i.is_elideable(a)).collect::<Vec<_>>()

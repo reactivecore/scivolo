@@ -1,4 +1,6 @@
 //> using scala 3.9.0
+import scala.language.experimental.subCases
+
 inline def top(x: Int): Int = x * 2
 inline def inline1(inline f: Int => Int): Int => Int = i => f(1)
 inline def inline2(inline f: Int => Int): Int = f(2) + 3
@@ -265,7 +267,14 @@ object InlineMatches:
     case _: Int => "int"
     case _: String => "string"
     case _ => "other"
+  inline def sub(o: Option[Int]): String = inline o match
+    case Some(x) if x match
+      case 1 => "one"
+      case _ => "many"
+    case _ => "none"
   def run(args: Array[String]): Unit =
+    println(sub(Some(args.length)))
+    println(sub(None))
     println(sign(3))
     println(sign(-3))
     println(lit(2) + lit(7) + lit(4))
