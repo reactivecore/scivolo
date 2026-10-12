@@ -2,6 +2,7 @@
 //! class with only that method becomes the method's body, its parameters bound to the arguments.
 
 use super::first_transform::{is_pure_with_by_name as is_pure, literal_of};
+use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -43,13 +44,26 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let args = l.tpd.items(args).to_vec();
     let mut bindings = Vec::new();
     let Some(reduced) = recur(l, qualifier, &args, owner, &mut bindings)? else { return Ok(()) };
+    let span = if expanded_without_bindings(l, qualifier) && bindings.is_empty() {
+        l.tpd.span(reduced)
+    } else {
+        l.tpd.span(t)
+    };
     let tpe = l.tpd.tpe(t);
     let reduced = l.ensure_conforms(reduced, tpe);
-    let span = l.tpd.span(t);
     let result = if bindings.is_empty() { reduced } else { l.block(&bindings, reduced, Span::NONE) };
     l.copy_node(t, result);
     l.tpd.get_mut(t).span = span;
     Ok(())
+}
+
+/// Whether `t`, past ascriptions, was the expansion of an `Inlined` tree without bindings.
+fn expanded_without_bindings(l: &Lower, t: TNodeId) -> bool {
+    match *l.tpd.tree(t) {
+        _ if l.inlined_spans.contains_key(&t) => true,
+        Tree::Typed { expr, .. } => expanded_without_bindings(l, expr),
+        _ => false,
+    }
 }
 
 /// Whether the type of `t` is a `FunctionN` or `ContextFunctionN` type.
@@ -106,7 +120,7 @@ fn is_pure_binding(l: &Lower, s: TNodeId) -> bool {
         Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
         Tree::ValDef { rhs: Some(rhs), .. } => {
             let mutable = l.tpd.sym(s).is_some_and(|v| crate::symbols::has(l.u, v, tasty::tags::MUTABLE));
-            !mutable && (matches!(l.tpd.tree(rhs), Tree::Literal { .. }) || is_pure(l, rhs))
+            !mutable && is_pure_value(l, rhs)
         }
         _ => false,
     }
@@ -217,7 +231,7 @@ fn binding(
     };
     let sym = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     l.u.set_info(sym, tpe);
-    let pure = matches!(l.tpd.tree(arg), Tree::Literal { .. }) || is_pure(l, arg);
+    let pure = is_pure_value(l, arg);
     if !((constant || l.u.erase(tpe) == Erased::Unit) && pure) {
         let span = l.tpd.span(arg);
         let tpt = l.type_tree(tpe, Span::NONE);
@@ -267,7 +281,7 @@ fn is_unit_value(l: &mut Lower, t: TNodeId) -> bool {
         return false;
     };
     let info = l.u.info(s);
-    is_pure(l, t) && l.u.erase(info) == Erased::Unit
+    is_pure_value(l, t) && l.u.erase(info) == Erased::Unit
 }
 
 /// The constant literal `t` is, but `()` and `null`.

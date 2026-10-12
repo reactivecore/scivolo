@@ -26,7 +26,7 @@ impl Gen<'_, '_> {
             return unsupported(span, "primitive operations");
         }
         if has(self.l.u, sym, INLINE) || has(self.l.u, sym, MACRO) {
-            return unsupported(span, "a call of an inline method");
+            return unsupported(span, "inline call not expanded");
         }
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");

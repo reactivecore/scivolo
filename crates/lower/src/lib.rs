@@ -84,6 +84,12 @@ pub struct Lower<'a> {
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The member each super accessor of the unit accesses, whether through a named mixin.
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
+    /// The span of the outermost `Inlined` tree without bindings each tree was the expansion of.
+    inlined_spans: FxHashMap<TNodeId, Span>,
+    /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
+    inlined_blocks: FxHashSet<TNodeId>,
+    /// The objects the unit refers to whose creation runs code.
+    impure_modules: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -95,6 +101,8 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
+    typer::inlining::run(u, tpd, names, fresh, root)
+        .map_err(|(at, what)| Unsupported { at, what: what.into() })?;
     let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
     let mut l = Lower {
         u,
@@ -122,6 +130,9 @@ pub fn lower(
         outer_accessors: FxHashMap::default(),
         lifted_from: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
+        inlined_spans: FxHashMap::default(),
+        inlined_blocks: FxHashSet::default(),
+        impure_modules: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

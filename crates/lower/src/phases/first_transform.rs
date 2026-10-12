@@ -3,6 +3,7 @@
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
+use super::module_purity::is_pure_value;
 use super::walk::walk_class_up;
 use crate::Lower;
 use crate::symbols::has;
@@ -157,7 +158,7 @@ fn is_constant_block(l: &Lower, t: TNodeId) -> bool {
         Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
         Tree::ValDef { rhs, .. } => {
             let mutable = l.tpd.sym(s).is_some_and(|v| has(l.u, v, MUTABLE) || has(l.u, v, LAZY));
-            !mutable && rhs.is_some_and(|r| is_literal(l, r) || is_pure(l, r))
+            !mutable && rhs.is_some_and(|r| is_pure_value(l, r))
         }
         _ => false,
     };

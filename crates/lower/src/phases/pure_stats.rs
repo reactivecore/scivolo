@@ -1,7 +1,7 @@
 //! dotty's `PureStats` for anonymous instances: a statement `{ class C; new C(args) }` of a block,
 //! `C` initializing nothing and `args` pure, is dropped.
 
-use super::first_transform::is_pure;
+use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::Lower;
 use crate::symbols::has;
@@ -39,6 +39,6 @@ fn is_pure_instance(l: &Lower, t: TNodeId) -> bool {
     let Tree::Apply { fun, args } = *l.tpd.tree(l.tpd.strip_typed(expr)) else { return false };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
     let stable = l.tpd.sym(fun).is_some_and(|c| l.u.is_constructor(c) && has(l.u, c, STABLE));
-    let pure_arg = |&a: &TNodeId| matches!(l.tpd.tree(a), Tree::Literal { .. }) || is_pure(l, a);
+    let pure_arg = |&a: &TNodeId| is_pure_value(l, a);
     matches!(l.tpd.tree(qualifier), Tree::New { .. }) && stable && l.tpd.items(args).iter().all(pure_arg)
 }

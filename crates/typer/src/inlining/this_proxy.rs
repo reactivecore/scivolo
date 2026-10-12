@@ -28,7 +28,10 @@ impl Expansion<'_, '_> {
         if self.i.is_static_owner(cls) {
             return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(None) };
         }
-        if self.i.u.symbol(cls).kind != Kind::Class || self.i.u.is_module_class(cls) {
+        if self.i.u.symbol(cls).kind != Kind::Class {
+            return Err(self.err("local inline method"));
+        }
+        if self.i.u.is_module_class(cls) {
             return Err(self.err("inline method of a nested object"));
         }
         if !self.i.u.type_params(cls).is_empty() {
