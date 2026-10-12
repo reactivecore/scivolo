@@ -36,7 +36,7 @@ impl Typer<'_> {
 
     /// Type tree `tpt`, or, if the source gives none, an inferred one of type `info`.
     fn typed_tpt(&mut self, tpt: NodeId, info: Option<tasty::TypeId>, ctx: Ctx) -> TNodeId {
-        if matches!(self.ast.tree(tpt), Tree::TypeTree) && !self.splices.contains_key(&tpt) {
+        if self.is_inferred_tpt(tpt) {
             let tpe = info.unwrap_or_else(|| self.u.intern_type(Type::Error));
             let span = self.ast.span(tpt);
             return self.type_tree(tpe, span, true);

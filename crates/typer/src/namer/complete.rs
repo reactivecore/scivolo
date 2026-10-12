@@ -56,7 +56,7 @@ impl Typer<'_> {
 
     /// The type of definition `sym`: its type tree's, else its right-hand side's, widened.
     fn result_type(&mut self, sym: SymbolId, tpt: NodeId, rhs: Option<NodeId>, ctx: Ctx) -> TypeId {
-        if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+        if !self.is_inferred_tpt(tpt) {
             return self.value_type_ahead(tpt, ctx);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
@@ -131,7 +131,7 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Applied(class_ref, args))
             }
         } else {
-            if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+            if !self.is_inferred_tpt(tpt) {
                 self.syms.declared_results.insert(sym);
             }
             self.result_type(sym, tpt, rhs, mctx)

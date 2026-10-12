@@ -13,7 +13,7 @@ impl Typer<'_> {
     /// Whether `p` is a parameter without a type.
     pub fn is_untyped_param(&self, p: NodeId) -> bool {
         matches!(*self.ast.tree(p), Tree::ValDef { tpt, .. }
-            if matches!(self.ast.tree(tpt), Tree::TypeTree) && !self.splices.contains_key(&tpt))
+            if self.is_inferred_tpt(tpt))
     }
 
     /// `pt` of function `id` of `params` and `body`, instantiated if it is a type variable, a

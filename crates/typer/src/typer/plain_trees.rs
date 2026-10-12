@@ -79,7 +79,7 @@ impl Typer<'_> {
         };
         let literal =
             rhs.is_some_and(|r| matches!(self.ast.tree(r), Tree::Literal { .. } | Tree::Number { .. }));
-        literal || !matches!(self.ast.tree(tpt), Tree::TypeTree) || self.splices.contains_key(&tpt)
+        literal || !self.is_inferred_tpt(tpt)
     }
 
     /// Whether `new` may instantiate class `c`: neither abstract nor a trait.
