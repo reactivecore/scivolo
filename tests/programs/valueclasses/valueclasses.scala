@@ -27,8 +27,22 @@ class Half(n: Int) extends AnyVal {
   def half: Int = n / 2
 }
 
+case class Cents(c: Int) extends AnyVal
+
+trait Source[T] {
+  def get: T
+}
+
+class CentsSource extends Source[Cents] {
+  def get: Cents = Cents(5)
+}
+
 object valueclasses {
   def len(n: Name): Int = n.s.length
+  def describe(o: Any): String = o match {
+    case mm: Meter => "meter " + mm.value
+    case _ => "other"
+  }
   def main(args: Array[String]): Unit = {
     val m = new Meter(1.5)
     println(m + new Meter(2.0))
@@ -46,5 +60,17 @@ object valueclasses {
     println(h.half)
     println(h == new Half(8))
     println(3.compare(4))
+    val c = Cents(250)
+    println(c.hashCode)
+    println(c.copy(c = 3))
+    println(c == Cents(250))
+    val src: Source[Cents] = new CentsSource
+    println(src.get.c)
+    val none = null.asInstanceOf[Meter]
+    println(none.value)
+    val ms: Array[Meter] = Array(m, new Meter(4.0))
+    println(ms(1).value)
+    println(describe(m))
+    println(describe(c))
   }
 }
