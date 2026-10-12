@@ -34,7 +34,7 @@ impl Typer<'_> {
         if let Some(p) = pt
             && !matches!(self.tpd.tree(tree), T::Apply { .. })
         {
-            self.constrain_result(tree, tpe, p)?;
+            self.constrain_result(tree, tpe, p);
         }
         let variances = self.variances(tpe, pt, from);
         let mut pending = Vec::new();
@@ -168,14 +168,12 @@ impl Typer<'_> {
 
     /// Constrains `tree`'s type `tpe` to conform to `pt`, keeping the constraint only if it does
     /// (dotty's `constrainResult`).
-    fn constrain_result(&mut self, tree: TNodeId, tpe: TypeId, pt: TypeId) -> Result<(), &'static str> {
+    fn constrain_result(&mut self, tree: TNodeId, tpe: TypeId, pt: TypeId) {
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
         if self.u.widen(pt) == unit || matches!(self.u.types().get(pt), Type::Error) {
-            return Ok(());
+            return;
         }
-        if self.tpd.get(tree).sym.is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::TRANSPARENT)) {
-            return Err("result of a transparent inline definition constrained");
-        }
+        let pt = self.result_pt(self.tpd.get(tree).sym, pt);
         let tpe = match *self.u.types().get(tpe) {
             Type::ByName(r) => r,
             _ => tpe,
@@ -184,6 +182,5 @@ impl Typer<'_> {
         if !self.conforms(tpe, pt) {
             self.constraint.rollback(mark);
         }
-        Ok(())
     }
 }

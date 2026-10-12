@@ -3,7 +3,7 @@
 
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
-use crate::typer::{Pt, Typer};
+use crate::typer::{InlineDef, Pt, Typer};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -30,6 +30,9 @@ impl Typer<'_> {
                 self.u.set_info(sym, info);
             }
             Tree::DefDef { .. } => {
+                if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
+                    self.inline_defs.entry(sym).or_insert(InlineDef::Pending(tree, ctx));
+                }
                 let info = self.method_type(sym, tree, ctx);
                 self.u.set_info(sym, info);
             }

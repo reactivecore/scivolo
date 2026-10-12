@@ -65,15 +65,22 @@ impl Typer<'_> {
         let result = self.def_result(sym);
         let tpt = self.typed_tpt(tpt, Some(result), mctx);
         let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
-        if self.u.symbol(sym).flags.has(tasty::tags::INLINE) {
+        let flags = self.u.symbol(sym).flags;
+        if flags.has(tasty::tags::INLINE) {
             let annots = self.syms.annotations.get(&sym).cloned().unwrap_or_default();
             if annots.iter().any(|&(c, _)| self.u.full_name(c) == "scala.annotation.tailrec") {
                 return self.unsupported(id, "tailrec inline method");
             }
-            rhs = rhs.map(|r| self.inline_body(r, tpt));
+            if !flags.has(tasty::tags::TRANSPARENT) {
+                rhs = rhs.map(|r| self.inline_body(r, tpt));
+            }
         }
         let span = self.ast.span(id);
-        self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(sym))
+        let def = self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(sym));
+        if flags.has(tasty::tags::INLINE) {
+            self.inline_defs.insert(sym, super::InlineDef::Typed(def));
+        }
+        def
     }
 
     /// Inline method body `rhs` ascribed its result type tree `tpt` (dotty's `wrapRHS`).

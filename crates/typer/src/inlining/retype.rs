@@ -21,10 +21,8 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
         let t = self.retype_node(t, args, owner)?;
-        match self.inline_method(t)? {
-            Some(def) => self.inline_call(t, def, owner),
-            None => Ok(t),
-        }
+        let Some(def) = self.inline_method(t)? else { return Ok(t) };
+        self.inline_call(t, def, owner)
     }
 
     fn retype_node(
@@ -97,21 +95,20 @@ impl Inlining<'_> {
             | T::SeqLiteral { .. }
             | T::WhileDo { .. }
             | T::Assign { .. } => {
-                let inner = match self.tpd.tree(t) {
-                    T::ValDef { .. } | T::DefDef { .. } => self.tpd.sym(t).unwrap_or(owner),
-                    _ => owner,
+                let (inner, call) = match *self.tpd.tree(t) {
+                    T::ValDef { .. } | T::DefDef { .. } => (self.tpd.sym(t).unwrap_or(owner), None),
+                    T::Inlined { call, .. } => (owner, call),
+                    _ => (owner, None),
                 };
                 let mut failed = None;
-                map_children(self, t, &mut |i, c| match i.retype(c, args, inner) {
-                    Ok(n) => n,
-                    Err(e) => {
+                map_children(self, t, &mut |i, c| match Some(c) == call {
+                    true => c,
+                    false => i.retype(c, args, inner).unwrap_or_else(|e| {
                         failed.get_or_insert(e);
                         c
-                    }
+                    }),
                 });
-                if let Some(e) = failed {
-                    return Err(e);
-                }
+                failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
             _ => Err((span, "inline body with a match, try or return")),

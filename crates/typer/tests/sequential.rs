@@ -143,6 +143,31 @@ fn deferred_members_of_earlier_units() {
     assert!(!u.is_deferred(c_a));
 }
 
+#[test]
+fn transparent_inline_refusals() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let refusals = [
+        ("object A { val v = a(1); transparent inline def a(x: Int): Any = v }", "cyclic reference"),
+        (
+            "object B { transparent inline def unapply(x: Int): Option[Int] = Some(x) }
+             object C { def f(x: Int) = x match { case B(y) => y } }",
+            "transparent inline extractor",
+        ),
+        (
+            "object D { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K): k.T = k.t
+             val r = d(new K) }",
+            "dependent result type",
+        ),
+        ("object rs$line$1 { transparent inline def e: Any = 1 }", ""),
+        ("object rs$line$2 { import rs$line$1.*; val x = e }", "transparent inline method call"),
+    ];
+    for (text, what) in refusals {
+        let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };
+        assert_eq!(type_unit(&mut u, &mut units, "t.scala", text), expected, "{text}");
+    }
+}
+
 /// Whether typing `text` as a unit after `before` types it or leaves the unresolved `c` to the
 /// fallback.
 fn finds_toplevel(before: &[&str], text: &str) -> bool {

@@ -35,6 +35,9 @@ impl Typer<'_> {
             return Err("extractor with type arguments");
         }
         let (unapp, seq) = self.unapply_fun(fun, ctx)?;
+        if self.tpd.sym(self.tpd.meth_part(unapp)).is_some_and(|s| self.is_transparent_inline(s)) {
+            return Err("transparent inline extractor");
+        }
         if !seq && arg_ids.iter().any(|&a| self.is_seq_wildcard(a)) {
             return Err("sequence wildcard of an extractor without unapplySeq");
         }
