@@ -137,6 +137,8 @@ impl Typer<'_> {
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
+        let clauses =
+            if self.u.symbol(sym).name == "<init>" { self.normalized_constructor(clauses) } else { clauses };
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =

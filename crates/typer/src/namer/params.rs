@@ -7,6 +7,22 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
+    /// Constructor parameter clauses `clauses` with an empty clause before a leading `implicit`
+    /// one, or after clauses that are all `using` ones (dotty's `normalizeIfConstructor`).
+    pub fn normalized_constructor(&self, mut clauses: Vec<Vec<SymbolId>>) -> Vec<Vec<SymbolId>> {
+        let flags =
+            |c: &Vec<SymbolId>| c.first().and_then(|p| self.syms.flags.get(p)).copied().unwrap_or_default();
+        let is_type = |c: &Vec<SymbolId>| c.first().is_some_and(|&p| self.u.is_type_symbol(p));
+        if let Some(i) =
+            clauses.iter().position(|c| !is_type(c)).filter(|&i| flags(&clauses[i]).is(f::IMPLICIT))
+        {
+            clauses.insert(i, Vec::new());
+        } else if clauses.iter().all(|c| is_type(c) || !c.is_empty() && flags(c).is(f::GIVEN)) {
+            clauses.push(Vec::new());
+        }
+        clauses
+    }
+
     /// The context of the parameters and body of method `sym`, defined in `ctx`.
     pub fn method_ctx(&mut self, sym: SymbolId, ctx: Ctx) -> Ctx {
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
