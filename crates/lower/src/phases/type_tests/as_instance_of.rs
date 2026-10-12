@@ -18,6 +18,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let from = erased_type(l, expr);
     let span = l.tpd.span(t);
     if l.u.value_class(target).is_some() && l.u.value_class(widened).is_none() {
+        if !matches!(from, Erased::Class(_) | Erased::Array(_) | Erased::Null | Erased::Nothing) {
+            return unsupported(span, "casts of primitive values to value classes");
+        }
         return Ok(expr);
     }
     if l.u.erase_boxed(target) != to || l.u.erase_boxed(widened) != found {
