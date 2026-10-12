@@ -30,6 +30,26 @@ object Test {
 
 class Defaults[E](val x: Unit = (), y: Unit)
 
+object ByResult {
+  def g(x: Int)(y: Int): Int = x + y
+  def g(x: Any): Int => Int = (y: Int) => y * 100
+  def k(x: Int): Int = 1
+  def k(x: Any): String = "any"
+  val h: Int => Int = g(1)
+  val s: String = k(1)
+  val n: Long = k(1)
+}
+
+class WithOrdering(val x: Int)(implicit val o: Ordering[Int]) {
+  def this() = this(0)
+}
+
+object Migration {
+  def h(x: Int)(implicit o: Ordering[Int]) = x
+  val a = h(2)(Ordering.Int)
+  val b = h(2) { Ordering.Int }
+}
+
 class Secondary(x: Int, y: String) {
   def this(x: Int) = this(x, "d")
   def this() = { this(0); println("init") }
