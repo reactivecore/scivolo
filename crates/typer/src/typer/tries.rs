@@ -6,7 +6,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{NodeId, Tree};
-use tasty::{NOTHING, TypeId};
+use tasty::{NOTHING, Type, TypeId};
 
 impl Typer<'_> {
     /// `try expr catch handler finally finalizer` as parsed, its handler cases or none.
@@ -46,10 +46,10 @@ impl Typer<'_> {
         let throwable = crate::defn::type_ref(self.u, self.defn.throwable);
         let typed_cases: Vec<TNodeId> =
             cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)).collect();
-        let mut types: Vec<TypeId> = vec![self.tpd.tpe(expr)];
+        let mut types: Vec<TypeId> = vec![self.by_name_result(self.tpd.tpe(expr))];
         for &c in &typed_cases {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
-            types.push(self.tpd.tpe(body));
+            types.push(self.by_name_result(self.tpd.tpe(body)));
         }
         if matches!(pt, Pt::Any) && types.windows(2).any(|w| self.needs_harmonizing(w[0], w[1])) {
             return self.unsupported(id, "numeric harmonization");
@@ -60,5 +60,19 @@ impl Typer<'_> {
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Try { expr, cases, finalizer }, span, Some(tpe), None)
+    }
+
+    /// `t`, or the result type of the by-name parameter it refers to (dotty's `adapt` of an
+    /// `ExprType`).
+    fn by_name_result(&mut self, t: TypeId) -> TypeId {
+        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        if self.u.symbol(s).kind != tasty::Kind::Param {
+            return t;
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::ByName(r) => r,
+            _ => t,
+        }
     }
 }

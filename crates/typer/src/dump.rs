@@ -58,7 +58,9 @@ pub fn dump(
                 return b;
             }
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
-            let mut printer = Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new() };
+            let source_len = source.len();
+            let mut printer =
+                Printer { tpd: &typed.tpd, names: p.s.names, u, out: String::new(), source_len };
             if inlined {
                 printer.out.push('[');
                 for t in trees {

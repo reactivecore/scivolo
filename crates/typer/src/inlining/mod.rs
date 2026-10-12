@@ -150,10 +150,16 @@ impl Inlining<'_> {
         {
             return Ok(None);
         }
-        match self.bodies.get(&meth) {
-            Some(&def) => Ok(Some(def)),
-            None => Err((self.tpd.span(t), "call of an inline method defined elsewhere")),
+        if let Some(&def) = self.bodies.get(&meth) {
+            return Ok(Some(def));
         }
+        if self.u.symbol(meth).tree.is_none() {
+            return Err((self.tpd.span(t), "call of an inline method defined elsewhere"));
+        }
+        let def = crate::unpickle::inline_def(self.u, self.tpd, self.names, meth)
+            .map_err(|what| (self.tpd.span(t), what))?;
+        self.bodies.insert(meth, def);
+        Ok(Some(def))
     }
 
     /// The reference `t` applies, through its applications and type applications.
@@ -214,8 +220,11 @@ impl Inlining<'_> {
     }
 
     /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of
-    /// the call in `inlineCall` does.
+    /// the call in `inlineCall` does after the typer.
     pub fn type_this_qualifiers(&mut self, t: TNodeId) {
+        if self.transparent_only {
+            return;
+        }
         if let T::This { qual } = *self.tpd.tree(t)
             && let Some(c) = self.tpd.sym(t)
             && self.tpd.get(qual).tpe.is_none()

@@ -3,7 +3,7 @@
 use super::symbols::full_name;
 use syntax::ast::constant::Constant;
 use syntax::ast::print::quote;
-use tasty::{Binder, Kind, Type, TypeId, Universe};
+use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
 
 /// The deepest type nesting printed.
 const MAX_DEPTH: u32 = 14;
@@ -69,12 +69,34 @@ impl Printer<'_> {
         shown
     }
 
+    /// Whether `s` is a value parameter of a method type being printed, which TASTy refers to by
+    /// its symbol and dotty by its parameter reference.
+    fn is_bound_param(&mut self, s: SymbolId) -> bool {
+        let sym = self.u.symbol(s);
+        let (Kind::Param, Some(owner)) = (sym.kind, sym.owner) else { return false };
+        let name = sym.name.clone();
+        let mut info = self.u.info(owner);
+        let mut binders = Vec::new();
+        loop {
+            match self.u.types().get(info).clone() {
+                Type::Poly { result, .. } => info = result,
+                Type::Method { binder, result, .. } => {
+                    binders.push(binder);
+                    info = result;
+                }
+                _ => break,
+            }
+        }
+        self.binders.iter().any(|(b, names, terms)| *terms && binders.contains(b) && names.contains(&name))
+    }
+
     fn tpe(&mut self, t: TypeId, d: u32) -> String {
         if d > MAX_DEPTH {
             return "…".into();
         }
         let n = d + 1;
         match self.u.types().get(t).clone() {
+            Type::Sym(None, s) if self.is_bound_param(s) => self.u.symbol(s).name.clone(),
             Type::Sym(p, s) => {
                 let k = if self.u.is_type_symbol(s) { "T:" } else { "t:" };
                 if is_static_prefix(self.u, p) {

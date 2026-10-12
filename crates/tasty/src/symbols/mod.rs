@@ -2,6 +2,7 @@
 //! entered when a name it defines is first looked up.
 
 mod any_members;
+mod bodies;
 mod builtin;
 mod classes;
 mod companions;
@@ -30,6 +31,7 @@ use crate::{Ast, NodeId};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::io;
 
+pub use bodies::BodyInfo;
 pub use builtin::{ANY, Builtins, NOTHING};
 pub use companions::{module_class_name, module_name};
 pub use jdk::defined_name;
@@ -38,11 +40,18 @@ pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 
 /// A decoded top-level file: its trees, and its name table shown as text.
+#[derive(Default)]
 struct Loaded {
     ast: Ast,
     names: Vec<String>,
     /// Whether the file is of the Scala 2 standard library (`SCALA2STANDARDLIBRARY`).
     scala2: bool,
+    /// Whether each name is of a kind other than `Utf8`.
+    derived: Vec<bool>,
+    /// Its path in the library.
+    path: String,
+    /// Its spans and signatures, decoded when a body is first read.
+    body_info: Option<bodies::BodyInfo>,
 }
 
 pub struct Universe {

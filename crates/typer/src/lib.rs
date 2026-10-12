@@ -13,6 +13,7 @@ mod namer;
 mod symbols;
 pub mod tpd;
 mod typer;
+mod unpickle;
 
 use crate::ctx::{Ctx, Level, Mode};
 use syntax::ast::{Ast, NodeId, Span};

@@ -16,6 +16,7 @@ pub struct Node {
 }
 
 /// Structural decode of an ASTs section; nodes are stored in preorder, so addresses are ascending.
+#[derive(Default)]
 pub struct Ast {
     nodes: Vec<Node>,
     kids: Vec<NodeId>,

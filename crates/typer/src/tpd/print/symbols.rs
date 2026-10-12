@@ -83,47 +83,50 @@ fn bounded(u: &mut Universe, t: TypeId, bounds: &[(tasty::Binder, Vec<TypeId>)])
     })
 }
 
-/// `s` quoted, a method with its signature (dotty's `paramsSig`): the number of type parameters
-/// of each type parameter clause and the erased types of the value parameters, in order, as in
-/// `"scala.Predef$.println#(java.lang.Object)"`.
+/// `s` quoted, a method with its signature, as in `"scala.Predef$.println#(java.lang.Object)"`.
 pub fn sym(u: &mut Universe, s: SymbolId) -> String {
     let mut text = full_name(u, s);
     if u.symbol(s).kind == Kind::Def && u.symbol(s).name != "<init>" {
-        let mut t = u.info(s);
-        let mut parts = Vec::new();
-        let mut bounds: Vec<(tasty::Binder, Vec<TypeId>)> = Vec::new();
-        loop {
-            match u.types().get(t).clone() {
-                Type::Poly { binder, params, result } => {
-                    parts.push(params.len().to_string());
-                    let his = params.iter().map(|&(_, b)| upper_bound(u, b)).collect();
-                    bounds.push((binder, his));
-                    t = result;
-                }
-                Type::Method { params, result, .. } => {
-                    for (_, p) in params {
-                        let p = match u.types().get(p) {
-                            Type::Param(..) => bounded(u, p, &bounds),
-                            _ => u.map_type(p, &mut |u, x| match *u.types().get(x) {
-                                Type::Param(..) => {
-                                    let hi = bounded(u, x, &bounds);
-                                    Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
-                                }
-                                _ => None,
-                            }),
-                        };
-                        let e = match u.erase(p) {
-                            tasty::Erased::Unit => tasty::Erased::Class("scala.runtime.BoxedUnit".into()),
-                            e => e,
-                        };
-                        parts.push(sig_name(u, p, &e));
-                    }
-                    t = result;
-                }
-                _ => break,
-            }
-        }
-        text.push_str(&format!("#({})", parts.join(",")));
+        text.push_str(&format!("#({})", params_sig(u, s).join(",")));
     }
     quote(&text.encode_utf16().collect::<Vec<_>>())
+}
+
+/// The parameter part of the signature of method `s` (dotty's `paramsSig`): the number of type
+/// parameters of each type parameter clause and the erased types of the value parameters.
+pub fn params_sig(u: &mut Universe, s: SymbolId) -> Vec<String> {
+    let mut t = u.info(s);
+    let mut parts = Vec::new();
+    let mut bounds: Vec<(tasty::Binder, Vec<TypeId>)> = Vec::new();
+    loop {
+        match u.types().get(t).clone() {
+            Type::Poly { binder, params, result } => {
+                parts.push(params.len().to_string());
+                let his = params.iter().map(|&(_, b)| upper_bound(u, b)).collect();
+                bounds.push((binder, his));
+                t = result;
+            }
+            Type::Method { params, result, .. } => {
+                for (_, p) in params {
+                    let p = match u.types().get(p) {
+                        Type::Param(..) => bounded(u, p, &bounds),
+                        _ => u.map_type(p, &mut |u, x| match *u.types().get(x) {
+                            Type::Param(..) => {
+                                let hi = bounded(u, x, &bounds);
+                                Some(u.intern_type(Type::Bounds(tasty::NOTHING, hi)))
+                            }
+                            _ => None,
+                        }),
+                    };
+                    let e = match u.erase(p) {
+                        tasty::Erased::Unit => tasty::Erased::Class("scala.runtime.BoxedUnit".into()),
+                        e => e,
+                    };
+                    parts.push(sig_name(u, p, &e));
+                }
+                t = result;
+            }
+            _ => return parts,
+        }
+    }
 }

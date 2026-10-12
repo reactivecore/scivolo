@@ -5,9 +5,9 @@ pub mod types;
 
 use super::{Clauses, Field, List, TNodeId, Tpd, Tree};
 use std::fmt::Write;
-use syntax::ast::TName;
 use syntax::ast::constant::Constant;
 use syntax::ast::print::{quote, span};
+use syntax::ast::{Span, TName};
 use syntax::names::{Names, to_utf16};
 use tasty::Universe;
 
@@ -16,9 +16,25 @@ pub struct Printer<'a> {
     pub names: &'a Names,
     pub u: &'a mut Universe,
     pub out: String,
+    /// The length of the unit's source in bytes.
+    pub source_len: u32,
 }
 
 impl Printer<'_> {
+    /// `s` as the oracle prints it: offsets in another source file (a library's), read as
+    /// offsets in the unit's source, at most one past its end.
+    fn span(&self, s: Span) -> String {
+        if !s.is_in_other_source() {
+            return span(s);
+        }
+        let s = s.in_own_source();
+        let at = |o: u32| o.min(self.source_len + 1);
+        match s.is_synthetic() {
+            true => format!("{}..{}", at(s.start()), at(s.end())),
+            false => format!("{}..{}@{}", at(s.start()), at(s.end()), at(s.point())),
+        }
+    }
+
     fn name(&mut self, n: TName) {
         let q = quote(&to_utf16(self.names.text(n.name)));
         write!(self.out, " {}:{}", if n.is_type { "T" } else { "t" }, &q[1..q.len() - 1]).unwrap();
@@ -90,7 +106,7 @@ impl Printer<'_> {
             self.out.push_str("(EmptyTypeIdent$ - T:)");
             return;
         }
-        write!(self.out, "({} {}", class_name(&tree), span(node.span)).unwrap();
+        write!(self.out, "({} {}", class_name(&tree), self.span(node.span)).unwrap();
         if let Tree::Ident { name } = tree
             && node.sym == Some(self.u.root())
             && self.names.text(name.name) == "_root_"

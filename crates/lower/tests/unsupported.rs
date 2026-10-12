@@ -67,7 +67,7 @@ const CASES: &[(&str, &str)] = &[
         "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
         "local classes using the enclosing instance",
     ),
-    ("object O { def f = Tuple1(1).size }", "call of an inline method defined elsewhere"),
+    ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
     (
         "class A(n: Int) { def f() = { def g = n; class C { def h = g }; new C().h } }",
         "local classes calling local methods that use the enclosing instance",

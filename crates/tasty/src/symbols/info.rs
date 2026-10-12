@@ -52,6 +52,11 @@ impl Universe {
         self.with_decoder(file, |d| d.opaque_bounds(id))
     }
 
+    /// The type of the type, type tree or path at `id` of loaded file `file`.
+    pub fn type_at(&mut self, file: FileId, id: NodeId) -> TypeId {
+        self.with_decoder(file, |d| d.ty(id))
+    }
+
     fn with_decoder<R>(&mut self, file: FileId, f: impl FnOnce(&mut Decoder) -> R) -> R {
         let Universe { files, by_tree, packages, types, .. } = self;
         let loaded = &files[file.0 as usize];
