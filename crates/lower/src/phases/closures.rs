@@ -1,12 +1,13 @@
 //! The closures of lifted lambdas: the functional interface a closure implements (a specialized
-//! `JFunctionN`, a `JProcedureN`, else its function type), its `$adapted` method where a parameter
-//! is primitive or the result `Unit` (dotty's `Erasure.adaptClosure`), and the block becoming
-//! `closure(captured, method)`.
+//! `JFunctionN`, a `JProcedureN`, else its function type), its `$adapted` method where parameters
+//! or result erase differently from its abstract method's (dotty's `Erasure.adaptClosure`), and
+//! the block becoming `closure(captured, method)`.
 
 use super::adapt::from_start;
-use super::adapted::specializable;
+use super::adapted::{adapted_types, specializable};
 use super::lambda_lift::{Function, fresh};
 use super::lifted::{Method, define};
+use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::{procedure, specialized, type_ref};
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, SymbolId, TypeId};
@@ -31,36 +32,36 @@ pub fn plan(
     deferred: &mut Vec<SymbolId>,
 ) -> Result<Plan> {
     let closure = f.closure.expect("a lambda's closure");
-    let types = params.iter().map(|&(_, t)| t).chain(std::iter::once(result)).collect::<Vec<_>>();
-    if types.into_iter().any(|t| l.u.value_class(t).is_some()) {
-        return unsupported(l.tpd.span(f.block), "lambdas with value class parameters or results");
-    }
+    let span = l.tpd.span(f.block);
+    let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
+    let function = tpt.is_none();
+    let interface = l.u.class_symbol(tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t)));
+    let Some(sam) = interface.and_then(|c| abstract_methods(l, c).first().copied()) else {
+        return unsupported(span, "closures of a type without an abstract method");
+    };
+    let (sam_params, sam_result) = l.u.erased_method_value(sam);
     let erased: Vec<Erased> = params
         .iter()
-        .map(|&(_, t)| match l.u.erase(t) {
+        .map(|&(_, t)| match l.u.erase_value(t) {
             Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
             e => e,
         })
         .collect();
-    let erased_result = l.u.erase(result);
-    let unit = erased_result == Erased::Unit;
-    let primitive = erased.iter().any(|e| matches!(e, Erased::Prim(_) | Erased::Unit));
-    let function = matches!(l.tpd.tree(closure), Tree::Closure { tpt: None, .. });
-    let specialized_ = function && (unit || primitive) && specializable(&erased, &erased_result);
-    let interface = match () {
-        _ if specialized_ => Some(specialized(l.u, &erased, &erased_result)),
-        _ if function && unit && !primitive => Some(procedure(l.u, params.len())),
+    let erased_result = l.u.erase_value(result);
+    let needed = adaptation_needed(&erased, &erased_result, &sam_params, &sam_result);
+    let interface = match needed {
+        _ if !function || needed == (false, false) => None,
+        _ if specializable(&erased, &erased_result) => Some(specialized(l.u, &erased, &erased_result)),
+        (false, _) if erased_result == Erased::Unit => Some(procedure(l.u, params.len())),
         _ => None,
     };
     let Ok(interface) = interface.transpose() else {
-        return unsupported(l.tpd.span(f.block), "lambdas of this function type");
+        return unsupported(span, "lambdas of this function type");
     };
-    let adapted = (!specialized_ && (primitive || unit && !function)).then(|| {
-        let object = type_ref(l.u, l.defs.object);
-        let objects: Vec<(SymbolId, TypeId)> = params.iter().map(|&(p, _)| (p, object)).collect();
-        let result = if unit { object } else { result };
+    let adapted = (interface.is_none() && needed != (false, false)).then(|| {
+        let (types, result) = adapted_types(l, sam, needed, params, result);
         let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
-        let adapted = define(l, class, &name, &f.captured, &objects, result, f.this);
+        let adapted = define(l, class, &name, &f.captured, &types, result, f.this);
         l.bridges.insert(adapted.sym);
         deferred.extend(adapted.proxies.iter().copied());
         adapted

@@ -2,11 +2,12 @@
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 
 use super::Gen;
+use crate::phases::sam::abstract_methods;
 use crate::symbols::is_java_static;
 use crate::{Result, unsupported};
 use nir::sig::{Scope, Sig};
 use nir::{Defn, DefnKind, GlobalId, Op, Type, TypeId, Val, ValId};
-use tasty::{Kind, SymbolId};
+use tasty::SymbolId;
 use typer::tpd::{List, TNodeId};
 
 impl Gen<'_, '_> {
@@ -30,7 +31,7 @@ impl Gen<'_, '_> {
         if bases.iter().any(|&b| self.l.u.is_trait(b) && !self.l.u.no_inits(b)) {
             return unsupported(span, "closures of traits with initialization");
         }
-        let sams = self.abstract_methods(function);
+        let sams = abstract_methods(self.l, function);
         let name = |g: &Self, s: SymbolId| g.l.u.symbol(s).name.clone();
         if sams.iter().enumerate().any(|(i, &a)| sams[..i].iter().any(|&b| name(self, a) == name(self, b))) {
             return unsupported(span, "closures needing bridges");
@@ -95,38 +96,6 @@ impl Gen<'_, '_> {
         self.emit(Op::Call { ty: ctor_ty, ptr, args });
         self.m.pos = saved;
         Ok(alloc)
-    }
-
-    /// The abstract methods of `class`, inherited ones too, but those of `Object` (dotty's
-    /// `possibleSamMethods`): of each name and parameters, the one of the first base declaring it.
-    fn abstract_methods(&mut self, class: SymbolId) -> Vec<SymbolId> {
-        let mut seen: Vec<(String, Vec<tasty::Erased>)> = Vec::new();
-        let mut out = Vec::new();
-        let object = self.l.defs.object;
-        for base in self.l.u.linearization(class) {
-            let function = self.l.u.full_name(base).starts_with("scala.Function");
-            for d in self.l.u.decls(base).unwrap_or_default() {
-                let s = self.l.u.symbol(d);
-                if s.kind != Kind::Def || s.name == "<init>" || function && s.name.starts_with("apply$mc") {
-                    continue;
-                }
-                let abstract_ = match s.tree.is_some() {
-                    true => self.l.u.body(d).is_none(),
-                    false => self.l.u.is_deferred(d),
-                };
-                let key = (s.name.clone(), self.l.u.erased_method(d).0);
-                if seen.contains(&key) {
-                    continue;
-                }
-                let object_decls = self.l.u.decl(object, &key.0).unwrap_or_default();
-                let in_object = object_decls.into_iter().any(|o| self.l.u.erased_method(o).0 == key.1);
-                seen.push(key);
-                if abstract_ && base != object && !in_object {
-                    out.push(d);
-                }
-            }
-        }
-        out
     }
 
     pub fn global_ptr(&mut self, name: GlobalId) -> ValId {

@@ -66,6 +66,7 @@ mod pure_stats;
 mod repeated;
 mod resolve_super;
 mod returns;
+pub(crate) mod sam;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;

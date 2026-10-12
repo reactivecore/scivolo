@@ -38,10 +38,6 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",
     ),
-    (
-        "class M(val x: Int) extends AnyVal\nobject O { val f: M => Int = m => m.x + 1 }",
-        "lambdas with value class parameters or results",
-    ),
     ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
     (
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",

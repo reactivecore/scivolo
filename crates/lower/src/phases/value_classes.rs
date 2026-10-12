@@ -71,6 +71,9 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let mut tpe = l.u.result_type(info);
     call = l.apply(call, &[receiver], tpe, span);
     let call_span = if argss.is_empty() { span } else { l.tpd.span(t) };
+    if argss.is_empty() && l.u.value_class(widened).is_some() {
+        l.tpd.get_mut(t).span = span;
+    }
     for args in argss.into_iter().rev() {
         tpe = l.u.result_type(tpe);
         call = l.apply(call, &args, tpe, call_span);
