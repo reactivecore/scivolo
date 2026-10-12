@@ -1,17 +1,16 @@
 //! dotty's `ExplicitOuter` for local classes: one defined in a term that is not the method of a
 //! superclass argument of a static class takes the instance of its enclosing class if one of
-//! its parents may take one (`needsOuterAlways`), or if it calls a local method of a class
-//! enclosing it that is not static (`referencesOuter`). An anonymous class keeps only the
-//! constructor parameter (dotty's `DropOuterAccessors`).
+//! its parents may take one (`needsOuterAlways`), or if it refers to the instance of a class
+//! enclosing it (`referencesOuter`).
 
-use super::explicit_outer::enclosing_instance;
-use super::local_free::{enclosing_class, is_term, within};
-use super::walk::subtrees;
+use super::local_free::{enclosing_class, is_term};
+use super::outer_traits::outer_class;
+use super::references_outer::references_outer;
 use crate::Lower;
 use crate::symbols::{has, is_static_owner};
 use tasty::tags::LAZY;
 use tasty::{Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::TNodeId;
 
 /// The class whose instance local class `class` of definition `td` takes, if any.
 pub fn local_outer(l: &mut Lower, td: TNodeId, class: SymbolId) -> Option<SymbolId> {
@@ -22,24 +21,7 @@ pub fn local_outer(l: &mut Lower, td: TNodeId, class: SymbolId) -> Option<Symbol
     let outer = enclosing_class(l, owner);
     let parents: Vec<SymbolId> = l.u.parents(class).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let always = parents.into_iter().any(|p| needs_outer_if_referenced(l, p));
-    let mut created = Vec::new();
-    for t in subtrees(l.tpd, td) {
-        if let Tree::New { tpt } = *l.tpd.tree(t) {
-            let tpe = l.tpd.tpe(tpt);
-            created.extend(l.u.class_symbol(tpe));
-        }
-    }
-    let creates = created.iter().any(|&c| creates_outer(l, class, c));
-    (always || creates || references_outer(l, td, class)).then_some(outer)
-}
-
-/// Whether `new C` of class `created` in local class `class` needs the instance of a class
-/// enclosing `class` (the `New` case of dotty's `referencesOuter`).
-fn creates_outer(l: &Lower, class: SymbolId, created: SymbolId) -> bool {
-    let Some(owner) = l.u.symbol(created).owner else { return false };
-    let enclosing = if is_term(l, owner) { enclosing_class(l, owner) } else { owner };
-    let outer_sym = !is_static_owner(l.u, enclosing) && class != enclosing && within(l, class, enclosing);
-    outer_sym || is_term(l, owner) && class != created && within(l, class, created)
+    (always || references_outer(l, class, td)).then_some(outer)
 }
 
 /// Whether class `c` takes the instance of its enclosing class where it uses it (dotty's
@@ -48,7 +30,7 @@ fn creates_outer(l: &Lower, class: SymbolId, created: SymbolId) -> bool {
 pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
     let Some(mut owner) = l.u.symbol(c).owner else { return false };
     if !is_term(l, owner) {
-        return enclosing_instance(l, c).is_some();
+        return outer_class(l, c).is_some();
     }
     while l.u.symbol(owner).kind == Kind::Val && !has(l.u, owner, LAZY) {
         let Some(o) = l.u.symbol(owner).owner else { break };
@@ -58,20 +40,6 @@ pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
         owner = enclosing_class(l, owner);
     }
     !(l.u.is_trait(c) || is_static_owner(l.u, owner))
-}
-
-/// Whether local class definition `td` of `class` calls a local method of a class enclosing it
-/// that is not static.
-fn references_outer(l: &Lower, td: TNodeId, class: SymbolId) -> bool {
-    subtrees(l.tpd, td).into_iter().any(|t| {
-        let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t)) else { return false };
-        let Some(owner) = l.u.symbol(s).owner.filter(|&o| is_term(l, o)) else { return false };
-        let enclosing = enclosing_class(l, owner);
-        l.u.symbol(s).kind == Kind::Def
-            && !is_static_owner(l.u, enclosing)
-            && class != enclosing
-            && within(l, class, enclosing)
-    })
 }
 
 /// Whether local class `class` is anonymous.

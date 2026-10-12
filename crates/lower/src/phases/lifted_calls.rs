@@ -20,7 +20,8 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
         if let Some((i, reference, args)) = call_of(l, t, functions) {
             let span = l.tpd.span(reference);
             let captured: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
-            redirect(l, t, (class, &functions[i], &methods[i]), reference, captured, args);
+            let receiver = l.this(class, span);
+            redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
         }
         if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
             todo.extend(children(l.tpd, t));
@@ -54,12 +55,12 @@ pub fn calls_from_class(
                 continue;
             };
             let span = l.tpd.span(reference);
-            if f.this && !is_static_module(l.u, class) {
-                return unsupported(
-                    span,
-                    "local classes calling local methods that use the enclosing instance",
-                );
-            }
+            let receiver = match f.this && !is_static_module(l.u, class) {
+                true => {
+                    super::outer_fields::outer_path(l, (caller.td, caller.class), class, in_method, span)?
+                }
+                false => l.this(class, span),
+            };
             let mut captured = Vec::new();
             for &v in &f.captured {
                 let proxies = if in_method { &caller.fields } else { &caller.params };
@@ -74,7 +75,7 @@ pub fn calls_from_class(
                     l.ident(p, span)
                 });
             }
-            redirect(l, t, (class, f, method), reference, captured, args);
+            redirect(l, t, (receiver, f, method), reference, captured, args);
             todo.extend(children(l.tpd, t));
         }
     }
@@ -95,19 +96,18 @@ fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNod
     call.then_some((i, reference, args))
 }
 
-/// Makes call or reference `t` of function `f` of `class` call `method` on `class`'s `this`,
-/// with `captured` then `args`.
+/// Makes call or reference `t` of function `f` call `method` on `receiver`, with `captured` then
+/// `args`.
 fn redirect(
     l: &mut Lower,
     t: TNodeId,
-    (class, f, method): (SymbolId, &Function, &Method),
+    (receiver, f, method): (TNodeId, &Function, &Method),
     reference: TNodeId,
     captured: Vec<TNodeId>,
     args: Vec<TNodeId>,
 ) {
     let span = l.tpd.span(reference);
-    let this = l.this(class, span);
-    let fun = l.select(this, method.sym, span);
+    let fun = l.select(receiver, method.sym, span);
     let all: Vec<TNodeId> = captured.into_iter().chain(args).collect();
     let args = l.tpd.list(&all);
     if reference == t {

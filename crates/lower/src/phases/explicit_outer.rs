@@ -1,14 +1,14 @@
-//! dotty's `ExplicitOuter` for classes and objects in classes: one needing its enclosing instance
-//! gets a field `$outer`, set from a leading constructor parameter, and an accessor
-//! `C$$$outer()`; its references to the instance read the parameter in constructor code, else
-//! the field.
+//! dotty's `ExplicitOuter`: which classes and traits hold their enclosing instance, the outer
+//! arguments of their constructor calls, then the paths to enclosing instances
+//! (`outer_fields.rs`, `outer_traits.rs`).
 
+use super::local_free::is_term;
 use super::outer_traits::outer_class;
+use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
-use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, PRIVATE};
+use tasty::tags::{FINAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
@@ -18,32 +18,38 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         mixes_inner.push(super::outer_traits::implement(l, td, class)?);
     }
+    let mut with_outer = Vec::new();
     for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         if let Some(outer) = super::local_outer::local_outer(l, td, class) {
-            let field = !super::local_outer::is_anonymous(l, class);
-            add_outer(l, td, class, outer, field);
+            super::outer_fields::declare(l, td, class, outer);
+            with_outer.push((td, class));
             continue;
         }
         let Some(outer) = outer_class(l, class) else { continue };
-        let (own, all) = (terms(l, td, false), terms(l, td, true));
-        let outward = |l: &Lower, t: TNodeId| outer_this(l, t, class).is_some();
-        let uses = all.iter().any(|&t| outward(l, t)) || own.iter().any(|&t| creates_inner_of(l, t, outer));
-        let inner_parent = l.u.is_trait(class) && super::outer_traits::has_inner_parent(l, class);
+        let uses = references_outer(l, class, td);
+        let inner_parent = super::outer_traits::has_inner_parent(l, class);
         let always = mixes_inner
             || inner_parent
             || match l.u.is_module_class(class) {
                 true => l.u.is_trait(outer),
-                false => !has(l.u, class, PRIVATE) && !is_local(l, outer),
+                false => !has(l.u, class, PRIVATE) && !in_term(l, outer),
             };
-        match (always || uses || l.outer_accessors.contains_key(&class), l.u.is_trait(class)) {
-            (false, _) => {}
-            (true, true) => super::outer_traits::add_outer(l, td, class),
-            (true, false) => add_outer(l, td, class, outer, true),
+        if always || uses || l.outer_accessors.contains_key(&class) {
+            if !l.u.is_trait(class) {
+                super::outer_fields::declare(l, td, class, outer);
+            }
+            with_outer.push((td, class));
         }
     }
     for &td in classes {
         super::outer_args::pass_outer(l, td)?;
+    }
+    for &(td, class) in with_outer.iter().rev() {
+        match l.u.is_trait(class) {
+            true => super::outer_traits::add_outer(l, td, class),
+            false => super::outer_fields::rewrite(l, td, class)?,
+        }
     }
     Ok(())
 }
@@ -57,7 +63,7 @@ pub fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
 }
 
 /// Whether `class` is defined in a method or value, directly or through other classes.
-fn is_local(l: &Lower, class: SymbolId) -> bool {
+fn in_term(l: &Lower, class: SymbolId) -> bool {
     let mut owner = l.u.symbol(class).owner;
     while let Some(o) = owner {
         if l.u.symbol(o).kind.is_term() {
@@ -66,14 +72,6 @@ fn is_local(l: &Lower, class: SymbolId) -> bool {
         owner = l.u.symbol(o).owner;
     }
     false
-}
-
-/// Whether `t` is `new C` of a class `C` whose enclosing instance is one of `outer` (dotty's
-/// `referencesOuter` of a `New`).
-fn creates_inner_of(l: &mut Lower, t: TNodeId, outer: SymbolId) -> bool {
-    let Tree::New { .. } = l.tpd.tree(t) else { return false };
-    let tpe = l.tpd.tpe(t);
-    l.u.class_symbol(tpe).is_some_and(|c| enclosing_instance(l, c) == Some(outer))
 }
 
 /// Why a type test against `target` cannot be lowered: an object of a class, or in a match a
@@ -126,93 +124,35 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
 
 /// The classes from the enclosing instance of `class` out to the one `t` is `this` of, if `t`
 /// is `this` of a class enclosing `class` through enclosing instances (dotty's `outer.path`).
-pub fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
+pub fn outer_this(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
     let target = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::This { .. }))?;
+    outer_chain(l, class, target)
+}
+
+/// The classes from the enclosing instance of `class` out to `target`, if it is reached through
+/// enclosing instances.
+pub fn outer_chain(l: &mut Lower, class: SymbolId, target: SymbolId) -> Option<Vec<SymbolId>> {
     let mut chain = Vec::new();
-    let mut cur = outer_class(l, class);
+    let mut cur = instance_class(l, class);
     while let Some(c) = cur {
         chain.push(c);
         if c == target {
             return Some(chain);
         }
-        cur = outer_class(l, c);
+        cur = instance_class(l, c);
     }
     None
 }
 
-/// Gives object `class` of definition `td` its constructor parameter for the instance of
-/// `outer`, and if `with_field` its field and accessor, and makes its references to that
-/// instance read them.
-fn add_outer(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId, with_field: bool) {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
-        unreachable!("a template")
-    };
-    let tpe = type_ref(l.u, outer);
-    let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
-    let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
-    l.u.set_info(param, tpe);
-    super::local_classes::add_params(l, constr, ctor, &[param]);
-    if !with_field {
-        l.outers.insert(class, (None, param));
-        return;
+/// The class whose instance class `c` holds or, if not yet decided, may hold.
+fn instance_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
+    if let Some(&(_, param)) = l.outers.get(&c) {
+        let info = l.u.info(param);
+        let Type::Sym(_, outer) = *l.u.types().get(info) else { unreachable!("a class type") };
+        return Some(outer);
     }
-    let field = l.u.define(symbol("$outer", Kind::Val, class, Flags::default().with(PRIVATE).with(LOCAL)));
-    l.u.set_info(field, tpe);
-    l.fields.insert(field, field);
-    l.outers.insert(class, (Some(field), param));
-    let stats = l.tpd.items(body).to_vec();
-    let parent_args = l.tpd.items(parents).to_vec();
-    for &stat in stats.iter().chain(&parent_args) {
-        if matches!(l.tpd.tree(stat), Tree::TypeDef { .. }) {
-            continue;
-        }
-        let method = match (l.tpd.tree(stat), l.tpd.sym(stat)) {
-            (Tree::DefDef { .. }, Some(s)) => !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY),
-            _ => false,
-        };
-        for t in terms(l, stat, false) {
-            let Some(chain) = outer_this(l, t, class) else { continue };
-            let span = l.tpd.span(t);
-            let mut read = if method {
-                let this = l.this(class, span);
-                l.select(this, field, span)
-            } else {
-                l.ident(param, span)
-            };
-            for pair in chain.windows(2) {
-                let accessor = outer_accessor(l, pair[0]);
-                let fun = l.select(read, accessor, span);
-                let tpe = type_ref(l.u, pair[1]);
-                read = l.apply(fun, &[], tpe, span);
-            }
-            l.copy_node(t, read);
-        }
-    }
-    let name_at = l.tpd.span(td).point();
-    let at = Span::at(l.tpd.span(template).end().max(name_at));
-    let field_def = field_def(l, field, Span::at(name_at));
-    let accessor = accessor(l, class, field, at);
-    let stats: Vec<TNodeId> = stats.into_iter().chain([field_def, accessor]).collect();
-    let body = l.tpd.list(&stats);
-    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-}
-
-/// The definition of field `field` without initializer, at `span`.
-fn field_def(l: &mut Lower, field: SymbolId, span: Span) -> TNodeId {
-    let info = l.u.info(field);
-    let tpt = l.type_tree(info, span);
-    l.build().val_def(field, tpt, None, span)
-}
-
-/// `final def C$$$outer(): Outer = this.$outer` of `class`, at `span`.
-fn accessor(l: &mut Lower, class: SymbolId, field: SymbolId, span: Span) -> TNodeId {
-    let m = outer_accessor(l, class);
-    let result = l.u.info(field);
-    let this = l.this(class, span);
-    let read = l.select(this, field, span);
-    let tpt = l.type_tree(result, span);
-    l.method_def(m, &[], tpt, read, span)
+    let local = l.u.symbol(c).owner.is_some_and(|o| is_term(l, o));
+    if local { None } else { outer_class(l, c) }
 }
 
 /// The accessor `C$$$outer()` of the enclosing instance of class `class`, defined once; `class`

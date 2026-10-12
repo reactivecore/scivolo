@@ -164,20 +164,21 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 
    Leave out match types, GADTs and capture checking until they are needed.
    Anything unsupported falls back to the phase 1 path, never silently.
-   Status (2026-10-11): `crates/typer`, typed trees matching dotty's on the golden tests
-   (`just typer-checks`); of dotty's `tests/run`, 987 tests still stop at the typer, most
-   of them at calls of transparent inline methods (#82). Done in the last weeks: `super`,
-   method values, annotations, constants, intersection members, views in implicit search,
-   the typer half of value classes (#83), non-transparent inline definitions and calls, the inlining of script
-   inline methods (#82).
+   Status (2026-10-13): `crates/typer`, typed trees matching dotty's on the golden tests
+   (`just typer-checks`). Inlining is complete but for macros (#82, research 12): transparent
+   methods, library inline bodies read from TASTy (`assert`, `summon`), inline `if`/`match`,
+   `scala.compiletime`; it runs inside the typer (ADR 0020). Also done: `using` parameters in
+   implicit search, context bounds, secondary constructors, overloads chosen by result, soft
+   and hard unions with dotty's widening (ADR 0022, research 14 groups B and C).
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
-   nscplugin does (ADR 0001). Status (2026-10-11): `crates/lower` ports dotty's phases
+   nscplugin does (ADR 0001). Status (2026-10-13): `crates/lower` ports dotty's phases
    from FirstTransform to Constructors plus nscplugin's NIR generation; every lowered program
    is compared byte for byte with Scala Native's NIR, positions included
-   (`tests/programs/lowered.txt`, `just nir-cmp`). Of dotty's `tests/run`, 399 pass through
-   typer, lowering and VM (278 on 2026-10-09), 46 are refused by the lowering, 1 gives wrong
-   output (i9939, #60); see [docs/conformance.md](docs/conformance.md).
+   (`tests/programs/lowered.txt`, `just nir-cmp`). Value classes are lowered (#88, ADR 0019),
+   and outer instances of local and inner classes (#34, research 15). Of dotty's `tests/run`,
+   670 pass through typer, lowering and VM on main 2942a19 (399 on 2026-10-11), 53 are
+   refused by the lowering, 1 crashes (#92); see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
 6. **REPL.** Starts as soon as the own frontend runs simple programs. As in
@@ -193,9 +194,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    `tests/repl` (`just repl-oracle`), but for the typer's error messages; Ctrl-C stops
    an input. Classes, case classes, traits and objects defined in one input
    are used, extended, matched on and redefined in later ones, with default
-   and named arguments (`tests/repl/classes.check`). Lazy vals, enums,
-   generic case classes and mutable class parameters wait for the lowering;
-   some adaptations and overloads, compound assignment to a selection,
+   and named arguments (`tests/repl/classes.check`), as are lazy vals, enums,
+   generic case classes and `var` class parameters (research 15). `private var`
+   parameters and abstract vars wait for the lowering; inline methods of
+   earlier inputs, some adaptations and overloads, compound assignment to a selection,
    defaults needing lifting, and dotty's messages for unresolved names, for
    the typer.
 
@@ -225,35 +227,38 @@ frontend; edit-then-run takes 15 ms for hello, 25 ms for matches, 38 ms for case
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Where we are and what's next (2026-10-11)
+## Where we are and what's next (2026-10-13)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): 399 of 1711
-pass, 987 stop at the typer, 46 at the lowering. No merge requests are open.
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on main
+2942a19, 670 of 1709 pass (399 on 2026-10-11), 709 stop at the typer, 53 at the lowering, and
+1 crashes (#92).
 
-Merged in the last batch (#34, #83, #82): `super` calls with SuperAccessors and ResolveSuper,
-traits nested in classes, local classes with LambdaLift's `Dependencies`, beta reduction,
-non-local returns, string interpolators, annotations, constants, intersection members, the
-typer half of value classes, type tests against value classes (#87), inline definitions
-(#82 step 1), the typer's inlining phase for inline methods of scripts, of classes and nested inline calls
-(#82 steps 2a and 2b), method
-values with eta-expansion and lifting, SpecializeTuples, views in implicit search, no false
-double definition between a method and a module.
+Merged in the last batch (!224–!236): inlining complete but for macros (#82: the phase in the
+lowering, transparent methods, library bodies from TASTy, skolems, inline `if`/`match`,
+`scala.compiletime`); value classes in the lowering (#88: extension methods, boxing, type
+tests, casts, lambdas); typer groups B and C (#83: `using` parameters in implicit search,
+context bounds, secondary constructors, overloads by result, union widening); `scalai FILE`
+through the own frontend with an announced scala-cli fallback (#89, ADR 0021); outer
+instances of local and inner classes (#34).
 
 Next, in order of the tests they unblock:
-1. **Inlining (#82).** In the lowering: call `typer::inlining::run` before FirstTransform and
-   lower `Inlined` trees (their `call` child is not code). In the typer: step 3:
-   inline match and if; transparent inline methods (314 tests); a reader of library inline
-   bodies from TASTy (`locally`, `require`).
-2. **Value classes, lowering half (#88):** ExtensionMethods, boxing and unboxing at erasure,
-   their synthetic members; 14 tests refused as "members value classes inherit".
-3. **Typer groups** (#83 and new): adaptation, opaque types, missing implicit arguments,
-   union widening, self types, secondary constructors, higher-kinded abstract types.
-4. **Lowering gaps:** local classes using the enclosing instance, classes nested in local
-   classes, ProtectedAccessors (t8611b), objects in traits mixed into classes.
-5. **Wiring:** `scalai` runs scripts through the own frontend, with the phase 1 path as
-   fallback (#89, `SCALAI_FRONTEND`); the REPL gains what the lowering now covers (lazy vals,
-   enums, generic case classes).
+1. **`compiletime.uninitialized` fields (#92):** they crash since library inline bodies are
+   read; update [docs/conformance.md](docs/conformance.md) with the new counts.
+2. **Typer groups** (research 14): A, implicits (inner-class companions in the implicit scope,
+   `given Conversion` as views, ranking #81, by-name implicits); F, patterns needing type
+   tests and refutable pattern definitions, which `moderate.scala` needs for the exit
+   criterion; D, `{ case … }` literals and SAMs of abstract classes (with ExpandSAMs in the
+   lowering); E, self and opaque types; G, higher-kinded abstract types.
+3. **Lowering gaps** (research 15, MRs 5–8): ProtectedAccessors (t8611b), local traits, lambdas
+   in inner classes, classes in local classes, small refusals, byte issues (#84–#86, #63,
+   #67).
+4. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
+   inline methods, inline accessors, `constValueTuple`/`summonAll`, inline methods of
+   earlier REPL inputs; the forward-reference check (#90).
+5. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
+   catches up.
+6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just

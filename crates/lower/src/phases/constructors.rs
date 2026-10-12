@@ -68,6 +68,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 let at = match (memoized, l.tpd.span(rhs)) {
                     (true, s) if s.exists() => s.with_point(s.start()),
                     (true, s) => s,
+                    (false, s) if !l.tpd.span(stat).exists() && s.exists() => s.with_point(s.start()),
                     (false, _) => l.tpd.span(stat),
                 };
                 let lhs = l.field_ref(field, at);

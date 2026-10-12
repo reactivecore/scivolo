@@ -24,7 +24,11 @@ pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
         let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
         let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
-            Tree::ValDef { rhs, .. } => rhs.is_some(),
+            Tree::ValDef { rhs, .. } => {
+                let synthetic_module =
+                    l.tpd.sym(s).is_some_and(|v| l.u.is_module(v) && has(l.u, v, SYNTHETIC));
+                rhs.is_some() && !synthetic_module
+            }
             _ => true,
         });
         if inits {

@@ -110,7 +110,10 @@ impl Gen<'_, '_> {
             if existing.contains(&name) {
                 return unsupported(Span::NONE, "a static method beside the forwarder of the same name");
             }
-            let pos = self.sym_pos(m, module_class);
+            let pos = match self.l.coords.get(&m) {
+                Some(&span) => self.pos_or(span, self.no_pos),
+                None => self.sym_pos(m, module_class),
+            };
             out.push(self.forwarder(m, module_class, name, pos));
         }
         Ok(out)

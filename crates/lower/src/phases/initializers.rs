@@ -39,7 +39,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
             Tree::ValDef { rhs: Some(rhs), .. } => rhs,
             _ => stat,
         };
-        for t in subtrees(l.tpd, root) {
+        for t in super::explicit_outer::terms(l, root, false) {
             if let Tree::Select { qualifier, .. } = *l.tpd.tree(t)
                 && matches!(l.tpd.tree(qualifier), Tree::This { .. })
                 && let Some(value) = l.tpd.sym(t).filter(|v| dropped.contains(v))

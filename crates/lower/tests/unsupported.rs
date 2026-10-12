@@ -49,26 +49,14 @@ const CASES: &[(&str, &str)] = &[
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    (
-        "class A { class B }; object O { val a = new A; class D { def f = new O.a.B } }",
-        "creating an inner class through this prefix",
-    ),
     ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
-    ("class A { class B; class C extends B }", "subclasses of classes in classes"),
+    ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
     (
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
         "patterns of classes in classes",
     ),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
-    (
-        "class A(n: Int) { def f() = { class C { def g = n }; new C() } }",
-        "local classes using the enclosing instance",
-    ),
     ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
-    (
-        "class A(n: Int) { def f() = { def g = n; class C { def h = g }; new C().h } }",
-        "local classes calling local methods that use the enclosing instance",
-    ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
     (
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
@@ -95,20 +83,8 @@ const CASES: &[(&str, &str)] = &[
         "lambdas and local methods in local classes",
     ),
     (
-        "class B { trait T { def f = 1 } }; object O { def g(b: B) = { class C extends b.T; new C().f } }",
-        "local classes using the enclosing instance",
-    ),
-    (
-        "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",
-        "local classes using the enclosing instance",
-    ),
-    (
-        "class A(f: () => Int); object O { class B extends A(() => 1) }",
-        "superclass constructor arguments defining or creating local classes or methods",
-    ),
-    (
-        "class A[T](f: T)(n: Int); object O { class B extends A[() => Int](() => 1)(2) }",
-        "superclass constructor arguments defining or creating local classes or methods",
+        "class W(val v: Int) { trait In { def get: Int }; def f = new In { def get = new In { def get = v }.get }.get }",
+        "classes in anonymous classes using the enclosing instance",
     ),
 ];
 
