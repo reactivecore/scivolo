@@ -68,10 +68,6 @@ fn type_test(
     if let Some(what) = runtime_tests::runtime_test(l, dealiased) {
         return unsupported(span, what);
     }
-    let expr_tpe = l.u.widen(l.tpd.tpe(expr));
-    if l.u.erase_boxed(expr_tpe) != l.u.erase(expr_tpe) {
-        return unsupported(span, "type tests of value class values");
-    }
     let test = match l.u.erase_boxed(target) {
         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,
@@ -93,10 +89,10 @@ fn is_instance_of(
     span: Span,
 ) -> Result<TNodeId> {
     let widened = l.u.widen(l.tpd.tpe(expr));
-    let found = match l.u.erase(widened) {
+    let found = match l.u.erase_boxed(widened) {
         Erased::Prim(c) => Some(c),
         Erased::Class(_) | Erased::Array(_)
-            if matches!(erased_type(l, expr), Erased::Class(_) | Erased::Array(_)) =>
+            if matches!(erased_type(l, expr), Erased::Class(_) | Erased::Array(_) | Erased::Value(..)) =>
         {
             None
         }
@@ -141,9 +137,13 @@ fn is_instance_of(
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.patmat.is_instance_of)))
 }
 
-/// Whether a value of type `tpe` is never null: a constant other than `null` (dotty's
-/// `isNotNull`).
+/// Whether a value of type `tpe` is never null: a constant other than `null` or a value class
+/// (dotty's `isNotNull`).
 fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
+    let widened = l.u.widen(tpe);
+    if l.u.value_class(widened).is_some() {
+        return true;
+    }
     let tpe = match *l.u.types().get(tpe) {
         Type::Sym(_, s) if l.u.symbol(s).kind == tasty::Kind::Val => l.u.info(s),
         _ => tpe,
