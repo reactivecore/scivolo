@@ -124,7 +124,7 @@ impl<'t, 'a> Translator<'t, 'a> {
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);
         self.initializer.insert(var, rhs);
-        self.spans.insert(var, coord(self.l.tpd.span(rhs)));
+        self.spans.insert(var, coord(super::drop_inlined::span_before_erasure(self.l, rhs)));
         let body = body(self, var)?;
         Ok(self.add(Plan::Let { sym: var, body }))
     }

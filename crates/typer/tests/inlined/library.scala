@@ -8,5 +8,8 @@ object Test {
     assert(n < 10, s"big $n")
     println(summon[Int] + n)
     println(summon[String].length)
+    val ev = summon[Int <:< Any]
+    println(ev != null)
+    println(summon[String =:= String].apply("x"))
   }
 }

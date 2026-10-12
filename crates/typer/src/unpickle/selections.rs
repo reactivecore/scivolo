@@ -14,8 +14,16 @@ impl Unpickler<'_> {
     pub fn ident(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let tpe = self.ty(self.kids(id)[0]);
         let tpe = self.resolved(tpe);
-        let sym = self.symbol_of(tpe).ok_or("identifier of an unknown symbol in a library inline body")?;
         let name = self.tname(id, false);
+        if self.name(id) == "_" {
+            let sym = match self.u.types().get(tpe).clone() {
+                Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+                Type::Sym(_, s) => Some(s),
+                _ => None,
+            };
+            return Ok(self.bare(T::Ident { name }, Some(tpe), sym));
+        }
+        let sym = self.symbol_of(tpe).ok_or("identifier of an unknown symbol in a library inline body")?;
         Ok(self.bare(T::Ident { name }, Some(tpe), Some(sym)))
     }
 
@@ -39,8 +47,11 @@ impl Unpickler<'_> {
         let k = self.kids(id);
         let qual = self.term(k[0])?;
         let owner = self.ty(k[1]);
-        let owner =
-            self.u.class_symbol(owner).ok_or("selection in an unknown class in a library inline body")?;
+        let owner = match self.u.types().get(owner).clone() {
+            Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
+            _ => self.u.class_symbol(owner),
+        };
+        let owner = owner.ok_or("selection in an unknown class in a library inline body")?;
         let tpe = self.tpd.tpe(qual);
         let prefix = self.widen_if_unstable(tpe);
         let name = self.name(id);

@@ -87,4 +87,10 @@ impl Universe {
         self.binders += 1;
         Binder(FileId(u32::MAX - 1), self.binders)
     }
+
+    /// A skolem of type `info`, different from every other.
+    pub fn fresh_skolem(&mut self, info: TypeId) -> TypeId {
+        let b = self.fresh_binder();
+        self.intern_type(crate::Type::Skolem(b, info))
+    }
 }

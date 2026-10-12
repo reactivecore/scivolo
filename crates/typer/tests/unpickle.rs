@@ -45,12 +45,28 @@ fn overloads_are_selected_by_signature() {
 }
 
 #[test]
+fn local_methods_and_closures_are_read_with_their_symbols() {
+    let Some(mut u) = universe() else { return };
+    let defs = inline_defs(&mut u, "scala.scalanative.runtime", "Continuations$", "break");
+    assert!(!defs.is_empty());
+    for d in defs {
+        let body = read(&mut u, d).unwrap();
+        assert!(body.contains("(Closure"), "{body}");
+        assert!(
+            body.contains("(DefDef 1..1@1 sym=\"scala.scalanative.runtime.Continuations$._$$anonfun"),
+            "{body}"
+        );
+    }
+}
+
+#[test]
 fn bodies_outside_the_subset_are_refused() {
     let Some(mut u) = universe() else { return };
     let cases = [
-        ("scala", "Predef$", "valueOf", "match in a library inline body"),
+        ("scala", "Predef$", "valueOf", "inline match in a library inline body"),
         ("scala", "Tuple", "size", "match type in a library inline body"),
         ("scala", "Tuple", "map", "undecoded type in a library inline body"),
+        ("scala.util", "boundary$", "apply", "selection in an unknown class in a library inline body"),
     ];
     for (pkg, class, name, why) in cases {
         let defs = inline_defs(&mut u, pkg, class, name);

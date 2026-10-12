@@ -3,6 +3,7 @@
 
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
+use crate::typer::deskolemize::deskolemized;
 use crate::typer::{InlineDef, Pt, Typer};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -94,7 +95,10 @@ impl Typer<'_> {
                 if matches!(self.u.types().get(widened), Type::Or(..)) {
                     self.unsupported(rhs, "union widening");
                 }
-                widened
+                deskolemized(self.u, widened, 1).unwrap_or_else(|| {
+                    self.unsupported(rhs, "skolem in an inferred type");
+                    widened
+                })
             }
         }
     }
@@ -207,7 +211,7 @@ impl Typer<'_> {
                 let info = self.method_info(t).unwrap_or(t);
                 self.widen_rhs(sym, info)
             }
-            Type::ByName(r) => self.widen_rhs(sym, r),
+            Type::ByName(r) | Type::Skolem(_, r) => self.widen_rhs(sym, r),
             Type::This(c)
                 if !self
                     .u

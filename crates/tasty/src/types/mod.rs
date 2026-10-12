@@ -85,6 +85,9 @@ pub enum Type {
     Other(u8),
     /// A type variable, instantiated by the constraint the comparison runs in.
     Var(VarId),
+    /// An unknown value of the given type (dotty's `SkolemType`), the binder telling it apart
+    /// from the others; mapping its type makes a new one.
+    Skolem(Binder, TypeId),
     /// A wildcard, with its bounds if it has any.
     Wildcard(Option<TypeId>),
     /// The type of an erroneous tree: a subtype and a supertype of every type.

@@ -17,6 +17,8 @@ pub struct Patmat {
     /// `Any.isInstanceOf`, and `Any.$isInstanceOf` that pattern matches test with.
     pub is_instance_of: SymbolId,
     pub type_test: SymbolId,
+    /// `Any.$asInstanceOf$`, the cast the compiler inserts.
+    pub type_cast: SymbolId,
     /// `Object.ne`.
     pub ne: SymbolId,
     /// `Object.eq`.
@@ -39,6 +41,7 @@ impl Patmat {
             throw: throw(u, java_lang)?,
             is_instance_of: member(u, any, "isInstanceOf", Kind::Def)?,
             type_test: member(u, any, "$isInstanceOf", Kind::Def)?,
+            type_cast: member(u, any, "$asInstanceOf$", Kind::Def)?,
             ne: member(u, object, "ne", Kind::Def)?,
             eq: member(u, object, "eq", Kind::Def)?,
         })

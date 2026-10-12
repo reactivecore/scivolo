@@ -214,6 +214,30 @@ object Library:
     catch case e: AssertionError => println(e.getMessage)
     try assert(n != 0)
     catch case e: AssertionError => println(e.getMessage)
+    val ev = summon[Int <:< Any]
+    println(ev != null)
+    println(summon[String =:= String].apply("ev"))
+
+object Matches:
+  inline def kind(x: Int): String = x match
+    case 0 => "zero"
+    case 1 | 2 => "small"
+    case n if n < 0 => "neg " + n
+    case _ => "big"
+  inline def safeDiv(x: Int): Int =
+    try 10 / x
+    catch case e: ArithmeticException => -1
+  inline def orElse(o: Option[Int]): Int = o match
+    case Some(v) => v
+    case None => -1
+  def run(args: Array[String]): Unit =
+    val n = args.length
+    println(kind(n))
+    println(kind(-3))
+    println(safeDiv(n))
+    println(safeDiv(5))
+    println(orElse(Some(n)))
+    println(orElse(None))
 
 @main def inlining(): Unit =
   println(ap(_ => 3))
@@ -226,3 +250,4 @@ object Library:
   Classes.run()
   Transparent.run()
   Library.run(args)
+  Matches.run(args)

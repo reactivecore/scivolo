@@ -4,7 +4,9 @@
 
 mod admitted;
 mod assign;
+mod cases;
 mod defs;
+mod locals;
 mod paths;
 mod selections;
 mod terms;
@@ -25,6 +27,8 @@ pub struct Unpickler<'a> {
     file: FileId,
     /// The inline method whose body is read.
     meth: SymbolId,
+    /// The owner of the local definitions read.
+    owner: SymbolId,
 }
 
 /// The definition of inline method `meth` of the library, with its body read from its TASTy.
@@ -38,7 +42,11 @@ pub fn inline_def(
     if u.body_info(file).is_err() {
         return Err("inline method of an unreadable TASTy file");
     }
-    Unpickler { u, tpd, names, file, meth }.inline_def(id)
+    let mut unpickler = Unpickler { u, tpd, names, file, meth, owner: meth };
+    let scala = unpickler.u.package("scala").ok_or("a library without package scala")?;
+    let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
+    crate::defn::special(unpickler.u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    unpickler.inline_def(id)
 }
 
 impl Unpickler<'_> {

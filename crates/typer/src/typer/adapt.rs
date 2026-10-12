@@ -42,13 +42,7 @@ impl Typer<'_> {
             let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
             let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
             let meth = self.tpd.sym(self.tpd.meth_part(tree));
-            let result = match self.applied_result(*result, (*binder, &names), meth, &arg_types) {
-                Ok(r) => r,
-                Err(what) => {
-                    self.unsupported_at(span, what);
-                    return tree;
-                }
-            };
+            let result = self.applied_result(*result, (*binder, &names), meth, &arg_types);
             let apply = self.build().apply(tree, &args, result, span.to_synthetic());
             return self.adapt(apply, pt, ctx);
         }

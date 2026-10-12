@@ -57,6 +57,7 @@ impl Universe {
             Type::Str(s) => format!("{s:?}"),
             Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),
             Type::Var(v) => format!("?{}", v.0),
+            Type::Skolem(b, info) => format!("(?{} : {})", b.1, self.show(*info)),
             Type::Wildcard(None) => "?".into(),
             Type::Wildcard(Some(b)) => format!("? {}", self.show(*b)),
             Type::Error => "<error>".into(),

@@ -34,6 +34,9 @@ fn main() {
         let (path, options) = line.split_once('\t').unwrap_or((line, ""));
         let options: Vec<&str> = options.split(' ').filter(|o| !o.is_empty()).collect();
         let mut b = format!("== file {path}\n");
+        let mut jars = jars.clone();
+        let classpath = options.windows(2).filter(|w| w[0] == "-classpath").flat_map(|w| w[1].split(':'));
+        jars.extend(classpath.map(PathBuf::from));
         let run = std::panic::catch_unwind(|| {
             let mut u = Universe::open(&jars).expect("opening the library");
             let text = std::fs::read(path).expect("reading the source");

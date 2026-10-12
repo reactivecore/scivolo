@@ -2,6 +2,7 @@
 //! `SeqLiteral`s typed `<repeated>[T]` (dotty's `typedArgs` for `RepeatedParamClass`).
 
 use super::Typer;
+use crate::defn::entered;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -73,7 +74,11 @@ impl Typer<'_> {
 
     /// dotty's `scala.<repeated>`, defined on first use.
     fn repeated_class(&mut self) -> SymbolId {
-        if let Some(c) = self.syms.repeated_class {
+        let scala = self.defn.scala;
+        if let Some(c) =
+            self.syms.repeated_class.or_else(|| entered(self.u, scala, "<repeated>", Kind::Class))
+        {
+            self.syms.repeated_class = Some(c);
             return c;
         }
         let c = self.syms.define(

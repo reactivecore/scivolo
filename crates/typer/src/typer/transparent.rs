@@ -8,7 +8,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeVars};
 
 /// The definition of an inline method of the unit.
 #[derive(Clone, Copy)]
@@ -137,55 +137,5 @@ impl Typer<'_> {
         });
         let inner = self.tpd.children(t).into_iter().flat_map(|c| self.transparent_refs(c));
         own.into_iter().chain(inner).collect()
-    }
-
-    /// Instantiates the type arguments of `call` (dotty's `isFullyDefined` with
-    /// `ForceDegree.flipBottom` on `callTypeArgs`), then substitutes the instances in its types.
-    fn define_call_types(&mut self, call: TNodeId) -> Result<(), &'static str> {
-        let mut t = call;
-        loop {
-            match *self.tpd.tree(t) {
-                T::Apply { fun, .. } => t = fun,
-                T::TypeApply { fun, args } => {
-                    for a in self.tpd.items(args).to_vec() {
-                        let tpe = self.fully_defined(self.tpd.tpe(a))?;
-                        self.tpd.get_mut(a).tpe = Some(tpe);
-                    }
-                    t = fun;
-                }
-                _ => break,
-            }
-        }
-        self.define_tree(call, false)
-    }
-
-    /// Substitutes the instances of type variables in the types in `t`, instantiating the open
-    /// ones if `force`; outside the subset if one stays open.
-    fn define_tree(&mut self, t: TNodeId, force: bool) -> Result<(), &'static str> {
-        let closure = self.tpd.sym(t).filter(|s| self.syms.closure_syms.contains(s));
-        if let Some(tpe) = self.tpd.get(t).tpe {
-            let tpe = self.defined_type(tpe, force)?;
-            self.tpd.get_mut(t).tpe = Some(tpe);
-        }
-        if let Some(s) = closure {
-            let info = self.u.info(s);
-            let info = self.defined_type(info, force)?;
-            self.u.set_info(s, info);
-        }
-        for c in self.tpd.children(t) {
-            self.define_tree(c, force)?;
-        }
-        Ok(())
-    }
-
-    fn defined_type(&mut self, t: TypeId, force: bool) -> Result<TypeId, &'static str> {
-        if force {
-            return self.fully_defined(t);
-        }
-        let t = self.zonk(t);
-        match self.is_fully_defined(t) {
-            true => Ok(t),
-            false => Err("type variable open at a transparent inline call"),
-        }
     }
 }

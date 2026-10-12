@@ -149,22 +149,7 @@ impl Typer<'_> {
 
     /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined on first use.
     fn throw_method(&mut self) -> SymbolId {
-        if let Some(t) = self.syms.throw_method {
-            return t;
-        }
-        let ops = self.u.enter_package("<special-ops>");
-        let throw = self.syms.define(self.u, "throw", Kind::Def, ops, syntax::ast::flags::METHOD);
-        let throwable = type_ref(self.u, self.defn.throwable);
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
-        let binder = self.syms.fresh_binder();
-        let info = self.u.intern_type(Type::Method {
-            binder,
-            params: vec![("x".into(), throwable)],
-            result: nothing,
-            implicit: false,
-            contextual: false,
-        });
-        self.u.set_info(throw, info);
+        let throw = self.syms.throw_method.unwrap_or_else(|| crate::defn::throw_method(self.u));
         self.syms.throw_method = Some(throw);
         throw
     }

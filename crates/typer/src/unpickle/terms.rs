@@ -3,8 +3,8 @@
 
 use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tree as T};
+use tasty::NodeId;
 use tasty::tags::*;
-use tasty::{NodeId, View, view};
 
 impl Unpickler<'_> {
     /// The term at `id`.
@@ -60,18 +60,29 @@ impl Unpickler<'_> {
                 self.bare(T::If { cond, thenp, elsep }, Some(tpe), None)
             }
             BLOCK => self.block(id)?,
-            LAMBDA => return Err("closure in a library inline body"),
+            LAMBDA => self.closure(id)?,
             INLINED => self.inlined(id)?,
             NEW => {
                 let tpt = self.tpt(k[0])?;
                 let tpe = self.tpd.tpe(tpt);
                 self.bare(T::New { tpt }, Some(tpe), None)
             }
-            MATCH => return Err("match in a library inline body"),
-            TRY => return Err("try in a library inline body"),
-            THROW => return Err("throw in a library inline body"),
+            MATCH => self.match_(id)?,
+            TRY => self.try_(id)?,
+            THROW => self.throw(id)?,
+            BIND => self.bind(id)?,
+            ALTERNATIVE => self.alternative(id)?,
+            UNAPPLY => self.unapply(id)?,
             RETURN => return Err("return in a library inline body"),
-            REPEATED => return Err("repeated arguments in a library inline body"),
+            REPEATED => {
+                let elemtpt = self.tpt(k[0])?;
+                let elems = k[1..].iter().map(|&e| self.term(e)).collect::<Result<Vec<_>, _>>()?;
+                let seq = self.class_symbol("scala.collection.immutable.Seq")?;
+                let elem = self.tpd.tpe(elemtpt);
+                let tpe = crate::defn::applied(self.u, seq, vec![elem]);
+                let elems = self.tpd.list(&elems);
+                self.bare(T::SeqLiteral { elems, elemtpt }, Some(tpe), None)
+            }
             SUPER => return Err("super in a library inline body"),
             SELECTouter => return Err("outer selection in a library inline body"),
             QUOTE | SPLICE | HOLE | QUOTEPATTERN | SPLICEPATTERN => {
@@ -82,18 +93,5 @@ impl Unpickler<'_> {
         };
         self.check_type(t)?;
         Ok(self.positioned(id, t))
-    }
-
-    /// `INLINED`: an expansion inlined into the body, without bindings and a call.
-    fn inlined(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
-        let View::Inlined { expr, call, bindings } = view(self.ast(), id) else {
-            return Err("inlined tree in a library inline body");
-        };
-        if call.is_some() || !bindings.is_empty() {
-            return Err("inlined call in a library inline body");
-        }
-        let expansion = self.term(expr)?;
-        let (tpe, bindings) = (self.tpd.get(expansion).tpe, self.tpd.list(&[]));
-        Ok(self.bare(T::Inlined { call: None, bindings, expansion }, tpe, None))
     }
 }

@@ -124,6 +124,7 @@ impl<'u> Printer<'u> {
             Type::Str(s) => format!("\"{s}\""),
             Type::Other(tag) => format!("<{}>", crate::tags::name(tag)),
             Type::Var(_) => "?".into(),
+            Type::Skolem(_, info) => format!("(?1 : {})", self.text(info, GLOBAL)),
             Type::Wildcard(None) => "?".into(),
             Type::Wildcard(Some(b)) => format!("?{}", self.rhs(b)),
             Type::Error => "<error>".into(),

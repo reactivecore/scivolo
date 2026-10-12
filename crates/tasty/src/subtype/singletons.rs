@@ -64,7 +64,12 @@ impl Cmp<'_> {
     /// Whether `t` is a path, a `this` or a constant.
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
-            Type::TermRef(..) | Type::This(_) | Type::RecThis(_) | Type::Constant(..) | Type::Str(_) => true,
+            Type::TermRef(..)
+            | Type::This(_)
+            | Type::RecThis(_)
+            | Type::Constant(..)
+            | Type::Str(_)
+            | Type::Skolem(..) => true,
             Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
             _ => false,
         }

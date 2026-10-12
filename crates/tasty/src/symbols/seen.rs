@@ -54,7 +54,8 @@ impl Universe {
             | Type::Annotated(u, _)
             | Type::Refined(u, _, _)
             | Type::Alias(u)
-            | Type::Bounds(_, u) => {
+            | Type::Bounds(_, u)
+            | Type::Skolem(_, u) => {
                 return self.base_type_within(u, base, depth);
             }
             _ => (t, Vec::new()),

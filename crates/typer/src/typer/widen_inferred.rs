@@ -7,7 +7,7 @@ use tasty::{Kind, Type, TypeId, TypeVars};
 impl Typer<'_> {
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
-            Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) => true,
+            Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::TermRef(..) | Type::Skolem(..) => true,
             Type::Sym(_, s) => !self.u.is_type_symbol(s),
             _ => false,
         }
