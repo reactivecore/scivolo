@@ -144,10 +144,8 @@ impl Typer<'_> {
         let tree = self.candidate_ref(c, at, ctx)?;
         let mut tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
-        let mut result = self.method_info(t).unwrap_or(t);
-        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(result) {
-            result = r;
-        }
+        let info = self.method_info(t).unwrap_or(t);
+        let result = self.strip_implicit(info);
         if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
             || !self.conforms(result, pt)
         {

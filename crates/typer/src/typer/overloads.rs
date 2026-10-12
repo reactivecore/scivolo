@@ -128,10 +128,8 @@ impl Typer<'_> {
             tasty::Type::Poly { result, .. } => result,
             _ => info,
         };
-        let tasty::Type::Method { mut result, .. } = *self.u.types().get(info) else { return false };
-        while let tasty::Type::Method { result: r, implicit: true, .. } = *self.u.types().get(result) {
-            result = r;
-        }
+        let tasty::Type::Method { result, .. } = *self.u.types().get(info) else { return false };
+        let result = self.strip_implicit(result);
         matches!(self.u.types().get(result), tasty::Type::Method { .. })
     }
 

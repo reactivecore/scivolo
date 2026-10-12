@@ -31,21 +31,68 @@ impl Typer<'_> {
         }
     }
 
-    /// Constrains the result type `result` of an application of `meth` to conform to `pt`, its
-    /// implicit clauses stripped where `pt` is fully defined and not `Unit` (dotty's
-    /// `constrainResult`).
+    /// Constrains the result type `result` of an application of `meth` to conform to `pt`
+    /// (dotty's `constrainResult`): normalized against a fully defined `pt` other than `Unit`,
+    /// else a value result only.
     pub fn constrain_applied_result(&mut self, meth: Option<SymbolId>, result: TypeId, pt: Pt) {
         let Pt::Type(p) = pt else { return };
-        let strip = self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit);
-        let mut value = result;
-        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(value)
-            && strip
-        {
-            value = r;
-        }
-        if !matches!(self.u.types().get(value), Type::Method { .. } | Type::Poly { .. }) {
-            let p = self.result_pt(meth, p);
+        let p = self.result_pt(meth, p);
+        let value = match self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit) {
+            true => self.proto_normalized(result, p, 8),
+            false => Some(result)
+                .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. })),
+        };
+        if let Some(value) = value {
             self.conforms(value, p);
+        }
+    }
+
+    /// `t` without its leading implicit parameter clauses (dotty's `stripImplicit`).
+    pub fn strip_implicit(&self, mut t: TypeId) -> TypeId {
+        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(t) {
+            t = result;
+        }
+        t
+    }
+
+    /// `t` as a value compared with `pt` (dotty's `normalize`): type parameters made type
+    /// variables, implicit clauses stripped, a by-name type's result, a method as a function
+    /// type; `None` where outside the subset (dependent methods, context function results).
+    fn proto_normalized(&mut self, t: TypeId, pt: TypeId, depth: u32) -> Option<TypeId> {
+        let depth = depth.checked_sub(1)?;
+        match self.u.types().get(t).clone() {
+            Type::Poly { binder, params, result } => {
+                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
+                let result = self.instantiate_poly(result, binder, &names, &vars, None);
+                self.proto_normalized(result, pt, depth)
+            }
+            Type::Method { result, implicit: true, .. } => self.proto_normalized(result, pt, depth),
+            Type::Method { binder, params, result, .. } => {
+                let mut dependent = false;
+                self.u.map_type(result, &mut |u, p| {
+                    dependent |= matches!(u.types().get(p), Type::Param(b, _) if *b == binder);
+                    None
+                });
+                if dependent {
+                    return None;
+                }
+                let rt = self.proto_normalized(result, pt, depth)?;
+                let mut args: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+                let empty = args.is_empty();
+                args.push(rt);
+                let class = self.function_class(params.len())?;
+                let ft = self.u.intern_type(Type::Applied(class, args));
+                Some(if !empty || self.u.is_subtype(ft, pt) { ft } else { rt })
+            }
+            Type::ByName(r) => self.proto_normalized(r, pt, depth),
+            _ => {
+                let context = self
+                    .u
+                    .class_symbol(t)
+                    .is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"));
+                (!context).then_some(t)
+            }
         }
     }
 
@@ -71,12 +118,10 @@ impl Typer<'_> {
             info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
         }
         let fits = match *self.u.types().get(info) {
-            Type::Method { mut result, .. } => {
-                while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(result) {
-                    result = r;
-                }
-                self.compatible(result, pt, true, ctx)
-            }
+            Type::Method { result, .. } => match self.proto_normalized(result, pt, 8) {
+                Some(value) => self.compatible(value, pt, true, ctx),
+                None => None,
+            },
             _ => Some(true),
         };
         self.constraint.rollback(mark);

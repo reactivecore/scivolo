@@ -28,9 +28,7 @@ impl Typer<'_> {
         if let Type::Poly { result, .. } = *self.u.types().get(info) {
             info = result;
         }
-        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(info) {
-            info = result;
-        }
+        let info = self.strip_implicit(info);
         let mut found = false;
         self.u.map_type(info, &mut |u, part| {
             if let Type::Applied(tycon, _) = *u.types().get(part)
@@ -81,9 +79,7 @@ impl Typer<'_> {
                 info = self.instantiate_poly(result, binder, &names, &vars, Some(c.sym));
             }
         }
-        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(info) {
-            info = result;
-        }
+        let info = self.strip_implicit(info);
         match self.u.types().get(info).clone() {
             Type::Method { params, result, implicit: false, .. } => {
                 (Some(params.iter().map(|&(_, p)| p).collect()), result)
