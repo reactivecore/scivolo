@@ -4,7 +4,7 @@
 use super::{adapt, applied_to_none, from_start};
 use crate::Lower;
 use crate::definitions::type_ref;
-use crate::phases::casts::{class_named, conforms, type_of};
+use crate::phases::casts::{cast, class_named, conforms, type_of};
 use crate::phases::value_classes::eval_once_as;
 use crate::phases::vc_elide::elided;
 use syntax::ast::Span;
@@ -54,7 +54,9 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
         return null_as(l, t, underlying);
     }
     if conforms(l, from, &boxed) || matches!(from, Erased::Nothing) {
-        return value_of(l, t, class);
+        let span = from_start(l.tpd.span(t));
+        let value = value_of(l, t, class, underlying);
+        return cast_generic(l, value, class, underlying, span);
     }
     let local = matches!(l.tpd.tree(t), Tree::Ident { .. })
         && l.tpd.sym(t).is_some_and(|s| !l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o)));
@@ -78,18 +80,43 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     if def.is_none() {
         l.tpd.get_mut(again).span = l.tpd.span(value);
     }
-    let elsep = value_of(l, again, class);
+    let elsep = value_of(l, again, class, underlying);
     let tpe = l.tpd.tpe(elsep);
     let tree = Tree::If { cond, thenp, elsep };
     let node = l.tpd.node(tree, Span::NONE, Some(tpe), None);
     let node = l.positioned(node);
-    match def {
+    let node = match def {
         Some(def) => {
             let block = l.block(&[def], node, Span::NONE);
             l.positioned(block)
         }
         None => node,
+    };
+    let span = l.tpd.span(node);
+    cast_generic(l, node, class, underlying, span)
+}
+
+/// Whether the accessor of value class `class` returns a type other than its reference
+/// `underlying` erasure, a type parameter's.
+fn generic(l: &mut Lower, class: &str, underlying: &Erased) -> bool {
+    let class = class_named(l, class).expect("a value class");
+    let value = l.u.underlying(class).expect("a value class's value");
+    let reference = matches!(underlying, Erased::Class(_) | Erased::Array(_));
+    reference && l.u.erased_method_value(value).1 != *underlying
+}
+
+/// `t`, the unboxed value of value class `class`, cast to its erased `underlying` type and
+/// ascribed `class` at `span` if the accessor is `generic` (dotty's `cast` after `unbox`).
+fn cast_generic(l: &mut Lower, t: TNodeId, class: &str, underlying: &Erased, span: Span) -> TNodeId {
+    if !generic(l, class, underlying) {
+        return t;
     }
+    let c = cast(l, t, underlying);
+    l.tpd.get_mut(c).span = span;
+    l.explicit_casts.insert(c);
+    let class = class_named(l, class).expect("a value class");
+    let tpe = type_ref(l.u, class);
+    super::ascribed(l, c, tpe, span)
 }
 
 /// `null` as a value of erased type `to`: unboxed for a primitive.
@@ -107,21 +134,22 @@ fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
 }
 
 /// `t.v()` for the accessor `v` of the underlying value of value class `class`, `t` cast to
-/// `class`; a reference value ascribed `class`, at the call's span, so it stays unboxed.
-fn value_of(l: &mut Lower, t: TNodeId, class: &str) -> TNodeId {
-    let boxed = Erased::Class(class.to_owned());
+/// `class` of erased `underlying` type; a reference value ascribed `class`, at the call's span,
+/// so it stays unboxed, unless `generic`.
+fn value_of(l: &mut Lower, t: TNodeId, name: &str, underlying: &Erased) -> TNodeId {
+    let boxed = Erased::Class(name.to_owned());
     let t = adapt(l, t, &boxed);
-    let class: SymbolId = class_named(l, class).expect("a value class");
+    let class: SymbolId = class_named(l, name).expect("a value class");
     let value = l.u.underlying(class).expect("a value class's value");
     let span = from_start(l.tpd.span(t));
     let sel = l.select(t, value, span);
     let call = applied_to_none(l, sel);
     let primitive = matches!(super::erased_type(l, call), Erased::Prim(_));
     let e = elided(l, call);
-    if primitive {
+    if primitive || generic(l, name, underlying) {
         return e;
     }
     let tpe = type_ref(l.u, class);
-    let span = l.tpd.span(call);
+    let span = l.tpd.span(e);
     super::ascribed(l, e, tpe, span)
 }
