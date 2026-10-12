@@ -68,6 +68,7 @@ mod overloads;
 mod overrides;
 mod parent_trees;
 mod parents;
+mod paths;
 mod patterns;
 mod plain_trees;
 mod purity;
