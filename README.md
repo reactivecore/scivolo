@@ -111,11 +111,13 @@ just sn-run Name -Other         # selected Scala Native test classes
 Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
 `#!/usr/bin/env scalai` shebang. The first run compiles a `.scala` file through the own
 frontend (parser, typer, lowering); where that refuses it, and for `.sc` files and `//> using`
-directives other than `scala 3.9.0`, through scala-cli (`SCALAI_SCALA_CLI` names another
-binary), with the line `scalai: FILE: falling back to scala-cli (reason)` on stderr.
-`SCALAI_FRONTEND=strict` makes a refusal an error, `SCALAI_FRONTEND=jvm` always uses scala-cli.
-The NIR is cached in `SCALAI_CACHE`/`scripts`, keyed by the file's path and content and the
-frontend mode; later runs compile nothing. Files it pulls in with `//> using file` and changed
+directives before the code other than `scala 3.9.0`, through scala-cli (`SCALAI_SCALA_CLI`
+names another binary), with the line `scalai: FILE: falling back to scala-cli (reason)` on
+stderr; later runs of that result print `scalai: FILE: compiled by scala-cli (reason)`.
+`SCALAI_FRONTEND=strict` makes a refusal an error, printed with the syntax or type errors;
+`SCALAI_FRONTEND=jvm` always uses scala-cli. The NIR is cached in `SCALAI_CACHE`/`scripts`,
+keyed by the file's path and content, the frontend mode and the `scalai` build; later runs
+compile nothing. Files it pulls in with `//> using file` and changed
 dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
 days are removed when the next one is built.
 

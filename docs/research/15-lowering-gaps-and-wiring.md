@@ -177,7 +177,8 @@ Plan for `S/script.rs` [I]:
    (1 ms, ADR 0005), `lower::compile`, the files into `classes/`, `main` as today.
 2. On `Err(what)`: `eprintln!("scalai: {file}: falling back to scala-cli ({what})")`, then `build`.
    `SCALAI_FRONTEND=strict` turns the line into the error; `=jvm` skips step 1. The key includes the
-   mode, so a forced mode never serves the other's entry; `main`'s first line names the builder.
+   mode, so a forced mode never serves the other's entry; a `fallback` file in the entry names
+   the reason, repeated on a hit.
 3. `.sc` files fall back: scala-cli wraps them in an object; the REPL's `wrap.rs` has the pieces for
    an own wrapper later. Files with `//> using` directives fall back too (dependencies, options).
 4. `crates/scalai/tests/lowered.rs` runs `lowered.txt` through `scalai FILE.scala` with `strict`;

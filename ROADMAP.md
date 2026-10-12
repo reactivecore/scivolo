@@ -252,8 +252,8 @@ Next, in order of the tests they unblock:
 4. **Lowering gaps:** local classes using the enclosing instance, classes nested in local
    classes, ProtectedAccessors (t8611b), objects in traits mixed into classes.
 5. **Wiring:** `scalai` runs scripts through the own frontend, with the phase 1 path as
-   fallback (#89, `SCALAI_FRONTEND`); the REPL gains what the lowering now covers (lazy vals, enums, generic case
-   classes).
+   fallback (#89, `SCALAI_FRONTEND`); the REPL gains what the lowering now covers (lazy vals,
+   enums, generic case classes).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just
