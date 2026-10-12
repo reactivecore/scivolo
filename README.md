@@ -96,7 +96,7 @@ just fetch-libs                 # download the Scala Native jars into ref/libs o
 just libs                       # or copy them from the Coursier cache
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
-just script FILE.sc ARGS        # run a script, compiled through scala-cli unless cached
+just script FILE.scala ARGS     # run a script, compiled unless cached
 just repl                       # the REPL: `scalai` without a target
 just check                      # every test program against its .check file, with timings
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
@@ -109,11 +109,15 @@ just sn-run Name -Other         # selected Scala Native test classes
 ```
 
 Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
-`#!/usr/bin/env scalai` shebang. The first run compiles the file through scala-cli
-(`SCALAI_SCALA_CLI` names another binary) and caches its NIR in `SCALAI_CACHE`/`scripts`, keyed
-by the file's path and content; later runs start no JVM. Files it pulls in with
-`//> using file` and changed dependencies do not invalidate the cache. Compiled scripts and
-library images unused for 30 days are removed when the next one is built.
+`#!/usr/bin/env scalai` shebang. The first run compiles a `.scala` file through the own
+frontend (parser, typer, lowering); where that refuses it, and for `.sc` files and `//> using`
+directives other than `scala 3.9.0`, through scala-cli (`SCALAI_SCALA_CLI` names another
+binary), with the line `scalai: FILE: falling back to scala-cli (reason)` on stderr.
+`SCALAI_FRONTEND=strict` makes a refusal an error, `SCALAI_FRONTEND=jvm` always uses scala-cli.
+The NIR is cached in `SCALAI_CACHE`/`scripts`, keyed by the file's path and content and the
+frontend mode; later runs compile nothing. Files it pulls in with `//> using file` and changed
+dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
+days are removed when the next one is built.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`

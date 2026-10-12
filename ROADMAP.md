@@ -200,7 +200,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    the typer.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
-with no JVM involved.
+with no JVM involved. Status (2026-10-12, #89): `scalai FILE.scala` compiles through the own
+frontend; edit-then-run takes 15 ms for hello, 25 ms for matches, 38 ms for caseclasses;
+`moderate.scala` is still refused by the typer (`List[?]` type patterns, an inaccessible member).
 
 ## Phase 4 — macros without a JVM (~4–6 person-months)
 
@@ -250,7 +252,7 @@ Next, in order of the tests they unblock:
 4. **Lowering gaps:** local classes using the enclosing instance, classes nested in local
    classes, ProtectedAccessors (t8611b), objects in traits mixed into classes.
 5. **Wiring:** `scalai` runs scripts through the own frontend, with the phase 1 path as
-   fallback; the REPL gains what the lowering now covers (lazy vals, enums, generic case
+   fallback (#89, `SCALAI_FRONTEND`); the REPL gains what the lowering now covers (lazy vals, enums, generic case
    classes).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
