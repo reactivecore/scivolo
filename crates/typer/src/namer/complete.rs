@@ -61,7 +61,7 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
-        let raw_default = self.default_param_type(sym);
+        let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
         let approx = match raw_default.filter(|_| lambda && default.is_none()) {
@@ -82,9 +82,9 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             tpe
         });
-        match (inherited, default) {
+        match (inherited, default.filter(|_| !by_name)) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
-            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
+            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified(widened);
@@ -110,17 +110,6 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(typed);
         self.check_simple_kinded(tpe, tpt);
         tpe
-    }
-
-    /// `t @uncheckedVariance`.
-    fn unchecked_variance(&mut self, t: TypeId) -> TypeId {
-        match self.resolve_full_name("scala.annotation.unchecked.uncheckedVariance", true) {
-            Some(c) => {
-                let annot = crate::defn::type_ref(self.u, c);
-                self.u.intern_type(Type::Annotated(t, annot))
-            }
-            None => t,
-        }
     }
 
     fn method_type(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> TypeId {
