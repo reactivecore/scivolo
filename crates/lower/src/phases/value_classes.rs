@@ -8,7 +8,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
-use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
+use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
@@ -80,7 +80,8 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
         let tpe = l.u.widen(l.tpd.tpe(t));
         let tree = match ev_def {
             Some(def) => Tree::Block { stats: l.tpd.list(&[def]), expr: call },
-            None => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
+            None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
+            None => l.tpd.tree(call).clone(),
         };
         let node = l.tpd.get_mut(t);
         (node.tree, node.tpe, node.sym) = (tree, Some(tpe), None);
@@ -156,7 +157,11 @@ pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         return Some(found);
     }
     let name = format!("{}$extension", l.u.symbol(m).name);
-    let sym = l.u.define(symbol(&name, Kind::Def, module_class, Flags::default().with(FINAL)));
+    let flags = match l.u.symbol(m).flags.has(PRIVATE) {
+        true => Flags::default().with(FINAL).with(PRIVATE),
+        false => Flags::default().with(FINAL),
+    };
+    let sym = l.u.define(symbol(&name, Kind::Def, module_class, flags));
     l.extensions.insert(m, sym);
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();

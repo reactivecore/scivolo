@@ -10,8 +10,13 @@ use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
+/// The definitions of a forwarder and its extension method, and the span of the moved body
+/// unless it is a match.
+pub type Moved = (TNodeId, TNodeId, Option<Span>);
+
 /// Moves the method bodies of the value classes among `classes` to their companions.
-pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
+pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
+    let mut moved = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         if l.u.is_trait(class) || l.u.underlying(class).is_none() {
@@ -30,7 +35,11 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             let Some(ext) = extension(l, m) else {
                 return unsupported(l.tpd.span(stat), "methods of value classes without companions");
             };
-            defs.push(move_body(l, class, stat, ext));
+            let def = move_body(l, class, stat, ext);
+            let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };
+            let matched = matches!(l.tpd.tree(rhs), Tree::Match { .. });
+            moved.push((stat, def, (!matched).then(|| l.tpd.span(rhs))));
+            defs.push(def);
         }
         let Some(module_class) = defs.first().and_then(|&d| l.tpd.sym(d)).and_then(|e| l.u.symbol(e).owner)
         else {
@@ -41,7 +50,24 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         };
         append(l, companion, &defs);
     }
-    Ok(())
+    Ok(moved)
+}
+
+/// Gives the call of each forwarder of `moved` the span of its extension method's body, the one
+/// `PatternMatcher` left for a match, and its parts that span's start.
+pub fn forwarder_spans(l: &mut Lower, moved: &[Moved]) {
+    for &(forwarder, ext, original) in moved {
+        let (&Tree::DefDef { rhs: Some(call), .. }, &Tree::DefDef { rhs: Some(body), .. }) =
+            (l.tpd.tree(forwarder), l.tpd.tree(ext))
+        else {
+            continue;
+        };
+        let span = original.unwrap_or(l.tpd.span(body));
+        for t in subtrees(l.tpd, call) {
+            l.tpd.get_mut(t).span = super::adapt::from_start(span);
+        }
+        l.tpd.get_mut(call).span = span;
+    }
 }
 
 /// Appends `defs` to the body of class definition `td`.
@@ -87,8 +113,7 @@ fn move_body(l: &mut Lower, class: SymbolId, def: TNodeId, ext: SymbolId) -> TNo
             l.u.set_owner(p, ext);
         }
     }
-    let rhs_span = l.tpd.span(rhs);
-    let call = forwarder(l, class, ext, &forwarded, rhs_span);
+    let call = forwarder(l, class, ext, &forwarded);
     let kept = l.tpd.clauses(&kept);
     l.tpd.get_mut(def).tree = Tree::DefDef { name, paramss: kept, tpt, rhs: Some(call) };
     let ext_name = l.build().term_name(ext);
@@ -176,8 +201,8 @@ fn defines(l: &Lower, t: TNodeId) -> bool {
     )
 }
 
-/// `C.ext(this)(params...)` for the companion `C` of `class`, at `span`.
-fn forwarder(l: &mut Lower, class: SymbolId, ext: SymbolId, params: &[Vec<SymbolId>], span: Span) -> TNodeId {
+/// `C.ext(this)(params...)` for the companion `C` of `class`.
+fn forwarder(l: &mut Lower, class: SymbolId, ext: SymbolId, params: &[Vec<SymbolId>]) -> TNodeId {
     let module = l.u.companion_module(class).expect("a value class's companion");
     let module_ref = l.ident(module, Span::NONE);
     let mut call = l.select(module_ref, ext, Span::NONE);
@@ -193,6 +218,5 @@ fn forwarder(l: &mut Lower, class: SymbolId, ext: SymbolId, params: &[Vec<Symbol
         tpe = l.u.result_type(tpe);
         call = l.apply(call, &args, tpe, Span::NONE);
     }
-    l.tpd.get_mut(call).span = span;
     call
 }
