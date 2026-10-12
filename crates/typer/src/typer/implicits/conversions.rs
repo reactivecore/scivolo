@@ -48,10 +48,14 @@ impl Typer<'_> {
         groups.push(scope);
         for group in groups {
             for &c in &group {
+                let method = self.u.symbol(c.sym).kind == Kind::Def;
+                if !method && !self.is_function_value(c) {
+                    continue;
+                }
                 if self.u.symbol(c.sym).flags.has(GIVEN) {
                     return Err("given conversion");
                 }
-                if self.u.symbol(c.sym).kind == Kind::Val && self.is_function_value(c) {
+                if !method {
                     return Err("implicit function value");
                 }
             }

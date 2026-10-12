@@ -48,7 +48,7 @@ pub fn dump(
     let mut b = String::new();
     let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
     units.set_typer_only(!inlined);
-    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
+    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg) {
         Ok(typed) => {
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
             let source_len = source.len();

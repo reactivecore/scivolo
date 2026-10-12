@@ -98,4 +98,17 @@ impl Typer<'_> {
             _ => None,
         })
     }
+
+    /// What about type arguments `args` of a type constructor taking `arity` is outside the
+    /// subset: their number, or a class type constructor, which dotty eta-expands to a lambda.
+    pub fn type_args_problem(&mut self, arity: usize, args: &[TypeId]) -> Option<&'static str> {
+        if arity != args.len() {
+            return Some("wrong number of type arguments");
+        }
+        let constructor = args.iter().any(|&a| {
+            matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class)
+                && self.type_arity(a) > 0
+        });
+        constructor.then_some("class type constructor argument")
+    }
 }

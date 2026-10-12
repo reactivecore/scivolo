@@ -2,10 +2,12 @@
 
 mod access;
 mod adapt;
+mod adapt_by_result;
 mod ahead;
 mod alternatives;
 mod and_members;
 mod and_or_types;
+mod annotated;
 mod anon_classes;
 mod applicability;
 mod apply;
@@ -19,6 +21,7 @@ pub(crate) mod const_ops;
 mod constants;
 mod constructor_proxies;
 mod constructors;
+mod context_bounds;
 mod control;
 mod default_args;
 mod default_params;
@@ -37,6 +40,7 @@ mod extension_calls;
 mod features;
 mod find_ref;
 mod function_types;
+mod generic_arrays;
 mod idents;
 mod implicit_views;
 mod implicits;
@@ -54,6 +58,7 @@ mod literals;
 mod matches;
 mod member_views;
 mod members;
+mod migrations;
 mod mismatch_context;
 mod mismatch_text;
 mod name_clashes;
@@ -65,8 +70,10 @@ mod not_found;
 mod op_assign;
 mod overloads;
 mod overrides;
+mod param_vars;
 mod parent_trees;
 mod parents;
+mod paths;
 mod patterns;
 mod plain_trees;
 mod purity;
@@ -81,6 +88,7 @@ mod stats;
 mod summon_from;
 mod supers;
 mod this;
+mod this_calls;
 mod transparent;
 mod tries;
 pub(crate) mod type_apply;
@@ -105,7 +113,7 @@ use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
-use syntax::config::Features;
+use syntax::config::{Config, Features, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
@@ -129,6 +137,7 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    pub source_version: SourceVersion,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -166,7 +175,7 @@ impl<'a> Typer<'a> {
         u: &'a mut Universe,
         (ast, unit): (&'a mut Ast, NodeId),
         (names, fresh): (&'a mut Names, &'a mut FreshNames),
-        features: Features,
+        cfg: Config,
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
@@ -186,7 +195,8 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms,
             diags: Diagnostics::default(),
-            features,
+            features: cfg.features,
+            source_version: cfg.source_version,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),

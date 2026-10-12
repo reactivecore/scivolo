@@ -41,6 +41,9 @@ impl Typer<'_> {
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
         let pt = self.determined(pt);
+        if self.has_open_union(pt) {
+            return Err("implicit search for a union with type variables");
+        }
         if depth > MAX_DEPTH {
             return Err("implicit search too deep");
         }
@@ -50,9 +53,17 @@ impl Typer<'_> {
         let mut groups = self.contextual_implicits(ctx)?;
         groups.push(self.implicit_scope(pt));
         for group in groups {
-            let found = self.fitting(&group, |t, c| t.try_implicit(c, pt, at, ctx, depth))?;
+            let mut nested_failure = false;
+            let found = self.fitting(&group, |t, c| {
+                let tried = t.try_implicit(c, pt, at, ctx, depth);
+                nested_failure |= tried == Err("no implicit argument");
+                tried
+            })?;
             let winner = match found.as_slice() {
                 [] => continue,
+                [_] if nested_failure && self.has_unbounded_var(pt) => {
+                    return Err("implicit candidate rejected by a search with type variables");
+                }
                 [c] => *c,
                 _ if !self.is_fully_defined(pt) => {
                     return Err("implicit search for a type with type variables");
@@ -133,10 +144,8 @@ impl Typer<'_> {
         let tree = self.candidate_ref(c, at, ctx)?;
         let mut tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
-        let mut result = self.method_info(t).unwrap_or(t);
-        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(result) {
-            result = r;
-        }
+        let info = self.method_info(t).unwrap_or(t);
+        let result = self.strip_implicit(info);
         if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
             || !self.conforms(result, pt)
         {

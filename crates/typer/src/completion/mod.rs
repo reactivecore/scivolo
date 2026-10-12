@@ -27,11 +27,11 @@ impl Units {
         u: &mut Universe,
         (ast, root): (&mut Ast, NodeId),
         (names, fresh): (&mut Names, &mut FreshNames),
-        features: syntax::config::Features,
+        cfg: syntax::config::Config,
         request: &Request,
     ) -> Vec<String> {
         let mut syms = self.syms.clone();
-        let Ok(mut typer) = Typer::new(u, (ast, root), (names, fresh), features, &mut syms) else {
+        let Ok(mut typer) = Typer::new(u, (ast, root), (names, fresh), cfg, &mut syms) else {
             return Vec::new();
         };
         typer.probe = Some(Probe::new(request.target));

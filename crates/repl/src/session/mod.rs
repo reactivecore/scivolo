@@ -168,9 +168,8 @@ impl Session {
             return Err(parsed.errors(Diagnostics::default(), width));
         };
         self.res = wrapped.next_res;
-        let features = parsed.cfg.features;
-        let typed =
-            self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, features);
+        let cfg = parsed.cfg;
+        let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, cfg);
         let mut typed = match typed {
             Ok(typed) => typed,
             Err(Fallback::Errors(diags)) => return Err(parsed.errors(diags, width)),

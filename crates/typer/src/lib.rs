@@ -41,17 +41,16 @@ pub struct Typed {
     pub diags: Diagnostics,
 }
 
-/// Types the desugared unit `root` of `ast`, parsed with language features `features`, defining
-/// its symbols in `u`, and expands its inline calls; `fresh` holds the counters of the unit's
-/// fresh names.
+/// Types the desugared unit `root` of `ast`, parsed with options `cfg`, defining its symbols in
+/// `u`, and expands its inline calls; `fresh` holds the counters of the unit's fresh names.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
     (names, fresh): (&mut Names, &mut FreshNames),
     root: NodeId,
-    features: syntax::config::Features,
+    cfg: syntax::config::Config,
 ) -> Result<Typed, Fallback> {
-    Units::default().type_unit(u, ast, (names, fresh), root, features)
+    Units::default().type_unit(u, ast, (names, fresh), root, cfg)
 }
 
 /// The typer's knowledge of the script symbols of the units typed so far into one universe.
@@ -83,9 +82,9 @@ impl Units {
         ast: &mut Ast,
         (names, fresh): (&mut Names, &mut FreshNames),
         root: NodeId,
-        features: syntax::config::Features,
+        cfg: syntax::config::Config,
     ) -> Result<Typed, Fallback> {
-        let mut typer = Typer::new(u, (ast, root), (names, fresh), features, &mut self.syms)
+        let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);

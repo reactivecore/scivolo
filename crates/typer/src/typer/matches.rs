@@ -38,7 +38,7 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let constant = matches!(self.u.types().get(sel_tpe), Type::Constant(..) | Type::Str(_));
-        let sel_tpe = if !constant && self.is_singleton(sel_tpe) { self.u.widen(sel_tpe) } else { sel_tpe };
+        let sel_tpe = if constant { sel_tpe } else { self.widened_selector(sel_tpe) };
         let case_pt = match pt {
             Pt::Fun(_) | Pt::PolyFun => Pt::Any,
             pt => pt,

@@ -116,10 +116,15 @@ impl Typer<'_> {
             if implicit {
                 return Err("overloads with a leading implicit parameter clause");
             }
+            let method = match *self.u.types().get(info) {
+                Type::Poly { result, .. } => result,
+                _ => info,
+            };
+            let Type::Method { binder, .. } = *self.u.types().get(method) else { continue };
             let dependent = ps.iter().any(|&p| {
                 let mut found = false;
                 self.u.map_type(p, &mut |u, part| {
-                    found |= matches!(u.types().get(part), Type::Param(..));
+                    found |= matches!(u.types().get(part), Type::Param(b, _) if *b == binder);
                     None
                 });
                 found

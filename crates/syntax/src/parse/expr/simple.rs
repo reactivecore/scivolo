@@ -97,8 +97,7 @@ impl Parser<'_> {
                 }
                 Token::LParen | Token::LBrace | Token::Indent if can_apply => {
                     let (start, point) = (self.start_offset(t), self.offset());
-                    let args = self.argument_exprs();
-                    let app = self.mk_apply(t, args);
+                    let app = self.argument_apply(t);
                     t = self.at_span2(start, point, app);
                     can_apply = true;
                 }

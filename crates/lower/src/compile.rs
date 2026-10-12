@@ -44,7 +44,7 @@ pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Resul
     if p.s.diags.has_errors() {
         return Err(Refusal { what: "syntax errors".into(), diags: std::mem::take(&mut p.s.diags) });
     }
-    let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
+    let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg) {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, .. }) => {
             return Err(Refusal::new(format!("the typer does not support {what}")));

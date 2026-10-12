@@ -36,13 +36,37 @@ impl Typer<'_> {
         None
     }
 
-    /// The primary constructor of the class `owner`, an object, accompanies, for `<init>`'s
-    /// default getters, which live in the companion.
-    fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Option<SymbolId> {
-        if method != "<init>" {
-            return None;
+    /// `default_param_type` of `getter` as the expected type of its right-hand side, a by-name
+    /// type's result (dotty's `widenExpr`), and whether it was by-name.
+    pub fn default_param_proto(&mut self, getter: SymbolId) -> (Option<TypeId>, bool) {
+        let Some(d) = self.default_param_type(getter) else { return (None, false) };
+        match *self.u.types().get(d) {
+            Type::ByName(r) => (Some(r), true),
+            _ => (Some(d), false),
         }
-        self.companion_constructor(owner)
+    }
+
+    /// The type of a default getter whose right-hand side conforms to its parameter's type `d`:
+    /// `d @uncheckedVariance`, `Unit` as itself (dotty's `dealiasIfUnit`).
+    pub fn default_getter_type(&mut self, d: TypeId) -> TypeId {
+        if self.u.class_symbol(d) == Some(self.defn.unit) {
+            return crate::defn::type_ref(self.u, self.defn.unit);
+        }
+        match self.resolve_full_name("scala.annotation.unchecked.uncheckedVariance", true) {
+            Some(c) => {
+                let annot = crate::defn::type_ref(self.u, c);
+                self.u.intern_type(Type::Annotated(d, annot))
+            }
+            None => d,
+        }
+    }
+
+    /// The constructors of the class `owner`, an object, accompanies, for `<init>`'s default
+    /// getters, which live in the companion.
+    fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
+        let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
+        let class = primary.and_then(|p| self.u.symbol(p).owner);
+        class.map(|c| self.u.decl(c, "<init>").unwrap_or_default()).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's

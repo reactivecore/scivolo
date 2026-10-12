@@ -5,7 +5,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -74,6 +74,9 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);
         }
+        if self.jdk_redeclares(sym, qual_tpe) {
+            return self.unsupported(id, "Object member a JDK interface redeclares");
+        }
         if let Err(what) = self.check_package_use(sym, name, ctx) {
             return self.unsupported(id, what);
         }
@@ -108,6 +111,46 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
+    }
+
+    /// Whether member `sym` of `Any` or `Object`, selected from `qual`, is one a JDK interface
+    /// the class of `qual` derives from declares.
+    pub fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
+        const REDECLARED: [(&str, &str); 22] = [
+            ("java.lang.CharSequence", "toString"),
+            ("java.util.Comparator", "equals"),
+            ("java.util.Collection", "equals"),
+            ("java.util.Collection", "hashCode"),
+            ("java.util.Map", "equals"),
+            ("java.util.Map", "hashCode"),
+            ("java.util.Map$.Entry", "equals"),
+            ("java.util.Map$.Entry", "hashCode"),
+            ("java.lang.annotation.Annotation", "equals"),
+            ("java.lang.annotation.Annotation", "hashCode"),
+            ("java.lang.annotation.Annotation", "toString"),
+            ("java.nio.file.Path", "equals"),
+            ("java.nio.file.Path", "hashCode"),
+            ("java.nio.file.Path", "toString"),
+            ("java.time.chrono.ChronoLocalDate", "equals"),
+            ("java.time.chrono.ChronoLocalDate", "hashCode"),
+            ("java.time.chrono.ChronoLocalDate", "toString"),
+            ("java.time.chrono.ChronoLocalDateTime", "equals"),
+            ("java.time.chrono.ChronoLocalDateTime", "hashCode"),
+            ("java.time.chrono.ChronoLocalDateTime", "toString"),
+            ("java.util.Set", "equals"),
+            ("java.util.List", "equals"),
+        ];
+        let b = self.u.builtins();
+        if !self.u.symbol(sym).owner.is_some_and(|o| o == b.any || o == b.object) {
+            return false;
+        }
+        let name = self.u.symbol(sym).name.clone();
+        let widened = self.u.widen(qual);
+        let Some(class) = self.u.class_symbol(widened) else { return false };
+        REDECLARED
+            .iter()
+            .filter(|(_, m)| *m == name)
+            .any(|(i, _)| self.resolve_full_name(i, true).is_some_and(|i| self.u.derives_from(class, i)))
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {

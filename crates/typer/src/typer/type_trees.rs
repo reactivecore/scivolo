@@ -34,8 +34,8 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if arity != typed_args.len() {
-                    return self.unsupported(id, "wrong number of type arguments");
+                if let Some(what) = self.type_args_problem(arity, &arg_types) {
+                    return self.unsupported(id, what);
                 }
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
                     (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
@@ -94,6 +94,7 @@ impl Typer<'_> {
             Tree::TypeBoundsTree { lo, hi, alias } => self.typed_type_bounds(id, lo, hi, alias, ctx),
             Tree::LambdaTypeTree { tparams, body } => self.typed_lambda_type(id, tparams, body, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
+            Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             t => {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())

@@ -51,8 +51,8 @@ impl Session {
             return Vec::new();
         };
         let request = Request { target, prefix: selection.prefix };
-        let (ast, features) = ((&mut parsed.ast, wrapped.root), parsed.cfg.features);
-        let found = self.units.complete(&mut self.u, ast, (names, fresh), features, &request);
+        let (ast, cfg) = ((&mut parsed.ast, wrapped.root), parsed.cfg);
+        let found = self.units.complete(&mut self.u, ast, (names, fresh), cfg, &request);
         found.iter().map(|n| completion::label(n, selection.backticked)).collect()
     }
 }

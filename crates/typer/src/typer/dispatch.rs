@@ -34,6 +34,7 @@ impl Typer<'_> {
             }
             Tree::New { tpt } => self.typed_new(id, tpt, ctx),
             Tree::Typed { expr, tpt } => self.typed_typed(id, expr, tpt, pt, ctx),
+            Tree::Annotated { arg, annot } => self.typed_annotated(id, arg, annot, pt, ctx),
             Tree::Block { stats, expr } => self.typed_block(id, stats, expr, pt, ctx),
             Tree::Try { expr, cases, finalizer } => {
                 let cases = self.ast.items(cases).to_vec();

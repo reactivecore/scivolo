@@ -30,7 +30,7 @@ fn type_unit(u: &mut Universe, units: &mut Units, name: &str, text: &str) -> Res
     let cfg = p.s.cfg;
     let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, &source, cfg).unit(root);
     assert!(!p.s.diags.has_errors(), "syntax errors in {name}");
-    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
+    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg) {
         Ok(_) => Ok(()),
         Err(Fallback::Unsupported { what, .. }) => Err(format!("unsupported {what}")),
         Err(Fallback::Errors(d)) => {
@@ -245,4 +245,46 @@ fn synthetic_symbols_are_shared() {
     assert_eq!(repeated, 1);
     let ops = u.package("<special-ops>").expect("<special-ops>");
     assert_eq!(u.symbol(ops).decls.len(), 1);
+}
+
+#[test]
+fn constructs_diverging_from_dotty_are_refused() {
+    let Some(mut u) = universe() else { return };
+    let cases = [
+        (
+            "object A { type T[X] = X | Any; def p2[X](using T[X]): X = ???; def p1[X](using Int): X = p2 }",
+            "implicit search for a union with type variables",
+        ),
+        ("object J { def f(cs: CharSequence) = cs.toString }", "Object member a JDK interface redeclares"),
+        (
+            "class CS extends CharSequence { def length = 0; def charAt(i: Int) = 'a'
+             def subSequence(a: Int, b: Int): CharSequence = this; def s = toString }",
+            "Object member a JDK interface redeclares",
+        ),
+        (
+            "class C { def foo[T <: String: reflect.ClassTag](f: T => Int) = 1; def bar(f: String => Int) = foo(f) }",
+            "type variable maximized before an implicit search",
+        ),
+        (
+            "class B[T](val t: T) { def this() = this(null.asInstanceOf[T]) }",
+            "secondary constructor call of a polymorphic class",
+        ),
+        (
+            "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
+            "secondary constructor calling a later constructor",
+        ),
+        (
+            "trait Tag[T]; object Tag { implicit val ti: Tag[Int] = new Tag[Int] {}; implicit val tl: Tag[Long] = new Tag[Long] {} }
+             object Cr8 { def mx[T](x: T)(implicit t: Tag[T]): T = x; val o: Option[Long] = Some(mx(3)) }",
+            "implicit method result under a type with type variables",
+        ),
+        (
+            "class O(x: Int) { def this(s: String) = this(this.hashCode) }",
+            "this in the arguments of a self-constructor call",
+        ),
+    ];
+    for (text, what) in cases {
+        let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);
+        assert_eq!(outcome, Err(format!("unsupported {what}")), "{text}");
+    }
 }

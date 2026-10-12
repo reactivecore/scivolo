@@ -13,6 +13,7 @@ impl SourceVersion {
     pub const V3_2: SourceVersion = SourceVersion::stable(2);
     pub const V3_3: SourceVersion = SourceVersion::stable(3);
     pub const V3_4: SourceVersion = SourceVersion::stable(4);
+    pub const V3_5: SourceVersion = SourceVersion::stable(5);
     pub const V3_6: SourceVersion = SourceVersion::stable(6);
     pub const V3_7: SourceVersion = SourceVersion::stable(7);
     pub const V3_8: SourceVersion = SourceVersion::stable(8);

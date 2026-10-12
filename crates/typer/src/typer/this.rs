@@ -41,7 +41,7 @@ impl Typer<'_> {
         None
     }
 
-    fn is_param_or_accessor(&self, s: SymbolId) -> bool {
+    pub fn is_param_or_accessor(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         match self.syms.flags.get(&s) {
             Some(flags) => flags.is(f::PARAM) || flags.is(f::PARAM_ACCESSOR),
@@ -87,7 +87,7 @@ impl Typer<'_> {
     }
 
     /// Whether module value `s` is reachable from the root through objects.
-    fn is_static_term(&self, s: SymbolId) -> bool {
+    pub fn is_static_term(&self, s: SymbolId) -> bool {
         self.u.symbol(s).owner.is_none_or(|o| self.is_static_owner(o))
     }
 
@@ -117,6 +117,9 @@ impl Typer<'_> {
             }
         }
         let Some(cls) = cls else { return self.unsupported(id, "this outside a class") };
+        if self.in_this_call_args(cls, ctx) {
+            return self.unsupported(id, "this in the arguments of a self-constructor call");
+        }
         let span = self.ast.span(id);
         let qual = match (qual, name) {
             (Some(q), Some(n)) => {
@@ -167,15 +170,17 @@ impl Typer<'_> {
         self.this_select(span, name, tpe, sym)
     }
 
-    /// `C.this.name` of type `tpe`, a reference to `sym` at `span` (dotty's `ref(tpe)`).
+    /// `p.name` of type `tpe`, a reference to `sym` at `span` through the path `p` of its prefix
+    /// (dotty's `ref(tpe)`).
     pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
-        let qualifier = match *self.u.types().get(prefix) {
-            Type::This(class) => self.build().this(class, span),
-            _ => {
-                self.unsupported_at(span, "reference through a path");
-                return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
-            }
+        let Some(qualifier) = self.path_tree(prefix, span.start_pos(), 8) else {
+            self.unsupported_at(span, "reference through a path");
+            return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
+        };
+        let name = match self.u.types().get(prefix) {
+            Type::This(_) => name,
+            _ => TName { is_type: name.is_type, ..self.build().term_name(sym) },
         };
         self.tpd.node(T::Select { qualifier, name }, span, Some(tpe), Some(sym))
     }

@@ -61,7 +61,7 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
-        let raw_default = self.default_param_type(sym);
+        let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
         let approx = match raw_default.filter(|_| lambda && default.is_none()) {
@@ -82,9 +82,9 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             tpe
         });
-        match (inherited, default) {
+        match (inherited, default.filter(|_| !by_name)) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
-            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.unchecked_variance(d),
+            (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified(widened);
@@ -112,17 +112,6 @@ impl Typer<'_> {
         tpe
     }
 
-    /// `t @uncheckedVariance`.
-    fn unchecked_variance(&mut self, t: TypeId) -> TypeId {
-        match self.resolve_full_name("scala.annotation.unchecked.uncheckedVariance", true) {
-            Some(c) => {
-                let annot = crate::defn::type_ref(self.u, c);
-                self.u.intern_type(Type::Annotated(t, annot))
-            }
-            None => t,
-        }
-    }
-
     fn method_type(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) -> TypeId {
         let Tree::DefDef { tpt, rhs, .. } = *self.ast.tree(tree) else { unreachable!() };
         let mctx = self.method_ctx(sym, ctx);
@@ -148,6 +137,8 @@ impl Typer<'_> {
             self.result_type(sym, tpt, rhs, mctx)
         };
         self.syms.def_results.insert(sym, result);
+        let clauses =
+            if self.u.symbol(sym).name == "<init>" { self.normalized_constructor(clauses) } else { clauses };
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =
@@ -164,26 +155,6 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
         })
-    }
-
-    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
-    /// by-name type (dotty's `adaptParamInfo`).
-    fn method_param_type(&mut self, p: SymbolId) -> TypeId {
-        let t = self.param_type(p);
-        if !self.syms.flags.get(&p).is_some_and(|fl| fl.is(syntax::ast::flags::INLINE)) {
-            return t;
-        }
-        let Some(class) = self.resolve_full_name("scala.annotation.internal.InlineParam", true) else {
-            return t;
-        };
-        let annot = crate::defn::type_ref(self.u, class);
-        match *self.u.types().get(t) {
-            Type::ByName(r) => {
-                let r = self.u.intern_type(Type::Annotated(r, annot));
-                self.u.intern_type(Type::ByName(r))
-            }
-            _ => self.u.intern_type(Type::Annotated(t, annot)),
-        }
     }
 
     /// `t` with references to type parameters `tparams` made references to the parameters of

@@ -75,6 +75,9 @@ impl Typer<'_> {
         if let Err(what) = self.check_package_use(sym, name, ctx) {
             return self.unsupported(id, what);
         }
+        if found.prefix.is_some_and(|p| self.jdk_redeclares(sym, p)) {
+            return self.unsupported(id, "Object member a JDK interface redeclares");
+        }
         if name.is_type && self.u.full_name(sym).starts_with("scala.Impure") {
             return self.unsupported(id, "impure function type");
         }

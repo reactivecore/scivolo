@@ -9,5 +9,6 @@ mod scope;
 mod search;
 mod synthesis;
 mod too_late;
+mod unsettled;
 
 pub use search::is_misfit;
