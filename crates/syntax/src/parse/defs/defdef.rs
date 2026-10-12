@@ -164,8 +164,7 @@ impl Parser<'_> {
         self.argument_start();
         let init = self.term("<init>");
         let fun = self.ast.node(Tree::Ident { name: init });
-        let args = self.argument_exprs();
-        let app = self.mk_apply(fun, args);
+        let app = self.argument_apply(fun);
         let t = self.argument_exprss(app);
         self.at_span1(start, t)
     }

@@ -60,6 +60,17 @@ impl Parser<'_> {
         }
     }
 
+    /// `fun` applied to `ArgumentExprs`.
+    pub fn argument_apply(&mut self, fun: NodeId) -> NodeId {
+        let parens = self.tok() == Token::LParen;
+        let args = self.argument_exprs();
+        let app = self.mk_apply(fun, args);
+        if parens {
+            self.ast.add_attrs(app, Attrs::PAREN_ARGS);
+        }
+        app
+    }
+
     pub fn mk_apply(&mut self, fun: NodeId, (args, using): Args) -> NodeId {
         let args = self.ast.list(&args);
         let app = self.ast.node(Tree::Apply { fun, args });
@@ -87,8 +98,7 @@ impl Parser<'_> {
             if !matches!(self.tok(), Token::LParen | Token::LBrace | Token::Indent) {
                 return fun;
             }
-            let args = self.argument_exprs();
-            fun = self.mk_apply(fun, args);
+            fun = self.argument_apply(fun);
         }
     }
 
@@ -99,6 +109,7 @@ impl Parser<'_> {
             let start = self.start_offset(fun);
             let args = self.par_argument_exprs();
             let app = self.mk_apply(fun, args);
+            self.ast.add_attrs(app, Attrs::PAREN_ARGS);
             fun = self.at_span1(start, app);
         }
         fun

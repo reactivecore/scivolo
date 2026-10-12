@@ -2,12 +2,14 @@
 //! ..., xn)`, its impure prefix and arguments lifted into values before the function, its
 //! parameter types from the method unless a function type of that arity is expected.
 
+use super::migrations::Migration;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
+use syntax::config::SourceVersion;
 use syntax::diag::rewrite_notice;
 use tasty::{SymbolId, Type, TypeId};
 
@@ -145,6 +147,11 @@ impl Typer<'_> {
             if self.function_arity(widened).is_none() {
                 return self.unsupported(id, "`_` after a value that is not a function");
             }
+        }
+        match self.migration(SourceVersion::V3_4, SourceVersion::FUTURE_VERSION) {
+            Migration::Silent => return res,
+            Migration::Error => return self.unsupported(id, "trailing `_` for eta-expansion"),
+            Migration::Warning => {}
         }
         let span = self.ast.span(id);
         let msg = "The trailing ` _` for eta-expansion is unnecessary;\nthe compiler performs eta-expansion \

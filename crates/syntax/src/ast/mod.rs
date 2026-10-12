@@ -65,6 +65,8 @@ impl Attrs {
     pub const SINGLETON_MIRROR: Attrs = Attrs(1 << 19);
     /// A selection `e._` desugared from `e _` (dotty's `PostfixOp(e, Ident(_))`).
     pub const ETA_UNDERSCORE: Attrs = Attrs(1 << 20);
+    /// An application whose arguments are in parentheses.
+    pub const PAREN_ARGS: Attrs = Attrs(1 << 21);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

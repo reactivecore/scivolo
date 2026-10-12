@@ -55,7 +55,7 @@ impl Typer<'_> {
         else {
             return self.unsupported(id, "application of a non-method");
         };
-        if let Err(what) = self.check_clause_args((id, fun, &arg_ids), &params, implicit, contextual) {
+        if let Err(what) = self.check_clause_args((id, &arg_ids), &params, implicit, contextual) {
             return self.unsupported(id, what);
         }
         if self.mentions_params(result, binder, method) {

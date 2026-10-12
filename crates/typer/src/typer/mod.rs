@@ -113,7 +113,7 @@ use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
-use syntax::config::Features;
+use syntax::config::{Config, Features, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
@@ -137,6 +137,7 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    pub source_version: SourceVersion,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -174,7 +175,7 @@ impl<'a> Typer<'a> {
         u: &'a mut Universe,
         (ast, unit): (&'a mut Ast, NodeId),
         (names, fresh): (&'a mut Names, &'a mut FreshNames),
-        features: Features,
+        cfg: Config,
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let defn = Defn::new(u)?;
@@ -194,7 +195,8 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms,
             diags: Diagnostics::default(),
-            features,
+            features: cfg.features,
+            source_version: cfg.source_version,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
