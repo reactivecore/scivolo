@@ -88,6 +88,8 @@ pub struct Lower<'a> {
     inlined_spans: FxHashMap<TNodeId, Span>,
     /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
     inlined_blocks: FxHashSet<TNodeId>,
+    /// The objects the unit refers to whose creation runs code.
+    impure_modules: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -130,6 +132,7 @@ pub fn lower(
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
+        impure_modules: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

@@ -2,6 +2,7 @@
 //! class with only that method becomes the method's body, its parameters bound to the arguments.
 
 use super::first_transform::{is_pure_with_by_name as is_pure, literal_of};
+use super::module_purity::creates_impure_module;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -119,7 +120,8 @@ fn is_pure_binding(l: &Lower, s: TNodeId) -> bool {
         Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
         Tree::ValDef { rhs: Some(rhs), .. } => {
             let mutable = l.tpd.sym(s).is_some_and(|v| crate::symbols::has(l.u, v, tasty::tags::MUTABLE));
-            !mutable && (matches!(l.tpd.tree(rhs), Tree::Literal { .. }) || is_pure(l, rhs))
+            let pure = is_pure(l, rhs) && !creates_impure_module(l, rhs);
+            !mutable && (matches!(l.tpd.tree(rhs), Tree::Literal { .. }) || pure)
         }
         _ => false,
     }

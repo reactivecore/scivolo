@@ -55,6 +55,7 @@ mod memoize;
 mod methods;
 mod mirrors;
 mod mixin;
+mod module_purity;
 mod non_local_returns;
 mod outer_args;
 mod outer_traits;
@@ -88,6 +89,8 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
     drop_inlined::transform(l, root);
+    trait_fields::find_inits(l, &class_defs(l.tpd, root));
+    module_purity::record(l, root);
     beta_reduce::transform(l, root, unit_owner)?;
     let mut classes = class_defs(l.tpd, root);
     let inits = first_transform::objects_with_inits(l, &classes);
@@ -100,7 +103,6 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         first_transform::transform(l, td, &inits);
     }
     let deferred = mixin::methods_with_body(l, &classes, false);
-    trait_fields::find_inits(l, &classes);
     for &td in &classes {
         let retained = initializers::transform(l, td)?;
         getters::transform(l, td, &retained)?;
