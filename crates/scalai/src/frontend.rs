@@ -82,10 +82,18 @@ pub fn compile(
 
 /// The lines before the code of `text`: blank lines, comments and a first line starting with `#!`.
 fn header(text: &str) -> impl Iterator<Item = &str> {
-    text.lines().enumerate().map_while(|(i, line)| {
+    let mut in_block = false;
+    text.lines().enumerate().map_while(move |(i, line)| {
         let l = line.trim();
-        let skipped = l.is_empty() || l.starts_with("//") || l.starts_with("/*") || l.starts_with('*');
-        (skipped || (i == 0 && l.starts_with("#!"))).then_some(line)
+        if in_block {
+            in_block = !l.contains("*/");
+            return Some(line);
+        }
+        if let Some(rest) = l.strip_prefix("/*") {
+            in_block = !rest.contains("*/");
+            return Some(line);
+        }
+        (l.is_empty() || l.starts_with("//") || (i == 0 && l.starts_with("#!"))).then_some(line)
     })
 }
 
@@ -117,6 +125,8 @@ mod tests {
     #[test]
     fn directives_are_read_before_the_code_only() {
         let text = "#!/usr/bin/env scalai\n\n// c\n//> using dep x\nobject A\n//> using dep y\n";
+        assert_eq!(header(text).filter_map(foreign_directive).collect::<Vec<_>>(), ["dep"]);
+        let text = "/*\n  License text\n*/\n/* c */\n//> using dep z\n@main def m() = ()\n";
         assert_eq!(header(text).filter_map(foreign_directive).collect::<Vec<_>>(), ["dep"]);
     }
 

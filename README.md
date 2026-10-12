@@ -123,7 +123,7 @@ days are removed when the next one is built.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
-stops a run.
+stops a run after N seconds, compiling a script included.
 
 Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
 exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS threads later;

@@ -17,7 +17,7 @@ use vm::{Classpath, Vm, VmError};
 /// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_FRONTEND=strict compiles
 /// scripts with the own frontend only, =jvm with scala-cli only (default: the own frontend,
 /// scala-cli where it refuses); SCALAI_SCALA_CLI names the scala-cli binary; SCALAI_TIMEOUT
-/// stops the program after that many seconds (exit 124); SCALAI_TRACE traces exceptions;
+/// stops the program, compiling included, after that many seconds (exit 124); SCALAI_TRACE traces exceptions;
 /// SCALAI_PROFILE prints the most called methods to stderr; RUST_BACKTRACE prints panics in
 /// full. The REPL keeps its history in ~/.dotty_history, as Scala's own REPL does.
 #[derive(Parser)]
