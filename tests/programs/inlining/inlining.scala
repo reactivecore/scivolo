@@ -41,7 +41,13 @@ object Calls:
   inline def greet(name: String): String = "hi " + name
   inline def unit(x: Int): Unit = println(x)
   inline def label(x: Int, inline g: Int => String): String = g(x)
+  inline def unitBlock(x: Int): Unit = { val y = x + 1; println(y) }
+  inline def unitIf(x: Int): Unit = if x > 0 then println(x)
+  inline def withLambda(a: Int)(b: Int): Int = ((x: Int) => x + b)(a)
   def side(): Int = { println("side"); 1 }
+  def lam: Int = withLambda(1)(2)
+  inline def adder(x: Int): Int => Int = (a: Int) => a + x
+  def lam2: Int = adder(1)(2)
   def f: Int => String = _.toString
   def run(args: Array[String]): Unit =
     val n = args.length
@@ -64,6 +70,15 @@ object Calls:
     println(greet(args.mkString))
     println(label(n, f))
     unit(n)
+    unitBlock(n)
+    unitIf(n)
+    unitIf(side())
+    println(withLambda(1)(2))
+    println(lam)
+    println(lam2)
+    println(adder(n)(3))
+    println(adder(side())(n))
+    println(withLambda(n)(side()))
 
 object Nested:
   inline def inc(x: Int): Int = x + 1
