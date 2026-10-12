@@ -90,6 +90,8 @@ pub struct Lower<'a> {
     inlined_blocks: FxHashSet<TNodeId>,
     /// The objects the unit refers to whose creation runs code.
     impure_modules: FxHashSet<SymbolId>,
+    /// The method or constructor whose trees `Erasure` types, owning the values it defines.
+    erasure_owner: Option<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -133,6 +135,7 @@ pub fn lower(
         inlined_spans: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),
+        erasure_owner: None,
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

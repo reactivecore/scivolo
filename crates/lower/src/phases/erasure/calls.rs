@@ -32,6 +32,11 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         let qualifier = typed_qualifier(l, sel, qualifier)?;
         l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
     }
+    let any_val_init = l.tpd.sym(sel).filter(|&m| l.u.is_constructor(m)).and_then(|m| l.u.symbol(m).owner);
+    if any_val_init.is_some_and(|o| l.u.full_name(o) == "scala.AnyVal") {
+        let init = l.u.decl(l.defs.object, "<init>").unwrap_or_default();
+        l.tpd.get_mut(sel).sym = init.first().copied();
+    }
     if l.tpd.sym(fun) == Some(l.defs.array_clone) {
         let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
         if !matches!(erased_type(l, qualifier), Erased::Array(_)) {
@@ -42,7 +47,7 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
     let params = match (array_op(l, fun), synchronized_type(l, fun)) {
         (Some((params, _)), _) => params,
         (None, Some(e)) => vec![e],
-        (None, None) => l.tpd.sym(fun).map(|m| l.u.erased_method(m).0).unwrap_or_default(),
+        (None, None) => l.tpd.sym(fun).map(|m| l.u.erased_method_value(m).0).unwrap_or_default(),
     };
     let mut typed_args = Vec::new();
     for (i, &a) in all.iter().enumerate() {

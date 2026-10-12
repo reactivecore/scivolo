@@ -39,7 +39,8 @@ impl Gen<'_, '_> {
         if object_op {
             let operands = std::iter::once(qualifier).chain(args.iter().copied());
             for t in operands {
-                let ty = self.gen_type(self.l.tpd.tpe(t));
+                let erased = crate::phases::adapt::erased_type(self.l, t).full();
+                let ty = self.erased(&erased);
                 if !matches!(self.pool.ty(ty), Type::Ref { .. } | Type::Array { .. } | Type::Null) {
                     return unsupported(
                         self.l.tpd.span(t),

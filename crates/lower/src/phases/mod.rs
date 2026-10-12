@@ -29,6 +29,7 @@ mod erasure;
 mod eta_reduce;
 mod expand_private;
 mod explicit_outer;
+mod extension_methods;
 mod first_transform;
 mod get_class;
 mod getters;
@@ -80,6 +81,8 @@ mod trait_init;
 mod trait_lazies;
 mod type_tests;
 mod value_classes;
+mod value_members;
+mod vc_elide;
 pub(crate) mod walk;
 
 use crate::{Lower, Result};
@@ -102,6 +105,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
+    extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
         let retained = initializers::transform(l, td)?;

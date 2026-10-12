@@ -128,5 +128,5 @@ pub fn receiver_type(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Option<
     let hidden =
         [PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified].iter().any(|&f| has(l.u, owner, f));
     let tpe = if jdk && hidden { l.u.widen(l.tpd.tpe(qualifier)) } else { type_ref(l.u, owner) };
-    Some(l.u.erase(tpe))
+    Some(l.u.erase_boxed(tpe))
 }

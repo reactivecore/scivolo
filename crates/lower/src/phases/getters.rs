@@ -29,6 +29,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         }
         let span = l.tpd.span(stat);
         let in_trait = owner.is_some_and(|o| l.u.is_trait(o));
+        let in_value_class = owner.is_some_and(|o| l.u.underlying(o).is_some());
         if l.u.is_module(sym) {
             if owner.is_some_and(|o| is_static_module(l.u, o)) {
                 kept.pop();
@@ -62,7 +63,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.fields.insert(sym, sym);
             continue;
         }
-        let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) && !in_trait;
+        let private_local = has(l.u, sym, PRIVATE) && has(l.u, sym, LOCAL) && !in_trait && !in_value_class;
         if private_local && is_param_accessor(l, sym) && !retained.contains(&sym) {
             kept.pop();
             l.u.unenter(sym);

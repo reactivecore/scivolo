@@ -93,11 +93,12 @@ impl Gen<'_, '_> {
         if self.l.tpd.sym(fun) != Some(self.l.defs.as_instance_of) {
             return unsupported(span, "type applications without a call");
         }
-        let (erased_from, erased_to) = (erased_type(self.l, qualifier), self.l.u.erase(self.l.tpd.tpe(t)));
+        let erased_from = erased_type(self.l, qualifier).full();
+        let erased_to = self.l.u.erase_boxed(self.l.tpd.tpe(t));
         let subtype = conforms(self.l, &erased_from, &erased_to) && !self.l.explicit_casts.contains(&t);
         let value = self.gen_expr(qualifier)?;
         let saved = self.at_span(span);
-        let (from, to) = (self.val_ty(value), self.gen_type(self.l.tpd.tpe(t)));
+        let (from, to) = (self.val_ty(value), self.erased(&erased_to));
         let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, ty) = (self.pool.ty(from).clone(), self.pool.ty(to).clone());
         let null_conforms = f == Type::Null && !is_singleton(self.l.u, self.l.tpd.tpe(t));

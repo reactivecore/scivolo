@@ -1,9 +1,11 @@
 //! dotty's `SyntheticMembers` as PostTyper runs it on each template: `writeReplace` of static
-//! objects, the members of enum values (`enum_values.rs`) and case classes (`case_members.rs`).
+//! objects, the members of enum values (`enum_values.rs`), case classes (`case_members.rs`) and
+//! value classes (`value_members.rs`).
 
 use super::case_members::case_members;
 use super::enum_values::enum_value_members;
 use super::mirrors::mirror_support;
+use super::value_members::value_members;
 use crate::definitions::{applied, symbol, type_ref};
 use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
@@ -23,6 +25,7 @@ pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Resul
     let mut members = serializable_object_method(l, class, span)?;
     members.extend(enum_value_members(l, root, class, span)?);
     members.extend(case_members(l, class, span)?);
+    members.extend(value_members(l, class, span)?);
     let mirror = mirror_support(l, class, span)?;
     if members.is_empty() && mirror.is_none() {
         return Ok(());

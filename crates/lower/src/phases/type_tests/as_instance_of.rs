@@ -17,6 +17,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let found = l.u.erase(widened);
     let from = erased_type(l, expr);
     let span = l.tpd.span(t);
+    if l.u.value_class(target).is_some() && l.u.value_class(widened).is_none() {
+        return Ok(expr);
+    }
     if l.u.erase_boxed(target) != to || l.u.erase_boxed(widened) != found {
         return unsupported(span, "casts to or from value classes");
     }

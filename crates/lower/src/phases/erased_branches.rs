@@ -57,7 +57,7 @@ pub fn typed_branches(
     let reference = pt.filter(|p| matches!(p, Erased::Class(_) | Erased::Array(_)));
     let expected = match reference {
         Some(p) => p.clone(),
-        None => l.u.erase(l.tpd.tpe(t)),
+        None => l.u.erase_value(l.tpd.tpe(t)),
     };
     let mut out = Vec::new();
     for &b in branches {
