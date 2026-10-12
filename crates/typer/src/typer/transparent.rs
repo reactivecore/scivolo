@@ -68,6 +68,9 @@ impl Typer<'_> {
         }
         if let Pt::Type(p) = pt {
             let (tpe, approx) = (self.tpd.tpe(call), self.wild_approx(p));
+            if !self.is_fully_defined(approx) && self.has_compiletime_op(tpe) {
+                return Err((span, "compile-time operation type"));
+            }
             let mark = self.constraint.mark();
             if !self.conforms(tpe, approx) {
                 self.constraint.rollback(mark);
@@ -78,6 +81,18 @@ impl Typer<'_> {
         self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
         self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), call, ctx))
+    }
+
+    /// Whether `t` applies a type operation of `scala.compiletime.ops`.
+    fn has_compiletime_op(&mut self, t: tasty::TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part) {
+                found |= u.full_name(s).starts_with("scala.compiletime.ops.");
+            }
+            None
+        });
+        found
     }
 
     /// The classes of the unit that initialize something or are not completed yet.

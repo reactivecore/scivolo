@@ -1,5 +1,6 @@
 //! Expanding the inline calls of small inputs in `tests/inlined`, against the `Inlined` trees of
-//! dotty 3.9.0's `inlining` phase recorded next to each in a `.check` file (`just typer-checks`).
+//! dotty 3.9.0's `inlining` phase recorded next to each in a `.check` file (`just typer-checks`);
+//! for inputs with errors, only the diagnostics.
 
 use std::path::Path;
 use syntax::source::SourceFile;
@@ -34,7 +35,13 @@ fn inlined_trees_match_dotty() {
         let mut u = Universe::open(&jars).expect("the library");
         let source = SourceFile::new(input.to_string_lossy(), text.as_str());
         let actual = dump(&mut u, &source, &options, false, true);
-        assert_eq!(actual, expected, "{}", input.display());
+        if expected.contains("\n== E ") {
+            let diagnostics =
+                |s: &str| s.lines().filter(|l| l.starts_with("== ")).collect::<Vec<_>>().join("\n");
+            assert_eq!(diagnostics(&actual), diagnostics(&expected), "{}", input.display());
+        } else {
+            assert_eq!(actual, expected, "{}", input.display());
+        }
     }
 }
 

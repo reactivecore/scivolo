@@ -17,6 +17,9 @@ impl Mode {
     pub const QUALIFIER: Mode = Mode(2);
     /// A search for a reflexive `CanEqual` instance, as under `strictEquality`.
     pub const STRICT_EQUALITY: Mode = Mode(4);
+    /// The type argument of `constValue` or `constValueOpt`, where a compile-time operation type
+    /// may stand.
+    pub const CONST_VALUE_ARG: Mode = Mode(8);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

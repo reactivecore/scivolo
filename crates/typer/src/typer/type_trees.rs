@@ -1,7 +1,7 @@
 //! Type trees: named types, applied types, singleton types (dotty's `typedType`).
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
@@ -26,10 +26,11 @@ impl Typer<'_> {
                 }
                 let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                if self
-                    .tpd
-                    .sym(tpt)
-                    .is_some_and(|s| self.u.full_name(s).starts_with("scala.compiletime.ops."))
+                if !ctx.mode.is(Mode::CONST_VALUE_ARG)
+                    && self
+                        .tpd
+                        .sym(tpt)
+                        .is_some_and(|s| self.u.full_name(s).starts_with("scala.compiletime.ops."))
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
