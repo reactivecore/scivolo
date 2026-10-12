@@ -19,6 +19,7 @@ pub(crate) mod casts;
 mod closures;
 mod constructors;
 mod dependencies;
+mod drop_inlined;
 mod elideable;
 mod enum_values;
 mod enumerations;
@@ -85,6 +86,7 @@ use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    drop_inlined::transform(l, root);
     beta_reduce::transform(l, root, unit_owner)?;
     let mut classes = class_defs(l.tpd, root);
     let inits = first_transform::objects_with_inits(l, &classes);
@@ -124,6 +126,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     classes.retain(|td| !dropped.contains(td));
     local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
+    let erased: Vec<TNodeId> =
+        erasure::erased_defs::drop(l, root).into_iter().flat_map(|d| walk::subtrees(l.tpd, d)).collect();
+    classes.retain(|td| !erased.contains(td));
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;
     for &td in &classes {

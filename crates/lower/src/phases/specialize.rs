@@ -98,7 +98,7 @@ fn specialize(l: &mut Lower, app: TNodeId, fun: TNodeId, arity: usize) -> Result
     let tpe = l.u.intern_type(Type::Sym(Some(prefix), specialized));
     let node = l.tpd.get_mut(fun);
     (node.sym, node.tpe) = (Some(specialized), Some(tpe));
-    let start = l.tpd.span(qualifier);
+    let start = super::drop_inlined::span_before_erasure(l, qualifier);
     let node = l.tpd.get_mut(app);
     node.span = match start.exists() && node.span.exists() {
         true => Span::new(start.start(), node.span.end(), start.start()),
