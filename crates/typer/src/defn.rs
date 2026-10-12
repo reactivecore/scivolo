@@ -72,6 +72,40 @@ pub fn type_ref(u: &mut Universe, s: SymbolId) -> TypeId {
     u.intern_type(Type::Sym(prefix, s))
 }
 
+/// The type of a reference to `sym` through `prefix` (dotty's `TermRef`/`TypeRef`), a member of
+/// a package object through the object (`makePackageObjPrefixExplicit`).
+pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
+    if u.symbol(sym).kind == Kind::Package {
+        return u.intern_type(Type::Package(sym));
+    }
+    let in_package_object =
+        |u: &mut Universe, c: TypeId| u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c));
+    let prefix = match prefix.map(|p| u.types().get(p).clone()) {
+        Some(Type::Package(_)) => package_object_prefix(u, sym).or(prefix),
+        Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, sym).or(prefix),
+        _ => prefix,
+    };
+    u.intern_type(Type::Sym(prefix, sym))
+}
+
+/// Whether `c` is declared in a package under a package object's class name: `package$`, or a
+/// file's `<name>$package$`.
+pub fn is_named_package_object(u: &Universe, c: SymbolId) -> bool {
+    let s = u.symbol(c);
+    s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Package) && tasty::is_package_object_name(&s.name)
+}
+
+/// The reference to the package object that declares `sym`, if one does.
+fn package_object_prefix(u: &mut Universe, sym: SymbolId) -> Option<TypeId> {
+    let obj_class = u.symbol(sym).owner?;
+    let pkg = u.symbol(obj_class).owner?;
+    if u.symbol(obj_class).kind != Kind::Class || u.symbol(pkg).kind != Kind::Package {
+        return None;
+    }
+    let module = u.source_module(obj_class)?;
+    Some(type_ref(u, module))
+}
+
 /// `class[args]`.
 pub fn applied(u: &mut Universe, class: SymbolId, args: Vec<TypeId>) -> TypeId {
     let tycon = type_ref(u, class);

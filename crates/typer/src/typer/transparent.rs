@@ -111,6 +111,9 @@ impl Typer<'_> {
                 def
             }
             Some(InlineDef::Typing) => return Err("transparent inline method called while typed"),
+            None if self.u.symbol(meth).tree.is_some() => {
+                crate::unpickle::inline_def(self.u, &mut self.tpd, self.names, meth)?
+            }
             None => return Err("transparent inline method call"),
         };
         if !matches!(self.inline_defs.get(&meth), Some(InlineDef::Defined(_))) {

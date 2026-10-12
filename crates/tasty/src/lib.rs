@@ -7,6 +7,7 @@ mod erasure;
 mod file;
 mod library;
 mod names;
+mod positions;
 mod print;
 mod subtype;
 mod symbols;
@@ -16,12 +17,13 @@ mod types;
 mod view;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
+pub use positions::TastySpan;
 pub use subtype::{Mark, NoVars, TypeVars};
 pub use symbols::{
-    ANY, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe, encode,
-    is_package_object_name, module_class_name, module_name,
+    ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe,
+    encode, is_package_object_name, module_class_name, module_name,
 };
-pub use types::{Binder, Type, TypeId, Types, VarId};
+pub use types::{Binder, Type, TypeId, Types, VarId, param_tree_clauses};
 
 pub use cursor::{Cursor, Error, Result};
 pub use file::{Attribute, Header, Section, Tasty, attribute_name};

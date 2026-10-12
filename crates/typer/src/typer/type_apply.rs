@@ -141,13 +141,25 @@ impl Typer<'_> {
         args: &[TypeId],
         method: Option<SymbolId>,
     ) -> TypeId {
-        let t = self.u.subst(t, binder, names, args);
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(_, s) if method.is_some() && u.symbol(s).owner == method => {
-                let name = &u.symbol(s).name;
-                names.iter().position(|n| n == name).map(|i| args[i])
-            }
-            _ => None,
-        })
+        instantiate_poly(self.u, t, (binder, names), args, method)
     }
+}
+
+/// `t` with the type parameters of binder `binder`, named `names`, and the type parameter
+/// symbols of `method` replaced by `args`.
+pub fn instantiate_poly(
+    u: &mut tasty::Universe,
+    t: TypeId,
+    (binder, names): (Binder, &[String]),
+    args: &[TypeId],
+    method: Option<SymbolId>,
+) -> TypeId {
+    let t = u.subst(t, binder, names, args);
+    u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        Type::Sym(_, s) if method.is_some() && u.symbol(s).owner == method => {
+            let name = &u.symbol(s).name;
+            names.iter().position(|n| n == name).map(|i| args[i])
+        }
+        _ => None,
+    })
 }

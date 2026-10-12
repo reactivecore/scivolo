@@ -115,6 +115,7 @@ impl Typer<'_> {
         if self.syms.by_tree.insert(tree, sym).is_some() {
             self.unsupported(tree, "definition tree shared by two definitions");
         }
+        self.syms.def_trees.insert(sym, tree);
         Some(sym)
     }
 

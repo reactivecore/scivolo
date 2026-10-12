@@ -128,40 +128,11 @@ impl Typer<'_> {
         found.next().is_none().then_some(s)
     }
 
-    /// The type of a reference to `sym` through `prefix` (dotty's `TermRef`/`TypeRef`), a
-    /// member of a package object through the object (`makePackageObjPrefixExplicit`).
     pub fn ref_type(&mut self, prefix: Option<TypeId>, sym: SymbolId) -> TypeId {
-        if self.u.symbol(sym).kind == Kind::Package {
-            return self.u.intern_type(Type::Package(sym));
-        }
-        let prefix = match prefix.map(|p| self.u.types().get(p).clone()) {
-            Some(Type::Package(_)) => self.package_object_prefix(sym).or(prefix),
-            Some(Type::This(c))
-                if self.u.class_symbol(c).is_some_and(|c| self.is_named_package_object(c)) =>
-            {
-                self.package_object_prefix(sym).or(prefix)
-            }
-            _ => prefix,
-        };
-        self.u.intern_type(Type::Sym(prefix, sym))
+        crate::defn::ref_type(self.u, prefix, sym)
     }
 
-    /// Whether `c` is declared in a package under a package object's class name: `package$`, or a
-    /// file's `<name>$package$`.
     pub fn is_named_package_object(&self, c: SymbolId) -> bool {
-        let s = self.u.symbol(c);
-        s.owner.is_some_and(|o| self.u.symbol(o).kind == Kind::Package)
-            && tasty::is_package_object_name(&s.name)
-    }
-
-    /// The reference to the package object that declares `sym`, if one does.
-    fn package_object_prefix(&mut self, sym: SymbolId) -> Option<TypeId> {
-        let obj_class = self.u.symbol(sym).owner?;
-        let pkg = self.u.symbol(obj_class).owner?;
-        if self.u.symbol(obj_class).kind != Kind::Class || self.u.symbol(pkg).kind != Kind::Package {
-            return None;
-        }
-        let module = self.u.source_module(obj_class)?;
-        Some(crate::defn::type_ref(self.u, module))
+        crate::defn::is_named_package_object(self.u, c)
     }
 }

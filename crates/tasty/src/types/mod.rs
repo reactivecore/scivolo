@@ -10,7 +10,7 @@ mod widen;
 use crate::{FileId, SymbolId};
 use rustc_hash::FxHashMap;
 
-pub use decode::Decoder;
+pub use decode::{Decoder, param_tree_clauses};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct TypeId(pub u32);

@@ -72,78 +72,84 @@ impl Typer<'_> {
     /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
     /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
-        let retains = |u: &mut tasty::Universe, a| {
-            u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
-        };
-        let mut again = false;
-        let out = self.u.map_type(t, &mut |u, part| {
-            if let Type::Annotated(inner, a) = *u.types().get(part)
-                && retains(u, a)
-            {
-                return Some(inner);
-            }
-            let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
-            let alias = match u.types().get(tycon).clone() {
-                Type::Sym(_, s) => Some(s),
-                Type::TypeRef(p, n) => u.resolve(p, &n, true),
-                _ => None,
-            };
-            let impure = alias.is_some_and(|s| u.full_name(s).starts_with("scala.Impure"));
-            let lambda = match alias {
-                Some(s) if impure => {
-                    let mut annotated = false;
-                    for &a in &args {
-                        u.map_type(a, &mut |u, x| {
-                            if let Type::Annotated(_, an) = *u.types().get(x) {
-                                annotated |= retains(u, an);
-                            }
-                            None
-                        });
-                    }
-                    if !annotated {
-                        return None;
-                    }
-                    again = true;
-                    u.info(s)
-                }
-                Some(s) if u.symbol(s).kind == Kind::Type && !u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
-                    let info = u.info(s);
-                    let prefix = match *u.types().get(tycon) {
-                        Type::Sym(p, _) => p,
-                        Type::TypeRef(p, _) => Some(p),
-                        _ => None,
-                    };
-                    let info = match (prefix, u.symbol(s).owner) {
-                        (Some(p), Some(o)) if u.symbol(o).kind == Kind::Class => u.as_seen_from(info, p, o),
-                        _ => info,
-                    };
-                    match *u.types().get(info) {
-                        Type::Alias(a) => a,
-                        Type::Lambda { .. } => info,
-                        _ => return None,
-                    }
-                }
-                _ => tycon,
-            };
-            let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
-            if matches!(u.types().get(result), Type::Match(_)) {
-                return None;
-            }
-            let eta = matches!(u.types().get(result), Type::Applied(_, rargs)
-            if rargs.len() == params.len()
-                && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
-                    Type::Param(b, k) => *b == binder && *k == i as u32,
-                    Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
-                    _ => false,
-                }));
-            if lambda != tycon && !eta && !impure {
-                return None;
-            }
-            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-            Some(u.subst(result, binder, &names, &args))
-        });
-        if again { self.normalized(out) } else { out }
+        normalized(self.u, t)
     }
+}
+
+/// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking
+/// annotations dropped, as `Typer::normalized`.
+pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    let retains = |u: &mut tasty::Universe, a| {
+        u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
+    };
+    let mut again = false;
+    let out = u.map_type(t, &mut |u, part| {
+        if let Type::Annotated(inner, a) = *u.types().get(part)
+            && retains(u, a)
+        {
+            return Some(inner);
+        }
+        let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
+        let alias = match u.types().get(tycon).clone() {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(p, n) => u.resolve(p, &n, true),
+            _ => None,
+        };
+        let impure = alias.is_some_and(|s| u.full_name(s).starts_with("scala.Impure"));
+        let lambda = match alias {
+            Some(s) if impure => {
+                let mut annotated = false;
+                for &a in &args {
+                    u.map_type(a, &mut |u, x| {
+                        if let Type::Annotated(_, an) = *u.types().get(x) {
+                            annotated |= retains(u, an);
+                        }
+                        None
+                    });
+                }
+                if !annotated {
+                    return None;
+                }
+                again = true;
+                u.info(s)
+            }
+            Some(s) if u.symbol(s).kind == Kind::Type && !u.symbol(s).flags.has(tasty::tags::OPAQUE) => {
+                let info = u.info(s);
+                let prefix = match *u.types().get(tycon) {
+                    Type::Sym(p, _) => p,
+                    Type::TypeRef(p, _) => Some(p),
+                    _ => None,
+                };
+                let info = match (prefix, u.symbol(s).owner) {
+                    (Some(p), Some(o)) if u.symbol(o).kind == Kind::Class => u.as_seen_from(info, p, o),
+                    _ => info,
+                };
+                match *u.types().get(info) {
+                    Type::Alias(a) => a,
+                    Type::Lambda { .. } => info,
+                    _ => return None,
+                }
+            }
+            _ => tycon,
+        };
+        let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
+        if matches!(u.types().get(result), Type::Match(_)) {
+            return None;
+        }
+        let eta = matches!(u.types().get(result), Type::Applied(_, rargs)
+        if rargs.len() == params.len()
+            && rargs.iter().enumerate().all(|(i, &a)| match u.types().get(a) {
+                Type::Param(b, k) => *b == binder && *k == i as u32,
+                Type::Local(b, name) => b.0 == binder.0 && *name == params[i].0,
+                _ => false,
+            }));
+        if lambda != tycon && !eta && !impure {
+            return None;
+        }
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        Some(u.subst(result, binder, &names, &args))
+    });
+    if again { normalized(u, out) } else { out }
 }
 
 fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {

@@ -15,12 +15,12 @@ impl Decoder<'_> {
             Some(&tpt) => self.ty(tpt),
             None => self.intern(Type::Other(DEFDEF)),
         };
-        clauses(ast, parts.params).into_iter().rev().fold(result, |result, clause| {
+        param_tree_clauses(ast, parts.params).into_iter().rev().fold(result, |result, clause| {
             let binder = Binder(self.file, ast.node(clause[0]).addr);
             let params = clause
                 .iter()
                 .filter(|&&p| matches!(ast.tag(p), PARAM | TYPEPARAM))
-                .map(|&p| (self.name(p), self.kid(p, 0)))
+                .map(|&p| (self.name(p), self.param_type(p)))
                 .collect();
             let t = match ast.tag(clause[0]) {
                 TYPEPARAM => Type::Poly { binder, params, result },
@@ -34,6 +34,28 @@ impl Decoder<'_> {
             };
             self.intern(t)
         })
+    }
+
+    /// The type of parameter `p` in its method's type: annotated `@InlineParam` if it is an
+    /// inline parameter (dotty's `adaptParamInfo`).
+    fn param_type(&mut self, p: NodeId) -> TypeId {
+        let t = self.kid(p, 0);
+        if !self.ast.kids(p).iter().any(|&m| self.ast.tag(m) == INLINE) {
+            return t;
+        }
+        let internal = match self.packages.get("scala.annotation.internal") {
+            Some(&pkg) => Type::Package(pkg),
+            None => Type::PackageName("scala.annotation.internal".into()),
+        };
+        let internal = self.intern(internal);
+        let annot = self.intern(Type::TypeRef(internal, "InlineParam".into()));
+        match self.types.get(t).clone() {
+            Type::ByName(r) => {
+                let r = self.intern(Type::Annotated(r, annot));
+                self.intern(Type::ByName(r))
+            }
+            _ => self.intern(Type::Annotated(t, annot)),
+        }
     }
 
     /// The type of the definition at `id`: a method's type, else the type of its first child
@@ -71,7 +93,7 @@ impl Decoder<'_> {
 
 /// The parameter clauses of a method's parameter trees: runs of type parameters, runs of value
 /// parameters ended by a type parameter or `SPLITCLAUSE`, and empty clauses.
-fn clauses(ast: &crate::Ast, params: &[NodeId]) -> Vec<Vec<NodeId>> {
+pub fn param_tree_clauses(ast: &crate::Ast, params: &[NodeId]) -> Vec<Vec<NodeId>> {
     let mut out: Vec<Vec<NodeId>> = Vec::new();
     let mut prev = None;
     for &p in params {

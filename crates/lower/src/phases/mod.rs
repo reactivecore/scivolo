@@ -147,6 +147,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;
     }
+    drop_inlined::unmark_calls(l);
     array_apply::transform(l, &classes);
     for &td in &classes {
         select_static::transform(l, td);

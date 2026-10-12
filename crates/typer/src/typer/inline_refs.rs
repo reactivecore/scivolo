@@ -4,17 +4,15 @@
 use super::Typer;
 use crate::ctx::Ctx;
 use tasty::SymbolId;
-use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified, TRANSPARENT};
+use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 impl Typer<'_> {
-    /// Checks a reference to `sym` from `ctx`: not to a macro, a transparent inline method of the
-    /// library or an inline `scala.compiletime` operation, nor from an inline body to a
-    /// member that needs an inline accessor.
+    /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
+    /// operation, nor from an inline body to a member that needs an inline accessor.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
-        let in_unit = self.syms.completions.contains_key(&sym);
-        if flags.has(INLINE) && (flags.has(TRANSPARENT) && !in_unit || flags.has(MACRO)) {
-            return Err("transparent inline method call");
+        if flags.has(INLINE) && flags.has(MACRO) {
+            return Err("macro call");
         }
         if flags.has(INLINE) && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return Err("scala.compiletime operation");

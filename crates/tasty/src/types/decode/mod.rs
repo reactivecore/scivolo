@@ -2,6 +2,8 @@
 
 mod defs;
 
+pub use defs::param_tree_clauses;
+
 use super::{Binder, Type, TypeId, Types};
 use crate::tags::*;
 use crate::{Ast, FileId, NodeId, SymbolId};

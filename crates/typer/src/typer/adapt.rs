@@ -28,7 +28,7 @@ impl Typer<'_> {
                 }
             };
         }
-        if let Some(Type::Method { params, result, implicit: true, .. }) = &method {
+        if let Some(Type::Method { binder, params, result, implicit: true, .. }) = &method {
             let mut args = Vec::new();
             for &(_, p) in params {
                 match self.implicit_arg(p, span.end_pos(), ctx, 0) {
@@ -39,7 +39,17 @@ impl Typer<'_> {
                     }
                 }
             }
-            let apply = self.build().apply(tree, &args, *result, span.to_synthetic());
+            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+            let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+            let meth = self.tpd.sym(self.tpd.meth_part(tree));
+            let result = match self.applied_result(*result, (*binder, &names), meth, &arg_types) {
+                Ok(r) => r,
+                Err(what) => {
+                    self.unsupported_at(span, what);
+                    return tree;
+                }
+            };
+            let apply = self.build().apply(tree, &args, result, span.to_synthetic());
             return self.adapt(apply, pt, ctx);
         }
         if let Some(Type::Method { params, result, implicit: false, .. }) = &method {

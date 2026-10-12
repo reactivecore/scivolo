@@ -34,8 +34,13 @@ impl Universe {
         for &root in ast.roots() {
             self.enter_stat(&src, root, self.root());
         }
-        self.files.push(Loaded { ast, names, scala2 });
+        self.files.push(Loaded { ast, names, scala2, path: path.to_owned(), body_info: None });
         Ok(())
+    }
+
+    /// The symbol the definition at `id` of loaded file `file` defines, if it is entered.
+    pub fn defined_at(&self, file: FileId, id: NodeId) -> Option<SymbolId> {
+        self.by_tree.get(&(file, id)).copied()
     }
 
     /// Enters the definition or package at `id` into `owner`.

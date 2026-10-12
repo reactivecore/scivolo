@@ -27,7 +27,10 @@ Apache-2.0. Rust translations of:
 - `crates/typer`: `typer/{Typer,Namer,EtaExpansion,ConstFold}`, `typer/TypeAssigner.superType`,
   `Migrations.typedAsFunction`, `ast/MainProxies`, the flag pickling of
   `core/tasty/TreePickler`, `SymDenotations.fullName`; `crates/typer/src/tpd/walk.rs`:
-  `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`.
+  `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`;
+  `crates/typer/src/unpickle`: `core/tasty/TreeUnpickler.readTree`, `tpd.ref`,
+  `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
+  `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)

@@ -40,9 +40,9 @@ impl Typer<'_> {
         out
     }
 
-    /// The implicits visible in `ctx`, by nesting level, innermost first, an import at the level
-    /// of the scope it is in; `Err` if seeing them needs a symbol whose completion is in progress
-    /// (dotty's cyclic reference).
+    /// The implicits visible in `ctx` that do not come too late, by nesting level, innermost
+    /// first, an import at the level of the scope it is in; `Err` if seeing them needs a symbol
+    /// whose completion is in progress (dotty's cyclic reference).
     pub fn contextual_implicits(&mut self, ctx: Ctx) -> Result<Vec<Vec<Candidate>>, &'static str> {
         let mut levels: Vec<(Option<crate::ctx::LevelId>, Vec<Candidate>)> = Vec::new();
         let mut level = Some(ctx.level);
@@ -67,6 +67,7 @@ impl Typer<'_> {
             if let Some(i) = import {
                 found.extend(self.imported_implicits(i)?);
             }
+            found.retain(|c| !self.comes_too_late(c.sym, ctx));
             let key = self.levels.def_scope(l);
             match levels.last_mut() {
                 Some((k, group)) if *k == key => group.extend(found),

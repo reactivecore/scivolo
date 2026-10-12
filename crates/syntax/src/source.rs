@@ -20,6 +20,7 @@ impl SourceFile {
 
     pub fn new(name: impl Into<String>, text: impl Into<String>) -> Self {
         let text = text.into();
+        assert!(text.len() < crate::ast::span::MAX_SOURCE_LEN, "a source of at most 1 GiB");
         let bytes = text.as_bytes();
         let mut line_starts = vec![0];
         for (i, &b) in bytes.iter().enumerate() {

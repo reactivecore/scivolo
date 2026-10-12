@@ -46,10 +46,10 @@ impl Typer<'_> {
         let throwable = crate::defn::type_ref(self.u, self.defn.throwable);
         let typed_cases: Vec<TNodeId> =
             cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)).collect();
-        let mut types: Vec<TypeId> = vec![self.tpd.tpe(expr)];
+        let mut types: Vec<TypeId> = vec![self.by_name_result(self.tpd.tpe(expr))];
         for &c in &typed_cases {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
-            types.push(self.tpd.tpe(body));
+            types.push(self.by_name_result(self.tpd.tpe(body)));
         }
         if matches!(pt, Pt::Any) && types.windows(2).any(|w| self.needs_harmonizing(w[0], w[1])) {
             return self.unsupported(id, "numeric harmonization");

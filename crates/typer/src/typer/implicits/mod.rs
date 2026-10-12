@@ -8,5 +8,6 @@ mod ranking;
 mod scope;
 mod search;
 mod synthesis;
+mod too_late;
 
 pub use search::is_misfit;

@@ -146,11 +146,15 @@ impl Typer<'_> {
             let t = self.tpd.tpe(tree);
             let info = self.method_info(t).unwrap_or(t);
             match self.u.types().get(info).clone() {
-                Type::Method { params, result, implicit: true, .. } => {
+                Type::Method { binder, params, result, implicit: true, .. } => {
                     let mut args = Vec::new();
-                    for (_, p) in params {
+                    for &(_, p) in &params {
                         args.push(self.implicit_arg(p, at, ctx, depth + 1)?);
                     }
+                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+                    let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                    let meth = self.tpd.sym(self.tpd.meth_part(tree));
+                    let result = self.applied_result(result, (binder, &names), meth, &arg_types)?;
                     tree = self.build().apply(tree, &args, result, at);
                 }
                 Type::Method { .. } | Type::Poly { .. } => return Err("not an implicit value"),

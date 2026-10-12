@@ -5,6 +5,15 @@ use crate::source::Offset;
 /// The point delta marking a synthetic span.
 const SYNTHETIC: u16 = 4095;
 
+/// The offset bit marking a span in another source file.
+const OTHER_SOURCE: Offset = 1 << 31;
+
+/// The offset bit marking the span of an inline call given to trees from another source.
+const INLINED_CALL: Offset = 1 << 30;
+
+/// The length a source may not reach, below the offset bits of spans.
+pub const MAX_SOURCE_LEN: usize = INLINED_CALL as usize;
+
 /// `point - start` in the 12 bits of dotty's point delta; 4095 reads as synthetic.
 fn wrapped_delta(start: Offset, point: Offset) -> u16 {
     (point.wrapping_sub(start) & SYNTHETIC as u32) as u16
@@ -62,11 +71,12 @@ impl Span {
         !self.is_synthetic()
     }
 
-    /// The least span enclosing both, with `self`'s point.
+    /// The least span enclosing both, with `self`'s point; a span of an inlined call, and a span
+    /// with one, stays as it is.
     pub fn union(self, that: Span) -> Span {
         if !self.exists() {
             that
-        } else if !that.exists() {
+        } else if !that.exists() || self.is_inlined_call() || that.is_inlined_call() {
             self
         } else {
             Span::new(self.start.min(that.start), self.end.max(that.end), self.point())
@@ -74,15 +84,15 @@ impl Span {
     }
 
     pub fn start_pos(self) -> Span {
-        if self.exists() { Span::at(self.start) } else { self }
+        if self.exists() && !self.is_inlined_call() { Span::at(self.start) } else { self }
     }
 
     pub fn end_pos(self) -> Span {
-        if self.exists() { Span::at(self.end) } else { self }
+        if self.exists() && !self.is_inlined_call() { Span::at(self.end) } else { self }
     }
 
     pub fn with_start(self, start: Offset) -> Span {
-        if !self.exists() {
+        if !self.exists() || self.is_inlined_call() {
             return self;
         }
         let delta = if self.is_synthetic() { SYNTHETIC } else { wrapped_delta(start, self.point()) };
@@ -90,15 +100,63 @@ impl Span {
     }
 
     pub fn with_end(self, end: Offset) -> Span {
-        if self.exists() { Span { end, ..self } } else { self }
+        if self.exists() && !self.is_inlined_call() { Span { end, ..self } } else { self }
     }
 
     pub fn with_point(self, point: Offset) -> Span {
-        if self.exists() { Span { point_delta: wrapped_delta(self.start, point), ..self } } else { self }
+        match self.exists() && !self.is_inlined_call() {
+            true => Span { point_delta: wrapped_delta(self.start, point), ..self },
+            false => self,
+        }
     }
 
     pub fn to_synthetic(self) -> Span {
-        if self.is_synthetic() { self } else { Span::synthetic(self.start, self.end) }
+        if self.is_synthetic() || self.is_inlined_call() {
+            self
+        } else {
+            Span::synthetic(self.start, self.end)
+        }
+    }
+
+    /// This span of an inline call, as trees inlined from another source take it: the spans
+    /// derived from it are it.
+    pub fn as_inlined_call(self) -> Span {
+        if !self.exists() {
+            return self;
+        }
+        Span { start: self.start | INLINED_CALL, end: self.end | INLINED_CALL, ..self }
+    }
+
+    pub fn is_inlined_call(self) -> bool {
+        self.exists() && self.start & INLINED_CALL != 0
+    }
+
+    /// This span without the mark of `as_inlined_call`.
+    pub fn without_inlined_call(self) -> Span {
+        if !self.is_inlined_call() {
+            return self;
+        }
+        Span { start: self.start & !INLINED_CALL, end: self.end & !INLINED_CALL, ..self }
+    }
+
+    /// The span at the same offsets of another source file, a library's.
+    pub fn in_other_source(self) -> Span {
+        if !self.exists() || self.is_in_other_source() {
+            return self;
+        }
+        Span { start: self.start | OTHER_SOURCE, end: self.end | OTHER_SOURCE, ..self }
+    }
+
+    pub fn is_in_other_source(self) -> bool {
+        self.exists() && self.start & OTHER_SOURCE != 0
+    }
+
+    /// The span with its offsets in its own source file, wherever that is.
+    pub fn in_own_source(self) -> Span {
+        if !self.is_in_other_source() {
+            return self;
+        }
+        Span { start: self.start & !OTHER_SOURCE, end: self.end & !OTHER_SOURCE, ..self }
     }
 
     pub fn contains(self, that: Span) -> bool {

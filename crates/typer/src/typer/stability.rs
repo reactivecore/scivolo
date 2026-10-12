@@ -1,21 +1,9 @@
 use super::Typer;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
-    /// Whether term `s` denotes the same value each time: not a variable or a by-name
-    /// parameter, not a method unless a stable one (dotty's `isStableMember`).
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
-        let sym = self.u.symbol(s);
-        match sym.kind {
-            Kind::Param if sym.flags.has(tasty::tags::INLINE) => false,
-            Kind::Param => {
-                let info = self.u.info(s);
-                !matches!(self.u.types().get(info), Type::ByName(_))
-            }
-            Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
-            Kind::Def => sym.flags.has(tasty::tags::STABLE),
-            _ => true,
-        }
+        is_stable_member(self.u, s)
     }
 
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
@@ -32,4 +20,54 @@ impl Typer<'_> {
             _ => t,
         }
     }
+
+    /// `t`, or the result type of the by-name parameter it refers to, as the parts of a `try`
+    /// take it.
+    pub fn by_name_result(&mut self, t: TypeId) -> TypeId {
+        let Type::Sym(_, s) = *self.u.types().get(t) else { return t };
+        if self.u.symbol(s).kind != Kind::Param {
+            return t;
+        }
+        let info = self.u.info(s);
+        match *self.u.types().get(info) {
+            Type::ByName(r) => r,
+            _ => t,
+        }
+    }
+}
+
+/// Whether term `s` denotes the same value each time: not a variable, an inline or by-name
+/// parameter, not a method unless a stable one (dotty's `isStableMember`).
+pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
+    let sym = u.symbol(s);
+    match sym.kind {
+        Kind::Param if sym.flags.has(tasty::tags::INLINE) => false,
+        Kind::Param => {
+            let info = u.info(s);
+            !matches!(u.types().get(info), Type::ByName(_))
+        }
+        Kind::Val => !sym.flags.has(tasty::tags::MUTABLE),
+        Kind::Def => sym.flags.has(tasty::tags::STABLE),
+        _ => true,
+    }
+}
+
+/// Whether `t` is a stable path: a `this`, a constant, a package, or a reference to a stable
+/// member through a stable prefix (dotty's `isStable`).
+pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
+    match *u.types().get(t) {
+        Type::This(_) | Type::RecThis(_) | Type::Constant(..) | Type::Str(_) | Type::Package(_) => true,
+        Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
+            is_stable_member(u, s)
+                && p.is_none_or(|p| {
+                    matches!(u.types().get(p), Type::NoPrefix | Type::Sym(..) if !is_term_ref(u, p))
+                        || is_stable_path(u, p)
+                })
+        }
+        _ => false,
+    }
+}
+
+fn is_term_ref(u: &Universe, t: TypeId) -> bool {
+    matches!(*u.types().get(t), Type::Sym(_, s) if u.symbol(s).kind.is_term())
 }
