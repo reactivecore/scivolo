@@ -14,7 +14,14 @@ impl Typer<'_> {
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun);
-        self.protos.push(super::overloads::FunProto { args: arg_ids.clone(), ctx, typed: None, applied });
+        let result = if let Pt::Type(p) = pt { Some(p) } else { None };
+        self.protos.push(super::overloads::FunProto {
+            args: arg_ids.clone(),
+            ctx,
+            typed: None,
+            applied,
+            result,
+        });
         let f = self.typed(fun, Pt::Fun(proto), ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
@@ -51,14 +58,24 @@ impl Typer<'_> {
         if contextual && !using || using && !implicit {
             return self.unsupported(id, "arguments not matching the clause's using");
         }
+        if implicit && !using && params.first().is_some_and(|(n, _)| n.starts_with("evidence$")) {
+            return self.unsupported(id, "explicit arguments to context bound parameters");
+        }
         if self.mentions_params(result, binder, method) {
             return self.unsupported(id, "dependent result type");
         }
+        let mut value = result;
+        let defined_pt = matches!(pt, Pt::Type(p) if self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit));
+        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(value)
+            && defined_pt
+        {
+            value = r;
+        }
         if let Pt::Type(p) = pt
-            && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+            && !matches!(self.u.types().get(value), Type::Method { .. } | Type::Poly { .. })
         {
             let p = self.result_pt(self.tpd.sym(self.tpd.meth_part(f)), p);
-            self.conforms(result, p);
+            self.conforms(value, p);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
         if repeated.is_some() {
@@ -154,7 +171,7 @@ impl Typer<'_> {
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
-        match self.widen_enum_case(apply, method, pt) {
+        match self.widen_enum_case(apply, method, pt).and_then(|t| self.converted_new_generic_array(t)) {
             Ok(tree) => self.wrap_defs(lifted, tree),
             Err(what) => self.unsupported(id, what),
         }

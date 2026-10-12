@@ -2,6 +2,7 @@
 
 mod access;
 mod adapt;
+mod adapt_by_result;
 mod ahead;
 mod alternatives;
 mod and_members;
@@ -39,6 +40,7 @@ mod extension_calls;
 mod features;
 mod find_ref;
 mod function_types;
+mod generic_arrays;
 mod idents;
 mod implicit_views;
 mod implicits;

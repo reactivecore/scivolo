@@ -28,6 +28,8 @@ pub struct FunProto {
     pub typed: Option<Vec<TNodeId>>,
     /// Whether the application is applied to further arguments.
     pub applied: bool,
+    /// The type the application's result is expected to conform to, if any.
+    pub result: Option<TypeId>,
 }
 
 impl Typer<'_> {
@@ -40,15 +42,8 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<i32> {
         let (oa, ob) = (self.u.symbol(a).owner?, self.u.symbol(b).owner?);
-        let owner_score = if oa == ob {
-            0
-        } else if self.u.derives_from(oa, ob) {
-            1
-        } else if self.u.derives_from(ob, oa) {
-            -1
-        } else {
-            0
-        };
+        let derives = |t: &mut Self, x, y| i32::from(x != y && t.u.derives_from(x, y));
+        let owner_score = derives(self, oa, ob) - derives(self, ob, oa);
         let (pa, va) = self.rigid_param_types(a, prefix)?;
         let (pb, vb) = self.rigid_param_types(b, prefix)?;
         let wins_a = (!va || vb) && self.applicable(b, prefix, &pa, views, ctx)?;
@@ -104,7 +99,7 @@ impl Typer<'_> {
             }
         }
         if tied.len() == 1 {
-            return Ok(best);
+            return Ok(self.adapted_by_result(best, alts, prefix, proto));
         }
         if self.protos[proto].applied {
             return Err("ambiguous overload resolved by further arguments");

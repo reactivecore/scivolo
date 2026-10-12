@@ -12,7 +12,7 @@ impl Typer<'_> {
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through an
     /// implicit conversion if `views` (dotty's `isCompatible`, else its direct applicability):
     /// `None` if undecided.
-    fn compatible(&mut self, arg: TypeId, param: TypeId, views: bool, ctx: Ctx) -> Option<bool> {
+    pub fn compatible(&mut self, arg: TypeId, param: TypeId, views: bool, ctx: Ctx) -> Option<bool> {
         if self.conforms(arg, param) {
             return Some(true);
         }
