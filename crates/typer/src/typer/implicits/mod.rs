@@ -4,6 +4,7 @@
 mod can_equal;
 mod candidates;
 pub(super) mod conversions;
+mod open_vars;
 mod ranking;
 mod scope;
 mod search;
