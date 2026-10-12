@@ -2,6 +2,7 @@
 //! class has one: `hashCode`, `equals` (not for objects), `toString`, `canEqual`,
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
+use super::value_members::hash_code_body as value_hash_code_body;
 use crate::definitions::type_ref;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -63,7 +64,10 @@ fn body(
     let accessors = case_accessors(l, class);
     let own_name = own_name(l, class);
     match sym {
-        _ if sym == cc.hash_code => l.hash_code_body(class, &accessors, &own_name, locals),
+        _ if sym == cc.hash_code => match l.u.underlying(class) {
+            Some(value) => value_hash_code_body(l, class, value),
+            None => l.hash_code_body(class, &accessors, &own_name, locals),
+        },
         _ if sym == l.defs.equality.any_equals => {
             l.equals_body(class, &accessors, args[0], can_equal, locals)
         }
