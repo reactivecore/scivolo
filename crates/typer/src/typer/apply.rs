@@ -7,10 +7,11 @@ use syntax::ast::{List, NodeId};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
-    pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        if let Some(assign) = self.op_assign(id, fun, args, ctx) {
+    pub fn typed_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, fun_ctx: Ctx) -> TNodeId {
+        if let Some(assign) = self.op_assign(id, fun, args, fun_ctx) {
             return assign;
         }
+        let ctx = self.arg_ctx(fun, fun_ctx);
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun);
@@ -22,8 +23,8 @@ impl Typer<'_> {
             applied,
             result,
         });
-        let f = self.typed(fun, Pt::Fun(proto), ctx);
-        let f = match self.with_apply(f, Pt::Fun(proto), ctx) {
+        let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
+        let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
@@ -54,29 +55,14 @@ impl Typer<'_> {
         else {
             return self.unsupported(id, "application of a non-method");
         };
-        let using = self.ast.attrs(id).contains(syntax::ast::Attrs::USING_APPLY);
-        if contextual && !using || using && !implicit {
-            return self.unsupported(id, "arguments not matching the clause's using");
-        }
-        if implicit && !using && params.first().is_some_and(|(n, _)| n.starts_with("evidence$")) {
-            return self.unsupported(id, "explicit arguments to context bound parameters");
+        if let Err(what) = self.check_clause_args((id, fun, &arg_ids), &params, implicit, contextual) {
+            return self.unsupported(id, what);
         }
         if self.mentions_params(result, binder, method) {
             return self.unsupported(id, "dependent result type");
         }
-        let mut value = result;
-        let defined_pt = matches!(pt, Pt::Type(p) if self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit));
-        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(value)
-            && defined_pt
-        {
-            value = r;
-        }
-        if let Pt::Type(p) = pt
-            && !matches!(self.u.types().get(value), Type::Method { .. } | Type::Poly { .. })
-        {
-            let p = self.result_pt(self.tpd.sym(self.tpd.meth_part(f)), p);
-            self.conforms(value, p);
-        }
+        let meth = self.tpd.sym(self.tpd.meth_part(f));
+        self.constrain_applied_result(meth, result, pt);
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
         if repeated.is_some() {
             params.pop();
@@ -160,10 +146,16 @@ impl Typer<'_> {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
-                if matches!(self.u.types().get(class), Type::This(_)) {
-                    return self.unsupported(id, "secondary constructor call");
+                if let Type::This(c) = *self.u.types().get(class) {
+                    if self.u.class_symbol(c).is_some_and(|c| !self.u.type_params(c).is_empty()) {
+                        return self.unsupported(id, "secondary constructor call of a polymorphic class");
+                    }
+                    result
+                } else if partial {
+                    result
+                } else {
+                    self.constructor_result(s, class, result)
                 }
-                if partial { result } else { self.constructor_result(s, class, result) }
             }
             _ if partial => result,
             _ => self.simplified(result),

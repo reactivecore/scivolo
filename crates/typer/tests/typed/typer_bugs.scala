@@ -30,6 +30,11 @@ object Test {
 
 class Defaults[E](val x: Unit = (), y: Unit)
 
+class Secondary(x: Int, y: String) {
+  def this(x: Int) = this(x, "d")
+  def this() = { this(0); println("init") }
+}
+
 trait Numbers { def zero: Int; def succ(n: Int): Int; given ord: Ordering[Int] = Ordering.Int }
 object Paths {
   def use(numbers: Numbers) = { import numbers.*; succ(zero) }

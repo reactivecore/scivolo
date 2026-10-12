@@ -61,13 +61,12 @@ impl Typer<'_> {
         }
     }
 
-    /// The primary constructor of the class `owner`, an object, accompanies, for `<init>`'s
-    /// default getters, which live in the companion.
-    fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Option<SymbolId> {
-        if method != "<init>" {
-            return None;
-        }
-        self.companion_constructor(owner)
+    /// The constructors of the class `owner`, an object, accompanies, for `<init>`'s default
+    /// getters, which live in the companion.
+    fn constructor_of_companion(&mut self, owner: SymbolId, method: &str) -> Vec<SymbolId> {
+        let primary = if method == "<init>" { self.companion_constructor(owner) } else { None };
+        let class = primary.and_then(|p| self.u.symbol(p).owner);
+        class.map(|c| self.u.decl(c, "<init>").unwrap_or_default()).unwrap_or_default()
     }
 
     /// `t` with its references to type parameters of method `sym` made wildcards (dotty's

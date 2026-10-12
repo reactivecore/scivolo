@@ -1,7 +1,7 @@
-//! Overload resolution revisited by the expected result type (dotty's `adaptByResult` and
-//! `resultConforms`).
+//! The expected result type of an application: the result constrained by it (dotty's
+//! `constrainResult`), overload resolution revisited by it (`adaptByResult`, `resultConforms`).
 
-use super::Typer;
+use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use tasty::{SymbolId, Type, TypeId, TypeVars};
 
@@ -28,6 +28,24 @@ impl Typer<'_> {
             [] => chosen,
             [alt] => alt,
             _ => self.resolve_overloaded(&conforming, prefix, proto).unwrap_or(chosen),
+        }
+    }
+
+    /// Constrains the result type `result` of an application of `meth` to conform to `pt`, its
+    /// implicit clauses stripped where `pt` is fully defined and not `Unit` (dotty's
+    /// `constrainResult`).
+    pub fn constrain_applied_result(&mut self, meth: Option<SymbolId>, result: TypeId, pt: Pt) {
+        let Pt::Type(p) = pt else { return };
+        let strip = self.is_fully_defined(p) && self.u.class_symbol(p) != Some(self.defn.unit);
+        let mut value = result;
+        while let Type::Method { result: r, implicit: true, .. } = *self.u.types().get(value)
+            && strip
+        {
+            value = r;
+        }
+        if !matches!(self.u.types().get(value), Type::Method { .. } | Type::Poly { .. }) {
+            let p = self.result_pt(meth, p);
+            self.conforms(value, p);
         }
     }
 
