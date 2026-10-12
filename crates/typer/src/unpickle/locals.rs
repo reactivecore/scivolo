@@ -1,0 +1,115 @@
+//! Blocks with their local definitions, closures of local methods and inlined trees with their
+//! bindings, typed as `TypeAssigner` types them: a type referring to the locals avoided.
+
+use super::{Refusal, Unpickler};
+use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::dependent_params::mentions_params;
+use tasty::tags::*;
+use tasty::{NodeId, SymbolId, Type, TypeId, View, view};
+
+impl Unpickler<'_> {
+    /// `BLOCK`: its local values and methods defined first, so that they may refer to each other.
+    pub fn block(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+        let k = self.kids(id);
+        let locals = self.define_locals(&k[1..])?;
+        let mut stats = Vec::new();
+        for &s in &k[1..] {
+            stats.push(match self.tag(s) {
+                VALDEF | DEFDEF => self.local_def(s)?,
+                _ => self.term(s)?,
+            });
+        }
+        let expr = self.term(k[0])?;
+        let tpe = self.avoiding(self.tpd.tpe(expr), &locals)?;
+        let stats = self.tpd.list(&stats);
+        Ok(self.bare(T::Block { stats, expr }, Some(tpe), None))
+    }
+
+    /// Defines the symbols of the local values and methods among statements `stats`.
+    fn define_locals(&mut self, stats: &[NodeId]) -> Result<Vec<SymbolId>, Refusal> {
+        let mut locals = Vec::new();
+        for &s in stats {
+            match self.tag(s) {
+                VALDEF | DEFDEF => locals.push(self.define_local(s)?),
+                TYPEDEF => return Err("local type or class in a library inline body"),
+                IMPORT | EXPORT => return Err("import in a library inline body"),
+                _ => {}
+            }
+        }
+        Ok(locals)
+    }
+
+    /// `INLINED`: an expansion inlined into the body, after the definitions binding its
+    /// arguments; its call a trace.
+    pub fn inlined(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+        let View::Inlined { expr, call, bindings } = view(self.ast(), id) else {
+            return Err("inlined tree in a library inline body");
+        };
+        let bindings = bindings.to_vec();
+        let locals = self.define_locals(&bindings)?;
+        let bindings = bindings.into_iter().map(|b| self.local_def(b)).collect::<Result<Vec<_>, _>>()?;
+        let call = match call {
+            Some(c) if matches!(self.tag(self.ast().deref(c)), TYPEREFdirect | TYPEREFsymbol | TYPEREF) => {
+                Some(self.tpt(c)?)
+            }
+            Some(_) => return Err("inlined call in a library inline body"),
+            None => None,
+        };
+        let expansion = self.term(expr)?;
+        let tpe = self.avoiding(self.tpd.tpe(expansion), &locals)?;
+        let bindings = self.tpd.list(&bindings);
+        Ok(self.bare(T::Inlined { call, bindings, expansion }, Some(tpe), None))
+    }
+
+    /// `LAMBDA`: the closure of a local method, typed by its target or as a function.
+    pub fn closure(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+        let View::Lambda { meth, target } = view(self.ast(), id) else {
+            return Err("closure of another kind in a library inline body");
+        };
+        let meth = self.term(meth)?;
+        let tpt = target.map(|t| self.tpt(t)).transpose()?;
+        let tpe = match tpt {
+            Some(t) => self.tpd.tpe(t),
+            None => self.function_type(meth)?,
+        };
+        let env = self.tpd.list(&[]);
+        Ok(self.bare(T::Closure { env, meth, tpt }, Some(tpe), None))
+    }
+
+    /// The function type of the closure of local method `meth` (dotty's `toFunctionType`).
+    fn function_type(&mut self, meth: TNodeId) -> Result<TypeId, Refusal> {
+        let s = self.tpd.sym(meth).ok_or("closure of an unknown method in a library inline body")?;
+        let info = self.u.info(s);
+        let Type::Method { binder, params, result, contextual, .. } = self.u.types().get(info).clone() else {
+            return Err("closure of a method without parameters in a library inline body");
+        };
+        if mentions_params(self.u, result, binder, Some(s)) {
+            return Err("dependent closure in a library inline body");
+        }
+        let kind = if contextual { "ContextFunction" } else { "Function" };
+        let class = self.class_symbol(&format!("scala.{kind}{}", params.len()))?;
+        let args = params.into_iter().map(|(_, p)| p).chain([result]).collect();
+        Ok(crate::defn::applied(self.u, class, args))
+    }
+
+    /// `tpe`, the type of an expression after definitions of `locals`, widened if it refers to
+    /// them (dotty's `avoid`); refused if that does not avoid them.
+    pub fn avoiding(&mut self, tpe: TypeId, locals: &[SymbolId]) -> Result<TypeId, Refusal> {
+        let mentions = |u: &mut tasty::Universe, t: TypeId| {
+            let mut found = false;
+            u.map_type(t, &mut |u, part| {
+                found |= matches!(*u.types().get(part), Type::Sym(_, x) if locals.contains(&x));
+                None
+            });
+            found
+        };
+        if !mentions(self.u, tpe) {
+            return Ok(tpe);
+        }
+        let widened = self.u.widen(tpe);
+        match mentions(self.u, widened) {
+            true => Err("type referring to locals in a library inline body"),
+            false => Ok(widened),
+        }
+    }
+}

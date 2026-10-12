@@ -110,3 +110,9 @@ assertion failed: n is 0
 assertion failed
 true
 ev
+zero
+neg -3
+-1
+2
+0
+-1

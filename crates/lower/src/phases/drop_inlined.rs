@@ -2,13 +2,28 @@
 //! block of its bindings and expansion, or its expansion alone; its call is dropped. Under the
 //! outermost one, the trees from another source take its span (`reposition`).
 
-use crate::Lower;
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use typer::tpd::{TNodeId, Tree, map_children};
 
 /// `t` with the `Inlined` trees in it dropped.
-pub fn transform(l: &mut Lower, t: TNodeId) -> TNodeId {
-    drop(l, t, None)
+pub fn transform(l: &mut Lower, t: TNodeId) -> Result<TNodeId> {
+    if let Some(at) = library_definition(l, t, None) {
+        return unsupported(at, "definitions from library inline bodies");
+    }
+    Ok(drop(l, t, None))
+}
+
+/// The span of the inline call, inside the outermost one at `call` if any, whose expansion has
+/// a definition from another source, which keeps its offsets in dotty.
+fn library_definition(l: &Lower, t: TNodeId, call: Option<Span>) -> Option<Span> {
+    let call =
+        call.or_else(|| matches!(l.tpd.tree(t), Tree::Inlined { call: Some(_), .. }).then(|| l.tpd.span(t)));
+    let def = matches!(l.tpd.tree(t), Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. });
+    if def && l.tpd.span(t).is_in_other_source() {
+        return Some(call.unwrap_or(Span::NONE));
+    }
+    l.tpd.children(t).into_iter().find_map(|c| library_definition(l, c, call))
 }
 
 /// `t` with the `Inlined` trees in it dropped, inside the outermost one at `call` if any.
@@ -34,7 +49,7 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>) -> TNodeId {
 }
 
 /// Gives `t`, if its span is in another source, the span `at` of the call, which the spans
-/// derived from it until erasure keep; library bodies define no locals.
+/// derived from it until erasure keep.
 fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
     if l.tpd.span(t).is_in_other_source() {
         l.tpd.get_mut(t).span = at.as_inlined_call();

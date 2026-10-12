@@ -43,23 +43,8 @@ impl Typer<'_> {
         p
     }
 
-    /// `t` with each type parameter of a class `C` selected on a prefix other than `this`
-    /// replaced by the argument the prefix's base type `C[..]` gives it, then normalized.
     pub fn resolve_class_params(&mut self, t: TypeId) -> TypeId {
-        let t = self.u.map_type(t, &mut |u, part| {
-            let Type::Sym(Some(pre), p) = *u.types().get(part) else { return None };
-            if u.symbol(p).kind != Kind::TypeParam || matches!(u.types().get(pre), Type::This(_)) {
-                return None;
-            }
-            let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
-            let index = u.type_params(class).iter().position(|&q| q == p)?;
-            let widened = u.widen(pre);
-            match u.base_type(widened, class).map(|b| u.types().get(b).clone()) {
-                Some(Type::Applied(_, args)) => args.get(index).copied(),
-                _ => None,
-            }
-        });
-        self.normalized(t)
+        resolve_class_params(self.u, t)
     }
 
     /// `t` without `@uncheckedVariance` annotations, its unions and intersections the lubs and
@@ -74,6 +59,25 @@ impl Typer<'_> {
     pub fn normalized(&mut self, t: TypeId) -> TypeId {
         normalized(self.u, t)
     }
+}
+
+/// `t` with each type parameter of a class `C` selected on a prefix other than `this` replaced by
+/// the argument the prefix's base type `C[..]` gives it, then normalized.
+pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    let t = u.map_type(t, &mut |u, part| {
+        let Type::Sym(Some(pre), p) = *u.types().get(part) else { return None };
+        if u.symbol(p).kind != Kind::TypeParam || matches!(u.types().get(pre), Type::This(_)) {
+            return None;
+        }
+        let class = u.symbol(p).owner.filter(|&c| u.symbol(c).kind == Kind::Class)?;
+        let index = u.type_params(class).iter().position(|&q| q == p)?;
+        let widened = u.widen(pre);
+        match u.base_type(widened, class).map(|b| u.types().get(b).clone()) {
+            Some(Type::Applied(_, args)) => args.get(index).copied(),
+            _ => None,
+        }
+    });
+    normalized(u, t)
 }
 
 /// `t` with applied type lambdas and applied aliases of type lambdas reduced, and capture-checking

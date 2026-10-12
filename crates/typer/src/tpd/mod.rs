@@ -10,6 +10,7 @@ mod walk;
 
 pub use build::{Build, constant_type_of};
 pub use children::{MapChild, map_children};
+pub use info::lub_of;
 pub use tree::{Clauses, Field, List, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};
 

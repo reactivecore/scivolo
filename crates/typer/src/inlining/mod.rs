@@ -9,6 +9,7 @@ mod expand;
 mod no_inits;
 mod proxies;
 mod purity;
+mod reselect;
 mod retype;
 mod skolems;
 mod this_proxy;

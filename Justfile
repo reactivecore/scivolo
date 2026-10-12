@@ -331,6 +331,10 @@ fetch-libs:
 subtype-oracle:
     scripts/subtype-oracle.py
 
+# Compile the library of inline methods that crates/typer/tests/inlined/libbodies.scala calls.
+inline-fixture:
+    scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
+
 # Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
 javalib-tasty:
     scripts/javalib-tasty.sh

@@ -1,6 +1,20 @@
 //! Extractors over typed trees (dotty's `TreeInfo`).
 
 use super::{TNodeId, Tpd, Tree};
+use tasty::{TypeId, Universe};
+
+/// The lub of the types of `trees`, of a case its body's (the type of a match or `try`).
+pub fn lub_of(tpd: &Tpd, u: &mut Universe, trees: &[TNodeId]) -> TypeId {
+    let tpes: Vec<TypeId> = trees
+        .iter()
+        .map(|&t| match *tpd.tree(t) {
+            Tree::CaseDef { body, .. } => tpd.tpe(body),
+            _ => tpd.tpe(t),
+        })
+        .collect();
+    let first = tpes.first().copied().unwrap_or(tasty::NOTHING);
+    tpes[1..].iter().fold(first, |acc, &t| u.lub(acc, t))
+}
 
 impl Tpd {
     /// `f` of `f[T](a)(b)`: `t` without its applications and type applications (dotty's

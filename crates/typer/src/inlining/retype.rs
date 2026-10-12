@@ -9,7 +9,7 @@ use crate::tpd::{TNodeId, Tree as T, constant_type_of, map_children};
 use crate::typer::const_ops::{fold_binop, fold_unop};
 use rustc_hash::FxHashMap;
 use syntax::ast::constant::Constant as C;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type};
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, retyped, the proxies of inline arguments in `args` replaced by copies
@@ -94,7 +94,13 @@ impl Inlining<'_> {
             | T::Closure { .. }
             | T::SeqLiteral { .. }
             | T::WhileDo { .. }
-            | T::Assign { .. } => {
+            | T::Assign { .. }
+            | T::Match { .. }
+            | T::CaseDef { .. }
+            | T::Try { .. }
+            | T::Bind { .. }
+            | T::Alternative { .. }
+            | T::UnApply { .. } => {
                 let (inner, call) = match *self.tpd.tree(t) {
                     T::ValDef { .. } | T::DefDef { .. } => (self.tpd.sym(t).unwrap_or(owner), None),
                     T::Inlined { call, .. } => (owner, call),
@@ -111,7 +117,7 @@ impl Inlining<'_> {
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
-            _ => Err((span, "inline body with a match, try or return")),
+            _ => Err((span, "inline body with a return or label")),
         }
     }
 
@@ -136,6 +142,16 @@ impl Inlining<'_> {
             }
             T::Inlined { expansion, .. } => {
                 self.tpd.get_mut(t).tpe = Some(self.tpd.tpe(expansion));
+                Ok(t)
+            }
+            T::Match { cases: parts, .. } | T::Alternative { trees: parts } => {
+                let parts = self.tpd.items(parts).to_vec();
+                self.tpd.get_mut(t).tpe = Some(crate::tpd::lub_of(self.tpd, self.u, &parts));
+                Ok(t)
+            }
+            T::Try { expr, cases, .. } => {
+                let parts = [&[expr][..], self.tpd.items(cases)].concat();
+                self.tpd.get_mut(t).tpe = Some(crate::tpd::lub_of(self.tpd, self.u, &parts));
                 Ok(t)
             }
             _ => Ok(t),
@@ -165,35 +181,6 @@ impl Inlining<'_> {
         };
         if let Some(c) = folded {
             self.tpd.get_mut(t).tpe = Some(constant_type_of(self.u, &c));
-        }
-    }
-
-    /// Whether selection `t` of member `name` from `qualifier` finds, in the class of the
-    /// qualifier's type, a member of that name before the owner of the selected symbol, which
-    /// dotty's retyping would select instead.
-    fn reselects_override(&mut self, t: TNodeId, qualifier: TNodeId, name: String) -> bool {
-        let (Some(sym), Some(q)) = (self.tpd.sym(t), self.tpd.get(qualifier).tpe) else { return false };
-        let owner = self.u.symbol(sym).owner;
-        let widened = self.u.widen(q);
-        let Some(c) = self.u.class_symbol(widened) else { return false };
-        for base in self.u.linearization(c) {
-            if Some(base) == owner {
-                return false;
-            }
-            let decls = self.u.decls(base).unwrap_or_default();
-            if decls.iter().any(|&d| self.u.symbol(d).name == name && self.u.symbol(d).kind.is_term()) {
-                return true;
-            }
-        }
-        false
-    }
-
-    /// Whether `t` is a reference to a stable local term or a `this`.
-    fn is_stable_ref(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::This(_) => true,
-            Type::Sym(None, s) => self.u.symbol(s).kind.is_term() && self.is_stable_member(s),
-            _ => false,
         }
     }
 }

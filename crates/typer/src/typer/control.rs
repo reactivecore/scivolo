@@ -149,10 +149,13 @@ impl Typer<'_> {
 
     /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined on first use.
     fn throw_method(&mut self) -> SymbolId {
-        if let Some(t) = self.syms.throw_method {
+        let ops = self.u.enter_package("<special-ops>");
+        if let Some(t) =
+            self.syms.throw_method.or_else(|| crate::defn::entered(self.u, ops, "throw", Kind::Def))
+        {
+            self.syms.throw_method = Some(t);
             return t;
         }
-        let ops = self.u.enter_package("<special-ops>");
         let throw = self.syms.define(self.u, "throw", Kind::Def, ops, syntax::ast::flags::METHOD);
         let throwable = type_ref(self.u, self.defn.throwable);
         let nothing = type_ref(self.u, self.u.builtins().nothing);
