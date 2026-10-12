@@ -195,7 +195,9 @@ object Transparent:
     println(topT(1).length)
     val l: Int = answer
     println(later(l) + 1)
+    println(dflt() + 1)
   transparent inline def later(x: Int): Any = x
+  transparent inline def dflt(x: Int = 3): Any = x
 
 @main def inlining(): Unit =
   println(ap(_ => 3))
