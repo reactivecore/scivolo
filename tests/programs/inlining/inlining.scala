@@ -157,12 +157,15 @@ trait Noisy:
 
 object N1 extends Noisy
 object N2 extends Noisy
+object N3 extends Noisy:
+  val u: Unit = ()
 
 inline def ap(inline f: Any => Int): Int = f(N1)
 
 @main def inlining(): Unit =
   println(ap(_ => 3))
   println(((_: Any) => 4)(N2))
+  ((u: Unit) => println("body"))(N3.u)
   val args = Array.empty[String]
   Calls.run(args)
   Nested.run(args)

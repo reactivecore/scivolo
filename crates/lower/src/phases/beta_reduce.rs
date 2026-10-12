@@ -2,7 +2,7 @@
 //! class with only that method becomes the method's body, its parameters bound to the arguments.
 
 use super::first_transform::{is_pure_with_by_name as is_pure, literal_of};
-use super::module_purity::creates_impure_module;
+use super::module_purity::is_pure_value;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -120,8 +120,7 @@ fn is_pure_binding(l: &Lower, s: TNodeId) -> bool {
         Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => true,
         Tree::ValDef { rhs: Some(rhs), .. } => {
             let mutable = l.tpd.sym(s).is_some_and(|v| crate::symbols::has(l.u, v, tasty::tags::MUTABLE));
-            let pure = is_pure(l, rhs) && !creates_impure_module(l, rhs);
-            !mutable && (matches!(l.tpd.tree(rhs), Tree::Literal { .. }) || pure)
+            !mutable && is_pure_value(l, rhs)
         }
         _ => false,
     }
@@ -232,7 +231,7 @@ fn binding(
     };
     let sym = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
     l.u.set_info(sym, tpe);
-    let pure = matches!(l.tpd.tree(arg), Tree::Literal { .. }) || is_pure(l, arg);
+    let pure = is_pure_value(l, arg);
     if !((constant || l.u.erase(tpe) == Erased::Unit) && pure) {
         let span = l.tpd.span(arg);
         let tpt = l.type_tree(tpe, Span::NONE);
@@ -282,7 +281,7 @@ fn is_unit_value(l: &mut Lower, t: TNodeId) -> bool {
         return false;
     };
     let info = l.u.info(s);
-    is_pure(l, t) && l.u.erase(info) == Erased::Unit
+    is_pure_value(l, t) && l.u.erase(info) == Erased::Unit
 }
 
 /// The constant literal `t` is, but `()` and `null`.

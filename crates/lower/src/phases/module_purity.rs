@@ -2,6 +2,7 @@
 //! initializes something (dotty's not `isNoInitsRealClass`), judged before the phases change class
 //! bodies.
 
+use super::first_transform::{is_literal, is_pure_with_by_name};
 use super::walk::subtrees;
 use crate::Lower;
 use rustc_hash::FxHashSet;
@@ -22,8 +23,14 @@ pub fn record(l: &mut Lower, root: TNodeId) {
     }
 }
 
+/// Whether evaluating `t` has no effect: a literal, or a pure path that creates no object whose
+/// creation runs code.
+pub fn is_pure_value(l: &Lower, t: TNodeId) -> bool {
+    is_literal(l, t) || is_pure_with_by_name(l, t) && !creates_impure_module(l, t)
+}
+
 /// Whether path `t` refers to or selects through an object whose creation runs code.
-pub fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
+fn creates_impure_module(l: &Lower, t: TNodeId) -> bool {
     let impure = l.tpd.sym(t).is_some_and(|s| l.impure_modules.contains(&s));
     match *l.tpd.tree(t) {
         Tree::Ident { .. } => impure,
