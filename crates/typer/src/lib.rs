@@ -42,7 +42,8 @@ pub struct Typed {
 }
 
 /// Types the desugared unit `root` of `ast`, parsed with language features `features`, defining
-/// its symbols in `u`; `fresh` holds the counters of the unit's fresh names.
+/// its symbols in `u`, and expands its inline calls; `fresh` holds the counters of the unit's
+/// fresh names.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
@@ -69,13 +70,13 @@ impl Units {
         Self { errors_first: true, ..Self::default() }
     }
 
-    /// These units, typed without expanding their inline calls.
-    pub fn typer_only(self) -> Self {
-        Self { typer_only: true, ..self }
+    /// Sets whether the next units are typed without expanding their inline calls.
+    pub fn set_typer_only(&mut self, typer_only: bool) {
+        self.typer_only = typer_only;
     }
 
     /// Types unit `root` like `type_unit`, the symbols of the units typed before counting as
-    /// script symbols.
+    /// script symbols; its inline calls expand unless `typer_only` is set.
     pub fn type_unit(
         &mut self,
         u: &mut Universe,

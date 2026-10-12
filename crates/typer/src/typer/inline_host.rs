@@ -5,6 +5,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::inlining::{Host, Inlining, Lent};
 use crate::tpd::{TNodeId, Tree as T};
+use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
 use tasty::{Kind, Type, TypeId, Universe};
@@ -18,9 +19,11 @@ impl Typer<'_> {
         let mut names = std::mem::take(&mut *self.names);
         let mut fresh = std::mem::take(&mut *self.fresh);
         let parts = ((&mut u, &mut tpd), (&mut names, &mut fresh));
-        let result = f(&mut Inlining::new(parts.0, parts.1, self, transparent_only));
+        let result = catch_unwind(AssertUnwindSafe(|| {
+            f(&mut Inlining::new(parts.0, parts.1, &mut *self, transparent_only))
+        }));
         (*self.u, self.tpd, *self.names, *self.fresh) = (u, tpd, names, fresh);
-        result
+        result.unwrap_or_else(|panic| resume_unwind(panic))
     }
 
     /// Records `ctx` as the context of `tree` if it is a call of an inline method with all its
@@ -59,9 +62,11 @@ impl Host for Typer<'_> {
     fn summon(&mut self, lent: Lent<'_>, pt: TypeId, at: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let (u, tpd, names, fresh) = lent;
         self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
-        let found = self.implicit_arg(pt, at, ctx, 0).and_then(|t| self.define_tree(t, true).map(|()| t));
+        let found = catch_unwind(AssertUnwindSafe(|| {
+            self.implicit_arg(pt, at, ctx, 0).and_then(|t| self.define_tree(t, true).map(|()| t))
+        }));
         self.swap_lent((u, tpd, names, fresh));
-        found
+        found.unwrap_or_else(|panic| resume_unwind(panic))
     }
 
     fn error(&mut self, at: Span, msg: String) {

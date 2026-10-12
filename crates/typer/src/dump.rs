@@ -46,8 +46,8 @@ pub fn dump(
         return "== syntax errors\n".into();
     }
     let mut b = String::new();
-    let units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
-    let mut units = if inlined { units } else { units.typer_only() };
+    let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
+    units.set_typer_only(!inlined);
     match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
         Ok(typed) => {
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
