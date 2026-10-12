@@ -23,17 +23,24 @@ impl Typer<'_> {
         self.unset_local(sym, prefix)
     }
 
-    /// Checks that term `name` referring to `sym` in `ctx` is no package, unless it is the
-    /// qualifier of a selection or an import (dotty's "is not a value", `checkValue`).
+    /// Checks that term `name` referring to `sym` in `ctx` is no package, nor an object of a Java
+    /// class unless `applied`, unless it is the qualifier of a selection or an import (dotty's
+    /// "is not a value", `checkValue`).
     pub fn check_package_use(
         &mut self,
         sym: SymbolId,
         name: syntax::ast::TName,
+        applied: bool,
         ctx: Ctx,
     ) -> Result<(), &'static str> {
-        let package = self.u.symbol(sym).kind == tasty::Kind::Package;
-        if package && !name.is_type && !ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
+        if name.is_type || ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
+            return Ok(());
+        }
+        if self.u.symbol(sym).kind == tasty::Kind::Package {
             return Err("package used as a value");
+        }
+        if !applied && self.u.symbol(sym).flags.has(tasty::tags::OBJECT) && self.is_java_class_name(sym) {
+            return Err("object of a Java class used as a value");
         }
         Ok(())
     }
