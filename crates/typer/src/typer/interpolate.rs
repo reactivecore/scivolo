@@ -183,13 +183,4 @@ impl Typer<'_> {
             self.constraint.rollback(mark);
         }
     }
-
-    /// The type that constrains the result of method `meth`: `pt`, approximated by wildcards if
-    /// `meth` is a transparent inline method (dotty's `constrainResult(meth, mt, pt)`).
-    pub fn result_pt(&mut self, meth: Option<tasty::SymbolId>, pt: TypeId) -> TypeId {
-        match meth {
-            Some(m) if self.is_transparent_inline(m) => self.wild_approx(pt),
-            _ => pt,
-        }
-    }
 }

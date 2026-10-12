@@ -93,6 +93,7 @@ mod variances;
 mod views;
 mod widen_inferred;
 mod widening;
+mod wild_approx;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::{Defn, entered};

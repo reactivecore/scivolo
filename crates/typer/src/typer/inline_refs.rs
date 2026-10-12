@@ -12,8 +12,8 @@ impl Typer<'_> {
     /// member that needs an inline accessor.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
-        let script = self.syms.completions.contains_key(&sym);
-        if flags.has(INLINE) && (flags.has(TRANSPARENT) && !script || flags.has(MACRO)) {
+        let in_unit = self.syms.completions.contains_key(&sym);
+        if flags.has(INLINE) && (flags.has(TRANSPARENT) && !in_unit || flags.has(MACRO)) {
             return Err("transparent inline method call");
         }
         if flags.has(INLINE) && self.u.full_name(sym).starts_with("scala.compiletime.") {

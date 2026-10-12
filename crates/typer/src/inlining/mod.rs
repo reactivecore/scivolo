@@ -190,7 +190,9 @@ impl Inlining<'_> {
             o = self.u.symbol(x).owner;
         }
         self.enclosing_class = o;
-        self.type_this_qualifiers(call);
+        if !self.transparent_only {
+            self.type_this_qualifiers(call);
+        }
         let expanded = expand::Expansion::new(self, call, owner).inlined(def);
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
@@ -201,6 +203,7 @@ impl Inlining<'_> {
         let mut tpe = self.tpd.tpe(expansion);
         while locals.iter().any(|&s| self.mentions(tpe, s)) {
             let widened = self.u.widen(tpe);
+            let widened = self.u.dealias(widened);
             if widened == tpe {
                 return Err((span, "inline expansion of a type referring to a binding"));
             }

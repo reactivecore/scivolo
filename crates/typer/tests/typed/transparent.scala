@@ -19,7 +19,9 @@ object Test {
     println(Box(3).get + 1)
     println(pick(true, side(), "b") + a + t + u + i.head + l)
     println(later(2))
+    println(dflt() + 1)
   }
+  transparent inline def dflt(x: Int = 3): Any = x
   transparent inline def later(x: Int): Any = x * 2
 }
 object A {

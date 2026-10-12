@@ -5,7 +5,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::inlining::{Unsupported, inline_transparent};
 use crate::tpd::{TNodeId, Tree as T};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
@@ -15,8 +15,11 @@ use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 pub enum InlineDef {
     /// Still to be typed, in the context it was entered in.
     Pending(NodeId, Ctx),
+    /// Being typed ahead of a call.
     Typing,
     Typed(TNodeId),
+    /// Typed, with the type variables in it instantiated.
+    Defined(TNodeId),
 }
 
 impl Typer<'_> {
@@ -70,16 +73,23 @@ impl Typer<'_> {
                 self.constraint.rollback(mark);
             }
         }
-        self.fully_define_tree(call).map_err(|w| (span, w))?;
+        self.define_call_types(call).map_err(|w| (span, w))?;
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(meth, &mut bodies).map_err(|w| (span, w))?;
+        let with_inits = self.classes_with_inits();
         inline_transparent(
             (&mut *self.u, &mut self.tpd),
             (&mut *self.names, &mut *self.fresh),
-            bodies,
+            (bodies, with_inits),
             call,
             ctx.owner,
         )
+    }
+
+    /// The classes of the unit that initialize something or are not completed yet.
+    fn classes_with_inits(&self) -> FxHashSet<SymbolId> {
+        let classes = self.syms.completions.keys().filter(|&&c| self.u.symbol(c).kind == Kind::Class);
+        classes.filter(|c| self.syms.no_inits.get(c) != Some(&true)).copied().collect()
     }
 
     /// Adds to `bodies` the definitions of `meth` and of the transparent inline methods its body
@@ -93,7 +103,7 @@ impl Typer<'_> {
             return Ok(());
         }
         let def = match self.inline_defs.get(&meth).copied() {
-            Some(InlineDef::Typed(def)) => def,
+            Some(InlineDef::Typed(def) | InlineDef::Defined(def)) => def,
             Some(InlineDef::Pending(tree, ctx)) => {
                 self.inline_defs.insert(meth, InlineDef::Typing);
                 let def = self.typed_def_def(tree, ctx);
@@ -103,7 +113,10 @@ impl Typer<'_> {
             Some(InlineDef::Typing) => return Err("transparent inline method called while typed"),
             None => return Err("transparent inline method call"),
         };
-        self.fully_define_tree(def)?;
+        if !matches!(self.inline_defs.get(&meth), Some(InlineDef::Defined(_))) {
+            self.define_tree(def, true)?;
+            self.inline_defs.insert(meth, InlineDef::Defined(def));
+        }
         bodies.insert(meth, def);
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else {
             return Err("transparent inline method without a body");
@@ -123,43 +136,53 @@ impl Typer<'_> {
         own.into_iter().chain(inner).collect()
     }
 
-    /// Makes the types in `t` fully defined (dotty's `isFullyDefined` on the call's type
-    /// arguments, with `ForceDegree.flipBottom`).
-    fn fully_define_tree(&mut self, t: TNodeId) -> Result<(), &'static str> {
+    /// Instantiates the type arguments of `call` (dotty's `isFullyDefined` with
+    /// `ForceDegree.flipBottom` on `callTypeArgs`), then substitutes the instances in its types.
+    fn define_call_types(&mut self, call: TNodeId) -> Result<(), &'static str> {
+        let mut t = call;
+        loop {
+            match *self.tpd.tree(t) {
+                T::Apply { fun, .. } => t = fun,
+                T::TypeApply { fun, args } => {
+                    for a in self.tpd.items(args).to_vec() {
+                        let tpe = self.fully_defined(self.tpd.tpe(a))?;
+                        self.tpd.get_mut(a).tpe = Some(tpe);
+                    }
+                    t = fun;
+                }
+                _ => break,
+            }
+        }
+        self.define_tree(call, false)
+    }
+
+    /// Substitutes the instances of type variables in the types in `t`, instantiating the open
+    /// ones if `force`; outside the subset if one stays open.
+    fn define_tree(&mut self, t: TNodeId, force: bool) -> Result<(), &'static str> {
+        let closure = self.tpd.sym(t).filter(|s| self.syms.closure_syms.contains(s));
         if let Some(tpe) = self.tpd.get(t).tpe {
-            let tpe = self.fully_defined(tpe)?;
+            let tpe = self.defined_type(tpe, force)?;
             self.tpd.get_mut(t).tpe = Some(tpe);
         }
-        if let Some(s) = self.tpd.sym(t)
-            && self.syms.closure_syms.contains(&s)
-        {
+        if let Some(s) = closure {
             let info = self.u.info(s);
-            let info = self.fully_defined(info)?;
+            let info = self.defined_type(info, force)?;
             self.u.set_info(s, info);
         }
         for c in self.tpd.children(t) {
-            self.fully_define_tree(c)?;
+            self.define_tree(c, force)?;
         }
         Ok(())
     }
 
-    /// `t` with its uninstantiated type variables replaced by wildcards of their bounds (dotty's
-    /// `wildApprox`).
-    pub fn wild_approx(&mut self, t: TypeId) -> TypeId {
+    fn defined_type(&mut self, t: TypeId, force: bool) -> Result<TypeId, &'static str> {
+        if force {
+            return self.fully_defined(t);
+        }
         let t = self.zonk(t);
-        let constraint = &self.constraint;
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Var(v) = *u.types().get(part) else { return None };
-            let (lo, hi) = constraint.bounds(v);
-            let mut open = false;
-            for b in [lo, hi] {
-                u.map_type(b, &mut |u, x| {
-                    open |= matches!(u.types().get(x), Type::Var(_));
-                    None
-                });
-            }
-            let bounds = (!open).then(|| u.intern_type(Type::Bounds(lo, hi)));
-            Some(u.intern_type(Type::Wildcard(bounds)))
-        })
+        match self.is_fully_defined(t) {
+            true => Ok(t),
+            false => Err("type variable open at a transparent inline call"),
+        }
     }
 }

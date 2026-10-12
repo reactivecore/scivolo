@@ -21,10 +21,8 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
         let t = self.retype_node(t, args, owner)?;
-        match self.inline_method(t)? {
-            Some(def) => self.inline_call(t, def, owner),
-            None => Ok(t),
-        }
+        let Some(def) = self.inline_method(t)? else { return Ok(t) };
+        self.inline_call(t, def, owner)
     }
 
     fn retype_node(
@@ -110,9 +108,7 @@ impl Inlining<'_> {
                         c
                     }),
                 });
-                if let Some(e) = failed {
-                    return Err(e);
-                }
+                failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
             _ => Err((span, "inline body with a match, try or return")),
