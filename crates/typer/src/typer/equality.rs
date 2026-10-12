@@ -24,8 +24,13 @@ impl Typer<'_> {
             return Ok(());
         }
         let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return Err("comparison with this") };
+        let view = self.tpd.sym(self.tpd.meth_part(qualifier)).is_some_and(|s| {
+            let flags = self.u.symbol(s).flags;
+            flags.has(tasty::tags::IMPLICIT) || flags.has(tasty::tags::GIVEN)
+        });
         if matches!(*self.tpd.tree(qualifier), T::Apply { args, .. } if !self.tpd.items(args).is_empty())
             && self.tpd.span(qualifier).is_synthetic()
+            && view
         {
             return Err("comparison of a converted value");
         }

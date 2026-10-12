@@ -40,6 +40,7 @@ impl Typer<'_> {
         let orig = self.fully_defined(arg)?;
         let arg = self.u.dealias(orig);
         let class = match *self.u.types().get(arg) {
+            Type::Sym(_, s) if self.u.symbol(s).kind != Kind::Class => None,
             Type::Sym(..) | Type::TypeRef(..) => self.u.class_symbol(arg),
             _ => None,
         };
