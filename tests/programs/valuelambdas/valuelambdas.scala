@@ -9,6 +9,7 @@ class Meter(val v: Double) extends AnyVal:
 
 class Name(val s: String) extends AnyVal
 class Wrap[A](val a: A) extends AnyVal
+class Arr(val a: Array[Int]) extends AnyVal
 
 trait MySam[T]:
   def app(m: T): Any
@@ -76,3 +77,7 @@ object valuelambdas:
     println(Option(m).map(n => new M(n.x + 1)).map(_.x))
     println(List(new Name("a"), new Name("bb")).map(_.s).mkString(","))
     println(first(Option(new Wrap[Int](6))))
+    val af: Arr => Int = a => a.a.length
+    println(af(new Arr(Array(1, 2, 3))))
+    val an: Arr => Boolean = a => a.a == null
+    println(an(null.asInstanceOf[Arr]))
