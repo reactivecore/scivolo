@@ -121,7 +121,7 @@ fn contradictions_fail_and_either_rolls_back() {
     let option_x = t(&mut u, "scala.Option", &[tx]);
     let option_bool = t(&mut u, "scala.Option", &[boolean]);
     let option_int = t(&mut u, "scala.Option", &[int]);
-    let union = u.intern_type(Type::Or(option_bool, option_int));
+    let union = u.intern_type(Type::Or(option_bool, option_int, false));
     let mut vars = Bounds::default();
     vars.added.push((x, int, false));
     assert!(u.is_subtype_in(option_x, union, &mut vars));
@@ -140,7 +140,8 @@ fn variables_have_the_atoms_of_their_upper_bound() {
     let (one, two) = (int(&mut u, 1), int(&mut u, 2));
     let x = VarId(0);
     let tx = u.intern_type(Type::Var(x));
-    let (x_or_1, one_or_2) = (u.intern_type(Type::Or(tx, one)), u.intern_type(Type::Or(one, two)));
+    let (x_or_1, one_or_2) =
+        (u.intern_type(Type::Or(tx, one, false)), u.intern_type(Type::Or(one, two, false)));
     let mut vars = Bounds::default();
     vars.added.push((x, two, true));
     assert!(u.is_subtype_in(x_or_1, one_or_2, &mut vars));

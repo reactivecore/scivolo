@@ -9,14 +9,15 @@ impl Universe {
     /// The least upper bound of `a` and `b` by their atoms if both have known atoms and one
     /// contains the other or they are disjoint; `None` otherwise.
     pub fn atoms_lub(&mut self, a: TypeId, b: TypeId) -> Option<TypeId> {
-        Cmp::new(self, &mut NoVars).atoms_lub(a, b)
+        Cmp::new(self, &mut NoVars).atoms_lub(a, b, true)
     }
 }
 
 impl Cmp<'_> {
-    /// `b` if `a` may only have atoms `b` must have, `a` likewise, their union if they have no
-    /// atom in common; `None` if either's atoms are unknown or they overlap otherwise.
-    pub fn atoms_lub(&mut self, a: TypeId, b: TypeId) -> Option<TypeId> {
+    /// `b` if `a` may only have atoms `b` must have, `a` likewise, their union (soft if `soft`)
+    /// if they have no atom in common; `None` if either's atoms are unknown or they overlap
+    /// otherwise.
+    pub fn atoms_lub(&mut self, a: TypeId, b: TypeId, soft: bool) -> Option<TypeId> {
         let outer = std::mem::replace(&mut self.provisional, false);
         let (atoms_a, atoms_b) = (self.atoms(a), self.atoms(b));
         let fixed = !self.provisional;
@@ -32,7 +33,7 @@ impl Cmp<'_> {
         if !us.disjoint(&r1.hi, &r2.hi) {
             return None;
         }
-        let t = self.or_type(a, b);
+        let t = self.or_type(a, b, soft);
         let parts_kept = self.is_nothing(a) == Some(false) && self.is_nothing(b) == Some(false);
         if fixed && parts_kept && matches!(self.u.types().get(t), Type::Or(..)) {
             let atoms = self.joined(atoms_a, atoms_b, true);

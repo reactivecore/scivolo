@@ -126,7 +126,7 @@ impl Typer<'_> {
         let t = self.u.dealias(t);
         match *self.u.types().get(t) {
             Type::And(a, b) => [self.class_symbols(a), self.class_symbols(b)].concat(),
-            Type::Or(a, b) => {
+            Type::Or(a, b, _) => {
                 let right = self.class_symbols(b);
                 self.class_symbols(a).into_iter().filter(|c| right.contains(c)).collect()
             }

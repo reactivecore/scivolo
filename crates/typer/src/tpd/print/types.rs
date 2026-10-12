@@ -117,7 +117,7 @@ impl Printer<'_> {
             Type::Alias(a) => format!("= {}", self.tpe(a, n)),
             Type::Bounds(lo, hi) => format!(">: {} <: {}", self.tpe(lo, n), self.tpe(hi, n)),
             Type::And(a, b) => format!("({} & {})", self.tpe(a, n), self.tpe(b, n)),
-            Type::Or(a, b) => format!("({} | {})", self.tpe(a, n), self.tpe(b, n)),
+            Type::Or(a, b, _) => format!("({} | {})", self.tpe(a, n), self.tpe(b, n)),
             Type::Annotated(a, annot) => match self.u.class_symbol(annot) {
                 Some(c) => format!("{} @{}", self.tpe(a, n), full_name(self.u, c)),
                 None => self.tpe(a, n),

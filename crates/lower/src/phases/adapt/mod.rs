@@ -1,6 +1,7 @@
 //! Erasure's adaptation of a typed tree to its expected erased type: parameterless methods
 //! applied, values boxed, unboxed or cast.
 
+mod boxing;
 mod units;
 mod value;
 
@@ -164,6 +165,12 @@ pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
 /// `adapt` between erased types without value classes.
 fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId {
     let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
+    if matches!(from, Erased::Prim(_))
+        && reference(pt)
+        && let Some(arg) = boxing::removable_unbox_arg(l, t)
+    {
+        return arg;
+    }
     match (from, pt) {
         (Erased::Prim(c), pt) if reference(pt) => match l.defs.primitive(*c) {
             Some(p) => {

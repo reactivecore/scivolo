@@ -35,7 +35,7 @@ impl Universe {
             Type::Bounds(lo, hi) if lo == hi => self.show(*lo),
             Type::Bounds(lo, hi) => format!(">: {} <: {}", self.show(*lo), self.show(*hi)),
             Type::And(a, b) => format!("{} & {}", self.show(*a), self.show(*b)),
-            Type::Or(a, b) => format!("{} | {}", self.show(*a), self.show(*b)),
+            Type::Or(a, b, _) => format!("{} | {}", self.show(*a), self.show(*b)),
             Type::Annotated(u, _) => self.show(*u),
             Type::ByName(u) => format!("=> {}", self.show(*u)),
             Type::Refined(p, n, i) => format!("{} {{ {n}: {} }}", self.show(*p), self.show(*i)),

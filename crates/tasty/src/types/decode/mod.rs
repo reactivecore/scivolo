@@ -132,7 +132,7 @@ impl<'a> Decoder<'a> {
                 let tycon = self.ty(k[0]);
                 match (self.and_or(tycon), &args[..]) {
                     (Some(true), &[a, b]) => Type::And(a, b),
-                    (Some(false), &[a, b]) => Type::Or(a, b),
+                    (Some(false), &[a, b]) => Type::Or(a, b, false),
                     _ => Type::Applied(tycon, args),
                 }
             }
@@ -154,7 +154,7 @@ impl<'a> Decoder<'a> {
                 Type::Annotated(self.kid(id, 0), annotation)
             }
             ANDtype => Type::And(self.kid(id, 0), self.kid(id, 1)),
-            ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1)),
+            ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1), false),
             BYNAMEtype | BYNAMEtpt => Type::ByName(self.kid(id, 0)),
             REFINEDtype => Type::Refined(self.kid(id, 0), self.name(id), self.kid(id, 1)),
             MATCHtype => Type::Match(self.kid(id, 0)),

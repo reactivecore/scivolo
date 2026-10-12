@@ -127,7 +127,7 @@ impl Typer<'_> {
             Type::Poly { result, .. } | Type::ByName(result) | Type::Annotated(result, _) => {
                 go(self, result, v)
             }
-            Type::And(a, b) | Type::Or(a, b) => {
+            Type::And(a, b) | Type::Or(a, b, _) => {
                 go(self, a, v);
                 go(self, b, v);
             }

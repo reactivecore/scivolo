@@ -1,8 +1,16 @@
-//! The instance of a type variable from its lower bound (dotty's `widenInferred`): singletons
-//! widened unless singleton-bounded, module classes as their objects.
+//! The widening of inferred types (dotty's `widenInferred`): singletons widened unless
+//! singleton-bounded, soft unions joined or hard unions hardened, module classes as their objects.
 
 use super::Typer;
 use tasty::{Kind, Type, TypeId, TypeVars};
+
+/// The widenings `widen_inferred` applies (dotty's `Widen`): of singletons only, unions hardened,
+/// or also of soft unions to their joins.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Widen {
+    Singletons,
+    Unions,
+}
 
 impl Typer<'_> {
     pub fn is_singleton(&mut self, t: TypeId) -> bool {
@@ -13,134 +21,62 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with its singletons widened, also inside a union, whose parts then join if one
-    /// contains the others (dotty's `widenSingletons`).
-    pub fn widen_singleton(&mut self, t: TypeId) -> TypeId {
+    /// `inst` widened as an instance below `bound` (dotty's `widenInferred`); an error where the
+    /// join of a soft union is not known.
+    pub fn widen_inferred(
+        &mut self,
+        inst: TypeId,
+        bound: TypeId,
+        widen: Widen,
+    ) -> Result<TypeId, &'static str> {
+        if self.is_below_singleton(bound, 0) {
+            return Ok(inst);
+        }
+        let single = self.widen_single(inst, bound, widen == Widen::Unions);
+        let wide = match widen {
+            Widen::Unions => {
+                let union = self.widen_union(single)?;
+                if union == single {
+                    single
+                } else if self.is_transparent(union, false) {
+                    self.widen_single(single, bound, false)
+                } else if self.conforms(union, bound) {
+                    union
+                } else {
+                    single
+                }
+            }
+            Widen::Singletons => self.harden_unions(single),
+        };
+        let wide = self.without_transparent_traits(wide, bound);
+        Ok(self.module_ref(wide))
+    }
+
+    /// `t` with its singletons widened if the result conforms to `bound` (dotty's `widenSingle`).
+    fn widen_single(&mut self, t: TypeId, bound: TypeId, skip_soft_unions: bool) -> TypeId {
+        let widened = self.widen_singletons(t, skip_soft_unions);
+        if widened != t && self.conforms(widened, bound) { widened } else { t }
+    }
+
+    /// `t` with its singletons widened, also in intersections and, unless `skip_soft_unions`,
+    /// soft unions, whose parts then join if one contains the others (dotty's `widenSingletons`).
+    pub fn widen_singletons(&mut self, t: TypeId, skip_soft_unions: bool) -> TypeId {
         match self.u.types().get(t).clone() {
-            Type::Or(a, b) => {
-                let (a, b) = (self.widen_singleton(a), self.widen_singleton(b));
-                self.u.lub(a, b)
+            Type::Or(a, b, true) if !skip_soft_unions => {
+                let (wa, wb) = (self.widen_singletons(a, false), self.widen_singletons(b, false));
+                if (wa, wb) == (a, b) { t } else { self.u.lub(wa, wb) }
+            }
+            Type::And(a, b) => {
+                let (wa, wb) =
+                    (self.widen_singletons(a, skip_soft_unions), self.widen_singletons(b, skip_soft_unions));
+                if (wa, wb) == (a, b) { t } else { self.u.glb(wa, wb) }
             }
             _ if self.is_singleton(t) => {
-                let widened = self.u.widen(t);
-                let widened = match *self.u.types().get(widened) {
-                    Type::ByName(r) => r,
-                    _ => widened,
-                };
+                let widened = self.widened(t);
                 if self.is_singleton_bounded(widened) { t } else { widened }
             }
             _ => t,
         }
-    }
-
-    /// Soft union `t` without the operands that conform to another one, type variables
-    /// constrained to make them conform (dotty's `widenUnionWithoutNull` before the join, a `lub`
-    /// with `canConstrain`).
-    pub fn constraining_lub(&mut self, t: TypeId) -> TypeId {
-        let Type::Or(a, b) = *self.u.types().get(t) else { return t };
-        if self.is_fully_defined(t) {
-            return t;
-        }
-        let (a, b) = (self.constraining_lub(a), self.constraining_lub(b));
-        let (fa, fb) = (self.union_parts(a), self.union_parts(b));
-        let fb: Vec<TypeId> =
-            fb.into_iter().filter(|&x| !fa.iter().any(|&y| self.conforms_or_undo(x, y))).collect();
-        let fa: Vec<TypeId> =
-            fa.into_iter().filter(|&x| !fb.iter().any(|&y| self.conforms_or_undo(x, y))).collect();
-        let parts = [fa, fb].concat();
-        let first = parts[0];
-        parts[1..].iter().fold(first, |acc, &p| self.u.intern_type(Type::Or(acc, p)))
-    }
-
-    fn union_parts(&self, t: TypeId) -> Vec<TypeId> {
-        match *self.u.types().get(t) {
-            Type::Or(a, b) => [self.union_parts(a), self.union_parts(b)].concat(),
-            _ => vec![t],
-        }
-    }
-
-    /// Whether `a` conforms to `b`, the constraint unchanged if not.
-    fn conforms_or_undo(&mut self, a: TypeId, b: TypeId) -> bool {
-        let mark = self.constraint.mark();
-        let ok = self.conforms(a, b);
-        if !ok {
-            self.constraint.rollback(mark);
-        }
-        ok
-    }
-
-    /// `t` without transparent traits among its intersection parts, one at a time while the
-    /// result conforms to `bound`; `t` if each dropped trait contains the result (dotty's
-    /// `dropTransparentTraits`).
-    pub fn without_transparent_traits(&mut self, t: TypeId, bound: TypeId) -> TypeId {
-        let mark = self.constraint.mark();
-        let (mut kept, mut dropped) = (Vec::new(), Vec::new());
-        let mut current = t;
-        for _ in 0..32 {
-            let narrower = self.drop_one_transparent(current, &kept, &mut dropped);
-            if narrower == current {
-                break;
-            }
-            if self.conforms(narrower, bound) {
-                current = narrower;
-            } else {
-                kept.extend(dropped.pop());
-            }
-        }
-        if current == t || dropped.iter().all(|&d| self.u.is_subtype(current, d)) {
-            self.constraint.rollback(mark);
-            return t;
-        }
-        current
-    }
-
-    /// `t` with its first transparent trait not in `kept` replaced by `Any`, pushed to `dropped`.
-    fn drop_one_transparent(&mut self, t: TypeId, kept: &[TypeId], dropped: &mut Vec<TypeId>) -> TypeId {
-        if self.is_transparent_trait(t) && !kept.contains(&t) {
-            dropped.push(t);
-            return tasty::ANY;
-        }
-        let Type::And(a, b) = *self.u.types().get(t) else { return t };
-        let a2 = self.drop_one_transparent(a, kept, dropped);
-        if a2 != a {
-            return self.u.glb(a2, b);
-        }
-        let b2 = self.drop_one_transparent(b, kept, dropped);
-        if b2 != b { self.u.glb(a, b2) } else { t }
-    }
-
-    /// Whether `t` is a transparent trait (dotty's `isTransparent(traitOnly = true)`).
-    fn is_transparent_trait(&mut self, t: TypeId) -> bool {
-        self.is_transparent(t, true)
-    }
-
-    /// Whether `t` is a transparent class or trait, or an intersection of them (dotty's
-    /// `isTransparent`); `Any`, `Matchable` and `Object` count unless `trait_only`.
-    pub fn is_transparent(&mut self, t: TypeId, trait_only: bool) -> bool {
-        let tycon = match *self.u.types().get(t) {
-            Type::And(a, b) => {
-                return self.is_transparent(a, trait_only) && self.is_transparent(b, trait_only);
-            }
-            Type::Applied(c, _) => c,
-            _ => t,
-        };
-        let c = match *self.u.types().get(tycon) {
-            Type::Sym(_, c) => c,
-            Type::TypeRef(..) => match self.u.class_symbol(tycon) {
-                Some(c) => c,
-                None => return false,
-            },
-            _ => return false,
-        };
-        let b = self.u.builtins();
-        if !trait_only && (c == b.any || c == b.matchable || c == b.object) {
-            return true;
-        }
-        let s = self.u.symbol(c);
-        let assumed = matches!(self.u.full_name(c).as_str(), "java.lang.Comparable" | "java.io.Serializable");
-        s.kind == Kind::Class
-            && (!trait_only || s.flags.has(tasty::tags::TRAIT))
-            && (s.flags.has(tasty::tags::TRANSPARENT) || assumed)
     }
 
     /// Whether `t` is an abstract type or type parameter with a singleton upper bound.
@@ -153,6 +89,34 @@ impl Typer<'_> {
         let info = self.u.info(s);
         match *self.u.types().get(info) {
             Type::Bounds(_, hi) => self.is_singleton(hi),
+            _ => false,
+        }
+    }
+
+    /// Whether `t` is a singleton, `Singleton`, or an abstract type or intersection below one
+    /// (dotty's `isSingletonBounded`), looking `depth` bounds deep at most 16.
+    fn is_below_singleton(&mut self, t: TypeId, depth: u32) -> bool {
+        if self.is_singleton(t) {
+            return true;
+        }
+        if depth > 16 {
+            return false;
+        }
+        match *self.u.types().get(t) {
+            Type::And(a, b) => self.is_below_singleton(a, depth + 1) || self.is_below_singleton(b, depth + 1),
+            Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type) => {
+                self.complete(s);
+                let info = self.u.info(s);
+                match *self.u.types().get(info) {
+                    Type::Bounds(_, hi) | Type::Alias(hi) => self.is_below_singleton(hi, depth + 1),
+                    _ => false,
+                }
+            }
+            Type::Var(v) => {
+                let next = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
+                self.is_below_singleton(next, depth + 1)
+            }
+            Type::Sym(_, c) => self.u.full_name(c) == "scala.Singleton",
             _ => false,
         }
     }

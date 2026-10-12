@@ -70,13 +70,6 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether types `a` and `b` are different numeric classes, which dotty's `harmonize` widens.
-    pub fn needs_harmonizing(&mut self, a: TypeId, b: TypeId) -> bool {
-        let (ca, cb) = (self.value_class(a), self.value_class(b));
-        let numeric = |c: &Option<String>| c.as_deref().is_some_and(super::widening::is_numeric);
-        numeric(&ca) && numeric(&cb) && ca != cb
-    }
-
     pub fn typed_while(&mut self, id: NodeId, cond: NodeId, body: NodeId, ctx: Ctx) -> TNodeId {
         let boolean = self.boolean();
         let cond = self.typed(cond, Pt::Type(boolean), ctx);

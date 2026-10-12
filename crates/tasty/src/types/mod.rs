@@ -46,7 +46,9 @@ pub enum Type {
     Alias(TypeId),
     Bounds(TypeId, TypeId),
     And(TypeId, TypeId),
-    Or(TypeId, TypeId),
+    /// A union, soft if the typer formed it as a least upper bound (widened when inferred), hard
+    /// if written or read from TASTy.
+    Or(TypeId, TypeId, bool),
     /// A type and the class type of its annotation.
     Annotated(TypeId, TypeId),
     ByName(TypeId),

@@ -29,7 +29,7 @@ impl Cmp<'_> {
                 _ => self.second_try(a, b),
             },
             Type::And(x, y) => self.recur(a, x) && self.recur(a, y),
-            Type::Or(x, y) if x == y => self.recur(a, x),
+            Type::Or(x, y, _) if x == y => self.recur(a, x),
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => self.compare_named(a, b),
             _ => self.second_try(a, b),
         }
@@ -85,7 +85,7 @@ impl Cmp<'_> {
                 _ => true,
             },
             Type::And(x, y) if x == y => self.recur(x, b),
-            Type::Or(x, y) => match self.compare_atoms(a, b, false) {
+            Type::Or(x, y, _) => match self.compare_atoms(a, b, false) {
                 Some(decided) => decided,
                 None => self.recur(x, b) && self.recur(y, b),
             },

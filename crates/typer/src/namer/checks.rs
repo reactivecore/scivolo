@@ -145,7 +145,7 @@ impl Typer<'_> {
                 let info = self.u.info(s);
                 self.reaches(info, target, depth + 1)
             }
-            Type::Bounds(a, b) | Type::And(a, b) | Type::Or(a, b) => {
+            Type::Bounds(a, b) | Type::And(a, b) | Type::Or(a, b, _) => {
                 self.reaches(a, target, depth + 1) || self.reaches(b, target, depth + 1)
             }
             Type::Alias(a) | Type::Applied(a, _) => self.reaches(a, target, depth + 1),

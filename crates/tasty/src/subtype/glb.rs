@@ -1,5 +1,6 @@
 //! Greatest lower bounds of ground types (dotty's `glb`).
 
+use super::hk::Connective;
 use super::{Cmp, NoVars};
 use crate::types::{Type, TypeId};
 use crate::{NOTHING, Universe};
@@ -31,13 +32,13 @@ impl Cmp<'_> {
             _ => {}
         }
         match (self.u.types().get(a).clone(), self.u.types().get(b).clone()) {
-            (_, Type::Or(l, r)) => {
+            (_, Type::Or(l, r, soft)) => {
                 let (al, ar) = (self.glb(a, l), self.glb(a, r));
-                self.lub(al, ar)
+                self.lub_as(al, ar, soft)
             }
-            (Type::Or(l, r), _) => {
+            (Type::Or(l, r, soft), _) => {
                 let (lb, rb) = (self.glb(l, b), self.glb(r, b));
-                self.lub(lb, rb)
+                self.lub_as(lb, rb, soft)
             }
             (Type::Constant(..) | Type::Str(_), Type::Constant(..) | Type::Str(_)) => NOTHING,
             _ => self.and_type(a, b),
@@ -82,7 +83,7 @@ impl Cmp<'_> {
                 let both = self.glb(x, y);
                 self.u.intern_type(Type::ByName(both))
             }
-            _ => self.lift_if_constructors(a, b, true),
+            _ => self.lift_if_constructors(a, b, Connective::And),
         }
     }
 

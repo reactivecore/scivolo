@@ -36,7 +36,7 @@ impl Cmp<'_> {
             Type::Constant(..) | Type::Str(_) | Type::This(_) | Type::Package(_) | Type::NoPrefix => {
                 Some(false)
             }
-            Type::Or(x, y) => match self.nothing_at(x, depth) {
+            Type::Or(x, y, _) => match self.nothing_at(x, depth) {
                 Some(false) => Some(false),
                 nx => match (nx, self.nothing_at(y, depth)) {
                     (_, Some(false)) => Some(false),

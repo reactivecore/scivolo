@@ -4,7 +4,7 @@
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::deskolemize::deskolemized;
-use crate::typer::{InlineDef, Pt, Typer};
+use crate::typer::{InlineDef, Pt, Typer, Widen};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -56,7 +56,7 @@ impl Typer<'_> {
 
     /// The type of definition `sym`: its type tree's, else its right-hand side's, widened.
     fn result_type(&mut self, sym: SymbolId, tpt: NodeId, rhs: Option<NodeId>, ctx: Ctx) -> TypeId {
-        if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+        if !self.is_inferred_tpt(tpt) {
             return self.value_type_ahead(tpt, ctx);
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
@@ -88,13 +88,16 @@ impl Typer<'_> {
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified(widened);
-                let mut widened = self.without_transparent_traits(widened, tasty::ANY);
-                if matches!(self.u.types().get(widened), Type::Or(..)) {
-                    widened = self.widen_singleton(widened);
+                if self.keeps_rhs_type(sym)
+                    && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
+                {
+                    return widened;
                 }
-                if matches!(self.u.types().get(widened), Type::Or(..)) {
-                    self.unsupported(rhs, "union widening");
-                }
+                let bound = inherited.or(default).or(approx).unwrap_or(tasty::ANY);
+                let widened = self.widen_inferred(widened, bound, Widen::Unions).unwrap_or_else(|what| {
+                    self.unsupported(rhs, what);
+                    widened
+                });
                 deskolemized(self.u, widened, 1).unwrap_or_else(|| {
                     self.unsupported(rhs, "skolem in an inferred type");
                     widened
@@ -131,7 +134,7 @@ impl Typer<'_> {
                 self.u.intern_type(Type::Applied(class_ref, args))
             }
         } else {
-            if !matches!(self.ast.tree(tpt), Tree::TypeTree) {
+            if !self.is_inferred_tpt(tpt) {
                 self.syms.declared_results.insert(sym);
             }
             self.result_type(sym, tpt, rhs, mctx)

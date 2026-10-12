@@ -14,13 +14,20 @@ const ETA: u32 = u32::MAX - 2;
 const ADAPTED: u32 = u32::MAX - 3;
 const LIFTED: u32 = u32::MAX - 4;
 
+/// `&`, or `|` making a soft union if `.0`.
+#[derive(Clone, Copy, PartialEq)]
+pub enum Connective {
+    And,
+    Or(bool),
+}
+
 impl Cmp<'_> {
-    /// `a & b`, or `a | b` unless `and`; for two constructors of as many parameters, a type
-    /// lambda of that of their applications (dotty's `liftIfHK`).
-    pub fn lift_if_constructors(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
+    /// `a` and `b` combined by `op`; for two constructors of as many parameters, a type lambda
+    /// of that of their applications (dotty's `liftIfHK`).
+    pub fn lift_if_constructors(&mut self, a: TypeId, b: TypeId, op: Connective) -> TypeId {
         let combined = match (self.constructor_arity(a), self.constructor_arity(b)) {
             (Some(n), Some(m)) if n == m => n,
-            _ => return self.balanced(a, b, and),
+            _ => return self.balanced(a, b, op),
         };
         let binder = Binder(FileId(LIFTED), a.0.wrapping_mul(0x9e37_79b9) ^ b.0);
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
@@ -28,15 +35,18 @@ impl Cmp<'_> {
         let refs: Vec<TypeId> =
             (0..combined as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
         let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
-        let result = if and { self.glb(applied_a, applied_b) } else { self.lub(applied_a, applied_b) };
+        let result = match op {
+            Connective::And => self.glb(applied_a, applied_b),
+            Connective::Or(soft) => self.lub_as(applied_a, applied_b, soft),
+        };
         self.u.intern_type(Type::Lambda { binder, params, result })
     }
 
-    /// `a & b`, or `a | b` if not `and`, rebalanced if one side has more than one part more
-    /// than the other (dotty's `AndType.balanced`, `OrType.balanced`).
-    fn balanced(&mut self, a: TypeId, b: TypeId, and: bool) -> TypeId {
-        if !and {
-            return self.u.union(a, b);
+    /// `a` and `b` combined by `op`, rebalanced if one side has more than one part more than
+    /// the other (dotty's `AndType.balanced`, `OrType.balanced`).
+    fn balanced(&mut self, a: TypeId, b: TypeId, op: Connective) -> TypeId {
+        if let Connective::Or(soft) = op {
+            return self.u.union(a, b, soft);
         }
         let mut parts = Vec::new();
         self.flattened(a, &mut parts);
@@ -50,10 +60,7 @@ impl Cmp<'_> {
 
     fn flattened(&self, t: TypeId, out: &mut Vec<TypeId>) {
         match *self.u.types().get(t) {
-            Type::And(x, y) => {
-                self.flattened(x, out);
-                self.flattened(y, out);
-            }
+            Type::And(x, y) => [x, y].into_iter().for_each(|p| self.flattened(p, out)),
             _ => out.push(t),
         }
     }

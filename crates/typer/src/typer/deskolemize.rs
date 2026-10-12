@@ -47,9 +47,9 @@ pub fn deskolemized(u: &mut Universe, t: TypeId, v: i8) -> Option<TypeId> {
             let (a, b) = (deskolemized(u, a, v)?, deskolemized(u, b, v)?);
             u.intern_type(Type::And(a, b))
         }
-        Type::Or(a, b) => {
+        Type::Or(a, b, soft) => {
             let (a, b) = (deskolemized(u, a, v)?, deskolemized(u, b, v)?);
-            u.intern_type(Type::Or(a, b))
+            u.intern_type(Type::Or(a, b, soft))
         }
         _ => return None,
     })

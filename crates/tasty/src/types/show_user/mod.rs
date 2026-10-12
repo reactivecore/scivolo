@@ -104,7 +104,7 @@ impl<'u> Printer<'u> {
             Type::Applied(c, args) => self.applied(c, &args, prec),
             Type::Alias(_) | Type::Bounds(..) => self.rhs(t),
             Type::And(a, b) => self.infix("&", a, b, prec),
-            Type::Or(a, b) => self.infix("|", a, b, prec),
+            Type::Or(a, b, _) => self.infix("|", a, b, prec),
             Type::Annotated(inner, annot) => self.annotated(inner, annot, prec),
             Type::ByName(r) => paren(GLOBAL, prec, format!("=> {}", self.text(r, GLOBAL))),
             Type::Refined(..) => self.refined(t, prec),

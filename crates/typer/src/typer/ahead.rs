@@ -34,4 +34,9 @@ impl Typer<'_> {
         }
         Some(t)
     }
+
+    /// Whether type tree `tpt` is left to inference: empty, and not standing for a typed tree.
+    pub fn is_inferred_tpt(&self, tpt: NodeId) -> bool {
+        matches!(self.ast.tree(tpt), syntax::ast::Tree::TypeTree) && !self.splices.contains_key(&tpt)
+    }
 }

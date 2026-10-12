@@ -9,9 +9,7 @@ struct Entry {
     lo: TypeId,
     hi: TypeId,
     instance: Option<TypeId>,
-    /// Whether `lo` joins several lower bounds (dotty's soft union).
-    soft: bool,
-    /// Whether a union was added as a lower bound (dotty's hard variable).
+    /// Whether a hard union was added as a lower bound (dotty's hard variable).
     hard: bool,
 }
 
@@ -33,7 +31,7 @@ const MAX_CHECKS: u32 = 8;
 impl Constraint {
     /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
-        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, soft: false, hard: false });
+        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false });
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
 
@@ -49,18 +47,16 @@ impl Constraint {
         self.vars[i].instance = Some(t);
     }
 
-    fn set(&mut self, v: VarId, lo: TypeId, hi: TypeId, soft: bool) {
+    fn set(&mut self, v: VarId, lo: TypeId, hi: TypeId) {
         let i = v.0 as usize;
         self.log.push((i, self.vars[i]));
         self.vars[i].lo = lo;
         self.vars[i].hi = hi;
-        self.vars[i].soft = soft;
     }
 
-    /// Whether the lower bound of `v` joins several lower bounds, none of them a union.
-    pub fn soft_lower(&self, v: VarId) -> bool {
-        let e = self.vars[v.0 as usize];
-        e.soft && !e.hard
+    /// Whether `v` keeps the unions of its lower bound when instantiated (dotty's `isHard`).
+    pub fn is_hard(&self, v: VarId) -> bool {
+        self.vars[v.0 as usize].hard
     }
 
     /// Adds bound `t` to variable `w` that bounds another variable, a lower bound if `lower`
@@ -101,17 +97,16 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
-        let widened = u.widen(lo);
-        let incoming_union = matches!(u.types().get(widened), Type::Or(..));
-        let (lo, unchecked, soft) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
-            (joined, lo, e.soft || joined != e.lo && joined != lo)
+        let incoming_union = matches!(u.types().get(lo), Type::Or(_, _, false));
+        let (lo, unchecked) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
+            (joined, lo)
         } else if u.is_subtype(lo, e.lo) {
-            (e.lo, e.lo, e.soft)
+            (e.lo, e.lo)
         } else if u.is_subtype(e.lo, lo) {
-            (lo, lo, false)
+            (lo, lo)
         } else {
             let lub = u.lub(e.lo, lo);
-            (lub, lub, true)
+            (lub, lub)
         };
         if let Type::Var(w) = *u.types().get(e.hi)
             && !self.propagated(u, w, lo, true)
@@ -121,7 +116,7 @@ impl TypeVars for Constraint {
         if e.hi != ANY && !self.satisfiable(u, unchecked, e.hi) {
             return false;
         }
-        self.set(v, lo, e.hi, soft);
+        self.set(v, lo, e.hi);
         if incoming_union && !self.propagating {
             self.vars[v.0 as usize].hard = true;
         }
@@ -150,7 +145,7 @@ impl TypeVars for Constraint {
         if !self.satisfiable(u, e.lo, hi) {
             return false;
         }
-        self.set(v, e.lo, hi, e.soft);
+        self.set(v, e.lo, hi);
         true
     }
 

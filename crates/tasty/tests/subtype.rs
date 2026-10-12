@@ -44,7 +44,7 @@ impl Parser<'_> {
         loop {
             if self.eat(" | ") {
                 let r = self.simple(u);
-                t = u.intern_type(Type::Or(t, r));
+                t = u.intern_type(Type::Or(t, r, false));
             } else if self.eat(" & ") {
                 let r = self.simple(u);
                 t = u.intern_type(Type::And(t, r));
@@ -203,7 +203,7 @@ fn paths_to_one_value_are_one_atom() {
         assert!(u.is_subtype(a, tb), "{} <: {b}", u.show(a));
     }
     let one = parse(&mut u, "1");
-    let union = u.intern_type(Type::Or(none_sym, one));
+    let union = u.intern_type(Type::Or(none_sym, one, false));
     assert!(u.is_subtype(none_ref, union));
     assert!(!u.is_subtype(o_this, union));
 }
@@ -226,7 +226,7 @@ fn module_classes_and_this_of_objects_have_the_object_as_atom() {
     let c_this = u.intern_type(Type::This(c_ref));
     let o_ref = u.intern_type(Type::Sym(Some(c_this), o));
     let (one, a_or_1) = (parse(&mut u, "1"), parse(&mut u, "oracle.a.type | 1"));
-    let o_or_1 = u.intern_type(Type::Or(o_ref, one));
+    let o_or_1 = u.intern_type(Type::Or(o_ref, one, false));
     let o_this = u.intern_type(Type::This(o_class_ref));
     assert!(u.is_subtype(o_this, o_or_1));
     assert!(!u.is_subtype(o_this, a_or_1));
@@ -241,7 +241,7 @@ fn stable_methods_are_atoms() {
     u.enter(d);
     let (package, one) = (u.intern_type(Type::Package(root)), parse(&mut u, "1"));
     let d_ref = u.intern_type(Type::TermRef(package, "d".into()));
-    let d_or_1 = u.intern_type(Type::Or(d_ref, one));
+    let d_or_1 = u.intern_type(Type::Or(d_ref, one, false));
     let d_sym = u.intern_type(Type::Sym(None, d));
     assert!(u.is_subtype(d_sym, d_or_1));
 }
@@ -251,17 +251,17 @@ fn unions_with_unresolved_parts_compare_by_their_parts() {
     let Some(mut u) = universe() else { return };
     let missing = named_type(&mut u, "oracle.Missing");
     let one = parse(&mut u, "1");
-    let missing_or_1 = u.intern_type(Type::Or(missing, one));
+    let missing_or_1 = u.intern_type(Type::Or(missing, one, false));
     assert!(u.is_subtype(missing, missing_or_1));
     let (zero, one_or_2) = (parse(&mut u, "0"), parse(&mut u, "1 | 2"));
-    let missing_or_0 = u.intern_type(Type::Or(missing, zero));
+    let missing_or_0 = u.intern_type(Type::Or(missing, zero, false));
     assert!(!u.is_subtype(missing_or_0, one_or_2));
 }
 
 /// A union of integer constants, its parts parenthesized.
 fn shape(u: &Universe, t: TypeId) -> String {
     match *u.types().get(t) {
-        Type::Or(x, y) => format!("({}|{})", shape(u, x), shape(u, y)),
+        Type::Or(x, y, _) => format!("({}|{})", shape(u, x), shape(u, y)),
         Type::Constant(_, n) => n.to_string(),
         _ => panic!("{} is not a union of constants", u.show(t)),
     }
@@ -291,6 +291,31 @@ fn unions_of_constants_grow_balanced_as_in_dotc() {
     }
 }
 
+#[test]
+fn soft_and_hard_unions_are_distinct_but_equivalent() {
+    let Some(mut u) = universe() else { return };
+    let (one, two) = (parse(&mut u, "1"), parse(&mut u, "2"));
+    let (soft, hard) = (u.lub(one, two), u.lub_as(one, two, false));
+    assert_ne!(soft, hard);
+    assert!(matches!(u.types().get(soft), Type::Or(_, _, true)));
+    assert!(matches!(u.types().get(hard), Type::Or(_, _, false)));
+    assert!(u.is_subtype(soft, hard) && u.is_subtype(hard, soft));
+}
+
+#[test]
+fn balancing_keeps_a_union_of_the_other_softness_whole() {
+    let Some(mut u) = universe() else { return };
+    let [one, two, three, four] = ["1", "2", "3", "4"].map(|s| parse(&mut u, s));
+    let hard = u.lub_as(one, two, false);
+    let hard = u.lub_as(hard, three, false);
+    let kept = u.union(hard, four, true);
+    assert_eq!(*u.types().get(kept), Type::Or(hard, four, true));
+    let soft = u.lub(one, two);
+    let soft = u.lub(soft, three);
+    let balanced = u.union(soft, four, true);
+    assert_eq!(shape(&u, balanced), "((1|2)|(3|4))");
+}
+
 fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeId) -> SymbolId {
     let flags = Flags::default();
     let (target, tree, decls) = (None, None, Vec::new());
@@ -314,7 +339,7 @@ fn bounds_locals_and_this_as_atoms() {
     let Some(mut u) = universe() else { return };
     let (root, int, one) = (u.root(), parse(&mut u, "scala.Int"), parse(&mut u, "1"));
     let sym = |u: &mut Universe, prefix, s| u.intern_type(Type::Sym(prefix, s));
-    let or = |u: &mut Universe, a, b| u.intern_type(Type::Or(a, b));
+    let or = |u: &mut Universe, a, b| u.intern_type(Type::Or(a, b, false));
     let a = parse(&mut u, "oracle.a.type");
     let below_a = u.intern_type(Type::Bounds(NOTHING, a));
     let t = define(&mut u, "T", Kind::Type, root, below_a);
@@ -354,7 +379,7 @@ fn union_parts_with_class_symbol_nothing_have_no_atoms() {
     let root = u.root();
     let (one, one_or_2) = (parse(&mut u, "1"), parse(&mut u, "1 | 2"));
     let sym = |u: &mut Universe, s| u.intern_type(Type::Sym(None, s));
-    let or_1 = |u: &mut Universe, a| u.intern_type(Type::Or(a, one));
+    let or_1 = |u: &mut Universe, a| u.intern_type(Type::Or(a, one, false));
     let (below_nothing, unbounded) =
         (u.intern_type(Type::Bounds(NOTHING, NOTHING)), u.intern_type(Type::Bounds(NOTHING, ANY)));
     let (s, x) = (
@@ -386,7 +411,8 @@ fn bound_dag(u: &mut Universe, levels: usize) -> TypeId {
         let bounds = u.intern_type(Type::Bounds(NOTHING, bound));
         let s = define(u, &format!("T{k}"), Kind::Type, root, bounds);
         t = u.intern_type(Type::Sym(None, s));
-        let (left, right) = (u.intern_type(Type::Or(t, one)), u.intern_type(Type::Or(t, three)));
+        let (left, right) =
+            (u.intern_type(Type::Or(t, one, false)), u.intern_type(Type::Or(t, three, false)));
         bound = u.intern_type(Type::And(left, right));
     }
     t
@@ -411,7 +437,7 @@ fn comparisons_of_a_dag_of_bounds_take_one_step_per_pair() {
     assert!(!u.is_subtype(t, one));
     assert!(!u.is_subtype(t, three));
     assert!(!u.is_subtype(t, string));
-    let one_or_t = u.intern_type(Type::Or(one, t));
+    let one_or_t = u.intern_type(Type::Or(one, t, false));
     assert!(!u.is_subtype(one_or_t, three));
     u.lub(t, one);
     u.glb(t, one_or_3);

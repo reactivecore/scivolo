@@ -38,9 +38,7 @@ impl Typer<'_> {
         }
         let at = |s: Span| Span::synthetic(s.start(), s.start());
         let declared = params.iter().any(|&q| match *self.ast.tree(q) {
-            Tree::ValDef { tpt, .. } => {
-                !matches!(self.ast.tree(tpt), Tree::TypeTree) || self.splices.contains_key(&tpt)
-            }
+            Tree::ValDef { tpt, .. } => !self.is_inferred_tpt(tpt),
             _ => true,
         });
         if declared || !self.is_fully_defined(formal) {

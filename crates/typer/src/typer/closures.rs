@@ -2,7 +2,7 @@
 //! method and a `Closure` of it in a block, its parameter types from the declarations or the
 //! expected function or single abstract method type.
 
-use super::{Pt, Typer};
+use super::{Pt, Typer, Widen};
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
@@ -94,14 +94,17 @@ impl Typer<'_> {
             None => {
                 let t = self.tpd.tpe(body);
                 let t = self.fully_defined(t).unwrap_or(t);
-                self.widen_singleton(t)
+                self.widen_inferred(t, tasty::ANY, Widen::Unions).unwrap_or_else(|what| {
+                    self.unsupported_at(self.tpd.span(body), what);
+                    t
+                })
             }
         };
         let mut dependent = false;
         let body_tpe = self.tpd.tpe(body);
         for t in [result, body_tpe] {
             let t = self.zonk(t);
-            let t = self.widen_singleton(t);
+            let t = self.widen_singletons(t, false);
             self.u.map_type(t, &mut |u, part| {
                 dependent |= matches!(*u.types().get(part), Type::Sym(_, s) if params_syms.contains(&s));
                 None

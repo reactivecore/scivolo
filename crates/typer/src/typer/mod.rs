@@ -41,6 +41,7 @@ mod features;
 mod find_ref;
 mod function_types;
 mod generic_arrays;
+mod harmonize;
 mod idents;
 mod implicit_views;
 mod implicits;
@@ -90,6 +91,7 @@ mod supers;
 mod this;
 mod this_calls;
 mod transparent;
+mod transparent_traits;
 mod tries;
 pub(crate) mod type_apply;
 mod type_defs;
@@ -104,6 +106,7 @@ mod untupled;
 mod variances;
 mod views;
 mod widen_inferred;
+mod widen_union;
 mod widening;
 mod wild_approx;
 
@@ -121,6 +124,7 @@ use tasty::{Kind, SymbolId, Universe};
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
 pub use transparent::InlineDef;
+pub use widen_inferred::Widen;
 
 pub struct Typer<'a> {
     pub u: &'a mut Universe,

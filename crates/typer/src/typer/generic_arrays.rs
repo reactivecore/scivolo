@@ -64,7 +64,7 @@ impl Typer<'_> {
             }
             Type::Sym(_, s) if self.u.is_type_symbol(s) => self.u.symbol(s).kind != Kind::Class,
             Type::Param(..) | Type::Local(..) => true,
-            Type::And(a, b) | Type::Or(a, b) => self.is_generic(a, depth) || self.is_generic(b, depth),
+            Type::And(a, b) | Type::Or(a, b, _) => self.is_generic(a, depth) || self.is_generic(b, depth),
             Type::Annotated(a, _) => self.is_generic(a, depth),
             Type::Applied(tycon, _) => match *self.u.types().get(tycon) {
                 Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
