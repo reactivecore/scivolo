@@ -52,6 +52,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             stats.push(stat);
             continue;
         }
+        if is_eager_module(l, accessor) {
+            stats.extend(eager_module(l, accessor, stat, rhs));
+            continue;
+        }
         let info = l.u.info(accessor);
         let lazy = define(l, class, accessor);
         let object = object(l);
@@ -110,14 +114,47 @@ pub fn define_members(l: &mut Lower, class: SymbolId, accessor: SymbolId, rhs: T
 }
 
 /// Names the field `x$lzyN` and the method `x$lzyINITN` of lazy value `accessor` of a class, in
-/// that order.
+/// that order, the field only for an eager object.
 pub fn name_members(l: &mut Lower, accessor: SymbolId) {
     let name = l.u.symbol(accessor).name.clone();
     let members = l.lazy_members[&accessor];
     let field_name = fresh(l, &format!("{name}$lzy"));
     l.u.rename(members.field, &field_name);
+    if is_eager_module(l, accessor) {
+        return;
+    }
     let init_name = fresh(l, &format!("{name}$lzyINIT"));
     l.u.rename(members.init, &init_name);
+}
+
+/// Whether `accessor` is the value of a synthetic object of a class that it does not take from a
+/// trait, which dotty's `transformSyntheticModule` makes a field set in the constructor.
+fn is_eager_module(l: &Lower, accessor: SymbolId) -> bool {
+    let class = l.u.symbol(accessor).owner.filter(|&o| l.u.is_class(o) && !l.u.is_trait(o));
+    class.is_some()
+        && l.u.is_module(accessor)
+        && has(l.u, accessor, SYNTHETIC)
+        && !l.mixed_in.contains(&accessor)
+}
+
+/// The field `x$lzyN` of eager object `accessor` of definition `stat`, initialized with `rhs`,
+/// and `stat` reading it.
+fn eager_module(l: &mut Lower, accessor: SymbolId, stat: TNodeId, rhs: TNodeId) -> [TNodeId; 2] {
+    let field = l.lazy_members[&accessor].field;
+    let info = l.u.info(accessor);
+    let tpe = l.u.result_type(info);
+    l.u.set_info(field, tpe);
+    l.u.set_flags(field, Flags::default().with(SYNTHETIC));
+    l.u.enter(field);
+    l.fields.insert(field, field);
+    let at = l.tpd.span(stat).start_pos();
+    let tpt = l.type_tree(tpe, Span::NONE);
+    let def = l.build().val_def(field, tpt, Some(rhs), Span::NONE);
+    let read = l.field_ref(field, at);
+    let Tree::DefDef { name, paramss, tpt, .. } = l.tpd.tree(stat).clone() else { unreachable!("a getter") };
+    let node = l.tpd.get_mut(stat);
+    (node.tree, node.span) = (Tree::DefDef { name, paramss, tpt, rhs: Some(read) }, at);
+    [def, stat]
 }
 
 /// The lazy value `accessor` of `class` with its field entered.

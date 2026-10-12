@@ -1,8 +1,10 @@
 //! The outer arguments of dotty's `ExplicitOuter`: `new p.C(args)` of a class `C` taking its
 //! enclosing instance becomes `new p.C(p, args)`, `this` for a prefix `Outer.this`.
 
-use super::explicit_outer::{enclosing_instance, terms};
-use super::local_free::{enclosing_class, is_term};
+use super::explicit_outer::{enclosing_instance, outer_chain, terms};
+use super::local_free::{enclosing_class, is_term, within};
+use crate::definitions::type_ref;
+use crate::symbols::{is_static, is_static_module};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -43,9 +45,18 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         let owner = l.u.symbol(created).owner.filter(|&o| is_term(l, o));
         let instance = match owner.map(|o| enclosing_class(l, o)) {
             Some(outer) if outer == class => l.this(class, at),
+            Some(outer) if outer_chain(l, class, outer).is_some() => l.this(outer, Span::NONE),
             Some(_) => return unsupported(span, "creating a local class from another class"),
             None => instance(l, class, tpe, at)?,
         };
+        if matches!(l.tpd.tree(instance), Tree::This { .. }) && l.tpd.sym(instance) != Some(class) {
+            let end = Span::at(l.tpd.span(fun).end());
+            let qual = match *l.tpd.tree(instance) {
+                Tree::This { qual } => qual,
+                _ => unreachable!("a `this`"),
+            };
+            (l.tpd.get_mut(instance).span, l.tpd.get_mut(qual).span) = (end, end);
+        }
         let all: Vec<TNodeId> = std::iter::once(instance).chain(l.tpd.items(args).iter().copied()).collect();
         let args = l.tpd.list(&all);
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
@@ -63,19 +74,37 @@ fn instance(l: &mut Lower, class: SymbolId, tpe: TypeId, span: Span) -> Result<T
     path(l, class, prefix, span)
 }
 
-/// Stable path `p` as a tree in `class`: `this` of `class`, also for the object `class` is the
-/// class of (dotty's `ref` of a module seen from inside it), a local value or parameter, or a
-/// value or object selected on `this` of `class` or on such a path.
+/// Stable path `p` as a tree in `class` (dotty's `fixThis`): `this` of `class`, also for the
+/// object `class` is the class of (dotty's `ref` of a module seen from inside it), of a static
+/// object or of a class whose instance `class` reaches through enclosing instances, an object
+/// seen from outside it through its value, a local value or parameter, or a value or object
+/// selected on such a path.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
     let refused = "creating an inner class through this prefix";
     match l.u.types().get(p).clone() {
-        Type::This(c) if l.u.class_symbol(c) == Some(class) => Ok(l.this(class, Span::NONE)),
+        Type::This(c) => {
+            let Some(c) = l.u.class_symbol(c) else { return unsupported(span, refused) };
+            let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
+            match module.filter(|_| !within(l, class, c)) {
+                _ if c == class || is_static_module(l.u, c) => Ok(l.this(c, Span::NONE)),
+                Some(m) if is_static(l.u, m) => Ok(l.ident(m, span)),
+                Some(m) => {
+                    let owner = l.u.symbol(c).owner.expect("an object's owner");
+                    let owner = type_ref(l.u, owner);
+                    let this = l.u.intern_type(Type::This(owner));
+                    let qualifier = path(l, class, this, span)?;
+                    Ok(l.select(qualifier, m, span))
+                }
+                None if outer_chain(l, class, c).is_some() => Ok(l.this(c, Span::NONE)),
+                None => unsupported(span, refused),
+            }
+        }
         Type::Sym(q, s) if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
             let module = l.u.module_class(s).filter(|_| l.u.is_module(s));
             if module == Some(class) {
                 return Ok(l.this(class, Span::NONE));
             }
-            if module.is_some_and(|m| super::local_free::within(l, class, m)) {
+            if module.is_some_and(|m| within(l, class, m)) {
                 return unsupported(span, refused);
             }
             let owner = l.u.symbol(s).owner;
@@ -89,8 +118,8 @@ fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId
             let on_this = q.is_none() || this_class == Some(class);
             let qualifier = match q {
                 _ if on_this && owner == Some(class) => l.this(class, span),
-                Some(q) if !on_this => path(l, class, q, span)?,
-                _ => return unsupported(span, refused),
+                Some(q) => path(l, class, q, span)?,
+                None => return unsupported(span, refused),
             };
             Ok(l.select(qualifier, s, span))
         }
