@@ -73,3 +73,4 @@ exprforms2
 localclasses2
 methodvalues
 tuplespec
+inlining
