@@ -31,6 +31,10 @@ pub fn plan(
     deferred: &mut Vec<SymbolId>,
 ) -> Result<Plan> {
     let closure = f.closure.expect("a lambda's closure");
+    let types = params.iter().map(|&(_, t)| t).chain(std::iter::once(result)).collect::<Vec<_>>();
+    if types.into_iter().any(|t| l.u.value_class(t).is_some()) {
+        return unsupported(l.tpd.span(f.block), "lambdas with value class parameters or results");
+    }
     let erased: Vec<Erased> = params
         .iter()
         .map(|&(_, t)| match l.u.erase(t) {
