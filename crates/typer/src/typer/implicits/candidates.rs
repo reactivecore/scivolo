@@ -18,7 +18,7 @@ pub struct Candidate {
 impl Typer<'_> {
     fn is_implicit(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
-        matches!(sym.kind, Kind::Val | Kind::Def) && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
+        sym.kind.is_term() && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
     }
 
     /// The implicit members of class `c` and its base classes, the private ones of `c` if
