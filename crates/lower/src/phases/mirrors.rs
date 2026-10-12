@@ -39,7 +39,8 @@ pub fn mirror_support(
     if has(l.u, linked, SEALED) {
         return unsupported(span, "companions of sealed classes other than enums");
     }
-    if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) || param_lists(l, linked) != 1 {
+    let value_class = l.u.underlying(linked).is_some();
+    if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) || value_class || param_lists(l, linked) != 1 {
         return Ok(None);
     }
     mono_type(l, class, linked);

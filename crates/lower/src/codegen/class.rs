@@ -48,7 +48,7 @@ impl Gen<'_, '_> {
         let superclass = parents
             .first()
             .and_then(|&p| self.l.u.class_symbol(p))
-            .filter(|&s| !self.l.u.is_trait(s))
+            .filter(|&s| !self.l.u.is_trait(s) && s != self.l.defs.any_val)
             .unwrap_or(self.l.defs.object);
         self.type_name(superclass)
     }

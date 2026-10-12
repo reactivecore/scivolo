@@ -33,7 +33,14 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(x: String): Int = x match { case E(a, b) => a; case _ => 0 } }",
         "sequence extractors of a product and a sequence",
     ),
-    ("object O { def f() = 3.compare(4) }", "members value classes inherit"),
+    (
+        "class M(val x: Int) extends AnyVal\nobject O { def f(m: M) = m.isInstanceOf[M] }",
+        "type tests of value class values",
+    ),
+    (
+        "class M(val x: Int) extends AnyVal\nobject O { val f: M => Int = m => m.x + 1 }",
+        "lambdas with value class parameters or results",
+    ),
     ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
     (
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",

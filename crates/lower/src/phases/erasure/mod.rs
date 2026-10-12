@@ -8,6 +8,7 @@ use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
 use super::casts::receiver_type;
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
+use super::vc_elide::elided;
 use super::walk::map_children;
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Kind};
@@ -16,14 +17,23 @@ use typer::tpd::{TNodeId, Tree};
 /// Types the methods of class definition `td` against their erased result types, and the
 /// statements and field initializers of its body.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+    let result = transform_class(l, td);
+    l.erasure_owner = None;
+    result
+}
+
+fn transform_class(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
+    let constructor = l.tpd.sym(constr);
     for stat in std::iter::once(constr).chain(l.tpd.items(body).iter().copied()).collect::<Vec<_>>() {
+        l.erasure_owner = constructor;
         match *l.tpd.tree(stat) {
             Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
                 let sym = l.tpd.sym(stat).expect("a method definition's symbol");
-                let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method(sym).1 };
+                l.erasure_owner = Some(sym);
+                let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method_value(sym).1 };
                 let before = l.tpd.span(rhs);
                 let rhs = typed(l, rhs, Some(&pt))?;
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
@@ -40,6 +50,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
     }
     let body = l.tpd.list(&stats[1..]);
+    l.erasure_owner = constructor;
     let mut typed_parents = Vec::new();
     for parent in l.tpd.items(parents).to_vec() {
         let call = matches!(l.tpd.tree(parent), Tree::Apply { .. } | Tree::Block { .. });
@@ -110,17 +121,17 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
                 return unsupported(l.tpd.span(t), "returns of Unit values of class members");
             }
             let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {
-                Kind::Def => l.u.erased_method(m).1,
+                Kind::Def => l.u.erased_method_value(m).1,
                 _ => {
                     let info = l.u.info(m);
-                    l.u.erase(info)
+                    l.u.erase_value(info)
                 }
             });
             typed_except(l, t, from, result.as_ref())?;
             None
         }
         Tree::Labeled { .. } => {
-            let erased = l.u.erase(l.tpd.tpe(t));
+            let erased = l.u.erase_value(l.tpd.tpe(t));
             map_children(l, t, &mut |l, c| typed(l, c, Some(&erased)))?;
             None
         }
@@ -144,7 +155,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             None
         }
         Tree::Typed { expr, tpt } => {
-            let ascribed = l.u.erase(l.tpd.tpe(tpt));
+            let ascribed = l.u.erase_value(l.tpd.tpe(tpt));
             let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
             if written && ascribed == Erased::Unit && !is_literal_or_unit(l, expr) {
                 return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
@@ -159,7 +170,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Tree::ValDef { tpt, rhs: Some(rhs), .. } => {
             let sym = l.tpd.sym(t).expect("a value definition's symbol");
             let info = l.u.info(sym);
-            let erased = match l.u.erase(info) {
+            let erased = match l.u.erase_value(info) {
                 Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
                 e => e,
             };
@@ -180,10 +191,13 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
     }
     l.recopy_class_literals(t);
     let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
-    Ok(match pt {
-        Some(pt) => adapt(l, t, pt),
-        None => t,
-    })
+    let (span, e) = (l.tpd.span(t), elided(l, t));
+    let Some(pt) = pt else { return Ok(e) };
+    let adapted = adapt(l, e, pt);
+    if e != t && adapted != e {
+        l.tpd.get_mut(adapted).span = super::adapt::from_start(span);
+    }
+    Ok(adapted)
 }
 
 /// Gives the right-hand side of value definition `t` the start of its span `before` erasure if

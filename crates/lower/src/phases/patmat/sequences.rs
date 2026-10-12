@@ -101,6 +101,14 @@ impl Translator<'_, '_> {
         let fun = self.l.select(qual, m, Span::NONE);
         self.l.tpd.get_mut(fun).tpe = Some(info);
         let fun = self.l.positioned(fun);
+        match *self.l.u.types().get(info) {
+            Type::Method { .. } | Type::Poly { .. } => {}
+            Type::ByName(result) => {
+                self.l.tpd.get_mut(fun).tpe = Some(result);
+                return fun;
+            }
+            _ => return fun,
+        }
         let apply = self.l.apply(fun, args, result, Span::NONE);
         self.l.positioned(apply)
     }

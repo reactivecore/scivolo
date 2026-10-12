@@ -8,7 +8,7 @@ use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
-use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, SYNTHETIC};
+use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree, Walk};
 
@@ -35,28 +35,19 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
         return Ok(());
     }
     let mut argss = Vec::new();
-    let (mut fun, mut typed) = (t, false);
+    let mut fun = t;
     loop {
         match *l.tpd.tree(fun) {
             Tree::Apply { fun: f, args } => {
                 argss.push(l.tpd.items(args).to_vec());
                 fun = f;
             }
-            Tree::TypeApply { fun: f, .. } => (fun, typed) = (f, true),
+            Tree::TypeApply { fun: f, .. } => fun = f,
             _ => break,
         }
     }
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return Ok(()) };
-    let Some(m) = l.tpd.sym(fun) else { return Ok(()) };
-    if !has_extension(l, m) {
-        let receiver = l.u.widen(l.tpd.tpe(qualifier));
-        let value_class =
-            l.u.class_symbol(receiver).is_some_and(|c| !l.u.is_trait(c) && l.u.underlying(c).is_some());
-        if value_class && !typed {
-            return unsupported(l.tpd.span(t), "members value classes inherit");
-        }
-        return Ok(());
-    }
+    let Some(m) = l.tpd.sym(fun).filter(|&m| has_extension(l, m)) else { return Ok(()) };
     let span = from_start(l.tpd.span(t));
     let Some(extension) = extension(l, m) else {
         return unsupported(span, "methods of value classes without companions");
@@ -86,19 +77,25 @@ fn rewire(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     }
     l.tpd.get_mut(call).span = call_span;
     if generic {
-        let tpe = l.tpd.tpe(t);
+        let tpe = l.u.widen(l.tpd.tpe(t));
         let tree = match ev_def {
             Some(def) => Tree::Block { stats: l.tpd.list(&[def]), expr: call },
+            None if tpe != l.tpd.tpe(t) => Tree::Typed { expr: call, tpt: inferred(l, tpe, span) },
             None => l.tpd.tree(call).clone(),
         };
         let node = l.tpd.get_mut(t);
         (node.tree, node.tpe, node.sym) = (tree, Some(tpe), None);
         return Ok(());
     }
-    let tpt = l.type_tree(tpe, span);
+    let tpt = inferred(l, tpe, span);
     let node = l.tpd.get_mut(t);
     (node.tree, node.tpe, node.sym) = (Tree::Typed { expr: call, tpt }, Some(tpe), None);
     Ok(())
+}
+
+/// An inferred type tree of `tpe`.
+fn inferred(l: &mut Lower, tpe: tasty::TypeId, span: syntax::ast::Span) -> TNodeId {
+    l.tpd.node(Tree::TypeTree { inferred: true }, span, Some(tpe), None)
 }
 
 /// Whether `t` is a literal, `this`, or a path of stable values and objects (dotty's
@@ -135,7 +132,7 @@ pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TN
 }
 
 /// Whether method `m` has an extension method (dotty's `isMethodWithExtension`).
-fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
+pub fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
     let s = l.u.symbol(m);
     let Some(owner) = s.owner.filter(|_| s.kind == Kind::Def && !s.name.starts_with("super$")) else {
         return false;
@@ -151,7 +148,7 @@ fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
 /// The extension method `m$extension` of method `m` of a value class, in the companion object's
 /// class: of type `($this: C)` then `m`'s, inside `m`'s type parameters; entered once per method,
 /// so overloads get their own.
-fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
+pub fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let class = l.u.symbol(m).owner?;
     let info = l.u.info(m);
     let module = l.u.companion_module(class)?;
@@ -160,13 +157,18 @@ fn extension(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
         return Some(found);
     }
     let name = format!("{}$extension", l.u.symbol(m).name);
-    let sym = l.u.define(symbol(&name, Kind::Def, module_class, Flags::default().with(FINAL)));
+    let flags = match l.u.symbol(m).flags.has(PRIVATE) {
+        true => Flags::default().with(FINAL).with(PRIVATE),
+        false => Flags::default().with(FINAL),
+    };
+    let sym = l.u.define(symbol(&name, Kind::Def, module_class, flags));
     l.extensions.insert(m, sym);
     let this = type_ref(l.u, class);
     let binder = l.u.fresh_binder();
     let params = vec![("$this".to_owned(), this)];
     let (poly, result) = match l.u.types().get(info).clone() {
         Type::Poly { binder, params, result } => (Some((binder, params)), result),
+        Type::ByName(result) => (None, result),
         _ => (None, info),
     };
     let method = Type::Method { binder, params, result, implicit: false, contextual: false };

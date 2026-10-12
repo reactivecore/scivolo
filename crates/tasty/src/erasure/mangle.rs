@@ -23,6 +23,7 @@ fn mangle(e: &Erased) -> String {
         Erased::Null => "l".into(),
         Erased::Class(name) => format!("L{}", ident(name)),
         Erased::Array(elem) => format!("LA{}_", mangle(elem)),
+        Erased::Value(_, underlying) => mangle(underlying),
     }
 }
 
@@ -69,16 +70,26 @@ impl Universe {
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also
     /// boxed for a value; a type parameter erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
+        self.erased_method_as(def, false)
+    }
+
+    /// `erased_method` with value classes semi-erased (`erase_value`).
+    pub fn erased_method_value(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
+        self.erased_method_as(def, true)
+    }
+
+    fn erased_method_as(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
         let owner = self.symbol(def).owner;
         let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
         let scala2 = in_scala2_class && !self.symbol(def).flags.has(INLINE);
         let previous = self.set_scala2_erasure(scala2);
-        let erased = self.erase_method(def);
+        let erased = self.erase_method(def, semi);
         self.set_scala2_erasure(previous);
         erased
     }
 
-    fn erase_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {
+    fn erase_method(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
+        let erase = |u: &mut Self, t| if semi { u.erase_value(t) } else { u.erase(t) };
         let mut t = self.info(def);
         let mut params = Vec::new();
         let mut bounds = Vec::new();
@@ -99,14 +110,14 @@ impl Universe {
             .into_iter()
             .map(|p| {
                 let p = self.upper_bound(p, &bounds);
-                match self.erase(p) {
+                match erase(self, p) {
                     Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
                     e => e,
                 }
             })
             .collect();
         let t = self.upper_bound(t, &bounds);
-        match self.erase(t) {
+        match erase(self, t) {
             Erased::Unit if self.symbol(def).kind == Kind::Val => {
                 (params, Erased::Class("scala.runtime.BoxedUnit".into()))
             }

@@ -74,3 +74,4 @@ localclasses2
 methodvalues
 tuplespec
 inlining
+valueclasses

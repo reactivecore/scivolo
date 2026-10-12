@@ -35,6 +35,7 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
         Erased::Nothing => "scala.Nothing".into(),
         Erased::Null => "scala.Null".into(),
         Erased::Array(elem) => format!("{}[]", sig_name(u, t, elem)),
+        Erased::Value(_, underlying) => sig_name(u, t, underlying),
         Erased::Class(binary) => match u.erased_class(t).or_else(|| {
             let widened = u.widen(t);
             u.erased_class(widened).or_else(|| {

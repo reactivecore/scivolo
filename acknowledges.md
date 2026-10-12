@@ -59,7 +59,9 @@ Apache-2.0. Rust translations of:
   - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
     (`rebindSuper`)
   - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
-  - `VCInlineMethods`, `ExtensionMethods` (extension methods)
+  - `VCInlineMethods`, `ExtensionMethods` (extension methods, moved bodies), `FullParameterization`
+    (`fullyParameterizedDef`, `forwarder`), `VCElideAllocations`, `Erasure.Boxing` (`box`, `unbox`
+    of value classes), `SyntheticMembers` (`valueHashCodeBody`), `TypeErasure.valueErasure`
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)
   - `TailRec` (`TailRecElimination`)

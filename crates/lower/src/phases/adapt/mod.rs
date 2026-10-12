@@ -2,8 +2,9 @@
 //! applied, values boxed, unboxed or cast.
 
 mod units;
+mod value;
 
-use super::casts::{cast, conforms};
+use super::casts::{cast, conforms, is_cast};
 use super::select_static::is_static_enum_value;
 use crate::symbols::{has, is_java_static};
 use crate::{Lower, Result, unsupported};
@@ -50,27 +51,30 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     match *l.tpd.tree(t) {
         Tree::Apply { fun, .. } => match (array_op(l, fun), synchronized_type(l, fun), l.tpd.sym(fun)) {
             (Some((_, result)), _, _) | (None, Some(result), _) => result,
-            (None, None, Some(m)) if !l.u.is_constructor(m) => l.u.erased_method(m).1,
-            _ => l.u.erase(l.tpd.tpe(t)),
+            (None, None, Some(m)) if !l.u.is_constructor(m) => l.u.erased_method_value(m).1,
+            (None, None, Some(_)) => l.u.erase_boxed(l.tpd.tpe(t)),
+            _ => l.u.erase_value(l.tpd.tpe(t)),
         },
+        Tree::TypeApply { .. } if is_cast(l, t) => l.u.erase_boxed(l.tpd.tpe(t)),
+        Tree::New { .. } => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Block { expr, .. } => erased_type(l, expr),
-        Tree::Typed { tpt, .. } => l.u.erase(l.tpd.tpe(tpt)),
+        Tree::Typed { tpt, .. } => l.u.erase_value(l.tpd.tpe(tpt)),
         Tree::Ident { .. } | Tree::Select { .. } if sym == Some(l.defs.boxed_unit_unit) => {
             Erased::Class("scala.runtime.BoxedUnit".into())
         }
         Tree::Ident { .. } | Tree::Select { .. } => match sym {
             Some(s) if !l.u.is_module(s) && l.u.symbol(s).kind.is_term() => {
                 let info = l.u.info(s);
-                match l.u.erase(info) {
+                match l.u.erase_value(info) {
                     Erased::Unit if matches!(l.u.symbol(s).kind, Kind::Val | Kind::Param) => {
                         Erased::Class("scala.runtime.BoxedUnit".into())
                     }
                     e => e,
                 }
             }
-            _ => l.u.erase(l.tpd.tpe(t)),
+            _ => l.u.erase_value(l.tpd.tpe(t)),
         },
-        _ => l.u.erase(l.tpd.tpe(t)),
+        _ => l.u.erase_value(l.tpd.tpe(t)),
     }
 }
 
@@ -153,9 +157,14 @@ pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
 /// `()` where a reference is expected, unboxed if a reference where a primitive is, cast if a
 /// reference of a class that does not conform.
 pub fn adapt(l: &mut Lower, t: TNodeId, pt: &Erased) -> TNodeId {
-    let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
     let from = erased_type(l, t);
-    match (&from, pt) {
+    value::adapt_from(l, t, from, pt)
+}
+
+/// `adapt` between erased types without value classes.
+fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId {
+    let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
+    match (from, pt) {
         (Erased::Prim(c), pt) if reference(pt) => match l.defs.primitive(*c) {
             Some(p) => {
                 let (module, box_method) = (p.module, p.box_method);

@@ -1,5 +1,5 @@
 use super::equality::method;
-use super::{java_static, member, package, type_ref};
+use super::{java_class, java_static, member, package, type_ref};
 use tasty::{Kind, SymbolId, Type, Universe};
 
 /// What the synthetic members of case classes and their companions refer to.
@@ -25,6 +25,8 @@ pub struct CaseClasses {
     pub long_hash: SymbolId,
     pub double_hash: SymbolId,
     pub float_hash: SymbolId,
+    /// `java.util.Objects.hashCode`, a Java static.
+    pub objects_hash_code: SymbolId,
     /// `MurmurHash3.productHash(x, seed, ignorePrefix)`, its object.
     pub product_hash: SymbolId,
     pub murmur_hash3: SymbolId,
@@ -91,6 +93,12 @@ impl CaseClasses {
             long_hash: statics_method(u, "longHash", &[long]),
             double_hash: statics_method(u, "doubleHash", &[double]),
             float_hash: statics_method(u, "floatHash", &[float]),
+            objects_hash_code: {
+                let objects = java_class(u, package(u, "java.util")?, "Objects");
+                let any = type_ref(u, any);
+                let info = method(u, &[any], int);
+                java_static(u, objects, "hashCode", Kind::Def, info)
+            },
             product_hash: with_params(u, murmur_class, "productHash", 3)?,
             murmur_hash3,
             ioobe,

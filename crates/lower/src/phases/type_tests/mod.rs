@@ -72,9 +72,6 @@ fn type_test(
     if l.u.erase_boxed(expr_tpe) != l.u.erase(expr_tpe) {
         return unsupported(span, "type tests of value class values");
     }
-    if in_match && l.u.erase_boxed(target) != l.u.erase(target) {
-        return unsupported(span, "type patterns of value classes");
-    }
     let test = match l.u.erase_boxed(target) {
         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,

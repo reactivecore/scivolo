@@ -11,8 +11,8 @@ use typer::tpd::{TNodeId, Tree};
 
 impl Lower<'_> {
     /// `(this eq that) || that match { case x$0 @ (_: C) => this.a == x$0.a && ... && x$0.canEqual(this); case _ => false }`,
-    /// calling `can_equal`, the `canEqual` the class has, if any. Its local, owned by `class`
-    /// until its method exists, goes to `locals`.
+    /// calling `can_equal`, the `canEqual` the class has, if any; only the match for a value
+    /// class. Its local, owned by `class` until its method exists, goes to `locals`.
     pub fn equals_body(
         &mut self,
         class: SymbolId,
@@ -75,6 +75,9 @@ impl Lower<'_> {
         let result = self.cases_lub(cases);
         let matched = self.tpd.node(Tree::Match { selector: that, cases }, Span::NONE, Some(result), None);
         let matched = self.positioned(matched);
+        if self.u.underlying(class).is_some() {
+            return matched;
+        }
         let this = self.this(class, Span::NONE);
         let that_object = self.copy_ident(that);
         let that_object = cast(self, that_object, &Erased::Class("java.lang.Object".into()));
