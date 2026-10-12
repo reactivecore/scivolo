@@ -82,6 +82,8 @@ pub struct Lower<'a> {
     outers: FxHashMap<SymbolId, (Option<SymbolId>, SymbolId)>,
     /// The accessor of the enclosing instance of each class needing one.
     outer_accessors: FxHashMap<SymbolId, SymbolId>,
+    /// The positions of the methods whose symbols dotty places elsewhere than their definitions.
+    coords: FxHashMap<SymbolId, Span>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The member each super accessor of the unit accesses, whether through a named mixin.
@@ -131,6 +133,7 @@ pub fn lower(
         getter_rhs: FxHashMap::default(),
         outers: FxHashMap::default(),
         outer_accessors: FxHashMap::default(),
+        coords: FxHashMap::default(),
         lifted_from: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),

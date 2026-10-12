@@ -75,7 +75,6 @@ mod specialize;
 mod specialize_tuples;
 mod standard_interpolator;
 mod super_accessors;
-mod super_args;
 mod synthetic;
 mod tail_calls;
 mod tailrec;
@@ -104,7 +103,6 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
         enumerations::transform(l, td)?;
-        super_args::check(l, td)?;
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
