@@ -152,15 +152,6 @@ object Classes:
     println(d.inner)
     println(inc(c.n))
 
-trait Noisy:
-  println("Noisy init")
-
-object N1 extends Noisy
-object N2 extends Noisy
-object N3 extends Noisy:
-  val u: Unit = ()
-
-inline def ap(inline f: Any => Int): Int = f(N1)
 transparent inline def topT(n: Int): Any = if n > 0 then "pos" else n
 
 object Transparent:
@@ -196,8 +187,33 @@ object Transparent:
     val l: Int = answer
     println(later(l) + 1)
     println(dflt() + 1)
+    println(apT(_ => 5))
   transparent inline def later(x: Int): Any = x
   transparent inline def dflt(x: Int = 3): Any = x
+  transparent inline def apT(inline f: Any => Int): Any = f(N4)
+
+trait Noisy:
+  println("Noisy init")
+
+object N1 extends Noisy
+object N2 extends Noisy
+object N3 extends Noisy:
+  val u: Unit = ()
+object N4 extends Noisy
+
+inline def ap(inline f: Any => Int): Int = f(N1)
+
+object Library:
+  given Int = 7
+  def run(args: Array[String]): Unit =
+    val n = args.length
+    assert(n == 0)
+    assert(n >= 0, "negative")
+    println(summon[Int] + n)
+    try assert(n > 0, s"n is $n")
+    catch case e: AssertionError => println(e.getMessage)
+    try assert(n != 0)
+    catch case e: AssertionError => println(e.getMessage)
 
 @main def inlining(): Unit =
   println(ap(_ => 3))
@@ -209,3 +225,4 @@ object Transparent:
   Arguments.run(args)
   Classes.run()
   Transparent.run()
+  Library.run(args)

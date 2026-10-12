@@ -1,5 +1,7 @@
 //! dotty's `Inlines.dropInlined`, run before the other phases: each `Inlined` tree becomes the
-//! block of its bindings and expansion, or its expansion alone; its call is dropped.
+//! block of its bindings and expansion, or its expansion alone; its call is dropped. Under the
+//! outermost one, the trees from another source take its span, definitions their own offsets in
+//! the unit (`reposition`).
 
 use crate::Lower;
 use syntax::ast::Span;
@@ -7,17 +9,55 @@ use typer::tpd::{TNodeId, Tree, map_children};
 
 /// `t` with the `Inlined` trees in it dropped.
 pub fn transform(l: &mut Lower, t: TNodeId) -> TNodeId {
+    drop(l, t, None)
+}
+
+/// `t` with the `Inlined` trees in it dropped, inside the outermost one at `call` if any.
+fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>) -> TNodeId {
+    let call = call.or_else(|| match l.tpd.tree(t) {
+        Tree::Inlined { call: Some(_), .. } => Some(l.tpd.span(t)),
+        _ => None,
+    });
+    if let Some(at) = call {
+        reposition(l, t, at);
+    }
     if let Tree::Inlined { bindings, expansion, .. } = *l.tpd.tree(t) {
         if l.tpd.items(bindings).is_empty() {
-            let expansion = transform(l, expansion);
+            let expansion = drop(l, expansion, call);
             l.inlined_spans.insert(expansion, l.tpd.span(t));
             return expansion;
         }
         l.tpd.get_mut(t).tree = Tree::Block { stats: bindings, expr: expansion };
         l.inlined_blocks.insert(t);
     }
-    map_children(l, t, &mut |l, c| transform(l, c));
+    map_children(l, t, &mut |l, c| drop(l, c, call));
     t
+}
+
+/// Gives `t`, if its span is in another source, the span `at` of the call, which the spans
+/// derived from it until erasure keep, a definition its offsets.
+fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
+    let span = l.tpd.span(t);
+    if !span.is_in_other_source() {
+        return;
+    }
+    let definition = matches!(
+        l.tpd.tree(t),
+        Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Bind { .. }
+    );
+    l.tpd.get_mut(t).span = if definition { span.in_own_source() } else { at.as_inlined_call() };
+}
+
+/// Makes the spans of inline calls given to trees from another source plain spans, as erasure
+/// leaves them.
+pub fn unmark_calls(l: &mut Lower) {
+    for i in 0..l.tpd.len() {
+        let node = l.tpd.get_mut(TNodeId::new(i));
+        node.span = node.span.without_inlined_call();
+    }
+    for span in l.inlined_spans.values_mut() {
+        *span = span.without_inlined_call();
+    }
 }
 
 /// The span of `t` as phases before erasure see it: that of the outermost `Inlined` tree it was

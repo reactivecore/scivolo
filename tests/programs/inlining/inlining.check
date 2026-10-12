@@ -103,3 +103,8 @@ str
 3
 43
 4
+Noisy init
+5
+7
+assertion failed: n is 0
+assertion failed

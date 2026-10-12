@@ -147,7 +147,9 @@ pub fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool 
     let name = l.u.symbol(getter).name.clone();
     for base in l.u.linearization(class) {
         for m in l.u.decl(base, &name).unwrap_or_default() {
-            let member = matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def) && !has(l.u, m, PRIVATE);
+            let member = matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def)
+                && !has(l.u, m, PRIVATE)
+                && !l.bridges.contains(&m);
             if member && (has_body(l, m) || is_trait_getter(l, m)) {
                 return m == getter;
             }

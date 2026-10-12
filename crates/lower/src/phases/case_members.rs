@@ -88,7 +88,7 @@ fn body(
                 .map(|i| {
                     let this = l.this(class, Span::NONE);
                     let sel = l.u.decl(class, &format!("_{i}")).unwrap_or_default();
-                    let sel = sel.into_iter().find(|&s| l.u.symbol(s).kind == Kind::Def).expect("a selector");
+                    let sel = sel.into_iter().find(|&s| l.u.symbol(s).kind.is_term()).expect("a selector");
                     let info = l.u.info(sel);
                     let result = l.u.result_type(info);
                     let select = l.select(this, sel, Span::NONE);
