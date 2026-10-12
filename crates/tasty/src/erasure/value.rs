@@ -28,8 +28,13 @@ impl Universe {
         }
     }
 
-    /// The value class `t` refers to, if any.
+    /// The value class `t` refers to, if any; of an intersection, that of either side (dotty's
+    /// `erasedGlb` ranks value classes first).
     pub fn value_class(&mut self, t: TypeId) -> Option<SymbolId> {
+        let dealiased = self.dealias(t);
+        if let Type::And(a, b) = *self.types().get(dealiased) {
+            return self.value_class(a).or_else(|| self.value_class(b));
+        }
         self.class_symbol(t).filter(|&c| self.underlying(c).is_some())
     }
 }
