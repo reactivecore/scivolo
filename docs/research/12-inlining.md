@@ -38,11 +38,8 @@ refused (23 `no implicit argument`, 13 `transparent inline method call` from oth
 `comparison of a converted value`, …), 34 lowering refused, 1 crash [V]. Feature use among the
 1446 tests: 126 define inline methods, 20 `transparent`, 18 `inline match`, 6 `inline if`, 43
 import `scala.compiletime`, 554 call `assert`, 79 `summon`, 59 use quotes (out of scope) [V].
-`locally`, `require` and `IArray(…)` are not inline calls for our typer: the probes lower today
-[V]; the roadmap's "`locally`, `require`" should read "`assert`, `summon`". The `IArray` probe
-emits calls to `IArray$package$IArray$.apply` [V], a method dotty erases (`X/Erasure.scala:881`,
-`isEffectivelyErased`) and the library NIR therefore lacks [I]: the lowering must refuse or inline
-every call of an inline method, never emit it.
+`locally` and `require` are not inline calls for our typer: the probes lower today [V]; the
+roadmap's "`locally`, `require`" should read "`assert`, `summon`".
 
 What exists [V]: `I/` (1817 lines, 11 files): `run`, `Inlined` nodes (`tpd/tree.rs:249`), the
 copier with symbol substitution (`copy.rs`), parameter and `this` proxies (`proxies.rs`,
@@ -63,7 +60,7 @@ definitions and calls, compiletime operations.
   (`X/Erasure.scala:875-878`, `N/Inlines.scala:282`: bindings and expansion as a `Block`, or the
   expansion alone; `reposition` gives trees from another source the call's span, same-source trees
   keep theirs). Inline methods themselves are erased, `isEffectivelyErased` (`X/Erasure.scala:
-  881-894`, `C/SymDenotations.scala:1079`); retained ones (overriding, given, deferred) keep a body
+  881-894`, `C/SymDenotations.scala:1079`); retained ones (overriding, given) keep a body
   via `bodyRetainer` (`N/Inlines.scala:267`, `X/Erasure.scala:993`). nscplugin never sees `Inlined`
   except `PostInlineNativeInterop.scala:77` (interop, not ours) [V]. In between, phases look
   *through* it like a block: `TreeInfo.scala:95,99,635` (purity), `X/BetaReduce.scala:86`,
