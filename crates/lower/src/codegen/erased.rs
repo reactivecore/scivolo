@@ -32,6 +32,7 @@ impl Gen<'_, '_> {
                 Type::Ref { name, exact: false, nullable: true }
             }
             Erased::Array(elem) => Type::Array { elem: self.erased(elem), nullable: true },
+            Erased::Value(_, underlying) => return self.erased(underlying),
         };
         self.ty(t)
     }

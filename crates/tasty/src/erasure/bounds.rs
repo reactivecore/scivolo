@@ -59,7 +59,7 @@ impl Universe {
     fn glb_rank(&mut self, t: TypeId, e: &Erased) -> u8 {
         match e {
             Erased::Array(_) => 0,
-            Erased::Prim(_) | Erased::Unit => 1,
+            Erased::Prim(_) | Erased::Unit | Erased::Value(..) => 1,
             Erased::Class(c) if c == OBJECT => 2,
             Erased::Class(name) => {
                 let class = self.erased_class(t).or_else(|| {

@@ -7,6 +7,7 @@ mod bridges;
 mod mangle;
 mod scala2;
 mod special;
+mod value;
 
 use crate::symbols::{defined_name, encode, module_class_name, module_name};
 use crate::tags::{OBJECT as MODULE, PARAMsetter, TRAIT};
@@ -27,6 +28,9 @@ pub enum Erased {
     /// A class by its binary name, e.g. `scala.Option`, `scala.Predef$`.
     Class(String),
     Array(Box<Erased>),
+    /// A value class's value (dotty's `ErasedValueType`): the class's binary name and the
+    /// erasure of its underlying value. Only `erase_value` makes it.
+    Value(String, Box<Erased>),
 }
 
 const OBJECT: &str = "java.lang.Object";
