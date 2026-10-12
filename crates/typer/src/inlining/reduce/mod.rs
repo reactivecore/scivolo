@@ -104,11 +104,11 @@ impl Reducer<'_, '_> {
             _ => rhs,
         };
         let rhs = self.i.const_to_literal(rhs);
+        let (used, rhs) = self.i.drop_unused(bindings.clone(), rhs, self.owner)?;
         let rhs = match *self.i.tpd.tree(rhs) {
-            T::Block { stats, expr } if self.implicit && stats.is_empty() && !bindings.is_empty() => expr,
+            T::Block { stats, expr } if self.implicit && stats.is_empty() && !used.is_empty() => expr,
             _ => rhs,
         };
-        let (used, rhs) = self.i.drop_unused(bindings.clone(), rhs, self.owner)?;
         let rhs = self.i.seq(&used, rhs)?;
         let outer = self.i.local_implicits;
         self.i.local_implicits |= self.implicit && !bindings.is_empty();

@@ -16,8 +16,14 @@ pub trait Host {
     /// The context of inline call `call`, outside an inline method, as the typer recorded it.
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
     /// An implicit argument of type `pt` at `at` in `ctx`, its type variables instantiated
-    /// (dotty's `inferImplicitArg`).
-    fn summon(&mut self, lent: Lent<'_>, pt: TypeId, at: Span, ctx: Ctx) -> Result<TNodeId, &'static str>;
+    /// (dotty's `inferImplicitArg`); `Ok(None)` if no candidate fits.
+    fn summon(
+        &mut self,
+        lent: Lent<'_>,
+        pt: TypeId,
+        at: Span,
+        ctx: Ctx,
+    ) -> Result<Option<TNodeId>, &'static str>;
     /// Reports error `msg` at `at`.
     fn error(&mut self, at: Span, msg: String);
 }
@@ -31,11 +37,7 @@ impl Inlining<'_> {
             return Err((at, "implicit search in an inline body with local implicits"));
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        match self.host.summon(lent, pt, at, ctx) {
-            Ok(t) => Ok(Some(t)),
-            Err("no implicit argument") => Ok(None),
-            Err(what) => Err((at, what)),
-        }
+        self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))
     }
 
     /// Reports error `msg` at `at`.

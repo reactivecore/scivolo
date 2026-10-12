@@ -163,6 +163,14 @@ definitions and calls, compiletime operations.
   typer only. The first keeps the `--inlined` oracle and the plain typer output as they are [I].
 - size ~600–900 Rust [I]; unblocks 3–4 tests directly, 20–40 of the 43 `compiletime` tests after
   b–d [I].
+- status (2026-10-12): done as ADR 0020 decides. Intrinsics in `I/compiletime.rs`, the `ops`
+  folding in `I/type_eval.rs` (`int`, `long`, `boolean`, `string`, `any`), `summonFrom` typed in
+  `typer/summon_from.rs` and reduced in `I/reduce/`. Refused: `constValueTuple`, `summonAll`,
+  `constValueOpt` of a non-constant type (dotty's `None` takes its position from the enclosing
+  tree), `codeOf` of other than `Int`/`Long`/`Boolean` literals, searches in the scope of
+  givens an inline body defines [V]. Observed, not traced to dotty's source: a selected
+  `summonFrom` case whose body is a block without statements and which keeps bindings loses
+  that block, so the result block gets the envelope span instead of the body's [V by oracle].
 
 ## 3. Order of MRs
 

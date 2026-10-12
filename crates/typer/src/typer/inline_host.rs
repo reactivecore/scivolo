@@ -2,6 +2,7 @@
 //! context of each inline call and searches implicit arguments for them.
 
 use super::Typer;
+use super::implicits::is_misfit;
 use crate::ctx::Ctx;
 use crate::inlining::{Host, Inlining, Lent};
 use crate::tpd::{TNodeId, Tree as T};
@@ -59,11 +60,19 @@ impl Host for Typer<'_> {
         self.inline_ctxs.get(&call).copied()
     }
 
-    fn summon(&mut self, lent: Lent<'_>, pt: TypeId, at: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
+    fn summon(
+        &mut self,
+        lent: Lent<'_>,
+        pt: TypeId,
+        at: Span,
+        ctx: Ctx,
+    ) -> Result<Option<TNodeId>, &'static str> {
         let (u, tpd, names, fresh) = lent;
         self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
-        let found = catch_unwind(AssertUnwindSafe(|| {
-            self.implicit_arg(pt, at, ctx, 0).and_then(|t| self.define_tree(t, true).map(|()| t))
+        let found = catch_unwind(AssertUnwindSafe(|| match self.implicit_arg(pt, at, ctx, 0) {
+            Ok(t) => self.define_tree(t, true).map(|()| Some(t)),
+            Err(what) if is_misfit(what) => Ok(None),
+            Err(what) => Err(what),
         }));
         self.swap_lent((u, tpd, names, fresh));
         found.unwrap_or_else(|panic| resume_unwind(panic))
