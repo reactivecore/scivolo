@@ -43,6 +43,8 @@ pub struct Syms {
     pub throw_method: Option<SymbolId>,
     /// dotty's `scala.<repeated>`, the class of repeated arguments, once defined.
     pub repeated_class: Option<SymbolId>,
+    /// dotty's `ImplicitScrutineeTypeRef`, the selector type of `summonFrom`, once defined.
+    pub implicit_scrutinee: Option<tasty::TypeId>,
     /// The anonymous methods of closures, their parameters and lifted values, their infos made
     /// fully defined once the unit is typed.
     pub closure_syms: Vec<SymbolId>,

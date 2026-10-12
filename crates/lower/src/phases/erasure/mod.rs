@@ -135,7 +135,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             map_children(l, t, &mut |l, c| typed(l, c, Some(&erased)))?;
             None
         }
-        Tree::Match { selector, cases, .. } => Some(typed_switch(l, selector, cases)?),
+        Tree::Match { selector: Some(selector), cases, .. } => Some(typed_switch(l, selector, cases)?),
         Tree::Assign { lhs, .. } => {
             let erased = erased_type(l, lhs);
             typed_except(l, t, lhs, Some(&erased))?;

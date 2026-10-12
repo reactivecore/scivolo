@@ -3,6 +3,7 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::flags::{CASE, GIVEN};
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use syntax::names::is_var_pattern_name;
@@ -42,11 +43,23 @@ impl Typer<'_> {
             self.ast.tree(body),
             Tree::Ident { .. } | Tree::Select { .. } | Tree::Literal { .. } | Tree::Number { .. }
         );
+        let given =
+            matches!(*self.ast.tree(id), Tree::Bind { mods, .. } if self.ast.modifiers(mods).is(GIVEN));
+        let given_tpt = match *self.ast.tree(body) {
+            Tree::Typed { tpt, .. } if given => Some(tpt),
+            _ => None,
+        };
         let body = self.typed(body, pt, ctx);
-        let text = self.text(name.name).to_owned();
+        let mut text = self.text(name.name).to_owned();
+        if text == "_"
+            && let Some(tpt) = given_tpt
+        {
+            text = syntax::desugar::given_type_name(self.ast, self.names, tpt);
+        }
         if text == "_" {
             return body;
         }
+        let name = TName { name: self.name(&text), is_type: false };
         let body_tpe = self.tpd.tpe(body);
         let stable_or_literal = match *self.tpd.tree(body) {
             T::Ident { name } => self.text(name.name) != "_",
@@ -56,8 +69,10 @@ impl Typer<'_> {
         let b = self.u.builtins();
         let (nothing, null) = (b.nothing, b.null);
         let bottom = |t: &mut Self, p| matches!(t.u.class_symbol(p), Some(c) if c == nothing || c == null);
+        let implicit = matches!(pt, Pt::Type(p) if Some(p) == self.syms.implicit_scrutinee);
         let info = match pt {
             _ if !ref_or_literal && self.is_error(body) => body_tpe,
+            _ if implicit => body_tpe,
             Pt::Type(p) if stable_or_literal => p,
             Pt::Type(p) if !bottom(self, p) && !self.u.is_subtype(body_tpe, p) => {
                 if !self.u.is_subtype(p, body_tpe) {
@@ -67,7 +82,8 @@ impl Typer<'_> {
             }
             _ => body_tpe,
         };
-        let flags = syntax::ast::flags::CASE.to_term_flags();
+        let flags = if implicit || given { CASE.or(GIVEN) } else { CASE };
+        let flags = flags.to_term_flags();
         let sym = self.syms.define(self.u, &text, Kind::Val, ctx.owner, flags);
         self.u.set_info(sym, info);
         self.levels.enter(ctx.level, &text, sym);

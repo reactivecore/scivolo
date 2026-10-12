@@ -43,7 +43,7 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
             l.recopy_class_literals(c);
         }
     }
-    Ok(Tree::Match { selector: typed(l, selector, None)?, cases, kind: MatchKind::Plain })
+    Ok(Tree::Match { selector: Some(typed(l, selector, None)?), cases, kind: MatchKind::Plain })
 }
 
 /// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected,

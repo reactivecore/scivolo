@@ -163,9 +163,9 @@ pub enum Tree {
         cases: List,
         finalizer: Option<TNodeId>,
     },
-    /// `kind` for dotty's `InlineMatch` and `SubMatch`.
+    /// `kind` for dotty's `InlineMatch` and `SubMatch`; no selector for `summonFrom`.
     Match {
-        selector: TNodeId,
+        selector: Option<TNodeId>,
         cases: List,
         kind: MatchKind,
     },
@@ -336,7 +336,7 @@ impl Tree {
                 f(O(finalizer));
             }
             Tree::Match { selector, cases, .. } => {
-                f(N(selector));
+                f(O(selector));
                 f(L(cases));
             }
             Tree::Alternative { trees } => f(L(trees)),

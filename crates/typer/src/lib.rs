@@ -42,7 +42,8 @@ pub struct Typed {
 }
 
 /// Types the desugared unit `root` of `ast`, parsed with language features `features`, defining
-/// its symbols in `u`; `fresh` holds the counters of the unit's fresh names.
+/// its symbols in `u`, and expands its inline calls; `fresh` holds the counters of the unit's
+/// fresh names.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
@@ -58,6 +59,8 @@ pub fn type_unit(
 pub struct Units {
     syms: symbols::Syms,
     errors_first: bool,
+    /// Whether typing stops before the inline calls expand (dotty's `-Ystop-after:typer`).
+    typer_only: bool,
 }
 
 impl Units {
@@ -67,8 +70,13 @@ impl Units {
         Self { errors_first: true, ..Self::default() }
     }
 
+    /// Sets whether the next units are typed without expanding their inline calls.
+    pub fn set_typer_only(&mut self, typer_only: bool) {
+        self.typer_only = typer_only;
+    }
+
     /// Types unit `root` like `type_unit`, the symbols of the units typed before counting as
-    /// script symbols.
+    /// script symbols; its inline calls expand unless `typer_only` is set.
     pub fn type_unit(
         &mut self,
         u: &mut Universe,
@@ -84,6 +92,13 @@ impl Units {
         typer.typed_annotations();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
+        }
+        if !self.typer_only
+            && typer.unsupported.is_none()
+            && !typer.diags.has_errors()
+            && let Err((at, what)) = typer.with_inlining(false, |i| i.run(typed))
+        {
+            typer.unsupported_at(at, what);
         }
         self.syms = std::mem::take(&mut typer.syms);
         self.syms.end_unit(typer.u);

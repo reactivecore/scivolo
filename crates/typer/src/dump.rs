@@ -47,16 +47,9 @@ pub fn dump(
     }
     let mut b = String::new();
     let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
+    units.set_typer_only(!inlined);
     match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg.features) {
-        Ok(mut typed) => {
-            if inlined
-                && let Err((at, what)) =
-                    crate::inlining::run(u, &mut typed.tpd, p.s.names, &mut p.fresh, typed.root)
-            {
-                let at = if at.exists() { at.point().to_string() } else { "-".into() };
-                writeln!(b, "== unsupported {what} @ {at}").unwrap();
-                return b;
-            }
+        Ok(typed) => {
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
             let source_len = source.len();
             let mut printer =

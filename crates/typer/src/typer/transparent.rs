@@ -3,7 +3,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
-use crate::inlining::{Unsupported, inline_transparent};
+use crate::inlining::Unsupported;
 use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
@@ -68,6 +68,9 @@ impl Typer<'_> {
         }
         if let Pt::Type(p) = pt {
             let (tpe, approx) = (self.tpd.tpe(call), self.wild_approx(p));
+            if !self.is_fully_defined(approx) && self.has_compiletime_op(tpe) {
+                return Err((span, "compile-time operation type"));
+            }
             let mark = self.constraint.mark();
             if !self.conforms(tpe, approx) {
                 self.constraint.rollback(mark);
@@ -77,13 +80,19 @@ impl Typer<'_> {
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
-        inline_transparent(
-            (&mut *self.u, &mut self.tpd),
-            (&mut *self.names, &mut *self.fresh),
-            (bodies, with_inits),
-            call,
-            ctx.owner,
-        )
+        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), call, ctx))
+    }
+
+    /// Whether `t` applies a type operation of `scala.compiletime.ops`.
+    fn has_compiletime_op(&mut self, t: tasty::TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part) {
+                found |= u.full_name(s).starts_with("scala.compiletime.ops.");
+            }
+            None
+        });
+        found
     }
 
     /// The classes of the unit that initialize something or are not completed yet.
@@ -145,7 +154,7 @@ impl Typer<'_> {
         });
         let forcing = match *self.tpd.tree(t) {
             T::If { cond, inline: true, .. } => Some(cond),
-            T::Match { selector, kind: MatchKind::Inline, .. } => Some(selector),
+            T::Match { selector, kind: MatchKind::Inline, .. } => selector,
             _ => None,
         };
         let inner = self

@@ -69,7 +69,7 @@ impl Inlining<'_> {
                 Ok(self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None))
             }
             T::Match { selector, cases, kind: MatchKind::Inline } if !self.is_inline_method(owner) => {
-                let selector = self.retype_forced(true, selector, args, owner)?;
+                let selector = selector.map(|s| self.retype_forced(true, s, args, owner)).transpose()?;
                 self.reduce_inline_match(t, selector, cases, args, owner)
             }
             T::Select { qualifier, name } => {

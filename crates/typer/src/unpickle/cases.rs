@@ -20,7 +20,7 @@ impl Unpickler<'_> {
             Some(_) => return Err("match of another kind in a library inline body"),
         };
         let cases = cases.to_vec();
-        let selector = self.term(sel)?;
+        let selector = Some(self.term(sel)?);
         let cases = cases.into_iter().map(|c| self.case_def(c)).collect::<Result<Vec<_>, _>>()?;
         let tpe = self.lub_of(&cases);
         let cases = self.tpd.list(&cases);

@@ -44,7 +44,7 @@ pub fn fallback(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNo
     let matched = l.tpd.list(&[&cases[tried..], &[rethrow]].concat());
     let tpe = l.cases_lub(matched);
     let m = l.tpd.node(
-        Tree::Match { selector, cases: matched, kind: MatchKind::Plain },
+        Tree::Match { selector: Some(selector), cases: matched, kind: MatchKind::Plain },
         Span::NONE,
         Some(tpe),
         None,

@@ -6,6 +6,10 @@ use crate::ctx::Ctx;
 use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
+/// The inline operations of `scala.compiletime` that inlining expands.
+const EXPANDED: [&str; 7] =
+    ["error", "codeOf", "requireConst", "constValue", "constValueOpt", "summonInline", "summonFrom"];
+
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
     /// operation, nor to `erasedValue` outside an inline method, nor from an inline body to a
@@ -15,7 +19,13 @@ impl Typer<'_> {
         if flags.has(INLINE) && flags.has(MACRO) {
             return Err("macro call");
         }
-        if flags.has(INLINE) && self.u.full_name(sym).starts_with("scala.compiletime.") {
+        let full = self.u.full_name(sym);
+        if flags.has(INLINE)
+            && full.starts_with("scala.compiletime.")
+            && !full
+                .strip_prefix("scala.compiletime.package$package$.")
+                .is_some_and(|n| EXPANDED.contains(&n))
+        {
             return Err("scala.compiletime operation");
         }
         if crate::inlining::is_erased_value(self.u, sym) && self.enclosing_inline(ctx.owner).is_none() {

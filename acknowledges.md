@@ -36,7 +36,10 @@ Apache-2.0. Rust translations of:
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
   `transform/BetaReduce`; `Inliner.InlineTyper` (`typedIf`, `typedMatch`,
   `typedMatchFinish`); `inlines/InlineReducer` (`reduceInlineMatch`, `reducePattern`,
-  `reduceProjection`, `normalizeBinding`, `NewInstance`) in `inlining/reduce`.
+  `reduceProjection`, `normalizeBinding`, `NewInstance`) in `inlining/reduce`;
+  `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
+  (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
+  `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)

@@ -54,10 +54,11 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// Whether `t` defines an inline method, which erasure drops, with a sub match in its body.
+/// Whether `t` defines an inline method, which erasure drops, with a sub match or a `summonFrom`
+/// in its body.
 fn is_inline_with_sub_match(l: &Lower, t: TNodeId) -> bool {
     fn has_sub_match(l: &Lower, t: TNodeId) -> bool {
-        matches!(l.tpd.tree(t), Tree::Match { kind: MatchKind::Sub, .. })
+        matches!(l.tpd.tree(t), Tree::Match { kind: MatchKind::Sub, .. } | Tree::Match { selector: None, .. })
             || children(l.tpd, t).into_iter().any(|c| has_sub_match(l, c))
     }
     l.tpd.sym(t).is_some_and(|s| crate::symbols::has(l.u, s, INLINE)) && has_sub_match(l, t)

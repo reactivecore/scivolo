@@ -2,32 +2,30 @@
 //! trace after it (dotty's `Inlines.inlineCall` in the typer, `PostTyper`'s `inlineCallTrace`).
 
 use super::{Inlining, Unsupported};
-use crate::tpd::{TNodeId, Tpd, Tree as T};
+use crate::ctx::Ctx;
+use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::TName;
-use syntax::names::{FreshNames, Names};
-use tasty::{Kind, SymbolId, Universe};
-
-/// The expansion of `call`, owned by `owner`, of a transparent inline method defined in `bodies`,
-/// with the transparent calls in it expanded too; `bodies` holds the definition of every
-/// transparent inline method it may reach, `with_inits` the classes of the unit that may run
-/// code when an instance is made.
-pub fn inline_transparent(
-    (u, tpd): (&mut Universe, &mut Tpd),
-    (names, fresh): (&mut Names, &mut FreshNames),
-    (bodies, with_inits): (FxHashMap<SymbolId, TNodeId>, FxHashSet<SymbolId>),
-    call: TNodeId,
-    owner: SymbolId,
-) -> Result<TNodeId, Unsupported> {
-    let mut i = Inlining::new((u, tpd), (names, fresh), true);
-    (i.bodies, i.with_inits) = (bodies, with_inits);
-    match i.inline_method(call)? {
-        Some(def) => i.inline_call(call, def, owner),
-        None => Ok(call),
-    }
-}
+use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
+    /// The expansion of `call` in `ctx` of a transparent inline method defined in `bodies`, with
+    /// the transparent calls in it expanded too; `bodies` holds the definition of every
+    /// transparent inline method it may reach, `with_inits` the classes of the unit that may run
+    /// code when an instance is made.
+    pub fn inline_transparent(
+        &mut self,
+        (bodies, with_inits): (FxHashMap<SymbolId, TNodeId>, FxHashSet<SymbolId>),
+        call: TNodeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, Unsupported> {
+        (self.bodies, self.with_inits, self.ctx) = (bodies, with_inits, Some(ctx));
+        match self.inline_method(call)? {
+            Some(def) => self.inline_call(call, def, ctx.owner),
+            None => Ok(call),
+        }
+    }
+
     /// The call of `Inlined` tree `t`, made a reference to the top-level class of the method it
     /// calls unless it is one already, the `this` qualifiers in its bindings then typed.
     pub fn traced_call(&mut self, t: TNodeId) -> Option<TNodeId> {

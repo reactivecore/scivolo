@@ -60,7 +60,9 @@ impl Session {
             Input::Command(_) => return vec![report::unsupported("a command as expression")],
         };
         let res = self.res;
+        self.units.set_typer_only(true);
         let typed = self.typed(&mut parsed, &object);
+        self.units.set_typer_only(false);
         self.units.forget(&mut self.u, &object);
         let expression = (self.res > res).then(|| format!("res{}", self.res - 1));
         self.res = res;

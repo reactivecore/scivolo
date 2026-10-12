@@ -1,0 +1,10 @@
+scala> import scala.compiletime.*
+
+scala> :type { inline def f(inline b: Boolean): Int = inline if b then error("x") else 1; f(true) }
+Int
+
+scala> :type { inline def g: Int = constValue[2] + 3; g }
+Int
+
+scala> 1 + 1
+val res0: Int = 2

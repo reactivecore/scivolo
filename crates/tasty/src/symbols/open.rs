@@ -20,6 +20,11 @@ impl Universe {
         Self::of(Library::Image(image))
     }
 
+    /// The universe of no library: its builtins only.
+    pub fn empty() -> Self {
+        Self::of(Library::Jars { jars: Vec::new(), files: FxHashMap::default() })
+    }
+
     fn of(library: Library) -> Self {
         let mut u = Self {
             library,

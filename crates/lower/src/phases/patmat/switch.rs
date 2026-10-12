@@ -115,7 +115,7 @@ impl Translator<'_, '_> {
         }
         let cases = self.l.tpd.list(&defs);
         let nothing = self.nothing_type();
-        self.node(Tree::Match { selector, cases, kind: MatchKind::Plain }, nothing, None)
+        self.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain }, nothing, None)
     }
 
     /// `t.toInt`, of a `Char`, `Byte` or `Short`.

@@ -3,7 +3,7 @@
 //! bounds checked or added to the constraint.
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
 use tasty::{Binder, SymbolId, Type, TypeId};
@@ -18,7 +18,12 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let arg_ids = self.ast.items(args).to_vec();
-        let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
+        let const_value = matches!(
+            fun_name.as_deref().and_then(|n| n.strip_prefix("scala.compiletime.package$package$.")),
+            Some("constValue" | "constValueOpt")
+        );
+        let arg_ctx = if const_value { ctx.with_mode(ctx.mode.with(Mode::CONST_VALUE_ARG)) } else { ctx };
+        let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect();
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let mut tpe = match self.instantiated(f, &arg_types) {
             Ok(tpe) => tpe,

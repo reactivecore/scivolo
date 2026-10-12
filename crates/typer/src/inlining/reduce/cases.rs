@@ -44,6 +44,17 @@ impl Reducer<'_, '_> {
             let b = self.normalize_binding(s, scrutinee)?;
             (self.i.u.intern_type(Type::Sym(None, s)), Some(b))
         };
+        self.reduce_cases(binding, scrut, cases)
+    }
+
+    /// The bindings and the body of the first of `cases` that the scrutinee `scrut`, bound by
+    /// `binding` if it needs to be, matches.
+    pub fn reduce_cases(
+        &mut self,
+        binding: Option<TNodeId>,
+        scrut: TypeId,
+        cases: &[TNodeId],
+    ) -> Result<Option<(Vec<TNodeId>, TNodeId)>, Unsupported> {
         for &c in cases {
             match self.reduce_case(c, scrut, binding)? {
                 Case::NoMatch => {}
@@ -82,7 +93,11 @@ impl Reducer<'_, '_> {
         }
         if let Some(g) = guard {
             self.subst(&m, g);
-            let g = self.i.retype(g, self.args, self.owner)?;
+            let outer = self.i.local_implicits;
+            self.i.local_implicits |= self.implicit && !map.is_empty();
+            let g = self.i.retype(g, self.args, self.owner);
+            self.i.local_implicits = outer;
+            let g = g?;
             match self.i.constant_of(g) {
                 Some(C::Boolean(true)) => {}
                 Some(C::Boolean(false)) => return Ok(Case::NoMatch),
@@ -90,7 +105,8 @@ impl Reducer<'_, '_> {
             }
         }
         self.subst(&m, body);
-        let T::Match { selector, cases, kind: MatchKind::Sub } = *self.i.tpd.tree(body) else {
+        let T::Match { selector: Some(selector), cases, kind: MatchKind::Sub } = *self.i.tpd.tree(body)
+        else {
             return Ok(Case::Selected(bindings, body));
         };
         let cases = self.i.tpd.items(cases).to_vec();

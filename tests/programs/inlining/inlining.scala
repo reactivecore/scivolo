@@ -285,6 +285,40 @@ object InlineMatches:
     println(col(IColor.Green))
     println(name[Int] + name[String] + name[Boolean])
 
+trait IShow[T]:
+  def show(t: T): String
+
+object IShow:
+  given IShow[Int] = new IShow[Int] { def show(t: Int) = "int " + t }
+
+object CompileTime:
+  import compiletime.{codeOf, constValue, constValueOpt, requireConst, summonInline}
+  import compiletime.ops.int.+
+  inline def plusOne[N <: Int]: Int = constValue[N] + 1
+  inline def opt[T]: Option[T] = constValueOpt[T]
+  inline def check(inline x: Int): Int =
+    requireConst(x)
+    x
+  inline def show[T](t: T): String = summonInline[IShow[T]].show(t)
+  inline def sum[A <: Int, B <: Int]: Int = constValue[A + B]
+  inline def describe[T](t: T): String = compiletime.summonFrom:
+    case s: IShow[T] => s.show(t)
+    case _ => "no show"
+  inline def has[T]: Boolean = compiletime.summonFrom:
+    case given IShow[T] => true
+    case _ => false
+  def run(args: Array[String]): Unit =
+    println(constValue[3] + plusOne[4])
+    println(constValue[1 + 2])
+    println(opt[5])
+    println(check(3))
+    println(show(args.length))
+    println(summonInline[IShow[Int]].show(2))
+    println(sum[2, 5])
+    println(codeOf(7))
+    println(describe(args.length) + " " + describe("s"))
+    println(has[Int] && !has[String])
+
 @main def inlining(): Unit =
   println(ap(_ => 3))
   println(((_: Any) => 4)(N2))
@@ -298,3 +332,4 @@ object InlineMatches:
   Library.run(args)
   Matches.run(args)
   InlineMatches.run(args)
+  CompileTime.run(args)
