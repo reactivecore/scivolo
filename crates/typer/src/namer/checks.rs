@@ -1,6 +1,7 @@
 //! Definitions outside the subset, or that dotty's checks (`Checking`, `RefChecks`) reject and the
 //! typer does not report yet: both fall back.
 
+use crate::ctx::Ctx;
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use syntax::ast::flags::{self as f, FlagSet};
@@ -8,16 +9,9 @@ use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Checks definition `tree` of `name` with the dotty flags `flags` of its modifiers in
-    /// `owner`, before its symbol is entered.
-    pub fn check_definition(
-        &mut self,
-        tree: NodeId,
-        name: &str,
-        kind: Kind,
-        owner: SymbolId,
-        flags: FlagSet,
-    ) {
-        if let Some(what) = self.definition_problem(tree, name, kind, owner, flags) {
+    /// `ctx`, before its symbol is entered.
+    pub fn check_definition(&mut self, tree: NodeId, name: &str, kind: Kind, ctx: Ctx, flags: FlagSet) {
+        if let Some(what) = self.definition_problem(tree, name, kind, ctx, flags) {
             self.unsupported(tree, what);
         }
     }
@@ -27,9 +21,10 @@ impl Typer<'_> {
         tree: NodeId,
         name: &str,
         kind: Kind,
-        owner: SymbolId,
+        ctx: Ctx,
         flags: FlagSet,
     ) -> Option<&'static str> {
+        let owner = ctx.owner;
         let is_type = !kind.is_term();
         let applicable = if is_type { flags.is_type_flags() } else { flags.is_term_flags() };
         let combinations = [
@@ -69,7 +64,7 @@ impl Typer<'_> {
             "lazy method"
         } else if !is_type && flags.is(f::TRANSPARENT) && !flags.is(f::INLINE) {
             "transparent without inline"
-        } else if self.doubly_defined(tree, name, kind, owner) {
+        } else if self.doubly_defined(tree, name, kind, ctx) {
             "double definition"
         } else if self.u.symbol(owner).kind == Kind::Package && self.has_package(owner, name) {
             "definition named like a package"

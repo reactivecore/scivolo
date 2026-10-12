@@ -82,7 +82,7 @@ impl Typer<'_> {
             Some(n) => format!("<init>$default${n}"),
             None => text,
         };
-        self.check_definition(tree, &text, kind, ctx.owner, written);
+        self.check_definition(tree, &text, kind, ctx, written);
         if self.ast.modifiers(mods).private_within.is_some() {
             self.unsupported(tree, "qualified private or protected");
         }

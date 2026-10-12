@@ -1,22 +1,32 @@
 //! Definitions entered twice in one owner (dotty's `Namer.checkNoConflict`, and in a class
 //! `Checking.checkNoDoubleDeclaration` as far as values go).
 
+use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
 use syntax::ast::NodeId;
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
-    /// Whether definition `tree` of `name` and `kind` conflicts with a definition this unit entered
-    /// in `owner` already. Two methods are left to `check_overrides`; in a class, a value and a
-    /// method conflict only when all clauses of the method are empty.
-    pub fn doubly_defined(&mut self, tree: NodeId, name: &str, kind: Kind, owner: SymbolId) -> bool {
+    /// Whether definition `tree` of `name` and `kind` in `ctx` conflicts with a definition this
+    /// unit entered already: in the owner if it is a class or package, else in the scope of
+    /// `ctx`. Two methods are left to `check_overrides`; in a class, a value and a method
+    /// conflict only when all clauses of the method are empty.
+    pub fn doubly_defined(&mut self, tree: NodeId, name: &str, kind: Kind, ctx: Ctx) -> bool {
         if name == "$anon" {
             return false;
         }
+        let owner = ctx.owner;
         let is_type = !kind.is_term();
         let in_class = self.u.symbol(owner).kind == Kind::Class;
         let getter = name.contains("$default$");
-        let decls = self.u.symbol(owner).decls.clone();
+        let scope =
+            self.levels.def_scope(ctx.level).filter(|&l| matches!(self.levels.get(l), Level::Scope(_)));
+        let decls = match scope {
+            Some(l) if !in_class && self.u.symbol(owner).kind != Kind::Package => {
+                self.levels.scope_symbols(l)
+            }
+            _ => self.u.symbol(owner).decls.clone(),
+        };
         for d in decls {
             let s = self.u.symbol(d);
             if !self.syms.flags.contains_key(&d) || s.name != name || self.u.is_type_symbol(d) != is_type {
