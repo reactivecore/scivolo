@@ -76,7 +76,7 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     let again = l.copy_ident(value);
     let elsep = value_of(l, again, class);
     let tpe = l.tpd.tpe(elsep);
-    let tree = Tree::If { cond, thenp, elsep };
+    let tree = Tree::If { cond, thenp, elsep, inline: false };
     let node = l.tpd.node(tree, Span::NONE, Some(tpe), None);
     let node = l.positioned(node);
     match def {
