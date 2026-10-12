@@ -146,7 +146,8 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
     let (params, other_params) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
     let value_params = l.u.erased_method_value(m).0;
     let other_result = l.u.erased_method_value(other).1;
-    let (sym, def) = l.method_like(class, m, flags, info, span, |l, args, _| {
+    let previous = l.erasure_owner.replace(m);
+    let made = l.method_like(class, m, flags, info, span, |l, args, _| {
         let args: Vec<TNodeId> = args
             .iter()
             .zip(params.iter().zip(&other_params).zip(&value_params))
@@ -156,7 +157,18 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
         let fun = l.select(this, m, span);
         let call = l.apply(fun, &args, m_result, span);
         adapt(l, call, &other_result)
-    })?;
+    });
+    l.erasure_owner = previous;
+    let (sym, def) = made?;
+    for t in super::walk::subtrees(l.tpd, def) {
+        let local = l
+            .tpd
+            .sym(t)
+            .filter(|&s| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.u.symbol(s).owner == Some(m));
+        if let Some(s) = local {
+            l.u.set_owner(s, sym);
+        }
+    }
     l.bridges.insert(sym);
     Ok(def)
 }

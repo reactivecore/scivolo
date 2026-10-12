@@ -58,13 +58,12 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     }
     let local = matches!(l.tpd.tree(t), Tree::Ident { .. })
         && l.tpd.sym(t).is_some_and(|s| !l.u.symbol(s).owner.is_some_and(|o| l.u.is_class(o)));
-    let (value, def) = match l.erasure_owner {
-        _ if local => (t, None),
-        Some(owner) => {
-            let (ev, def) = eval_once(l, t, owner);
-            (l.ident(ev, Span::NONE), Some(def))
-        }
-        None => return value_of(l, t, class),
+    let (value, def) = if local {
+        (t, None)
+    } else {
+        let owner = l.erasure_owner.expect("the method an unboxed value is evaluated in");
+        let (ev, def) = eval_once(l, t, owner);
+        (l.ident(ev, Span::NONE), Some(def))
     };
     let null = l.null_literal(Span::NONE);
     let eq = l.select(value, l.defs.patmat.eq, Span::NONE);
@@ -103,7 +102,8 @@ fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
     }
 }
 
-/// `t.value()` for the underlying value `value` of value class `class`, `t` cast to `class`.
+/// `t.v()` for the accessor `v` of the underlying value of value class `class`, `t` cast to
+/// `class`.
 fn value_of(l: &mut Lower, t: TNodeId, class: &str) -> TNodeId {
     let boxed = Erased::Class(class.to_owned());
     let t = adapt(l, t, &boxed);

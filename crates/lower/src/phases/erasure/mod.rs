@@ -17,6 +17,12 @@ use typer::tpd::{TNodeId, Tree};
 /// Types the methods of class definition `td` against their erased result types, and the
 /// statements and field initializers of its body.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+    let result = transform_class(l, td);
+    l.erasure_owner = None;
+    result
+}
+
+fn transform_class(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     let mut stats = Vec::new();
@@ -52,7 +58,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     let parents = l.tpd.list(&typed_parents);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-    l.erasure_owner = None;
     Ok(())
 }
 

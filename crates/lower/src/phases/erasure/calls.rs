@@ -33,7 +33,7 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
     }
     let any_val_init = l.tpd.sym(sel).filter(|&m| l.u.is_constructor(m)).and_then(|m| l.u.symbol(m).owner);
-    if any_val_init.is_some_and(|o| l.u.full_name(o) == "scala.AnyVal") {
+    if any_val_init == Some(l.defs.any_val) {
         let init = l.u.decl(l.defs.object, "<init>").unwrap_or_default();
         l.tpd.get_mut(sel).sym = init.first().copied();
     }

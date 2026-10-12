@@ -102,8 +102,8 @@ impl Translator<'_, '_> {
         self.l.tpd.get_mut(fun).tpe = Some(info);
         let fun = self.l.positioned(fun);
         match *self.l.u.types().get(info) {
-            tasty::Type::Method { .. } | tasty::Type::Poly { .. } => {}
-            tasty::Type::ByName(result) => {
+            Type::Method { .. } | Type::Poly { .. } => {}
+            Type::ByName(result) => {
                 self.l.tpd.get_mut(fun).tpe = Some(result);
                 return fun;
             }
