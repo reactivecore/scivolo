@@ -6,7 +6,7 @@
 use super::explicit_outer::{enclosing_instance, outer_accessor, outer_accessor_name, outer_this, terms};
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{is_static, is_static_owner};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result, Unsupported, unsupported};
 use syntax::ast::Span;
 use tasty::tags::FINAL;
 use tasty::{Flags, Kind, SymbolId, Type, TypeId, Universe};
@@ -44,16 +44,12 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
     }
     let linearization = l.u.linearization(class);
     let mixins: Vec<SymbolId> = linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
-    let local = l.u.symbol(class).owner.is_some_and(|o| l.u.symbol(o).kind.is_term());
     let mut defs = Vec::new();
     for m in mixins {
         let Some(outer) = outer_class(l, m) else { continue };
-        if local {
-            return unsupported(l.tpd.span(td), "local classes using the enclosing instance");
-        }
-        let span = end_span(l, td);
+        let span = Span::NONE;
         let prefix = prefix(l, class, m, outer);
-        let rhs = path(l, class, prefix, span)?;
+        let rhs = path(l, class, prefix, span).map_err(|e| Unsupported { at: l.tpd.span(td), ..e })?;
         let result = result_type(l, class, outer, prefix);
         let name = outer_accessor_name(l, m);
         let sym = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
@@ -64,6 +60,10 @@ pub fn implement(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<bool> {
     }
     let any = !defs.is_empty();
     append(l, td, &defs);
+    if any {
+        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+        l.recopy(template);
+    }
     Ok(any)
 }
 

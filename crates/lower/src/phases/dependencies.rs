@@ -139,6 +139,7 @@ impl Collect<'_, '_> {
                 if let Some(ctor) = ctor {
                     self.add_called(encl, ctor);
                 }
+                return;
             }
             _ => {}
         }
@@ -160,7 +161,7 @@ impl Collect<'_, '_> {
             Tree::ValDef { .. } => l.tpd.sym(t).is_some_and(|s| has(l.u, s, LAZY)),
             _ => false,
         };
-        for &p in &parents {
+        for &p in parents.iter().filter(|&&p| l.tpd.sym(p).is_none_or(|s| !l.u.is_class(s))) {
             self.visit(p, ctor);
         }
         for &s in body.iter().filter(|&&s| !member(s)) {
