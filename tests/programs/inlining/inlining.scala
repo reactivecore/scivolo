@@ -161,6 +161,41 @@ object N3 extends Noisy:
   val u: Unit = ()
 
 inline def ap(inline f: Any => Int): Int = f(N1)
+transparent inline def topT(n: Int): Any = if n > 0 then "pos" else n
+
+object Transparent:
+  transparent inline def choose(b: Boolean): Any = if b then 1 else "one"
+  transparent inline def outer(b: Boolean): Any = choose(!b)
+  transparent inline def viaPlain(x: Int): Any = Nested.inc(x) * 2
+  inline def callsTransparent(b: Boolean): Any = choose(b)
+  transparent inline def lazily(x: => Int): Any = x + x
+  transparent inline def pick(inline c: Boolean, a: Int, b: String): Any = if c then a else b
+  extension (x: Int) transparent inline def double: Any = x * 2
+  transparent inline def first[T](xs: List[T]): Option[T] = xs.headOption
+  transparent inline def answer: Any = 42
+  def over(i: Int): String = "int"
+  def over(s: String): String = "str"
+  class Counter(var n: Int):
+    transparent inline def next(): Any = { n += 1; n }
+  def side(): Int = { println("side"); 2 }
+  def run(): Unit =
+    val a = outer(false)
+    println(a + 1)
+    val b = viaPlain(side())
+    println(b + 1)
+    println(callsTransparent(true))
+    println(lazily(side()))
+    println(pick(b = "x", a = side(), c = false).length)
+    println(pick(true, side(), "y") + 1)
+    println(3.double + 1)
+    println(first(List(1, 2)).isEmpty)
+    println(over(choose(true)))
+    println(over(choose(false)))
+    println(Counter(4).next() + 1)
+    println(topT(1).length)
+    val l: Int = answer
+    println(later(l) + 1)
+  transparent inline def later(x: Int): Any = x
 
 @main def inlining(): Unit =
   println(ap(_ => 3))
@@ -171,3 +206,4 @@ inline def ap(inline f: Any => Int): Int = f(N1)
   Nested.run(args)
   Arguments.run(args)
   Classes.run()
+  Transparent.run()
