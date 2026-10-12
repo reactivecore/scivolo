@@ -18,7 +18,8 @@ impl Cmp<'_> {
                 _ => false,
             },
             Type::Applied(tycon, args) => self.compare_applied1(a, b, tycon, &args),
-            Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) => {
+            Type::Skolem(x, _) if matches!(*self.u.types().get(b), Type::Skolem(y, _) if x == y) => true,
+            Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::RecThis(_) | Type::Skolem(..) => {
                 self.below_singleton(a, b)
             }
             Type::Refined(parent, ..)

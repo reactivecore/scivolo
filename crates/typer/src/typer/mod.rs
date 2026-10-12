@@ -11,6 +11,7 @@ mod applicability;
 mod apply;
 mod auto_apply;
 mod avoid;
+mod call_types;
 mod classes;
 mod closures;
 mod const_fold;

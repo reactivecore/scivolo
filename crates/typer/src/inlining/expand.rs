@@ -4,9 +4,11 @@
 
 use super::copy::TreeTypeMap;
 use super::proxies::replace_param;
+use super::skolems::call_skolem;
 use super::this_proxy::replace_this;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
+use crate::typer::stability::is_stable_path;
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::INLINE;
@@ -127,13 +129,14 @@ impl<'i, 'a> Expansion<'i, 'a> {
         let args = self.i.tpd.items(args).to_vec();
         let fun_tpe = self.i.tpd.tpe(fun);
         let info = self.i.u.widen(fun_tpe);
-        let Type::Method { params: formals, .. } = self.i.u.types().get(info).clone() else {
+        let Type::Method { binder, params: formals, result, .. } = self.i.u.types().get(info).clone() else {
             return Err(self.err("application of a value"));
         };
         if formals.len() != args.len() || params.len() != args.len() {
             return Err(self.err("inline call with missing arguments"));
         }
-        for ((&param, &arg), (_, formal)) in params.iter().zip(&args).zip(formals) {
+        let applied = self.i.tpd.tpe(apply);
+        for (index, ((&param, &arg), (_, formal))) in params.iter().zip(&args).zip(formals).enumerate() {
             let p = self.i.tpd.sym(param).ok_or(self.err("parameter"))?;
             self.arg_span.insert(p, self.i.tpd.span(arg));
             let arg = match *self.i.tpd.tree(arg) {
@@ -141,10 +144,16 @@ impl<'i, 'a> Expansion<'i, 'a> {
                 _ => arg,
             };
             let tpe = self.i.tpd.tpe(arg);
+            let skolem = match call_skolem(self.i.u, (result, applied), binder, (index, p)) {
+                Some(None) if !is_stable_path(self.i.u, tpe) => {
+                    return Err(self.err("argument without its skolem"));
+                }
+                found => found.flatten(),
+            };
             let bound = if self.i.is_singleton_path(tpe) && self.i.is_idempotent_path(arg) {
                 tpe
             } else {
-                self.proxy(p, formal, arg)?
+                self.proxy(p, formal, arg, skolem)?
             };
             self.binding.insert(p, bound);
         }

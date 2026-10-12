@@ -10,6 +10,7 @@ mod no_inits;
 mod proxies;
 mod purity;
 mod retype;
+mod skolems;
 mod this_proxy;
 mod transparent;
 mod unused;
@@ -208,13 +209,18 @@ impl Inlining<'_> {
         let locals: Vec<SymbolId> = bindings.iter().filter_map(|&b| self.tpd.sym(b)).collect();
         let mut tpe = self.tpd.tpe(expansion);
         while locals.iter().any(|&s| self.mentions(tpe, s)) {
-            let widened = self.u.widen(tpe);
+            let widened = self.u.widen_once(tpe).unwrap_or(tpe);
+            let widened = match *self.u.types().get(widened) {
+                Type::ByName(r) => r,
+                _ => widened,
+            };
             let widened = self.u.dealias(widened);
             if widened == tpe {
                 return Err((span, "inline expansion of a type referring to a binding"));
             }
             tpe = widened;
         }
+        let expansion = self.sealed(&locals, expansion, tpe)?;
         let bindings = self.tpd.list(&bindings);
         Ok(self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None))
     }

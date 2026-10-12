@@ -62,7 +62,7 @@ impl Inlining<'_> {
                 let callee = self.tpd.sym(fun).map(|s| self.u.full_name(s));
                 match callee.as_deref() {
                     _ if !applied => self.purity(fun),
-                    Some("scala.Any.asInstanceOf") => match *self.tpd.tree(fun) {
+                    Some("scala.Any.$asInstanceOf$") => match *self.tpd.tree(fun) {
                         T::Select { qualifier, .. } => self.purity(qualifier) & PURE,
                         _ => IMPURE,
                     },

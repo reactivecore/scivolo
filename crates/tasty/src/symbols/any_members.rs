@@ -39,6 +39,8 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     let type_test = poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
+    let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
+    u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
     let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
     let kept: Vec<SymbolId> =
         hidden.into_iter().filter(|&d| !HIDDEN.contains(&u.symbol(d).name.as_str())).collect();

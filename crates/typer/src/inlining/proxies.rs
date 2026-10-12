@@ -12,8 +12,15 @@ use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The type of a new proxy binding argument `arg` of parameter `p` of type `formal`: a value,
-    /// or a method for a by-name parameter.
-    pub fn proxy(&mut self, p: SymbolId, formal: TypeId, arg: TNodeId) -> Result<TypeId, Unsupported> {
+    /// or a method for a by-name parameter; typed by `skolem` if the call's type refers to the
+    /// argument by one.
+    pub fn proxy(
+        &mut self,
+        p: SymbolId,
+        formal: TypeId,
+        arg: TNodeId,
+        skolem: Option<TypeId>,
+    ) -> Result<TypeId, Unsupported> {
         let i = &mut *self.i;
         if matches!(i.tpd.tree(arg), T::Typed { .. }) {
             return Err(self.err("repeated inline argument"));
@@ -26,6 +33,10 @@ impl Expansion<'_, '_> {
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
         if bottom && inline {
             return Err(self.err("inline argument of type Nothing"));
+        }
+        let skolem = skolem.filter(|_| !bottom);
+        if let Some(sk) = skolem {
+            widened = sk;
         }
         let info = if bottom {
             widened = match *i.u.types().get(formal) {
@@ -59,7 +70,10 @@ impl Expansion<'_, '_> {
         });
         i.u.set_info(s, info);
         let mut m = TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
-        let rhs = i.copy(&mut m, arg, &mut |_, _, _| None)?;
+        let mut rhs = i.copy(&mut m, arg, &mut |_, _, _| None)?;
+        if let Some(sk) = skolem {
+            rhs = i.cast(rhs, sk)?;
+        }
         let span = i.tpd.span(self.call);
         let tpt_span = Span::at(i.tpd.span(arg).start());
         let name = TName { name, is_type: false };

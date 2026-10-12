@@ -154,7 +154,7 @@ impl Typer<'_> {
                     let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
                     let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
                     let meth = self.tpd.sym(self.tpd.meth_part(tree));
-                    let result = self.applied_result(result, (binder, &names), meth, &arg_types)?;
+                    let result = self.applied_result(result, (binder, &names), meth, &arg_types);
                     tree = self.build().apply(tree, &args, result, at);
                 }
                 Type::Method { .. } | Type::Poly { .. } => return Err("not an implicit value"),

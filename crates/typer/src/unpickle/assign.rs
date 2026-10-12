@@ -52,8 +52,7 @@ impl Unpickler<'_> {
         }
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        applied_result(self.u, result, (binder, &names), meth, &args)
-            .map_err(|_| "dependent result of an unstable argument in a library inline body")
+        Ok(applied_result(self.u, result, (binder, &names), meth, &args))
     }
 
     /// The type of `fun[args]`: the result of `fun`'s polymorphic type instantiated.

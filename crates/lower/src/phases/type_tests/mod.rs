@@ -14,17 +14,23 @@ use syntax::ast::Span;
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Whether `t` is a type test or cast `x.isInstanceOf[T]`, `x.$isInstanceOf[T]` or
-/// `x.asInstanceOf[T]`.
+/// Whether `t` is a type test or cast `x.isInstanceOf[T]`, `x.$isInstanceOf[T]`,
+/// `x.asInstanceOf[T]` or `x.$asInstanceOf$[T]`.
 pub fn is_test_or_cast(l: &Lower, t: TNodeId) -> bool {
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { return false };
-    let p = l.defs.patmat;
-    l.tpd.sym(fun).is_some_and(|s| [p.is_instance_of, p.type_test, l.defs.as_instance_of].contains(&s))
+    let (p, d) = (l.defs.patmat, &l.defs);
+    l.tpd
+        .sym(fun)
+        .is_some_and(|s| [p.is_instance_of, p.type_test, d.as_instance_of, d.type_cast].contains(&s))
 }
 
-/// Makes type test or cast `t` its erased form, at `t`'s span.
+/// Makes type test or cast `t` its erased form, at `t`'s span; `$asInstanceOf$` as
+/// `asInstanceOf`.
 pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
     let Tree::TypeApply { fun, args } = *l.tpd.tree(t) else { unreachable!("a type application") };
+    if l.tpd.sym(fun) == Some(l.defs.type_cast) {
+        l.tpd.get_mut(fun).sym = Some(l.defs.as_instance_of);
+    }
     let span = l.tpd.span(t);
     let Tree::Select { qualifier: expr, .. } = *l.tpd.tree(fun) else {
         return unsupported(span, "type tests and casts without a receiver");

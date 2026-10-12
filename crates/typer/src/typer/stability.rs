@@ -56,7 +56,12 @@ pub fn is_stable_member(u: &mut Universe, s: SymbolId) -> bool {
 /// member through a stable prefix (dotty's `isStable`).
 pub fn is_stable_path(u: &mut Universe, t: TypeId) -> bool {
     match *u.types().get(t) {
-        Type::This(_) | Type::RecThis(_) | Type::Constant(..) | Type::Str(_) | Type::Package(_) => true,
+        Type::This(_)
+        | Type::RecThis(_)
+        | Type::Constant(..)
+        | Type::Str(_)
+        | Type::Package(_)
+        | Type::Skolem(..) => true,
         Type::Sym(p, s) if u.symbol(s).kind.is_term() => {
             is_stable_member(u, s)
                 && p.is_none_or(|p| {

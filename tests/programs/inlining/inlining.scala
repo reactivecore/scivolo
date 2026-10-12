@@ -214,6 +214,9 @@ object Library:
     catch case e: AssertionError => println(e.getMessage)
     try assert(n != 0)
     catch case e: AssertionError => println(e.getMessage)
+    val ev = summon[Int <:< Any]
+    println(ev != null)
+    println(summon[String =:= String].apply("ev"))
 
 @main def inlining(): Unit =
   println(ap(_ => 3))

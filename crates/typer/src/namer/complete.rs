@@ -207,7 +207,7 @@ impl Typer<'_> {
                 let info = self.method_info(t).unwrap_or(t);
                 self.widen_rhs(sym, info)
             }
-            Type::ByName(r) => self.widen_rhs(sym, r),
+            Type::ByName(r) | Type::Skolem(_, r) => self.widen_rhs(sym, r),
             Type::This(c)
                 if !self
                     .u
