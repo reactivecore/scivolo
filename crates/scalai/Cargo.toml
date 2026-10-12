@@ -7,16 +7,16 @@ publish = false
 [dependencies]
 clap.workspace = true
 libimage.workspace = true
+lower = { path = "../lower" }
 nir.workspace = true
 repl = { path = "../repl" }
 rustyline.workspace = true
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
 vm = { path = "../vm" }
 
 [dev-dependencies]
 libc = "0.2"
-lower = { path = "../lower" }
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
 typer = { path = "../typer" }
 
 [lints]

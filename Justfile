@@ -23,8 +23,8 @@ sn-tests *dirs:
 run name *args: release
     SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
 
-# Run a `.scala` or `.sc` file (relative to the current directory), compiled through scala-cli
-# unless cached.
+# Run a `.scala` or `.sc` file (relative to the current directory), compiled through the own
+# frontend or scala-cli unless cached.
 [no-cd]
 script file *args: release
     {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}

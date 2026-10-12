@@ -1,8 +1,9 @@
-//! Compiles a `.scala` or `.sc` file to NIR through scala-cli, cached by path, content and
-//! versions.
+//! Compiles a `.scala` or `.sc` file to NIR through the own frontend or scala-cli, cached by
+//! path, content, frontend mode and versions.
 
+use crate::frontend::{self, Mode, Refused};
 use crate::libs::{NATIVE, SCALA, cache_dir};
-use libimage::cache;
+use libimage::{Image, cache};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -10,14 +11,22 @@ use std::process::Command;
 /// The mangled signature of the static `main(Array[String]): Unit` of a main class.
 const MAIN: &str = "D4mainLAL16java.lang.String_uEo";
 
+/// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
+const FALLBACK: &str = "fallback";
+
 /// Whether `arg` names a source file to compile rather than a main class.
 pub fn is_source(arg: &str) -> bool {
     arg.ends_with(".scala") || arg.ends_with(".sc")
 }
 
-/// The NIR directory of `source` and its main class: `chosen`, else the only one.
-pub fn main_of(source: &str, chosen: Option<String>) -> Result<(PathBuf, String), String> {
-    let (classes, mains) = compile(Path::new(source))?;
+/// The NIR directory of `source` and its main class: `chosen`, else the only one. The own
+/// frontend reads the library's TASTy from `image`.
+pub fn main_of(
+    source: &str,
+    chosen: Option<String>,
+    image: Option<&'static Image>,
+) -> Result<(PathBuf, String), String> {
+    let (classes, mains) = compile(source, Mode::from_env()?, image)?;
     Ok((classes, pick(source, &mains, chosen)?))
 }
 
@@ -33,21 +42,24 @@ fn pick(source: &str, mains: &[String], chosen: Option<String>) -> Result<String
 
 /// The NIR directory and main classes of `source`, compiled first unless cached. A compile
 /// goes to a directory of its own, renamed into place when complete.
-fn compile(source: &Path) -> Result<(PathBuf, Vec<String>), String> {
-    let source = source.canonicalize().map_err(|e| format!("{}: {e}", source.display()))?;
-    let text = std::fs::read(&source).map_err(|e| format!("{}: {e}", source.display()))?;
+fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(PathBuf, Vec<String>), String> {
+    let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
+    let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
-    (&source, &text, env!("CARGO_PKG_VERSION"), SCALA, NATIVE).hash(&mut h);
+    (&source, &text, mode, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
+        if let Ok(why) = std::fs::read_to_string(dir.join(FALLBACK)) {
+            eprintln!("scalai: {file}: compiled by scala-cli ({why})");
+        }
         return Ok(cached);
     }
     cache::prune(&scripts, cache::UNUSED, cache::is_key);
     cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
     let staging = dir.with_extension(std::process::id().to_string());
-    let built = build(&source, &staging);
+    let built = build(file, &source, &text, mode, image, &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
         return cached(&dir).ok_or_else(|| format!("{}: unreadable", dir.display()));
     }
@@ -62,8 +74,44 @@ fn cached(dir: &Path) -> Option<(PathBuf, Vec<String>)> {
     Some((dir.join("classes"), mains.lines().map(str::to_owned).collect()))
 }
 
-/// Compiles `source` into `out`/`classes` and lists its main classes in `out`/`main`.
-fn build(source: &Path, out: &Path) -> Result<(), String> {
+/// Compiles `source`, named `file` on the command line and holding `text`, into `out`/`classes`
+/// as `mode` chooses, and lists its main classes in `out`/`main`.
+fn build(
+    file: &str,
+    source: &Path,
+    text: &[u8],
+    mode: Mode,
+    image: Option<&'static Image>,
+    out: &Path,
+) -> Result<(), String> {
+    let classes = out.join("classes");
+    match mode {
+        Mode::Jvm => scala_cli(source, out)?,
+        _ => match frontend::compile(source, text, image, &classes) {
+            Ok(()) => {}
+            Err(Refused { why, errors }) if mode == Mode::Strict => {
+                errors.iter().for_each(|line| eprintln!("{line}"));
+                return Err(format!("{file}: the own frontend refuses it ({why})"));
+            }
+            Err(Refused { why, .. }) => {
+                eprintln!("scalai: {file}: falling back to scala-cli ({why})");
+                let _ = std::fs::remove_dir_all(&classes);
+                scala_cli(source, out)?;
+                std::fs::write(out.join(FALLBACK), why).map_err(|e| format!("{}: {e}", out.display()))?;
+            }
+        },
+    }
+    let mut mains = Vec::new();
+    main_classes(&classes, &mut mains)?;
+    if mains.is_empty() {
+        return Err(format!("{file}: no main method"));
+    }
+    mains.sort();
+    std::fs::write(out.join("main"), mains.join("\n")).map_err(|e| format!("{}: {e}", out.display()))
+}
+
+/// Compiles `source` into `out`/`classes` through scala-cli.
+fn scala_cli(source: &Path, out: &Path) -> Result<(), String> {
     let cli = std::env::var_os("SCALAI_SCALA_CLI").unwrap_or_else(|| "scala-cli".into());
     let classes = out.join("classes");
     let status = Command::new(&cli)
@@ -80,13 +128,7 @@ fn build(source: &Path, out: &Path) -> Result<(), String> {
         return Err(format!("compiling {} failed", source.display()));
     }
     let _ = std::fs::remove_dir_all(out.join("work"));
-    let mut mains = Vec::new();
-    main_classes(&classes, &mut mains)?;
-    if mains.is_empty() {
-        return Err(format!("{}: no main method", source.display()));
-    }
-    mains.sort();
-    std::fs::write(out.join("main"), mains.join("\n")).map_err(|e| format!("{}: {e}", out.display()))
+    Ok(())
 }
 
 /// Adds the classes under `dir` that define `main` to `mains`.

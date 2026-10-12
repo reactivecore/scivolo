@@ -137,7 +137,8 @@ just dotty-lower-report   # typer, lowering and VM; lower-report.md and lower-re
 
 Each single-file test is lowered by `lower` and run in the VM. Tests failing in the VM when
 compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
-the typer or the lowering gives.
+the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
+`scalai FILE.scala` with `SCALAI_FRONTEND=strict` (`crates/scalai/tests/lowered.rs`).
 
 Results (2026-10-11):
 

@@ -20,4 +20,5 @@ mod wrap;
 pub use completion::{Group, inserts_tab, word};
 pub use highlight::highlight;
 pub use input::is_incomplete;
+pub use report::compile_errors;
 pub use session::Session;
