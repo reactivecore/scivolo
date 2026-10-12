@@ -20,8 +20,6 @@ impl Mode {
     /// The type argument of `constValue` or `constValueOpt`, where a compile-time operation type
     /// may stand.
     pub const CONST_VALUE_ARG: Mode = Mode(8);
-    /// The arguments of a self-constructor call, outside the class.
-    pub const THIS_CALL_ARGS: Mode = Mode(16);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

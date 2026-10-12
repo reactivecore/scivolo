@@ -104,9 +104,6 @@ impl Typer<'_> {
             Some(_) => return self.unsupported(id, "this qualifier"),
             None => None,
         };
-        if ctx.mode.is(crate::ctx::Mode::THIS_CALL_ARGS) {
-            return self.unsupported(id, "this in the arguments of a self-constructor call");
-        }
         let mut cls = self.this_class(ctx.owner);
         if let Some(n) = name {
             let text = self.text(n.name).to_owned();
@@ -120,6 +117,9 @@ impl Typer<'_> {
             }
         }
         let Some(cls) = cls else { return self.unsupported(id, "this outside a class") };
+        if self.in_this_call_args(cls, ctx) {
+            return self.unsupported(id, "this in the arguments of a self-constructor call");
+        }
         let span = self.ast.span(id);
         let qual = match (qual, name) {
             (Some(q), Some(n)) => {

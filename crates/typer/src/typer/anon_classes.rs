@@ -11,6 +11,9 @@ use syntax::ast::{NodeId, Span, TName, Tree};
 impl Typer<'_> {
     /// `new` of template `template` at `id`, against `pt`.
     pub fn typed_anon_class(&mut self, id: NodeId, template: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        if self.enclosing_class(ctx.owner).is_some_and(|c| self.in_this_call_args(c, ctx)) {
+            return self.unsupported(id, "anonymous class in the arguments of a self-constructor call");
+        }
         let span = self.ast.span(id);
         let start = Span::synthetic(span.start(), span.start());
         if let Tree::Template { constr, .. } = *self.ast.tree(template)

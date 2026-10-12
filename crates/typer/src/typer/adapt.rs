@@ -35,8 +35,9 @@ impl Typer<'_> {
                 return tree;
             }
             let mut args = Vec::new();
+            let args_ctx = self.implicit_args_ctx(tree, ctx);
             for &(_, p) in params {
-                match self.implicit_arg(p, span.end_pos(), ctx, 0) {
+                match self.implicit_arg(p, span.end_pos(), args_ctx, 0) {
                     Ok(arg) => args.push(arg),
                     Err(what) => {
                         self.unsupported_at(span, what);
