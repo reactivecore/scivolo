@@ -144,12 +144,13 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
         flags = flags.without(tag);
     }
     let (params, other_params) = (l.u.erased_method(m).0, l.u.erased_method(other).0);
-    let other_result = l.u.erased_method(other).1;
+    let value_params = l.u.erased_method_value(m).0;
+    let other_result = l.u.erased_method_value(other).1;
     let (sym, def) = l.method_like(class, m, flags, info, span, |l, args, _| {
         let args: Vec<TNodeId> = args
             .iter()
-            .zip(params.iter().zip(&other_params))
-            .map(|(&a, (p, o))| if p == o { a } else { adapt(l, a, p) })
+            .zip(params.iter().zip(&other_params).zip(&value_params))
+            .map(|(&a, ((p, o), v))| if p == o { a } else { adapt(l, a, v) })
             .collect();
         let this = l.this(class, span);
         let fun = l.select(this, m, span);
