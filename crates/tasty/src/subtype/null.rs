@@ -33,7 +33,7 @@ impl Cmp<'_> {
                 self.nullable_within(p, depth)
             }
             Type::And(a, b) => self.nullable_within(a, depth) && self.nullable_within(b, depth),
-            Type::Or(a, b) => self.nullable_within(a, depth) || self.nullable_within(b, depth),
+            Type::Or(a, b, _) => self.nullable_within(a, depth) || self.nullable_within(b, depth),
             Type::Constant(tag, _) => tag == NULLconst,
             _ => false,
         }

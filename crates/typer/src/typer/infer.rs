@@ -1,7 +1,7 @@
 //! Instantiating type variables (dotty's `instanceType`, `isFullyDefined`), and substituting
 //! their instances.
 
-use super::Typer;
+use super::{Typer, Widen};
 use crate::constraint::Constraint;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
@@ -39,37 +39,15 @@ impl Typer<'_> {
         self.normalized(t)
     }
 
-    /// Instantiates `v` to its lower bound widened (dotty's `widenInferred`), or its upper bound.
+    /// Instantiates `v` to its lower bound widened (dotty's `instanceType`), or its upper bound.
     pub fn instantiate_var(&mut self, v: VarId, from_below: bool) -> Result<(), &'static str> {
         let (lo, hi) = self.constraint.bounds(v);
         let (lo, hi) = (self.zonk(lo), self.zonk(hi));
         let mut inst = if from_below { lo } else { hi };
         inst = self.simplified(inst);
-        if from_below && !self.is_singleton(hi) {
-            let widened = self.widen_singleton(inst);
-            if self.conforms(widened, hi) {
-                inst = self.module_ref(widened);
-            }
-            if self.constraint.soft_lower(v) {
-                inst = self.constraining_lub(inst);
-            }
-            if self.constraint.soft_lower(v)
-                && matches!(self.u.types().get(inst), Type::Or(..))
-                && self.is_fully_defined(inst)
-                && let Some(joined) = self.u.join(inst)
-                && !self.is_transparent(joined, false)
-                && self.conforms(joined, hi)
-            {
-                inst = joined;
-            }
-            inst = self.without_transparent_traits(inst, hi);
-            inst = self.simplified(inst);
-        }
-        if self.constraint.soft_lower(v)
-            && matches!(self.u.types().get(inst), Type::Or(..))
-            && self.u.join(inst).is_none_or(|j| self.conforms(j, hi))
-        {
-            return Err("type variable instantiated to a union");
+        if from_below {
+            let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
+            inst = self.widen_inferred(inst, hi, widen)?;
         }
         let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {

@@ -4,7 +4,7 @@
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::typer::deskolemize::deskolemized;
-use crate::typer::{InlineDef, Pt, Typer};
+use crate::typer::{InlineDef, Pt, Typer, Widen};
 use syntax::ast::{NodeId, Span, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -88,13 +88,16 @@ impl Typer<'_> {
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified(widened);
-                let mut widened = self.without_transparent_traits(widened, tasty::ANY);
-                if matches!(self.u.types().get(widened), Type::Or(..)) {
-                    widened = self.widen_singleton(widened);
+                if self.keeps_rhs_type(sym)
+                    && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
+                {
+                    return widened;
                 }
-                if matches!(self.u.types().get(widened), Type::Or(..)) {
-                    self.unsupported(rhs, "union widening");
-                }
+                let bound = inherited.or(default).or(approx).unwrap_or(tasty::ANY);
+                let widened = self.widen_inferred(widened, bound, Widen::Unions).unwrap_or_else(|what| {
+                    self.unsupported(rhs, what);
+                    widened
+                });
                 deskolemized(self.u, widened, 1).unwrap_or_else(|| {
                     self.unsupported(rhs, "skolem in an inferred type");
                     widened

@@ -7,7 +7,7 @@ use crate::{Kind, SymbolId, Universe};
 impl Universe {
     /// The join of union `t`, `t` itself if it is no union; `None` where the parts do not merge.
     pub fn join(&mut self, t: TypeId) -> Option<TypeId> {
-        let Type::Or(a, b) = *self.types().get(t) else { return Some(t) };
+        let Type::Or(a, b, _) = *self.types().get(t) else { return Some(t) };
         let (da, db) = (self.dealias(a), self.dealias(b));
         if let (Type::Applied(c1, _), Type::Applied(c2, _)) =
             (self.types().get(da).clone(), self.types().get(db).clone())
@@ -88,7 +88,7 @@ impl Universe {
             return self.widen(t);
         }
         let Type::Sym(prefix, s) = *self.types().get(t) else { return t };
-        if self.symbol(s).kind != Kind::Type {
+        if !matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) {
             return t;
         }
         let info = match prefix {
@@ -106,7 +106,7 @@ impl Universe {
     /// `orBaseClasses`).
     fn or_base_classes(&mut self, t: TypeId) -> Option<Vec<SymbolId>> {
         match *self.types().get(t) {
-            Type::Or(a, b) => {
+            Type::Or(a, b, _) => {
                 if let Some(other) = self.non_bottom_part(a, b) {
                     return self.or_base_classes(other);
                 }
@@ -124,7 +124,7 @@ impl Universe {
     /// The base type of union `t` at class `c`, the parts' base types merged.
     fn or_base_type(&mut self, t: TypeId, c: SymbolId) -> Option<TypeId> {
         match *self.types().get(t) {
-            Type::Or(a, b) => {
+            Type::Or(a, b, _) => {
                 if let Some(other) = self.non_bottom_part(a, b) {
                     return self.or_base_type(other, c);
                 }

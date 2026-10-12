@@ -85,7 +85,7 @@ impl Universe {
             Type::ByName(_) => Erased::Class("scala.Function0".into()),
             Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),
             Type::And(a, b) => self.erase_and(a, b),
-            Type::Or(a, b) => self.erase_or(a, b),
+            Type::Or(a, b, _) => self.erase_or(a, b),
             Type::Constant(tag, _) => special::constant(tag),
             Type::Str(_) => Erased::Class("java.lang.String".into()),
             _ => object(),

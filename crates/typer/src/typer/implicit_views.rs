@@ -67,7 +67,7 @@ impl Typer<'_> {
         let param = self.u.widen(param);
         let param = self.u.dealias(param);
         match *self.u.types().get(param) {
-            Type::Or(a, b) => return self.may_accept(a, q, widening) || self.may_accept(b, q, widening),
+            Type::Or(a, b, _) => return self.may_accept(a, q, widening) || self.may_accept(b, q, widening),
             Type::Annotated(t, _) => return self.may_accept(t, q, widening),
             _ => {}
         }

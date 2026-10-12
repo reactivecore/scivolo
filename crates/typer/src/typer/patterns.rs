@@ -100,7 +100,7 @@ impl Typer<'_> {
     /// Whether `t` is a checkable class type or a union or intersection of them.
     fn is_checkable_type(&mut self, t: TypeId) -> bool {
         match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b) => self.is_checkable_type(a) && self.is_checkable_type(b),
+            Type::And(a, b) | Type::Or(a, b, _) => self.is_checkable_type(a) && self.is_checkable_type(b),
             _ => self.is_checkable_class_type(t),
         }
     }

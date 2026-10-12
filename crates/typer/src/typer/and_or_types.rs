@@ -21,7 +21,7 @@ impl Typer<'_> {
             let params = vec![("A".to_owned(), bounds), ("B".to_owned(), bounds)];
             let (a, b) =
                 (self.u.intern_type(Type::Param(binder, 0)), self.u.intern_type(Type::Param(binder, 1)));
-            let result = self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b) });
+            let result = self.u.intern_type(if and { Type::And(a, b) } else { Type::Or(a, b, false) });
             let lambda = self.u.intern_type(Type::Lambda { binder, params, result });
             let alias = self.u.intern_type(Type::Alias(lambda));
             self.u.set_info(s, alias);
@@ -68,7 +68,7 @@ impl Typer<'_> {
         }
         let t = match self.u.symbol(alias).name.as_str() {
             "&" => Type::And(a, b),
-            "|" => Type::Or(a, b),
+            "|" => Type::Or(a, b, false),
             _ => return None,
         };
         Some(self.u.intern_type(t))

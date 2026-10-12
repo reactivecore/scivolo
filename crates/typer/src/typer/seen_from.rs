@@ -164,9 +164,9 @@ fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
                 .is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
                 .then(|| simplify(u, inner))
         }
-        Type::Or(a, b) => {
+        Type::Or(a, b, soft) => {
             let (a, b) = (simplify(u, a), simplify(u, b));
-            Some(u.lub(a, b))
+            Some(u.lub_as(a, b, soft))
         }
         Type::And(a, b) => {
             let (a, b) = (simplify(u, a), simplify(u, b));

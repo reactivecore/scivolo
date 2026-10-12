@@ -63,7 +63,7 @@ fn type_test(
         return unsupported(span, what);
     }
     let dealiased = l.u.dealias(target);
-    if let Type::Or(a, b) | Type::And(a, b) = *l.u.types().get(dealiased) {
+    if let Type::Or(a, b, _) | Type::And(a, b) = *l.u.types().get(dealiased) {
         let or = matches!(l.u.types().get(dealiased), Type::Or(..));
         return combined::test(l, expr, (a, b), or, in_match, span);
     }

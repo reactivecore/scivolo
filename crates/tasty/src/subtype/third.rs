@@ -27,7 +27,7 @@ impl Cmp<'_> {
                     None => self.fourth_try(a, b),
                 },
             },
-            Type::Or(x, y) => match self.compare_atoms(a, b, false) {
+            Type::Or(x, y, _) => match self.compare_atoms(a, b, false) {
                 Some(decided) => decided,
                 None => self.below_union(a, b, x, y),
             },
@@ -111,11 +111,12 @@ impl Cmp<'_> {
         if dealiased != a {
             return self.recur(dealiased, b);
         }
+        let soft = matches!(self.u.types().get(b), Type::Or(_, _, true));
         for (and, other, left) in [(x, y, true), (y, x, false)] {
             if let Type::And(p, q) = self.u.types().get(and).clone() {
                 let union = |s: &mut Self, t| match left {
-                    true => s.u.intern_type(Type::Or(t, other)),
-                    false => s.u.intern_type(Type::Or(other, t)),
+                    true => s.u.intern_type(Type::Or(t, other, soft)),
+                    false => s.u.intern_type(Type::Or(other, t, soft)),
                 };
                 let (bp, bq) = (union(self, p), union(self, q));
                 return self.recur(a, bp) && self.recur(a, bq);

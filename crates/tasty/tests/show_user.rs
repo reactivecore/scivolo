@@ -144,7 +144,7 @@ fn functions_tuples_and_infix_types() {
     let int_to_int = app(u, "scala.Function1", &[int, int]);
     let by_name = u.intern_type(Type::ByName(int));
     let pair = app(u, "scala.Tuple2", &[int, string]);
-    let or = u.intern_type(Type::Or(int, string));
+    let or = u.intern_type(Type::Or(int, string, false));
     let product = t(u, "scala.Product");
     let empty = t(u, "scala.EmptyTuple");
     let tail = app(u, "scala.*:", &[string, empty]);
@@ -163,8 +163,8 @@ fn functions_tuples_and_infix_types() {
         (tail, "String *: EmptyTuple"),
         (or, "Int | String"),
         (u.intern_type(Type::And(or, product)), "(Int | String) & Product"),
-        (u.intern_type(Type::Or(or, boolean)), "Int | String | Boolean"),
-        (u.intern_type(Type::Or(boolean, or)), "Boolean | (Int | String)"),
+        (u.intern_type(Type::Or(or, boolean, false)), "Int | String | Boolean"),
+        (u.intern_type(Type::Or(boolean, or, false)), "Boolean | (Int | String)"),
         (app(u, "scala.=:=", &[int, int]), "Int =:= Int"),
         (app(u, "scala.Option", &[or]), "Option[Int | String]"),
     ];

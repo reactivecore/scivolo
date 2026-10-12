@@ -129,6 +129,10 @@ impl Typer<'_> {
                 Some(a) => self.sequence_arg(a, elem, ctx),
                 None => {
                     let elems = typed_args.split_off(params.len());
+                    let types: Vec<TypeId> = elems.iter().map(|&e| self.tpd.tpe(e)).collect();
+                    if !self.is_fully_defined(elem) && self.harmonizes(&types) {
+                        return self.unsupported(id, "numeric harmonization");
+                    }
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();
                     self.seq_literal(&elems, elem, at)

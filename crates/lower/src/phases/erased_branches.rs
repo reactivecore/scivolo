@@ -79,7 +79,7 @@ pub fn typed_branches(
             let tpe = type_of(l, class);
             lub = Some(match lub {
                 Some(acc) => {
-                    let union = l.u.intern_type(tasty::Type::Or(acc, tpe));
+                    let union = l.u.intern_type(tasty::Type::Or(acc, tpe, false));
                     let class = l.u.erase(union);
                     type_of(l, &class)
                 }

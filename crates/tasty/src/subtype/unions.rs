@@ -21,17 +21,18 @@ pub struct Unions {
     positions: Vec<FxHashMap<TypeId, u32>>,
     /// The parts of unions, as `balanced` flattens them.
     parts: FxHashMap<TypeId, List>,
-    /// The balanced union of the parts of a list from a start, of a length.
-    built: FxHashMap<(u32, u32, u32), TypeId>,
+    /// The balanced union of the parts of a list from a start, of a length, soft or hard.
+    built: FxHashMap<(u32, u32, u32, bool), TypeId>,
     /// The atoms of unions that depend on neither a constraint nor a symbol.
     atoms: FxHashMap<TypeId, Atoms>,
 }
 
 impl Universe {
-    /// `a | b`, rebuilt balanced if one side has more than one part more than the other.
-    pub fn union(&mut self, a: TypeId, b: TypeId) -> TypeId {
+    /// `a | b`, soft if `soft`, rebuilt balanced if one side has more than one part more than
+    /// the other.
+    pub fn union(&mut self, a: TypeId, b: TypeId, soft: bool) -> TypeId {
         let mut unions = std::mem::take(self.unions());
-        let t = unions.union(self, a, b);
+        let t = unions.union(self, a, b, soft);
         *self.unions() = unions;
         t
     }
@@ -146,54 +147,53 @@ impl Unions {
         self.atoms.insert(t, atoms);
     }
 
-    fn union(&mut self, u: &mut Universe, a: TypeId, b: TypeId) -> TypeId {
-        let (pa, pb) = (self.parts_of(u, a), self.parts_of(u, b));
+    fn union(&mut self, u: &mut Universe, a: TypeId, b: TypeId, soft: bool) -> TypeId {
+        let (pa, pb) = (self.parts_of(u, a, soft), self.parts_of(u, b, soft));
         let (na, nb) = (self.items(&pa).len(), self.items(&pb).len());
         let all = self.concat(&pa, &pb);
         let t = match all {
-            List::Shared(i, n) if na.abs_diff(nb) > 1 => self.built(u, i, 0, n),
-            _ => u.intern_type(Type::Or(a, b)),
+            List::Shared(i, n) if na.abs_diff(nb) > 1 => self.built(u, i, 0, n, soft),
+            _ => u.intern_type(Type::Or(a, b, soft)),
         };
         self.parts.entry(t).or_insert(all);
         t
     }
 
-    fn parts_of(&mut self, u: &Universe, t: TypeId) -> List {
-        if !matches!(u.types().get(t), Type::Or(..)) {
+    /// The parts of `t` as a union of softness `soft`.
+    fn parts_of(&mut self, u: &Universe, t: TypeId, soft: bool) -> List {
+        if !matches!(*u.types().get(t), Type::Or(_, _, s) if s == soft) {
             return List::Own(vec![t]);
         }
         if let Some(p) = self.parts.get(&t) {
             return p.clone();
         }
         let mut flat = Vec::new();
-        or_parts(u, t, &mut flat);
+        or_parts(u, t, soft, &mut flat);
         let p = self.shared(&List::Own(flat));
         self.parts.insert(t, p.clone());
         p
     }
 
-    /// The balanced union of the `len` parts of list `i` from `start`.
-    fn built(&mut self, u: &mut Universe, i: u32, start: u32, len: u32) -> TypeId {
+    /// The balanced union of the `len` parts of list `i` from `start`, soft if `soft`.
+    fn built(&mut self, u: &mut Universe, i: u32, start: u32, len: u32, soft: bool) -> TypeId {
         if len == 1 {
             return self.lists[i as usize][start as usize];
         }
-        if let Some(&t) = self.built.get(&(i, start, len)) {
+        if let Some(&t) = self.built.get(&(i, start, len, soft)) {
             return t;
         }
         let left = len / 2;
-        let (x, y) = (self.built(u, i, start, left), self.built(u, i, start + left, len - left));
-        let t = u.intern_type(Type::Or(x, y));
-        self.built.insert((i, start, len), t);
+        let x = self.built(u, i, start, left, soft);
+        let y = self.built(u, i, start + left, len - left, soft);
+        let t = u.intern_type(Type::Or(x, y, soft));
+        self.built.insert((i, start, len, soft), t);
         t
     }
 }
 
-fn or_parts(u: &Universe, t: TypeId, out: &mut Vec<TypeId>) {
+fn or_parts(u: &Universe, t: TypeId, soft: bool, out: &mut Vec<TypeId>) {
     match *u.types().get(t) {
-        Type::Or(x, y) => {
-            or_parts(u, x, out);
-            or_parts(u, y, out);
-        }
+        Type::Or(x, y, s) if s == soft => [x, y].into_iter().for_each(|p| or_parts(u, p, soft, out)),
         _ => out.push(t),
     }
 }

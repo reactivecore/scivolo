@@ -87,8 +87,14 @@ impl Universe {
         if let (Erased::Class(na), Erased::Class(nb)) = (&ea, &eb)
             && ea != eb
         {
-            let (ra, rb) = (self.class_ref(na), self.class_ref(nb));
-            let (Some(ca), Some(cb)) = (self.class_symbol(ra), self.class_symbol(rb)) else {
+            let class = |u: &mut Self, t: TypeId, name: &str| {
+                let widened = u.widen(t);
+                u.erased_class(widened).or_else(|| {
+                    let r = u.class_ref(name);
+                    u.class_symbol(r)
+                })
+            };
+            let (Some(ca), Some(cb)) = (class(self, a, na), class(self, b, nb)) else {
                 return object();
             };
             return match self.common_base(ca, cb) {

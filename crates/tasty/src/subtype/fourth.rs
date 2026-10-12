@@ -39,7 +39,7 @@ impl Cmp<'_> {
             return self.recur(a, dealiased);
         }
         for (or, other, left) in [(x, y, true), (y, x, false)] {
-            if let Type::Or(p, q) = self.u.types().get(or).clone() {
+            if let Type::Or(p, q, _) = self.u.types().get(or).clone() {
                 let inter = |s: &mut Self, t| match left {
                     true => s.u.intern_type(Type::And(t, other)),
                     false => s.u.intern_type(Type::And(other, t)),

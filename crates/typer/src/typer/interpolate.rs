@@ -160,7 +160,7 @@ impl Typer<'_> {
     /// The operands of the top-level unions (`or`) or intersections of `t`.
     pub fn factors(&self, t: TypeId, or: bool) -> Vec<TypeId> {
         match *self.u.types().get(t) {
-            Type::Or(a, b) if or => [self.factors(a, or), self.factors(b, or)].concat(),
+            Type::Or(a, b, _) if or => [self.factors(a, or), self.factors(b, or)].concat(),
             Type::And(a, b) if !or => [self.factors(a, or), self.factors(b, or)].concat(),
             _ => vec![t],
         }

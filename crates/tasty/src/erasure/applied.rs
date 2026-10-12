@@ -122,7 +122,7 @@ impl Universe {
             Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
             Type::Annotated(u, _) | Type::Refined(u, _, _) | Type::Rec(_, u) => self.is_generic(u),
             Type::And(a, b) => self.is_generic(a) && self.is_generic(b),
-            Type::Or(a, b) => self.is_generic(a) || self.is_generic(b),
+            Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
                     let info = self.info(s);
@@ -150,7 +150,7 @@ impl Universe {
                 (Holder::None, y) => y,
                 (x, _) => x,
             },
-            Type::Or(a, b) => match (self.holder(a), self.holder(b)) {
+            Type::Or(a, b, _) => match (self.holder(a), self.holder(b)) {
                 (x, y) if x == y => x,
                 _ => Holder::None,
             },

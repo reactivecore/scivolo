@@ -80,7 +80,7 @@ impl Cmp<'_> {
         let outer = std::mem::replace(&mut self.provisional, false);
         let (atoms, elsewhere) = match *self.u.types().get(t) {
             Type::Constant(..) | Type::Str(_) => (Atoms::single(t), true),
-            Type::Or(x, y) => (self.or_atoms(t, x, y, depth), true),
+            Type::Or(x, y, _) => (self.or_atoms(t, x, y, depth), true),
             _ => (self.own_atoms(t, depth + 1), false),
         };
         if self.provisional || !elsewhere {

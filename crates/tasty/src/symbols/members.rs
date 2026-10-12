@@ -81,7 +81,9 @@ impl Universe {
     fn union_classes(&mut self, t: TypeId, classes: &mut Vec<SymbolId>, steps: u32) -> bool {
         let Some(steps) = steps.checked_sub(1) else { return false };
         match self.types().get(t).clone() {
-            Type::Or(a, b) => self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps),
+            Type::Or(a, b, _) => {
+                self.union_classes(a, classes, steps) && self.union_classes(b, classes, steps)
+            }
             Type::And(a, _) | Type::Refined(a, ..) | Type::Annotated(a, _) | Type::Rec(_, a) => {
                 self.union_classes(a, classes, steps)
             }
