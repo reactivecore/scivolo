@@ -2,7 +2,7 @@
 //! union).
 
 use super::{Cmp, NoVars};
-use crate::tags::{MUTABLE, STABLE};
+use crate::tags::{INLINE, MUTABLE, STABLE};
 use crate::types::{Type, TypeId};
 use crate::{ANY, Kind, SymbolId, Universe};
 
@@ -55,13 +55,15 @@ impl Cmp<'_> {
         }
     }
 
-    /// Whether term `s` is a variable, a method that is not stable or a by-name parameter.
+    /// Whether term `s` is a variable, a method that is not stable, or a by-name or inline
+    /// parameter.
     pub fn is_unstable(&mut self, s: SymbolId) -> bool {
         let (kind, flags, info) = (self.u.symbol(s).kind, self.u.symbol(s).flags, self.u.info(s));
         match kind {
             Kind::Val => flags.has(MUTABLE),
             Kind::Def => !flags.has(STABLE),
-            _ => kind == Kind::Param && matches!(self.u.types().get(info), Type::ByName(_)),
+            Kind::Param => flags.has(INLINE) || matches!(self.u.types().get(info), Type::ByName(_)),
+            _ => false,
         }
     }
 
