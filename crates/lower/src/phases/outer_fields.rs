@@ -47,7 +47,7 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
         for t in terms(l, stat, false) {
             let Some(chain) = outer_this(l, t, class) else { continue };
             let span = l.tpd.span(t);
-            let mut read = if method {
+            let start = if method {
                 let this = l.this(class, span);
                 let field = field(l, class);
                 l.select(this, field, span)
@@ -55,15 +55,7 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
                 let param = l.outers[&class].1;
                 l.ident(param, span)
             };
-            for pair in chain.windows(2) {
-                if is_local(l, pair[0]) && is_anonymous(l, pair[0]) {
-                    return unsupported(span, "classes in anonymous classes using the enclosing instance");
-                }
-                let accessor = outer_accessor(l, pair[0]);
-                let fun = l.select(read, accessor, span);
-                let tpe = type_ref(l.u, pair[1]);
-                read = l.apply(fun, &[], tpe, span);
-            }
+            let read = through(l, start, &chain, span)?;
             l.copy_node(t, read);
         }
     }
@@ -82,6 +74,46 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
+}
+
+/// `start`, the instance of the first class of `chain`, then the outer accessors to the last.
+fn through(l: &mut Lower, start: TNodeId, chain: &[SymbolId], span: Span) -> Result<TNodeId> {
+    let mut read = start;
+    for pair in chain.windows(2) {
+        if is_local(l, pair[0]) && is_anonymous(l, pair[0]) {
+            return unsupported(span, "classes in anonymous classes using the enclosing instance");
+        }
+        let accessor = outer_accessor(l, pair[0]);
+        let fun = l.select(read, accessor, span);
+        let tpe = type_ref(l.u, pair[1]);
+        read = l.apply(fun, &[], tpe, span);
+    }
+    Ok(read)
+}
+
+/// The instance of `target` enclosing `class` read in a method of `class` if `in_method`, else
+/// in its constructor; fails where `class` holds no instance or, in a method, no field.
+pub fn outer_path(
+    l: &mut Lower,
+    class: SymbolId,
+    target: SymbolId,
+    in_method: bool,
+    span: Span,
+) -> Result<TNodeId> {
+    let refused = "local classes calling local methods that use the enclosing instance";
+    let chain = super::explicit_outer::outer_chain(l, class, target);
+    let (Some(chain), Some(&(field, param))) = (chain, l.outers.get(&class)) else {
+        return unsupported(span, refused);
+    };
+    let start = match (in_method, field) {
+        (true, Some(f)) => {
+            let this = l.this(class, span);
+            l.select(this, f, span)
+        }
+        (true, None) => return unsupported(span, refused),
+        (false, _) => l.ident(param, span),
+    };
+    through(l, start, &chain, span)
 }
 
 /// The field holding the enclosing instance of `class`, defined once.

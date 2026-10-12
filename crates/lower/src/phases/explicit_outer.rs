@@ -2,7 +2,7 @@
 //! arguments of their constructor calls, then the paths to enclosing instances
 //! (`outer_fields.rs`, `outer_traits.rs`).
 
-use super::local_free::{enclosing_class, is_term};
+use super::local_free::is_term;
 use super::outer_traits::outer_class;
 use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
@@ -124,14 +124,14 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
 
 /// The classes from the enclosing instance of `class` out to the one `t` is `this` of, if `t`
 /// is `this` of a class enclosing `class` through enclosing instances (dotty's `outer.path`).
-pub fn outer_this(l: &Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
+pub fn outer_this(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<Vec<SymbolId>> {
     let target = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::This { .. }))?;
     outer_chain(l, class, target)
 }
 
 /// The classes from the enclosing instance of `class` out to `target`, if it is reached through
 /// enclosing instances.
-pub fn outer_chain(l: &Lower, class: SymbolId, target: SymbolId) -> Option<Vec<SymbolId>> {
+pub fn outer_chain(l: &mut Lower, class: SymbolId, target: SymbolId) -> Option<Vec<SymbolId>> {
     let mut chain = Vec::new();
     let mut cur = instance_class(l, class);
     while let Some(c) = cur {
@@ -144,12 +144,15 @@ pub fn outer_chain(l: &Lower, class: SymbolId, target: SymbolId) -> Option<Vec<S
     None
 }
 
-/// The class whose instance class `c` holds: a local class's enclosing class if it takes it.
-fn instance_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
-    match l.u.symbol(c).owner.filter(|&o| is_term(l, o)) {
-        Some(o) => l.outers.contains_key(&c).then(|| enclosing_class(l, o)),
-        None => outer_class(l, c),
+/// The class whose instance class `c` holds or, if not yet decided, may hold.
+fn instance_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
+    if let Some(&(_, param)) = l.outers.get(&c) {
+        let info = l.u.info(param);
+        let Type::Sym(_, outer) = *l.u.types().get(info) else { unreachable!("a class type") };
+        return Some(outer);
     }
+    let local = l.u.symbol(c).owner.is_some_and(|o| is_term(l, o));
+    if local { None } else { outer_class(l, c) }
 }
 
 /// The accessor `C$$$outer()` of the enclosing instance of class `class`, defined once; `class`

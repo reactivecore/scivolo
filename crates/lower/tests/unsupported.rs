@@ -61,10 +61,6 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
-    (
-        "class A(n: Int) { def f() = { def g = n; class C { def h = g }; new C().h } }",
-        "local classes calling local methods that use the enclosing instance",
-    ),
     ("object O { def f() = { trait T; new T {} } }", "local traits"),
     (
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
