@@ -96,3 +96,5 @@ The conformance count of 14 (`docs/conformance.md:158`) is the same set at an ol
 
 Each MR under ~1500 diff lines, files under 200 lines (`extension_methods.rs`, `vc_elide.rs`,
 `value_members.rs`, `tasty/src/erasure/value.rs` are new); every MR gated by the oracle program.
+MR 3 leaves dotty's ExpandSAMs out: SAM closures it expands into classes (i24573's "expanded"
+ones) stay refused as "closures needing bridges" [V].
