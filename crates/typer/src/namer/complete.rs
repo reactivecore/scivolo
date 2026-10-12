@@ -157,26 +157,6 @@ impl Typer<'_> {
         })
     }
 
-    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
-    /// by-name type (dotty's `adaptParamInfo`).
-    fn method_param_type(&mut self, p: SymbolId) -> TypeId {
-        let t = self.param_type(p);
-        if !self.syms.flags.get(&p).is_some_and(|fl| fl.is(syntax::ast::flags::INLINE)) {
-            return t;
-        }
-        let Some(class) = self.resolve_full_name("scala.annotation.internal.InlineParam", true) else {
-            return t;
-        };
-        let annot = crate::defn::type_ref(self.u, class);
-        match *self.u.types().get(t) {
-            Type::ByName(r) => {
-                let r = self.u.intern_type(Type::Annotated(r, annot));
-                self.u.intern_type(Type::ByName(r))
-            }
-            _ => self.u.intern_type(Type::Annotated(t, annot)),
-        }
-    }
-
     /// `t` with references to type parameters `tparams` made references to the parameters of
     /// polymorphic type `binder`.
     fn param_refs(&mut self, t: TypeId, tparams: &[SymbolId], binder: tasty::Binder) -> TypeId {

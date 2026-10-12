@@ -113,17 +113,32 @@ impl Typer<'_> {
         select
     }
 
-    /// Whether member `sym` of `Any` or `Object` is redeclared by a JDK interface the class of
-    /// `qual` derives from, which javalib does not redeclare.
-    fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
-        const REDECLARED: [(&str, &str); 7] = [
+    /// Whether member `sym` of `Any` or `Object`, selected from `qual`, is one a JDK interface
+    /// the class of `qual` derives from declares.
+    pub fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
+        const REDECLARED: [(&str, &str); 22] = [
             ("java.lang.CharSequence", "toString"),
             ("java.util.Comparator", "equals"),
             ("java.util.Collection", "equals"),
             ("java.util.Collection", "hashCode"),
             ("java.util.Map", "equals"),
             ("java.util.Map", "hashCode"),
+            ("java.util.Map$.Entry", "equals"),
+            ("java.util.Map$.Entry", "hashCode"),
+            ("java.lang.annotation.Annotation", "equals"),
+            ("java.lang.annotation.Annotation", "hashCode"),
             ("java.lang.annotation.Annotation", "toString"),
+            ("java.nio.file.Path", "equals"),
+            ("java.nio.file.Path", "hashCode"),
+            ("java.nio.file.Path", "toString"),
+            ("java.time.chrono.ChronoLocalDate", "equals"),
+            ("java.time.chrono.ChronoLocalDate", "hashCode"),
+            ("java.time.chrono.ChronoLocalDate", "toString"),
+            ("java.time.chrono.ChronoLocalDateTime", "equals"),
+            ("java.time.chrono.ChronoLocalDateTime", "hashCode"),
+            ("java.time.chrono.ChronoLocalDateTime", "toString"),
+            ("java.util.Set", "equals"),
+            ("java.util.List", "equals"),
         ];
         let b = self.u.builtins();
         if !self.u.symbol(sym).owner.is_some_and(|o| o == b.any || o == b.object) {

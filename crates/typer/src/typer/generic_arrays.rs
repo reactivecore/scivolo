@@ -54,14 +54,33 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.u.dealias(t);
         match self.u.types().get(t).clone() {
-            Type::Sym(_, s) if self.u.is_type_symbol(s) => {
-                let sym = self.u.symbol(s);
-                sym.kind != Kind::Class && !sym.flags.has(OPAQUE)
+            Type::Sym(_, s) if self.u.symbol(s).flags.has(OPAQUE) => {
+                let info = self.u.info(s);
+                let alias = match *self.u.types().get(info) {
+                    Type::Alias(a) => Some(a),
+                    _ => None,
+                };
+                alias.is_some_and(|a| self.is_generic(a, depth))
             }
+            Type::Sym(_, s) if self.u.is_type_symbol(s) => self.u.symbol(s).kind != Kind::Class,
             Type::Param(..) | Type::Local(..) => true,
             Type::And(a, b) | Type::Or(a, b) => self.is_generic(a, depth) || self.is_generic(b, depth),
             Type::Annotated(a, _) => self.is_generic(a, depth),
-            Type::Applied(tycon, _) => self.is_generic(tycon, depth),
+            Type::Applied(tycon, _) => match *self.u.types().get(tycon) {
+                Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+                    self.complete(s);
+                    let info = self.u.info(s);
+                    let hi = match *self.u.types().get(info) {
+                        Type::Bounds(_, hi) | Type::Alias(hi) => hi,
+                        _ => return true,
+                    };
+                    match self.u.types().get(hi).clone() {
+                        Type::Lambda { result, .. } => self.is_generic(result, depth),
+                        _ => self.is_generic(hi, depth),
+                    }
+                }
+                _ => self.is_generic(tycon, depth),
+            },
             _ => false,
         }
     }

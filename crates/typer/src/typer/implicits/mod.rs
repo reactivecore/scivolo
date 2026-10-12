@@ -4,11 +4,11 @@
 mod can_equal;
 mod candidates;
 pub(super) mod conversions;
-mod open_vars;
 mod ranking;
 mod scope;
 mod search;
 mod synthesis;
 mod too_late;
+mod unsettled;
 
 pub use search::is_misfit;

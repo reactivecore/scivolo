@@ -7,6 +7,26 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
+    /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
+    /// by-name type (dotty's `adaptParamInfo`).
+    pub fn method_param_type(&mut self, p: SymbolId) -> tasty::TypeId {
+        let t = self.param_type(p);
+        if !self.syms.flags.get(&p).is_some_and(|fl| fl.is(f::INLINE)) {
+            return t;
+        }
+        let Some(class) = self.resolve_full_name("scala.annotation.internal.InlineParam", true) else {
+            return t;
+        };
+        let annot = crate::defn::type_ref(self.u, class);
+        match *self.u.types().get(t) {
+            Type::ByName(r) => {
+                let r = self.u.intern_type(Type::Annotated(r, annot));
+                self.u.intern_type(Type::ByName(r))
+            }
+            _ => self.u.intern_type(Type::Annotated(t, annot)),
+        }
+    }
+
     /// Constructor parameter clauses `clauses` with an empty clause before a leading `implicit`
     /// one, or after clauses that are all `using` ones (dotty's `normalizeIfConstructor`).
     pub fn normalized_constructor(&self, mut clauses: Vec<Vec<SymbolId>>) -> Vec<Vec<SymbolId>> {
