@@ -34,8 +34,9 @@ const CASES: &[(&str, &str)] = &[
         "sequence extractors of a product and a sequence",
     ),
     (
-        "class M(val x: Int) extends AnyVal\nobject O { def f(m: M) = m.isInstanceOf[M] }",
-        "type tests of value class values",
+        "class M(val x: Int) extends AnyVal\nclass N(val x: Int) extends AnyVal\n\
+         object O { def f(m: M) = m.asInstanceOf[N] }",
+        "casts between value classes",
     ),
     (
         "class M(val x: Int) extends AnyVal\nobject O { val f: M => Int = m => m.x + 1 }",

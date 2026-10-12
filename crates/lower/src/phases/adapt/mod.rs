@@ -186,6 +186,12 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
     }
 }
 
+/// `t: tpe`, of type `tpe`, at `span`.
+pub fn ascribed(l: &mut Lower, t: TNodeId, tpe: tasty::TypeId, span: Span) -> TNodeId {
+    let tpt = l.type_tree(tpe, Span::NONE);
+    l.tpd.node(Tree::Typed { expr: t, tpt }, span, Some(tpe), None)
+}
+
 /// `C.m(t)` for object `C` with method `m`.
 pub fn converted(l: &mut Lower, t: TNodeId, module: SymbolId, m: SymbolId) -> TNodeId {
     let span = from_start(l.tpd.span(t));

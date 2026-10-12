@@ -75,3 +75,4 @@ methodvalues
 tuplespec
 inlining
 valueclasses
+valuepatterns

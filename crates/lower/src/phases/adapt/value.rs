@@ -5,7 +5,7 @@ use super::{adapt, applied_to_none, from_start};
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::phases::casts::{class_named, conforms, type_of};
-use crate::phases::value_classes::eval_once;
+use crate::phases::value_classes::eval_once_as;
 use crate::phases::vc_elide::elided;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId};
@@ -62,7 +62,8 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
         (t, None)
     } else {
         let owner = l.erasure_owner.expect("the method an unboxed value is evaluated in");
-        let (ev, def) = eval_once(l, t, owner);
+        let tpe = type_of(l, from);
+        let (ev, def) = eval_once_as(l, t, owner, tpe);
         (l.ident(ev, Span::NONE), Some(def))
     };
     let null = l.null_literal(Span::NONE);
@@ -74,6 +75,9 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     let null = l.null_literal(Span::NONE);
     let thenp = null_as(l, null, underlying);
     let again = l.copy_ident(value);
+    if def.is_none() {
+        l.tpd.get_mut(again).span = l.tpd.span(value);
+    }
     let elsep = value_of(l, again, class);
     let tpe = l.tpd.tpe(elsep);
     let tree = Tree::If { cond, thenp, elsep, inline: false };
@@ -103,7 +107,7 @@ fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
 }
 
 /// `t.v()` for the accessor `v` of the underlying value of value class `class`, `t` cast to
-/// `class`.
+/// `class`; a reference value ascribed `class`, at the call's span, so it stays unboxed.
 fn value_of(l: &mut Lower, t: TNodeId, class: &str) -> TNodeId {
     let boxed = Erased::Class(class.to_owned());
     let t = adapt(l, t, &boxed);
@@ -112,5 +116,12 @@ fn value_of(l: &mut Lower, t: TNodeId, class: &str) -> TNodeId {
     let span = from_start(l.tpd.span(t));
     let sel = l.select(t, value, span);
     let call = applied_to_none(l, sel);
-    elided(l, call)
+    let primitive = matches!(super::erased_type(l, call), Erased::Prim(_));
+    let e = elided(l, call);
+    if primitive {
+        return e;
+    }
+    let tpe = type_ref(l.u, class);
+    let span = l.tpd.span(call);
+    super::ascribed(l, e, tpe, span)
 }

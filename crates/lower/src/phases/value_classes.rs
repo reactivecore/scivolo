@@ -9,7 +9,7 @@ use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
 use tasty::tags::{FINAL, INLINE, MACRO, MUTABLE, PRIVATE, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Rewires the calls of value class methods in class definition `td`, children before their
@@ -119,10 +119,15 @@ pub fn is_stable_path(l: &mut Lower, t: TNodeId) -> bool {
 
 /// `val ev$N = expr` in `owner` (dotty's `evalOnce`), with its symbol.
 pub fn eval_once(l: &mut Lower, expr: TNodeId, owner: SymbolId) -> (SymbolId, TNodeId) {
+    let tpe = l.u.widen(l.tpd.tpe(expr));
+    eval_once_as(l, expr, owner, tpe)
+}
+
+/// `eval_once` with a value of type `tpe`.
+pub fn eval_once_as(l: &mut Lower, expr: TNodeId, owner: SymbolId, tpe: TypeId) -> (SymbolId, TNodeId) {
     let name = l.fresh.next(l.names, "ev$");
     let name = l.names.text(name).to_owned();
     let ev = l.u.define(symbol(&name, Kind::Val, owner, Flags::default().with(SYNTHETIC)));
-    let tpe = l.u.widen(l.tpd.tpe(expr));
     l.u.set_info(ev, tpe);
     let span = l.tpd.span(expr);
     let tpt = l.type_tree(tpe, span);
