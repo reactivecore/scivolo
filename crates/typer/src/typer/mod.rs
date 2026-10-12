@@ -67,6 +67,7 @@ mod not_found;
 mod op_assign;
 mod overloads;
 mod overrides;
+mod param_vars;
 mod parent_trees;
 mod parents;
 mod paths;

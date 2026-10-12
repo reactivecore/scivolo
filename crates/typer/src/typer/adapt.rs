@@ -29,6 +29,11 @@ impl Typer<'_> {
             };
         }
         if let Some(Type::Method { binder, params, result, implicit: true, .. }) = &method {
+            let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+            if let Err(what) = self.instantiate_param_vars(tree, &formals) {
+                self.unsupported_at(span, what);
+                return tree;
+            }
             let mut args = Vec::new();
             for &(_, p) in params {
                 match self.implicit_arg(p, span.end_pos(), ctx, 0) {

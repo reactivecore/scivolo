@@ -20,10 +20,17 @@ impl Typer<'_> {
             .find(|&c| found.iter().filter(|&&d| d != c).all(|&d| self.compare_candidates(c, d) > 0))
     }
 
-    /// Whether the type of candidate `c` applies a class with a contravariant type parameter.
+    /// Whether the type of candidate `c` without its type parameters and leading implicit
+    /// clauses applies a class with a contravariant type parameter.
     fn has_contravariant_part(&mut self, c: Candidate) -> bool {
         let tpe = self.ref_type(c.prefix, c.sym);
-        let info = self.method_info(tpe).unwrap_or(tpe);
+        let mut info = self.method_info(tpe).unwrap_or(tpe);
+        if let Type::Poly { result, .. } = *self.u.types().get(info) {
+            info = result;
+        }
+        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(info) {
+            info = result;
+        }
         let mut found = false;
         self.u.map_type(info, &mut |u, part| {
             if let Type::Applied(tycon, _) = *u.types().get(part)
@@ -73,6 +80,9 @@ impl Typer<'_> {
                 }
                 info = self.instantiate_poly(result, binder, &names, &vars, Some(c.sym));
             }
+        }
+        while let Type::Method { result, implicit: true, .. } = *self.u.types().get(info) {
+            info = result;
         }
         match self.u.types().get(info).clone() {
             Type::Method { params, result, implicit: false, .. } => {
