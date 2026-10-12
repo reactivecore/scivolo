@@ -146,7 +146,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         Tree::Typed { expr, tpt } => {
             let ascribed = l.u.erase(l.tpd.tpe(tpt));
             let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
-            if written && ascribed == Erased::Unit && !is_literal_or_unit_call(l, expr) {
+            if written && ascribed == Erased::Unit && !is_literal_or_unit(l, expr) {
                 return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
             }
             if ascribed == Erased::Unit {
@@ -197,17 +197,9 @@ fn keep_class_literal_start(l: &mut Lower, t: TNodeId, before: syntax::ast::Span
     }
 }
 
-/// Whether `t` is a literal or a call of a method whose erased result type is `Unit`.
-fn is_literal_or_unit_call(l: &mut Lower, t: TNodeId) -> bool {
-    match *l.tpd.tree(t) {
-        Tree::Literal { .. } => true,
-        Tree::Apply { fun, .. } => l.tpd.sym(fun).is_some_and(|m| {
-            l.u.symbol(m).kind == Kind::Def
-                && !l.u.is_constructor(m)
-                && l.u.erased_method(m).1 == Erased::Unit
-        }),
-        _ => false,
-    }
+/// Whether `t` is a literal or erases to `Unit` as erasure leaves it.
+fn is_literal_or_unit(l: &mut Lower, t: TNodeId) -> bool {
+    matches!(l.tpd.tree(t), Tree::Literal { .. }) || erased_type(l, t) == Erased::Unit
 }
 
 /// Whether `t` refers to a `Unit` value or getter of a class.

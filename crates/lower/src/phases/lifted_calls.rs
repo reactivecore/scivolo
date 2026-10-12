@@ -1,6 +1,7 @@
 //! Calls of lifted local methods: they call the lifted method with the captured values first; a
 //! reference to a local method without parameter lists becomes such a call.
 
+use super::adapt::from_start;
 use super::lambda_lift::Function;
 use super::lift_names::Caller;
 use super::lifted::Method;
@@ -113,7 +114,7 @@ fn redirect(
         let info = l.u.info(f.sym);
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
-        l.tpd.get_mut(t).span = super::adapt::from_start(span);
+        l.tpd.get_mut(t).span = from_start(span);
     }
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
 }

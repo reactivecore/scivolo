@@ -82,6 +82,7 @@ mod value_classes;
 pub(crate) mod walk;
 
 use crate::{Lower, Result};
+use rustc_hash::FxHashSet;
 use typer::tpd::{TNodeId, Tpd, Tree};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
@@ -121,14 +122,12 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         eta_reduce::transform(l, td);
         non_local_returns::transform(l, td)?;
     }
-    let dropped: Vec<TNodeId> =
-        pure_stats::transform(l, root).into_iter().flat_map(|d| walk::subtrees(l.tpd, d)).collect();
-    classes.retain(|td| !dropped.contains(td));
+    let dropped = pure_stats::transform(l, root);
+    retain_outside(l.tpd, &mut classes, dropped);
     local_lazy::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
-    let erased: Vec<TNodeId> =
-        erasure::erased_defs::drop(l, root).into_iter().flat_map(|d| walk::subtrees(l.tpd, d)).collect();
-    classes.retain(|td| !erased.contains(td));
+    let erased = erasure::erased_defs::drop(l, root);
+    retain_outside(l.tpd, &mut classes, erased);
     let pending = local_classes::transform(l, root, &classes)?;
     lambda_lift::transform(l, &classes, pending)?;
     for &td in &classes {
@@ -165,6 +164,12 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     expand_private::transform(l, &classes);
     Ok(())
+}
+
+/// Keeps the class definitions of `classes` that are not inside the `dropped` trees.
+fn retain_outside(tpd: &Tpd, classes: &mut Vec<TNodeId>, dropped: Vec<TNodeId>) {
+    let inside: FxHashSet<TNodeId> = dropped.into_iter().flat_map(|d| walk::subtrees(tpd, d)).collect();
+    classes.retain(|td| !inside.contains(td));
 }
 
 /// The class definitions of unit `root`, local ones too, each before the classes it contains.

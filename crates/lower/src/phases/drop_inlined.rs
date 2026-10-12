@@ -14,6 +14,7 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> TNodeId {
             return expansion;
         }
         l.tpd.get_mut(t).tree = Tree::Block { stats: bindings, expr: expansion };
+        l.inlined_blocks.insert(t);
     }
     map_children(l, t, &mut |l, c| transform(l, c));
     t
@@ -23,4 +24,9 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> TNodeId {
 /// the expansion of, if any.
 pub fn span_before_erasure(l: &Lower, t: TNodeId) -> Span {
     l.inlined_spans.get(&t).copied().unwrap_or_else(|| l.tpd.span(t))
+}
+
+/// Whether `t` stands for an `Inlined` tree phases before erasure see.
+pub fn is_inlined(l: &Lower, t: TNodeId) -> bool {
+    l.inlined_spans.contains_key(&t) || l.inlined_blocks.contains(&t)
 }

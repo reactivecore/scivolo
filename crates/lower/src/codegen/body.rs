@@ -48,7 +48,7 @@ impl Gen<'_, '_> {
     /// Fails for a method the lowering cannot define yet.
     fn check_method(&mut self, sym: SymbolId, span: Span) -> Result<()> {
         if has(self.l.u, sym, INLINE) {
-            return unsupported(span, "inline methods");
+            return unsupported(span, "inline method not erased");
         }
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");

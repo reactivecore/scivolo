@@ -86,6 +86,8 @@ pub struct Lower<'a> {
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
     /// The span of the outermost `Inlined` tree without bindings each tree was the expansion of.
     inlined_spans: FxHashMap<TNodeId, Span>,
+    /// The blocks `drop_inlined` made of `Inlined` trees with bindings.
+    inlined_blocks: FxHashSet<TNodeId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -127,6 +129,7 @@ pub fn lower(
         lifted_from: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
+        inlined_blocks: FxHashSet::default(),
     };
     phases::run(&mut l, root)?;
     codegen::unit(&mut l, root)

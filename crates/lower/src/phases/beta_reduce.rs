@@ -43,13 +43,26 @@ fn reduce(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
     let args = l.tpd.items(args).to_vec();
     let mut bindings = Vec::new();
     let Some(reduced) = recur(l, qualifier, &args, owner, &mut bindings)? else { return Ok(()) };
+    let span = if expanded_without_bindings(l, qualifier) && bindings.is_empty() {
+        l.tpd.span(reduced)
+    } else {
+        l.tpd.span(t)
+    };
     let tpe = l.tpd.tpe(t);
     let reduced = l.ensure_conforms(reduced, tpe);
-    let span = l.tpd.span(t);
     let result = if bindings.is_empty() { reduced } else { l.block(&bindings, reduced, Span::NONE) };
     l.copy_node(t, result);
     l.tpd.get_mut(t).span = span;
     Ok(())
+}
+
+/// Whether `t`, past ascriptions, was the expansion of an `Inlined` tree without bindings.
+fn expanded_without_bindings(l: &Lower, t: TNodeId) -> bool {
+    match *l.tpd.tree(t) {
+        _ if l.inlined_spans.contains_key(&t) => true,
+        Tree::Typed { expr, .. } => expanded_without_bindings(l, expr),
+        _ => false,
+    }
 }
 
 /// Whether the type of `t` is a `FunctionN` or `ContextFunctionN` type.
