@@ -34,8 +34,8 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if arity != typed_args.len() {
-                    return self.unsupported(id, "wrong number of type arguments");
+                if let Some(what) = self.type_args_problem(arity, &arg_types) {
+                    return self.unsupported(id, what);
                 }
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
                     (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
