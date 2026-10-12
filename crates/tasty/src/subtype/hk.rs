@@ -35,8 +35,10 @@ impl Cmp<'_> {
         let refs: Vec<TypeId> =
             (0..combined as u32).map(|i| self.u.intern_type(Type::Param(binder, i))).collect();
         let (applied_a, applied_b) = (self.apply(a, &refs), self.apply(b, &refs));
-        let and = op == Connective::And;
-        let result = if and { self.glb(applied_a, applied_b) } else { self.lub(applied_a, applied_b) };
+        let result = match op {
+            Connective::And => self.glb(applied_a, applied_b),
+            Connective::Or(soft) => self.lub_as(applied_a, applied_b, soft),
+        };
         self.u.intern_type(Type::Lambda { binder, params, result })
     }
 
@@ -58,10 +60,7 @@ impl Cmp<'_> {
 
     fn flattened(&self, t: TypeId, out: &mut Vec<TypeId>) {
         match *self.u.types().get(t) {
-            Type::And(x, y) => {
-                self.flattened(x, out);
-                self.flattened(y, out);
-            }
+            Type::And(x, y) => [x, y].into_iter().for_each(|p| self.flattened(p, out)),
             _ => out.push(t),
         }
     }

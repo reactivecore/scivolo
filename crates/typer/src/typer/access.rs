@@ -23,10 +23,9 @@ impl Typer<'_> {
         self.unset_local(sym, prefix)
     }
 
-    /// Checks that term `name` referring to `sym` in `ctx` is no package, nor an object of a Java
-    /// class unless `applied`, unless it is the qualifier of a selection or an import (dotty's
-    /// "is not a value", `checkValue`).
-    pub fn check_package_use(
+    /// Checks that term `name` for `sym`, outside a qualifier, is a value: no package, nor a Java
+    /// class's object unless `applied` (dotty's `checkValue`).
+    pub fn check_value(
         &mut self,
         sym: SymbolId,
         name: syntax::ast::TName,

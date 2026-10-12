@@ -15,6 +15,7 @@ object UnionWidening {
   val kept = List(keep(2))
   def lit(x: 1 | 2) = x
   val f = (b: Boolean) => if b then Some(1) else None
+  val g = (b: Boolean) => if b then List(1) else Vector(1)
   def nested[A <: Shape, B <: Shape](a: A, b: B) = if c then a else b
   def m(x: Int) = x match {
     case 0 => Nil

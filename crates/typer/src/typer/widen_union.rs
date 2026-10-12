@@ -26,6 +26,18 @@ impl Typer<'_> {
                 let wide = self.widen_union(parent)?;
                 if wide == parent { t } else { self.u.intern_type(Type::Refined(wide, name, info)) }
             }
+            Type::Rec(binder, parent) => {
+                let wide = self.widen_union(parent)?;
+                if wide == parent { t } else { self.u.intern_type(Type::Rec(binder, wide)) }
+            }
+            Type::Lambda { binder, params, result } => {
+                let wide = self.widen_union(result)?;
+                if wide == result {
+                    t
+                } else {
+                    self.u.intern_type(Type::Lambda { binder, params, result: wide })
+                }
+            }
             Type::Or(a, b, soft) => {
                 let (wa, wb) = (self.widen_union(a)?, self.widen_union(b)?);
                 let union = if soft { self.constraining_lub(wa, wb) } else { self.u.lub_as(wa, wb, false) };
@@ -38,20 +50,27 @@ impl Typer<'_> {
         })
     }
 
-    /// The join of union `t`; an error where it is not known, or where it has a function class
-    /// among its intersected classes, whose arguments dotty may leave unsimplified.
+    /// The join of union `t`; an error where it is not known or intersects a function class.
     fn join(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         let joined = self.u.join(t).ok_or("union widening")?;
-        let mut function = false;
-        self.u.map_type(joined, &mut |u, part| {
-            if let Type::Applied(tycon, _) = *u.types().get(part) {
-                function |=
-                    u.class_symbol(tycon).is_some_and(|c| u.full_name(c).starts_with("scala.Function"));
+        if !matches!(self.u.types().get(joined), Type::And(..)) {
+            return Ok(joined);
+        }
+        let mut parts = vec![joined];
+        while let Some(p) = parts.pop() {
+            let tycon = match *self.u.types().get(p) {
+                Type::And(a, b) => {
+                    parts.extend([a, b]);
+                    continue;
+                }
+                Type::Applied(tycon, _) => tycon,
+                _ => continue,
+            };
+            if self.u.class_symbol(tycon).is_some_and(|c| self.u.full_name(c).starts_with("scala.Function")) {
+                return Err("union widening to a function class");
             }
-            None
-        });
-        let several = matches!(self.u.types().get(joined), Type::And(..));
-        if several && function { Err("union widening to a function class") } else { Ok(joined) }
+        }
+        Ok(joined)
     }
 
     /// The soft least upper bound of `a` and `b`, the parts of either that conform to a part of
@@ -99,6 +118,14 @@ impl Typer<'_> {
             Type::Refined(parent, name, info) => {
                 let hard = self.harden_unions(parent);
                 self.u.intern_type(Type::Refined(hard, name, info))
+            }
+            Type::Rec(binder, parent) => {
+                let hard = self.harden_unions(parent);
+                self.u.intern_type(Type::Rec(binder, hard))
+            }
+            Type::Lambda { binder, params, result } => {
+                let hard = self.harden_unions(result);
+                self.u.intern_type(Type::Lambda { binder, params, result: hard })
             }
             Type::Or(a, b, _) => {
                 let (ha, hb) = (self.harden_unions(a), self.harden_unions(b));

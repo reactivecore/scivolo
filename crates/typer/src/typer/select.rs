@@ -77,7 +77,7 @@ impl Typer<'_> {
         if self.jdk_redeclares(sym, qual_tpe) {
             return self.unsupported(id, "Object member a JDK interface redeclares");
         }
-        if let Err(what) = self.check_package_use(sym, name, matches!(pt, Pt::Fun(_)), ctx) {
+        if let Err(what) = self.check_value(sym, name, matches!(pt, Pt::Fun(_)), ctx) {
             return self.unsupported(id, what);
         }
         let flags = self.u.symbol(sym).flags;

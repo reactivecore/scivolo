@@ -2,7 +2,7 @@
 //! singleton-bounded, soft unions joined or hard unions hardened, module classes as their objects.
 
 use super::Typer;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, Type, TypeId, TypeVars};
 
 /// The widenings `widen_inferred` applies (dotty's `Widen`): of singletons only, unions hardened,
 /// or also of soft unions to their joins.
@@ -111,6 +111,10 @@ impl Typer<'_> {
                     Type::Bounds(_, hi) | Type::Alias(hi) => self.is_below_singleton(hi, depth + 1),
                     _ => false,
                 }
+            }
+            Type::Var(v) => {
+                let next = self.constraint.instance(v).unwrap_or(self.constraint.bounds(v).1);
+                self.is_below_singleton(next, depth + 1)
             }
             Type::Sym(_, c) => self.u.full_name(c) == "scala.Singleton",
             _ => false,

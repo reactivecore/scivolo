@@ -291,6 +291,31 @@ fn unions_of_constants_grow_balanced_as_in_dotc() {
     }
 }
 
+#[test]
+fn soft_and_hard_unions_are_distinct_but_equivalent() {
+    let Some(mut u) = universe() else { return };
+    let (one, two) = (parse(&mut u, "1"), parse(&mut u, "2"));
+    let (soft, hard) = (u.lub(one, two), u.lub_as(one, two, false));
+    assert_ne!(soft, hard);
+    assert!(matches!(u.types().get(soft), Type::Or(_, _, true)));
+    assert!(matches!(u.types().get(hard), Type::Or(_, _, false)));
+    assert!(u.is_subtype(soft, hard) && u.is_subtype(hard, soft));
+}
+
+#[test]
+fn balancing_keeps_a_union_of_the_other_softness_whole() {
+    let Some(mut u) = universe() else { return };
+    let [one, two, three, four] = ["1", "2", "3", "4"].map(|s| parse(&mut u, s));
+    let hard = u.lub_as(one, two, false);
+    let hard = u.lub_as(hard, three, false);
+    let kept = u.union(hard, four, true);
+    assert_eq!(*u.types().get(kept), Type::Or(hard, four, true));
+    let soft = u.lub(one, two);
+    let soft = u.lub(soft, three);
+    let balanced = u.union(soft, four, true);
+    assert_eq!(shape(&u, balanced), "((1|2)|(3|4))");
+}
+
 fn define(u: &mut Universe, name: &str, kind: Kind, owner: SymbolId, info: TypeId) -> SymbolId {
     let flags = Flags::default();
     let (target, tree, decls) = (None, None, Vec::new());
