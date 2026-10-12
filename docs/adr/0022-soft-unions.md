@@ -1,4 +1,4 @@
-# ADR 0019 — Soft and hard unions as a flag of the union type
+# ADR 0022 — Soft and hard unions as a flag of the union type
 
 Status: accepted · Date: 2026-10-12
 

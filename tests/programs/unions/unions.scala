@@ -1,3 +1,5 @@
+//> using scala 3.9.0
+
 class Box(val n: Int):
   override def toString = s"Box($n)"
 
