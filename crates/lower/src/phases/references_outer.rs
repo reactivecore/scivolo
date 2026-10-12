@@ -79,7 +79,7 @@ fn has_outer_prefix(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
 
 fn contains_outer_refs_at_top_level(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
     match l.u.types().get(tpe).clone() {
-        Type::And(a, b) | Type::Or(a, b) => {
+        Type::And(a, b) | Type::Or(a, b, _) => {
             contains_outer_refs_at_top_level(l, class, a) || contains_outer_refs_at_top_level(l, class, b)
         }
         Type::This(_) | Type::TermRef(..) => is_outer_ref(l, class, tpe),
