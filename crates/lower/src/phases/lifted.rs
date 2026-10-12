@@ -25,6 +25,8 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
     for f in functions {
         let (params, result) = signature(l, f)?;
         let name = l.u.symbol(f.sym).name.clone();
+        let params: Vec<(String, TypeId)> =
+            params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
         let method = define(l, class, &name, &f.captured, &params, result, f.this);
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
@@ -105,13 +107,14 @@ pub fn lift(
 }
 
 /// A private method `name` of `class`, static unless `this`, with proxies of `captured`, then
-/// `params`; the proxies named as the values they stand for, until `name_proxies`.
+/// `params` by name and type; the proxies named as the values they stand for, until
+/// `name_proxies`.
 pub fn define(
     l: &mut Lower,
     class: SymbolId,
     name: &str,
     captured: &[SymbolId],
-    params: &[(SymbolId, TypeId)],
+    params: &[(String, TypeId)],
     result: TypeId,
     this: bool,
 ) -> Method {
@@ -128,7 +131,7 @@ pub fn define(
     }
     let mut typed: Vec<(String, TypeId)> =
         proxies.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
-    typed.extend(params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)));
+    typed.extend(params.iter().cloned());
     let binder = l.u.fresh_binder();
     let info =
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
