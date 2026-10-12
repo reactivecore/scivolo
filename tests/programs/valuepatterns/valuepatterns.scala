@@ -104,5 +104,9 @@ object valuepatterns {
     val cs = Array[Any](new Count(1), "s", Cents(2))
     println(cs(0).isInstanceOf[Count] && !cs(2).isInstanceOf[Count])
     println(cs(0).asInstanceOf[Count].n)
+    val both: Name & Shows = new Name("i")
+    val anyName: Any = both
+    println(anyName.asInstanceOf[Name & Shows].text)
+    println(new Opt[String]("o").asInstanceOf[Opt[Int]].x)
   }
 }

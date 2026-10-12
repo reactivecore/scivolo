@@ -38,8 +38,9 @@ pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
         type_test(l, expr, target, in_match, span)?
     };
     if new != t {
+        let typed = matches!(l.tpd.tree(new), Tree::Typed { .. });
         l.copy_node(t, new);
-        l.tpd.get_mut(t).span = span;
+        l.tpd.get_mut(t).span = if typed { super::adapt::from_start(span) } else { span };
     }
     Ok(())
 }
@@ -137,8 +138,8 @@ fn is_instance_of(
     Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.patmat.is_instance_of)))
 }
 
-/// Whether a value of type `tpe` is never null: a constant other than `null` or a value class
-/// (dotty's `isNotNull`).
+/// Whether a value of type `tpe` is never null: a constant other than `null` or of a value class
+/// type (dotty's `isNotNull`).
 fn is_not_null(l: &mut Lower, tpe: tasty::TypeId) -> bool {
     let widened = l.u.widen(tpe);
     if l.u.value_class(widened).is_some() {

@@ -75,6 +75,9 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
     let null = l.null_literal(Span::NONE);
     let thenp = null_as(l, null, underlying);
     let again = l.copy_ident(value);
+    if def.is_none() {
+        l.tpd.get_mut(again).span = l.tpd.span(value);
+    }
     let elsep = value_of(l, again, class);
     let tpe = l.tpd.tpe(elsep);
     let tree = Tree::If { cond, thenp, elsep };
@@ -119,6 +122,6 @@ fn value_of(l: &mut Lower, t: TNodeId, class: &str) -> TNodeId {
         return e;
     }
     let tpe = type_ref(l.u, class);
-    let tpt = l.type_tree(tpe, Span::NONE);
-    l.tpd.node(Tree::Typed { expr: e, tpt }, l.tpd.span(call), Some(tpe), None)
+    let span = l.tpd.span(call);
+    super::ascribed(l, e, tpe, span)
 }

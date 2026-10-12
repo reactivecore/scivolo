@@ -1,7 +1,7 @@
 //! `x.asInstanceOf[T]` as dotty's `transformAsInstanceOf` erases it.
 
-use crate::phases::adapt::{adapt, converted, erased_type};
-use crate::phases::casts::class_named;
+use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
+use crate::phases::casts::{class_named, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
@@ -27,7 +27,9 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
     Ok(match (&found, &to) {
-        (Erased::Prim(a), Erased::Prim(b)) if a == b => ascribed(l, expr, tpt),
+        (Erased::Prim(a), Erased::Prim(b)) if a == b => {
+            l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None)
+        }
         (Erased::Null, Erased::Prim(c)) => match l.defs.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
@@ -80,7 +82,8 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
         _ => false,
     };
     if derives {
-        return Ok(ascribed(l, expr, tpt));
+        let tpe = type_of(l, &test);
+        return Ok(ascribed(l, expr, tpe, Span::NONE));
     }
     let to_value = l.u.value_class(target).is_some();
     Ok(match (&found, &test) {
@@ -90,8 +93,11 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
             None => return unsupported(span, "casts of primitive values to value classes"),
         },
         (_, Erased::Prim(_)) => {
-            let boxed = adapt(l, expr, &Erased::Class("java.lang.Object".into()));
-            adapt(l, boxed, &test)
+            let object = Erased::Class("java.lang.Object".into());
+            let boxed = adapt(l, expr, &object);
+            let object = crate::phases::casts::cast(l, boxed, &object);
+            l.explicit_casts.insert(object);
+            adapt(l, object, &test)
         }
         (Erased::Class(_), _) if to_value && l.u.value_class(widened).is_some() => {
             return unsupported(span, "casts between value classes");
@@ -102,12 +108,6 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
             t
         }
     })
-}
-
-/// `expr: tpt`, of `tpt`'s type.
-fn ascribed(l: &mut Lower, expr: TNodeId, tpt: TNodeId) -> TNodeId {
-    let target = l.tpd.tpe(tpt);
-    l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None)
 }
 
 /// Cast `t` of primitive `expr` of erased letter `c` made a cast of `expr` boxed.
