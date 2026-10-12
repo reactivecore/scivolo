@@ -28,6 +28,8 @@ class Counter(start: Int) {
   val callbacks = new scala.runtime.AbstractFunction0[Int] { def apply() = total + 1 }
 }
 
+class Seed(k: Int) { val v = { class Grow { def g = k + 1 }; new Grow().g } }
+
 class Shelf(label: String) {
   class Item(val n: Int) { def show = label + ":" + n }
   class Big extends Item(100)
@@ -65,6 +67,7 @@ object Test {
     println(c.make(10))
     println(c.viaLocal(1))
     println(c.callbacks())
+    println(new Seed(4).v)
     val s = new Shelf("s")
     println(new s.Big().show)
     println(s.small)

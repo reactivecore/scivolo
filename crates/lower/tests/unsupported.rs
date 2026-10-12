@@ -82,10 +82,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f() = { class C { val g = (x: Int) => x }; new C().g(1) } }",
         "lambdas and local methods in local classes",
     ),
-    (
-        "class A(k: Int) { val v = { class C { def g = k }; new C().g } }",
-        "local classes using the enclosing instance",
-    ),
 ];
 
 #[test]
