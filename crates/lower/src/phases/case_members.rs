@@ -125,7 +125,7 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>) -> TNodeId {
     let cases = l.tpd.list(&cases);
     let result = l.cases_lub(cases);
     let m = l.tpd.node(
-        Tree::Match { selector: index, cases, kind: MatchKind::Plain },
+        Tree::Match { selector: Some(index), cases, kind: MatchKind::Plain },
         Span::NONE,
         Some(result),
         None,

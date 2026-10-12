@@ -22,6 +22,19 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let method = self.tpd.sym(f);
+        if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
+            return match arg_ids[..] {
+                [arg] => match *self.ast.tree(arg) {
+                    syntax::ast::Tree::Match { selector: None, cases, .. } => {
+                        self.typed_summon_from(id, cases, pt, ctx)
+                    }
+                    _ => {
+                        self.unsupported(id, "argument to summonFrom that is not a pattern matching closure")
+                    }
+                },
+                _ => self.unsupported(id, "summonFrom"),
+            };
+        }
         let f = match self.with_type_vars(f) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),

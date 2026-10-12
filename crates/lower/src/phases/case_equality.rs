@@ -74,7 +74,7 @@ impl Lower<'_> {
         let cases = self.tpd.list(&[matching, default]);
         let result = self.cases_lub(cases);
         let matched = self.tpd.node(
-            Tree::Match { selector: that, cases, kind: MatchKind::Plain },
+            Tree::Match { selector: Some(that), cases, kind: MatchKind::Plain },
             Span::NONE,
             Some(result),
             None,

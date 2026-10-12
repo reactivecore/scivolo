@@ -81,7 +81,9 @@ impl Translator<'_, '_> {
 
     /// The plan of match `m`: its cases in turn, a `MatchError` if none matches.
     pub fn match_plan(&mut self, m: TNodeId) -> Result<PlanId> {
-        let Tree::Match { selector, cases, kind } = *self.l.tpd.tree(m) else { unreachable!("a match") };
+        let Tree::Match { selector: Some(selector), cases, kind } = *self.l.tpd.tree(m) else {
+            unreachable!("a match with a selector")
+        };
         if kind == MatchKind::Sub {
             return crate::unsupported(self.l.tpd.span(m), "sub match");
         }

@@ -301,6 +301,12 @@ object CompileTime:
     x
   inline def show[T](t: T): String = summonInline[IShow[T]].show(t)
   inline def sum[A <: Int, B <: Int]: Int = constValue[A + B]
+  inline def describe[T](t: T): String = compiletime.summonFrom:
+    case s: IShow[T] => s.show(t)
+    case _ => "no show"
+  inline def has[T]: Boolean = compiletime.summonFrom:
+    case given IShow[T] => true
+    case _ => false
   def run(args: Array[String]): Unit =
     println(constValue[3] + plusOne[4])
     println(constValue[1 + 2])
@@ -310,6 +316,8 @@ object CompileTime:
     println(summonInline[IShow[Int]].show(2))
     println(sum[2, 5])
     println(codeOf(7))
+    println(describe(args.length) + " " + describe("s"))
+    println(has[Int] && !has[String])
 
 @main def inlining(): Unit =
   println(ap(_ => 3))

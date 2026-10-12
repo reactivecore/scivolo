@@ -78,6 +78,7 @@ pub(crate) mod seen_from;
 mod select;
 pub(crate) mod stability;
 mod stats;
+mod summon_from;
 mod supers;
 mod this;
 mod transparent;

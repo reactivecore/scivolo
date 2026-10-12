@@ -154,7 +154,7 @@ impl Typer<'_> {
         });
         let forcing = match *self.tpd.tree(t) {
             T::If { cond, inline: true, .. } => Some(cond),
-            T::Match { selector, kind: MatchKind::Inline, .. } => Some(selector),
+            T::Match { selector, kind: MatchKind::Inline, .. } => selector,
             _ => None,
         };
         let inner = self

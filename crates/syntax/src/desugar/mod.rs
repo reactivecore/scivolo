@@ -44,6 +44,8 @@ use crate::source::SourceFile;
 use class_syms::{ClassSym, Scope};
 use rustc_hash::FxHashMap;
 
+pub use given_name::given_type_name;
+
 /// What the trees being desugared are (dotty's `Mode`).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Mode {

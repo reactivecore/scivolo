@@ -29,6 +29,18 @@ impl Reducer<'_, '_> {
             T::Bind { name, .. } if name.is_type => {
                 return Err((span, "type binding in an inline match pattern"));
             }
+            T::Bind { body, .. } if self.implicit => {
+                let (&T::Typed { tpt, .. }, Some(s)) = (self.i.tpd.tree(body), self.i.tpd.sym(pat)) else {
+                    return Err((span, "summonFrom pattern"));
+                };
+                if self.binds_type(body) {
+                    return Err((span, "type binding in a summonFrom pattern"));
+                }
+                let (tpe, at) = (self.i.tpd.tpe(tpt), self.i.tpd.span(tpt).start_pos());
+                let Some(evidence) = self.i.summon(tpe, at)? else { return Ok(false) };
+                self.new_term_binding(map, s, evidence, Span::at(span.point()));
+                true
+            }
             T::Bind { name, body } => {
                 if !self.reduce_pattern(map, scrut, body)? {
                     return Ok(false);

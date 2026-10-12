@@ -60,7 +60,7 @@ impl TailCalls {
                 self.walk(l, elsep, tail);
             }
             Tree::CaseDef { body, .. } => self.walk(l, body, tail),
-            Tree::Match { selector, cases, .. } => {
+            Tree::Match { selector: Some(selector), cases, .. } => {
                 self.walk(l, selector, false);
                 for c in l.tpd.items(cases).to_vec() {
                     self.walk(l, c, tail);

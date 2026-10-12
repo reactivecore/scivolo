@@ -21,25 +21,35 @@ pub struct Reducer<'r, 'a> {
     rhs_of: FxHashMap<SymbolId, TNodeId>,
     /// The bindings of erased impure values, dropped from the result.
     unusable: FxHashSet<SymbolId>,
+    /// Whether the match is a `summonFrom`, its patterns matching implicit arguments.
+    implicit: bool,
 }
 
 impl Inlining<'_> {
-    /// Inline match `m` of retyped selector `sel` and `cases`, owned by `owner`, as the retyped
-    /// body of the case it selects with the bindings of its pattern.
+    /// Inline match `m` of retyped selector `sel`, none for a `summonFrom`, and `cases`, owned by
+    /// `owner`, as the retyped body of the case it selects with the bindings of its pattern.
     pub fn reduce_inline_match(
         &mut self,
         m: TNodeId,
-        sel: TNodeId,
+        sel: Option<TNodeId>,
         cases: List,
         args: &FxHashMap<SymbolId, TNodeId>,
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
-        let sel = self.sel_typed(sel);
-        let sel_type = self.tpd.tpe(sel);
+        let sel = sel.map(|s| self.sel_typed(s));
         let cases = self.tpd.items(cases).to_vec();
-        let mut r =
-            Reducer { i: self, args, owner, rhs_of: FxHashMap::default(), unusable: FxHashSet::default() };
-        r.reduce_expr(m, sel, sel_type, &cases)
+        let (rhs_of, unusable, implicit) = (FxHashMap::default(), FxHashSet::default(), sel.is_none());
+        let mut r = Reducer { i: self, args, owner, rhs_of, unusable, implicit };
+        match sel {
+            Some(sel) => {
+                let sel_type = r.i.tpd.tpe(sel);
+                r.reduce_expr(m, sel, sel_type, &cases)
+            }
+            None => {
+                let reduced = r.reduce_cases(None, tasty::NOTHING, &cases)?;
+                r.selected(m, reduced)
+            }
+        }
     }
 
     /// Selector `sel` without its type ascriptions.
@@ -75,7 +85,17 @@ impl Reducer<'_, '_> {
             let span = self.i.tpd.span(sel);
             return self.i.block(&stats, reduced, span);
         }
-        let Some((bindings, rhs)) = self.reduce(sel, sel_type, cases)? else {
+        let reduced = self.reduce(sel, sel_type, cases)?;
+        self.selected(m, reduced)
+    }
+
+    /// The retyped body of the case of match `m` that `reduced` holds with its bindings.
+    fn selected(
+        &mut self,
+        m: TNodeId,
+        reduced: Option<(Vec<TNodeId>, TNodeId)>,
+    ) -> Result<TNodeId, Unsupported> {
+        let Some((bindings, rhs)) = reduced else {
             return Err((self.i.tpd.span(m), "inline match that does not reduce"));
         };
         let rhs = self.drop_synthetic_ascription(rhs)?;
@@ -84,9 +104,17 @@ impl Reducer<'_, '_> {
             _ => rhs,
         };
         let rhs = self.i.const_to_literal(rhs);
-        let (used, rhs) = self.i.drop_unused(bindings, rhs, self.owner)?;
+        let rhs = match *self.i.tpd.tree(rhs) {
+            T::Block { stats, expr } if self.implicit && stats.is_empty() && !bindings.is_empty() => expr,
+            _ => rhs,
+        };
+        let (used, rhs) = self.i.drop_unused(bindings.clone(), rhs, self.owner)?;
         let rhs = self.i.seq(&used, rhs)?;
-        self.i.retype(rhs, self.args, self.owner)
+        let outer = self.i.local_implicits;
+        self.i.local_implicits |= self.implicit && !bindings.is_empty();
+        let retyped = self.i.retype(rhs, self.args, self.owner);
+        self.i.local_implicits = outer;
+        retyped
     }
 
     /// Body `rhs` of a selected case without a synthetic ascription or cast of its expression.

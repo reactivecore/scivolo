@@ -43,14 +43,15 @@ impl Inlining<'_> {
         self.host.error(at, msg);
     }
 
-    /// Whether the body of inline method definition `def` defines a given or implicit term.
+    /// Whether the body of inline method definition `def` defines a given or implicit term other
+    /// than by the pattern of a `summonFrom` case.
     pub fn defines_implicit(&self, def: TNodeId) -> bool {
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return false };
         self.has_implicit_def(rhs)
     }
 
     fn has_implicit_def(&self, t: TNodeId) -> bool {
-        let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
+        let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
         let implicit = self.tpd.sym(t).is_some_and(|s| {
             let flags = self.u.symbol(s).flags;
             flags.has(GIVEN) || flags.has(IMPLICIT)
