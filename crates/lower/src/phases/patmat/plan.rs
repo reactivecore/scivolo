@@ -5,7 +5,7 @@ use super::Translator;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PlanId(pub usize);
@@ -81,7 +81,10 @@ impl Translator<'_, '_> {
 
     /// The plan of match `m`: its cases in turn, a `MatchError` if none matches.
     pub fn match_plan(&mut self, m: TNodeId) -> Result<PlanId> {
-        let Tree::Match { selector, cases } = *self.l.tpd.tree(m) else { unreachable!("a match") };
+        let Tree::Match { selector, cases, kind } = *self.l.tpd.tree(m) else { unreachable!("a match") };
+        if kind == MatchKind::Sub {
+            return crate::unsupported(self.l.tpd.span(m), "sub match");
+        }
         let cases = self.l.tpd.items(cases).to_vec();
         let selector_type = self.l.u.widen(self.l.tpd.tpe(selector));
         let bottom = matches!(self.l.u.erase(selector_type), tasty::Erased::Null | tasty::Erased::Nothing);

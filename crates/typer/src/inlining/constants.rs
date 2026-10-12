@@ -46,8 +46,21 @@ impl Inlining<'_> {
         }
     }
 
-    /// The constant tree `t` denotes by its type (dotty's `ConstantValue`).
+    /// The constant tree `t` denotes by its type, through type ascriptions, inlined trees without
+    /// bindings and blocks without statements (dotty's `ConstantValue`).
     pub fn constant_of(&mut self, t: TNodeId) -> Option<C> {
+        match *self.tpd.tree(t) {
+            T::Typed { expr, .. } => self.constant_of(expr),
+            T::Inlined { bindings: defs, expansion: expr, .. } | T::Block { stats: defs, expr }
+                if defs.is_empty() =>
+            {
+                self.constant_of(expr)
+            }
+            _ => self.constant_of_tree_type(t),
+        }
+    }
+
+    fn constant_of_tree_type(&mut self, t: TNodeId) -> Option<C> {
         let tpe = self.tpd.get(t).tpe?;
         self.constant_of_type(tpe)
     }
@@ -59,7 +72,7 @@ impl Inlining<'_> {
             T::Inlined { bindings, expansion, .. } if bindings.is_empty() => self.constant_operand(expansion),
             T::Typed { expr, .. } => self.constant_operand(expr),
             T::Literal { value: C::Null } => Some(C::Null),
-            _ => self.constant_of(t),
+            _ => self.constant_of_tree_type(t),
         }
     }
 

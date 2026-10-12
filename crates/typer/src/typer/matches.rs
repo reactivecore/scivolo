@@ -19,10 +19,15 @@ impl Typer<'_> {
         pt: Pt,
         ctx: Ctx,
     ) -> TNodeId {
-        if kind != MatchKind::Plain {
-            return self.unsupported(id, "inline or sub match");
+        let Some(selector) = selector else {
+            if kind == MatchKind::Inline {
+                return self.unsupported(id, "summonFrom");
+            }
+            return self.typed_case_lambda(id, cases, pt, ctx);
+        };
+        if kind == MatchKind::Inline {
+            self.check_in_inline_context("inline match", self.ast.span(id), ctx);
         }
-        let Some(selector) = selector else { return self.typed_case_lambda(id, cases, pt, ctx) };
         let sel = self.typed(selector, Pt::Any, ctx);
         if self.tpd.sym(sel).is_some_and(|s| self.syms.repeated_params.contains_key(&s)) {
             return self.unsupported(id, "match on a repeated parameter");
@@ -65,7 +70,7 @@ impl Typer<'_> {
         };
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
-        self.tpd.node(T::Match { selector: sel, cases }, span, Some(tpe), None)
+        self.tpd.node(T::Match { selector: sel, cases, kind }, span, Some(tpe), None)
     }
 
     /// `{ cases }` as `x$1 => x$1 match { cases }` (dotty's `makeCaseLambda`).

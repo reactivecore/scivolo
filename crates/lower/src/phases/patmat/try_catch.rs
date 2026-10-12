@@ -8,7 +8,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::{CASE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// Makes the cases of `try` `t` from the first that is not a catch case one fallback case with
 /// a symbol owned by `owner`; the match in it, if any.
@@ -43,7 +43,12 @@ pub fn fallback(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<Option<TNo
     let rethrow = l.positioned(rethrow);
     let matched = l.tpd.list(&[&cases[tried..], &[rethrow]].concat());
     let tpe = l.cases_lub(matched);
-    let m = l.tpd.node(Tree::Match { selector, cases: matched }, Span::NONE, Some(tpe), None);
+    let m = l.tpd.node(
+        Tree::Match { selector, cases: matched, kind: MatchKind::Plain },
+        Span::NONE,
+        Some(tpe),
+        None,
+    );
     let m = l.positioned(m);
     let underscore = l.wildcard(throwable);
     l.tpd.get_mut(underscore).span = span;

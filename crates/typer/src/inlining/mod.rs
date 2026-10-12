@@ -3,12 +3,16 @@
 //! `Inlines.inlineCall`).
 
 mod beta;
+mod blocks;
+mod const_fold;
 mod constants;
 mod copy;
+mod erased;
 mod expand;
 mod no_inits;
 mod proxies;
 mod purity;
+mod reduce;
 mod reselect;
 mod retype;
 mod skolems;
@@ -16,6 +20,7 @@ mod this_proxy;
 mod transparent;
 mod unused;
 
+pub use erased::is_erased_value;
 pub use transparent::inline_transparent;
 
 use crate::tpd::{TNodeId, Tpd, Tree as T, map_children};
@@ -42,10 +47,15 @@ pub struct Inlining<'a> {
     depth: u32,
     /// The class enclosing the call being expanded.
     pub enclosing_class: Option<SymbolId>,
+    /// The span of the call being expanded.
+    pub call_span: Span,
     /// The classes of the unit whose templates run code.
     with_inits: FxHashSet<SymbolId>,
     /// Whether only calls of transparent inline methods expand, as in the typer.
     transparent_only: bool,
+    /// Whether every inline call expands: in the condition of an inline `if` or the selector of
+    /// an inline match (dotty's `Mode.ForceInline`).
+    force_inline: bool,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -84,8 +94,10 @@ impl<'a> Inlining<'a> {
             bodies: FxHashMap::default(),
             depth: 0,
             enclosing_class: None,
+            call_span: Span::NONE,
             with_inits: FxHashSet::default(),
             transparent_only,
+            force_inline: false,
         }
     }
 }
@@ -118,7 +130,7 @@ impl Inlining<'_> {
         };
         let call = self.traced_call(t);
         let mut failed = None;
-        map_children(self, t, &mut |i, c| match Some(c) == call {
+        let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
             true => c,
             false => i.transform(c, inner).unwrap_or_else(|e| {
                 failed.get_or_insert(e);
@@ -127,6 +139,10 @@ impl Inlining<'_> {
         });
         if let Some(e) = failed {
             return Err(e);
+        }
+        self.fold_constants(t);
+        if changed {
+            self.retype_inlined(t);
         }
         match self.inline_method(t)? {
             Some(def) => self.inline_call(t, def, owner),
@@ -148,7 +164,7 @@ impl Inlining<'_> {
         let sym = self.u.symbol(meth);
         if sym.kind != Kind::Def
             || !sym.flags.has(INLINE)
-            || self.transparent_only && !sym.flags.has(TRANSPARENT)
+            || self.transparent_only && !self.force_inline && !sym.flags.has(TRANSPARENT)
         {
             return Ok(None);
         }
@@ -208,26 +224,21 @@ impl Inlining<'_> {
         if !self.transparent_only {
             self.type_this_qualifiers(call);
         }
+        let outer_call = std::mem::replace(&mut self.call_span, span);
         let expanded = expand::Expansion::new(self, call, owner).inlined(def);
+        self.call_span = outer_call;
         self.depth -= 1;
         let (bindings, expansion) = expanded?;
         if let Some(inner) = self.inline_ref_in(expansion) {
             return Err((self.tpd.span(inner), "inline call in an inline expansion"));
         }
-        let locals: Vec<SymbolId> = bindings.iter().filter_map(|&b| self.tpd.sym(b)).collect();
-        let mut tpe = self.tpd.tpe(expansion);
-        while locals.iter().any(|&s| self.mentions(tpe, s)) {
-            let widened = self.u.widen_once(tpe).unwrap_or(tpe);
-            let widened = match *self.u.types().get(widened) {
-                Type::ByName(r) => r,
-                _ => widened,
-            };
-            let widened = self.u.dealias(widened);
-            if widened == tpe {
-                return Err((span, "inline expansion of a type referring to a binding"));
-            }
-            tpe = widened;
+        if let Some(r) = bindings.iter().chain([&expansion]).find_map(|&b| self.erased_value_in(b)) {
+            return Err((self.tpd.span(r), "erasedValue in an inline expansion"));
         }
+        let locals: Vec<SymbolId> = bindings.iter().filter_map(|&b| self.tpd.sym(b)).collect();
+        let tpe = self.tpd.tpe(expansion);
+        let tpe =
+            self.avoid(tpe, &locals).ok_or((span, "inline expansion of a type referring to a binding"))?;
         let expansion = self.sealed(&locals, expansion, tpe)?;
         let bindings = self.tpd.list(&bindings);
         Ok(self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None))
@@ -274,15 +285,5 @@ impl Inlining<'_> {
             _ => {}
         }
         self.tpd.children(t).into_iter().find_map(|c| self.inline_ref_in(c))
-    }
-
-    /// Whether type `t` refers to symbol `s`.
-    pub fn mentions(&mut self, t: tasty::TypeId, s: SymbolId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(*u.types().get(part), Type::Sym(_, x) if x == s);
-            None
-        });
-        found
     }
 }

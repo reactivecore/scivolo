@@ -7,7 +7,7 @@ use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
 use tasty::{Erased, Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 impl Lower<'_> {
     /// `(this eq that) || that match { case x$0 @ (_: C) => this.a == x$0.a && ... && x$0.canEqual(this); case _ => false }`,
@@ -73,7 +73,12 @@ impl Lower<'_> {
         let default = self.tpd.node(Tree::CaseDef { pat, guard: None, body: no }, Span::NONE, None, None);
         let cases = self.tpd.list(&[matching, default]);
         let result = self.cases_lub(cases);
-        let matched = self.tpd.node(Tree::Match { selector: that, cases }, Span::NONE, Some(result), None);
+        let matched = self.tpd.node(
+            Tree::Match { selector: that, cases, kind: MatchKind::Plain },
+            Span::NONE,
+            Some(result),
+            None,
+        );
         let matched = self.positioned(matched);
         if self.u.underlying(class).is_some() {
             return matched;

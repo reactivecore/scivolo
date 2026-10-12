@@ -79,7 +79,7 @@ impl Inlining<'_> {
         }
     }
 
-    fn is_pure_binding(&mut self, s: TNodeId) -> bool {
+    pub fn is_pure_binding(&mut self, s: TNodeId) -> bool {
         match *self.tpd.tree(s) {
             T::ValDef { rhs: Some(r), .. } => {
                 let mutable = self.tpd.sym(s).is_some_and(|v| self.u.symbol(v).flags.has(MUTABLE));

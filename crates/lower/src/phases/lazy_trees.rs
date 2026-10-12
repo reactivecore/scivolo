@@ -53,7 +53,7 @@ pub fn eq(l: &mut Lower, a: TNodeId, b: TNodeId) -> TNodeId {
 }
 
 pub fn if_(l: &mut Lower, cond: TNodeId, thenp: TNodeId, elsep: TNodeId, tpe: TypeId) -> TNodeId {
-    let t = l.tpd.node(Tree::If { cond, thenp, elsep }, Span::NONE, Some(tpe), None);
+    let t = l.tpd.node(Tree::If { cond, thenp, elsep, inline: false }, Span::NONE, Some(tpe), None);
     l.positioned(t)
 }
 

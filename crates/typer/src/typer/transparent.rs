@@ -4,7 +4,7 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::inlining::{Unsupported, inline_transparent};
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::NodeId;
 use tasty::tags::{INLINE, MACRO, TRANSPARENT};
@@ -75,7 +75,7 @@ impl Typer<'_> {
         }
         self.define_call_types(call).map_err(|w| (span, w))?;
         let mut bodies = FxHashMap::default();
-        self.collect_transparent_bodies(meth, &mut bodies).map_err(|w| (span, w))?;
+        self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
         inline_transparent(
             (&mut *self.u, &mut self.tpd),
@@ -93,10 +93,13 @@ impl Typer<'_> {
     }
 
     /// Adds to `bodies` the definitions of `meth` and of the transparent inline methods its body
-    /// calls, typed ahead if they are not typed yet (dotty's `bodyToInline`).
+    /// calls, of every inline method if `forced` or in the condition of an inline `if` or the
+    /// selector of an inline match, typed ahead if they are not typed yet (dotty's
+    /// `bodyToInline`).
     fn collect_transparent_bodies(
         &mut self,
         meth: SymbolId,
+        forced: bool,
         bodies: &mut FxHashMap<SymbolId, TNodeId>,
     ) -> Result<(), &'static str> {
         if bodies.contains_key(&meth) {
@@ -124,18 +127,32 @@ impl Typer<'_> {
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else {
             return Err("transparent inline method without a body");
         };
-        for m in self.transparent_refs(rhs) {
-            self.collect_transparent_bodies(m, bodies)?;
+        for (m, forced) in self.transparent_refs(rhs, forced) {
+            self.collect_transparent_bodies(m, forced, bodies)?;
         }
         Ok(())
     }
 
-    /// The transparent inline methods `t` refers to.
-    fn transparent_refs(&self, t: TNodeId) -> Vec<SymbolId> {
+    /// The inline methods `t` refers to that expand: transparent ones, every one if `forced` or
+    /// in the condition of an inline `if` or the selector of an inline match; each with whether
+    /// it is forced.
+    fn transparent_refs(&self, t: TNodeId, forced: bool) -> Vec<(SymbolId, bool)> {
         let own = self.tpd.sym(t).filter(|&s| {
-            matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. }) && self.is_transparent_inline(s)
+            let sym = self.u.symbol(s);
+            let inline = sym.kind == Kind::Def && sym.flags.has(INLINE) && !sym.flags.has(MACRO);
+            matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. })
+                && (self.is_transparent_inline(s) || forced && inline)
         });
-        let inner = self.tpd.children(t).into_iter().flat_map(|c| self.transparent_refs(c));
-        own.into_iter().chain(inner).collect()
+        let forcing = match *self.tpd.tree(t) {
+            T::If { cond, inline: true, .. } => Some(cond),
+            T::Match { selector, kind: MatchKind::Inline, .. } => Some(selector),
+            _ => None,
+        };
+        let inner = self
+            .tpd
+            .children(t)
+            .into_iter()
+            .flat_map(|c| self.transparent_refs(c, forced || Some(c) == forcing));
+        own.map(|s| (s, forced)).into_iter().chain(inner).collect()
     }
 }

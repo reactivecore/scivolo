@@ -8,7 +8,7 @@ use crate::phases::walk::same;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use tasty::{Erased, Kind};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// The fewest alternatives, with the default, a switch is emitted for.
 const MIN_SWITCH_CASES: usize = 4;
@@ -115,7 +115,7 @@ impl Translator<'_, '_> {
         }
         let cases = self.l.tpd.list(&defs);
         let nothing = self.nothing_type();
-        self.node(Tree::Match { selector, cases }, nothing, None)
+        self.node(Tree::Match { selector, cases, kind: MatchKind::Plain }, nothing, None)
     }
 
     /// `t.toInt`, of a `Char`, `Byte` or `Short`.

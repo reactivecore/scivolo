@@ -30,7 +30,7 @@ impl Translator<'_, '_> {
                 let thenp = self.emit(on_success);
                 let elsep = self.l.unit_literal(Span::NONE);
                 let unit = self.unit_type();
-                self.node(Tree::If { cond, thenp, elsep }, unit, None)
+                self.node(Tree::If { cond, thenp, elsep, inline: false }, unit, None)
             }
             Plan::Let { sym, body } => {
                 let def = self.val_def(sym);

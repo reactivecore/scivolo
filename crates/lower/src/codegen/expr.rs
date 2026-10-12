@@ -25,7 +25,7 @@ impl Gen<'_, '_> {
                 Ok(v)
             }
             Tree::Ident { .. } => self.gen_ident(t),
-            Tree::If { cond, thenp, elsep } => {
+            Tree::If { cond, thenp, elsep, .. } => {
                 let retty = self.gen_type(self.l.tpd.tpe(t));
                 self.gen_if(retty, cond, thenp, elsep)
             }
@@ -39,7 +39,7 @@ impl Gen<'_, '_> {
             Tree::Try { expr, cases, finalizer } => self.gen_try(t, expr, cases, finalizer),
             Tree::WhileDo { cond, body } => self.gen_while(t, cond, body),
             Tree::Labeled { expr } => self.gen_labeled(t, expr),
-            Tree::Match { selector, cases } => self.gen_switch(t, selector, cases),
+            Tree::Match { selector, cases, .. } => self.gen_switch(t, selector, cases),
             Tree::Return { expr, from } => {
                 if let Some(result) = self.gen_label_return(t, expr, from) {
                     return result;

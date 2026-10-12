@@ -137,7 +137,12 @@ pub fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
 /// Whether `t` is an operation of a primitive class or `String` on literals and pure paths, not
 /// through objects `inits` (dotty's `isPureApply` for a constant type).
 fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
-    let operand = |a: TNodeId| is_literal(l, a) || is_pure(l, a) && !through(l, a, inits);
+    let operand = |mut a: TNodeId| {
+        while let Tree::Typed { expr, .. } = *l.tpd.tree(a) {
+            a = expr;
+        }
+        is_literal(l, a) || is_pure(l, a) && !through(l, a, inits)
+    };
     let (fun, args) = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         Tree::Select { .. } => (t, Vec::new()),

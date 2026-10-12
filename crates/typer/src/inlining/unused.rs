@@ -7,7 +7,7 @@ use super::purity::PURE_PATH;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
-use tasty::tags::{INLINE, MUTABLE};
+use tasty::tags::{CASE, INLINE, MUTABLE, SYNTHETIC, TRAIT};
 use tasty::{Kind, SymbolId, Type};
 
 impl Inlining<'_> {
@@ -123,9 +123,8 @@ impl Inlining<'_> {
         }
     }
 
-    /// Whether `t` can be dropped or duplicated by the inliner (dotty's `isElideableExpr`,
-    /// without synthetic case applies).
-    fn is_elideable(&mut self, t: TNodeId) -> bool {
+    /// Whether `t` can be dropped or duplicated by the inliner (dotty's `isElideableExpr`).
+    pub fn is_elideable(&mut self, t: TNodeId) -> bool {
         match self.tpd.tree(t).clone() {
             T::This { .. } | T::Super { .. } | T::Literal { .. } | T::New { .. } | T::Closure { .. } => true,
             T::Ident { .. } => {
@@ -140,9 +139,11 @@ impl Inlining<'_> {
             T::Apply { fun, args } => {
                 let callee = self.method_part(fun).and_then(|f| self.tpd.sym(f));
                 let args = self.tpd.items(args).to_vec();
-                self.is_pure_apply(t, callee)
-                    && self.is_elideable(fun)
-                    && args.into_iter().all(|a| self.is_elideable(a))
+                if self.is_pure_apply(t, callee) {
+                    self.is_elideable(fun) && args.into_iter().all(|a| self.is_elideable(a))
+                } else {
+                    self.is_case_class_apply(t, fun) && args.into_iter().all(|a| self.is_elideable(a))
+                }
             }
             T::Typed { expr, .. } | T::NamedArg { arg: expr, .. } => self.is_elideable(expr),
             T::Block { stats: defs, expr } | T::Inlined { bindings: defs, expansion: expr, .. } => {
@@ -151,6 +152,31 @@ impl Inlining<'_> {
             }
             _ => false,
         }
+    }
+
+    /// Whether `t` applies `fun`, the synthetic `apply` of a case class without initialization
+    /// code, through its synthetic companion.
+    fn is_case_class_apply(&mut self, t: TNodeId, fun: TNodeId) -> bool {
+        let Some(f) = self.method_part(fun) else { return false };
+        let Some(meth) = self.tpd.sym(f) else { return false };
+        let s = self.u.symbol(meth);
+        if s.name != "apply" || !s.flags.has(SYNTHETIC) {
+            return false;
+        }
+        let owner = s.owner;
+        let case_companion =
+            owner.and_then(|o| self.u.companion_class(o)).is_some_and(|c| self.u.symbol(c).flags.has(CASE));
+        let tpe = self.tpd.tpe(t);
+        let real = self
+            .u
+            .class_symbol(tpe)
+            .is_some_and(|c| !self.u.symbol(c).flags.has(TRAIT) && self.is_no_inits_class(c));
+        let through = match *self.tpd.tree(f) {
+            T::Select { qualifier, .. } => self.tpd.sym(qualifier),
+            _ => Some(meth),
+        };
+        let synthetic = through.is_some_and(|q| self.u.symbol(q).flags.has(SYNTHETIC));
+        case_companion && real && synthetic
     }
 
     fn is_stat_elideable(&mut self, s: TNodeId) -> bool {

@@ -42,7 +42,9 @@ impl Typer<'_> {
             Tree::ParsedTry { expr, handler, finalizer } => {
                 self.typed_parsed_try(id, expr, handler, finalizer, pt, ctx)
             }
-            Tree::If { cond, thenp, elsep, inline: false } => self.typed_if(id, cond, thenp, elsep, pt, ctx),
+            Tree::If { cond, thenp, elsep, inline } => {
+                self.typed_if(id, (cond, thenp, elsep, inline), pt, ctx)
+            }
             Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
             Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
             Tree::Return { expr } => self.typed_return(id, expr, ctx),

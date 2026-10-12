@@ -31,6 +31,12 @@ Apache-2.0. Rust translations of:
   `crates/typer/src/unpickle`: `core/tasty/TreeUnpickler.readTree`, `tpd.ref`,
   `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`.
+- `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
+  parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
+  `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
+  `transform/BetaReduce`; `Inliner.InlineTyper` (`typedIf`, `typedMatch`,
+  `typedMatchFinish`); `inlines/InlineReducer` (`reduceInlineMatch`, `reducePattern`,
+  `reduceProjection`, `normalizeBinding`, `NewInstance`) in `inlining/reduce`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)

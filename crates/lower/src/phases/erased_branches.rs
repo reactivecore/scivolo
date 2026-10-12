@@ -5,7 +5,7 @@ use super::casts::type_of;
 use super::erasure::typed;
 use crate::{Lower, Result, unsupported};
 use tasty::Erased;
-use typer::tpd::{List, TNodeId, Tree};
+use typer::tpd::{List, MatchKind, TNodeId, Tree};
 
 /// `try expr catch cases finally finalizer` of `t`, its branches typed as `typed_branches`.
 pub fn typed_try(
@@ -43,7 +43,7 @@ pub fn typed_switch(l: &mut Lower, selector: TNodeId, cases: List) -> Result<Tre
             l.recopy_class_literals(c);
         }
     }
-    Ok(Tree::Match { selector: typed(l, selector, None)?, cases })
+    Ok(Tree::Match { selector: typed(l, selector, None)?, cases, kind: MatchKind::Plain })
 }
 
 /// The branches of conditional or `try` `t`, typed against `pt` if a reference is expected,

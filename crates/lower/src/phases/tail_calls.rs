@@ -54,13 +54,13 @@ impl TailCalls {
                 }
                 self.walk(l, expr, tail);
             }
-            Tree::If { cond, thenp, elsep } => {
+            Tree::If { cond, thenp, elsep, .. } => {
                 self.walk(l, cond, false);
                 self.walk(l, thenp, tail);
                 self.walk(l, elsep, tail);
             }
             Tree::CaseDef { body, .. } => self.walk(l, body, tail),
-            Tree::Match { selector, cases } => {
+            Tree::Match { selector, cases, .. } => {
                 self.walk(l, selector, false);
                 for c in l.tpd.items(cases).to_vec() {
                     self.walk(l, c, tail);

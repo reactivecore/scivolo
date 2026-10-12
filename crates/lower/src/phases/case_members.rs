@@ -9,7 +9,7 @@ use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{CASE, CASEaccessor, OVERRIDE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{MatchKind, TNodeId, Tree};
 
 /// The synthetic members of case class or object `class`, at `span`'s point.
 pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
@@ -124,7 +124,12 @@ fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>) -> TNodeId {
     cases.push(l.tpd.node(Tree::CaseDef { pat, guard: None, body: throw }, Span::NONE, None, None));
     let cases = l.tpd.list(&cases);
     let result = l.cases_lub(cases);
-    let m = l.tpd.node(Tree::Match { selector: index, cases }, Span::NONE, Some(result), None);
+    let m = l.tpd.node(
+        Tree::Match { selector: index, cases, kind: MatchKind::Plain },
+        Span::NONE,
+        Some(result),
+        None,
+    );
     l.positioned(m)
 }
 

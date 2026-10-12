@@ -22,20 +22,21 @@ impl Typer<'_> {
     pub fn typed_if(
         &mut self,
         id: NodeId,
-        cond: NodeId,
-        thenp: NodeId,
-        elsep: Option<NodeId>,
+        (cond, thenp, elsep, inline): (NodeId, NodeId, Option<NodeId>, bool),
         pt: Pt,
         ctx: Ctx,
     ) -> TNodeId {
+        let span = self.ast.span(id);
+        if inline {
+            self.check_in_inline_context("inline if", span, ctx);
+        }
         let boolean = self.boolean();
         let cond = self.typed(cond, Pt::Type(boolean), ctx);
-        let span = self.ast.span(id);
         let Some(elsep) = elsep else {
             let unit = self.unit_type();
             let thenp = self.typed(thenp, Pt::Type(unit), ctx);
             let elsep = self.build().literal(Constant::Unit, span.end_pos());
-            return self.tpd.node(T::If { cond, thenp, elsep }, span, Some(unit), None);
+            return self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(unit), None);
         };
         let branch_pt = match pt {
             _ if self.is_incomplete(elsep) => Pt::Type(self.unit_type()),
@@ -49,7 +50,15 @@ impl Typer<'_> {
             return self.unsupported(id, "numeric harmonization");
         }
         let tpe = self.u.lub(a, b);
-        self.tpd.node(T::If { cond, thenp, elsep }, span, Some(tpe), None)
+        self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None)
+    }
+
+    /// Reports `what` at `span` unless `ctx` is in an inline method (dotty's
+    /// `checkInInlineContext`).
+    pub fn check_in_inline_context(&mut self, what: &str, span: Span, ctx: Ctx) {
+        if self.enclosing_inline(ctx.owner).is_none() {
+            self.error_at(span, format!("{what} can only be used in an inline method"));
+        }
     }
 
     /// Whether else-branch `elsep` ends in an `if` without `else`.

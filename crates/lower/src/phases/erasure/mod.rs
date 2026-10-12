@@ -107,10 +107,10 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             map_children(l, t, &mut |l, c| typed(l, c, if c == expr { pt } else { None }))?;
             None
         }
-        Tree::If { cond, thenp, elsep } => {
+        Tree::If { cond, thenp, elsep, inline } => {
             let cond = typed(l, cond, Some(&boolean))?;
             let branches = typed_branches(l, t, &[thenp, elsep], pt)?;
-            Some(Tree::If { cond, thenp: branches[0], elsep: branches[1] })
+            Some(Tree::If { cond, thenp: branches[0], elsep: branches[1], inline })
         }
         Tree::WhileDo { cond, .. } => {
             map_children(l, t, &mut |l, c| typed(l, c, if c == cond { Some(&boolean) } else { None }))?;
@@ -135,7 +135,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             map_children(l, t, &mut |l, c| typed(l, c, Some(&erased)))?;
             None
         }
-        Tree::Match { selector, cases } => Some(typed_switch(l, selector, cases)?),
+        Tree::Match { selector, cases, .. } => Some(typed_switch(l, selector, cases)?),
         Tree::Assign { lhs, .. } => {
             let erased = erased_type(l, lhs);
             typed_except(l, t, lhs, Some(&erased))?;

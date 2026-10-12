@@ -8,7 +8,8 @@ use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTED
 
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
-    /// operation, nor from an inline body to a member that needs an inline accessor.
+    /// operation, nor to `erasedValue` outside an inline method, nor from an inline body to a
+    /// member that needs an inline accessor.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
         if flags.has(INLINE) && flags.has(MACRO) {
@@ -17,10 +18,7 @@ impl Typer<'_> {
         if flags.has(INLINE) && self.u.full_name(sym).starts_with("scala.compiletime.") {
             return Err("scala.compiletime operation");
         }
-        let full = self.u.full_name(sym);
-        let erased_value = matches!(self.u.symbol(sym).name.as_str(), "erasedValue" | "unsafeErasedValue")
-            && (full.starts_with("scala.compiletime.") || full.starts_with("scala.caps."));
-        if erased_value {
+        if crate::inlining::is_erased_value(self.u, sym) && self.enclosing_inline(ctx.owner).is_none() {
             return Err("reference to an erased definition");
         }
         if self.needs_inline_accessor(sym, ctx) {
