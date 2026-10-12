@@ -60,7 +60,7 @@ fn named_value(
     let thenp = call(l, names, next, &[]);
     let elsep = l.string_literal(default);
     let string = l.tpd.tpe(thenp);
-    let name = l.tpd.node(Tree::If { cond, thenp, elsep }, Span::NONE, Some(string), None);
+    let name = l.tpd.node(Tree::If { cond, thenp, elsep, inline: false }, Span::NONE, Some(string), None);
     let name = l.positioned(name);
     let arity = 1 + usize::from(index.is_some());
     let value = method(l, enumeration, "Value", |l, m| {

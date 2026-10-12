@@ -239,6 +239,43 @@ object Matches:
     println(orElse(Some(n)))
     println(orElse(None))
 
+case class IPair(a: Int, b: String)
+enum IColor:
+  case Red, Green
+
+object InlineMatches:
+  inline def sign(inline n: Int): String = inline if n > 0 then "pos" else "nonpos"
+  inline def lit(inline n: Int): Int = inline n match
+    case 0 => 10
+    case 1 | 2 => 20
+    case k if k > 5 => k * 2
+    case _ => 0
+  inline def fact(inline n: Int): Int = inline n match
+    case 0 => 1
+    case _ => n * fact(n - 1)
+  inline def first(p: IPair): Int = inline p match
+    case IPair(a, _) => a + 1
+  inline def opt(o: Option[Int]): Int = inline o match
+    case Some(x) => x
+    case None => -1
+  inline def col(c: IColor): String = inline c match
+    case IColor.Red => "red"
+    case IColor.Green => "green"
+  inline def name[T]: String = inline compiletime.erasedValue[T] match
+    case _: Int => "int"
+    case _: String => "string"
+    case _ => "other"
+  def run(args: Array[String]): Unit =
+    println(sign(3))
+    println(sign(-3))
+    println(lit(2) + lit(7) + lit(4))
+    println(fact(5))
+    println(first(IPair(args.length, "x")))
+    println(opt(Some(args.length)))
+    println(opt(None))
+    println(col(IColor.Green))
+    println(name[Int] + name[String] + name[Boolean])
+
 @main def inlining(): Unit =
   println(ap(_ => 3))
   println(((_: Any) => 4)(N2))
@@ -251,3 +288,4 @@ object Matches:
   Transparent.run()
   Library.run(args)
   Matches.run(args)
+  InlineMatches.run(args)

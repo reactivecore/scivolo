@@ -12,5 +12,10 @@ object Test {
     println(Lib.adder(n)(2))
     println(Lib.pair(n))
     println(Lib.viaTransparent(n))
+    println(Lib.describe(0))
+    println(Lib.describe(12))
+    println(Lib.sign(-4))
+    println(Lib.typeName[Int])
+    println(Lib.firstOr(Some(n)))
   }
 }

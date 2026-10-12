@@ -22,3 +22,14 @@ object Lib:
   inline def pair(x: Int): List[Int] = List(x, x + 1)
   transparent inline def plusOne(x: Int): Int = x + 1
   inline def viaTransparent(x: Int): Int = plusOne(x) * 2
+  inline def describe(inline n: Int): String = inline n match
+    case 0 => "zero"
+    case k if k > 9 => "many"
+    case _ => "some"
+  inline def sign(inline n: Int): Int = inline if n < 0 then -1 else 1
+  inline def typeName[T]: String = inline compiletime.erasedValue[T] match
+    case _: Int => "Int"
+    case _ => "other"
+  inline def firstOr(o: Option[Int]): Int = inline o match
+    case Some(v) => v
+    case _ => 0

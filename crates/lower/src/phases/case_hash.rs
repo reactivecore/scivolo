@@ -78,7 +78,7 @@ impl Lower<'_> {
             Erased::Prim('z') => {
                 let (yes, no) = (self.int_literal(1231), self.int_literal(1237));
                 let int = self.u.class_ref("scala.Int");
-                let t = Tree::If { cond: value, thenp: yes, elsep: no };
+                let t = Tree::If { cond: value, thenp: yes, elsep: no, inline: false };
                 let t = self.tpd.node(t, Span::NONE, Some(int), None);
                 self.positioned(t)
             }

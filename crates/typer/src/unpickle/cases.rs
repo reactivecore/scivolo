@@ -2,23 +2,28 @@
 //! `CASEDEF`, `BIND`, `ALTERNATIVE`, `UNAPPLY`), typed as `TypeAssigner` types them.
 
 use super::{Refusal, Unpickler};
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{MatchKind, TNodeId, Tree as T};
 use syntax::ast::TName;
 use tasty::tags::*;
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
 
 impl Unpickler<'_> {
-    /// `MATCH` of a selector, neither inline nor a `summonFrom`; typed as its cases' lub.
+    /// `MATCH` of a selector, not a `summonFrom`; typed as its cases' lub.
     pub fn match_(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
-        let View::Match { prefix: None, sel: Some(sel), cases } = view(self.ast(), id) else {
-            return Err("inline match in a library inline body");
+        let View::Match { prefix, sel: Some(sel), cases } = view(self.ast(), id) else {
+            return Err("summonFrom in a library inline body");
+        };
+        let kind = match prefix {
+            Some(INLINE) => MatchKind::Inline,
+            Some(SUBMATCH) => MatchKind::Sub,
+            _ => MatchKind::Plain,
         };
         let cases = cases.to_vec();
         let selector = self.term(sel)?;
         let cases = cases.into_iter().map(|c| self.case_def(c)).collect::<Result<Vec<_>, _>>()?;
         let tpe = self.lub_of(&cases);
         let cases = self.tpd.list(&cases);
-        Ok(self.bare(T::Match { selector, cases }, Some(tpe), None))
+        Ok(self.bare(T::Match { selector, cases, kind }, Some(tpe), None))
     }
 
     /// `TRY`: typed as the lub of its expression and cases.
@@ -38,7 +43,8 @@ impl Unpickler<'_> {
         Ok(self.bare(T::Try { expr, cases, finalizer }, Some(tpe), None))
     }
 
-    /// `THROW`: a call of dotty's `<special-ops>.throw`, its function at the call's span.
+    /// `THROW`: a call of dotty's `<special-ops>.throw`, its function at the start of its
+    /// argument.
     pub fn throw(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let expr = self.term(self.kids(id)[0])?;
         let throw = crate::defn::throw_method(self.u);
@@ -49,7 +55,11 @@ impl Unpickler<'_> {
         let args = self.tpd.list(&[expr]);
         let t = self.bare(T::Apply { fun, args }, Some(nothing), None);
         let t = self.positioned(id, t);
-        self.tpd.get_mut(fun).span = self.tpd.span(t).to_synthetic();
+        let at = match self.tpd.span(expr) {
+            s if s.exists() => s.start_pos(),
+            _ => self.tpd.span(t).to_synthetic(),
+        };
+        self.tpd.get_mut(fun).span = at;
         Ok(t)
     }
 

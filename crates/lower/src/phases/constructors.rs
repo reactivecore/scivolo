@@ -150,7 +150,8 @@ fn null_test(l: &mut Lower, param: SymbolId, span: Span) -> TNodeId {
     let throw = l.throw_(error);
     let unit = l.unit_literal(Span::NONE);
     let tpe = l.tpd.tpe(unit);
-    let test = l.tpd.node(Tree::If { cond, thenp: throw, elsep: unit }, Span::NONE, Some(tpe), None);
+    let test =
+        l.tpd.node(Tree::If { cond, thenp: throw, elsep: unit, inline: false }, Span::NONE, Some(tpe), None);
     l.with_span(test, span)
 }
 

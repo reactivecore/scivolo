@@ -53,11 +53,11 @@ impl Unpickler<'_> {
                 let unit = self.class_type("scala.Unit")?;
                 self.bare(T::WhileDo { cond, body }, Some(unit), None)
             }
-            IF if k.len() == 4 => return Err("inline if in a library inline body"),
             IF => {
+                let (inline, k) = (k.len() == 4, &k[k.len() - 3..]);
                 let (cond, thenp, elsep) = (self.term(k[0])?, self.term(k[1])?, self.term(k[2])?);
                 let tpe = self.u.lub(self.tpd.tpe(thenp), self.tpd.tpe(elsep));
-                self.bare(T::If { cond, thenp, elsep }, Some(tpe), None)
+                self.bare(T::If { cond, thenp, elsep, inline }, Some(tpe), None)
             }
             BLOCK => self.block(id)?,
             LAMBDA => self.closure(id)?,

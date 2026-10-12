@@ -5,6 +5,7 @@ use std::num::NonZeroU32;
 use std::ops::Range;
 use syntax::ast::TName;
 use syntax::ast::constant::Constant;
+pub use syntax::ast::tree::MatchKind;
 use tasty::TypeId;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -132,10 +133,12 @@ pub enum Tree {
         stats: List,
         expr: TNodeId,
     },
+    /// `inline` for dotty's `InlineIf`.
     If {
         cond: TNodeId,
         thenp: TNodeId,
         elsep: TNodeId,
+        inline: bool,
     },
     CaseDef {
         pat: TNodeId,
@@ -160,9 +163,11 @@ pub enum Tree {
         cases: List,
         finalizer: Option<TNodeId>,
     },
+    /// `kind` for dotty's `InlineMatch` and `SubMatch`.
     Match {
         selector: TNodeId,
         cases: List,
+        kind: MatchKind,
     },
     /// The pattern `p1 | p2 | ...`.
     Alternative {
@@ -267,7 +272,8 @@ pub enum Field<'a> {
 }
 
 impl Tree {
-    /// Calls `f` on each field of the tree's class in dotty, in order, except `TypeTree.inferred`.
+    /// Calls `f` on each field of the tree's class in dotty, in order, except `TypeTree.inferred`,
+    /// `If.inline` and `Match.kind`.
     pub fn fields(&mut self, f: &mut dyn FnMut(Field<'_>)) {
         use Field::{Clauses as Ls, List as L, Name as Nm, Node as N, Opt as O};
         match self {
@@ -313,7 +319,7 @@ impl Tree {
                 f(L(stats));
                 f(N(expr));
             }
-            Tree::If { cond, thenp, elsep } => {
+            Tree::If { cond, thenp, elsep, .. } => {
                 f(N(cond));
                 f(N(thenp));
                 f(N(elsep));
@@ -329,7 +335,7 @@ impl Tree {
                 f(L(cases));
                 f(O(finalizer));
             }
-            Tree::Match { selector, cases } => {
+            Tree::Match { selector, cases, .. } => {
                 f(N(selector));
                 f(L(cases));
             }

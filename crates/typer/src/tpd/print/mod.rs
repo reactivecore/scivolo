@@ -3,7 +3,7 @@
 pub mod symbols;
 pub mod types;
 
-use super::{Clauses, Field, List, TNodeId, Tpd, Tree};
+use super::{Clauses, Field, List, MatchKind, TNodeId, Tpd, Tree};
 use std::fmt::Write;
 use syntax::ast::constant::Constant;
 use syntax::ast::print::{quote, span};
@@ -157,6 +157,9 @@ pub fn class_name(tree: &Tree) -> String {
     match tree {
         Tree::TypeTree { inferred: true } => "InferredTypeTree".into(),
         Tree::ClassLiteral { .. } => "Literal".into(),
+        Tree::If { inline: true, .. } => "InlineIf".into(),
+        Tree::Match { kind: MatchKind::Inline, .. } => "InlineMatch".into(),
+        Tree::Match { kind: MatchKind::Sub, .. } => "SubMatch".into(),
         t => {
             let s = format!("{t:?}");
             s[..s.find([' ', '{', '(']).unwrap_or(s.len())].to_string()

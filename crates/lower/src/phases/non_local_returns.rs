@@ -149,8 +149,12 @@ fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: Sy
     };
     let ex_ref = l.ident(ex, Span::NONE);
     let rethrow = l.throw_(ex_ref);
-    let cond =
-        l.tpd.node(Tree::If { cond: same, thenp: value, elsep: rethrow }, Span::NONE, Some(result), None);
+    let cond = l.tpd.node(
+        Tree::If { cond: same, thenp: value, elsep: rethrow, inline: false },
+        Span::NONE,
+        Some(result),
+        None,
+    );
     let cond = l.positioned(cond);
     let case = l.tpd.node(Tree::CaseDef { pat, guard: None, body: cond }, Span::NONE, Some(result), None);
     let case = l.positioned(case);
