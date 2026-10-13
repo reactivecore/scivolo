@@ -108,6 +108,18 @@ just ci-suite                   # Scala Native's unit tests in the VM (CI: on ma
 just sn-run Name -Other         # selected Scala Native test classes
 ```
 
+For REPL development with dependencies, install `coursier` on PATH. Mill-style
+`group::artifact::version` coordinates select Scala Native 0.5 / Scala 3 artifacts:
+
+```sh
+just repl-deps io.circe::circe-parser::0.14.10 io.circe::circe-generic::0.14.10
+```
+
+Explicit Maven coordinates such as `io.circe:circe-parser_native0.5_3:0.14.10` also work.
+The launcher fetches transitive dependencies using Coursier's cache and adds their jars to
+the REPL's runtime and type checker. It keeps the interpreter's Scala standard library and
+Scala Native runtime versions. Dependencies remain available after `:reset`.
+
 Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
 `#!/usr/bin/env scalai` shebang. The first run compiles a `.scala` file through the own
 frontend (parser, typer, lowering); where that refuses it, and for `.sc` files and `//> using`

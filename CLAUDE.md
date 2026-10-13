@@ -16,6 +16,10 @@ Once a workspace exists, every command lives in a `Justfile`; `just gates`
 (fmt + clippy with `-D warnings` + test) must pass before every commit.
 Spikes are exempt from the gates but still formatted with `rustfmt.toml`.
 
+Tests stay proportionate to the code they cover: no stub tools, fake
+environments or test harnesses for a few lines of glue. A small fix or
+script may go without a test.
+
 ## Comments
 
 Minimal. State only what code does, never why — no rationale, history,
