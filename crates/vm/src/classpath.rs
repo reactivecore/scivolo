@@ -38,7 +38,7 @@ impl Classpath {
         Ok(classpath)
     }
 
-    /// The top-level names defined on the classpath that end in `suffix`, sorted.
+    /// The distinct top-level names defined on the classpath that end in `suffix`, sorted.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         let file_suffix = format!("{suffix}.nir");
         let mut files = Vec::new();
@@ -59,6 +59,7 @@ impl Classpath {
             .map(|f| f.replace('/', "."))
             .collect();
         tops.sort();
+        tops.dedup();
         tops
     }
 

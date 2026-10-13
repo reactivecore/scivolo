@@ -22,7 +22,8 @@ const WELCOME: &str = "Welcome to Scala 3.9.0 (scalai). Type in expressions for 
 
 /// Runs the REPL over classpath `cp`; the exit code.
 pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
-    let jars = crate::libs::jars()?;
+    let mut jars = crate::libs::jars()?;
+    jars.extend(cp.iter().filter(|p| !p.is_dir()).cloned());
     let image = crate::libs::image(&jars).map_err(|e| format!("the REPL needs the library image: {e}"))?;
     let classpath = Classpath::with_image(cp, image).map_err(|e| e.to_string())?;
     let vm = Vm::new(classpath).map_err(|e| e.to_string())?;

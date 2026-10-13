@@ -34,6 +34,12 @@ script file *args: release
 repl *args: release
     {{ justfile_directory() }}/target/release/scalai {{ args }}
 
+# Start the REPL with Maven dependencies fetched by Coursier.
+[no-cd]
+[positional-arguments]
+repl-deps +deps: release
+    bash "{{ justfile_directory() }}/scripts/repl-deps.sh" "$@"
+
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
     python3 scripts/program_runs.py check {{ names }}
