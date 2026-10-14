@@ -21,6 +21,9 @@ impl Typer<'_> {
             return false;
         }
         self.complete(m);
+        if !self.is_implicit(m) {
+            return false;
+        }
         let mut info = self.u.info(m);
         if let Type::Poly { result, .. } = self.u.types().get(info) {
             info = *result;

@@ -16,7 +16,7 @@ pub struct Candidate {
 }
 
 impl Typer<'_> {
-    fn is_implicit(&self, s: SymbolId) -> bool {
+    pub fn is_implicit(&self, s: SymbolId) -> bool {
         let sym = self.u.symbol(s);
         sym.kind.is_term() && (sym.flags.has(IMPLICIT) || sym.flags.has(GIVEN))
     }

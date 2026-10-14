@@ -59,7 +59,7 @@ impl Typer<'_> {
             let winner = match (&found[..], &widened[..]) {
                 ([], []) => continue,
                 ([c], _) | ([], [c]) => *c,
-                ([], _) => self.most_specific(&widened).ok_or(ambiguous)?,
+                ([], _) => self.best_widened(&widened).ok_or(ambiguous)?,
                 _ => self.most_specific(&found).ok_or(ambiguous)?,
             };
             if found.contains(&winner) && !self.beats_widened(winner, &widened) {

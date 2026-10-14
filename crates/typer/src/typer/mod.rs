@@ -11,6 +11,7 @@ mod annotated;
 mod anon_classes;
 mod applicability;
 mod apply;
+mod apply_insertion;
 mod auto_apply;
 mod avoid;
 mod call_types;

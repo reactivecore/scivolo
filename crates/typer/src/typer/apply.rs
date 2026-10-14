@@ -175,30 +175,6 @@ impl Typer<'_> {
         }
     }
 
-    /// `f`, or `f.apply` if `f` is not a method (dotty's `tryInsertApplyOrImplicit`), the
-    /// alternative chosen by `pt`, arguments or type arguments.
-    pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let tpe = self.tpd.tpe(f);
-        let info = self.method_info(tpe).unwrap_or(tpe);
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
-            return Ok(f);
-        }
-        let tpe = self.widen_if_unstable(tpe);
-        let Some(found) = self.members_found(tpe, "apply", false) else {
-            let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
-            return proxy.ok_or("application of a non-method");
-        };
-        let sym = match self.choose(&found.syms, Some(tpe), pt) {
-            Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
-            chosen => chosen?,
-        };
-        self.check_reference(sym, Some(tpe), ctx)?;
-        let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
-        let apply_tpe = self.ref_type(Some(tpe), sym);
-        let span = self.tpd.span(f).to_synthetic();
-        Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
-    }
-
     /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.
     fn is_sequence_arg(&self, a: NodeId) -> bool {
         let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };

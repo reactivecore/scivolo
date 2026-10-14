@@ -173,6 +173,9 @@ impl Typer<'_> {
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
         self.complete(c.sym);
+        if !self.is_implicit(c.sym) {
+            return Err("not an implicit value");
+        }
         let tree = self.candidate_ref(c, at, ctx)?;
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);

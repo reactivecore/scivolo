@@ -128,9 +128,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let complex = method.is_some_and(|m| self.has_defaults(m));
-        let tpe = self.tpd.tpe(f);
-        let info = self.method_info(tpe).unwrap_or(tpe);
-        let contextual = matches!(self.u.types().get(info), Type::Method { contextual: true, .. });
+        let contextual = self.takes_using(f);
         let at = self.tpd.span(f).start_pos();
         let mut defs = Vec::new();
         let lifted_fun = aligned.contains(&None);
@@ -184,12 +182,12 @@ impl Typer<'_> {
         Ok((f, typed, defs))
     }
 
-    /// Whether parameter `n` of the clause call `f` of `method` applies may have a default
-    /// argument.
-    fn may_default(&mut self, f: TNodeId, method: SymbolId, n: usize) -> bool {
-        match self.tpd.tree(f) {
-            T::Apply { .. } => self.has_defaults(method),
-            _ => self.default_params(method).get(n) == Some(&true),
+    /// Whether parameter `n` of the clause call `f` of `method` applies has a default argument.
+    fn may_default(&mut self, mut f: TNodeId, method: SymbolId, mut n: usize) -> bool {
+        while let T::Apply { fun, args } = *self.tpd.tree(f) {
+            n += self.tpd.items(args).len();
+            f = fun;
         }
+        self.has_default_at(method, n)
     }
 }

@@ -60,7 +60,7 @@ impl Typer<'_> {
             let trees: Vec<TNodeId> =
                 targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
             let tpe = self.instantiated(getter, &types)?;
-            let tpe = if ctor { tpe } else { self.simplified(tpe) };
+            let tpe = if ctor || !clauses.is_empty() { tpe } else { self.simplified(tpe) };
             getter = self.build().type_apply(getter, &trees, tpe, span);
         }
         for args in clauses.into_iter().rev() {

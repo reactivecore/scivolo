@@ -20,7 +20,11 @@ pub enum ViewKind {
 impl Typer<'_> {
     /// How candidate `c` converts a tree.
     pub fn view_kind(&mut self, c: Candidate) -> ViewKind {
-        match self.candidate_value(c) {
+        let value = self.candidate_value(c);
+        if !self.is_implicit(c.sym) {
+            return ViewKind::None;
+        }
+        match value {
             Err(1) => ViewKind::Method,
             Ok(value) if self.is_view_type(value) => ViewKind::Value,
             _ => ViewKind::None,
@@ -46,6 +50,14 @@ impl Typer<'_> {
             let other = self.u.symbol(w.sym).owner;
             let deeper = matches!((owner, other), (Some(o), Some(x)) if o != x && self.u.derives_from(x, o));
             !deeper && self.view_param_class(w).is_some_and(|q| widens(&p, &q))
+        })
+    }
+
+    /// The view of `widened` that dotty ranks above the others.
+    pub fn best_widened(&mut self, widened: &[Candidate]) -> Option<Candidate> {
+        widened.iter().copied().find(|&w| {
+            let others: Vec<Candidate> = widened.iter().copied().filter(|&o| o != w).collect();
+            self.beats_widened(w, &others)
         })
     }
 

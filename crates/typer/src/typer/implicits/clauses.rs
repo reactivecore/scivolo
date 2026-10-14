@@ -68,15 +68,17 @@ impl Typer<'_> {
     /// Function `f` of application `id` applied to the arguments of its leading `using` clauses
     /// if `id` does not pass them (dotty's `adaptToArgs` without a `matchingApply`).
     pub fn with_using_args(&mut self, mut f: TNodeId, id: NodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        loop {
-            let tpe = self.tpd.tpe(f);
-            let info = self.method_info(tpe).unwrap_or(tpe);
-            let contextual = matches!(self.u.types().get(info), Type::Method { contextual: true, .. });
-            if !contextual || self.ast.attrs(id).contains(Attrs::USING_APPLY) {
-                return Ok(f);
-            }
+        while self.takes_using(f) && !self.ast.attrs(id).contains(Attrs::USING_APPLY) {
             f = self.implicit_clause_applied(f, ctx)?;
             f = self.with_type_vars(f)?;
         }
+        Ok(f)
+    }
+
+    /// Whether the first parameter clause of function `f` is a `using` clause.
+    pub fn takes_using(&mut self, f: TNodeId) -> bool {
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        matches!(self.u.types().get(info), Type::Method { contextual: true, .. })
     }
 }
