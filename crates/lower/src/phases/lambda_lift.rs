@@ -53,19 +53,37 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     for caller in &pending.callers {
         super::lifted_calls::calls_from_class(l, caller, &lifted)?;
     }
-    let mut deferred = Vec::new();
+    let (mut deferred, mut elsewhere) = (Vec::new(), Vec::new());
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
         deferred.extend(adapted);
-        let stats: Vec<TNodeId> = c.stats.into_iter().chain(lifted).collect();
-        let body = l.tpd.list(&stats);
-        let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(c.template) else {
-            unreachable!("a template")
+        let (own, other): (Vec<TNodeId>, Vec<TNodeId>) = lifted
+            .into_iter()
+            .partition(|&d| l.tpd.sym(d).and_then(|s| l.u.symbol(s).owner) == Some(c.class));
+        set_body(l, c.template, c.stats.into_iter().chain(own).collect());
+        elsewhere.extend(other);
+    }
+    for def in elsewhere {
+        let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
+        let Some(&td) = classes.iter().find(|&&td| l.tpd.sym(td) == owner) else {
+            return unsupported(l.tpd.span(def), "lifting into a class of another unit");
         };
-        l.tpd.get_mut(c.template).tree = Tree::Template { constr, parents, self_, body };
+        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+        let Tree::Template { body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
+        let stats = l.tpd.items(body).iter().copied().chain([def]).collect();
+        set_body(l, template, stats);
     }
     name_proxies(l, &deferred);
     Ok(())
+}
+
+/// Makes `stats` the body of `template`.
+fn set_body(l: &mut Lower, template: TNodeId, stats: Vec<TNodeId>) {
+    let body = l.tpd.list(&stats);
+    let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(template) else {
+        unreachable!("a template")
+    };
+    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
 }
 
 /// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
@@ -117,9 +135,6 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         return Ok(None);
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    if l.u.is_class(owner) && !is_static(l.u, class) {
-        return unsupported(l.tpd.span(functions[0].def), "lambdas and local methods in nested classes");
-    }
     let in_class =
         is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {

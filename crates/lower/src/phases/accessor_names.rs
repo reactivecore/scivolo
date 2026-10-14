@@ -48,19 +48,25 @@ pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
 }
 
 /// Gives private member `s` other than a constructor its expanded name `p$C$$x` (`p$O$$$x` in
-/// object `O`), with a `_$` before `x` for each term a lifted method was defined in, and makes
-/// it neither private nor local (dotty's `ensureNotPrivate`).
+/// object `O`), `C` the class a lifted method was defined in with a `_$` before `x` for each
+/// term it was in, a class constructor's `$init$` spelled `$lessinit$greater`, and makes it
+/// neither private nor local (dotty's `ensureNotPrivate`).
 pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
     if !l.u.is_constructor(s) {
-        let owner = l.u.symbol(s).owner.expect("a member's owner");
-        let module = if l.u.symbol(owner).name.ends_with('$') { "$" } else { "" };
         let mut filler = String::new();
         let mut from = l.lifted_from.get(&s).copied();
         while let Some(term) = from.filter(|&t| l.u.symbol(t).kind.is_term()) {
             filler.push_str("_$");
             from = l.u.symbol(term).owner;
         }
-        let name = format!("{}{module}$${filler}{}", expanded_prefix(l, owner), l.u.symbol(s).name);
+        let base = from.or(l.u.symbol(s).owner).expect("a member's owner");
+        let module = if l.u.symbol(base).name.ends_with('$') { "$" } else { "" };
+        let own = &l.u.symbol(s).name;
+        let own = match own.strip_prefix("$init$$") {
+            Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => format!("$lessinit$greater${rest}"),
+            _ => own.clone(),
+        };
+        let name = format!("{}{module}$${filler}{own}", expanded_prefix(l, base));
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);

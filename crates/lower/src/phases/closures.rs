@@ -6,7 +6,7 @@
 use super::adapt::from_start;
 use super::adapted::{adapted_types, specializable};
 use super::lambda_lift::{Function, fresh};
-use super::lifted::{Method, define};
+use super::lifted::{Method, define, home};
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::{procedure, specialized, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -61,7 +61,7 @@ pub fn plan(
     let adapted = (interface.is_none() && needed != (false, false)).then(|| {
         let (types, result) = adapted_types(l, sam, needed, params, result);
         let name = fresh(l, &format!("{prefix}$anonfun$adapted"));
-        let adapted = define(l, class, &name, &f.captured, &types, result, f.this);
+        let adapted = define(l, home(l, class, f), &name, &f.captured, &types, result, f.this);
         l.bridges.insert(adapted.sym);
         deferred.extend(adapted.proxies.iter().copied());
         adapted

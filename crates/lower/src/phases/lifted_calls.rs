@@ -20,7 +20,8 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
         if let Some((i, reference, args)) = call_of(l, t, functions) {
             let span = l.tpd.span(reference);
             let captured: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
-            let receiver = l.this(class, span);
+            let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
+            let receiver = l.this(home, span);
             redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
         }
         if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
@@ -59,7 +60,7 @@ pub fn calls_from_class(
                 true => {
                     super::outer_fields::outer_path(l, (caller.td, caller.class), class, in_method, span)?
                 }
-                false => l.this(class, span),
+                false => l.this(l.u.symbol(method.sym).owner.unwrap_or(class), span),
             };
             let mut captured = Vec::new();
             for &v in &f.captured {

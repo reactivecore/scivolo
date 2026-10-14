@@ -49,7 +49,6 @@ const CASES: &[(&str, &str)] = &[
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
     ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
     (
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",

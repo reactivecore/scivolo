@@ -31,10 +31,12 @@ pub struct Local {
 /// The class a local class in a block of class `outer` is lifted into (dotty's `logicOwner` of
 /// a class using no enclosing instance): `outer` if static, else its top-level class.
 pub fn lifted_into(l: &Lower, outer: SymbolId) -> SymbolId {
-    if is_static(l.u, outer) {
-        return outer;
-    }
-    let mut c = outer;
+    if is_static(l.u, outer) { outer } else { top_level(l, outer) }
+}
+
+/// The outermost class enclosing `s`, or `s` (dotty's `topLevelClass`).
+pub fn top_level(l: &Lower, s: SymbolId) -> SymbolId {
+    let mut c = s;
     while let Some(o) = l.u.symbol(c).owner.filter(|&o| l.u.symbol(o).kind != Kind::Package) {
         c = o;
     }
