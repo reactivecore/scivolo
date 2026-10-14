@@ -68,6 +68,12 @@ fn type_test(
         let or = matches!(l.u.types().get(dealiased), Type::Or(..));
         return combined::test(l, expr, (a, b), or, in_match, span);
     }
+    if singletons::is_empty_tuple(l, dealiased) {
+        return unsupported(span, "type tests of tuple types");
+    }
+    if singletons::has_value_class_this(l, dealiased) {
+        return unsupported(span, "type tests of this.type of value classes");
+    }
     if let Some(test) = singletons::is_instance(l, expr, dealiased, None) {
         return Ok(l.with_span(test, span));
     }

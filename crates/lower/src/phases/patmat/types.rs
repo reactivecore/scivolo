@@ -6,7 +6,7 @@ use crate::phases::explicit_outer::{outer_accessor, outer_prefix};
 use crate::phases::lazy_trees::dup;
 use crate::phases::type_tests::singletons::is_instance;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -20,15 +20,6 @@ impl Translator<'_, '_> {
         let bind = self.l.tpd.node(Tree::Bind { name, body: expr }, span, tpe, sym);
         let typed_tpe = self.l.tpd.tpe(tpt);
         self.node(Tree::Typed { expr: bind, tpt }, typed_tpe, None)
-    }
-
-    /// Whether `tpe` is the type of one value: a singleton or constant type.
-    pub fn is_singleton(&self, tpe: TypeId) -> bool {
-        match *self.l.u.types().get(tpe) {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
-            Type::Sym(_, s) => matches!(self.l.u.symbol(s).kind, Kind::Val | Kind::Param),
-            _ => false,
-        }
     }
 
     /// `value.asInstanceOf[target]`.

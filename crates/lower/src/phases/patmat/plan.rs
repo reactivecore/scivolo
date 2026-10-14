@@ -2,6 +2,7 @@
 //! them, sequences and results, built from a match's cases.
 
 use super::Translator;
+use crate::phases::type_tests::singletons::has_value_class_this;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -144,6 +145,11 @@ impl Translator<'_, '_> {
         match *self.l.tpd.tree(pat) {
             Tree::Typed { expr: inner, tpt } => {
                 let target = self.l.tpd.tpe(tpt);
+                let dealiased = self.l.u.dealias(target);
+                let written = matches!(self.l.tpd.tree(tpt), Tree::SingletonTypeTree { .. });
+                if !written && has_value_class_this(self.l, dealiased) {
+                    return unsupported(span, "type tests of this.type of value classes");
+                }
                 let value = self.l.ident(scrutinee, Span::NONE);
                 let cast = self.cast(value, target);
                 let body = self.let_abstract(cast, None, |t, casted| {

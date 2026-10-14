@@ -2,6 +2,7 @@
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test, set_on_success};
+use crate::phases::type_tests::singletons::is_singleton;
 use crate::phases::walk::{same, subtrees};
 use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -90,8 +91,8 @@ impl Translator<'_, '_> {
     fn same_class(&mut self, a: TypeId, b: TypeId) -> bool {
         let mut class = |t: TypeId| {
             let t = self.l.u.dealias(t);
-            let plain =
-                matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) && !self.is_singleton(t);
+            let plain = matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..))
+                && !is_singleton(self.l, t);
             plain.then(|| self.l.u.class_symbol(t)).flatten()
         };
         let a = class(a);

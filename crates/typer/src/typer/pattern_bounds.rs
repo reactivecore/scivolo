@@ -21,7 +21,12 @@ impl Typer<'_> {
         if !ctx.mode.is(Mode::PATTERN_TYPE) {
             return types;
         }
-        let params = match self.u.class_symbol(tycon) {
+        let class = match self.u.types().get(tycon).clone() {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
+            _ => None,
+        };
+        let params = match class {
             Some(c) if self.u.symbol(c).kind == Kind::Class => self.u.type_params(c),
             _ => Vec::new(),
         };

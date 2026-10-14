@@ -12,6 +12,19 @@ const CASES: &[(&str, &str)] = &[
         "type tests of unions or intersections of values other than names",
     ),
     ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
+    ("object O { def f(x: Any): Boolean = x.isInstanceOf[EmptyTuple.type] }", "type tests of tuple types"),
+    (
+        "object W\nclass V(val n: Int) extends AnyVal { def f(x: Any) = x match { case _: (this.type | W.type) => 1; case _ => 0 } }",
+        "type tests of this.type of value classes",
+    ),
+    (
+        "class V(val n: Int) extends AnyVal { def f(x: Any) = x.isInstanceOf[this.type] }",
+        "type tests of this.type of value classes",
+    ),
+    (
+        "class V(val n: Int) extends AnyVal { type S = this.type; def f(x: Any) = x match { case _: S => 1; case _ => 0 } }",
+        "type tests of this.type of value classes",
+    ),
     ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
