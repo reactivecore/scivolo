@@ -81,3 +81,4 @@ unions
 outerclasses
 casts
 genericarrays
+typetests

@@ -67,13 +67,16 @@ fn type_test(
         let or = matches!(l.u.types().get(dealiased), Type::Or(..));
         return combined::test(l, expr, (a, b), or, in_match, span);
     }
+    if let Some(test) = runtime_tests::tuple_test(l, expr, dealiased, span) {
+        return Ok(test);
+    }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {
         return unsupported(span, "type tests of unions or intersections of singletons");
     }
-    if let Some(what) = runtime_tests::runtime_test(l, dealiased) {
-        return unsupported(span, what);
+    if runtime_tests::is_generic_array(l, dealiased) {
+        return unsupported(span, "type tests of generic arrays");
     }
     let test = match l.u.erase_boxed(target) {
         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
@@ -103,6 +106,7 @@ fn is_instance_of(
         {
             None
         }
+        Erased::Null if erased_type(l, expr) == Erased::Null => None,
         _ => return unsupported(span, "type tests of primitive values or of null"),
     };
     let expr_tpe = l.tpd.tpe(expr);

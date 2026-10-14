@@ -11,7 +11,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def g(): Any = 1; def f(): Boolean = g().isInstanceOf[String | Int] }",
         "type tests of unions or intersections of values other than names",
     ),
-    ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
     ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
@@ -59,10 +58,6 @@ const CASES: &[(&str, &str)] = &[
     (
         "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",
         "applications of a lambda defining classes",
-    ),
-    (
-        "object O { def f(x: Null) = x match { case Some(_) => 1; case _ => 2 } }",
-        "matches on values of type Null or Nothing",
     ),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
