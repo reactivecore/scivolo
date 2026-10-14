@@ -22,9 +22,13 @@ pub enum Source {
     Bytes(&'static str, &'static [u8]),
 }
 
-/// A file an image derives from the sorted names of its other files: its name, which changes
-/// with its format, and what computes its contents.
-pub type Derived<'a> = (&'a str, &'a dyn Fn(&[&str]) -> Vec<u8>);
+/// A file an image derives from the sorted names of its other files.
+pub struct Derived<'a> {
+    pub name: &'a str,
+    /// What `contents` depends on besides the names; it changes with the file's format.
+    pub version: &'a str,
+    pub contents: &'a dyn Fn(&[&str]) -> Vec<u8>,
+}
 
 /// What an image holds: the files of `sources` whose names `keep` accepts, the first of equal
 /// names winning, each with the blob `extra` computes, and the `derived` files. `tag` names what

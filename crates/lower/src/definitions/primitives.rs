@@ -27,6 +27,21 @@ pub const PRIMITIVES: [(&str, char); 8] = [
     ("Double", 'd'),
 ];
 
+/// The box class of the primitive of erased letter `c`.
+pub fn boxed_class(c: char) -> Option<&'static str> {
+    Some(match c {
+        'z' => "java.lang.Boolean",
+        'c' => "java.lang.Character",
+        'b' => "java.lang.Byte",
+        's' => "java.lang.Short",
+        'i' => "java.lang.Integer",
+        'j' => "java.lang.Long",
+        'f' => "java.lang.Float",
+        'd' => "java.lang.Double",
+        _ => return None,
+    })
+}
+
 /// The binary name of the primitive value class of erased letter `letter`.
 pub fn primitive_class_name(letter: char) -> Option<String> {
     PRIMITIVES.iter().find(|&&(_, l)| l == letter).map(|(name, _)| format!("scala.{name}"))
@@ -65,13 +80,6 @@ impl Lower<'_> {
             return None;
         }
         self.declaring_primitive(m).filter(|p| p.unbox_method == m)
-    }
-}
-
-impl super::Definitions {
-    /// The primitives resolved so far.
-    pub fn resolved_primitives(&self) -> impl Iterator<Item = Primitive> + '_ {
-        self.primitives.iter().flatten().copied()
     }
 }
 

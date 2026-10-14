@@ -9,11 +9,12 @@ use std::path::Path;
 use zip::ZipArchive;
 
 /// Identifies what `spec` puts in an image: the program's version, the tag, the derived files'
-/// names, the jars by path, size and modification time, and built-in jars by name and contents.
+/// names and versions, the jars by path, size and modification time, and built-in jars by name
+/// and contents.
 pub fn key(spec: &Spec) -> io::Result<u64> {
     let mut h = FxHasher::default();
     (MAGIC, env!("CARGO_PKG_VERSION"), spec.tag).hash(&mut h);
-    spec.derived.iter().for_each(|(name, _)| name.hash(&mut h));
+    spec.derived.iter().for_each(|d| (d.name, d.version).hash(&mut h));
     for source in spec.sources {
         match source {
             Source::File(jar) => {
@@ -61,8 +62,8 @@ fn write(spec: &Spec, mut out_file: File) -> io::Result<()> {
     let derived: Vec<(String, Vec<u8>)> = spec
         .derived
         .iter()
-        .filter(|(name, _)| !seen.contains(*name))
-        .map(|(name, f)| (name.to_string(), f(&names)))
+        .filter(|d| !seen.contains(d.name))
+        .map(|d| (d.name.to_owned(), (d.contents)(&names)))
         .collect();
     files.extend(derived);
     files.sort_by(|a, b| a.0.cmp(&b.0));

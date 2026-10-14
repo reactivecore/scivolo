@@ -58,7 +58,7 @@ impl Lower<'_> {
         self.positioned(block)
     }
 
-    /// `acc = Statics.mix(acc, hash)`, `mix` `Statics.mix`.
+    /// `acc = mix(acc, hash)` for `mix` the method `Statics.mix`.
     fn mix_into(&mut self, acc: SymbolId, hash: TNodeId, mix: SymbolId) -> TNodeId {
         let lhs = self.ident(acc, Span::NONE);
         let current = self.ident(acc, Span::NONE);

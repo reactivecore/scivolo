@@ -1,7 +1,7 @@
 //! Locates the precompiled Scala Native libraries and the Scala standard library's TASTy: in
 //! `$SCALAI_LIBS` if set, else in the Coursier cache; and maps their library image.
 
-use libimage::{Image, Source, Spec};
+use libimage::{Derived, Image, Source, Spec};
 use std::io;
 use std::path::PathBuf;
 
@@ -21,11 +21,12 @@ pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
     sources.push(Source::Bytes("javalib-tasty-0.5.12.jar", JAVALIB_TASTY));
     let keep = |name: &str| name.ends_with(".nir") || name.ends_with(".tasty");
     let packages = |names: &[&str]| tasty::package_table(names).into_bytes();
+    let version = tasty::package_table_version();
     let spec = Spec {
         sources: &sources,
         keep,
         extra: &vm::nir_table,
-        derived: &[(tasty::PACKAGE_TABLE, &packages)],
+        derived: &[Derived { name: tasty::PACKAGE_TABLE, version: &version, contents: &packages }],
         tag: "nir member tables 1",
     };
     Ok(Box::leak(Box::new(Image::open(&spec, &cache_dir())?)))

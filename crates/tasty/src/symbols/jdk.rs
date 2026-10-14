@@ -2,7 +2,7 @@
 //! under their JDK names.
 
 /// Each class's qualified name where Scala Native defines it, and its JDK name.
-const RENAMED: [(&str, &str); 9] = [
+pub const RENAMED: [(&str, &str); 9] = [
     ("scala.scalanative.runtime._Class", "java.lang.Class"),
     ("scala.scalanative.runtime._Object", "java.lang.Object"),
     ("java.lang._Cloneable", "java.lang.Cloneable"),

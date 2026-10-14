@@ -5,6 +5,15 @@ use crate::{Lower, Result, Unsupported};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Universe};
 
+/// What an object's `writeReplace` refers to: `java.lang.Class`,
+/// `scala.runtime.ModuleSerializationProxy` and its constructor.
+#[derive(Clone, Copy)]
+pub struct Serialization {
+    pub class: SymbolId,
+    pub proxy: SymbolId,
+    pub proxy_ctor: SymbolId,
+}
+
 impl Lower<'_> {
     pub fn equality(&mut self) -> Result<Equality> {
         let (any, object) = (self.defs.any, self.defs.object);
@@ -37,13 +46,17 @@ impl Lower<'_> {
         resolved(&mut self.defs.sequences, self.u, Sequences::new)
     }
 
-    /// `java.lang.Class`, `scala.runtime.ModuleSerializationProxy` and its constructor.
-    pub fn serialization(&mut self) -> Result<[SymbolId; 3]> {
+    pub fn serialization(&mut self) -> Result<Serialization> {
         resolved(&mut self.defs.serialization, self.u, |u| {
             let class = member(u, package(u, "java.lang")?, "Class", Kind::Class)?;
             let proxy = member(u, package(u, "scala.runtime")?, "ModuleSerializationProxy", Kind::Class)?;
-            Ok([class, proxy, member(u, proxy, "<init>", Kind::Def)?])
+            Ok(Serialization { class, proxy, proxy_ctor: member(u, proxy, "<init>", Kind::Def)? })
         })
+    }
+
+    /// The trait `scala.Product`.
+    pub fn product(&mut self) -> Result<SymbolId> {
+        resolved(&mut self.defs.product, self.u, |u| member(u, package(u, "scala")?, "Product", Kind::Class))
     }
 
     /// The object `scala.runtime.ScalaRunTime`.

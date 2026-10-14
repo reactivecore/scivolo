@@ -80,9 +80,7 @@ fn holds_control_states(l: &mut Lower, erased: &Erased, control: SymbolId) -> bo
 /// The class `T` of type `info` erasing to `erased` as a reference: its box for a primitive.
 fn boxed_type(l: &mut Lower, erased: &Erased, info: TypeId) -> TypeId {
     match erased {
-        Erased::Prim(c) => {
-            l.u.class_ref(crate::phases::type_tests::boxed_class(*c).expect("a primitive's box"))
-        }
+        Erased::Prim(c) => l.u.class_ref(crate::definitions::boxed_class(*c).expect("a primitive's box")),
         _ => info,
     }
 }

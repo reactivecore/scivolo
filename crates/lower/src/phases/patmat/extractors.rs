@@ -105,7 +105,7 @@ impl Translator<'_, '_> {
         let arity = args.len();
         self.let_abstract(unapp, None, |t, result| {
             let result_type = t.l.u.info(result);
-            let selectors = t.product_selectors(result_type, true);
+            let selectors = t.product_selectors(result_type, true)?;
             if arity > 0 && selectors.len() == arity {
                 let components: Vec<TNodeId> = selectors
                     .iter()
@@ -126,7 +126,7 @@ impl Translator<'_, '_> {
                     1 => vec![t.l.ident(get_result, Span::NONE)],
                     _ => {
                         let get_type = t.l.u.info(get_result);
-                        let selectors = t.product_selectors(get_type, false);
+                        let selectors = t.product_selectors(get_type, false)?;
                         let components = selectors.iter().map(|&s| {
                             let value = t.l.ident(get_result, Span::NONE);
                             t.select_member(value, s)

@@ -49,6 +49,9 @@ impl Defn {
 
     /// The `scala.util.CommandLineParser` object, its value.
     pub fn command_line_parser(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
+        if let Some(s) = self.command_line_parser {
+            return Ok(s);
+        }
         let util = package(u, "scala.util")?;
         resolved(&mut self.command_line_parser, u, util, "CommandLineParser", Kind::Val)
     }

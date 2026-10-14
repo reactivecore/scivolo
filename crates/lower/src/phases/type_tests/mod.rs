@@ -9,6 +9,7 @@ mod runtime_tests;
 
 use super::adapt::erased_type;
 use super::casts::type_of;
+use crate::definitions::boxed_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Erased, Type};
@@ -173,19 +174,4 @@ fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
     let block = l.block(&[expr], lit, Span::NONE);
     let block = l.positioned(block);
     l.with_span(block, span)
-}
-
-/// The box class of the primitive of erased letter `c`.
-pub fn boxed_class(c: char) -> Option<&'static str> {
-    Some(match c {
-        'z' => "java.lang.Boolean",
-        'c' => "java.lang.Character",
-        'b' => "java.lang.Byte",
-        's' => "java.lang.Short",
-        'i' => "java.lang.Integer",
-        'j' => "java.lang.Long",
-        'f' => "java.lang.Float",
-        'd' => "java.lang.Double",
-        _ => return None,
-    })
 }

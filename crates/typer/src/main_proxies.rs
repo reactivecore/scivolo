@@ -30,11 +30,16 @@ impl Typer<'_> {
             let sym = self.tpd.sym(s);
             match *self.tpd.tree(s) {
                 T::DefDef { .. } => {
-                    let annotated = sym.is_some_and(|s| self.syms.annotations.contains_key(&s));
-                    let main = if annotated { self.defn.main_annot(self.u).ok() } else { None };
-                    let annots = sym.and_then(|s| self.syms.annotations.get(&s));
-                    if let Some(&(_, span)) = annots.into_iter().flatten().find(|(c, _)| Some(*c) == main) {
-                        out.push((sym.expect("a method"), span));
+                    let annots = sym.and_then(|s| self.syms.annotations.get(&s)).cloned().unwrap_or_default();
+                    let Some(&(_, first)) = annots.first() else { continue };
+                    match self.defn.main_annot(self.u) {
+                        Ok(main) => out.extend(
+                            annots
+                                .iter()
+                                .find(|(c, _)| *c == main)
+                                .map(|&(_, span)| (sym.expect("a method"), span)),
+                        ),
+                        Err(e) => self.unsupported_at(first, &e),
                     }
                 }
                 T::TypeDef { rhs, .. }

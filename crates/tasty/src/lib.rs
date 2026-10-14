@@ -22,6 +22,7 @@ pub use subtype::{Mark, NoVars, TypeVars};
 pub use symbols::{
     ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, PACKAGE_TABLE, Symbol,
     SymbolId, Universe, encode, is_package_object_name, module_class_name, module_name, package_table,
+    package_table_version,
 };
 pub use types::{Binder, Type, TypeId, Types, VarId, param_tree_clauses};
 

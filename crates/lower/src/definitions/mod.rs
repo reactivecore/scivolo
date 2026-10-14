@@ -23,8 +23,9 @@ pub use interfaces::{procedure, specialized, specialized_applies, specialized_ap
 pub use lazy_vals::LazyVals;
 pub use monitors::Monitors;
 pub use patmat::Patmat;
-pub use primitives::{Primitive, primitive_class_name};
+pub use primitives::{Primitive, boxed_class, primitive_class_name};
 pub use refs::{Ref, ref_class};
+pub use resolved::Serialization;
 pub use sequences::Sequences;
 pub use strings::Strings;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
@@ -65,8 +66,8 @@ pub struct Definitions {
     lazy_vals: Option<LazyVals>,
     monitors: Option<Monitors>,
     sequences: Option<Sequences>,
-    /// `java.lang.Class`, `scala.runtime.ModuleSerializationProxy` and its constructor.
-    serialization: Option<[SymbolId; 3]>,
+    serialization: Option<Serialization>,
+    product: Option<SymbolId>,
     scala_run_time: Option<SymbolId>,
     array_clone: Option<SymbolId>,
 }
@@ -105,6 +106,7 @@ impl Definitions {
             monitors: None,
             sequences: None,
             serialization: None,
+            product: None,
             scala_run_time: None,
             array_clone: None,
         })

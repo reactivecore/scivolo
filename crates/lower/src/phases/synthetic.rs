@@ -57,11 +57,11 @@ fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Res
         return unsupported(span, "an object without its value");
     };
     let (sym, any_ref) = private_method(l, class, "writeReplace");
-    let [java_class, proxy, proxy_ctor] = l.serialization()?;
-    let new = l.new_(proxy, span);
-    let ctor = l.select(new, proxy_ctor, span);
+    let s = l.serialization()?;
+    let new = l.new_(s.proxy, span);
+    let ctor = l.select(new, s.proxy_ctor, span);
     let module_ref = type_ref(l.u, module);
-    let class_of = applied(l.u, java_class, vec![module_ref]);
+    let class_of = applied(l.u, s.class, vec![module_ref]);
     let lit = l.tpd.node(Tree::ClassLiteral { tpe: module_ref }, span, Some(class_of), None);
     let proxy_type = l.tpd.tpe(new);
     let rhs = l.apply(ctor, &[lit], proxy_type, span);

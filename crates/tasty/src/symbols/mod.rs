@@ -37,7 +37,7 @@ pub use builtin::{ANY, Builtins, NOTHING};
 pub use companions::{module_class_name, module_name};
 pub use jdk::defined_name;
 pub use lookup::encode;
-pub use packages::{PACKAGE_TABLE, package_table};
+pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
 

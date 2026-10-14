@@ -14,6 +14,7 @@ fn a_truncated_image_is_rebuilt() {
         keep: |n| n.ends_with(".tasty"),
         extra: &|_, _| Vec::new(),
         derived: &[],
+
         tag: "test",
     };
     let string = "java/lang/_String.tasty";

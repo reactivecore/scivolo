@@ -1,7 +1,7 @@
 //! Boxing an unboxed box as the box itself (dotty's `safelyRemovableUnboxArg`).
 
 use crate::Lower;
-use crate::phases::type_tests::boxed_class;
+use crate::definitions::boxed_class;
 use typer::tpd::{TNodeId, Tree};
 
 /// The argument of `t` if `t` unboxes a value whose class is a box class.

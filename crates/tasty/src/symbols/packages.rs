@@ -3,8 +3,16 @@
 
 use super::jdk;
 
-/// The name of the package table in a library image; it changes with the table's format.
-pub const PACKAGE_TABLE: &str = "scalai/tasty-packages-1";
+/// The name of the package table in a library image.
+pub const PACKAGE_TABLE: &str = "scalai/tasty-packages";
+
+/// The format of the package table.
+const FORMAT: u32 = 1;
+
+/// What the package table depends on besides the file names: its format and the JDK renames.
+pub fn package_table_version() -> String {
+    format!("{FORMAT} {:?}", jdk::RENAMED)
+}
 
 /// The package table of the `.tasty` files among `names`: a line `package\tname\tpath` per
 /// file, in the order of the paths; Scala Native's renamed JDK classes under their JDK names.

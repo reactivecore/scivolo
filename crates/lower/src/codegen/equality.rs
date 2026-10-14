@@ -46,7 +46,8 @@ impl<'l, 'a> Gen<'l, 'a> {
         })
     }
 
-    /// `if (left eq null) right eq null else left.equals(right)`, `any_equals` `Any.equals`.
+    /// `if (left eq null) right eq null else left.equals(right)`, calling `Any.equals` as
+    /// `any_equals`.
     fn gen_null_checked_equals(
         &mut self,
         left: TNodeId,
