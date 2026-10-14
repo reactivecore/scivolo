@@ -58,10 +58,10 @@ impl Typer<'_> {
         if let Err(what) = self.check_clause_args((id, &arg_ids), &params, implicit, contextual) {
             return self.unsupported(id, what);
         }
-        if self.mentions_params(result, binder, method) {
+        let meth = self.tpd.sym(self.tpd.meth_part(f));
+        if self.mentions_params(result, binder, meth) {
             return self.unsupported(id, "dependent result type");
         }
-        let meth = self.tpd.sym(self.tpd.meth_part(f));
         if let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
@@ -84,7 +84,7 @@ impl Typer<'_> {
             .collect();
         if formals.iter().any(|&p| {
             self.is_special_param(p)
-                || self.mentions_params(p, binder, method)
+                || self.mentions_params(p, binder, meth)
                 || self.mentions_foreign_private_type(p, ctx)
         }) {
             return self.unsupported(id, "dependent parameter or private type");
