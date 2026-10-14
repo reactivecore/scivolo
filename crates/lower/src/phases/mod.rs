@@ -97,8 +97,8 @@ mod vc_elide;
 pub(crate) mod walk;
 
 use crate::{Lower, Result};
-use rustc_hash::FxHashSet;
-use typer::tpd::{TNodeId, Tpd, Tree};
+use typer::tpd::TNodeId;
+use walk::{class_defs, retain_outside};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
@@ -186,25 +186,4 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     expand_private::transform(l, &classes);
     Ok(())
-}
-
-/// Keeps the class definitions of `classes` that are not inside the `dropped` trees.
-fn retain_outside(tpd: &Tpd, classes: &mut Vec<TNodeId>, dropped: Vec<TNodeId>) {
-    let inside: FxHashSet<TNodeId> = dropped.into_iter().flat_map(|d| walk::subtrees(tpd, d)).collect();
-    classes.retain(|td| !inside.contains(td));
-}
-
-/// The class definitions of unit `root`, local ones too, each before the classes it contains.
-fn class_defs(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
-    let mut out = Vec::new();
-    let mut todo = vec![root];
-    while let Some(t) = todo.pop() {
-        match *tpd.tree(t) {
-            Tree::TypeDef { rhs, .. } if !matches!(tpd.tree(rhs), Tree::Template { .. }) => continue,
-            Tree::TypeDef { .. } => out.push(t),
-            _ => {}
-        }
-        todo.extend(walk::children(tpd, t).into_iter().rev());
-    }
-    out
 }

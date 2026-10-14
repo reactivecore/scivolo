@@ -1,7 +1,8 @@
-//! The walks of the phases over a class definition, the subtrees of typed trees, and the
-//! symbols trees refer to.
+//! The walks of the phases over a class definition, the class definitions and subtrees of typed
+//! trees, and the symbols trees refer to.
 
 use crate::{Lower, Result};
+use rustc_hash::FxHashSet;
 use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
@@ -117,6 +118,27 @@ pub fn subtrees(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
         i += 1;
     }
     out
+}
+
+/// The class definitions of unit `root`, local ones too, each before the classes it contains.
+pub fn class_defs(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
+    let mut out = Vec::new();
+    let mut todo = vec![root];
+    while let Some(t) = todo.pop() {
+        match *tpd.tree(t) {
+            Tree::TypeDef { rhs, .. } if !matches!(tpd.tree(rhs), Tree::Template { .. }) => continue,
+            Tree::TypeDef { .. } => out.push(t),
+            _ => {}
+        }
+        todo.extend(children(tpd, t).into_iter().rev());
+    }
+    out
+}
+
+/// Keeps the class definitions of `classes` that are not inside the `dropped` trees.
+pub fn retain_outside(tpd: &Tpd, classes: &mut Vec<TNodeId>, dropped: Vec<TNodeId>) {
+    let inside: FxHashSet<TNodeId> = dropped.into_iter().flat_map(|d| subtrees(tpd, d)).collect();
+    classes.retain(|td| !inside.contains(td));
 }
 
 /// Whether `t` is a type tree: a type, applied or singleton type tree, or a reference to a type
