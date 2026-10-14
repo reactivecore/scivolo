@@ -8,19 +8,24 @@ use tasty::{Kind, Type, TypeId};
 use typer::tpd::TNodeId;
 
 /// `Tuples.isInstanceOfTuple(expr)`, `isInstanceOfNonEmptyTuple` or `isInstanceOfEmptyTuple` at
-/// `span` if dealiased type `tpe` is `Tuple`, `NonEmptyTuple`, a `*:` or `EmptyTuple`.
+/// `span` if dealiased type `tpe` refers to `Tuple`, `NonEmptyTuple` or `EmptyTuple`, or applies
+/// `*:`.
 pub fn tuple_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Option<TNodeId> {
-    let class = l.u.class_symbol(tpe).map(|c| l.u.full_name(c));
-    let term = match l.u.types().get(tpe).clone() {
+    let (tycon, applied) = match *l.u.types().get(tpe) {
+        Type::Applied(tycon, _) => (tycon, true),
+        _ => (tpe, false),
+    };
+    let s = match *l.u.types().get(tycon) {
         Type::Sym(_, s) => Some(s),
-        Type::TermRef(p, n) => l.u.resolve(p, &n, false),
+        Type::TypeRef(..) | Type::TermRef(..) => l.u.resolve_ref(tycon),
         _ => None,
     };
-    let module = term.filter(|&s| l.u.is_module(s)).map(|s| l.u.full_name(s));
-    let name = match (class.as_deref(), module.as_deref()) {
-        (_, Some(m)) if m.ends_with(".EmptyTuple") => "isInstanceOfEmptyTuple",
-        (Some("scala.Tuple"), _) => "isInstanceOfTuple",
-        (Some("scala.NonEmptyTuple" | "scala.*:"), _) => "isInstanceOfNonEmptyTuple",
+    let name = match (s.map(|s| l.u.full_name(s)).as_deref(), applied) {
+        (Some("scala.Tuple$package$.EmptyTuple"), false) if s.is_some_and(|s| l.u.is_module(s)) => {
+            "isInstanceOfEmptyTuple"
+        }
+        (Some("scala.Tuple"), false) => "isInstanceOfTuple",
+        (Some("scala.NonEmptyTuple"), false) | (Some("scala.*:"), true) => "isInstanceOfNonEmptyTuple",
         _ => return None,
     };
     let runtime = l.u.package("scala.runtime")?;
