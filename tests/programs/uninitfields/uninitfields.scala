@@ -23,7 +23,14 @@ class Counted:
   count += 3
   name = s"$name!"
   total += count
-  println(s"$count $name $total")
+  val doubled = count * 2
+  private val next = total + 1
+  println(s"$count $name $total $doubled $next")
+
+class Stepped:
+  private var n = 1
+  n += 1
+  val m = n + 1
 
 trait Slots:
   var slot: Int = uninitialized
@@ -62,3 +69,4 @@ object Registry:
   println(h.slot)
   println(h.none)
   Counted()
+  println(Stepped().m)
