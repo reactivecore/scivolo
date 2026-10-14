@@ -114,11 +114,7 @@ impl Typer<'_> {
     /// The members named `name` of class `c`, its base classes' included: the first type member,
     /// or the term members, of each overriding pair the one dotty's `preferSym` prefers.
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
-        self.complete(c);
-        let classes = self.u.linearization(c);
-        for &base in classes.iter().skip(1) {
-            self.complete(base);
-        }
+        let classes = self.completed_linearization(c);
         if name == "<init>" {
             return self.u.decl(c, name).unwrap_or_default();
         }
@@ -128,12 +124,20 @@ impl Typer<'_> {
     /// The members named `name` that `super` selects in class `c`: those of its base classes but
     /// `c`.
     fn super_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+        let classes = self.completed_linearization(c);
+        self.members_of_bases(c, &classes[1..], name)
+    }
+
+    /// The linearization of class `c`, `c` and its base classes without TASTy completed.
+    fn completed_linearization(&mut self, c: SymbolId) -> Vec<SymbolId> {
         self.complete(c);
         let classes = self.u.linearization(c);
         for &base in classes.iter().skip(1) {
-            self.complete(base);
+            if self.u.symbol(base).tree.is_none() {
+                self.complete(base);
+            }
         }
-        self.members_of_bases(c, &classes[1..], name)
+        classes
     }
 
     /// The members named `name` of `classes`, base classes of `c` in linearization order.
