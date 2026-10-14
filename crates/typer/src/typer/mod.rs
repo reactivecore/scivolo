@@ -14,6 +14,7 @@ mod apply;
 mod auto_apply;
 mod avoid;
 mod call_types;
+mod case_lambdas;
 mod classes;
 mod closures;
 mod const_fold;
