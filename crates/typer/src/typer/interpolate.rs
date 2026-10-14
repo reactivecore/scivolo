@@ -40,7 +40,7 @@ impl Typer<'_> {
         let mut pending = Vec::new();
         for i in from..self.constraint.count() {
             let v = VarId(i as u32);
-            if self.constraint.instance(v).is_some() {
+            if !self.constraint.is_pending(v) {
                 continue;
             }
             let variance = match variances.get(&v.0) {
@@ -89,7 +89,7 @@ impl Typer<'_> {
     fn bound_variances(&mut self, except: &[VarId]) -> Vec<BoundVariances> {
         let mut out = Vec::new();
         for w in (0..self.constraint.count()).map(|i| VarId(i as u32)) {
-            if except.contains(&w) || self.constraint.instance(w).is_some() {
+            if except.contains(&w) || !self.constraint.is_pending(w) {
                 continue;
             }
             let (lo, hi) = self.constraint.bounds(w);
@@ -110,9 +110,8 @@ impl Typer<'_> {
                 || hi.get(&v.0).is_some_and(|&x| -x == target || x == 0)
         });
         let (lo, hi) = self.constraint.bounds(v);
-        let bound = self.factors(if co { hi } else { lo }, !co);
         referenced
-            || bound.iter().any(|&f| match *self.u.types().get(f) {
+            || self.any_factor(if co { hi } else { lo }, !co, &mut |f| match *self.u.types().get(f) {
                 Type::Var(w) => !except.contains(&w) && self.constraint.instance(w).is_none(),
                 _ => false,
             })
@@ -151,18 +150,17 @@ impl Typer<'_> {
     /// Whether uninstantiated variable `a` is bounded by `b` directly: `b` an intersection operand
     /// of `a`'s upper bound, or `a` a union operand of `b`'s lower bound (dotty's `isLess`).
     pub fn is_less(&self, a: VarId, b: VarId) -> bool {
-        let is_var = |s: &Self, f: TypeId, x: VarId| *s.u.types().get(f) == Type::Var(x);
         let (hi, lo) = (self.constraint.bounds(a).1, self.constraint.bounds(b).0);
-        self.factors(hi, false).into_iter().any(|f| is_var(self, f, b))
-            || self.factors(lo, true).into_iter().any(|f| is_var(self, f, a))
+        self.any_factor(hi, false, &mut |f| *self.u.types().get(f) == Type::Var(b))
+            || self.any_factor(lo, true, &mut |f| *self.u.types().get(f) == Type::Var(a))
     }
 
-    /// The operands of the top-level unions (`or`) or intersections of `t`.
-    pub fn factors(&self, t: TypeId, or: bool) -> Vec<TypeId> {
+    /// Whether `p` holds for an operand of the top-level unions (`or`) or intersections of `t`.
+    pub fn any_factor(&self, t: TypeId, or: bool, p: &mut impl FnMut(TypeId) -> bool) -> bool {
         match *self.u.types().get(t) {
-            Type::Or(a, b, _) if or => [self.factors(a, or), self.factors(b, or)].concat(),
-            Type::And(a, b) if !or => [self.factors(a, or), self.factors(b, or)].concat(),
-            _ => vec![t],
+            Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
+            Type::And(a, b) if !or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
+            _ => p(t),
         }
     }
 

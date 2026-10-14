@@ -56,7 +56,7 @@ impl Typer<'_> {
     fn var_bounded_by(&mut self) -> (FxHashMap<u32, Vec<u32>>, FxHashMap<u32, Vec<u32>>) {
         let (mut below, mut above) = (FxHashMap::default(), FxHashMap::<u32, Vec<u32>>::default());
         for w in 0..self.constraint.count() as u32 {
-            if self.constraint.instance(VarId(w)).is_some() {
+            if !self.constraint.is_pending(VarId(w)) {
                 continue;
             }
             let (lo, hi) = self.constraint.bounds(VarId(w));
@@ -72,14 +72,14 @@ impl Typer<'_> {
 
     /// The variables among the top-level union (`or`) or intersection operands of `t`.
     fn var_factors(&self, t: TypeId, or: bool) -> Vec<u32> {
-        let factors = self.factors(t, or);
-        factors
-            .into_iter()
-            .filter_map(|f| match *self.u.types().get(f) {
-                Type::Var(x) => Some(x.0),
-                _ => None,
-            })
-            .collect()
+        let mut vars = Vec::new();
+        self.any_factor(t, or, &mut |f| {
+            if let Type::Var(x) = *self.u.types().get(f) {
+                vars.push(x.0);
+            }
+            false
+        });
+        vars
     }
 
     /// The variance of each type variable occurring in `t`, as `variances` without bounds and

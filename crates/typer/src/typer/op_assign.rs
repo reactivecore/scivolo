@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId, TypeVars};
+use tasty::{Type, TypeId};
 
 /// Whether `name` is an assignment operator such as `+=` (dotty's `isOpAssignmentName`).
 fn is_op_assignment_name(name: &str) -> bool {
@@ -182,9 +182,9 @@ impl Typer<'_> {
         if self.extension_visible(name, ctx) {
             return Err("extension method");
         }
-        let mark = self.constraint.mark();
+        let before = self.constraint.attempt();
         let converted = self.converted(qual, Goal::Member(name), ctx);
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         Ok(converted?.is_some())
     }
 }

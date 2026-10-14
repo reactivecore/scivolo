@@ -109,10 +109,10 @@ impl Typer<'_> {
             if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
                 return Err("implicit candidate whose definition is being completed");
             }
-            let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
+            let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
             let result = attempt(self, c);
             let clean = self.unsupported == unsupported;
-            self.constraint.rollback(mark);
+            self.constraint.abandon(before);
             self.unsupported = unsupported;
             if !clean {
                 return Err("implicit candidate outside the subset");

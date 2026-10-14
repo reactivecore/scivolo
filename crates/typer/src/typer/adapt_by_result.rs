@@ -3,7 +3,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use tasty::{SymbolId, Type, TypeId, TypeVars};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// `chosen`, or if its result does not conform to the expected result type of `proto`, the
@@ -122,7 +122,7 @@ impl Typer<'_> {
         if self.u.class_symbol(pt) == Some(self.defn.unit) {
             return Some(true);
         }
-        let mark = self.constraint.mark();
+        let before = self.constraint.attempt();
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
         let mut info = self.method_info(tpe).unwrap_or(tpe);
         if let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
@@ -137,7 +137,7 @@ impl Typer<'_> {
             },
             _ => Some(true),
         };
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         fits
     }
 }
