@@ -94,3 +94,4 @@ typetests
 formats
 refutables
 subpatterns
+implicitviews

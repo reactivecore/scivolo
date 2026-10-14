@@ -63,6 +63,9 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
+        if inherited.is_none() {
+            self.check_inferred_implicit(sym);
+        }
         let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });

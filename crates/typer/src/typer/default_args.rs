@@ -17,14 +17,23 @@ impl Typer<'_> {
         n: usize,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
-        let (mref, targs) = match *self.tpd.tree(f) {
+        let mut clauses = Vec::new();
+        let mut fun = f;
+        while let T::Apply { fun: inner, args } = *self.tpd.tree(fun) {
+            clauses.push(self.tpd.items(args).to_vec());
+            fun = inner;
+        }
+        let (mref, targs) = match *self.tpd.tree(fun) {
             T::TypeApply { fun, args } => (fun, Some(args)),
-            T::Apply { .. } => return Err("default argument after an argument list"),
-            _ => (f, None),
+            _ => (fun, None),
         };
         let span = self.tpd.span(f);
         let sym = self.u.symbol(method);
         let ctor = sym.name == "<init>";
+        if !clauses.is_empty() && (ctor || !clauses.iter().flatten().all(|&a| self.is_copyable(a))) {
+            return Err("default argument after an argument list");
+        }
+        let n = n + clauses.iter().map(Vec::len).sum::<usize>();
         let base = if ctor || sym.name == "apply" && sym.flags.has(SYNTHETIC) {
             "$lessinit$greater"
         } else {
@@ -43,15 +52,43 @@ impl Typer<'_> {
         self.check_reference(getter, Some(site), ctx)?;
         let tpe = self.ref_type(Some(site), getter);
         let name = TName { name: self.name(&getter_name), is_type: false };
-        let select = self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter));
-        let Some(targs) = targs else { return Ok(select) };
-        let targs = self.tpd.items(targs).to_vec();
-        let types: Vec<_> = targs.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let trees: Vec<TNodeId> =
-            targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
-        let tpe = self.instantiated(select, &types)?;
-        let tpe = if ctor { tpe } else { self.simplified(tpe) };
-        Ok(self.build().type_apply(select, &trees, tpe, span))
+        let mut getter =
+            self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter));
+        if let Some(targs) = targs {
+            let targs = self.tpd.items(targs).to_vec();
+            let types: Vec<_> = targs.iter().map(|&a| self.tpd.tpe(a)).collect();
+            let trees: Vec<TNodeId> =
+                targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
+            let tpe = self.instantiated(getter, &types)?;
+            let tpe = if ctor || !clauses.is_empty() { tpe } else { self.simplified(tpe) };
+            getter = self.build().type_apply(getter, &trees, tpe, span);
+        }
+        for args in clauses.into_iter().rev() {
+            let args: Vec<TNodeId> = args.into_iter().map(|a| self.copied_path(a)).collect();
+            let t = self.tpd.tpe(getter);
+            let info = self.method_info(t).unwrap_or(t);
+            let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+                return Err("default getter");
+            };
+            let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+            let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+            let result = self.applied_result(result, (binder, &names), self.tpd.sym(getter), &arg_types);
+            getter = self.build().apply(getter, &args, result, span);
+        }
+        Ok(getter)
+    }
+
+    /// Whether `t` is a path, a literal or a call of paths, which `copied_path` copies whole.
+    fn is_copyable(&self, t: TNodeId) -> bool {
+        match *self.tpd.tree(t) {
+            T::Ident { .. } | T::Literal { .. } | T::This { .. } => true,
+            T::Select { qualifier, .. } => self.is_copyable(qualifier),
+            T::TypeApply { fun, .. } => self.is_copyable(fun),
+            T::Apply { fun, args } => {
+                self.is_copyable(fun) && self.tpd.items(args).iter().all(|&a| self.is_copyable(a))
+            }
+            _ => false,
+        }
     }
 
     /// A copy of path or call `t`, its qualifiers, functions and arguments copied too.
