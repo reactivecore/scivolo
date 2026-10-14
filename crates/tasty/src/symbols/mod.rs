@@ -8,11 +8,13 @@ mod classes;
 mod companions;
 mod define;
 mod enter;
+mod entries;
 mod impure_functions;
 mod info;
 mod inits;
 mod java_stubs;
 mod jdk;
+mod loaded;
 mod lookup;
 mod members;
 mod open;
@@ -21,6 +23,7 @@ mod predicates;
 mod resolve;
 mod seen;
 mod symbol;
+mod table;
 mod varargs;
 mod variance;
 
@@ -38,18 +41,7 @@ pub use jdk::defined_name;
 pub use lookup::encode;
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
-
-/// A decoded top-level file: its trees, and its name table shown as text.
-struct Loaded {
-    ast: Ast,
-    names: Vec<String>,
-    /// Whether the file is of the Scala 2 standard library (`SCALA2STANDARDLIBRARY`).
-    scala2: bool,
-    /// Its path in the library.
-    path: String,
-    /// Its spans and signatures, decoded when a body is first read.
-    body_info: Option<bodies::BodyInfo>,
-}
+pub use table::{SYMBOL_TABLE_VERSION, symbol_table};
 
 pub struct Universe {
     library: Library,
@@ -57,7 +49,7 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
-    files: Vec<Loaded>,
+    files: Vec<loaded::Loaded>,
     /// The symbol each definition tree defines.
     by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
     /// Per owner whose declarations were looked up by name, its declarations by name.
@@ -130,9 +122,9 @@ impl Universe {
         self.files.len()
     }
 
-    /// The trees and the names, shown as text, of loaded file `file`.
+    /// The trees and the names, shown as text, of loaded file `file`, decoded on first use.
     pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
-        let f = &self.files[file.0 as usize];
+        let f = self.files[file.0 as usize].decoded();
         (&f.ast, &f.names)
     }
 

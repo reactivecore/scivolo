@@ -59,7 +59,7 @@ impl Universe {
 
     fn with_decoder<R>(&mut self, file: FileId, f: impl FnOnce(&mut Decoder) -> R) -> R {
         let Universe { files, by_tree, packages, types, .. } = self;
-        let loaded = &files[file.0 as usize];
+        let loaded = files[file.0 as usize].decoded();
         let mut d = Decoder::new((file, &loaded.ast, &loaded.names), by_tree, packages, types);
         f(&mut d)
     }

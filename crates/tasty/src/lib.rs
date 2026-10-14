@@ -20,8 +20,8 @@ pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::TastySpan;
 pub use subtype::{Mark, NoVars, TypeVars};
 pub use symbols::{
-    ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe,
-    encode, is_package_object_name, module_class_name, module_name,
+    ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, SYMBOL_TABLE_VERSION, Symbol,
+    SymbolId, Universe, encode, is_package_object_name, module_class_name, module_name, symbol_table,
 };
 pub use types::{Binder, Type, TypeId, Types, VarId, param_tree_clauses};
 
