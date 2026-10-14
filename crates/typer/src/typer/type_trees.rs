@@ -24,7 +24,7 @@ impl Typer<'_> {
                 if !self.is_error(tpt) && arity != arg_ids.len() {
                     return self.unsupported(id, "wrong number of type arguments");
                 }
-                let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
+                let mut typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 if !ctx.mode.is(Mode::CONST_VALUE_ARG)
                     && self
@@ -54,6 +54,7 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "parameterized type alias applied to a wildcard");
                 }
+                let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let dealiased = self.u.dealias(tpe);
                 if matches!(self.u.types().get(dealiased), Type::Match(_)) && self.is_ground(tpe) {
@@ -119,17 +120,6 @@ impl Typer<'_> {
             None
         });
         !abstract_part
-    }
-
-    /// Whether `tree` is a literal, `this`, or a path of stable members.
-    pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
-        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
-        match *self.tpd.tree(tree) {
-            T::Literal { .. } | T::This { .. } => true,
-            T::Ident { .. } => stable(self, tree),
-            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
-            _ => false,
-        }
     }
 
     /// How many type parameters type constructor `t` takes: a class's, a type lambda's.

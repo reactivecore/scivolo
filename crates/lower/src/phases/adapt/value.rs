@@ -19,6 +19,16 @@ pub fn adapt_from(l: &mut Lower, t: TNodeId, from: Erased, pt: &Erased) -> TNode
     match (from, pt) {
         _ if is_wildcard(l, t) => t,
         (from @ Erased::Value(..), pt) if from == *pt => t,
+        (Erased::Value(class, u), Erased::Value(target, v)) if class == *target => {
+            let c = adapt_from(l, t, *u, v);
+            if c == t {
+                return c;
+            }
+            let class = class_named(l, &class).expect("a value class");
+            let tpe = type_ref(l.u, class);
+            let span = l.tpd.span(c);
+            super::ascribed(l, c, tpe, span)
+        }
         (Erased::Value(_, u), Erased::Value(_, v)) => adapt_from(l, t, *u, v),
         (Erased::Value(_, u), pt) if *u == *pt => t,
         (Erased::Value(class, u), pt) if reference(pt) => {

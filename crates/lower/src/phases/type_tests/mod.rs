@@ -6,6 +6,7 @@
 mod as_instance_of;
 mod combined;
 mod runtime_tests;
+pub(super) mod singletons;
 
 use super::adapt::erased_type;
 use super::casts::type_of;
@@ -70,6 +71,12 @@ fn type_test(
     }
     if let Some(test) = runtime_tests::tuple_test(l, expr, dealiased, span) {
         return Ok(test);
+    }
+    if singletons::has_value_class_this(l, dealiased) {
+        return unsupported(span, "type tests of this.type of value classes");
+    }
+    if let Some(test) = singletons::is_instance(l, expr, dealiased, None) {
+        return Ok(l.with_span(test, span));
     }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
