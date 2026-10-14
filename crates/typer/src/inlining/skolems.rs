@@ -73,16 +73,16 @@ impl Inlining<'_> {
         let (mut dropped, mut other) = (false, false);
         let mut stack = vec![arg];
         while let Some(t) = stack.pop() {
-            let mut children = self.tpd.children(t);
+            let children = self.tpd.children(t);
             if let T::TypeApply { args, .. } = *self.tpd.tree(t) {
                 let targs = self.tpd.items(args);
-                children.retain(|c| !targs.contains(c));
+                stack.extend(children.into_iter().filter(|c| !targs.contains(c)));
                 dropped |= targs.iter().any(is_inferred)
                     && matches!(self.u.types().get(self.tpd.tpe(t)), Type::Method { .. });
             } else {
                 other |= children.iter().any(is_inferred);
+                stack.extend(children);
             }
-            stack.extend(children);
         }
         if dropped {
             Ok(None)

@@ -147,8 +147,11 @@ What remains after A–D (4,280 samples, 29 ms per compile) [V]: TASTy loading 2
    −4 to −6 ms on moderate, −1.5 on hello. Risk: medium (two readers of one format; the image key
    covers the table version).
 8. **Lowering: cheaper walks** (`map_children` on a borrowed tree with a small inline vector of
-   children, `children` without `Vec`; the erasure phase's `typed` without re-walking subtrees it
-   rebuilt). ~300 lines. −3 to −5 ms. Risk: low.
+   children, `children` without `Vec`). ~300 lines. Estimated −3 to −5 ms; measured (#100,
+   `bench-edit-base`, 25 runs) about −1 ms: moderate 50.8 → 50.1 ms min, caseclasses 32.1 → 31.3,
+   hello unchanged [V]. Erasure's `typed` does not re-walk: on moderate it runs once per node
+   (1,306 calls, 1,306 distinct nodes of 7,224) [V]. Split of a moderate compile after it: typer
+   23.9 ms, lowering phases 7.6 (erasure 1.7), codegen 3.4 [V]. Risk: low.
 
 Expected total after 1–8: in-process compile 62.7 → ~15 ms, frontend plumbing 8 → 3 ms, so
 moderate edit-then-run ≈ 24 (VM, as cached) + 18 + process ≈ 45–50 ms at the baseline load [I];

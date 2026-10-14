@@ -75,12 +75,14 @@ fn walk<C: AsRef<Tpd> + ?Sized>(
                     todo.push(Step::Leave(t, owner));
                 }
                 let tpd = cx.as_ref();
-                let children = match walk {
-                    Walk::Children => tpd.owned_children(t, owner),
-                    Walk::Within(inner) => tpd.children(t).into_iter().map(|c| (c, inner)).collect(),
-                    _ => Vec::new(),
-                };
-                todo.extend(children.into_iter().rev().map(|(c, owner)| Step::Enter(c, owner)));
+                let enter = |(c, owner)| Step::Enter(c, owner);
+                match walk {
+                    Walk::Children => todo.extend(tpd.owned_children(t, owner).rev().map(enter)),
+                    Walk::Within(inner) => {
+                        todo.extend(tpd.children(t).into_iter().rev().map(|c| enter((c, inner))))
+                    }
+                    _ => {}
+                }
             }
             Step::Leave(t, owner) => {
                 if leave.as_mut().is_some_and(|leave| leave(cx, t, owner).is_break()) {
@@ -96,36 +98,35 @@ impl Tpd {
     /// a definition that has one; for a template, the primary constructor for the parents and
     /// the template's symbol for the statements that are not definitions or imports; else
     /// `owner`.
-    pub fn owned_children(&self, t: TNodeId, owner: SymbolId) -> Vec<(TNodeId, SymbolId)> {
+    pub fn owned_children(
+        &self,
+        t: TNodeId,
+        owner: SymbolId,
+    ) -> impl DoubleEndedIterator<Item = (TNodeId, SymbolId)> + '_ {
         let children = self.children(t).into_iter();
+        let (mut inner, mut by_inner, mut stats, mut dummy) = (owner, 0..0, usize::MAX, owner);
         match *self.tree(t) {
             Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::PackageDef { .. } => {
-                let inner = self.sym(t).unwrap_or(owner);
-                children.map(|c| (c, inner)).collect()
+                (inner, by_inner) = (self.sym(t).unwrap_or(owner), 0..usize::MAX);
             }
             Tree::Template { constr, parents, body, .. } => {
-                let dummy = self.sym(t).unwrap_or(owner);
-                let constructor = self.sym(constr).unwrap_or(owner);
-                let parents = 1..=self.items(parents).len();
-                let stats = children.len() - self.items(body).len();
-                let is_def = |c| {
-                    matches!(
-                        self.tree(c),
-                        Tree::ValDef { .. }
-                            | Tree::DefDef { .. }
-                            | Tree::TypeDef { .. }
-                            | Tree::Import { .. }
-                    )
-                };
-                let inner = |i, c| match i {
-                    _ if parents.contains(&i) => constructor,
-                    _ if i >= stats && !is_def(c) => dummy,
-                    _ => owner,
-                };
-                children.enumerate().map(|(i, c)| (c, inner(i, c))).collect()
+                (inner, by_inner) = (self.sym(constr).unwrap_or(owner), 1..self.items(parents).len() + 1);
+                dummy = self.sym(t).unwrap_or(owner);
+                stats = children.len() - self.items(body).len();
             }
-            _ => children.map(|c| (c, owner)).collect(),
+            _ => {}
         }
+        let is_def = |c| {
+            matches!(
+                self.tree(c),
+                Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. }
+            )
+        };
+        children.enumerate().map(move |(i, c)| match i {
+            _ if by_inner.contains(&i) => (c, inner),
+            _ if i >= stats && !is_def(c) => (c, dummy),
+            _ => (c, owner),
+        })
     }
 
     /// `f` folded over `t` and the trees under it, outer trees first (dotty's `DeepFolder`).

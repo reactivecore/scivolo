@@ -104,18 +104,15 @@ fn post_typer_order(l: &Lower, td: TNodeId) -> Vec<TNodeId> {
     let mut todo = vec![td];
     while let Some(t) = todo.pop() {
         out.push(t);
-        let mut kids = match *l.tpd.tree(t) {
-            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => continue,
-            Tree::TypeDef { .. } if t != td => continue,
+        match *l.tpd.tree(t) {
+            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => {}
+            Tree::TypeDef { .. } if t != td => {}
             Tree::Apply { fun, args } => {
-                let mut kids = l.tpd.items(args).to_vec();
-                kids.push(fun);
-                kids
+                todo.push(fun);
+                todo.extend(l.tpd.items(args).iter().rev());
             }
-            _ => walk::children(l.tpd, t),
-        };
-        kids.reverse();
-        todo.extend(kids);
+            _ => todo.extend(walk::children(l.tpd, t).into_iter().rev()),
+        }
     }
     out
 }

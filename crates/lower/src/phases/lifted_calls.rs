@@ -25,16 +25,16 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
             redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
         }
         if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            todo.extend(terms_in(l, t));
+            push_terms_in(l, t, &mut todo);
         }
     }
 }
 
-/// The children of `t` but the method a return returns from.
-fn terms_in(l: &Lower, t: TNodeId) -> Vec<TNodeId> {
+/// Pushes the children of `t` but the method a return returns from onto `todo`.
+fn push_terms_in(l: &Lower, t: TNodeId, todo: &mut Vec<TNodeId>) {
     match *l.tpd.tree(t) {
-        Tree::Return { expr, .. } => vec![expr],
-        _ => children(l.tpd, t),
+        Tree::Return { expr, .. } => todo.push(expr),
+        _ => todo.extend(children(l.tpd, t)),
     }
 }
 
@@ -62,7 +62,7 @@ pub fn calls_from_class(
                 call_of(l, t, fs).map(|(i, reference, args)| (c, &fs[i], &ms[i], reference, args))
             });
             let Some((class, f, method, reference, args)) = found else {
-                todo.extend(terms_in(l, t));
+                push_terms_in(l, t, &mut todo);
                 continue;
             };
             let span = l.tpd.span(reference);
