@@ -119,7 +119,7 @@ impl Typer<'_> {
     }
 
     /// `t` with its aliases, also those of script symbols, followed.
-    fn dealiased(&mut self, t: TypeId) -> TypeId {
+    pub fn dealiased(&mut self, t: TypeId) -> TypeId {
         let mut t = self.u.dealias(t);
         for _ in 0..8 {
             let Type::Sym(_, s) = *self.u.types().get(t) else { break };

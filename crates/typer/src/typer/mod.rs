@@ -23,6 +23,7 @@ mod closures;
 mod const_fold;
 pub(crate) mod const_ops;
 mod constants;
+mod constrain_pattern;
 mod constructor_proxies;
 mod constructors;
 mod context_bounds;

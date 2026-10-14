@@ -158,7 +158,7 @@ impl Typer<'_> {
         if unconstrained && variances.values().any(|&v| v == 0) {
             return Err("invariant type arguments of a pattern of an open class");
         }
-        if !unconstrained && !self.conforms(arg_type, sel) {
+        if !unconstrained && !self.constrain_pattern(arg_type, sel)? {
             self.constraint.rollback(mark);
             if self.has_abstract_arg(sel) {
                 return Err("pattern constraining type parameters (GADT)");
