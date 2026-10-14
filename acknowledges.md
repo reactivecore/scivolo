@@ -55,11 +55,12 @@ Apache-2.0. Rust translations of:
   - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,
     `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
-    and creating local classes, the naming order of proxies, `setLogicOwner` of classes,
-    returns of blocks), `CapturedVars`, `ElimByName` (calls),
+    and creating local classes, the naming order of proxies, `setLogicOwner` of classes and
+    functions, local traits and their members, intermediate classes of `markFree`, returns of
+    blocks), `ExpandPrivate` (expanded names of lifted methods), `CapturedVars`, `ElimByName` (calls),
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
-    classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
+    classes and traits, `fixThis`), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
     guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,

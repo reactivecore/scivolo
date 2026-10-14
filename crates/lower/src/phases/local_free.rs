@@ -31,10 +31,12 @@ pub struct Local {
 /// The class a local class in a block of class `outer` is lifted into (dotty's `logicOwner` of
 /// a class using no enclosing instance): `outer` if static, else its top-level class.
 pub fn lifted_into(l: &Lower, outer: SymbolId) -> SymbolId {
-    if is_static(l.u, outer) {
-        return outer;
-    }
-    let mut c = outer;
+    if is_static(l.u, outer) { outer } else { top_level(l, outer) }
+}
+
+/// The outermost class enclosing `s`, or `s` (dotty's `topLevelClass`).
+pub fn top_level(l: &Lower, s: SymbolId) -> SymbolId {
+    let mut c = s;
     while let Some(o) = l.u.symbol(c).owner.filter(|&o| l.u.symbol(o).kind != Kind::Package) {
         c = o;
     }
@@ -74,7 +76,6 @@ pub fn within(l: &Lower, mut s: SymbolId, c: SymbolId) -> bool {
 pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) -> Result<Free> {
     let span = l.tpd.span(td);
     let refused = match () {
-        _ if l.u.is_trait(class) => Some("local traits"),
         _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
         _ => nested_definition(l, td),
     };
@@ -143,14 +144,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             _ => {}
         }
     }
-    let nested = |t: TNodeId| match *l.tpd.tree(t) {
-        Tree::TypeDef { rhs, .. } => t != td && matches!(l.tpd.tree(rhs), Tree::Template { .. }),
-        _ => false,
-    };
-    let free_ref = |t: TNodeId| {
-        matches!(l.tpd.tree(t), Tree::Ident { .. })
-            && l.tpd.sym(t).is_some_and(|s| free.values.contains(&s) || free.in_methods.contains(&s))
-    };
+    let nested = |t: TNodeId| t != td && super::walk::is_class_def(l.tpd, t);
     let outside_call = |t: TNodeId| {
         let Some(s) = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::Ident { .. })) else {
             return false;
@@ -160,9 +154,6 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     };
     for c in super::explicit_outer::terms(l, td, true).into_iter().filter(|&t| nested(t)) {
         let terms = super::explicit_outer::terms(l, c, true);
-        if let Some(&t) = terms.iter().find(|&&t| free_ref(t)) {
-            return unsupported(l.tpd.span(t), "classes in local classes capturing values");
-        }
         if let Some(&t) = terms.iter().find(|&&t| outside_call(t)) {
             return unsupported(l.tpd.span(t), "classes in local classes calling local methods");
         }

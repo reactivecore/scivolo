@@ -4,7 +4,9 @@
 //! initializers and statements of a class body count as its constructor's, as after
 //! `Constructors`.
 
+use super::explicit_outer::in_term;
 use super::local_free::{is_method, is_term};
+use super::mixin::{forwarded, mixins};
 use super::walk::{children, subtrees};
 use crate::Lower;
 use crate::symbols::has;
@@ -58,8 +60,20 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
             _ => {}
         }
     }
+    let local_trait =
+        |l: &Lower, m: SymbolId| l.u.is_trait(m) && l.u.symbol(m).owner.is_some_and(|o| is_term(l, o));
+    let classes: Vec<SymbolId> =
+        ctors.keys().copied().filter(|&c| !l.u.is_trait(c) && in_term(l, c)).collect();
+    for class in classes {
+        let traits: Vec<SymbolId> = mixins(l, class).into_iter().filter(|&m| local_trait(l, m)).collect();
+        let methods: Vec<SymbolId> = traits.into_iter().flat_map(|m| forwarded(l, class, m)).collect();
+        if !methods.is_empty() {
+            l.trait_forwards.insert(class, methods);
+        }
+    }
     let l: &Lower = l;
-    let mut c = Collect { l, ctors, created, free: Vec::new(), called: Vec::new(), changed: false };
+    let (free, called) = (Vec::new(), Vec::new());
+    let mut c = Collect { l, ctors, created, free, called, changed: false };
     c.visit(root, None);
     loop {
         c.changed = false;
@@ -155,6 +169,9 @@ impl Collect<'_, '_> {
         if self.is_local(class) && !l.u.is_trait(class) {
             self.add_called(ctor, class);
         }
+        for m in l.trait_forwards.get(&class).cloned().unwrap_or_default() {
+            self.add_called(Some(class), m);
+        }
         let member = |t: TNodeId| match *l.tpd.tree(t) {
             Tree::DefDef { .. } => is_method(l, l.tpd.sym(t)),
             Tree::TypeDef { .. } => true,
@@ -178,11 +195,12 @@ impl Collect<'_, '_> {
         }
     }
 
-    /// Whether `s` is defined in a term, or is the constructor of such a class (dotty's
-    /// `isLocal`).
+    /// Whether `s` is defined in a term, a method of such a trait, or the constructor of such a
+    /// class (dotty's `isLocal`).
     fn is_local(&self, s: SymbolId) -> bool {
-        let Some(owner) = self.l.u.symbol(s).owner else { return false };
-        is_term(self.l, owner) || self.l.u.is_constructor(s) && self.is_local(owner)
+        let (l, Some(owner)) = (self.l, self.l.u.symbol(s).owner) else { return false };
+        let trait_method = l.u.is_trait(owner) && l.u.symbol(s).kind == Kind::Def;
+        is_term(l, owner) || (trait_method || l.u.is_constructor(s)) && self.is_local(owner)
     }
 
     fn add_called(&mut self, caller: Option<SymbolId>, callee: SymbolId) {

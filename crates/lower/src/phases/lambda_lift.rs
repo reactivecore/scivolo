@@ -1,7 +1,7 @@
 //! Lambdas and local methods (dotty's `LambdaLift`): each `{ def $anonfun(ps) = body; closure }`
 //! and each `def f(ps) = body` in a block of a class's methods, field initializers or statements
-//! becomes a private method of the class taking the captured values first; closures and calls
-//! pass them.
+//! becomes a private method taking the captured values first, of the class if it needs `this`,
+//! else static in the top-level class; closures and calls pass them.
 
 use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
@@ -31,7 +31,6 @@ pub struct Function {
 struct Lifting {
     class: SymbolId,
     template: TNodeId,
-    stats: Vec<TNodeId>,
     functions: Vec<Function>,
     methods: Vec<Method>,
 }
@@ -57,12 +56,13 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
         deferred.extend(adapted);
-        let stats: Vec<TNodeId> = c.stats.into_iter().chain(lifted).collect();
-        let body = l.tpd.list(&stats);
-        let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(c.template) else {
-            unreachable!("a template")
-        };
-        l.tpd.get_mut(c.template).tree = Tree::Template { constr, parents, self_, body };
+        for def in lifted {
+            let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
+            let Some(&td) = classes.iter().find(|&&td| l.tpd.sym(td) == owner) else {
+                return unsupported(l.tpd.span(def), "lifting into a class of another unit");
+            };
+            super::outer_traits::append(l, td, &[def]);
+        }
     }
     name_proxies(l, &deferred);
     Ok(())
@@ -117,9 +117,6 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         return Ok(None);
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    if l.u.is_class(owner) && !is_static(l.u, class) {
-        return unsupported(l.tpd.span(functions[0].def), "lambdas and local methods in nested classes");
-    }
     let in_class =
         is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
@@ -130,7 +127,7 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         f.this &= !in_static.contains(&i);
     }
     let methods = methods(l, class, &functions)?;
-    Ok(Some(Lifting { class, template, stats, functions, methods }))
+    Ok(Some(Lifting { class, template, functions, methods }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.

@@ -2,15 +2,16 @@
 //! it captures, and its definition moves from its block to its package as `Outer$Name$N`.
 
 use super::local_free::{Free, within};
-use super::walk::children;
+use super::walk::{children, is_class_def};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
-/// Passes the values of `free`, or inside `class` its `fields`, first to each constructor call of
-/// `class` in unit `root`; records the values passed outside `class` in `passed`.
+/// Passes the values of `free`, or in `class` itself its `fields`, first to each constructor call
+/// of `class` in unit `root`; records the values passed outside `class` in `passed`. In classes
+/// nested in `class` the values stay for `nested_reads` to read from the fields.
 pub fn pass_values(
     l: &mut Lower,
     root: TNodeId,
@@ -26,7 +27,8 @@ pub fn pass_values(
         if l.u.class_symbol(l.tpd.tpe(tpt)) != Some(class) {
             continue;
         }
-        let inside = enclosing_def(l, root, t).is_some_and(|d| within(l, d, class));
+        let (def, innermost) = enclosing(l, root, t);
+        let inside = def.is_some_and(|d| within(l, d, class));
         let span = l.tpd.span(t);
         let mut values = Vec::new();
         for &v in &free.values {
@@ -36,10 +38,11 @@ pub fn pass_values(
                     passed.insert(value);
                     value
                 }
-                Some(i) => {
+                Some(i) if innermost == Some(class) => {
                     let this = l.this(class, span);
                     l.select(this, fields[i], span)
                 }
+                Some(_) => l.ident(v, l.tpd.span(fun).end_pos()),
                 None => return unsupported(span, "local classes making instances of themselves"),
             };
             values.push(value);
@@ -51,20 +54,18 @@ pub fn pass_values(
     Ok(())
 }
 
-/// The innermost method definition around `t` in `root`.
-fn enclosing_def(l: &Lower, root: TNodeId, t: TNodeId) -> Option<SymbolId> {
-    let mut todo = vec![(root, None)];
-    while let Some((n, def)) = todo.pop() {
+/// The innermost method definition and class definition around `t` in `root`.
+fn enclosing(l: &Lower, root: TNodeId, t: TNodeId) -> (Option<SymbolId>, Option<SymbolId>) {
+    let mut todo = vec![(root, None, None)];
+    while let Some((n, def, class)) = todo.pop() {
         if n == t {
-            return def;
+            return (def, class);
         }
-        let def = match l.tpd.tree(n) {
-            Tree::DefDef { .. } => l.tpd.sym(n),
-            _ => def,
-        };
-        todo.extend(children(l.tpd, n).into_iter().map(|c| (c, def)));
+        let def = if matches!(l.tpd.tree(n), Tree::DefDef { .. }) { l.tpd.sym(n) } else { def };
+        let class = if is_class_def(l.tpd, n) { l.tpd.sym(n) } else { class };
+        todo.extend(children(l.tpd, n).into_iter().map(|c| (c, def, class)));
     }
-    None
+    (None, None)
 }
 
 /// Names local class `class` in class `outer` `Outer$Name$N`, an object's class `Outer$Name$N$`

@@ -6,9 +6,11 @@ use super::dependencies::dependencies;
 use super::lift_names::{Caller, LocalClass, Pending};
 use super::local_free::{Free, Local, enclosing_class, free_values, is_method, is_term, lifted_into};
 use super::local_lift::{lift, pass_values};
-use super::local_proxies::{constructor, definition_order, make_proxies};
+use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
+use super::nested_reads::Nested;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::MUTABLE;
 use tasty::{Kind, SymbolId, Type};
@@ -18,7 +20,7 @@ use typer::tpd::{TNodeId, Tree};
 /// those of their proxies are left to `lambda_lift`.
 pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pending> {
     let deps = dependencies(l, root);
-    let mut locals = Vec::new();
+    let (mut locals, mut traits) = (Vec::new(), Vec::new());
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
         let Some(owner) = l.u.symbol(class).owner.filter(|&o| is_term(l, o)) else { continue };
@@ -26,23 +28,43 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         let mut free = free_values(l, td, class, outer)?;
         free.values = deps.of(constructor(l, td)).to_vec();
         free.in_methods = deps.of(class).to_vec();
-        if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) {
-            return unsupported(l.tpd.span(td), "local classes capturing variables");
+        let refused = match () {
+            _ if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) => {
+                Some("local classes capturing variables")
+            }
+            _ if !l.u.is_trait(class) => None,
+            _ if !free.values.is_empty() => Some("local traits initializing with captured values"),
+            _ => None,
+        };
+        if let Some(what) = refused {
+            return unsupported(l.tpd.span(td), what);
+        }
+        if l.u.is_trait(class) {
+            traits.push(td);
         }
         let named_in = lifted_into(l, outer);
         locals.push(Local { td, class, named_in, free });
     }
     let order = definition_order(l, &locals);
     let mut pending = Pending::default();
-    pending.deps = Some(deps);
     let proxies = make_proxies(l, &locals, &mut pending);
     for (c, (fields, _)) in locals.iter().zip(&proxies) {
         pass_values(l, root, c.class, &c.free, fields, &mut pending.passed)?;
     }
+    super::local_traits::transform(l, root, &traits, &deps, &mut pending)?;
+    pending.deps = Some(deps);
+    let own = locals
+        .iter()
+        .map(|c| (c.class, c.free.values.iter().chain(&c.free.in_methods).copied().collect()))
+        .collect();
+    let mut nested = Nested { own, named_in: FxHashMap::default() };
     let mut classes = Vec::new();
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
-        add_proxies(l, td, class, &free, (&fields, &params), &spans);
+        if !l.u.is_trait(class) {
+            add_proxies(l, td, class, &free, (&fields, &params), (&spans, &mut nested))?;
+        }
+        let named_in = nested.named_in.get(&class).copied().unwrap_or(named_in);
         if free.called.iter().any(|&(f, _)| l.u.symbol(f).kind == Kind::Def) {
             let fields = free.in_methods.iter().copied().zip(fields).collect();
             let params = free.values.iter().copied().zip(params).collect();
@@ -68,16 +90,16 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
 
 /// Adds to class definition `td` a leading constructor parameter of `params` for each value of
 /// `free` and a private field of `fields`, at the value's definition span of `spans`, for each its
-/// methods use; makes the references to them in its methods read the fields and elsewhere the
-/// parameters.
+/// methods use; makes the references to them in its methods and nested classes, but to those a
+/// nested local class captures itself by `nested`, read the fields and elsewhere the parameters.
 fn add_proxies(
     l: &mut Lower,
     td: TNodeId,
     class: SymbolId,
     free: &Free,
     (fields, params): (&[SymbolId], &[SymbolId]),
-    spans: &[Span],
-) {
+    (spans, nested): (&[Span], &mut Nested),
+) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
         unreachable!("a template")
@@ -86,6 +108,7 @@ fn add_proxies(
     let mut field_defs = Vec::new();
     for ((&v, &field), &at) in free.in_methods.iter().zip(fields).zip(spans) {
         l.fields.insert(field, field);
+        l.captured_fields.insert((class, v), field);
         let info = l.u.info(v);
         let tpt = l.type_tree(info, Span::NONE);
         field_defs.push(l.build().val_def(field, tpt, None, at));
@@ -101,12 +124,15 @@ fn add_proxies(
             Tree::DefDef { .. } if is_method(l, l.tpd.sym(stat)) => {
                 redirect(l, stat, &free.in_methods, fields, Some(class))
             }
+            Tree::TypeDef { .. } => {}
             _ => redirect(l, stat, &free.values, params, None),
         }
+        super::nested_reads::redirect(l, stat, class, (&free.in_methods, fields), nested)?;
     }
     let stats: Vec<TNodeId> = field_defs.into_iter().chain(l.tpd.items(body).iter().copied()).collect();
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
+    Ok(())
 }
 
 /// Puts `params` first in the first parameter clause of constructor `constr` of `ctor`.
@@ -129,7 +155,8 @@ pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[Symb
     l.u.set_info(ctor, info);
 }
 
-/// Method type `info`, also under type parameters, with `params` first in its first clause.
+/// Method type `info`, also under type parameters, with `params` first in its first clause; of a
+/// method without parameter lists, a method type of `params`.
 fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) -> tasty::TypeId {
     match l.u.types().get(info).clone() {
         Type::Poly { binder, params: tparams, result } => {
@@ -141,27 +168,19 @@ fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) 
             let params = new.chain(old).collect();
             l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
         }
-        _ => info,
+        other => {
+            let result = if let Type::ByName(r) = other { r } else { info };
+            let params = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+            let binder = l.u.fresh_binder();
+            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
+        }
     }
 }
 
-/// The span of the definition of local value `v` in unit `root`, none for a parameter of an
-/// `apply` that `SpecializeFunctions` copies with new parameters.
-fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
-    let owner = l.u.symbol(v).owner;
-    if l.u.symbol(v).kind == Kind::Param && owner.is_some_and(|m| super::specialize::is_specialized(l, m)) {
-        return Span::NONE;
-    }
-    let def = super::walk::subtrees(l.tpd, root)
-        .into_iter()
-        .find(|&t| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t) == Some(v));
-    def.map_or(Span::NONE, |d| l.tpd.span(d))
-}
-
-/// Makes the references in `t` to values `free` refer to `to`, fields of `this` of `class` if
-/// given.
+/// Makes the references in `t`, outside the classes defined in it, to values `free` refer to
+/// `to`, fields of `this` of `class` if given.
 fn redirect(l: &mut Lower, t: TNodeId, free: &[SymbolId], to: &[SymbolId], class: Option<SymbolId>) {
-    for s in super::walk::subtrees(l.tpd, t) {
+    for s in super::explicit_outer::terms(l, t, false) {
         if !matches!(l.tpd.tree(s), Tree::Ident { .. }) {
             continue;
         }

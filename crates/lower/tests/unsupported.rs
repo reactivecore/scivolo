@@ -49,7 +49,6 @@ const CASES: &[(&str, &str)] = &[
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    ("class A { object B { val f = (x: Int) => x } }", "lambdas and local methods in nested classes"),
     ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
     (
         "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
@@ -57,7 +56,18 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
-    ("object O { def f() = { trait T; new T {} } }", "local traits"),
+    (
+        "object O { def f(k: Int) = { trait T { val v = k }; new T {}.v } }",
+        "local traits initializing with captured values",
+    ),
+    (
+        "object O { def f(k: Int) = { trait T { lazy val v = k }; new T {}.v } }",
+        "members of local traits other than methods capturing values",
+    ),
+    (
+        "object O { def f(k: Int) = { trait T { def g[A]: Int = k }; new T {}.g[String] } }",
+        "references to generic methods of local traits",
+    ),
     (
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
         "classes in local classes calling local methods",

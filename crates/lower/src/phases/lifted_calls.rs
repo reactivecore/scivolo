@@ -20,7 +20,8 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
         if let Some((i, reference, args)) = call_of(l, t, functions) {
             let span = l.tpd.span(reference);
             let captured: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
-            let receiver = l.this(class, span);
+            let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
+            let receiver = l.this(home, span);
             redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
         }
         if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
@@ -30,8 +31,9 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
 }
 
 /// Makes the calls of local methods in lifted local class `caller` call their lifted methods,
-/// each of `lifted`'s class with its functions and methods, passing the class's fields in its
-/// methods and its constructor's parameters elsewhere.
+/// each of `lifted`'s class with its functions and methods, passing a local trait method's
+/// parameters standing for the values, else the class's fields in its methods and its
+/// constructor's parameters elsewhere.
 pub fn calls_from_class(
     l: &mut Lower,
     caller: &Caller,
@@ -42,6 +44,7 @@ pub fn calls_from_class(
     };
     for stat in children(l.tpd, template) {
         let in_method = matches!(l.tpd.tree(stat), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(stat));
+        let own = l.tpd.sym(stat).and_then(|m| l.trait_methods.get(&m)).map(|(_, pairs)| pairs.clone());
         let mut todo = vec![stat];
         while let Some(t) = todo.pop() {
             if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
@@ -59,15 +62,19 @@ pub fn calls_from_class(
                 true => {
                     super::outer_fields::outer_path(l, (caller.td, caller.class), class, in_method, span)?
                 }
-                false => l.this(class, span),
+                false => l.this(l.u.symbol(method.sym).owner.unwrap_or(class), span),
             };
             let mut captured = Vec::new();
             for &v in &f.captured {
-                let proxies = if in_method { &caller.fields } else { &caller.params };
+                let proxies = match &own {
+                    Some(pairs) => pairs,
+                    None if in_method => &caller.fields,
+                    None => &caller.params,
+                };
                 let Some(&(_, p)) = proxies.iter().find(|&&(w, _)| w == v) else {
                     return unsupported(span, "local classes calling local methods through other methods");
                 };
-                captured.push(if in_method {
+                captured.push(if in_method && own.is_none() {
                     let at = span.end_pos();
                     let this = l.this(caller.class, at);
                     l.select(this, p, at)
@@ -106,15 +113,27 @@ fn redirect(
     captured: Vec<TNodeId>,
     args: Vec<TNodeId>,
 ) {
+    let fun = l.select(receiver, method.sym, l.tpd.span(reference));
+    make_call(l, t, f.sym, reference, fun, captured.into_iter().chain(args).collect());
+}
+
+/// Makes call or reference `t` of method `m` through `reference` apply `fun` to `args`.
+pub fn make_call(
+    l: &mut Lower,
+    t: TNodeId,
+    m: SymbolId,
+    reference: TNodeId,
+    fun: TNodeId,
+    args: Vec<TNodeId>,
+) {
     let span = l.tpd.span(reference);
-    let fun = l.select(receiver, method.sym, span);
-    let all: Vec<TNodeId> = captured.into_iter().chain(args).collect();
-    let args = l.tpd.list(&all);
+    let args = l.tpd.list(&args);
     if reference == t {
-        let info = l.u.info(f.sym);
+        let info = l.u.info(m);
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
+        l.applied_references.insert(t);
     }
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
 }

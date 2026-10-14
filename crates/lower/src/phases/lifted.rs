@@ -5,6 +5,7 @@
 use super::closures::{Plan, plan, rewrite};
 use super::lambda_lift::Function;
 use super::lift_names::prefix;
+use super::local_free::top_level;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -27,7 +28,7 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         let name = l.u.symbol(f.sym).name.clone();
         let params: Vec<(String, TypeId)> =
             params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
-        let method = define(l, class, &name, &f.captured, &params, result, f.this);
+        let method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.this);
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
         }
@@ -37,6 +38,12 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         methods.push(method);
     }
     Ok(methods)
+}
+
+/// The class function `f` of `class` becomes a method of: `class` if it needs `this`, else its
+/// top-level class (dotty's `logicOwner`).
+pub fn home(l: &Lower, class: SymbolId, f: &Function) -> SymbolId {
+    if f.this { class } else { top_level(l, class) }
 }
 
 /// The indices of `functions`, each after the functions in it.
@@ -155,7 +162,7 @@ fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
 }
 
 /// Makes the references to the keys of `map` under `t` refer to their values.
-fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
+pub fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
     let mut todo = vec![t];
     while let Some(t) = todo.pop() {
         todo.extend(children(l.tpd, t));
