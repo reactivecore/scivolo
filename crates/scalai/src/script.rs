@@ -47,8 +47,8 @@ fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(Pat
     (&source, &text, mode, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
+    cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
-        cache::touch(&dir);
         if let Ok(why) = std::fs::read_to_string(dir.join(FALLBACK)) {
             eprintln!("scalai: {file}: compiled by scala-cli ({why})");
         }

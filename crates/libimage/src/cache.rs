@@ -8,12 +8,11 @@ use std::time::{Duration, SystemTime};
 pub const UNUSED: Duration = Duration::from_secs(30 * 24 * 60 * 60);
 /// How long a half-written entry, left by a build that did not finish, is kept.
 pub const ABANDONED: Duration = Duration::from_secs(24 * 60 * 60);
-
 /// How long after pruning a cache directory it is pruned again at the earliest.
 pub const PRUNED: Duration = Duration::from_secs(60 * 60);
 
-/// Whether `dir` went unpruned for `PRUNED`, by the time of its file `pruned`, which is set to
-/// now if so.
+/// Whether `dir` was last pruned at least `PRUNED` ago, by the time of its file `pruned`; if so,
+/// sets that time to now.
 pub fn prune_due(dir: &Path) -> bool {
     let stamp = dir.join("pruned");
     let since = std::fs::metadata(&stamp).and_then(|m| m.modified());

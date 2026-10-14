@@ -77,11 +77,10 @@ pub fn compile(
     for f in files {
         let path = classes.join(format!("{}.nir", f.name.replace('.', "/")));
         let dir = path.parent().unwrap_or(classes);
-        if !dirs.contains(dir) {
+        if dirs.insert(dir.to_owned()) {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-            dirs.insert(dir.to_owned());
         }
-        mains.extend(mains::defined(&f.bytes).map_err(|e| format!("{}: {e}", path.display()))?);
+        mains.extend(mains::defined(&f.bytes).map_err(|e| format!("{}: undecodable NIR ({e})", f.name))?);
         std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(mains)
