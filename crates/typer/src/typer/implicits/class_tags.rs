@@ -46,11 +46,16 @@ impl Typer<'_> {
         let module_tpe = crate::defn::type_ref(self.u, module);
         let class = match self.u.types().get(dealiased) {
             Type::And(..) | Type::Or(..) => None,
-            _ => self.u.class_symbol(dealiased).map(|c| self.u.full_name(c)),
+            _ => self.u.class_symbol(dealiased),
         };
-        if let Some(special) =
-            ["Unit", "Any", "AnyVal"].into_iter().find(|n| class == Some(format!("scala.{n}")))
-        {
+        let b = self.u.builtins();
+        let special = class.and_then(|c| match c {
+            _ if c == self.defn.unit => Some("Unit"),
+            _ if c == b.any => Some("Any"),
+            _ if Some(c) == b.any_val => Some("AnyVal"),
+            _ => None,
+        });
+        if let Some(special) = special {
             if !matches!(self.u.types().get(arg), Type::Sym(..) | Type::TypeRef(..))
                 || self.referenced(arg).is_none_or(|s| self.u.symbol(s).kind != Kind::Class)
             {

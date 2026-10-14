@@ -19,7 +19,8 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let found = l.u.erase(widened);
     let from = erased_type(l, expr);
     let span = l.tpd.span(t);
-    if l.u.value_class(target).is_some() || l.u.value_class(widened).is_some() {
+    let widened_target = l.u.widen(target);
+    if l.u.value_class(widened_target).is_some() || l.u.value_class(widened).is_some() {
         return value_cast(l, t, expr, tpt);
     }
     if l.u.erase_boxed(target) != to || l.u.erase_boxed(widened) != found {
@@ -70,7 +71,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
 /// derives from `tpt`'s, the boxed primitive cast, the boxed value unboxed to a primitive,
 /// `expr` for `adapt` to unbox if `tpt` is a value class, else `t` on the boxed value.
 fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
-    let target = l.tpd.tpe(tpt);
+    let target = l.u.widen(l.tpd.tpe(tpt));
     let widened = l.u.widen(l.tpd.tpe(expr));
     let (test, found) = (l.u.erase_boxed(target), l.u.erase_boxed(widened));
     let span = l.tpd.span(t);

@@ -50,24 +50,15 @@ impl Typer<'_> {
             return Ok(None);
         }
         self.implicit_budget = super::search::MAX_TRIES;
-        let mut groups = self.contextual_implicits(ctx)?;
-        let super::scope::ImplicitScope { implicits: mut scope, containers } =
-            self.implicit_scope_of(from)?;
-        if let Goal::Conform(pt) = goal {
-            scope.extend(self.implicit_scope(pt)?);
-        }
-        if let Goal::Member(name) = goal
-            && scope.iter().any(|c| {
-                let s = self.u.symbol(c.sym);
-                s.name == name && s.flags.has(tasty::tags::EXTENSION)
-            })
-        {
-            return Err("extension method in the implicit scope");
-        }
-        groups.push(scope);
+        let contextual = self.contextual_implicits(ctx)?;
+        let levels = contextual.len();
+        let mut contextual = contextual.into_iter();
         let constant = self.constant_of(tree).is_some();
-        let last = groups.len() - 1;
-        for (i, mut group) in groups.into_iter().enumerate() {
+        for _ in 0..=levels {
+            let (mut group, containers) = match contextual.next() {
+                Some(group) => (group, Vec::new()),
+                None => self.view_scope(from, goal)?,
+            };
             let found = self.fitting(&group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
             let mut widened = Vec::new();
             if constant {
@@ -75,11 +66,8 @@ impl Typer<'_> {
                 widened.retain(|c| !found.contains(c));
             }
             if let Goal::Member(name) = goal {
-                if i == last {
-                    let extra: Vec<Candidate> =
-                        containers.iter().filter(|c| !group.contains(c)).copied().collect();
-                    group.extend(extra);
-                }
+                let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
+                group.extend(extra);
                 let converts = !found.is_empty() || !widened.is_empty();
                 if let Some(c) = self.extension_container(&group, tree, name, converts, ctx)? {
                     return Ok(Some(Viewed::Extension(c)));
@@ -99,6 +87,29 @@ impl Typer<'_> {
             return Ok(Some(Viewed::Converted(converted)));
         }
         Ok(None)
+    }
+
+    /// The implicit scope of a view of `from` to `goal`, and the containers of extension methods
+    /// in that of `from`.
+    fn view_scope(
+        &mut self,
+        from: TypeId,
+        goal: Goal,
+    ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
+        let super::scope::ImplicitScope { implicits: mut scope, containers } =
+            self.implicit_scope_of(from)?;
+        if let Goal::Conform(pt) = goal {
+            scope.extend(self.implicit_scope(pt)?);
+        }
+        if let Goal::Member(name) = goal
+            && scope.iter().any(|c| {
+                let s = self.u.symbol(c.sym);
+                s.name == name && s.flags.has(tasty::tags::EXTENSION)
+            })
+        {
+            return Err("extension method in the implicit scope");
+        }
+        Ok((scope, containers))
     }
 
     /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no conversion

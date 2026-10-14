@@ -51,6 +51,7 @@ impl Typer<'_> {
             _ => return Ok(None),
         };
         let value = value.ok_or("ValueOf of a path outside the subset")?;
+        let t = self.tpd.tpe(value);
         let ctor = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or("ValueOf")?;
         let raw = crate::defn::type_ref(self.u, class);
         let tpt = self.tpd.node(T::TypeTree { inferred: false }, at, Some(raw), None);

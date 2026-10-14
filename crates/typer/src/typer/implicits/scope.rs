@@ -34,13 +34,18 @@ impl Typer<'_> {
         for (c, prefix) in parts.classes {
             let owner = self.u.symbol(c).owner;
             for base in self.u.linearization(c) {
+                let base_owner = self.u.symbol(base).owner;
+                if base_owner != owner && base_owner.is_some_and(|o| self.is_instance_class(o)) {
+                    return Err("implicit scope with a base class of another class's instance");
+                }
                 let (module, module_ref) = match self.companion_module(base) {
                     Some(module) => (module, crate::defn::type_ref(self.u, module)),
                     None => {
                         let Some(module) = self.class_companion(base) else { continue };
-                        let path = prefix.filter(|&p| {
-                            self.u.symbol(base).owner == owner
-                                && matches!(self.u.types().get(p), Type::This(_) | Type::Sym(..))
+                        let path = prefix.filter(|&p| match *self.u.types().get(p) {
+                            Type::This(_) => true,
+                            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+                            _ => false,
                         });
                         match path {
                             Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
@@ -142,9 +147,14 @@ impl Typer<'_> {
     /// nested in a class other than an object's.
     fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(c).owner?;
-        if self.u.is_class(owner) && !self.u.is_module_class(owner) {
+        if self.is_instance_class(owner) {
             return None;
         }
         self.class_companion(c)
+    }
+
+    /// Whether `c` is a class other than an object's.
+    fn is_instance_class(&self, c: SymbolId) -> bool {
+        self.u.is_class(c) && !self.u.is_module_class(c)
     }
 }
