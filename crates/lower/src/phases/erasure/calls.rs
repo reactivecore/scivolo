@@ -1,15 +1,15 @@
 //! Calls typed by `Erasure`: the receiver adapted to the class of the called member, each
 //! argument typed against its erased parameter type.
 
+use super::generic_arrays::runtime_op;
 use super::{typed, typed_qualifier};
-use crate::phases::adapt::{array_op, erased_type, is_synchronized, qualify_synchronized, synchronized_type};
+use crate::phases::adapt::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
 use crate::phases::casts::is_cast;
-use crate::{Lower, Result, unsupported};
-use tasty::Erased;
+use crate::{Lower, Result};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped.
-pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> Result<Tree> {
+pub fn typed_apply(l: &mut Lower, mut fun: TNodeId, args: List) -> Result<Tree> {
     let mut all = l.tpd.items(args).to_vec();
     loop {
         match *l.tpd.tree(fun) {
@@ -20,6 +20,10 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
             Tree::TypeApply { fun: inner, .. } if !is_cast(l, fun) && !is_synchronized(l, fun) => fun = inner,
             _ => break,
         }
+    }
+    if let Some((op, qualifier)) = runtime_op(l, fun) {
+        all.insert(0, qualifier);
+        fun = op;
     }
     let sel = match *l.tpd.tree(fun) {
         Tree::TypeApply { fun: inner, .. } if is_synchronized(l, fun) => {
@@ -38,10 +42,6 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
     if l.tpd.sym(fun) == Some(l.defs.array_clone) {
-        let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
-        if !matches!(erased_type(l, qualifier), Erased::Array(_)) {
-            return unsupported(l.tpd.span(t), "`clone` of a generic array");
-        }
         l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
     }
     let params = match (array_op(l, fun), synchronized_type(l, fun)) {

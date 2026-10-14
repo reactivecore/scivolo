@@ -32,7 +32,6 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",
     ),
-    ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
     (
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",

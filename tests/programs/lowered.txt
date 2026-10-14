@@ -80,3 +80,4 @@ valuepatterns
 unions
 outerclasses
 casts
+genericarrays

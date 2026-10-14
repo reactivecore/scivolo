@@ -3,6 +3,7 @@
 
 mod calls;
 pub(super) mod erased_defs;
+mod generic_arrays;
 mod members;
 
 use super::adapt::{adapt, applied_to_none, ascription_type, erased_type, is_parameterless_ref};
@@ -40,8 +41,11 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
     if is_test_or_cast(l, t) {
         intercept(l, t)?;
     }
+    if generic_arrays::rewrite_select(l, t) {
+        return typed(l, t, pt);
+    }
     let new = match *l.tpd.tree(t) {
-        Tree::Apply { fun, args } => Some(calls::typed_apply(l, t, fun, args)?),
+        Tree::Apply { fun, args } => Some(calls::typed_apply(l, fun, args)?),
         Tree::Select { qualifier, name } => {
             Some(Tree::Select { qualifier: typed_qualifier(l, t, qualifier)?, name })
         }
