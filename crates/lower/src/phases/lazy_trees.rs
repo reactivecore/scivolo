@@ -108,10 +108,13 @@ pub fn method_def(l: &mut Lower, m: SymbolId, result: TypeId, rhs: TNodeId) -> T
     l.positioned(def)
 }
 
-/// A copy of selection, application or reference `t` with its spans, for a tree dotty shares.
+/// A copy of selection, application, reference or literal `t` with its spans, for a tree dotty
+/// shares.
 pub fn dup(l: &mut Lower, t: TNodeId) -> TNodeId {
     let tree = match *l.tpd.tree(t) {
         Tree::Ident { name } => Tree::Ident { name },
+        Tree::This { qual } => Tree::This { qual },
+        Tree::Literal { ref value } => Tree::Literal { value: value.clone() },
         Tree::Select { qualifier, name } => Tree::Select { qualifier: dup(l, qualifier), name },
         Tree::Apply { fun, args } => {
             let args: Vec<TNodeId> = l.tpd.items(args).to_vec();

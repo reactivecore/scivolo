@@ -28,9 +28,10 @@ impl Typer<'_> {
             self.ast.with_span(bind, self.ast.span(id));
             return self.typed(bind, pt, ctx);
         }
-        let tpt = self.typed_type(tpt, ctx.with_mode(Mode::NONE));
+        let pattern = ctx.mode.is(Mode::PATTERN);
+        let tpt = self.typed_type(tpt, ctx.with_mode(if pattern { Mode::PATTERN_TYPE } else { Mode::NONE }));
         let tpe = self.tpd.tpe(tpt);
-        if ctx.mode.is(Mode::PATTERN) && !self.is_checkable_type(tpe) {
+        if pattern && !self.is_testable_type(tpe) {
             return self.unsupported(id, "type pattern needing a type test or type binding");
         }
         let expr = self.typed(expr, Pt::Type(tpe), ctx);
@@ -97,16 +98,20 @@ impl Typer<'_> {
         self.is_class_type(t, false)
     }
 
-    /// Whether `t` is a checkable class type or a union or intersection of them.
-    fn is_checkable_type(&mut self, t: TypeId) -> bool {
+    /// Whether a typed pattern can test for `t`: a class type, possibly applied, a singleton
+    /// type, or a union or intersection of them.
+    fn is_testable_type(&mut self, t: TypeId) -> bool {
+        let t = self.dealiased(t);
         match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b, _) => self.is_checkable_type(a) && self.is_checkable_type(b),
-            _ => self.is_checkable_class_type(t),
+            Type::And(a, b) | Type::Or(a, b, _) => self.is_testable_type(a) && self.is_testable_type(b),
+            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
+            Type::Sym(_, s) if !self.u.symbol(s).kind.is_type() => true,
+            _ => self.is_class_type(t, true),
         }
     }
 
-    /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
-    pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
+    /// `t` with its aliases, also those of script symbols, followed.
+    fn dealiased(&mut self, t: TypeId) -> TypeId {
         let mut t = self.u.dealias(t);
         for _ in 0..8 {
             let Type::Sym(_, s) = *self.u.types().get(t) else { break };
@@ -118,6 +123,33 @@ impl Typer<'_> {
             let Type::Alias(target) = *self.u.types().get(info) else { break };
             t = target;
         }
+        t
+    }
+
+    /// Type arguments `args` of a pattern's type tree with each wildcard replaced by a bind of a
+    /// pattern-bound type `_$n` (dotty's `typedType` with `mapPatternBounds`); their types.
+    pub fn pattern_bound_args(&mut self, args: &mut [TNodeId], types: Vec<TypeId>, ctx: Ctx) -> Vec<TypeId> {
+        if !ctx.mode.is(Mode::PATTERN_TYPE) {
+            return types;
+        }
+        for a in args.iter_mut() {
+            let T::TypeBoundsTree { alias: None, .. } = *self.tpd.tree(*a) else { continue };
+            let name = self.fresh.next(self.names, "_$");
+            let text = self.text(name).to_owned();
+            let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
+            self.u.set_info(sym, self.tpd.tpe(*a));
+            let tpe = self.u.intern_type(Type::Sym(None, sym));
+            let span = self.tpd.span(*a);
+            let name = TName { name, is_type: true };
+            let span = Span::synthetic(span.start(), span.end());
+            *a = self.tpd.node(T::Bind { name, body: *a }, span, Some(tpe), Some(sym));
+        }
+        args.iter().map(|&a| self.tpd.tpe(a)).collect()
+    }
+
+    /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
+    pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
+        let t = self.dealiased(t);
         let (tycon, args) = match self.u.types().get(t).clone() {
             Type::Applied(tc, args) => (tc, args),
             _ => (t, Vec::new()),
@@ -158,6 +190,7 @@ impl Typer<'_> {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
             Type::TermRef(p, name) => self.u.resolve(p, &name, false),
+            Type::This(c) => self.u.class_symbol(c),
             _ => None,
         };
         let span = self.ast.span(id);

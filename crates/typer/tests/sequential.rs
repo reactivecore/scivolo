@@ -208,7 +208,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "self type",
         ),
         (
-            "class Bar[T] { def value: T = ??? }\nobject M:\n  def f(x: Any) = x match\n    case y: Bar[_] => y.value\n",
+            "object M:\n  def f[T](x: Any) = x match\n    case y: T => y\n",
             "type pattern needing a type test or type binding",
         ),
         (

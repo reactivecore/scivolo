@@ -24,6 +24,7 @@ arrays
 localdefs
 matches
 typepatterns
+typepatterns2
 caseclasses
 mixins
 extractors

@@ -144,9 +144,6 @@ impl Translator<'_, '_> {
         match *self.l.tpd.tree(pat) {
             Tree::Typed { expr: inner, tpt } => {
                 let target = self.l.tpd.tpe(tpt);
-                if self.is_singleton(target) {
-                    return unsupported(span, "type patterns of singleton types");
-                }
                 let value = self.l.ident(scrutinee, Span::NONE);
                 let cast = self.cast(value, target);
                 let body = self.let_abstract(cast, None, |t, casted| {

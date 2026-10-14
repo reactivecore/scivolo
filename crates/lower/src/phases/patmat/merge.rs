@@ -90,7 +90,8 @@ impl Translator<'_, '_> {
     fn same_class(&mut self, a: TypeId, b: TypeId) -> bool {
         let mut class = |t: TypeId| {
             let t = self.l.u.dealias(t);
-            let plain = matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..));
+            let plain =
+                matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..)) && !self.is_singleton(t);
             plain.then(|| self.l.u.class_symbol(t)).flatten()
         };
         let a = class(a);

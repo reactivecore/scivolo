@@ -1,9 +1,21 @@
 use super::Typer;
+use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     pub fn is_stable_member(&mut self, s: SymbolId) -> bool {
         is_stable_member(self.u, s)
+    }
+
+    /// Whether `tree` is a literal, `this`, or a path of stable members.
+    pub fn is_stable_path(&mut self, tree: TNodeId) -> bool {
+        let stable = |t: &mut Self, r| t.tpd.sym(r).is_some_and(|s| t.is_stable_member(s));
+        match *self.tpd.tree(tree) {
+            T::Literal { .. } | T::This { .. } => true,
+            T::Ident { .. } => stable(self, tree),
+            T::Select { qualifier, .. } => stable(self, tree) && self.is_stable_path(qualifier),
+            _ => false,
+        }
     }
 
     /// `t` widened while it is a by-name type or a reference to an unstable term (dotty's
