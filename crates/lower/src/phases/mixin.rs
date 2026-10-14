@@ -124,16 +124,6 @@ pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolI
         .collect()
 }
 
-/// `f` with method `meth` of a local trait having its type before `LambdaLift`.
-fn before_lifting<'a, R>(l: &mut Lower<'a>, meth: SymbolId, f: impl FnOnce(&mut Lower<'a>) -> R) -> R {
-    let Some(&(before, _)) = l.trait_methods.get(&meth) else { return f(l) };
-    let lifted = l.u.info(meth);
-    l.u.set_info(meth, before);
-    let out = f(l);
-    l.u.set_info(meth, lifted);
-    out
-}
-
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
 /// or value of its name and erased signature, or matching it, in the linearization of `class`,
 /// bridges aside.
@@ -171,7 +161,8 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
 }
 
 /// `def m(params) = C.super[T].m(params)` in class `class` for method `meth` of trait `mixin`,
-/// passing first the fields of `class` holding the local values a local trait's `meth` takes.
+/// for a local trait's `meth` of its type before `LambdaLift`, passing first the fields of
+/// `class` holding the local values it takes.
 fn forwarder(
     l: &mut Lower,
     class: SymbolId,
@@ -179,7 +170,7 @@ fn forwarder(
     meth: SymbolId,
     span: syntax::ast::Span,
 ) -> Result<TNodeId> {
-    let values = l.trait_methods.get(&meth).map(|(_, vs)| vs.clone()).unwrap_or_default();
+    let (info, values) = l.trait_methods.get(&meth).cloned().unwrap_or_else(|| (l.u.info(meth), Vec::new()));
     let mut fields = Vec::new();
     for (v, _) in values {
         let Some(&field) = l.captured_fields.get(&(class, v)) else {
@@ -189,22 +180,19 @@ fn forwarder(
     }
     let jdk = is_jdk(l, mixin);
     let flags = l.u.symbol(meth).flags;
-    let (sym, def) = before_lifting(l, meth, |l| {
-        let info = l.u.info(meth);
-        let info = if jdk { with_java_param_names(l, info) } else { info };
-        l.method_like(class, meth, flags, info, span, |l, args, result| {
-            let sup = l.super_mix(class, mixin, span);
-            let fun = l.select(sup, meth, span);
-            let mut all: Vec<TNodeId> = fields
-                .iter()
-                .map(|&f| {
-                    let this = l.this(class, span);
-                    l.select(this, f, span)
-                })
-                .collect();
-            all.extend_from_slice(args);
-            l.apply(fun, &all, result, span)
-        })
+    let info = if jdk { with_java_param_names(l, info) } else { info };
+    let (sym, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
+        let sup = l.super_mix(class, mixin, span);
+        let fun = l.select(sup, meth, span);
+        let mut all: Vec<TNodeId> = fields
+            .iter()
+            .map(|&f| {
+                let this = l.this(class, span);
+                l.select(this, f, span)
+            })
+            .collect();
+        all.extend_from_slice(args);
+        l.apply(fun, &all, result, span)
     })?;
     if !jdk {
         l.forwarded.insert(sym, meth);

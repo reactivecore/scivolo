@@ -118,7 +118,7 @@ fn pass_values(l: &mut Lower, root: TNodeId, methods: &FxHashMap<SymbolId, &[Sym
             }
             false => reference,
         };
-        let mut all: Vec<TNodeId> = values.iter().map(|&v| l.ident(v, span)).collect();
+        let mut all: Vec<TNodeId> = values.iter().map(|&v| l.ident(v, span.end_pos())).collect();
         all.extend(args);
         make_call(l, t, m, reference, fun, all);
     }

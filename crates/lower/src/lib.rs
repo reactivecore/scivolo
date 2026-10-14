@@ -63,6 +63,9 @@ pub struct Lower<'a> {
     /// The methods of local traits taking the local values they use first: each one's type
     /// before, and the values with the parameters standing for them.
     trait_methods: FxHashMap<SymbolId, (tasty::TypeId, Vec<(SymbolId, SymbolId)>)>,
+    /// The calls `LambdaLift` made of references to methods without parameter lists, which
+    /// dotty's `LetOverApply` sees as references.
+    applied_references: FxHashSet<TNodeId>,
     /// The methods of local traits each class gets forwarders to, decided before `LambdaLift`.
     trait_forwards: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The casts phases make that codegen keeps even to a supertype (dotty's `cast`).
@@ -133,6 +136,7 @@ pub fn lower(
         captured_fields: FxHashMap::default(),
         trait_methods: FxHashMap::default(),
         trait_forwards: FxHashMap::default(),
+        applied_references: FxHashSet::default(),
         local_classes: FxHashSet::default(),
         explicit_casts: FxHashSet::default(),
         null_casts: FxHashSet::default(),

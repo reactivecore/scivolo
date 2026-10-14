@@ -119,7 +119,8 @@ fn end_span(l: &Lower, td: TNodeId) -> Span {
     Span::at(l.tpd.span(template).end().max(l.tpd.span(td).point()))
 }
 
-fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
+/// Appends `defs` to the body of class definition `td`.
+pub fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return };
     let stats: Vec<TNodeId> = l.tpd.items(body).iter().chain(defs).copied().collect();

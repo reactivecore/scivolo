@@ -47,29 +47,20 @@ pub fn is_anonymous(l: &Lower, class: SymbolId) -> bool {
     l.u.symbol(class).name.starts_with("$anon")
 }
 
-/// The prefix of the name of the accessor of the enclosing instance of local class `class`:
-/// its enclosing class's name, without an object's `$`, a `_$` for each term it is in, then its
-/// name (dotty's `fullNameSeparated`).
-fn accessor_prefix(l: &Lower, class: SymbolId) -> String {
+/// The prefix of the name of the accessor of the enclosing instance of class `class` defined in a
+/// term or in a class defined in one: its enclosing class's, without an object's `$`, a `_$` for
+/// each term it is in, then its name (dotty's `fullNameSeparated`).
+pub fn separated_name(l: &Lower, class: SymbolId) -> String {
     let mut filler = String::new();
-    let mut owner = l.u.symbol(class).owner.expect("a local class's owner");
+    let mut owner = l.u.symbol(class).owner.expect("a class's owner");
     while is_term(l, owner) {
         filler.push_str("_$");
         owner = l.u.symbol(owner).owner.expect("a term's owner");
     }
-    let enclosing = l.u.binary_name(owner).replace('.', "$");
+    let enclosing = match super::explicit_outer::in_term(l, owner) {
+        true => separated_name(l, owner),
+        false => l.u.binary_name(owner).replace('.', "$"),
+    };
     let enclosing = enclosing.strip_suffix('$').filter(|_| l.u.is_module_class(owner)).unwrap_or(&enclosing);
     format!("{enclosing}${filler}{}", l.u.symbol(class).name)
-}
-
-/// The prefix of the name of the accessor of the enclosing instance of class `class` defined in a
-/// term or in a class defined in one (dotty's `fullNameSeparated`).
-pub fn separated_name(l: &Lower, class: SymbolId) -> String {
-    let owner = l.u.symbol(class).owner.expect("a class's owner");
-    if is_term(l, owner) {
-        return accessor_prefix(l, class);
-    }
-    let prefix = separated_name(l, owner);
-    let prefix = prefix.strip_suffix('$').filter(|_| l.u.is_module_class(owner)).unwrap_or(&prefix);
-    format!("{prefix}${}", l.u.symbol(class).name)
 }

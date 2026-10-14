@@ -133,6 +133,7 @@ pub fn make_call(
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
+        l.applied_references.insert(t);
     }
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
 }

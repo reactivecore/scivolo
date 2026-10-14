@@ -1,14 +1,14 @@
 //! Lambdas and local methods (dotty's `LambdaLift`): each `{ def $anonfun(ps) = body; closure }`
 //! and each `def f(ps) = body` in a block of a class's methods, field initializers or statements
-//! becomes a private method of the class taking the captured values first; closures and calls
-//! pass them.
+//! becomes a private method taking the captured values first, of the class if it needs `this`,
+//! else static in the top-level class; closures and calls pass them.
 
 use super::captures::dependencies;
 use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
 use crate::symbols::{has, is_static};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use tasty::tags::{FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -31,7 +31,6 @@ pub struct Function {
 struct Lifting {
     class: SymbolId,
     template: TNodeId,
-    stats: Vec<TNodeId>,
     functions: Vec<Function>,
     methods: Vec<Method>,
 }
@@ -53,37 +52,18 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     for caller in &pending.callers {
         super::lifted_calls::calls_from_class(l, caller, &lifted)?;
     }
-    let (mut deferred, mut elsewhere) = (Vec::new(), Vec::new());
+    let mut deferred = Vec::new();
     for c in liftings {
         let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
         deferred.extend(adapted);
-        let (own, other): (Vec<TNodeId>, Vec<TNodeId>) = lifted
-            .into_iter()
-            .partition(|&d| l.tpd.sym(d).and_then(|s| l.u.symbol(s).owner) == Some(c.class));
-        set_body(l, c.template, c.stats.into_iter().chain(own).collect());
-        elsewhere.extend(other);
-    }
-    for def in elsewhere {
-        let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
-        let Some(&td) = classes.iter().find(|&&td| l.tpd.sym(td) == owner) else {
-            return unsupported(l.tpd.span(def), "lifting into a class of another unit");
-        };
-        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-        let Tree::Template { body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
-        let stats = l.tpd.items(body).iter().copied().chain([def]).collect();
-        set_body(l, template, stats);
+        for def in lifted {
+            let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
+            let &td = classes.iter().find(|&&td| l.tpd.sym(td) == owner).expect("a class of the unit");
+            super::outer_traits::append(l, td, &[def]);
+        }
     }
     name_proxies(l, &deferred);
     Ok(())
-}
-
-/// Makes `stats` the body of `template`.
-fn set_body(l: &mut Lower, template: TNodeId, stats: Vec<TNodeId>) {
-    let body = l.tpd.list(&stats);
-    let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(template) else {
-        unreachable!("a template")
-    };
-    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
 }
 
 /// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
@@ -145,7 +125,7 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
         f.this &= !in_static.contains(&i);
     }
     let methods = methods(l, class, &functions)?;
-    Ok(Some(Lifting { class, template, stats, functions, methods }))
+    Ok(Some(Lifting { class, template, functions, methods }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.

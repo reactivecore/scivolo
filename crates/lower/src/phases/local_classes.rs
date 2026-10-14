@@ -7,8 +7,10 @@ use super::lift_names::{Caller, LocalClass, Pending};
 use super::local_free::{Free, Local, enclosing_class, free_values, is_method, is_term, lifted_into};
 use super::local_lift::{lift, pass_values};
 use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
+use super::nested_reads::Nested;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::MUTABLE;
 use tasty::{Kind, SymbolId, Type};
@@ -51,12 +53,18 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     }
     super::local_traits::transform(l, root, &traits, &deps, &mut pending)?;
     pending.deps = Some(deps);
+    let own = locals
+        .iter()
+        .map(|c| (c.class, c.free.values.iter().chain(&c.free.in_methods).copied().collect()))
+        .collect();
+    let mut nested = Nested { own, named_in: FxHashMap::default() };
     let mut classes = Vec::new();
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
         if !l.u.is_trait(class) {
-            add_proxies(l, td, class, &free, (&fields, &params), &spans)?;
+            add_proxies(l, td, class, &free, (&fields, &params), (&spans, &mut nested))?;
         }
+        let named_in = nested.named_in.get(&class).copied().unwrap_or(named_in);
         if free.called.iter().any(|&(f, _)| l.u.symbol(f).kind == Kind::Def) {
             let fields = free.in_methods.iter().copied().zip(fields).collect();
             let params = free.values.iter().copied().zip(params).collect();
@@ -82,15 +90,15 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
 
 /// Adds to class definition `td` a leading constructor parameter of `params` for each value of
 /// `free` and a private field of `fields`, at the value's definition span of `spans`, for each its
-/// methods use; makes the references to them in its methods and nested classes read the fields
-/// and elsewhere the parameters.
+/// methods use; makes the references to them in its methods and nested classes, but to those a
+/// nested local class captures itself by `nested`, read the fields and elsewhere the parameters.
 fn add_proxies(
     l: &mut Lower,
     td: TNodeId,
     class: SymbolId,
     free: &Free,
     (fields, params): (&[SymbolId], &[SymbolId]),
-    spans: &[Span],
+    (spans, nested): (&[Span], &mut Nested),
 ) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
@@ -116,9 +124,10 @@ fn add_proxies(
             Tree::DefDef { .. } if is_method(l, l.tpd.sym(stat)) => {
                 redirect(l, stat, &free.in_methods, fields, Some(class))
             }
-            Tree::TypeDef { .. } => super::nested_reads::redirect(l, stat, class, &free.in_methods, fields)?,
+            Tree::TypeDef { .. } => {}
             _ => redirect(l, stat, &free.values, params, None),
         }
+        super::nested_reads::redirect(l, stat, class, (&free.in_methods, fields), nested)?;
     }
     let stats: Vec<TNodeId> = field_defs.into_iter().chain(l.tpd.items(body).iter().copied()).collect();
     let body = l.tpd.list(&stats);
@@ -168,10 +177,10 @@ fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) 
     }
 }
 
-/// Makes the references in `t` to values `free` refer to `to`, fields of `this` of `class` if
-/// given.
+/// Makes the references in `t`, outside the classes defined in it, to values `free` refer to
+/// `to`, fields of `this` of `class` if given.
 fn redirect(l: &mut Lower, t: TNodeId, free: &[SymbolId], to: &[SymbolId], class: Option<SymbolId>) {
-    for s in super::walk::subtrees(l.tpd, t) {
+    for s in super::explicit_outer::terms(l, t, false) {
         if !matches!(l.tpd.tree(s), Tree::Ident { .. }) {
             continue;
         }

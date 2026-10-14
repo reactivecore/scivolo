@@ -61,6 +61,14 @@ const CASES: &[(&str, &str)] = &[
         "local traits initializing with captured values",
     ),
     (
+        "object O { def f(k: Int) = { trait T { lazy val v = k }; new T {}.v } }",
+        "members of local traits other than methods capturing values",
+    ),
+    (
+        "object O { def f(k: Int) = { trait T { def g[A]: Int = k }; new T {}.g[String] } }",
+        "references to generic methods of local traits",
+    ),
+    (
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
         "classes in local classes calling local methods",
     ),

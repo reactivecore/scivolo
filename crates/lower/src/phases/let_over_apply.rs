@@ -19,7 +19,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) {
 fn lift(l: &mut Lower, t: TNodeId) {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return };
     let (block, fun) = match *l.tpd.tree(fun) {
-        _ if is_inlined(l, fun) => return,
+        _ if is_inlined(l, fun) || l.applied_references.contains(&t) => return,
         Tree::Select { qualifier, name } => {
             let Tree::Block { expr, .. } = *l.tpd.tree(qualifier) else { return };
             if matches!(l.tpd.tree(expr), Tree::Closure { .. }) || is_inlined(l, qualifier) {

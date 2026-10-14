@@ -62,6 +62,56 @@ object Shapes {
     b.m + b.read
   }
 
+  def counted(step: Int) = {
+    var count = 0
+    trait Counter { def bump() = count += step }
+    class Ticks extends Counter
+    val t = new Ticks
+    t.bump()
+    t.bump()
+    count
+  }
+
+  def recursive(k: Int) = {
+    trait Fact { def fact(n: Int): Int = if n <= 1 then k else n * fact(n - 1) }
+    new Fact {}.fact(4)
+  }
+
+  def overriding(k: Int) = {
+    trait Base { def m = k }
+    class Plus extends Base { override def m = super.m + 1 }
+    new Plus().m
+  }
+
+  def twoClasses(a: Int, b: Int) = {
+    class First { def get = a }
+    class Second { def get = b * 10 }
+    new First().get + new Second().get
+  }
+
+  def parenless(k: Int) = {
+    trait Value { def v = k * 2 }
+    new Value {}.v
+  }
+
+  def fromClass(k: Int) = {
+    trait Source { def m = k }
+    class User { def use(s: Source) = s.m + 1 }
+    new User().use(new Source {})
+  }
+
+  def inMethods(k: Int) = {
+    class Holder {
+      def m = { class Local { def x = k * 3 }; new Local().x }
+      def r = new Runnable { def run() = println(k + 1) }
+      class Member { def r = new Runnable { def run() = println(k + 2) } }
+    }
+    val h = new Holder
+    h.r.run()
+    new h.Member().r.run()
+    h.m
+  }
+
   def nested(k: Int, s: String) = {
     class Outer {
       class Inner {
@@ -93,6 +143,13 @@ object localtraits {
     println(Shapes.make(3, "ab"))
     println(Shapes.kinds(2))
     println(Shapes.chained(5))
+    println(Shapes.counted(3))
+    println(Shapes.recursive(2))
+    println(Shapes.overriding(4))
+    println(Shapes.twoClasses(1, 2))
+    println(Shapes.parenless(6))
+    println(Shapes.fromClass(7))
+    println(Shapes.inMethods(8))
     println(Shapes.nested(2, "xy"))
   }
 }
