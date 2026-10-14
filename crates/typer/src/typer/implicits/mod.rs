@@ -1,9 +1,12 @@
 //! Implicit search (dotty's `Implicits`, `Synthesizer`): implicit arguments, class tags, and
 //! implicit conversions.
 
+mod alt_types;
+mod as_good;
 mod can_equal;
 mod candidates;
 mod clauses;
+mod contextual;
 pub(super) mod conversions;
 mod not_given;
 mod ranking;

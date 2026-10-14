@@ -1,8 +1,7 @@
-//! The implicits visible in a context, innermost first (dotty's `ContextualImplicits`), and
-//! references to them.
+//! Implicit members of classes and imports, and references to them.
 
 use super::super::Typer;
-use crate::ctx::{Ctx, Level};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::tags::{GIVEN, IMPLICIT, PRIVATE};
@@ -22,16 +21,19 @@ impl Typer<'_> {
     }
 
     /// The implicit members of class `c` and its base classes, the private ones of `c` if
-    /// `own_private`.
+    /// `own_private`, those overridden in a class before them in the linearization left out.
     pub fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
         self.complete(c);
+        let site = crate::defn::type_ref(self.u, c);
+        let lin = self.u.linearization(c);
         let mut out = Vec::new();
-        for base in self.u.linearization(c) {
+        for (i, &base) in lin.iter().enumerate() {
             self.complete(base);
             for d in self.u.decls(base).unwrap_or_default() {
                 if self.is_implicit(d)
                     && (own_private && base == c || !self.u.symbol(d).flags.has(PRIVATE))
                     && !out.contains(&d)
+                    && !self.overridden_in(site, &lin[..i], d)
                 {
                     out.push(d);
                 }
@@ -40,47 +42,24 @@ impl Typer<'_> {
         out
     }
 
-    /// The implicits visible in `ctx` that do not come too late, by nesting level, innermost
-    /// first, an import at the level of the scope it is in; `Err` if seeing them needs a symbol
-    /// whose completion is in progress (dotty's cyclic reference).
-    pub fn contextual_implicits(&mut self, ctx: Ctx) -> Result<Vec<Vec<Candidate>>, &'static str> {
-        let mut levels: Vec<(Option<crate::ctx::LevelId>, Vec<Candidate>)> = Vec::new();
-        let mut level = Some(ctx.level);
-        while let Some(l) = level {
-            let (scope, owner, import) = match self.levels.get(l) {
-                Level::Scope(entries) => (entries.iter().map(|&(_, s)| s).collect(), None, None),
-                Level::Members(owner) => (Vec::new(), Some(*owner), None),
-                Level::Import(i) => (Vec::new(), None, Some(*i)),
-            };
-            let mut found: Vec<Candidate> = scope
-                .into_iter()
-                .filter(|&s| self.is_implicit(s))
-                .map(|sym| Candidate { sym, prefix: None })
-                .collect();
-            if let Some(owner) = owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) {
-                let this = crate::defn::type_ref(self.u, owner);
-                let prefix = Some(self.u.intern_type(Type::This(this)));
-                found.extend(
-                    self.implicit_members(owner, true).into_iter().map(|sym| Candidate { sym, prefix }),
-                );
+    /// Whether a class of `bases` declares a member that overrides `d` as seen from `site`.
+    fn overridden_in(&mut self, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
+        let name = self.u.symbol(d).name.clone();
+        for &b in bases {
+            for m in self.u.decl(b, &name).unwrap_or_default() {
+                let s = self.u.symbol(m);
+                let term = s.kind.is_term() && s.kind != Kind::Param;
+                if m != d && term && !s.flags.has(PRIVATE) && self.same_member(site, m, d) {
+                    return true;
+                }
             }
-            if let Some(i) = import {
-                found.extend(self.imported_implicits(i)?);
-            }
-            found.retain(|c| !self.comes_too_late(c.sym, ctx));
-            let key = self.levels.def_scope(l);
-            match levels.last_mut() {
-                Some((k, group)) if *k == key => group.extend(found),
-                _ => levels.push((key, found)),
-            }
-            level = self.levels.outer(l);
         }
-        Ok(levels.into_iter().map(|(_, g)| g).filter(|g| !g.is_empty()).collect())
+        false
     }
 
-    /// The implicits import `i` makes visible: implicit members by a wildcard, givens by `given`,
-    /// either by name.
-    fn imported_implicits(&mut self, i: usize) -> Result<Vec<Candidate>, &'static str> {
+    /// The implicits import `i` makes visible, with the names they are visible under: implicit
+    /// members by a wildcard, givens by `given`, either by name.
+    pub fn imported_implicits(&mut self, i: usize) -> Result<Vec<(Candidate, String)>, &'static str> {
         let Some(info) = self.import_info(i) else { return Ok(Vec::new()) };
         let qual = info.qual;
         let names: Vec<(String, String)> =
@@ -115,9 +94,9 @@ impl Typer<'_> {
             let name = self.u.symbol(sym).name.clone();
             let given = self.u.symbol(sym).flags.has(GIVEN);
             let excluded = names.iter().any(|(n, r)| *n == name && r == "_");
-            let named = names.iter().any(|(n, r)| *n == name && r != "_");
-            if !excluded && (named || if given { givens } else { wildcard }) {
-                out.push(Candidate { sym, prefix: Some(qual) });
+            let named = names.iter().find(|(n, r)| *n == name && r != "_").map(|(_, r)| r.clone());
+            if !excluded && (named.is_some() || if given { givens } else { wildcard }) {
+                out.push((Candidate { sym, prefix: Some(qual) }, named.unwrap_or(name)));
             }
         }
         Ok(out)

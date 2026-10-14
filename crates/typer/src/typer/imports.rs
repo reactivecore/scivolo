@@ -20,6 +20,8 @@ pub struct ImportInfo {
     pub selectors: Vec<Selector>,
     /// The typed path; `None` for a root import.
     pub expr: Option<TNodeId>,
+    /// The owner of the context the import is in; `None` for a root import.
+    pub owner: Option<SymbolId>,
 }
 
 impl ImportInfo {
@@ -58,7 +60,7 @@ impl Typer<'_> {
         if self.import_site(qual) == Some(self.defn.predef) {
             selectors.insert(0, selector("any2stringadd", "_"));
         }
-        self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None }));
+        self.imports.push(ImportEntry::Done(ImportInfo { qual, selectors, expr: None, owner: None }));
         self.levels.push(outer, Level::Import(self.imports.len() - 1))
     }
 
@@ -112,7 +114,8 @@ impl Typer<'_> {
                 );
             }
             let selectors = self.selectors(selectors);
-            self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed) });
+            let owner = Some(ctx.owner);
+            self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed), owner });
         }
         match &self.imports[i] {
             ImportEntry::Done(info) => Some(info),

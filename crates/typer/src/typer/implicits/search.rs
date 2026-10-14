@@ -9,12 +9,14 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::{Type, TypeId, TypeVars};
+use tasty::{Type, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
 const MAX_DEPTH: u32 = 6;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
+/// The refusal of a search whose winner among several leaves type variables to instantiate.
+const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
 const MISFITS: [&str; 7] = [
@@ -53,8 +55,11 @@ impl Typer<'_> {
         if let Some(negated) = self.not_given_arg(pt) {
             return self.not_given(negated, at, ctx, depth);
         }
+        if self.is_underspecified(pt) {
+            return Err("no implicit argument");
+        }
         let coherent = self.class_args(pt, "scala.CanEqual").is_some();
-        let mut groups = self.contextual_implicits(ctx)?;
+        let mut groups = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
         groups.push(self.implicit_scope(pt));
         for group in groups {
             let mut nested_failure = false;
@@ -69,12 +74,16 @@ impl Typer<'_> {
                     return Err("implicit candidate rejected by a search with type variables");
                 }
                 [c] => *c,
-                _ if !self.is_fully_defined(pt) => {
-                    return Err("implicit search for a type with type variables");
-                }
+                _ if coherent && !self.is_fully_defined(pt) => return Err(OPEN),
                 [c, ..] if coherent => *c,
-                _ => self.most_specific(&found).ok_or("ambiguous implicit arguments")?,
+                _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
+            if found.len() > 1 && !self.is_fully_defined(pt) {
+                let tpe = self.alt_type(winner);
+                if matches!(self.u.types().get(tpe), Type::Poly { .. }) {
+                    return Err(OPEN);
+                }
+            }
             return self.try_implicit(winner, pt, at, ctx, depth);
         }
         match self.synthesized(pt, at, ctx, depth)? {
@@ -112,25 +121,6 @@ impl Typer<'_> {
         };
         let class = self.u.class_symbol(tycon)?;
         (self.u.full_name(class) == name).then_some(args)
-    }
-
-    /// `t` with its type variables whose bounds are equal instantiated to them.
-    fn determined(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                vars.push(v);
-            }
-            None
-        });
-        for v in vars {
-            let (lo, hi) = self.constraint.bounds(v);
-            if lo == hi && self.constraint.instance(v).is_none() {
-                self.constraint.instantiate(v, lo);
-            }
-        }
-        self.zonk(t)
     }
 
     /// The candidates of `group` that `attempt` accepts, each tried with the constraint and the
