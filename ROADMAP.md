@@ -205,6 +205,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 with no JVM involved. Status (2026-10-12, #89): `scalai FILE.scala` compiles through the own
 frontend; edit-then-run takes 15 ms for hello, 25 ms for matches, 38 ms for caseclasses;
 `moderate.scala` is still refused by the typer (`List[?]` type patterns, an inaccessible member).
+With group F's patterns (branch `83-typer-f1`) it compiles, and edit-then-run takes ~90 ms; the
+plan to 50 ms is
+[research 17](docs/research/17-frontend-speed.md) §5 (#100).
 
 ## Phase 4 — macros without a JVM (~4–6 person-months)
 

@@ -157,7 +157,7 @@ Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 
 ```
 ROADMAP.md          phases, milestones, next steps, open decisions
-docs/research/      three research reports
+docs/research/      numbered research reports
 docs/adr/           architectural decisions
 spikes/NN-*/        throwaway experiments, each with README.md
 CLAUDE.md           project rules (Rust style from rcui)
