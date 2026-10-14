@@ -431,7 +431,7 @@ fn comparisons_of_a_dag_of_bounds_take_one_step_per_pair() {
     let Some(mut u) = universe() else { return };
     let one_or_3 = parse(&mut u, "1 | 3");
     let t = bound_dag(&mut u, 40);
-    let start = std::time::Instant::now();
+    let start = u.subtype_steps;
     assert!(!u.is_subtype(t, one_or_3));
     let (one, three, string) = (parse(&mut u, "1"), parse(&mut u, "3"), u.class_ref("java.lang.String"));
     assert!(!u.is_subtype(t, one));
@@ -441,7 +441,8 @@ fn comparisons_of_a_dag_of_bounds_take_one_step_per_pair() {
     assert!(!u.is_subtype(one_or_t, three));
     u.lub(t, one);
     u.glb(t, one_or_3);
-    assert!(start.elapsed().as_secs() < 5, "took {:?}", start.elapsed());
+    let steps = u.subtype_steps - start;
+    assert!(steps < 1_000_000, "took {steps} steps");
 }
 
 #[test]
