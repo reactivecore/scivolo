@@ -5,7 +5,7 @@ use crate::ctx::{Ctx, Level, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::tree::MatchKind;
 use syntax::ast::{Attrs, List, NodeId, Tree};
-use tasty::{NOTHING, Type, TypeId};
+use tasty::{NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_match(
@@ -84,8 +84,13 @@ impl Typer<'_> {
         let boolean = self.boolean();
         let guard = guard.map(|g| self.typed(g, Pt::Type(boolean), cctx));
         let typed_body = self.typed(body, pt, cctx);
-        let locals = self.levels.scope_symbols(level);
-        let Some(body) = self.no_local_refs(typed_body, &locals, pt) else {
+        let mut locals = self.levels.scope_symbols(level);
+        let mut types = Vec::new();
+        self.pattern_types(pat, &mut types);
+        locals.extend(types.iter().filter(|t| !locals.contains(t)).copied().collect::<Vec<_>>());
+        let unconstrained = self.is_top(selector);
+        let (bounded, opaque): (&[_], &[_]) = if unconstrained { (&types, &[]) } else { (&[], &types) };
+        let Some(body) = self.no_local_refs(typed_body, &locals, [bounded, opaque], pt) else {
             return self.unsupported(id, "case type with pattern variables");
         };
         let span = self.ast.span(id);
@@ -106,6 +111,28 @@ impl Typer<'_> {
         let trees = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
+    }
+
+    /// The types bound in pattern `t`, appended to `out`.
+    fn pattern_types(&self, t: TNodeId, out: &mut Vec<SymbolId>) {
+        if let T::Bind { .. } = self.tpd.tree(t)
+            && let Some(s) = self.tpd.sym(t)
+            && self.u.is_type_symbol(s)
+        {
+            out.push(s);
+        }
+        for c in self.tpd.children(t) {
+            self.pattern_types(c, out);
+        }
+    }
+
+    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, against which a pattern's type constrains
+    /// none of its bound types.
+    fn is_top(&mut self, t: TypeId) -> bool {
+        let t = self.u.dealias(t);
+        let b = self.u.builtins();
+        let tops = [b.any, b.matchable, b.object];
+        matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s))
     }
 
     /// Whether pattern `t` or a pattern inside it binds a variable.

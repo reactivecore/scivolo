@@ -49,9 +49,16 @@ impl Typer<'_> {
     }
 
     /// Block result `expr`, ascribed a type without references to `locals` if its own has some
-    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, or `pt` if that
-    /// does not conform to `pt`; `None` if a reference remains.
-    pub fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
+    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, a `bounded` type to
+    /// its upper bound, or `pt` if that does not conform to `pt`; `None` if a reference remains
+    /// or one to an `opaque` type, whose bounds are unknown, is reached.
+    pub fn no_local_refs(
+        &mut self,
+        expr: TNodeId,
+        locals: &[SymbolId],
+        [bounded, opaque]: [&[SymbolId]; 2],
+        pt: Pt,
+    ) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
         let tpe = self.zonk(tpe);
         if !self.escapes(tpe, locals) {
@@ -85,6 +92,12 @@ impl Typer<'_> {
                 break;
             }
             if self.u.is_type_symbol(s) {
+                if bounded.contains(&s) {
+                    let info = self.u.info(s);
+                    if let Type::Bounds(_, hi) = *self.u.types().get(info) {
+                        (avoided, checked) = (hi, true);
+                    }
+                }
                 break;
             }
             let pre = match *self.u.types().get(avoided) {
@@ -109,6 +122,9 @@ impl Typer<'_> {
             };
             avoided = if prefix.is_some() { info } else { self.u.dealias(info) };
         }
+        if self.refers_to(avoided, opaque) {
+            return None;
+        }
         if let Pt::Type(p) = pt
             && let p = self.zonk(p)
             && self.is_fully_defined(p)
@@ -120,51 +136,6 @@ impl Typer<'_> {
             return None;
         }
         Some(self.ascribed(expr, avoided))
-    }
-
-    /// Whether local class `c` with parents `parent` declares a member that dotty's `classBound`
-    /// may add as a refinement: a type member, a member narrowing an inherited one or polymorphic
-    /// and overriding one, or a member of a `Selectable`.
-    fn needs_refinement(&mut self, c: SymbolId, parent: TypeId) -> bool {
-        let selectable =
-            self.resolve_full_name("scala.Selectable", true).is_some_and(|s| self.u.derives_from(c, s));
-        let site = crate::defn::type_ref(self.u, c);
-        for d in self.u.symbol(c).decls.clone() {
-            let sym = self.u.symbol(d);
-            if sym.flags.has(tasty::tags::PRIVATE) || sym.name == "<init>" || sym.kind == tasty::Kind::Class {
-                continue;
-            }
-            if self.u.is_type_symbol(d) {
-                return true;
-            }
-            let name = sym.name.clone();
-            let info = self.u.info(d);
-            if matches!(self.u.types().get(info), Type::Poly { .. })
-                && !self.type_members(parent, &name).is_empty()
-            {
-                return true;
-            }
-            let inherited: Vec<SymbolId> = self
-                .type_members(parent, &name)
-                .into_iter()
-                .filter(|&m| !self.u.is_type_symbol(m) && self.same_member(site, m, d))
-                .collect();
-            if inherited.is_empty() {
-                if selectable {
-                    return true;
-                }
-                continue;
-            }
-            let own = self.final_result(info);
-            for m in inherited {
-                let info = self.u.member_info(parent, m);
-                let theirs = self.final_result(info);
-                if self.u.is_subtype(own, theirs) && !self.u.is_subtype(theirs, own) {
-                    return true;
-                }
-            }
-        }
-        false
     }
 
     /// The result of method type `t` after all its clauses.
