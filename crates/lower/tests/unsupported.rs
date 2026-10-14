@@ -22,8 +22,6 @@ const CASES: &[(&str, &str)] = &[
         "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
         "ascriptions to Unit of values other than literals",
     ),
-    ("object O { def f(x: Any): Unit = x.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
-    ("object O { def f(): Unit = null.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
     (
         "class U { val a: Unit = (); def f(x: Boolean): Unit = { if x then return a; () } }",
         "returns of Unit values of class members",

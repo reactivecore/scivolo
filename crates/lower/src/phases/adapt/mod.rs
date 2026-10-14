@@ -2,13 +2,16 @@
 //! applied, values boxed, unboxed or cast.
 
 mod boxing;
+mod polymorphic;
 mod units;
 mod value;
 
+pub use polymorphic::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
+
 use super::casts::{cast, conforms, is_cast};
 use super::select_static::is_static_enum_value;
+use crate::Lower;
 use crate::symbols::{has, is_java_static};
-use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::FIELDaccessor;
 use tasty::{Erased, Kind, SymbolId, Type};
@@ -59,7 +62,7 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
         Tree::TypeApply { .. } if is_cast(l, t) => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::New { .. } => l.u.erase_boxed(l.tpd.tpe(t)),
         Tree::Block { expr, .. } => erased_type(l, expr),
-        Tree::Typed { tpt, .. } => l.u.erase_value(l.tpd.tpe(tpt)),
+        Tree::Typed { tpt, .. } => ascription_type(l, tpt),
         Tree::Ident { .. } | Tree::Select { .. } if sym == Some(l.defs.boxed_unit_unit) => {
             Erased::Class("scala.runtime.BoxedUnit".into())
         }
@@ -79,59 +82,14 @@ pub fn erased_type(l: &mut Lower, t: TNodeId) -> Erased {
     }
 }
 
-/// The erased parameters and result of array operation `fun`, a selection of `apply`, `update`
-/// or `length` on an array of a known element type; `None` for another function.
-pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
-    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
-    let m = l.tpd.sym(fun)?;
-    let owner = l.u.symbol(m).owner?;
-    if l.u.full_name(owner) != "scala.Array" {
-        return None;
-    }
-    let array = l.u.widen(l.tpd.tpe(qualifier));
-    let Erased::Array(elem) = l.u.erase(array) else { return None };
-    let int = Erased::Prim('i');
-    match l.u.symbol(m).name.as_str() {
-        "apply" => Some((vec![int], *elem)),
-        "update" => Some((vec![int, *elem], Erased::Unit)),
-        "length" => Some((Vec::new(), int)),
-        _ => None,
-    }
-}
-
-/// Whether `fun` applies `synchronized` to a type, which stays polymorphic after erasure.
-pub fn is_synchronized(l: &Lower, fun: TNodeId) -> bool {
-    matches!(*l.tpd.tree(fun),
-        Tree::TypeApply { fun: sel, .. } if l.tpd.sym(sel) == Some(l.defs.monitors.synchronized))
-}
-
-/// The erased type argument of `synchronized` application `fun`, `BoxedUnit` for `Unit`; `None`
-/// for another function.
-pub fn synchronized_type(l: &mut Lower, fun: TNodeId) -> Option<Erased> {
-    let Tree::TypeApply { args, .. } = *l.tpd.tree(fun) else { return None };
-    let &[targ] = l.tpd.items(args) else { return None };
-    is_synchronized(l, fun).then(|| match l.u.erase(l.tpd.tpe(targ)) {
-        Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
+/// The erasure of ascribed type `tpt`: `BoxedUnit` for an intersection or union erasing to `Unit`
+/// (dotty's `typedTyped`).
+pub fn ascription_type(l: &mut Lower, tpt: TNodeId) -> Erased {
+    let tpe = l.tpd.tpe(tpt);
+    match l.u.erase_value(tpe) {
+        Erased::Unit if l.u.class_symbol(tpe).is_none() => Erased::Class("scala.runtime.BoxedUnit".into()),
         e => e,
-    })
-}
-
-/// Makes identifier `sel` of `synchronized` its selection on the `this` of its type's prefix, as
-/// nscplugin's `DesugaredSelect` sees it.
-pub fn qualify_synchronized(l: &mut Lower, sel: TNodeId) -> Result<()> {
-    let Tree::Ident { name } = *l.tpd.tree(sel) else { return Ok(()) };
-    let span = l.tpd.span(sel);
-    let class = match *l.u.types().get(l.tpd.tpe(sel)) {
-        Type::Sym(Some(p), _) | Type::TermRef(p, _) => match *l.u.types().get(p) {
-            Type::This(c) => l.u.class_symbol(c),
-            _ => None,
-        },
-        _ => None,
-    };
-    let Some(class) = class else { return unsupported(span, "`synchronized` on a prefix other than `this`") };
-    let qualifier = l.this(class, span);
-    l.tpd.get_mut(sel).tree = Tree::Select { qualifier, name };
-    Ok(())
+    }
 }
 
 /// `span` with its start as point, as a tree made without a span takes from its parts.
@@ -140,10 +98,15 @@ pub fn from_start(span: Span) -> Span {
 }
 
 /// `t()`, of `t`'s result type, spanning `t` with its start as point, unless `t` refers to a Java
-/// static, which stands for a JDK field.
+/// static, which stands for a JDK field; `x.##` spanning `x` (dotty's `poundPoundValue`).
 pub fn applied_to_none(l: &mut Lower, t: TNodeId) -> TNodeId {
-    let span = match l.tpd.sym(t) {
-        Some(s) if is_java_static(l.u, s) => l.tpd.span(t),
+    let span = match (l.tpd.sym(t), l.tpd.tree(t)) {
+        (Some(s), _) if is_java_static(l.u, s) => l.tpd.span(t),
+        (Some(s), &Tree::Select { qualifier, .. })
+            if l.u.symbol(s).name == "##" && l.u.symbol(s).owner == Some(l.defs.any) =>
+        {
+            from_start(l.tpd.span(qualifier))
+        }
         _ => from_start(l.tpd.span(t)),
     };
     let widened = l.u.widen(l.tpd.tpe(t));
@@ -187,8 +150,14 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             }
             None => t,
         },
-        (from, Erased::Unit) if reference(from) || matches!(from, Erased::Prim(_)) => units::discarded(l, t),
-        (from, to) if reference(from) && reference(to) && !conforms(l, from, to) => cast(l, t, to),
+        (from, Erased::Unit) if reference(from) || matches!(from, Erased::Prim(_) | Erased::Null) => {
+            units::discarded(l, t)
+        }
+        (from, to)
+            if reference(from) && (reference(to) || *to == Erased::Nothing) && !conforms(l, from, to) =>
+        {
+            cast(l, t, to)
+        }
         _ => t,
     }
 }

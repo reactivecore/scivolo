@@ -48,6 +48,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             Some(c) => type_ref(l.u, c),
             None => l.u.class_ref(name),
         },
+        Erased::Nothing => l.u.class_ref("scala.Nothing"),
         _ => l.u.class_ref("java.lang.Object"),
     }
 }
