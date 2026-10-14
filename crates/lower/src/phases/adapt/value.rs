@@ -5,6 +5,7 @@ use super::{adapt, applied_to_none, from_start};
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::phases::casts::{cast, class_named, conforms, type_of};
+use crate::phases::literals::is_wildcard;
 use crate::phases::value_classes::eval_once_as;
 use crate::phases::vc_elide::elided;
 use syntax::ast::Span;
@@ -12,10 +13,11 @@ use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `adapt` of `t` of erased type `from`, value classes boxed into references and unboxed from
-/// them first.
+/// them first; a wildcard stays.
 pub fn adapt_from(l: &mut Lower, t: TNodeId, from: Erased, pt: &Erased) -> TNodeId {
     let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
     match (from, pt) {
+        _ if is_wildcard(l, t) => t,
         (from @ Erased::Value(..), pt) if from == *pt => t,
         (Erased::Value(_, u), Erased::Value(_, v)) => adapt_from(l, t, *u, v),
         (Erased::Value(_, u), pt) if *u == *pt => t,

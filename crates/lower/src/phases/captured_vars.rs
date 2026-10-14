@@ -6,7 +6,7 @@ use crate::definitions::{Ref, ref_class, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
-use tasty::tags::{LAZY, MUTABLE};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree, Walk, traverse};
 
@@ -39,8 +39,17 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// The local variables referred to under `t`, in class `class`, from inside a function, class or
-/// lazy value other than their own function.
+/// lazy value other than their own function; the class body and its field initializers count as
+/// the constructor.
 fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<SymbolId>) {
+    let body = match *l.tpd.tree(t) {
+        Tree::TypeDef { rhs, .. } => l.tpd.sym(rhs),
+        _ => None,
+    };
+    let initializer = |l: &Lower, f: SymbolId| {
+        let getter = has(l.u, f, FIELDaccessor) && !has(l.u, f, LAZY) && l.u.symbol(f).owner == Some(class);
+        f == class || Some(f) == body || getter
+    };
     traverse(l, t, class, &mut |l, t, function| {
         if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
             && has(l.u, s, MUTABLE)
@@ -48,6 +57,9 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
             && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
             && !l.u.is_class(owner)
             && owner != function
+            && !(initializer(l, function)
+                && l.u.is_constructor(owner)
+                && l.u.symbol(owner).owner == Some(class))
         {
             out.insert(s);
         }

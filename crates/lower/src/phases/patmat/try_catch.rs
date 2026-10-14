@@ -3,6 +3,7 @@
 //! rethrowing what no case matches.
 
 use crate::definitions::symbol;
+use crate::phases::literals::is_wildcard;
 use crate::symbols::is_static;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
@@ -102,8 +103,4 @@ fn is_simple_throwable(l: &mut Lower, tpt: TNodeId) -> Result<bool> {
     let static_prefix =
         l.u.symbol(owner).kind.is_term() || l.u.symbol(owner).kind == Kind::Package || is_static(l.u, owner);
     Ok(static_prefix && !l.u.is_trait(c) && l.u.derives_from(c, throwable))
-}
-
-fn is_wildcard(l: &Lower, t: TNodeId) -> bool {
-    matches!(*l.tpd.tree(t), Tree::Ident { name } if l.names.text(name.name) == "_")
 }

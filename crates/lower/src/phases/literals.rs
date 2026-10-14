@@ -1,11 +1,11 @@
-//! Literals, wildcards, references and type tests the phases make, without spans until the
-//! trees around them get theirs; the type dotty gives a match.
+//! Literals, wildcards, references and type tests the phases make, most without spans until
+//! the trees around them get theirs; the type dotty gives a match.
 
 use crate::Lower;
 use crate::definitions::type_ref;
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
+use tasty::{Erased, Type, TypeId};
 use typer::tpd::{List, TNodeId, Tree};
 
 impl Lower<'_> {
@@ -23,7 +23,7 @@ impl Lower<'_> {
         self.build().literal(Constant::Boolean(b), Span::NONE)
     }
 
-    /// `_` of type `tpe`, a pattern.
+    /// `_` of type `tpe`: a pattern, or the initializer of a field without one.
     pub fn wildcard(&mut self, tpe: TypeId) -> TNodeId {
         let name = self.term_name("_");
         self.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), None)
@@ -58,4 +58,28 @@ impl Lower<'_> {
         }
         lub
     }
+
+    /// The zero of erased type `e` at `span`: `false`, `0`, `()` or `null` (dotty's
+    /// `defaultValue` after erasure).
+    pub fn default_value(&mut self, e: &Erased, span: Span) -> TNodeId {
+        let value = match e {
+            Erased::Prim('z') => Constant::Boolean(false),
+            Erased::Prim('c') => Constant::Char(0),
+            Erased::Prim('b') => Constant::Byte(0),
+            Erased::Prim('s') => Constant::Short(0),
+            Erased::Prim('i') => Constant::Int(0),
+            Erased::Prim('j') => Constant::Long(0),
+            Erased::Prim('f') => Constant::Float(0.0),
+            Erased::Prim('d') => Constant::Double(0.0),
+            Erased::Value(_, u) => return self.default_value(u, span),
+            Erased::Unit => Constant::Unit,
+            _ => Constant::Null,
+        };
+        self.build().literal(value, span)
+    }
+}
+
+/// Whether `t` is `_`, a wildcard.
+pub fn is_wildcard(l: &Lower, t: TNodeId) -> bool {
+    matches!(*l.tpd.tree(t), Tree::Ident { name } if l.names.text(name.name) == "_")
 }
