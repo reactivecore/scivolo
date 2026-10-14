@@ -8,8 +8,8 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::config::SourceVersion;
 use tasty::{Const, Type, TypeId, constant};
 
-const UNCHECKED: &str = "scala.unchecked";
-const RUNTIME_CHECKED: &str = "scala.annotation.internal.RuntimeChecked";
+pub const UNCHECKED: &str = "scala.unchecked";
+pub const RUNTIME_CHECKED: &str = "scala.annotation.internal.RuntimeChecked";
 
 /// Why a pattern may not match its selector.
 pub enum Refutable {
@@ -40,10 +40,14 @@ impl Typer<'_> {
         if migration != Migration::Silent
             && let Err(reason) = self.check_irrefutable(pat, sel_tpe)
         {
-            if migration == Migration::Error {
-                return Err("refutable pattern in a generator");
+            if migration == Migration::Error || matches!(reason, Refutable::Unknown) {
+                return Err(if pat_def {
+                    "refutable pattern definition"
+                } else {
+                    "refutable pattern in a generator"
+                });
             }
-            self.warn_refutable(reason, sel, pat, pat_def)?;
+            self.warn_refutable(reason, sel, pat_def);
         }
         let annot =
             self.resolve_full_name(RUNTIME_CHECKED, true).ok_or("RuntimeChecked missing from the library")?;

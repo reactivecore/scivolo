@@ -23,9 +23,13 @@ object Main:
 case class Pair(a: Int, b: Int)
 object Q:
   def unapply(x: Int): Option[Int] = Some(x)
+object Outer:
+  object Q:
+    def unapply(x: Int): Option[Int] = Some(x)
 
 object Plain:
   def run(p: Pair): Int =
     val Pair(a, b) = p
     val Q(c) = 3
-    a + b + c
+    val Outer.Q(d) = 4
+    a + b + c + d
