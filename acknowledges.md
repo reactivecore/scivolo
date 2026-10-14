@@ -32,7 +32,9 @@ Apache-2.0. Rust translations of:
   `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
   `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
-  `isCoherent`, `negateIfNot`), `Typer.adaptNoArgsImplicitMethod`; `Applications`
+  `isCoherent`, `negateIfNot`, `collectCompanions`, `hasExtMethod`), `Synthesizer`
+  (`synthesizedClassTag`, `synthesizedValueOf`), `TypeErasure.hasStableErasure`,
+  `Typer.adaptNoArgsImplicitMethod`, `Applications.extMethodApply`; `Applications`
   (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in `named_args.rs`, `default_args.rs`.
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,

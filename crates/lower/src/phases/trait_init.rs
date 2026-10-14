@@ -59,7 +59,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     let Tree::DefDef { name, paramss, tpt, .. } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
     let span = inits.iter().map(|&s| l.tpd.span(s)).filter(|s| s.exists()).reduce(|a, b| a.union(b));
-    let span = span.map_or(l.tpd.span(constr), |s| s.with_point(s.start()));
+    let span = span.map_or(l.tpd.span(tpt), |s| s.with_point(s.start()));
     let unit = l.unit_literal(span);
     let rhs = l.block(&inits, unit, span);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };

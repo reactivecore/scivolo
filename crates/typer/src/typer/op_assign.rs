@@ -27,15 +27,9 @@ impl Typer<'_> {
     /// application `id` of `lhs.op=`, the parts of `lhs` already lifted (dotty's `typedOpAssign`).
     fn lifted_op_assign(&mut self, id: NodeId, lhs: TNodeId, op: &str, args: List, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        let splice = |t: &mut Self, tree: TNodeId| {
-            let node = t.ast.node(Tree::TypeTree);
-            t.ast.with_span(node, t.tpd.span(tree));
-            t.splices.insert(node, tree);
-            node
-        };
         let lhs_span = self.tpd.span(lhs);
         let copy = self.copied_path(lhs);
-        let qualifier = splice(self, copy);
+        let qualifier = self.spliced(copy);
         let op = TName { name: self.name(op), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier, name: op });
         self.ast.with_span(select, Span::synthetic(lhs_span.start(), lhs_span.end()));
@@ -44,7 +38,7 @@ impl Typer<'_> {
         let span = Span::synthetic(span.start(), self.ast.span(last).end());
         self.ast.with_span(rhs, span);
         let T::Apply { fun, args: lhs_args } = *self.tpd.tree(lhs) else {
-            let target = splice(self, lhs);
+            let target = self.spliced(lhs);
             let assign = self.ast.node(Tree::Assign { lhs: target, rhs });
             self.ast.with_span(assign, span);
             return self.typed_assign(assign, target, rhs, ctx);
@@ -53,13 +47,13 @@ impl Typer<'_> {
             T::Select { qualifier, name } if self.text(name.name) == "apply" => qualifier,
             _ => return self.unsupported(id, "assignment operator on a call other than apply"),
         };
-        let receiver = splice(self, receiver);
+        let receiver = self.spliced(receiver);
         let name = TName { name: self.name("update"), is_type: false };
         let update = self.ast.node(Tree::Select { qualifier: receiver, name });
         let receiver_span = self.ast.span(receiver);
         self.ast.with_span(update, Span::synthetic(receiver_span.start(), receiver_span.end()));
         let mut items: Vec<NodeId> =
-            self.tpd.items(lhs_args).to_vec().into_iter().map(|a| splice(self, a)).collect();
+            self.tpd.items(lhs_args).to_vec().into_iter().map(|a| self.spliced(a)).collect();
         items.push(rhs);
         let update_args = self.ast.list(&items);
         let call = self.ast.node(Tree::Apply { fun: update, args: update_args });

@@ -39,11 +39,15 @@ impl Typer<'_> {
         if java_statics {
             return self.unsupported(id, "extension method on the statics of a Java class");
         }
-        let span = self.ast.span(id);
-        let receiver = self.ast.node(Tree::TypeTree);
-        self.ast.with_span(receiver, self.tpd.span(qual));
-        self.splices.insert(receiver, qual);
         let fun = self.ast.node(Tree::Ident { name });
+        self.ext_method_apply(id, fun, qual, pt, ctx)
+    }
+
+    /// Selection `id` of an extension method from `qual` as `fun(qual)` (dotty's `extMethodApply`),
+    /// `fun` an untyped reference to the method placed at the name.
+    pub fn ext_method_apply(&mut self, id: NodeId, fun: NodeId, qual: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let span = self.ast.span(id);
+        let receiver = self.spliced(qual);
         self.ast.with_span(fun, Span::new(span.point(), span.end(), span.point()));
         let args = self.ast.list(&[receiver]);
         let apply = self.ast.node(Tree::Apply { fun, args });
@@ -61,5 +65,13 @@ impl Typer<'_> {
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
         self.tpd.get_mut(typed).span = span;
         typed
+    }
+
+    /// An untyped node standing for typed tree `t`, at its span.
+    pub fn spliced(&mut self, t: TNodeId) -> NodeId {
+        let node = self.ast.node(Tree::TypeTree);
+        self.ast.with_span(node, self.tpd.span(t));
+        self.splices.insert(node, t);
+        node
     }
 }

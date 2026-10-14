@@ -1,13 +1,14 @@
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
-//! `CanEqual` (`can_equal.rs`), and a `ClassTag[T]` for a class `T` without type arguments,
-//! `ClassTag.apply[T](classOf[T])` or, for `Unit`, `Any` and `AnyVal`, `ClassTag.Unit`,
-//! `ClassTag.Any`, `ClassTag.AnyVal`.
+//! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), and a `ValueOf[T]` of a
+//! singleton `T`, `new ValueOf[T](v)`.
 
 use super::super::Typer;
+use super::super::constants::of_type;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use syntax::ast::constant::Constant as C;
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The synthesized argument of type `pt` at `at` in `ctx`, if `pt` is one the compiler makes.
@@ -21,70 +22,47 @@ impl Typer<'_> {
         let Type::Applied(tycon, args) = self.u.types().get(pt).clone() else { return Ok(None) };
         let Some(class) = self.u.class_symbol(tycon) else { return Ok(None) };
         match (self.u.full_name(class).as_str(), &args[..]) {
-            ("scala.CanEqual", &[l, r]) => return self.synthesized_can_equal(l, r, at, ctx, depth),
-            ("scala.reflect.ClassTag", _) => {}
-            _ => return Ok(None),
+            ("scala.CanEqual", &[l, r]) => self.synthesized_can_equal(l, r, at, ctx, depth),
+            ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth).map(Some),
+            ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
+            _ => Ok(None),
         }
-        let [arg] = args[..] else { return Ok(None) };
-        let arg = self.zonk(arg);
-        let mut unbounded = false;
-        self.u.map_type(arg, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                unbounded |= tasty::TypeVars::bounds(&self.constraint, v).0 == tasty::NOTHING;
-            }
-            None
-        });
-        if unbounded {
-            return Err("class tag of an undetermined type");
-        }
-        let orig = self.fully_defined(arg)?;
-        let arg = self.u.dealias(orig);
-        let class = match *self.u.types().get(arg) {
-            Type::Sym(_, s) if self.u.symbol(s).kind != Kind::Class => None,
-            Type::Sym(..) | Type::TypeRef(..) => self.u.class_symbol(arg),
-            _ => None,
-        };
-        let Some(c) = class else { return Err("class tag of a type that is not a class") };
-        if self.u.symbol(c).kind != Kind::Class || !self.u.type_params(c).is_empty() {
-            return Err("class tag of a type that is not a class");
-        }
-        let module = self.resolve_full_name("scala.reflect.ClassTag", false).ok_or("ClassTag")?;
-        let module_tpe = crate::defn::type_ref(self.u, module);
-        let module_class = self.u.module_class(module).ok_or("ClassTag")?;
-        let full = self.u.full_name(c);
-        if full == "scala.Nothing" || full == "scala.Null" {
-            return Err("class tag of a bottom type");
-        }
-        if let Some(special) = ["Unit", "Any", "AnyVal"].into_iter().find(|n| full == format!("scala.{n}")) {
-            let member = self.resolve_full_name(&format!("scala.reflect.ClassTag$.{special}"), false);
-            let member = member.ok_or("ClassTag member")?;
-            let qualifier = self.build().ident(module, module_tpe, at);
-            return Ok(Some(self.build().select(qualifier, member, at)));
-        }
-        let apply = self
-            .u
-            .decl(module_class, "apply")
-            .unwrap_or_default()
-            .into_iter()
-            .find(|&d| self.u.symbol(d).kind == Kind::Def)
-            .ok_or("ClassTag.apply")?;
-        let qualifier = self.build().ident(module, module_tpe, at);
-        let select = self.build().select(qualifier, apply, at);
-        let targ = self.type_tree(orig, at, false);
-        let method = self.instantiated(select, &[orig])?;
-        let fun = self.build().type_apply(select, &[targ], method, at);
-        let Type::Method { result, .. } = self.u.types().get(method).clone() else {
-            return Err("ClassTag.apply");
-        };
-        let class_tpe = self.class_of(arg).ok_or("java.lang.Class")?;
-        let literal = self.tpd.node(T::ClassLiteral { tpe: arg }, at, Some(class_tpe), None);
-        Ok(Some(self.build().apply(fun, &[literal], result, at)))
     }
 
-    /// `java.lang.Class[t]`.
-    fn class_of(&mut self, t: TypeId) -> Option<TypeId> {
-        let class = self.resolve_full_name("java.lang.Class", true)?;
-        let class = crate::defn::type_ref(self.u, class);
-        Some(self.u.intern_type(Type::Applied(class, vec![t])))
+    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`.
+    fn synthesized_value_of(
+        &mut self,
+        class: SymbolId,
+        t: TypeId,
+        at: Span,
+    ) -> Result<Option<TNodeId>, &'static str> {
+        if !self.is_fully_defined(t) {
+            return Err("ValueOf of an undetermined type");
+        }
+        let t = self.zonk(t);
+        let dealiased = self.u.dealias(t);
+        let value = match self.u.types().get(dealiased).clone() {
+            Type::Constant(tag, bits) => of_type(tag, bits).map(|c| self.build().literal(c, at)),
+            Type::Str(s) => Some(self.build().literal(C::String(s.encode_utf16().collect()), at)),
+            Type::Sym(_, s) if s == self.defn.unit => Some(self.build().literal(C::Unit, at)),
+            Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => self.path_tree(dealiased, at, 8),
+            Type::This(_) => self.path_tree(dealiased, at, 8),
+            Type::TermRef(..) | Type::Skolem(..) => None,
+            _ => return Ok(None),
+        };
+        let value = value.ok_or("ValueOf of a path outside the subset")?;
+        let ctor = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or("ValueOf")?;
+        let raw = crate::defn::type_ref(self.u, class);
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, at, Some(raw), None);
+        let new = self.tpd.node(T::New { tpt }, at, Some(raw), None);
+        let select = self.build().select(new, ctor, at);
+        let result = crate::defn::applied(self.u, class, vec![t]);
+        let binder = self.u.fresh_binder();
+        let params = vec![("value".to_owned(), t)];
+        let method =
+            self.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false });
+        let targ = self.type_tree(t, at, false);
+        let fun = self.build().type_apply(select, &[targ], method, at);
+        Ok(Some(self.build().apply(fun, &[value], result, at)))
     }
 }
