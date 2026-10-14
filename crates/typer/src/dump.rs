@@ -66,8 +66,8 @@ pub fn dump(
             }
             b.push_str(&printer.out);
             b.push('\n');
+            p.s.diags.items.extend(typed.diags.items.iter().cloned());
             diagnostics(&p.s.diags, &mut b);
-            diagnostics(&typed.diags, &mut b);
         }
         Err(Fallback::Unsupported { at, what }) => {
             let at = if at.exists() { at.point().to_string() } else { "-".into() };
