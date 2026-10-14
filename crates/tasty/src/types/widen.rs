@@ -30,8 +30,8 @@ impl Universe {
     /// and unresolved paths.
     pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
         Some(match self.types().get(t).clone() {
-            Type::TermRef(p, n) => {
-                let s = self.resolve(p, &n, false)?;
+            Type::TermRef(p, _) => {
+                let s = self.resolve_ref(t)?;
                 self.term_type(Some(p), s)
             }
             Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
@@ -86,7 +86,7 @@ impl Universe {
     fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
         let (prefix, s) = match self.types().get(t).clone() {
             Type::Sym(p, s) => (p, s),
-            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)?),
+            Type::TypeRef(p, _) => (Some(p), self.resolve_ref(t)?),
             _ => return None,
         };
         let alias = self.alias_of(s)?;

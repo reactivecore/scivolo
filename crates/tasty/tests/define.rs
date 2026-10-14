@@ -73,3 +73,21 @@ fn script_classes_extend_library_classes() {
     u.set_flags(shape, flags);
     assert!(u.symbol(shape).flags.has(tasty::tags::FINAL));
 }
+
+#[test]
+fn renamed_and_unentered_members_resolve_no_more() {
+    let mut u = Universe::empty();
+    let root = u.root();
+    let c = u.define(symbol("C", Kind::Class, root));
+    let c_t = sym_type(&mut u, c);
+    let this = u.intern_type(Type::This(c_t));
+    let r = u.intern_type(Type::TypeRef(this, "T".into()));
+    let t = u.define(symbol("T", Kind::Type, c));
+    assert_eq!(u.resolve_ref(r), Some(t));
+    u.rename(t, "U");
+    assert_eq!(u.resolve_ref(r), None);
+    let t2 = u.define(symbol("T", Kind::Type, c));
+    assert_eq!(u.resolve_ref(r), Some(t2));
+    u.unenter(t2);
+    assert_eq!(u.resolve_ref(r), None);
+}

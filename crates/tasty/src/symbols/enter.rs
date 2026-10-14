@@ -67,7 +67,7 @@ impl Universe {
         let flags = mods.iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)));
         let derived = src.derived.get(name.0 as usize).copied().unwrap_or_default();
         let (owner, name) = self.jdk_renamed(owner, name_of(name));
-        let sym = self.add(Symbol {
+        let sym = self.define(Symbol {
             name,
             kind,
             owner: Some(owner),

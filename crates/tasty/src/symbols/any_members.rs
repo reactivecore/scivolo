@@ -60,10 +60,10 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
     let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
     u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
-    let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
-    let kept: Vec<SymbolId> =
-        hidden.into_iter().filter(|&d| !HIDDEN.contains(&u.symbol(d).name.as_str())).collect();
-    u.symbols[object.0 as usize].decls = kept;
+    let hidden: Vec<SymbolId> = (u.symbol(object).decls.iter().copied())
+        .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
+        .collect();
+    hidden.into_iter().for_each(|d| u.unenter(d));
     method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL]);
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {

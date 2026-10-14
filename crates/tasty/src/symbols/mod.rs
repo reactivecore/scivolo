@@ -60,6 +60,10 @@ pub struct Universe {
     files: Vec<Loaded>,
     /// The symbol each definition tree defines.
     by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
+    /// Per owner whose declarations were looked up by name, its declarations by name.
+    by_name: FxHashMap<SymbolId, FxHashMap<String, Vec<SymbolId>>>,
+    /// The symbol each `TypeRef` or `TermRef` resolved to.
+    resolved: FxHashMap<TypeId, SymbolId>,
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
@@ -172,7 +176,7 @@ impl Universe {
         }
         let (outer, simple) = name.rsplit_once('.').unwrap_or(("", name));
         let owner = self.package_entered(outer);
-        let id = self.add(Symbol {
+        let id = self.define(Symbol {
             name: simple.to_owned(),
             kind: Kind::Package,
             owner: Some(owner),
@@ -184,18 +188,6 @@ impl Universe {
             tree: None,
         });
         self.packages.insert(name.to_owned(), id);
-        id
-    }
-
-    fn add(&mut self, s: Symbol) -> SymbolId {
-        let id = SymbolId(self.symbols.len() as u32);
-        if let Some(o) = s.owner {
-            self.symbols[o.0 as usize].decls.push(id);
-        }
-        if let Some(tree) = s.tree {
-            self.by_tree.insert(tree, id);
-        }
-        self.symbols.push(s);
         id
     }
 }

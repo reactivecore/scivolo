@@ -7,6 +7,7 @@ use crate::tags::{
 };
 use crate::types::{Decoder, Type, TypeId};
 use crate::{Ast, NodeId};
+use rustc_hash::FxHashSet;
 
 /// How many aliases and bounds `class_symbol` follows.
 const MAX_ALIASES: u32 = 64;
@@ -42,26 +43,31 @@ impl Universe {
 
     /// Class `c` and its base classes in linearization order, `c` first.
     pub fn linearization(&mut self, c: SymbolId) -> Vec<SymbolId> {
-        if let Some(l) = self.linearizations.get(&c) {
-            return l.clone();
+        self.linearized(c).to_vec()
+    }
+
+    /// The linearization of class `c`, computed on first use.
+    fn linearized(&mut self, c: SymbolId) -> &[SymbolId] {
+        if !self.linearizations.contains_key(&c) {
+            self.linearizations.insert(c, Vec::new());
+            let mut lin: Vec<SymbolId> = Vec::new();
+            let mut seen: FxHashSet<SymbolId> = FxHashSet::default();
+            for parent in self.parents(c) {
+                let Some(p) = self.class_symbol(parent) else { continue };
+                let plin: Vec<SymbolId> =
+                    self.linearized(p).iter().copied().filter(|b| !seen.contains(b)).collect();
+                seen.extend(&plin);
+                lin.splice(0..0, plin);
+            }
+            lin.insert(0, c);
+            self.linearizations.insert(c, lin);
         }
-        self.linearizations.insert(c, Vec::new());
-        let mut lin: Vec<SymbolId> = Vec::new();
-        for parent in self.parents(c) {
-            let Some(p) = self.class_symbol(parent) else { continue };
-            let mut plin: Vec<SymbolId> =
-                self.linearization(p).into_iter().filter(|b| !lin.contains(b)).collect();
-            plin.append(&mut lin);
-            lin = plin;
-        }
-        lin.insert(0, c);
-        self.linearizations.insert(c, lin.clone());
-        lin
+        &self.linearizations[&c]
     }
 
     /// Whether class `c` is `base` or derives from it.
     pub fn derives_from(&mut self, c: SymbolId, base: SymbolId) -> bool {
-        c == base || self.linearization(c).contains(&base)
+        c == base || self.linearized(c).contains(&base)
     }
 
     /// The members of class `c` named `name` that `keep` accepts: those of the first class in
@@ -72,7 +78,9 @@ impl Universe {
         name: &str,
         keep: impl Fn(&Self, SymbolId) -> bool,
     ) -> Vec<SymbolId> {
-        for base in self.linearization(c) {
+        let mut i = 0;
+        while let Some(&base) = self.linearized(c).get(i) {
+            i += 1;
             let found: Vec<SymbolId> = self
                 .decl(base, name)
                 .unwrap_or_default()
@@ -100,7 +108,7 @@ impl Universe {
         let depth = depth.checked_sub(1)?;
         let s = match self.types().get(t).clone() {
             Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Applied(inner, _)
             | Type::Annotated(inner, _)
             | Type::Alias(inner)

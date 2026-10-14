@@ -1,13 +1,37 @@
 //! Symbols defined outside TASTy (a script's), what completes them (infos, parents, flags),
 //! and binders for the types made with them.
 
-use super::{FileId, Flags, Symbol, SymbolId, Universe};
+use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::types::{Binder, TypeId};
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
+    /// Resolved references are dropped when an owner already looked up by name gets a name new
+    /// to it, a class member or a symbol without TASTy.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
-        self.add(s)
+        let id = SymbolId(self.symbols.len() as u32);
+        if let Some(o) = s.owner {
+            self.symbols[o.0 as usize].decls.push(id);
+            if let Some(index) = self.by_name.get_mut(&o) {
+                let named = index.entry(s.name.clone()).or_default();
+                let new_name = named.is_empty();
+                named.push(id);
+                if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
+                    self.resolved.clear();
+                }
+            }
+        }
+        if let Some(tree) = s.tree {
+            self.by_tree.insert(tree, id);
+        }
+        self.symbols.push(s);
+        id
+    }
+
+    /// Drops the name index of `owner` and the resolved references.
+    fn decls_changed(&mut self, owner: SymbolId) {
+        self.by_name.remove(&owner);
+        self.resolved.clear();
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
@@ -16,19 +40,26 @@ impl Universe {
         self.package_entered(name)
     }
 
-    /// Sets the declared type `info` returns for `sym`.
+    /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
+    /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
-        self.infos.insert(sym, info);
+        if self.infos.insert(sym, info).is_some_and(|old| old != info) {
+            self.resolved.clear();
+        }
     }
 
-    /// Sets the parents of class `c`; linearizations computed before are dropped.
+    /// Sets the parents of class `c`; linearizations and resolved references are dropped.
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
+        self.resolved.clear();
     }
 
+    /// Sets the flags of `sym`; changed flags drop the resolved references.
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
-        self.symbols[sym.0 as usize].flags = flags;
+        if std::mem::replace(&mut self.symbols[sym.0 as usize].flags, flags) != flags {
+            self.resolved.clear();
+        }
     }
 
     /// Gives `sym`, a symbol defined outside TASTy, the run-time name `target` (`@targetName`).
@@ -73,6 +104,7 @@ impl Universe {
     pub fn unenter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.retain(|&d| d != sym);
+            self.decls_changed(owner);
         }
     }
 
@@ -87,12 +119,16 @@ impl Universe {
     pub fn enter(&mut self, sym: SymbolId) {
         if let Some(owner) = self.symbol(sym).owner {
             self.symbols[owner.0 as usize].decls.push(sym);
+            self.decls_changed(owner);
         }
     }
 
     /// Renames `sym`, a symbol defined outside TASTy.
     pub fn rename(&mut self, sym: SymbolId, name: &str) {
         self.symbols[sym.0 as usize].name = name.to_owned();
+        if let Some(owner) = self.symbol(sym).owner {
+            self.decls_changed(owner);
+        }
     }
 
     /// A binder no other type uses, for a type lambda or method type made outside TASTy.
