@@ -110,6 +110,7 @@ impl Typer<'_> {
             avoided = if prefix.is_some() { info } else { self.u.dealias(info) };
         }
         if let Pt::Type(p) = pt
+            && let p = self.zonk(p)
             && self.is_fully_defined(p)
             && !self.u.is_subtype(avoided, p)
         {

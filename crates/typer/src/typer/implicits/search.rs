@@ -136,10 +136,6 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        if self.implicit_budget == 0 {
-            return Err("implicit search too costly");
-        }
-        self.implicit_budget -= 1;
         self.complete(c.sym);
         let tree = self.candidate_ref(c, at, ctx)?;
         let mut tree = self.with_type_vars(tree)?;
@@ -151,6 +147,10 @@ impl Typer<'_> {
         {
             return Err("implicit of another type");
         }
+        if self.implicit_budget == 0 {
+            return Err("implicit search too costly");
+        }
+        self.implicit_budget -= 1;
         loop {
             let t = self.tpd.tpe(tree);
             let info = self.method_info(t).unwrap_or(t);

@@ -87,7 +87,7 @@ impl Typer<'_> {
     /// `t`, a type variable without instance but with a lower bound instantiated from below, so
     /// that members can be selected on it (dotty's `isFullyDefined` with `ForceDegree.failBottom`
     /// in `typedSelect`).
-    fn instantiated_selected(&mut self, t: TypeId) -> TypeId {
+    pub fn instantiated_selected(&mut self, t: TypeId) -> TypeId {
         let t = self.zonk(t);
         if let Type::Var(v) = *self.u.types().get(t)
             && self.constraint.bounds(v).0 != tasty::NOTHING

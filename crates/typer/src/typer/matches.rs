@@ -3,10 +3,8 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::flags;
-use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
-use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
+use syntax::ast::{Attrs, List, NodeId, Tree};
 use tasty::{NOTHING, Type, TypeId};
 
 impl Typer<'_> {
@@ -71,27 +69,6 @@ impl Typer<'_> {
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Match { selector: Some(sel), cases, kind }, span, Some(tpe), None)
-    }
-
-    /// `{ cases }` as `x$1 => x$1 match { cases }` (dotty's `makeCaseLambda`).
-    fn typed_case_lambda(&mut self, id: NodeId, cases: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let items = self.ast.items(cases).to_vec();
-        let (Some(&first), Some(&last)) = (items.first(), items.last()) else {
-            return self.unsupported(id, "case lambda without cases");
-        };
-        let (start, end) = (self.ast.span(first).start(), self.ast.span(last).end());
-        let at = Span::synthetic(start, start);
-        let name = TName { name: self.name("x$1"), is_type: false };
-        let tpt = self.ast.node(Tree::TypeTree);
-        let mods = self.ast.mods(Modifiers::with_flags(flags::SYNTHETIC_TERM_PARAM));
-        let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
-        self.ast.with_span(param, at);
-        let selector = self.ast.node(Tree::Ident { name });
-        self.ast.with_span(selector, at);
-        let body = self.ast.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain });
-        self.ast.with_span(body, Span::synthetic(start, end));
-        let args = self.ast.list(&[param]);
-        self.typed_function(id, args, body, pt, ctx)
     }
 
     /// Selector `sel` of type `sel_tpe` of a pattern definition or generator with pattern `pat`,

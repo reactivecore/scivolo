@@ -53,7 +53,9 @@ impl Typer<'_> {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
-        if !self.is_checkable_class_type(own) {
+        let sel = self.zonk(sel);
+        let tested = self.stripped(own) != self.stripped(sel);
+        if tested && !self.is_checkable_class_type(own) {
             return Err("extractor of a type that needs a type test");
         }
         let result = self.zonk(result);
@@ -71,8 +73,7 @@ impl Typer<'_> {
         let (implicits, patterns) = (self.tpd.list(&[]), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
-        let sel = self.zonk(sel);
-        if self.stripped(own) == self.stripped(sel) || sel == tasty::NOTHING {
+        if !tested || sel == tasty::NOTHING {
             return Ok(tree);
         }
         let tpt = self.type_tree(own, span.end_pos(), false);
