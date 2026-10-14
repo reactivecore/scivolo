@@ -111,9 +111,7 @@ impl Typer<'_> {
     /// Whether extractor `fun` with `n` patterns matches every value its parameter accepts
     /// (dotty's `Space.isIrrefutable`).
     fn is_irrefutable_extractor(&mut self, fun: TNodeId, n: usize) -> bool {
-        let fun_tpe = self.tpd.tpe(fun);
-        let result = self.final_result(fun_tpe);
-        let result = self.zonk(result);
+        let result = self.extractor_result(fun);
         let sym = self.tpd.sym(self.tpd.meth_part(fun));
         let case_companion = sym.is_some_and(|s| {
             let synthetic = self.u.symbol(s).flags.has(tasty::tags::SYNTHETIC);
@@ -137,6 +135,13 @@ impl Typer<'_> {
             || self.derives_from_named(result, "scala.NonEmptyTuple")
     }
 
+    /// The result type of extractor `fun`.
+    fn extractor_result(&mut self, fun: TNodeId) -> TypeId {
+        let fun_tpe = self.tpd.tpe(fun);
+        let result = self.final_result(fun_tpe);
+        self.zonk(result)
+    }
+
     fn is_bool_constant(&mut self, t: TypeId, value: bool) -> bool {
         let t = self.u.dealias(t);
         matches!(*self.u.types().get(t), Type::Constant(tag, bits) if constant(tag, bits) == Some(Const::Bool(value)))
@@ -144,9 +149,7 @@ impl Typer<'_> {
 
     /// The types extractor `fun` gives its `n` patterns (dotty's `UnapplyArgs.argTypes`).
     fn extractor_arg_types(&mut self, fun: TNodeId, n: usize) -> Option<Vec<TypeId>> {
-        let fun_tpe = self.tpd.tpe(fun);
-        let result = self.final_result(fun_tpe);
-        let result = self.zonk(result);
+        let result = self.extractor_result(fun);
         let seq =
             self.tpd.sym(self.tpd.meth_part(fun)).is_some_and(|s| self.u.symbol(s).name == "unapplySeq");
         if !seq {
