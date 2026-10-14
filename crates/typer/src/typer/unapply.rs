@@ -53,7 +53,8 @@ impl Typer<'_> {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
-        if !self.is_checkable_class_type(own) {
+        let sel_now = self.zonk(sel);
+        if self.stripped(own) != self.stripped(sel_now) && !self.is_checkable_class_type(own) {
             return Err("extractor of a type that needs a type test");
         }
         let result = self.zonk(result);
