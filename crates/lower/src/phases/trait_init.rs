@@ -4,6 +4,7 @@
 use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
+use super::uninitialized_defs::is_wildcard;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
@@ -49,7 +50,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 }) =>
             {
                 let getter = l.tpd.sym(stat).expect("a getter's symbol");
-                inits.push(set(l, class, getter, rhs, l.tpd.span(stat)));
+                if !is_wildcard(l, rhs) {
+                    inits.push(set(l, class, getter, rhs, l.tpd.span(stat)));
+                }
                 l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: None };
                 class_stats.push(stat);
             }

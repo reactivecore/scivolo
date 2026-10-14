@@ -82,6 +82,7 @@ mod trait_fields;
 mod trait_init;
 mod trait_lazies;
 mod type_tests;
+mod uninitialized_defs;
 mod value_classes;
 mod value_members;
 mod vc_elide;
@@ -109,6 +110,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
+        uninitialized_defs::transform(l, td);
         let retained = initializers::transform(l, td)?;
         getters::transform(l, td, &retained)?;
     }

@@ -5,6 +5,7 @@
 
 use super::accessor_names::setter_getter_name;
 use super::getters::{is_const_final, is_param_accessor, is_setter};
+use super::uninitialized_defs::is_wildcard;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -63,6 +64,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
     let mixed_in = l.mixed_in.contains(&getter);
     let bottom = bottom(l, getter);
     let span = l.tpd.span(stat);
+    let init = rhs.filter(|&r| !is_wildcard(l, r));
     let field = (!(mixed_in && bottom.is_some())).then(|| {
         let name_text = super::accessor_names::run_name(l, getter).to_owned();
         let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
@@ -75,7 +77,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
         l.u.set_info(field, info);
         let field_span = if mixed_in { Span::NONE } else { span };
         let field_tpt = l.type_tree(info, field_span);
-        let def = Tree::ValDef { name, tpt: field_tpt, rhs };
+        let def = Tree::ValDef { name, tpt: field_tpt, rhs: init };
         (field, l.tpd.node(def, field_span, None, Some(field)))
     });
     let tpt_span = l.tpd.span(tpt);

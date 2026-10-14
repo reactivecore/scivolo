@@ -177,8 +177,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    is compared byte for byte with Scala Native's NIR, positions included
    (`tests/programs/lowered.txt`, `just nir-cmp`). Value classes are lowered (#88, ADR 0019),
    and outer instances of local and inner classes (#34, research 15). Of dotty's `tests/run`,
-   670 pass through typer, lowering and VM on main 2942a19 (399 on 2026-10-11), 53 are
-   refused by the lowering, 1 crashes (#92); see [docs/conformance.md](docs/conformance.md).
+   684 pass through typer, lowering and VM on 2026-10-14 (399 on 2026-10-11), 39 are
+   refused by the lowering, none crashes in the VM; see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
 6. **REPL.** Starts as soon as the own frontend runs simple programs. As in
@@ -230,9 +230,9 @@ frontend; edit-then-run takes 15 ms for hello, 25 ms for matches, 38 ms for case
 ## Where we are and what's next (2026-10-13)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on main
-2942a19, 670 of 1709 pass (399 on 2026-10-11), 709 stop at the typer, 53 at the lowering, and
-1 crashes (#92).
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-14,
+684 of 1711 pass (399 on 2026-10-11), 709 stop at the typer, 39 at the lowering, and 1 crashes
+in the frontend (t8199).
 
 Merged in the last batch (!224–!236): inlining complete but for macros (#82: the phase in the
 lowering, transparent methods, library bodies from TASTy, skolems, inline `if`/`match`,
@@ -243,22 +243,20 @@ through the own frontend with an announced scala-cli fallback (#89, ADR 0021); o
 instances of local and inner classes (#34).
 
 Next, in order of the tests they unblock:
-1. **`compiletime.uninitialized` fields (#92):** they crash since library inline bodies are
-   read; update [docs/conformance.md](docs/conformance.md) with the new counts.
-2. **Typer groups** (research 14): A, implicits (inner-class companions in the implicit scope,
+1. **Typer groups** (research 14): A, implicits (inner-class companions in the implicit scope,
    `given Conversion` as views, ranking #81, by-name implicits); F, patterns needing type
    tests and refutable pattern definitions, which `moderate.scala` needs for the exit
    criterion; D, `{ case … }` literals and SAMs of abstract classes (with ExpandSAMs in the
    lowering); E, self and opaque types; G, higher-kinded abstract types.
-3. **Lowering gaps** (research 15, MRs 5–8): ProtectedAccessors (t8611b), local traits, lambdas
+2. **Lowering gaps** (research 15, MRs 5–8): ProtectedAccessors (t8611b), local traits, lambdas
    in inner classes, classes in local classes, small refusals, byte issues (#84–#86, #63,
    #67).
-4. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
+3. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
    inline methods, inline accessors, `constValueTuple`/`summonAll`, inline methods of
    earlier REPL inputs; the forward-reference check (#90).
-5. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
+4. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
-6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+5. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just
