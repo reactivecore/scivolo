@@ -25,9 +25,32 @@ pub enum Target {
     Formattable,
 }
 
-/// The format string of `parts` for one argument less than parts, `conforms(i, t)` telling
-/// whether argument `i` conforms to `t`; the reason otherwise: an error dotty reports, or an
-/// argument it would convert by a view.
+impl Target {
+    /// The qualified name of the class of type `self`; `None` for `Any`.
+    pub fn class_name(self) -> Option<&'static str> {
+        Some(match self {
+            Target::Any => return None,
+            Target::Boolean => "scala.Boolean",
+            Target::Null => "scala.Null",
+            Target::Char => "scala.Char",
+            Target::Byte => "scala.Byte",
+            Target::Short => "scala.Short",
+            Target::Int => "scala.Int",
+            Target::Long => "scala.Long",
+            Target::Float => "scala.Float",
+            Target::Double => "scala.Double",
+            Target::BigInt => "scala.math.BigInt",
+            Target::BigDecimal => "scala.math.BigDecimal",
+            Target::Calendar => "java.util.Calendar",
+            Target::Date => "java.util.Date",
+            Target::Formattable => "java.util.Formattable",
+        })
+    }
+}
+
+/// The format string for interpolation parts `parts` and one argument fewer, where
+/// `conforms(i, t)` says whether argument `i` conforms to `t`. Fails with the reason if dotty
+/// reports an error or would convert an argument by a view.
 pub fn checked(parts: &[&[u16]], conforms: &mut dyn FnMut(usize, Target) -> bool) -> Checked<Vec<u16>> {
     let argc = parts.len() - 1;
     let mut format = Vec::new();

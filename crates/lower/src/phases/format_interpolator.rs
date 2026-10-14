@@ -27,23 +27,7 @@ pub fn transform(l: &mut Lower, t: TNodeId) -> Result<()> {
     let texts: Vec<&[u16]> = texts.iter().map(Vec::as_slice).collect();
     let types: Vec<_> = args.iter().map(|&a| l.tpd.tpe(a)).collect();
     let mut conforms = |i: usize, target: Target| {
-        let class = match target {
-            Target::Any => return true,
-            Target::Boolean => "scala.Boolean",
-            Target::Null => "scala.Null",
-            Target::Char => "scala.Char",
-            Target::Byte => "scala.Byte",
-            Target::Short => "scala.Short",
-            Target::Int => "scala.Int",
-            Target::Long => "scala.Long",
-            Target::Float => "scala.Float",
-            Target::Double => "scala.Double",
-            Target::BigInt => "scala.math.BigInt",
-            Target::BigDecimal => "scala.math.BigDecimal",
-            Target::Calendar => "java.util.Calendar",
-            Target::Date => "java.util.Date",
-            Target::Formattable => "java.util.Formattable",
-        };
+        let Some(class) = target.class_name() else { return true };
         let target = l.u.class_ref(class);
         l.u.is_subtype(types[i], target)
     };
