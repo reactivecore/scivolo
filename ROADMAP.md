@@ -174,7 +174,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    extractors, research 16) and group A in part (research 18: constraint bounds as dotty's
    `addOneBound`, contextual implicit levels and shadowing, dotty's ranking with ADR 0025's
    refusals, implicit views and extension methods of implicit values, `ClassTag`/`ValueOf`
-   synthesis). `just typer-report`: tests/pos 1251 typed as dotty, 43 differ, 1816 refused.
+   synthesis). `just typer-report`: tests/pos 1215 typed as dotty, 32 differ, 1866 refused
+   (source versions other than 3.9 among them).
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
    nscplugin does (ADR 0001). Status (2026-10-14): `crates/lower` ports dotty's phases
@@ -183,7 +184,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    (`tests/programs/lowered.txt`, `just nir-cmp`). Value classes are lowered (#88, ADR 0019),
    outer instances of local and inner classes, ProtectedAccessors, local traits,
    `UninitializedDefs`, generic array operations, tuple and singleton type tests (#34, #92,
-   research 15), and the `f` interpolator (#82). Of dotty's `tests/run`, 815 pass through
+   research 15), and the `f` interpolator (#82). Of dotty's `tests/run`, 809 pass through
    typer, lowering and VM on 2026-10-14 (684 before the 2026-10-14 batch, 399 on 2026-10-11),
    25 are refused by the lowering, none crashes in the VM; see
    [docs/conformance.md](docs/conformance.md).
@@ -242,7 +243,7 @@ MRs 6 (implicit candidate prefilter) and 8 (cheaper lowering walks) remain for t
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-14,
-815 of 1711 pass (684 before the batch below, 399 on 2026-10-11), 592 stop at the typer, 25 at
+809 of 1711 pass (684 before the batch below, 399 on 2026-10-11), 598 stop at the typer, 25 at
 the lowering, and 1 crashes in the frontend (t8199).
 
 Merged in the 2026-10-14 batch (one integration MR): typer group F (#83: type tests in

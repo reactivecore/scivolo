@@ -144,12 +144,12 @@ Results (2026-10-14):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 815 |
+| passed | 809 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
 | lowering refused | 25 |
-| typer refused | 592 |
+| typer refused | 598 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -161,7 +161,8 @@ Before the 2026-10-14 batch: 684 passed, 39 refused by the lowering, 709 by the 
 
 - **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
 - **Typer refused:** mostly missing implicit arguments (34), members not found (32), function
-  parameters without a type (29) and adaptations (27).
+  parameters without a type (29) and adaptations (27); 8 tests set a source version other than
+  3.9, which the typer refuses.
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
