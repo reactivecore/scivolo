@@ -31,6 +31,10 @@ trait Ranged extends java.util.AbstractList[String] {
 
 class Words extends java.util.ArrayList[String] with Ranged
 
+trait Copies extends Cloneable { def copy(): Object = clone() }
+
+class Sheep extends Copies
+
 object protectedaccess {
   def main(args: Array[String]): Unit = {
     val c = new Cache
@@ -46,5 +50,7 @@ object protectedaccess {
     w.add("b")
     new w.Trim().trim()
     println(w.size() + " " + w.get(0))
+    val sheep = new Sheep
+    println(sheep.copy().getClass.getName + " " + (sheep.copy() ne sheep))
   }
 }

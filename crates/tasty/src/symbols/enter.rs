@@ -87,8 +87,7 @@ impl Universe {
     /// `sym` defined outside TASTy.
     pub fn is_annotated(&self, sym: SymbolId, name: &str) -> bool {
         let Some((file, id)) = self.symbol(sym).tree else {
-            let classes = self.annotations.get(&sym).into_iter().flatten();
-            return classes.into_iter().any(|&c| self.symbol(c).name == name);
+            return self.annotations(sym).iter().any(|&c| self.symbol(c).name == name);
         };
         let loaded = &self.files[file.0 as usize];
         let View::DefDef { parts, .. } = view(&loaded.ast, id) else { return false };

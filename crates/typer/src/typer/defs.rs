@@ -76,8 +76,7 @@ impl Typer<'_> {
             return self.unsupported(id, "inline constructor");
         }
         if flags.has(tasty::tags::INLINE) {
-            let annots = self.syms.annotations.get(&sym).cloned().unwrap_or_default();
-            if annots.iter().any(|&(c, _)| self.u.full_name(c) == "scala.annotation.tailrec") {
+            if self.u.annotations(sym).iter().any(|&c| self.u.full_name(c) == "scala.annotation.tailrec") {
                 return self.unsupported(id, "tailrec inline method");
             }
             if !flags.has(tasty::tags::TRANSPARENT) {

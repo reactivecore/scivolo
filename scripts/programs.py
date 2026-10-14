@@ -90,6 +90,9 @@ def update(name):
     out = build(name)
     for f in nir(PROGRAMS / name):
         (PROGRAMS / name / f).unlink()
+    for d in sorted((p for p in (PROGRAMS / name).rglob("*") if p.is_dir()), reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
     for f in nir(WORK / name / "out"):
         (PROGRAMS / name / f).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(WORK / name / "out" / f, PROGRAMS / name / f)

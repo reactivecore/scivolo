@@ -34,8 +34,8 @@ pub fn needs_accessor_if_not_in_subclass(l: &Lower, sym: SymbolId, class: Symbol
 }
 
 /// Whether `sym` referred to on `this` at `span` from class `class` needs a super accessor in
-/// the trait hosting its accessor (`SuperAccessors.transformSelect`); refused for a JDK member
-/// in a trait deriving from its owner, which dotty rejects.
+/// the trait hosting its accessor (`SuperAccessors.transformSelect`); refused for a member of a
+/// JDK class but `Object` in a trait deriving from its owner, which dotty rejects.
 pub fn super_accessor_needed(l: &mut Lower, sym: SymbolId, class: SymbolId, span: Span) -> Result<bool> {
     if !needs_accessor_if_not_in_subclass(l, sym, class)
         || !host_for_accessor_of(l, sym, class).is_some_and(|h| l.u.is_trait(h))
@@ -46,7 +46,7 @@ pub fn super_accessor_needed(l: &mut Lower, sym: SymbolId, class: SymbolId, span
         return Ok(true);
     }
     let owner = l.u.symbol(sym).owner.expect("a member's owner");
-    match is_jdk(l, owner) {
+    match is_jdk(l, owner) && owner != l.defs.object {
         true => unsupported(span, "protected Java members on `this` in concrete trait methods"),
         false => Ok(false),
     }
@@ -186,15 +186,16 @@ fn accessor(
     if let Some(a) = found {
         return a.sym;
     }
-    let mut flags = Flags::default().with(SYNTHETIC);
+    let flags = Flags::default().with(SYNTHETIC);
+    let sym = l.u.define(symbol(name, Kind::Def, host, flags));
+    l.u.set_info(sym, info);
+    let site = l.u.this_type(host);
     let bases = l.u.linearization(host);
     let inherited: Vec<SymbolId> =
         bases.into_iter().skip(1).flat_map(|b| l.u.decl(b, name).unwrap_or_default()).collect();
-    if inherited.into_iter().any(|m| has_body(l, m)) {
-        flags = flags.with(OVERRIDE);
+    if inherited.into_iter().any(|m| has_body(l, m) && l.u.matches(site, m, sym)) {
+        l.u.set_flags(sym, flags.with(OVERRIDE));
     }
-    let sym = l.u.define(symbol(name, Kind::Def, host, flags));
-    l.u.set_info(sym, info);
     made.push(Accessor { sym, accessed, setter });
     sym
 }

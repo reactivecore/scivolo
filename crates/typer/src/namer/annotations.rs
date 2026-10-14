@@ -35,8 +35,8 @@ const ACCEPTED: [&str; 18] = [
 pub const STATIC: &str = "scala.annotation.static";
 
 impl Typer<'_> {
-    /// Records the classes of the annotations of definition `tree` on its symbol `sym`, and the
-    /// annotations to type in `ctx`; a `@targetName` names `sym` at run time.
+    /// Records the classes of the annotations of definition `tree` on its symbol `sym` in the
+    /// universe, and the annotations to type in `ctx`; a `@targetName` names `sym` at run time.
     pub fn add_annotations(&mut self, sym: SymbolId, tree: NodeId, ctx: Ctx) {
         let (Tree::ValDef { mods, .. } | Tree::DefDef { mods, .. } | Tree::TypeDef { mods, .. }) =
             *self.ast.tree(tree)
@@ -44,7 +44,6 @@ impl Typer<'_> {
             return;
         };
         let annots = self.ast.items(self.ast.modifiers(mods).annotations).to_vec();
-        let mut classes = Vec::new();
         for annot in annots {
             let Some(class) = self.annotation_class(annot, ctx) else {
                 self.unsupported(annot, "annotation");
@@ -64,13 +63,12 @@ impl Typer<'_> {
                 _ => {}
             }
             self.u.annotate(sym, class);
-            classes.push((class, self.ast.span(annot)));
+            if class == self.defn.main_annot {
+                self.syms.main_annotations.insert(sym, self.ast.span(annot));
+            }
             if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
             }
-        }
-        if !classes.is_empty() {
-            self.syms.annotations.insert(sym, classes);
         }
     }
 

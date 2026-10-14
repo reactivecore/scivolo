@@ -46,7 +46,6 @@ impl Typer<'_> {
     }
 
     fn is_static(&self, s: SymbolId) -> bool {
-        let annots = self.syms.annotations.get(&s).into_iter().flatten();
-        annots.into_iter().any(|&(c, _)| self.u.full_name(c) == STATIC)
+        self.u.annotations(s).iter().any(|&c| self.u.full_name(c) == STATIC)
     }
 }

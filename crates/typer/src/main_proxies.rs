@@ -30,10 +30,7 @@ impl Typer<'_> {
             let sym = self.tpd.sym(s);
             match *self.tpd.tree(s) {
                 T::DefDef { .. } => {
-                    let annots = sym.and_then(|s| self.syms.annotations.get(&s));
-                    if let Some(&(_, span)) =
-                        annots.into_iter().flatten().find(|(c, _)| *c == self.defn.main_annot)
-                    {
+                    if let Some(&span) = sym.and_then(|s| self.syms.main_annotations.get(&s)) {
                         out.push((sym.expect("a method"), span));
                     }
                 }
