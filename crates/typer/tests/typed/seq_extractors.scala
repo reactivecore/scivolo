@@ -26,6 +26,29 @@ object Word {
   def unapplySeq(s: String): Chars = new Chars(s)
 }
 
+final class Odd(s: String) {
+  def lengthCompare(n: Int): Boolean = s.length == n
+  def length: Int = s.length
+  def apply(i: Int): Char = s.charAt(i)
+  def drop(n: Int): Seq[Char] = s.toSeq.drop(n)
+  def toSeq: Seq[Char] = s.toSeq
+}
+
+object OddW {
+  def unapplySeq(s: String): Odd = new Odd(s)
+}
+
+case class Rec(name: String, items: Seq[Int]) {
+  def apply(i: Int): Int = items(i)
+  def drop(n: Int): Rec = Rec(name, items.drop(n))
+  def length: Int = items.length
+  def toSeq: Seq[Int] = items
+}
+
+object R {
+  def unapplySeq(r: Rec): Rec = r
+}
+
 object Main {
   def node(n: Node): Int = n match {
     case Node(name) => name.length
@@ -45,6 +68,14 @@ object Main {
   def word(s: String): Int = s match {
     case Word('a', rest*) => rest.length
     case Word(c, d) => 2
+    case _ => 0
+  }
+  def odd(s: String): Int = s match {
+    case OddW(a, b) => 2
+    case _ => 0
+  }
+  def rec(r: Rec): Int = r match {
+    case R(n, a, rest*) => a + rest.length
     case _ => 0
   }
 }

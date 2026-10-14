@@ -160,6 +160,6 @@ impl Typer<'_> {
         if !seq {
             return self.unapply_arg_types(result, n).ok();
         }
-        self.unapply_seq_arg_types(result, n).ok().map(|(types, _)| types)
+        self.unapply_seq_arg_types(result, n).ok().map(|args| args.types)
     }
 }

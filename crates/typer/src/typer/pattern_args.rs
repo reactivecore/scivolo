@@ -51,8 +51,11 @@ impl Typer<'_> {
         let get = self.get_match(result)?.ok_or("named patterns of an extractor without a product")?;
         let arity = self.product_selectors(get)?.len();
         let product = self.derives_from_named(get, "scala.Product");
-        if !product || self.derives_from_named(get, "scala.collection.Seq") || arity < 2 || n > arity {
+        if !product || self.derives_from_named(get, "scala.collection.Seq") || n > arity {
             return Err("named patterns of an extractor without a product");
+        }
+        if arity < 2 {
+            return Err("named pattern of a `get` with one selector");
         }
         Ok(get)
     }

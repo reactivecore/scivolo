@@ -4,6 +4,12 @@ object Older {
   def unapply(u: User): Some[User] = Some(u)
 }
 
+object UserOf {
+  def unapply(s: String): Some[User] = Some(User(s, 1, s))
+}
+
+case class Cell(var n: Int, tag: String)
+
 object Main {
   def typed(x: Any): Int = x match {
     case Some(i: Int) => i
@@ -17,6 +23,17 @@ object Main {
   }
   def nested(u: User): Int = u match {
     case Older(User(age = a)) => a
+  }
+  def viaGet(s: String): Int = s match {
+    case UserOf(age = a, city = c) => a + c.length
+  }
+  def boxed(x: Any): Int = x match {
+    case Some(i: Int) => i
+    case Some(l: Long) => l.toInt
+    case _ => 0
+  }
+  def cell(c: Cell): Int = c match {
+    case Cell(n = k) => k
   }
   def pair(p: (Any, Any)): Any = p match {
     case t @ (_, l: List[?]) => t

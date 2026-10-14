@@ -8,6 +8,7 @@ mod inline;
 mod members;
 mod merge;
 mod plan;
+mod seq_members;
 mod sequences;
 mod switch;
 mod try_catch;

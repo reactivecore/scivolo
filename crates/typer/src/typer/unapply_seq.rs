@@ -8,8 +8,12 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, Type, TypeId};
 
-/// The types of the patterns of a sequence extractor, and how many of them are product selectors.
-pub type SeqArgs = (Vec<TypeId>, usize);
+/// The types of the patterns of a sequence extractor.
+pub struct SeqArgs {
+    pub types: Vec<TypeId>,
+    /// How many of them are those of product selectors before the sequence.
+    pub leading: usize,
+}
 
 impl Typer<'_> {
     /// Whether pattern `a` is a sequence wildcard `x*` or `_*`.
@@ -19,8 +23,7 @@ impl Typer<'_> {
     }
 
     /// The expected types of `n` patterns of a sequence extractor with result type `result`
-    /// (dotty's `UnapplyArgs.argTypes` for `unapplySeq`), and the number of product selectors
-    /// before the sequence.
+    /// (dotty's `UnapplyArgs.argTypes` for `unapplySeq`).
     pub fn unapply_seq_arg_types(&mut self, result: TypeId, n: usize) -> Result<SeqArgs, &'static str> {
         if let Some(args) = self.seq_match(result, n)? {
             return Ok(args);
@@ -33,7 +36,7 @@ impl Typer<'_> {
     /// a sequence (dotty's `unapplySeq` of `UnapplyArgs`).
     fn seq_match(&mut self, t: TypeId, n: usize) -> Result<Option<SeqArgs>, &'static str> {
         if let Some(elem) = self.seq_elem_type(t) {
-            return Ok(Some((vec![elem; n], 0)));
+            return Ok(Some(SeqArgs { types: vec![elem; n], leading: 0 }));
         }
         if !self.derives_from_named(t, "scala.Product") {
             return Ok(None);
@@ -43,7 +46,8 @@ impl Typer<'_> {
         let Some(elem) = self.seq_elem_type(last).filter(|_| selectors.len() <= n + 1) else {
             return Ok(None);
         };
-        Ok(Some(((0..n).map(|i| leading.get(i).copied().unwrap_or(elem)).collect(), leading.len())))
+        let types = (0..n).map(|i| leading.get(i).copied().unwrap_or(elem)).collect();
+        Ok(Some(SeqArgs { types, leading: leading.len() }))
     }
 
     /// The element type of sequence-like `t`, the result of its `apply(Int)`, if it also has
@@ -105,7 +109,7 @@ impl Typer<'_> {
     pub fn typed_seq_patterns(
         &mut self,
         args: &[NodeId],
-        (types, leading): SeqArgs,
+        SeqArgs { types, leading }: SeqArgs,
         ctx: Ctx,
     ) -> Result<Vec<TNodeId>, &'static str> {
         let mut out = Vec::new();

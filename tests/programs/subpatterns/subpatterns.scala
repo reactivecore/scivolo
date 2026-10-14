@@ -22,6 +22,21 @@ final class Chars(s: String):
 object Word:
   def unapplySeq(s: String): Chars = Chars(s)
 
+case class Rec(name: String, items: Seq[Int]):
+  def apply(i: Int): Int = items(i) * 100
+  def drop(n: Int): Rec = Rec(name, items.drop(n))
+  def length: Int = items.length + 10
+  def toSeq: Seq[Int] = items
+
+object R:
+  def unapplySeq(r: Rec): Rec = r
+
+case class Pair(a: Int, b: String)
+object PairOf:
+  def unapply(x: Int): Some[Pair] = Some(Pair(x, "p" + x))
+
+case class Cell(var n: Int, tag: String)
+
 object P:
   def typed(x: Any): String = x match
     case Some(i: Int) => s"int $i"
@@ -60,6 +75,22 @@ object P:
     case Word(c, d) => s"two $c$d"
     case _ => "other word"
 
+  def rec(r: Rec): String = r match
+    case R(n) => s"name only $n"
+    case R(n, a) => s"one $n $a"
+    case R(n, a, rest*) => s"many $n $a ${rest.length}"
+
+  def viaGet(x: Int): String = x match
+    case PairOf(b = s) => s
+
+  def boxed(x: Any): String = x match
+    case Some(i: Int) => s"int $i"
+    case Some(l: Long) => s"long $l"
+    case _ => "other"
+
+  def cell(c: Cell): Int = c match
+    case Cell(n = k) => k
+
 @main def subpatterns(): Unit =
   println(P.typed(Some(3)))
   println(P.typed(Some("s")))
@@ -84,3 +115,10 @@ object P:
   println(P.word("abc"))
   println(P.word("xy"))
   println(P.word("xyz"))
+  println(P.rec(Rec("e", Nil)))
+  println(P.rec(Rec("o", List(1))))
+  println(P.rec(Rec("m", List(1, 2, 3))))
+  println(P.viaGet(3))
+  println(P.boxed(Some(5L)))
+  println(P.boxed(Some(5)))
+  println(P.cell(Cell(7, "c")))
