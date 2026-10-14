@@ -41,8 +41,19 @@ impl Typer<'_> {
         (locals.contains(&s) && matches!(self.u.types().get(info), Type::Bounds(..))).then_some(info)
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `syms`.
-    pub fn var_bounds_refer_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
+    /// Whether an uninstantiated type variable in `t` has a bound that refers to an abstract type
+    /// among `locals`.
+    pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
+        let mut syms = Vec::new();
+        for &s in locals {
+            let info = self.u.info(s);
+            if self.u.symbol(s).kind == Kind::Type && matches!(self.u.types().get(info), Type::Bounds(..)) {
+                syms.push(s);
+            }
+        }
+        if syms.is_empty() {
+            return false;
+        }
         let mut vars = Vec::new();
         self.u.map_type(t, &mut |u, part| {
             if let Type::Var(v) = *u.types().get(part) {
@@ -52,7 +63,7 @@ impl Typer<'_> {
         });
         vars.into_iter().any(|v| {
             let (lo, hi) = self.constraint.bounds(v);
-            self.constraint.instance(v).is_none() && (self.refers_to(lo, syms) || self.refers_to(hi, syms))
+            self.constraint.instance(v).is_none() && (self.refers_to(lo, &syms) || self.refers_to(hi, &syms))
         })
     }
 }
