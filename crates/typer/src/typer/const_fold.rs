@@ -59,10 +59,21 @@ impl Typer<'_> {
         let T::Select { qualifier, name } = *self.tpd.tree(fun) else { return };
         let &[arg] = self.tpd.items(args) else { return };
         let op = self.text(name.name).to_owned();
-        let (Some(x), Some(y)) = (self.constant_of(qualifier), self.constant_of(arg)) else { return };
-        if let Some(c) = fold_binop(&op, &x, &y) {
+        let folded = match (self.constant_of(qualifier), self.constant_of(arg)) {
+            (Some(x), Some(y)) => fold_binop(&op, &x, &y),
+            (None, Some(C::Null)) if self.is_class_constant(qualifier) => class_null_op(&op),
+            (Some(C::Null), None) if self.is_class_constant(arg) => class_null_op(&op),
+            _ => None,
+        };
+        if let Some(c) = folded {
             self.tpd.get_mut(tree).tpe = Some(constant_type_of(self.u, &c));
         }
+    }
+
+    /// Whether `tree` has the type of a class constant, `classOf[C]`.
+    fn is_class_constant(&self, tree: TNodeId) -> bool {
+        let tpe = self.tpd.get(tree).tpe;
+        tpe.is_some_and(|t| matches!(self.u.types().get(t), Type::Constant(CLASSconst, _)))
     }
 
     /// Whether `t` is a reference to a primitive value class (dotty's `isPrimitiveValueType`).
@@ -72,5 +83,14 @@ impl Typer<'_> {
         }
         let Some(class) = self.u.class_symbol(t) else { return false };
         PRIMITIVE_VALUE_CLASSES.contains(&self.u.full_name(class).as_str())
+    }
+}
+
+/// `==` or `!=` of a class constant and `null` (dotty's `foldNullOp` on tags that differ).
+fn class_null_op(op: &str) -> Option<C> {
+    match op {
+        "==" => Some(C::Boolean(false)),
+        "!=" => Some(C::Boolean(true)),
+        _ => None,
     }
 }

@@ -62,8 +62,11 @@ fn transform_class(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
-/// class the selected member is called on.
+/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
+    if let Some(m) = l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m)) {
+        l.tpd.get_mut(sel).sym = Some(m);
+    }
     let owner = receiver_type(l, sel, qualifier);
     let qualifier = typed(l, qualifier, None)?;
     Ok(match owner {
@@ -190,7 +193,8 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         l.tpd.get_mut(t).tree = new;
     }
     l.recopy_class_literals(t);
-    let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
+    let applied = is_parameterless_ref(l, t) || calls::is_unapplied_hash_code(l, t);
+    let t = if applied { applied_to_none(l, t) } else { t };
     let (span, e) = (l.tpd.span(t), elided(l, t));
     let Some(pt) = pt else { return Ok(e) };
     let adapted = adapt(l, e, pt);

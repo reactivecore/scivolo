@@ -3,7 +3,7 @@
 
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 
 /// dotty's `PurityLevel` bits: evaluating twice gives the same, evaluating has no effect, the
 /// tree is a path; the weaker of two levels is their intersection.
@@ -12,10 +12,6 @@ const PURE: u8 = 2 | IDEMPOTENT;
 const IDEMPOTENT_PATH: u8 = 4 | IDEMPOTENT;
 const PURE_PATH: u8 = 4 | PURE;
 const IMPURE: u8 = 0;
-
-/// The members of `Any` that do not observe their arguments (dotty's `pureMethods`).
-const PURE_ANY_METHODS: [&str; 9] =
-    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf"];
 
 impl Typer<'_> {
     /// Whether evaluating `tree` has no effect.
@@ -117,15 +113,7 @@ impl Typer<'_> {
         if self.is_pure_case_apply(s) {
             return true;
         }
-        let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-        let name = self.u.symbol(s).name.as_str();
-        let known = match owner.as_deref() {
-            Some("scala.Any") => PURE_ANY_METHODS.contains(&name),
-            Some("java.lang.Object") => name == "eq" || name == "ne",
-            Some(o) => o == "java.lang.String" || PRIMITIVE_VALUE_CLASSES.contains(&o),
-            None => false,
-        };
-        self.has_constant_type(tree) && known
+        self.has_constant_type(tree) && self.u.is_known_pure_op(s)
     }
 
     /// dotty's `isPureSyntheticCaseApply`.

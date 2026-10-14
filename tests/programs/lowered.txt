@@ -80,3 +80,7 @@ valuepatterns
 unions
 outerclasses
 uninitfields
+emptycases
+nullcasts
+outerthis
+matchnames
