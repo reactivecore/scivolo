@@ -1,4 +1,4 @@
-# ADR 0023 — TASTy symbol tables in the library image
+# ADR 0024 — TASTy symbol tables in the library image
 
 Status: accepted · Date: 2026-10-14
 
