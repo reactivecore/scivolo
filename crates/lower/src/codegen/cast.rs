@@ -117,7 +117,7 @@ impl Gen<'_, '_> {
             _ if ty == Type::Nothing && (reference(&f) || f == Type::Null) => {
                 self.gen_cast_to_nothing(value, from)
             }
-            _ if null_conforms || (subtype && reference(&f)) => value,
+            _ if null_conforms || (subtype && (reference(&f) || f == Type::Null)) => value,
             _ if (reference(&f) || f == Type::Null) && reference(&ty) => {
                 self.emit(Op::As { ty: to, obj: value })
             }

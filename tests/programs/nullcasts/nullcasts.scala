@@ -12,6 +12,15 @@ object Arrays {
   lazy val empty: Array[Int] = null
 }
 
+object Nulls {
+  def n0: Null = null
+  def toObject(): Object = (null: String).asInstanceOf[Object]
+  def nullToArray(): Array[Int] = n0.asInstanceOf[Array[Int]]
+  def nullToString(): String = n0.asInstanceOf[String]
+  def anyToArray(): Array[String] = (null: Any).asInstanceOf[Array[String]]
+  def local(): Array[Int] = { val n = null; n }
+}
+
 object Classes {
   def same(c: Class[?]): Boolean = c.equals(classOf[String])
   def hash(c: Class[?]): Int = c.hashCode - c.hashCode
@@ -22,6 +31,9 @@ object Consts {
   def nullString(): Boolean = "s" == null
   def strings(): Boolean = "a" == "b"
   def different(): Boolean = "a" != "b"
+  def classIsNull(): Boolean = classOf[Int] == null
+  def classIsNotNull(): Boolean = classOf[String] != null
+  def nullIsClass(): Boolean = null == classOf[Int]
 }
 
 object Test {
@@ -36,6 +48,14 @@ object Test {
     println(Consts.nullString())
     println(Consts.strings())
     println(Consts.different())
+    println(Consts.classIsNull())
+    println(Consts.classIsNotNull())
+    println(Consts.nullIsClass())
+    println(Nulls.toObject() == null)
+    println(Nulls.nullToArray() == null)
+    println(Nulls.nullToString() == null)
+    println(Nulls.anyToArray() == null)
+    println(Nulls.local() == null)
   }
 }
 
