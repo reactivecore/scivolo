@@ -158,6 +158,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
             syms.iter().zip(&args).zip(formals).zip(skolems).zip(spans)
         {
             self.arg_span.insert(p, span);
+            let skolem = self.i.arg_skolem(arg, skolem)?;
             let tpe = self.i.tpd.tpe(arg);
             let bound = if self.i.is_singleton_path(tpe) && self.i.is_idempotent_path(arg) {
                 tpe
