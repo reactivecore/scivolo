@@ -73,7 +73,8 @@ Apache-2.0. Rust translations of:
     `ResolveSuper` (`rebindSuper`)
   - `ProtectedAccessors`, `AccessProxies` (`useAccessor`, `useSetter`, `rewire`, `accessorDef`,
     `hostForAccessorOf`), `TypeErasure.eraseInfo` (a trait's class parent as `Object`)
-  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
+  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `f`, `transformS`, `transformF`),
+    `localopt/FormatChecker` (`TypedFormatChecker`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods, moved bodies), `FullParameterization`
     (`fullyParameterizedDef`, `forwarder`), `VCElideAllocations`, `Erasure.Boxing` (`box`, `unbox`
     of value classes), `SyntheticMembers` (`valueHashCodeBody`), `TypeErasure.valueErasure`
