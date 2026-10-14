@@ -34,9 +34,16 @@ const CASES: &[(&str, &str)] = &[
         "returns of Unit values of class members",
     ),
     (
-        "object E { def unapplySeq(s: String): Option[(Int, Seq[Int])] = None }\n\
-         object O { def f(x: String): Int = x match { case E(a, b) => a; case _ => 0 } }",
-        "sequence extractors of a product and a sequence",
+        "final class Odd(s: String) { def lengthCompare(n: Int): Boolean = true; def length: Int = 1;\n\
+         def apply(i: Int): Char = 'a'; def drop(n: Int): Seq[Char] = Nil; def toSeq: Seq[Char] = Nil }\n\
+         object W { def unapplySeq(s: String): Odd = Odd(s) }\n\
+         object O { def f(s: String) = s match { case W(a) => 1; case _ => 0 } }",
+        "sequence matches whose `lengthCompare` is no `Int`",
+    ),
+    (
+        "trait Tag\nobject E { def unapplySeq(x: Int): Option[Tag & Seq[Int]] = None }\n\
+         object O { def f(x: Int): Int = x match { case E(a) => a; case _ => 0 } }",
+        "sequence extractors of another result type",
     ),
     (
         "class M(val x: Int) extends AnyVal\nclass N(val x: Int) extends AnyVal\n\

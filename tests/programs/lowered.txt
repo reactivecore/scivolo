@@ -93,3 +93,4 @@ genericarrays
 typetests
 formats
 refutables
+subpatterns

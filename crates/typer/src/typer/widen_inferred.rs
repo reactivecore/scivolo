@@ -30,7 +30,7 @@ impl Typer<'_> {
         widen: Widen,
     ) -> Result<TypeId, &'static str> {
         if self.is_below_singleton(bound, 0) {
-            return Ok(inst);
+            return Ok(self.without_repeated_annot(inst));
         }
         let single = self.widen_single(inst, bound, widen == Widen::Unions);
         let wide = match widen {
@@ -49,7 +49,16 @@ impl Typer<'_> {
             Widen::Singletons => self.harden_unions(single),
         };
         let wide = self.without_transparent_traits(wide, bound);
-        Ok(self.module_ref(wide))
+        let wide = self.module_ref(wide);
+        Ok(self.without_repeated_annot(wide))
+    }
+
+    /// `t` without a top-level `@Repeated` annotation (dotty's `dropRepeatedAnnot`).
+    fn without_repeated_annot(&mut self, t: TypeId) -> TypeId {
+        match self.u.types().get(t).clone() {
+            Type::Annotated(inner, annot) if self.is_repeated_annot(annot) => inner,
+            _ => t,
+        }
     }
 
     /// `t` with its singletons widened if the result conforms to `bound` (dotty's `widenSingle`).
