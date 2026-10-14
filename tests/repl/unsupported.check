@@ -1,5 +1,5 @@
 scala> class A(private var p: Int) { def f = p }
--- unsupported: private mutable class parameters
+// defined class A
 
 scala> trait T { var x: Int }
 -- unsupported: abstract variables
