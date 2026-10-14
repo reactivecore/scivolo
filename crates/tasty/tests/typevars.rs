@@ -1,5 +1,6 @@
+use std::cell::Cell;
 use std::path::Path;
-use tasty::{ANY, Kind, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Kind, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 fn stdlib() -> Option<Universe> {
     let jar = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs/scala-library-3.9.0.jar");
@@ -10,10 +11,12 @@ fn stdlib() -> Option<Universe> {
     Some(Universe::open(&[jar]).unwrap())
 }
 
-/// A constraint that keeps every bound added, a new bound checked against the others.
+/// A constraint that keeps every bound added, a new bound checked against the others, and
+/// counts the marks taken.
 #[derive(Default)]
 struct Bounds {
     added: Vec<(VarId, TypeId, bool)>,
+    marks: Cell<usize>,
 }
 
 impl Bounds {
@@ -54,10 +57,21 @@ impl TypeVars for Bounds {
         false
     }
     fn mark(&self) -> Mark {
+        self.marks.set(self.marks.get() + 1);
         Mark(self.added.len())
     }
     fn rollback(&mut self, m: Mark) {
         self.added.truncate(m.0);
+    }
+    fn changes_since(&self, m: Mark) -> Changes {
+        let added = self.added[m.0..].to_vec();
+        let mut vars: Vec<VarId> = added.iter().map(|&(v, _, _)| v).collect();
+        vars.dedup();
+        Changes { vars, redo: Box::new(added) }
+    }
+    fn redo(&mut self, changes: Changes) {
+        let added = changes.redo.downcast::<Vec<(VarId, TypeId, bool)>>().expect("bounds of this constraint");
+        self.added.extend(*added);
     }
 }
 
@@ -131,6 +145,26 @@ fn contradictions_fail_and_either_rolls_back() {
     assert!(u.is_subtype(tx, tx));
     assert!(u.is_subtype(NOTHING, tx));
     assert!(u.is_subtype(tx, ANY));
+}
+
+#[test]
+fn either_keeps_the_first_constraint_without_comparing_again() {
+    let Some(mut u) = stdlib() else { return };
+    let int = t(&mut u, "scala.Int", &[]);
+    let x = VarId(0);
+    let tx = u.intern_type(Type::Var(x));
+    let mut union = t(&mut u, "scala.collection.immutable.List", &[tx]);
+    let others =
+        (2..=22).map(|n| format!("scala.Function{n}")).chain((2..=10).map(|n| format!("scala.Tuple{n}")));
+    for name in others {
+        let other = t(&mut u, &name, &[]);
+        union = u.intern_type(Type::Or(union, other, false));
+    }
+    let list_int = t(&mut u, "scala.collection.immutable.List", &[int]);
+    let mut vars = Bounds::default();
+    assert!(u.is_subtype_in(list_int, union, &mut vars));
+    assert_eq!(vars.added, [(x, int, false)]);
+    assert!(vars.marks.get() < 1000, "{} marks", vars.marks.get());
 }
 
 #[test]

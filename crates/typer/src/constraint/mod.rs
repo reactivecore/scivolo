@@ -2,9 +2,9 @@
 //! without the ordering between variables), with an undo log for `either` and failed
 //! comparisons.
 
-use tasty::{ANY, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct Entry {
     lo: TypeId,
     hi: TypeId,
@@ -179,16 +179,31 @@ impl TypeVars for Constraint {
         Mark(self.log.len())
     }
 
-    fn changed_since(&self, m: Mark) -> Vec<VarId> {
-        let mut vars: Vec<VarId> = self.log[m.0..].iter().map(|&(i, _)| VarId(i as u32)).collect();
-        vars.sort_unstable_by_key(|v| v.0);
-        vars.dedup();
-        vars
-    }
-
     fn rollback(&mut self, m: Mark) {
         while self.log.len() > m.0 {
             let (i, e) = self.log.pop().expect("a logged entry");
+            self.vars[i] = e;
+        }
+    }
+
+    fn changes_since(&self, m: Mark) -> Changes {
+        let mut before: Vec<(usize, Entry)> = Vec::new();
+        for &(i, e) in &self.log[m.0..] {
+            if !before.iter().any(|&(j, _)| j == i) {
+                before.push((i, e));
+            }
+        }
+        let now: Vec<(usize, Entry)> =
+            before.into_iter().filter(|&(i, e)| self.vars[i] != e).map(|(i, _)| (i, self.vars[i])).collect();
+        Changes { vars: now.iter().map(|&(i, _)| VarId(i as u32)).collect(), redo: Box::new(now) }
+    }
+
+    fn redo(&mut self, changes: Changes) {
+        let Ok(entries) = changes.redo.downcast::<Vec<(usize, Entry)>>() else {
+            unreachable!("changes of this constraint")
+        };
+        for (i, e) in *entries {
+            self.log.push((i, self.vars[i]));
             self.vars[i] = e;
         }
     }

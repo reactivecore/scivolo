@@ -6,27 +6,33 @@ use crate::types::{TypeId, VarId};
 impl Cmp<'_> {
     /// Whether `first` holds, or else `second`; when both hold, the constraint of `second` is
     /// kept if the one of `first` subsumes it, that of `first` otherwise (dotty's `tryAlso`).
-    pub fn either(&mut self, first: impl Fn(&mut Self) -> bool, second: impl Fn(&mut Self) -> bool) -> bool {
+    pub fn either(
+        &mut self,
+        first: impl FnOnce(&mut Self) -> bool,
+        second: impl FnOnce(&mut Self) -> bool,
+    ) -> bool {
         let mark = self.vars.mark();
         if !first(self) {
             self.vars.rollback(mark);
             return second(self);
         }
-        if self.vars.mark() == mark {
+        let left = self.vars.changes_since(mark);
+        if left.vars.is_empty() {
             return true;
         }
-        let changed = self.vars.changed_since(mark);
-        let left: Vec<(VarId, (TypeId, TypeId))> = changed.iter().map(|&v| (v, self.bounds_of(v))).collect();
+        let bounds: Vec<(VarId, (TypeId, TypeId))> =
+            left.vars.iter().map(|&v| (v, self.bounds_of(v))).collect();
         self.vars.rollback(mark);
         if second(self) {
-            let mut vars = self.vars.changed_since(mark);
-            vars.extend(changed.iter().copied());
-            if vars.iter().all(|&v| self.subsumes_bounds(&left, v)) {
+            let mut vars = self.vars.changes_since(mark).vars;
+            vars.extend(&left.vars);
+            if vars.iter().all(|&v| self.subsumes_bounds(&bounds, v)) {
                 return true;
             }
         }
         self.vars.rollback(mark);
-        first(self)
+        self.vars.redo(left);
+        true
     }
 
     /// The bounds of `v`, both its instance if it has one.

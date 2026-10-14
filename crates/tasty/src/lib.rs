@@ -18,7 +18,7 @@ mod view;
 
 pub use erasure::{Erased, PRIMITIVE_VALUE_CLASSES};
 pub use positions::TastySpan;
-pub use subtype::{Mark, NoVars, TypeVars};
+pub use subtype::{Changes, Mark, NoVars, TypeVars};
 pub use symbols::{
     ANY, BodyInfo, Builtins, Error as LoadError, FileId, Flags, Kind, NOTHING, Symbol, SymbolId, Universe,
     decode, encode, is_package_object_name, module_class_name, module_name,
