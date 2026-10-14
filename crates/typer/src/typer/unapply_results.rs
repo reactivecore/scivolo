@@ -58,6 +58,7 @@ impl Typer<'_> {
         let info = self.method_info(tpe).unwrap_or(tpe);
         Ok(match *self.u.types().get(info) {
             Type::Method { .. } | Type::Poly { .. } => None,
+            Type::Bounds(..) => return Err("extractor member typed by a wildcard argument"),
             Type::ByName(r) => Some(r),
             _ => Some(info),
         })
