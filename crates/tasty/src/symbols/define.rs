@@ -2,7 +2,9 @@
 //! and binders for the types made with them.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use crate::Erased;
 use crate::types::{Binder, TypeId};
+use rustc_hash::FxHashMap;
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
@@ -13,7 +15,7 @@ impl Universe {
             if let Some(index) = self.by_name.get_mut(&o) {
                 index.entry(s.name.clone()).or_default().push(id);
                 if s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
-                    self.resolved.clear();
+                    self.changed();
                 }
             }
         }
@@ -24,10 +26,33 @@ impl Universe {
         id
     }
 
-    /// Drops the name index of `owner` and the resolved references.
+    /// Drops the name index of `owner` and what `changed` drops.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
+        self.changed();
+    }
+
+    /// Drops the resolved references and the erased methods, and starts a new generation.
+    fn changed(&mut self) {
         self.resolved.clear();
+        self.erased_methods.clear();
+        self.generation += 1;
+    }
+
+    /// How often declarations, parents, or set infos and flags changed; results derived from
+    /// the universe stay valid while it is the same.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// How many binders `fresh_binder` has made.
+    pub fn binders_made(&self) -> u32 {
+        self.binders
+    }
+
+    /// The erased methods remembered since the last change, by method and semi-erasure.
+    pub fn erased_methods(&mut self) -> &mut FxHashMap<(SymbolId, bool), (Vec<Erased>, Erased)> {
+        &mut self.erased_methods
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
@@ -39,7 +64,7 @@ impl Universe {
     /// Sets the declared type `info` returns for `sym`.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
-            self.resolved.clear();
+            self.changed();
         }
     }
 
@@ -47,12 +72,12 @@ impl Universe {
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
-        self.resolved.clear();
+        self.changed();
     }
 
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
         if std::mem::replace(&mut self.symbols[sym.0 as usize].flags, flags) != flags {
-            self.resolved.clear();
+            self.changed();
         }
     }
 

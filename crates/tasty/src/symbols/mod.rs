@@ -64,6 +64,8 @@ pub struct Universe {
     by_name: FxHashMap<SymbolId, FxHashMap<String, Vec<SymbolId>>>,
     /// The symbol each `TypeRef` or `TermRef` resolved to.
     resolved: FxHashMap<TypeId, SymbolId>,
+    generation: u64,
+    erased_methods: FxHashMap<(SymbolId, bool), (Vec<crate::Erased>, crate::Erased)>,
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
