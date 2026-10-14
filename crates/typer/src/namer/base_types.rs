@@ -23,7 +23,7 @@ impl Typer<'_> {
                 match self.same_base_type(base, first, other) {
                     Some(true) => {}
                     Some(false) if concrete => {
-                        let (a, b) = (self.show_type(first), self.show_type(other));
+                        let (a, b) = (self.u.show_user(first), self.u.show_user(other));
                         let name = self.u.symbol(cls).name.clone();
                         let msg = format!(
                             "class {name} cannot be instantiated since it has conflicting base types {a} and {b}"
@@ -43,8 +43,8 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether base types `a` and `b` of class `base` are the same, `Some(false)` if an invariant
-    /// argument is two different classes, `None` if unknown.
+    /// Whether base types `a` and `b` of class `base` are the same, as their dealiased arguments
+    /// are, `Some(false)` if an invariant argument is two different classes, `None` if unknown.
     fn same_base_type(&mut self, base: SymbolId, a: TypeId, b: TypeId) -> Option<bool> {
         if a == b {
             return Some(true);
@@ -57,13 +57,13 @@ impl Typer<'_> {
         let params = self.u.type_params(base);
         let mut same = true;
         for ((x, y), p) in xs.into_iter().zip(ys).zip(params) {
-            let (sx, sy) = (self.arg_symbol(x)?, self.arg_symbol(y)?);
-            if sx == sy {
+            let (x, y) = (self.u.dealias(x), self.u.dealias(y));
+            if x == y {
                 continue;
             }
             let flags = self.u.symbol(p).flags;
-            let classes = [sx, sy].iter().all(|&s| self.u.symbol(s).kind == Kind::Class);
-            if flags.has(COVARIANT) || flags.has(CONTRAVARIANT) || !classes {
+            let (cx, cy) = (self.class_ref(x)?, self.class_ref(y)?);
+            if flags.has(COVARIANT) || flags.has(CONTRAVARIANT) || cx == cy {
                 return None;
             }
             same = false;
@@ -71,13 +71,13 @@ impl Typer<'_> {
         Some(same)
     }
 
-    /// The symbol that dealiased type argument `t` refers to without arguments.
-    fn arg_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        let t = self.u.dealias(t);
-        match *self.u.types().get(t) {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(..) => self.u.resolve_ref(t),
-            _ => None,
-        }
+    /// The class that type `t` refers to without arguments.
+    fn class_ref(&mut self, t: TypeId) -> Option<SymbolId> {
+        let s = match *self.u.types().get(t) {
+            Type::Sym(_, s) => s,
+            Type::TypeRef(..) => self.u.resolve_ref(t)?,
+            _ => return None,
+        };
+        (self.u.symbol(s).kind == Kind::Class).then_some(s)
     }
 }
