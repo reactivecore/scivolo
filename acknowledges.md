@@ -42,6 +42,8 @@ Apache-2.0. Rust translations of:
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
+- `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
+  `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)

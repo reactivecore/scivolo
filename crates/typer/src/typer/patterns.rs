@@ -67,19 +67,13 @@ impl Typer<'_> {
             T::Select { .. } | T::Literal { .. } => true,
             _ => false,
         };
-        let b = self.u.builtins();
-        let (nothing, null) = (b.nothing, b.null);
-        let bottom = |t: &mut Self, p| matches!(t.u.class_symbol(p), Some(c) if c == nothing || c == null);
         let implicit = matches!(pt, Pt::Type(p) if Some(p) == self.syms.implicit_scrutinee);
         let info = match pt {
             _ if !ref_or_literal && self.is_error(body) => body_tpe,
             _ if implicit => body_tpe,
             Pt::Type(p) if stable_or_literal => p,
-            Pt::Type(p) if !bottom(self, p) && !self.u.is_subtype(body_tpe, p) => {
-                if !self.u.is_subtype(p, body_tpe) {
-                    return self.unsupported(id, "pattern variable of an intersection type");
-                }
-                p
+            Pt::Type(p) if !self.is_bottom_type(p) && !self.u.is_subtype(body_tpe, p) => {
+                self.u.glb(body_tpe, p)
             }
             _ => body_tpe,
         };
@@ -91,6 +85,13 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::Sym(None, sym));
         let span = self.ast.span(id);
         self.tpd.node(T::Bind { name, body }, span, Some(tpe), Some(sym))
+    }
+
+    /// Whether `t` is `Nothing` or `Null` (dotty's `isBottomType`).
+    pub fn is_bottom_type(&mut self, t: TypeId) -> bool {
+        let b = self.u.builtins();
+        let (nothing, null) = (b.nothing, b.null);
+        matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null)
     }
 
     /// Whether `t` is a class type, possibly applied, without wildcard arguments.

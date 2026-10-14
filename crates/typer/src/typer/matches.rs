@@ -57,9 +57,10 @@ impl Typer<'_> {
         }
         let tpe = bodies.iter().fold(NOTHING, |acc, &b| self.u.lub(acc, b));
         let attrs = self.ast.attrs(selector);
-        let sel = if attrs.contains(Attrs::CHECK_PAT_DEF) || attrs.contains(Attrs::CHECK_GEN_FROM) {
+        let pat_def = attrs.contains(Attrs::CHECK_PAT_DEF);
+        let sel = if pat_def || attrs.contains(Attrs::CHECK_GEN_FROM) {
             let T::CaseDef { pat, .. } = *self.tpd.tree(typed_cases[0]) else { unreachable!("a case") };
-            match self.runtime_checked(sel, pat, sel_tpe) {
+            match self.runtime_checked(sel, pat, pat_def) {
                 Ok(sel) => sel,
                 Err(what) => return self.unsupported(id, what),
             }
@@ -69,55 +70,6 @@ impl Typer<'_> {
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Match { selector: Some(sel), cases, kind }, span, Some(tpe), None)
-    }
-
-    /// Selector `sel` of type `sel_tpe` of a pattern definition or generator with pattern `pat`,
-    /// ascribed `@RuntimeChecked`; `Err` unless `pat` is irrefutable (dotty's `checkIrrefutable`).
-    fn runtime_checked(
-        &mut self,
-        sel: TNodeId,
-        pat: TNodeId,
-        sel_tpe: TypeId,
-    ) -> Result<TNodeId, &'static str> {
-        if matches!(self.u.types().get(sel_tpe), Type::Annotated(..)) {
-            return Err("annotated selector of a pattern definition");
-        }
-        if !self.is_irrefutable(pat, Some(sel_tpe)) {
-            return Err("refutable pattern definition");
-        }
-        let annot = self.resolve_full_name("scala.annotation.internal.RuntimeChecked", true);
-        let annot = annot.ok_or("RuntimeChecked missing from the library")?;
-        let annot = crate::defn::type_ref(self.u, annot);
-        let widened = self.u.widen(sel_tpe);
-        let tpe = self.u.intern_type(Type::Annotated(widened, annot));
-        let span = self.tpd.span(sel);
-        let tpt = self.type_tree(tpe, span.end_pos(), true);
-        Ok(self.tpd.node(T::Typed { expr: sel, tpt }, span.to_synthetic(), Some(tpe), None))
-    }
-
-    /// Whether typed pattern `pat` matches every value of type `sel`: a variable or wildcard, a
-    /// type pattern `sel` conforms to, or a case class extractor of irrefutable patterns; type
-    /// patterns only where `sel` is known.
-    fn is_irrefutable(&mut self, pat: TNodeId, sel: Option<TypeId>) -> bool {
-        match *self.tpd.tree(pat) {
-            T::Bind { body, .. } => self.is_irrefutable(body, sel),
-            T::Ident { name } => self.text(name.name) == "_",
-            T::Typed { expr, tpt } => {
-                let tpe = self.tpd.tpe(tpt);
-                sel.is_some_and(|s| self.u.is_subtype(s, tpe)) && self.is_irrefutable(expr, Some(tpe))
-            }
-            T::UnApply { fun, patterns, .. } => {
-                let mut callee = fun;
-                while let T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
-                    callee = fun;
-                }
-                let synthetic =
-                    self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::SYNTHETIC));
-                let pats = self.tpd.items(patterns).to_vec();
-                synthetic && pats.iter().all(|&p| self.is_irrefutable(p, None))
-            }
-            _ => false,
-        }
     }
 
     /// Case `id` of a match on a value of type `selector`, its body expected to be `pt`; a body

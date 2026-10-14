@@ -168,7 +168,7 @@ impl Typer<'_> {
     }
 
     /// The result of method type `t` after all its clauses.
-    fn final_result(&mut self, t: TypeId) -> TypeId {
+    pub fn final_result(&mut self, t: TypeId) -> TypeId {
         match *self.u.types().get(t) {
             Type::Method { result, .. } | Type::Poly { result, .. } => self.final_result(result),
             Type::ByName(r) => r,
