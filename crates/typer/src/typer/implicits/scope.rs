@@ -38,8 +38,14 @@ impl Typer<'_> {
                 if base_owner != owner && base_owner.is_some_and(|o| self.is_instance_class(o)) {
                     return Err("implicit scope with a base class of another class's instance");
                 }
+                let term_path = prefix.filter(|&p| {
+                    matches!(*self.u.types().get(p), Type::Sym(_, s) if self.u.symbol(s).kind.is_term())
+                });
                 let (module, module_ref) = match self.companion_module(base) {
-                    Some(module) => (module, crate::defn::type_ref(self.u, module)),
+                    Some(module) => match term_path.filter(|_| base == c) {
+                        Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
+                        None => (module, crate::defn::type_ref(self.u, module)),
+                    },
                     None => {
                         let Some(module) = self.class_companion(base) else { continue };
                         let path = prefix.filter(|&p| match *self.u.types().get(p) {
