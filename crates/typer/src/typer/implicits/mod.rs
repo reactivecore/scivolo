@@ -8,6 +8,7 @@ mod clauses;
 pub(super) mod conversions;
 mod extension_views;
 mod not_given;
+mod parts;
 mod ranking;
 mod scope;
 mod search;

@@ -20,7 +20,10 @@ impl Typer<'_> {
         self.extension_visible(name, ctx)
             || self.finds_completing(name, ctx)
             || self.script_may_supply(Some(name))
-            || self.implicit_scope(site).into_iter().any(|c| self.may_view(c.sym, q, Goal::Member(name)))
+            || match self.implicit_scope(site) {
+                Ok(scope) => scope.into_iter().any(|c| self.may_view(c.sym, q, Goal::Member(name))),
+                Err(_) => true,
+            }
             || self.any_root_member(ctx, |t, d| t.may_view(d, q, Goal::Member(name)))
     }
 

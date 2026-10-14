@@ -9,7 +9,7 @@ use super::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::EXTENSION;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewKind {
@@ -64,13 +64,24 @@ impl Typer<'_> {
         self.with_apply(fun, Pt::Any, ctx)
     }
 
-    /// Whether candidate `c` gives a value with an extension method `name`; `Err` for a value of
-    /// a type that is not a class's.
+    /// Whether candidate `c` gives a value with an extension method `name`.
     pub fn offers_extension(&mut self, c: Candidate, name: &str) -> Result<bool, &'static str> {
         let Ok(value) = self.candidate_value(c) else { return Ok(false) };
+        Ok(!self.extension_members(value, name)?.is_empty())
+    }
+
+    /// The extension methods `name` of a value of type `value`; `Err` for a type that is not a
+    /// class's, or if other members are named so too.
+    pub fn extension_members(&mut self, value: TypeId, name: &str) -> Result<Vec<SymbolId>, &'static str> {
         let value = self.u.widen(value);
         let k = self.u.class_symbol(value).ok_or("implicit value of a type other than a class")?;
-        Ok(self.class_members(k, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION)))
+        let members = self.class_members(k, name);
+        let extensions: Vec<SymbolId> =
+            members.iter().copied().filter(|&e| self.u.symbol(e).flags.has(EXTENSION)).collect();
+        if !extensions.is_empty() && extensions.len() < members.len() {
+            return Err("extension method of an implicit value among other members");
+        }
+        Ok(extensions)
     }
 
     /// Whether dotty ranks view method `c` above each of `widened`, views that take the constant

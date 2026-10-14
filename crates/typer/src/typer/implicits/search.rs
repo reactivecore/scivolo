@@ -55,7 +55,7 @@ impl Typer<'_> {
         }
         let coherent = self.class_args(pt, "scala.CanEqual").is_some();
         let mut groups = self.contextual_implicits(ctx)?;
-        groups.push(self.implicit_scope(pt));
+        groups.push(self.implicit_scope(pt)?);
         for group in groups {
             let mut nested_failure = false;
             let found = self.fitting(&group, |t, c| {

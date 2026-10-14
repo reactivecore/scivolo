@@ -129,15 +129,6 @@ impl Typer<'_> {
         }
     }
 
-    fn referenced(&mut self, t: TypeId) -> Option<SymbolId> {
-        match self.u.types().get(t).clone() {
-            Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true),
-            Type::TermRef(p, n) => self.u.resolve(p, &n, false),
-            _ => None,
-        }
-    }
-
     /// Whether `t` is `Nothing` or `Null`, an intersection with such a side, or a union of such
     /// sides.
     fn is_bottom(&mut self, t: TypeId) -> bool {

@@ -115,8 +115,10 @@ impl Typer<'_> {
         let dealiased = self.u.dealias(from);
         let Some(q) = self.direct_class(dealiased) else { return true };
         let goal = Goal::Conform(to);
-        let mut scope = self.implicit_scope(from);
-        scope.extend(self.implicit_scope(to));
+        let (Ok(mut scope), Ok(to_scope)) = (self.implicit_scope(from), self.implicit_scope(to)) else {
+            return true;
+        };
+        scope.extend(to_scope);
         self.script_may_supply(None)
             || scope.into_iter().any(|c| self.may_view(c.sym, q, goal))
             || self.any_root_member(ctx, |t, d| t.may_view(d, q, goal))

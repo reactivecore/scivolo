@@ -51,9 +51,10 @@ impl Typer<'_> {
         }
         self.implicit_budget = super::search::MAX_TRIES;
         let mut groups = self.contextual_implicits(ctx)?;
-        let super::scope::ImplicitScope { implicits: mut scope, containers } = self.implicit_scope_of(from);
+        let super::scope::ImplicitScope { implicits: mut scope, containers } =
+            self.implicit_scope_of(from)?;
         if let Goal::Conform(pt) = goal {
-            scope.extend(self.implicit_scope(pt));
+            scope.extend(self.implicit_scope(pt)?);
         }
         if let Goal::Member(name) = goal
             && scope.iter().any(|c| {

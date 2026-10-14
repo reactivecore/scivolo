@@ -7,7 +7,6 @@ use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, TName, Tree};
 use tasty::Type;
-use tasty::tags::EXTENSION;
 
 impl Typer<'_> {
     /// The one candidate of `group` with an extension method `name` that takes `tree`, if any;
@@ -69,13 +68,8 @@ impl Typer<'_> {
         let at = self.tpd.span(tree).start_pos();
         let container = self.candidate_ref(c, at, ctx)?;
         let value = self.tpd.tpe(container);
-        let value = self.u.widen(value);
-        let class = self.u.class_symbol(value).ok_or("extension method of an implicit value")?;
-        let members = self.class_members(class, name);
-        if members.iter().any(|&m| !self.u.symbol(m).flags.has(EXTENSION)) {
-            return Err("extension method of an implicit value among other members");
-        }
-        let [method] = members[..] else { return Err("overloaded extension method of an implicit value") };
+        let methods = self.extension_members(value, name)?;
+        let [method] = methods[..] else { return Err("overloaded extension method of an implicit value") };
         let select = self.build().select(container, method, at);
         let select = self.with_type_vars(select)?;
         let tpe = self.tpd.tpe(select);
