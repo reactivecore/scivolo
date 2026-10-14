@@ -4,8 +4,10 @@ use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// How long a library image or compiled script may go unused before it is removed.
+/// How long a compiled script may go unused before it is removed.
 pub const UNUSED: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// How long a library image may go unused before building another removes it.
+pub const IMAGE_UNUSED: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long a half-written entry, left by a build that did not finish, is kept.
 pub const ABANDONED: Duration = Duration::from_secs(24 * 60 * 60);
 

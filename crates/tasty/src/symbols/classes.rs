@@ -28,7 +28,7 @@ impl Universe {
 
     fn decode_parents(&mut self, file: FileId, typedef: NodeId) -> Vec<TypeId> {
         let Universe { files, by_tree, packages, types, .. } = self;
-        let loaded = &files[file.0 as usize];
+        let loaded = files[file.0 as usize].decoded();
         let ast = &loaded.ast;
         let Some(&template) = ast.kids(typedef).first() else { return Vec::new() };
         let mut d = Decoder::new((file, ast, &loaded.names), by_tree, packages, types);

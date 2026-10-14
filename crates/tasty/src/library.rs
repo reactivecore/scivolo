@@ -9,6 +9,9 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 use zip::ZipArchive;
 
+/// A file's bytes, and its symbol table if an image keeps one.
+pub type Contents = (Cow<'static, [u8]>, Option<&'static [u8]>);
+
 pub enum Library {
     Jars {
         jars: Vec<ZipArchive<File>>,
@@ -41,18 +44,18 @@ impl Library {
         }
     }
 
-    /// The bytes of `path`, e.g. `scala/Option.tasty`.
-    pub fn read(&mut self, path: &str) -> io::Result<Cow<'static, [u8]>> {
+    /// The bytes of `path`, e.g. `scala/Option.tasty`, and the symbol table an image keeps of it.
+    pub fn read(&mut self, path: &str) -> io::Result<Contents> {
         match self {
             Library::Jars { jars, files } => {
                 let Some(&jar) = files.get(path) else { return Err(io::ErrorKind::NotFound.into()) };
                 let mut file = jars[jar].by_name(path).map_err(io::Error::other)?;
                 let mut bytes = Vec::with_capacity(file.size() as usize);
                 file.read_to_end(&mut bytes)?;
-                Ok(Cow::Owned(bytes))
+                Ok((Cow::Owned(bytes), None))
             }
             Library::Image(image) => match image.find(path) {
-                Some((data, _)) => Ok(Cow::Borrowed(data)),
+                Some((data, table)) => Ok((Cow::Borrowed(data), table)),
                 None => Err(io::ErrorKind::NotFound.into()),
             },
         }
