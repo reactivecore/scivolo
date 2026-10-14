@@ -28,6 +28,7 @@ impl Typer<'_> {
         let (mut converted, mut widened) = (false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
+            let qual_tpe = self.instantiated_selected(qual_tpe);
             let qual_tpe = self.widen_if_unstable(qual_tpe);
             let syms: Vec<SymbolId> = self
                 .type_members_in(qual_tpe, &text, ctx)
