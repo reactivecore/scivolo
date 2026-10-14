@@ -94,11 +94,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let mut todo = vec![(td, false)];
     while let Some((t, in_method)) = todo.pop() {
         let inner = in_method || matches!(l.tpd.tree(t), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(t));
-        let type_tree = matches!(
-            l.tpd.tree(t),
-            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. }
-        );
-        if !type_tree {
+        if !super::walk::is_type_tree(l, t) {
             todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner)));
         }
         let created = created.iter().find(|&&(n, _)| n == t).map(|&(_, c)| c);

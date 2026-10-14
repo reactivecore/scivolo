@@ -54,10 +54,6 @@ const CASES: &[(&str, &str)] = &[
         "classes in local classes calling local methods",
     ),
     ("trait T { var x: Int }", "abstract variables"),
-    (
-        "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",
-        "applications of a lambda defining classes",
-    ),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),

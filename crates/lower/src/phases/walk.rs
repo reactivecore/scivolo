@@ -96,6 +96,18 @@ pub fn subtrees(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
     out
 }
 
+/// Whether `t` is a type tree: a type, applied or singleton type tree, or a reference to a type
+/// such as the path type `a.C`.
+pub fn is_type_tree(l: &Lower, t: TNodeId) -> bool {
+    match l.tpd.tree(t) {
+        Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => true,
+        Tree::Select { .. } | Tree::Ident { .. } => {
+            l.tpd.sym(t).is_some_and(|s| !l.u.symbol(s).kind.is_term())
+        }
+        _ => false,
+    }
+}
+
 /// Whether `a` and `b` are the same identifiers, selections, literals, applications or type
 /// applications (dotty's `===`).
 pub fn same(tpd: &Tpd, a: TNodeId, b: TNodeId) -> bool {
