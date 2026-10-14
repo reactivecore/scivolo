@@ -33,6 +33,8 @@ impl Universe {
             pending: FxHashMap::default(),
             files: Vec::new(),
             by_tree: FxHashMap::default(),
+            by_name: FxHashMap::default(),
+            resolved: FxHashMap::default(),
             types: Types::default(),
             infos: FxHashMap::default(),
             parents: FxHashMap::default(),
@@ -45,7 +47,7 @@ impl Universe {
             unions: Default::default(),
             scala2_erasure: false,
         };
-        let root = u.add(Symbol {
+        let root = u.define(Symbol {
             name: String::new(),
             kind: Kind::Package,
             owner: None,

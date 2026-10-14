@@ -18,7 +18,7 @@ impl Universe {
     pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
         let s = match self.types().get(t).clone() {
             Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::TypeRef(..) => self.resolve_ref(t)?,
             _ => return None,
         };
         let owner = self.symbol(s).owner?;
@@ -62,7 +62,7 @@ impl Universe {
         };
         let (prefix, s) = match self.types().get(tycon).clone() {
             Type::Sym(p, s) => (p, s),
-            Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)?),
+            Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,
         };
         if self.symbol(s).flags.has(OPAQUE) {

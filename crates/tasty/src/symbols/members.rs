@@ -63,7 +63,7 @@ impl Universe {
         }
         let s = match self.types().get(t).clone() {
             Type::Sym(_, s) => s,
-            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::TypeRef(..) => self.resolve_ref(t)?,
             Type::Bounds(_, hi) => return Some(hi),
             _ => return None,
         };

@@ -96,7 +96,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
         let alias = match u.types().get(tycon).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => u.resolve(p, &n, true),
+            Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
         };
         let impure = alias.is_some_and(|s| u.full_name(s).starts_with("scala.Impure"));

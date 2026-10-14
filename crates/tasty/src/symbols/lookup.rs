@@ -3,6 +3,7 @@
 use super::companions::module_name;
 use super::predicates::is_package_object_name;
 use super::{Error, Kind, SymbolId, Universe};
+use rustc_hash::FxHashMap;
 
 /// The operator characters of `NameTransformer` and their encodings in file names.
 const OPERATORS: [(char, &str); 18] = [
@@ -45,9 +46,6 @@ impl Universe {
     /// loaded, names no file defines are looked up among the package objects' members, and the
     /// names Scala Native gives JDK classes and `Object`'s methods stand for the JDK names.
     pub fn decl(&mut self, owner: SymbolId, name: &str) -> Result<Vec<SymbolId>, Error> {
-        let named = |u: &Self, owner: SymbolId| -> Vec<SymbolId> {
-            u.symbol(owner).decls.iter().copied().filter(|&d| u.symbol(d).name == name).collect()
-        };
         if self.symbol(owner).kind != Kind::Package {
             if name.starts_with("__")
                 && self.symbol(owner).name == "Object"
@@ -55,7 +53,7 @@ impl Universe {
             {
                 return self.decl(owner, &jdk);
             }
-            return Ok(named(self, owner));
+            return Ok(self.named(owner, name).to_vec());
         }
         if name.starts_with('_')
             && let Some((pkg, jdk)) = super::jdk::jdk_name(&self.full_name(owner), name)
@@ -63,10 +61,12 @@ impl Universe {
         {
             return self.decl(p, &jdk);
         }
-        let encoded = encode(name);
-        let module = module_name(&encoded).filter(|_| name.ends_with('$')).map(str::to_owned);
-        self.load_pending(owner, |file| file == encoded || Some(file) == module.as_deref())?;
-        let found = named(self, owner);
+        if self.pending.get(&owner).is_some_and(|files| !files.is_empty()) {
+            let encoded = encode(name);
+            let module = module_name(&encoded).filter(|_| name.ends_with('$')).map(str::to_owned);
+            self.load_pending(owner, |file| file == encoded || Some(file) == module.as_deref())?;
+        }
+        let found = self.named(owner, name).to_vec();
         if !found.is_empty() {
             return Ok(found);
         }
@@ -78,7 +78,20 @@ impl Universe {
             .copied()
             .filter(|&d| self.is_class(d) && is_package_object_name(&self.symbol(d).name))
             .collect();
-        Ok(objects.into_iter().flat_map(|o| named(self, o)).collect())
+        Ok(objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect())
+    }
+
+    /// The declarations of `owner` named `name`, through its name index, built on first use.
+    fn named(&mut self, owner: SymbolId, name: &str) -> &[SymbolId] {
+        let Universe { by_name, symbols, .. } = self;
+        let index = by_name.entry(owner).or_insert_with(|| {
+            let mut index: FxHashMap<String, Vec<SymbolId>> = FxHashMap::default();
+            for &d in &symbols[owner.0 as usize].decls {
+                index.entry(symbols[d.0 as usize].name.clone()).or_default().push(d);
+            }
+            index
+        });
+        index.get(name).map_or(&[], Vec::as_slice)
     }
 
     /// All declarations of `owner`, loading every file of a package.
