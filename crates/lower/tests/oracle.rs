@@ -45,14 +45,11 @@ fn programs_lower_as_scala_native_compiles_them() {
         let files = lower::compile(&mut u, &SourceFile::new(file, text), &[]).unwrap();
         let mut ours: Vec<&str> = files.iter().map(|f| f.name.as_str()).collect();
         ours.sort_unstable();
-        let mut theirs: Vec<String> = std::fs::read_dir(&dir)
-            .unwrap()
-            .filter_map(|e| e.unwrap().file_name().to_str()?.strip_suffix(".nir").map(str::to_owned))
-            .collect();
+        let mut theirs = nir_names(&dir, "");
         theirs.sort_unstable();
         assert_eq!(ours, theirs, "{program}: files");
         for f in &files {
-            let reference = std::fs::read(dir.join(format!("{}.nir", f.name))).unwrap();
+            let reference = std::fs::read(dir.join(format!("{}.nir", f.name.replace('.', "/")))).unwrap();
             let (ours, theirs) = (decoded(&f.bytes), decoded(&reference));
             for (a, b) in ours.iter().zip(&theirs) {
                 if a != b {
@@ -62,6 +59,22 @@ fn programs_lower_as_scala_native_compiles_them() {
             assert_eq!(ours.len(), theirs.len(), "{program}: {} definitions", f.name);
         }
     }
+}
+
+/// The top-level names of the `.nir` files under `dir`, those in package directories prefixed by
+/// their package and `prefix`.
+fn nir_names(dir: &Path, prefix: &str) -> Vec<String> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).unwrap() {
+        let e = e.unwrap();
+        let name = e.file_name().to_string_lossy().into_owned();
+        if e.file_type().unwrap().is_dir() {
+            out.extend(nir_names(&e.path(), &format!("{prefix}{name}.")));
+        } else if let Some(top) = name.strip_suffix(".nir") {
+            out.push(format!("{prefix}{top}"));
+        }
+    }
+    out
 }
 
 /// Method text `text` with its local variable slots in name order: nscplugin keeps them in a

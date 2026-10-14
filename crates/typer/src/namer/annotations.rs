@@ -63,6 +63,7 @@ impl Typer<'_> {
                 }
                 _ => {}
             }
+            self.u.annotate(sym, class);
             classes.push((class, self.ast.span(annot)));
             if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {
                 self.syms.annotation_trees.push((sym, annot, ctx));

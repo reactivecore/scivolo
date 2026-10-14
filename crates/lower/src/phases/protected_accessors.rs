@@ -3,16 +3,15 @@
 //! `protected$m`, a forwarder of the closest enclosing class that does.
 
 use super::local_free::within;
-use super::mixin::{is_jdk, with_java_param_names};
+use super::mixin::{has_body, is_jdk, java_named};
 use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::{is_java_static, is_static_module};
 use crate::{Lower, Result, unsupported};
-use std::ops::ControlFlow;
 use syntax::ast::Span;
-use tasty::tags::{PROTECTED, PROTECTEDqualified, SYNTHETIC};
+use tasty::tags::{OVERRIDE, PROTECTED, PROTECTEDqualified, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree, Walk};
+use typer::tpd::{TNodeId, Tree};
 
 /// An accessor the phase made: its symbol, the member it accesses, whether it sets it.
 struct Accessor {
@@ -34,12 +33,23 @@ pub fn needs_accessor_if_not_in_subclass(l: &Lower, sym: SymbolId, class: Symbol
         && !within(l, class, package_of(l, sym))
 }
 
-/// Whether `sym` referred to on `this` from class `class` needs a super accessor in the trait
-/// hosting its accessor (`SuperAccessors.transformSelect`'s `needsSuperAccessor`).
-pub fn needs_super_accessor(l: &mut Lower, sym: SymbolId, class: SymbolId) -> bool {
-    needs_accessor_if_not_in_subclass(l, sym, class)
-        && !derives_from_owner(l, class, sym)
-        && host_for_accessor_of(l, sym, class).is_some_and(|h| l.u.is_trait(h))
+/// Whether `sym` referred to on `this` at `span` from class `class` needs a super accessor in
+/// the trait hosting its accessor (`SuperAccessors.transformSelect`); refused for a JDK member
+/// in a trait deriving from its owner, which dotty rejects.
+pub fn super_accessor_needed(l: &mut Lower, sym: SymbolId, class: SymbolId, span: Span) -> Result<bool> {
+    if !needs_accessor_if_not_in_subclass(l, sym, class)
+        || !host_for_accessor_of(l, sym, class).is_some_and(|h| l.u.is_trait(h))
+    {
+        return Ok(false);
+    }
+    if !derives_from_owner(l, class, sym) {
+        return Ok(true);
+    }
+    let owner = l.u.symbol(sym).owner.expect("a member's owner");
+    match is_jdk(l, owner) {
+        true => unsupported(span, "protected Java members on `this` in concrete trait methods"),
+        false => Ok(false),
+    }
 }
 
 fn derives_from_owner(l: &mut Lower, class: SymbolId, sym: SymbolId) -> bool {
@@ -75,12 +85,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<()
     let mut made = Vec::new();
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        let mut result = Ok(());
-        walk::walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
-            result = rewrite(l, t, class, &mut made);
-            if result.is_ok() { ControlFlow::Continue(()) } else { ControlFlow::Break(()) }
-        });
-        result?;
+        walk::try_walk_class_up(l, td, &mut |l, t, _| rewrite(l, t, class, &mut made))?;
     }
     if made.is_empty() {
         return Ok(());
@@ -94,7 +99,9 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<()
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
         let end = Span::at(l.tpd.span(template).end());
         let defs: Vec<TNodeId> = hosted.into_iter().map(|a| accessor_def(l, root, a, end)).collect();
-        let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { continue };
+        let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else {
+            unreachable!("a class definition's template")
+        };
         let mut stats = l.tpd.items(body).to_vec();
         stats.extend(defs);
         let body = l.tpd.list(&stats);
@@ -125,10 +132,8 @@ fn rewrite(l: &mut Lower, t: TNodeId, class: SymbolId, made: &mut Vec<Accessor>)
         return unsupported(span, "protected members without a class hosting their accessor");
     };
     let this = l.u.this_type(host);
-    let mut info = l.u.member_info(this, sym);
-    if is_jdk(l, l.u.symbol(sym).owner.expect("a member's owner")) {
-        info = with_java_param_names(l, info);
-    }
+    let info = l.u.member_info(this, sym);
+    let info = java_named(l, sym, info);
     if matches!(l.u.types().get(info), Type::Poly { .. }) {
         return unsupported(span, "protected accessors of polymorphic methods");
     }
@@ -166,7 +171,7 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
 }
 
 /// The getter or setter accessor of `accessed` named `name` in `host` of type `info`: the one in
-/// `made`, else a new one entered there.
+/// `made`, else a new one entered there, overriding a concrete one of a base class.
 fn accessor(
     l: &mut Lower,
     host: SymbolId,
@@ -181,7 +186,14 @@ fn accessor(
     if let Some(a) = found {
         return a.sym;
     }
-    let sym = l.u.define(symbol(name, Kind::Def, host, Flags::default().with(SYNTHETIC)));
+    let mut flags = Flags::default().with(SYNTHETIC);
+    let bases = l.u.linearization(host);
+    let inherited: Vec<SymbolId> =
+        bases.into_iter().skip(1).flat_map(|b| l.u.decl(b, name).unwrap_or_default()).collect();
+    if inherited.into_iter().any(|m| has_body(l, m)) {
+        flags = flags.with(OVERRIDE);
+    }
+    let sym = l.u.define(symbol(name, Kind::Def, host, flags));
     l.u.set_info(sym, info);
     made.push(Accessor { sym, accessed, setter });
     sym

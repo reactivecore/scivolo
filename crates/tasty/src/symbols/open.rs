@@ -39,6 +39,7 @@ impl Universe {
             linearizations: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),
+            annotations: Default::default(),
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,

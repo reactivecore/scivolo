@@ -80,3 +80,4 @@ valuepatterns
 unions
 outerclasses
 protectedaccess
+protectedpackages

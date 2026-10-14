@@ -2,6 +2,7 @@
 //! symbols trees refer to.
 
 use crate::{Lower, Result};
+use std::ops::ControlFlow;
 use syntax::ast::constant::Constant;
 use tasty::SymbolId;
 use typer::tpd::{self, Leave, TNodeId, Tpd, Tree, Visit, Walk, traverse, traverse_up};
@@ -66,6 +67,23 @@ pub fn try_walk_class<'a>(
             result = Err(e);
             Walk::Stop
         })
+    });
+    result
+}
+
+/// `walk_class_up` entering every tree, of a fallible `leave`, ended by its first error.
+pub fn try_walk_class_up<'a>(
+    l: &mut Lower<'a>,
+    td: TNodeId,
+    leave: &mut dyn FnMut(&mut Lower<'a>, TNodeId, SymbolId) -> Result<()>,
+) -> Result<()> {
+    let mut result = Ok(());
+    walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, owner| match leave(l, t, owner) {
+        Ok(()) => ControlFlow::Continue(()),
+        Err(e) => {
+            result = Err(e);
+            ControlFlow::Break(())
+        }
     });
     result
 }
