@@ -42,6 +42,8 @@ Apache-2.0. Rust translations of:
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
+- `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,
+  `UnapplyArgs`, `unapplySeqTypeElemTp`, `isProductSeqMatch`, `Desugar.adaptPatternArgs`.
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
@@ -64,8 +66,8 @@ Apache-2.0. Rust translations of:
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
     classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
-  - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
-    guards, switches),
+  - `PatternMatcher` (literal, binding, alternative, type, extractor, sequence and
+    product-sequence patterns, guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, singletons through
     `tpd.isInstance` and `tpd.singleton`, unions and intersections,
     casts of primitives, `primitiveConversion`),

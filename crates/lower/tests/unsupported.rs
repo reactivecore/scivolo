@@ -42,11 +42,6 @@ const CASES: &[(&str, &str)] = &[
         "returns of Unit values of class members",
     ),
     (
-        "object E { def unapplySeq(s: String): Option[(Int, Seq[Int])] = None }\n\
-         object O { def f(x: String): Int = x match { case E(a, b) => a; case _ => 0 } }",
-        "sequence extractors of a product and a sequence",
-    ),
-    (
         "class M(val x: Int) extends AnyVal\nclass N(val x: Int) extends AnyVal\n\
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",

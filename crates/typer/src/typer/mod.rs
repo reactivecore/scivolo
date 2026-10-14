@@ -77,6 +77,7 @@ mod param_vars;
 mod parent_trees;
 mod parents;
 mod paths;
+mod pattern_args;
 mod pattern_bounds;
 mod patterns;
 mod plain_trees;

@@ -1,11 +1,15 @@
 //! Patterns of sequence extractors `C(p1, ..., x*)` (dotty's `unapplySeq` in `typedUnApply` and
-//! `UnapplyArgs`): each pattern of the element type, a last `x*` of the sequence.
+//! `UnapplyArgs`): those of the product selectors before a sequence of their types, the others of
+//! the element type, a last `x*` of the sequence.
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, Type, TypeId};
+
+/// The types of the patterns of a sequence extractor, and how many of them are product selectors.
+pub type SeqArgs = (Vec<TypeId>, usize);
 
 impl Typer<'_> {
     /// Whether pattern `a` is a sequence wildcard `x*` or `_*`.
@@ -14,47 +18,105 @@ impl Typer<'_> {
         matches!(*self.ast.tree(tpt), Tree::Ident { name } if name.is_type && self.text(name.name) == "_*")
     }
 
-    /// The element type of sequence-like `t`, the result of its `apply(Int)`, if it also has
-    /// `lengthCompare(Int)`, `drop(Int)` and a `toSeq` that is a `collection.Seq` (dotty's
-    /// `unapplySeqTypeElemTp`).
-    pub fn seq_elem_type(&mut self, t: TypeId) -> Option<TypeId> {
-        let to_seq = self.extractor_member(t, "toSeq").ok()??;
-        if !self.derives_from_named(to_seq, "scala.collection.Seq") {
-            return None;
+    /// The expected types of `n` patterns of a sequence extractor with result type `result`
+    /// (dotty's `UnapplyArgs.argTypes` for `unapplySeq`), and the number of product selectors
+    /// before the sequence.
+    pub fn unapply_seq_arg_types(&mut self, result: TypeId, n: usize) -> Result<SeqArgs, &'static str> {
+        if let Some(args) = self.seq_match(result, n)? {
+            return Ok(args);
         }
-        self.int_method_result(t, "lengthCompare")?;
-        self.int_method_result(t, "drop")?;
-        self.int_method_result(t, "apply")
+        let get = self.get_match(result)?.ok_or("sequence extractor result type")?;
+        self.seq_match(get, n)?.ok_or("sequence extractor result type")
     }
 
-    /// The result of the alternative of method `name` of `t` that takes one `Int`.
-    fn int_method_result(&mut self, t: TypeId, name: &str) -> Option<TypeId> {
-        let found = self.members_found(t, name, false)?;
-        for s in found.syms {
+    /// The types of `n` patterns against `t` as a sequence, or as a product whose last selector is
+    /// a sequence (dotty's `unapplySeq` of `UnapplyArgs`).
+    fn seq_match(&mut self, t: TypeId, n: usize) -> Result<Option<SeqArgs>, &'static str> {
+        if let Some(elem) = self.seq_elem_type(t) {
+            return Ok(Some((vec![elem; n], 0)));
+        }
+        if !self.derives_from_named(t, "scala.Product") {
+            return Ok(None);
+        }
+        let selectors = self.product_selectors(t)?;
+        let Some((&last, leading)) = selectors.split_last() else { return Ok(None) };
+        let Some(elem) = self.seq_elem_type(last).filter(|_| selectors.len() <= n + 1) else {
+            return Ok(None);
+        };
+        Ok(Some(((0..n).map(|i| leading.get(i).copied().unwrap_or(elem)).collect(), leading.len())))
+    }
+
+    /// The element type of sequence-like `t`, the result of its `apply(Int)`, if it also has
+    /// `lengthCompare(Int): Int` or `length: Int`, and `drop(Int)` and `toSeq` that are
+    /// `collection.Seq`s of it (dotty's `unapplySeqTypeElemTp`).
+    pub fn seq_elem_type(&mut self, t: TypeId) -> Option<TypeId> {
+        let elem = self.int_method_results(t, "apply").into_iter().next()?;
+        let seq_class = self.resolve_full_name("scala.collection.Seq", true)?;
+        let seq_class = crate::defn::type_ref(self.u, seq_class);
+        let seq = self.u.intern_type(Type::Applied(seq_class, vec![elem]));
+        let length = self.int_method_results(t, "lengthCompare").into_iter().any(|r| self.is_int(r))
+            || self.parameterless_results(t, "length").into_iter().any(|r| self.is_int(r));
+        let drop = self.int_method_results(t, "drop").into_iter().any(|r| self.u.is_subtype(r, seq));
+        let to_seq = self.parameterless_results(t, "toSeq").into_iter().any(|r| self.u.is_subtype(r, seq));
+        (length && drop && to_seq).then_some(elem)
+    }
+
+    /// The results of the alternatives of method `name` of `t` that take one `Int`.
+    fn int_method_results(&mut self, t: TypeId, name: &str) -> Vec<TypeId> {
+        let mut out = Vec::new();
+        for s in self.members_found(t, name, false).map(|f| f.syms).unwrap_or_default() {
             let tpe = self.ref_type(Some(t), s);
             let Some(info) = self.method_info(tpe) else { continue };
             let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
-            let [(_, index)] = params[..] else { continue };
-            if self.u.class_symbol(index).is_some_and(|c| self.u.full_name(c) == "scala.Int") {
-                return Some(result);
+            if let [(_, index)] = params[..]
+                && self.is_int(index)
+                && !matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+            {
+                out.push(result);
             }
         }
-        None
+        out
     }
 
-    /// Patterns `args` of a sequence extractor of elements of type `elem`.
+    fn is_int(&mut self, t: TypeId) -> bool {
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == "scala.Int")
+    }
+
+    /// The results of the alternatives of member `name` of `t` that are parameterless methods.
+    fn parameterless_results(&mut self, t: TypeId, name: &str) -> Vec<TypeId> {
+        let mut out = Vec::new();
+        for s in self.members_found(t, name, false).map(|f| f.syms).unwrap_or_default() {
+            if self.u.symbol(s).kind != Kind::Def {
+                continue;
+            }
+            let tpe = self.ref_type(Some(t), s);
+            let info = self.method_info(tpe).unwrap_or(tpe);
+            match *self.u.types().get(info) {
+                Type::Method { .. } | Type::Poly { .. } => {}
+                Type::ByName(r) => out.push(r),
+                _ => out.push(info),
+            }
+        }
+        out
+    }
+
+    /// Patterns `args` of a sequence extractor of types `types`, the first `leading` of them
+    /// product selectors, the others elements.
     pub fn typed_seq_patterns(
         &mut self,
         args: &[NodeId],
-        elem: TypeId,
+        (types, leading): SeqArgs,
         ctx: Ctx,
     ) -> Result<Vec<TNodeId>, &'static str> {
         let mut out = Vec::new();
-        for (i, &a) in args.iter().enumerate() {
+        for (i, (&a, t)) in args.iter().zip(types).enumerate() {
+            if i >= leading && matches!(self.u.types().get(t), Type::Bounds(..)) {
+                return Err("sequence extractor of a wildcard element type");
+            }
             out.push(if !self.is_seq_wildcard(a) {
-                self.typed(a, Pt::Type(elem), ctx)
-            } else if i + 1 == args.len() {
-                self.seq_wildcard(a, elem, ctx)?
+                self.typed(a, Pt::Type(t), ctx)
+            } else if i + 1 == args.len() && i >= leading {
+                self.seq_wildcard(a, t, ctx)?
             } else {
                 return Err("sequence wildcard before the last pattern");
             });

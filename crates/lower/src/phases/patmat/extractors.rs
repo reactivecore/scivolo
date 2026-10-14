@@ -66,6 +66,9 @@ impl Translator<'_, '_> {
                 if t.is_sequence(result_type) {
                     return t.unapply_seq_plan(result, args, on_success);
                 }
+                if let Some(arity) = t.product_seq_arity(result_type, args.len()) {
+                    return t.unapply_product_seq_plan(result, args, arity, on_success);
+                }
                 let Some(get) = t.member_named(result_type, "get") else {
                     return unsupported(span, "sequence extractors without `get`");
                 };
@@ -73,10 +76,13 @@ impl Translator<'_, '_> {
                 let get = t.select_member(value, get);
                 let args_plan = t.let_abstract(get, None, |t, get_result| {
                     let get_type = t.l.u.info(get_result);
-                    if !t.is_sequence(get_type) {
-                        return unsupported(span, "sequence extractors of a product and a sequence");
+                    if t.is_sequence(get_type) {
+                        return t.unapply_seq_plan(get_result, args, on_success);
                     }
-                    t.unapply_seq_plan(get_result, args, on_success)
+                    let Some(arity) = t.product_seq_arity(get_type, args.len()) else {
+                        return unsupported(span, "sequence extractors of another result type");
+                    };
+                    t.unapply_product_seq_plan(get_result, args, arity, on_success)
                 })?;
                 let scrutinee = t.l.ident(result, Span::NONE);
                 Ok(t.add(Plan::Test { test: Test::NonEmpty, scrutinee, span, on_success: args_plan }))

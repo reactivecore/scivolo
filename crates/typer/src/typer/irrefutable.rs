@@ -73,7 +73,7 @@ impl Typer<'_> {
             return Ok(());
         }
         match *self.tpd.tree(pat) {
-            T::Bind { body, .. } => self.check_irrefutable(body, pt),
+            T::Bind { body, .. } | T::NamedArg { arg: body, .. } => self.check_irrefutable(body, pt),
             T::UnApply { fun, patterns, .. } => {
                 self.check_conforms(pat, pt)?;
                 let pats = self.tpd.items(patterns).to_vec();
@@ -160,13 +160,6 @@ impl Typer<'_> {
         if !seq {
             return self.unapply_arg_types(result, n).ok();
         }
-        let elem = match self.seq_elem_type(result) {
-            Some(elem) => elem,
-            None => {
-                let get = self.get_match(result).ok()??;
-                self.seq_elem_type(get)?
-            }
-        };
-        Some(vec![elem; n])
+        self.unapply_seq_arg_types(result, n).ok().map(|(types, _)| types)
     }
 }
