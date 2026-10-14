@@ -32,6 +32,11 @@ object D:
     g() + h()
   def ap(f: Int => Int, x: Int): Int = f(x)
   def defInLambda(k: Int): Int = ap(x => { def h(y: Int): Int = y + k; ap(z => h(z), x) }, 1)
+  def generic(k: Int): String =
+    def pair[A](a: A): List[A] = List(a, a)
+    def either[A, B](a: A, b: B, first: Boolean): Any = if first then a else b
+    def tagged[T](t: T): String = s"$t$k"
+    pair("p").mkString + either(1, "b", false) + tagged(2.5) + pair(k).sum
 
 class C(p: String):
   def twice(f: String => String, x: String): String = f(f(x))
@@ -62,6 +67,7 @@ class TI extends T
   println(D.mutual(5, 1))
   println(D.shadow(5))
   println(D.defInLambda(10))
+  println(D.generic(3))
   println(new C("+").field())
   println(new C("+").pure(4))
   println(new TI().n(3))

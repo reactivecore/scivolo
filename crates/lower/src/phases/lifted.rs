@@ -7,7 +7,7 @@ use super::lambda_lift::Function;
 use super::lift_names::prefix;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
 use tasty::tags::{PRIVATE, STATIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -52,12 +52,14 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
     out
 }
 
-/// The parameters with their types and the result type of function `f`.
+/// The value parameters with their types and the result type of function `f`.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
-    let info = l.u.info(f.sym);
+    let mut info = l.u.info(f.sym);
+    if let Type::Poly { result, .. } = *l.u.types().get(info) {
+        info = result;
+    }
     let result = match *l.u.types().get(info) {
         Type::Method { result, .. } | Type::ByName(result) => result,
-        Type::Poly { .. } => return unsupported(l.tpd.span(f.def), "local methods with type parameters"),
         _ => info,
     };
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
@@ -151,7 +153,8 @@ fn leave_block(l: &mut Lower, f: &Function) {
 fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return Vec::new() };
     let clauses = l.tpd.clause_items(paramss);
-    clauses.iter().flat_map(|&c| l.tpd.items(c)).filter_map(|&p| l.tpd.sym(p)).collect()
+    let params = clauses.iter().flat_map(|&c| l.tpd.items(c));
+    params.filter(|&&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })).filter_map(|&p| l.tpd.sym(p)).collect()
 }
 
 /// Makes the references to the keys of `map` under `t` refer to their values.

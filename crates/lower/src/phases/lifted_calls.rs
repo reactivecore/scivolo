@@ -83,16 +83,20 @@ pub fn calls_from_class(
 }
 
 /// The index among `functions` of the local method `t` calls or refers to without parameter
-/// lists, the reference and the arguments.
+/// lists, the reference past type arguments, and the arguments.
 fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNodeId, Vec<TNodeId>)> {
-    let (reference, args) = match *l.tpd.tree(t) {
+    let (fun, args) = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         _ => (t, Vec::new()),
+    };
+    let reference = match *l.tpd.tree(fun) {
+        Tree::TypeApply { fun, .. } => fun,
+        _ => fun,
     };
     let i = l.tpd.sym(reference).and_then(|s| functions.iter().position(|f| f.sym == s))?;
     let call = functions[i].closure.is_none()
         && matches!(l.tpd.tree(reference), Tree::Ident { .. })
-        && (reference != t || is_parameterless(l, functions[i].def));
+        && (fun != t || is_parameterless(l, functions[i].def));
     call.then_some((i, reference, args))
 }
 
@@ -110,8 +114,11 @@ fn redirect(
     let fun = l.select(receiver, method.sym, span);
     let all: Vec<TNodeId> = captured.into_iter().chain(args).collect();
     let args = l.tpd.list(&all);
-    if reference == t {
-        let info = l.u.info(f.sym);
+    if !matches!(l.tpd.tree(t), Tree::Apply { .. }) {
+        let mut info = l.u.info(f.sym);
+        if let Type::Poly { result, .. } = *l.u.types().get(info) {
+            info = result;
+        }
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
