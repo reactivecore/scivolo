@@ -8,8 +8,16 @@ use crate::{Lower, Result, unsupported};
 use tasty::Erased;
 use typer::tpd::{List, TNodeId, Tree};
 
-/// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped.
+/// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at
+/// the span of the innermost call that trailing empty argument lists apply.
 pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> Result<Tree> {
+    let mut last = (t, args, fun);
+    while l.tpd.items(last.1).is_empty()
+        && let Tree::Apply { fun: inner, args } = *l.tpd.tree(last.2)
+    {
+        last = (last.2, args, inner);
+    }
+    l.tpd.get_mut(t).span = l.tpd.span(last.0);
     let mut all = l.tpd.items(args).to_vec();
     loop {
         match *l.tpd.tree(fun) {

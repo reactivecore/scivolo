@@ -43,7 +43,7 @@ impl Typer<'_> {
                 _ => self.unsupported(id, "summonFrom"),
             };
         }
-        let f = match self.with_type_vars(f) {
+        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, id, fun_ctx)) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };

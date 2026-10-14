@@ -128,6 +128,10 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let complex = method.is_some_and(|m| self.has_defaults(m));
+        let tpe = self.tpd.tpe(f);
+        let info = self.method_info(tpe).unwrap_or(tpe);
+        let contextual = matches!(self.u.types().get(info), Type::Method { contextual: true, .. });
+        let at = self.tpd.span(f).start_pos();
         let mut defs = Vec::new();
         let lifted_fun = aligned.contains(&None);
         if lifted_fun {
@@ -148,6 +152,10 @@ impl Typer<'_> {
                 },
                 None => {
                     let method = method.ok_or("default argument")?;
+                    if contextual && !self.may_default(f, method, i) {
+                        typed.push(self.implicit_arg(formal, at, ctx, 0)?);
+                        continue;
+                    }
                     let getter = self.default_arg(f, method, i, ctx)?;
                     typed.push(self.adapt(getter, Pt::Type(formal), ctx));
                     continue;
@@ -174,5 +182,14 @@ impl Typer<'_> {
             return Err("lifted call of a curried method");
         }
         Ok((f, typed, defs))
+    }
+
+    /// Whether parameter `n` of the clause call `f` of `method` applies may have a default
+    /// argument.
+    fn may_default(&mut self, f: TNodeId, method: SymbolId, n: usize) -> bool {
+        match self.tpd.tree(f) {
+            T::Apply { .. } => self.has_defaults(method),
+            _ => self.default_params(method).get(n) == Some(&true),
+        }
     }
 }

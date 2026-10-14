@@ -28,29 +28,14 @@ impl Typer<'_> {
                 }
             };
         }
-        if let Some(Type::Method { binder, params, result, implicit: true, .. }) = &method {
-            let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-            if let Err(what) = self.instantiate_param_vars(tree, &formals) {
-                self.unsupported_at(span, what);
-                return tree;
-            }
-            let mut args = Vec::new();
-            let args_ctx = self.implicit_args_ctx(tree, ctx);
-            for &(_, p) in params {
-                match self.implicit_arg(p, span.end_pos(), args_ctx, 0) {
-                    Ok(arg) => args.push(arg),
-                    Err(what) => {
-                        self.unsupported_at(span, what);
-                        return tree;
-                    }
+        if let Some(Type::Method { implicit: true, .. }) = &method {
+            return match self.implicit_clause_applied(tree, ctx) {
+                Ok(apply) => self.adapt(apply, pt, ctx),
+                Err(what) => {
+                    self.unsupported_at(span, what);
+                    tree
                 }
-            }
-            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-            let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-            let meth = self.tpd.sym(self.tpd.meth_part(tree));
-            let result = self.applied_result(*result, (*binder, &names), meth, &arg_types);
-            let apply = self.build().apply(tree, &args, result, span.to_synthetic());
-            return self.adapt(apply, pt, ctx);
+            };
         }
         if let Some(Type::Method { params, result, implicit: false, .. }) = &method {
             if let Some(arity) = self.eta_arity(tree, pt)
@@ -121,7 +106,7 @@ impl Typer<'_> {
 
     /// The constant of `tree` converted to `pt` (dotty's `adaptToSubType` with `convertTo` and
     /// `adaptConstant`).
-    fn converted_constant(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
+    pub fn converted_constant(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
         let value = self.constant_of(tree)?;
         let converted = self.convert_constant(&value, pt).filter(|c| c.tag() != value.tag())?;
         let lossy = match (&value, &converted) {
