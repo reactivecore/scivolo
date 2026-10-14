@@ -64,7 +64,6 @@ mod outer_fields;
 mod outer_traits;
 mod package_objects;
 mod patmat;
-mod pure_ops;
 mod pure_stats;
 mod references_outer;
 mod repeated;

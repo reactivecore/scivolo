@@ -47,10 +47,12 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
             _ => false,
         };
         let all = terms(l, stat, false);
-        let parents: FxHashMap<TNodeId, TNodeId> =
-            all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect();
-        for t in all {
+        let mut parents: Option<FxHashMap<TNodeId, TNodeId>> = None;
+        for &t in &all {
             let Some(chain) = outer_this(l, t, class) else { continue };
+            let parents = parents.get_or_insert_with(|| {
+                all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect()
+            });
             let span = parents.get(&t).and_then(|&p| l.after_siblings(p, t)).unwrap_or(l.tpd.span(t));
             let start = if method {
                 let this = l.this(class, span);

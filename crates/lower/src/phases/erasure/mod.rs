@@ -62,7 +62,7 @@ fn transform_class(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
-/// class the selected member is called on.
+/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
     if let Some(m) = l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m)) {
         l.tpd.get_mut(sel).sym = Some(m);

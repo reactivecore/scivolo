@@ -10,8 +10,7 @@ pub fn fold(l: &mut Lower, t: TNodeId) {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return };
     let &[y] = l.tpd.items(args) else { return };
     let Tree::Select { qualifier: x, .. } = *l.tpd.tree(fun) else { return };
-    let Tree::Literal { value: Constant::Boolean(c) } = l.tpd.tree(x) else { return };
-    let c = *c;
+    let &Tree::Literal { value: Constant::Boolean(c) } = l.tpd.tree(x) else { return };
     let and = match l.tpd.sym(fun) {
         Some(op) if op == l.defs.patmat.and => true,
         Some(op) if op == l.defs.case_classes.or => false,

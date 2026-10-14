@@ -150,7 +150,7 @@ fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
         _ => return false,
     };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
-    let known = l.tpd.sym(fun).is_some_and(|m| super::pure_ops::is_known_pure_op(l, m));
+    let known = l.tpd.sym(fun).is_some_and(|m| l.u.is_known_pure_op(m));
     known && operand(qualifier) && args.into_iter().all(operand)
 }
 

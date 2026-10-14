@@ -13,22 +13,6 @@ const PATH: u8 = 4;
 pub const IDEMPOTENT_PATH: u8 = IDEMPOTENT | PATH;
 pub const PURE_PATH: u8 = PURE | PATH;
 
-/// The methods dotty knows not to observe their arguments besides those of primitive classes
-/// (`defn.pureMethods`).
-const PURE_METHODS: [&str; 11] = [
-    "scala.Any.==",
-    "scala.Any.!=",
-    "scala.Any.equals",
-    "scala.Any.hashCode",
-    "scala.Any.toString",
-    "scala.Any.##",
-    "scala.Any.getClass",
-    "scala.Any.isInstanceOf",
-    "scala.Any.$isInstanceOf$",
-    "java.lang.Object.eq",
-    "java.lang.Object.ne",
-];
-
 /// Whether purity `p` has every property of `level`.
 pub fn at_least(p: u8, level: u8) -> bool {
     p & level == level
@@ -152,9 +136,7 @@ impl Inlining<'_> {
         }
         let Some(tpe) = self.tpd.get(t).tpe else { return false };
         let constant = matches!(self.u.types().get(tpe), Type::Constant(..) | Type::Str(_));
-        let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-        let pure_method = PURE_METHODS.contains(&self.u.full_name(s).as_str());
-        constant && (pure_method || owner.is_some_and(|o| PRIMITIVE_OWNERS.contains(&o.as_str())))
+        constant && self.u.is_known_pure_op(s)
     }
 
     /// Whether `s` is the synthetic `apply` of the companion of a case class without
