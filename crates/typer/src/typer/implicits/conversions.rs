@@ -33,7 +33,7 @@ impl Typer<'_> {
             return Ok(None);
         }
         self.implicit_budget = super::search::MAX_TRIES;
-        let mut groups = self.contextual_implicits(ctx)?;
+        let mut groups = self.contextual_implicits(ctx, &mut |t, c| t.view_kind(c) != ViewKind::None)?;
         let mut scope = self.implicit_scope(from);
         if let Goal::Conform(pt) = goal {
             scope.extend(self.implicit_scope(pt));
@@ -60,7 +60,7 @@ impl Typer<'_> {
                 ([], []) => continue,
                 ([c], _) | ([], [c]) => *c,
                 ([], _) => self.best_widened(&widened).ok_or(ambiguous)?,
-                _ => self.most_specific(&found).ok_or(ambiguous)?,
+                _ => self.most_specific(&found, ctx).ok_or(ambiguous)?,
             };
             if found.contains(&winner) && !self.beats_widened(winner, &widened) {
                 return Err(ambiguous);

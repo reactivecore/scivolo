@@ -118,22 +118,10 @@ impl Typer<'_> {
     ) -> Option<(Vec<TypeId>, bool)> {
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
         let info = self.method_info(tpe)?;
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+        if !matches!(self.u.types().get(info), Type::Poly { .. }) {
             return self.param_types(alt, prefix, false);
-        };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let mut syms: Vec<SymbolId> = Vec::new();
-        for n in &names {
-            let s = self.syms.define(self.u, n, Kind::TypeParam, alt, syntax::ast::flags::TYPE_PARAM);
-            self.u.unenter(s);
-            syms.push(s);
         }
-        let refs: Vec<TypeId> = syms.iter().map(|&s| self.u.intern_type(Type::Sym(None, s))).collect();
-        for (&(_, bounds), &s) in params.iter().zip(&syms) {
-            let bounds = self.instantiate_poly(bounds, binder, &names, &refs, Some(alt));
-            self.u.set_info(s, bounds);
-        }
-        let info = self.instantiate_poly(result, binder, &names, &refs, Some(alt));
+        let info = self.poly_instance(info, alt, true);
         let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
         let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
         let elem = types.last().and_then(|&p| self.repeated_elem(p));
@@ -154,20 +142,11 @@ impl Typer<'_> {
     ) -> Option<(Vec<TypeId>, bool)> {
         let tpe = self.u.intern_type(Type::Sym(prefix, alt));
         let mut info = self.method_info(tpe)?;
-        if let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
+        if matches!(self.u.types().get(info), Type::Poly { .. }) {
             if !poly {
                 return None;
             }
-            let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-            let vars: Vec<TypeId> = names.iter().map(|_| self.constraint.fresh(self.u)).collect();
-            for (&(_, bounds), &v) in params.iter().zip(&vars) {
-                let bounds = self.instantiate_poly(bounds, binder, &names, &vars, Some(alt));
-                if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
-                    self.conforms(lo, v);
-                    self.conforms(v, hi);
-                }
-            }
-            info = self.instantiate_poly(result, binder, &names, &vars, Some(alt));
+            info = self.poly_instance(info, alt, false);
         }
         let Type::Method { params, .. } = self.u.types().get(info).clone() else { return None };
         let mut types: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
@@ -176,5 +155,33 @@ impl Typer<'_> {
             *types.last_mut().expect("a parameter") = e;
         }
         Some((types, elem.is_some()))
+    }
+
+    /// The result of polymorphic type `info` of `owner`, its type parameters replaced by fresh
+    /// abstract types within their bounds if `rigid`, else by fresh type variables within them;
+    /// `info` itself if not polymorphic.
+    pub fn poly_instance(&mut self, info: TypeId, owner: SymbolId, rigid: bool) -> TypeId {
+        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else { return info };
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let mut args = Vec::new();
+        for n in &names {
+            args.push(if rigid {
+                let s = self.syms.define(self.u, n, Kind::TypeParam, owner, syntax::ast::flags::TYPE_PARAM);
+                self.u.unenter(s);
+                self.u.intern_type(Type::Sym(None, s))
+            } else {
+                self.constraint.fresh(self.u)
+            });
+        }
+        for (&(_, bounds), &a) in params.iter().zip(&args) {
+            let bounds = self.instantiate_poly(bounds, binder, &names, &args, Some(owner));
+            if let Type::Sym(_, s) = *self.u.types().get(a) {
+                self.u.set_info(s, bounds);
+            } else if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
+                self.conforms(lo, a);
+                self.conforms(a, hi);
+            }
+        }
+        self.instantiate_poly(result, binder, &names, &args, Some(owner))
     }
 }

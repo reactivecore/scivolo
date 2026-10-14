@@ -15,6 +15,8 @@ use tasty::{Type, TypeId, TypeVars};
 const MAX_DEPTH: u32 = 6;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
+/// The refusal of a search whose winner among several leaves type variables to instantiate.
+const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
 const MISFITS: [&str; 7] = [
@@ -54,7 +56,7 @@ impl Typer<'_> {
             return self.not_given(negated, at, ctx, depth);
         }
         let coherent = self.class_args(pt, "scala.CanEqual").is_some();
-        let mut groups = self.contextual_implicits(ctx)?;
+        let mut groups = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
         groups.push(self.implicit_scope(pt));
         for group in groups {
             let mut nested_failure = false;
@@ -69,12 +71,16 @@ impl Typer<'_> {
                     return Err("implicit candidate rejected by a search with type variables");
                 }
                 [c] => *c,
-                _ if !self.is_fully_defined(pt) => {
-                    return Err("implicit search for a type with type variables");
-                }
+                _ if coherent && !self.is_fully_defined(pt) => return Err(OPEN),
                 [c, ..] if coherent => *c,
-                _ => self.most_specific(&found).ok_or("ambiguous implicit arguments")?,
+                _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
+            if found.len() > 1 && !self.is_fully_defined(pt) {
+                let tpe = self.alt_type(winner);
+                if matches!(self.u.types().get(tpe), Type::Poly { .. }) {
+                    return Err(OPEN);
+                }
+            }
             return self.try_implicit(winner, pt, at, ctx, depth);
         }
         match self.synthesized(pt, at, ctx, depth)? {

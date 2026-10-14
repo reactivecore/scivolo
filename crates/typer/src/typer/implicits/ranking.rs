@@ -1,107 +1,177 @@
-//! Ranking successful implicit candidates (dotty's `compareAlternatives`): by the derivation of
-//! their owners, then by `isAsSpecific` on their types; undecided for givens and for types with
-//! contravariant parts, which dotty ranks by further rules.
+//! Ranking successful implicit candidates (dotty's `compare` with `preferGeneral`): by the
+//! derivation of their owners and by their types, first without their implicit clauses, then
+//! with them; the same member by its prefix.
 
 use super::super::Typer;
 use super::candidates::Candidate;
-use tasty::{Type, TypeId, TypeVars};
+use crate::ctx::Ctx;
+use syntax::config::SourceVersion;
+use tasty::tags::{IMPLICIT, MUTABLE};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
-    /// The candidate of `found` that ranks above all others.
-    pub fn most_specific(&mut self, found: &[Candidate]) -> Option<Candidate> {
+    /// The candidate of `found` that ranks above all others in `ctx`.
+    pub fn most_specific(&mut self, found: &[Candidate], ctx: Ctx) -> Option<Candidate> {
+        let mut alts: Vec<Candidate> = Vec::new();
         for &c in found {
-            if self.u.symbol(c.sym).flags.has(tasty::tags::GIVEN) || self.has_contravariant_part(c) {
-                return None;
+            if !alts.contains(&c) {
+                alts.push(c);
             }
         }
-        found
-            .iter()
-            .copied()
-            .find(|&c| found.iter().filter(|&&d| d != c).all(|&d| self.compare_candidates(c, d) > 0))
-    }
-
-    /// Whether the type of candidate `c` without its type parameters and leading implicit
-    /// clauses applies a class with a contravariant type parameter.
-    fn has_contravariant_part(&mut self, c: Candidate) -> bool {
-        let tpe = self.ref_type(c.prefix, c.sym);
-        let mut info = self.method_info(tpe).unwrap_or(tpe);
-        if let Type::Poly { result, .. } = *self.u.types().get(info) {
-            info = result;
+        if let [only] = alts[..] {
+            return Some(only);
         }
-        let info = self.strip_implicit(info);
-        let mut found = false;
-        self.u.map_type(info, &mut |u, part| {
-            if let Type::Applied(tycon, _) = *u.types().get(part)
-                && let Some(class) = u.class_symbol(tycon)
-            {
-                let params = u.type_params(class);
-                found |= params.iter().any(|&p| u.symbol(p).flags.has(tasty::tags::CONTRAVARIANT));
-            }
-            None
-        });
-        found
-    }
-
-    /// 1 if `a` ranks above `b`, -1 if below, 0 if neither (dotty's `compare`).
-    fn compare_candidates(&mut self, a: Candidate, b: Candidate) -> i32 {
-        let (oa, ob) = (self.u.symbol(a.sym).owner, self.u.symbol(b.sym).owner);
-        let owner_score = match (oa, ob) {
-            (Some(x), Some(y)) if x != y && self.u.derives_from(x, y) => 1,
-            (Some(x), Some(y)) if x != y && self.u.derives_from(y, x) => -1,
-            _ => 0,
+        let v = self.source_version;
+        let old_schemes: &[bool] = match v.is_at_least(SourceVersion::V3_7) {
+            true if v != SourceVersion::V3_7.migrating_variant() => &[false],
+            _ if v.is_at_least(SourceVersion::V3_6) => &[false, true],
+            _ => &[true],
         };
-        let wins_a = self.as_specific(a, b);
-        let wins_b = self.as_specific(b, a);
-        match owner_score {
-            1 => i32::from(wins_a || !wins_b),
-            -1 => -i32::from(wins_b || !wins_a),
-            _ => i32::from(wins_a && !wins_b) - i32::from(wins_b && !wins_a),
-        }
+        alts.iter().copied().find(|&c| {
+            alts.iter()
+                .filter(|&&d| d != c)
+                .all(|&d| old_schemes.iter().all(|&old| self.compare(c, d, ctx, old) == Some(1)))
+        })
     }
 
-    /// The parameter types of candidate `c`'s first explicit clause, or its value type, its type
-    /// parameters left abstract or made fresh type variables.
-    fn candidate_shape(&mut self, c: Candidate, fresh: bool) -> (Option<Vec<TypeId>>, TypeId) {
-        let tpe = self.ref_type(c.prefix, c.sym);
-        let mut info = self.method_info(tpe).unwrap_or(tpe);
-        if let Type::Poly { binder, params, result } = self.u.types().get(info).clone() {
-            info = result;
-            if fresh {
-                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-                let vars: Vec<TypeId> = params.iter().map(|_| self.constraint.fresh(self.u)).collect();
-                for (&(_, bounds), &v) in params.iter().zip(&vars) {
-                    let bounds = self.instantiate_poly(bounds, binder, &names, &vars, Some(c.sym));
-                    if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
-                        self.conforms(lo, v);
-                        self.conforms(v, hi);
-                    }
+    /// 1 if `a` ranks above `b`, -1 if below, 0 if neither, by the rules before Scala 3.6 if
+    /// `old`; `None` if undecided.
+    fn compare(&mut self, a: Candidate, b: Candidate, ctx: Ctx, old: bool) -> Option<i32> {
+        let (full_a, full_b) = (self.alt_type(a), self.alt_type(b));
+        let (sa, sb) = (self.without_implicits(full_a)?, self.without_implicits(full_b)?);
+        let result = self.compare_with_types((a, sa), (b, sb), ctx, old)?;
+        Some(match (result, sa == full_a, sb == full_b) {
+            (0, true, true) => 0,
+            (0, true, false) => 1,
+            (0, false, true) => -1,
+            (0, false, false) => self.compare_with_types((a, full_a), (b, full_b), ctx, old)?,
+            _ => result,
+        })
+    }
+
+    fn compare_with_types(
+        &mut self,
+        (a, ta): (Candidate, TypeId),
+        (b, tb): (Candidate, TypeId),
+        ctx: Ctx,
+        old: bool,
+    ) -> Option<i32> {
+        let owner = self.compare_owner(self.u.symbol(a.sym).owner, self.u.symbol(b.sym).owner);
+        let wins_a = self.is_as_good((a, ta), (b, tb), ctx, old)?;
+        let wins_b = self.is_as_good((b, tb), (a, ta), ctx, old)?;
+        if wins_a
+            && wins_b
+            && self.is_stable_alt(a)
+            && (a.sym == b.sym || self.is_singleton(ta) || self.is_singleton(tb))
+        {
+            return None;
+        }
+        let implicit = |t: &Self, c: Candidate| t.u.symbol(c.sym).flags.has(IMPLICIT);
+        let new_scheme = !(old || implicit(self, a) && implicit(self, b));
+        Some(match owner {
+            1 if wins_a || !wins_b || new_scheme => 1,
+            -1 if wins_b || !wins_a || new_scheme => -1,
+            1 | -1 => 0,
+            _ if wins_a != wins_b => {
+                if wins_a {
+                    1
+                } else {
+                    -1
                 }
-                info = self.instantiate_poly(result, binder, &names, &vars, Some(c.sym));
             }
-        }
-        let info = self.strip_implicit(info);
-        match self.u.types().get(info).clone() {
-            Type::Method { params, result, implicit: false, .. } => {
-                (Some(params.iter().map(|&(_, p)| p).collect()), result)
+            _ if a.sym == b.sym => self.compare_prefixes(a, b),
+            _ => 0,
+        })
+    }
+
+    /// `t` without the implicit clauses that lead it or its polymorphic result (dotty's
+    /// `stripImplicit`); `None` for a result depending on a stripped parameter.
+    fn without_implicits(&mut self, t: TypeId) -> Option<TypeId> {
+        match self.u.types().get(t).clone() {
+            Type::Method { binder, result, implicit: true, .. } => {
+                let mut dependent = false;
+                self.u.map_type(result, &mut |u, p| {
+                    dependent |= matches!(u.types().get(p), Type::Param(b, _) if *b == binder);
+                    None
+                });
+                if dependent { None } else { self.without_implicits(result) }
             }
-            _ => (None, info),
+            Type::Poly { binder, params, result } => {
+                let stripped = self.without_implicits(result)?;
+                match self.u.types().get(stripped) {
+                    _ if stripped == result => Some(t),
+                    Type::Poly { .. } => None,
+                    _ => Some(self.u.intern_type(Type::Poly { binder, params, result: stripped })),
+                }
+            }
+            _ => Some(t),
         }
     }
 
-    /// Whether candidate `a` is as specific as `b` (dotty's `isAsSpecific`): `b` applies to the
-    /// parameters of `a`, or `a`'s value type conforms to `b`'s.
-    fn as_specific(&mut self, a: Candidate, b: Candidate) -> bool {
-        let mark = self.constraint.mark();
-        let (pa, ta) = self.candidate_shape(a, false);
-        let (pb, tb) = self.candidate_shape(b, true);
-        let result = match (pa, pb) {
-            (Some(pa), Some(pb)) => {
-                pa.len() == pb.len() && pa.iter().zip(&pb).all(|(&x, &y)| self.conforms(x, y))
+    fn is_stable_alt(&self, c: Candidate) -> bool {
+        let s = self.u.symbol(c.sym);
+        s.kind == Kind::Val && !s.flags.has(MUTABLE)
+    }
+
+    /// 1 if owner `x` derives from owner `y`, -1 the other way round, an object counting as its
+    /// companion class when the larger of the two objects inherits no implicits; else 0 (dotty's
+    /// `compareOwner`).
+    fn compare_owner(&mut self, x: Option<SymbolId>, y: Option<SymbolId>) -> i32 {
+        let (Some(x), Some(y)) = (x, y) else { return 0 };
+        if x == y {
+            return 0;
+        }
+        if self.u.is_class(x) && self.u.is_class(y) {
+            if self.u.derives_from(x, y) {
+                return 1;
             }
-            (None, None) => self.conforms(ta, tb),
-            _ => false,
-        };
+            if self.u.derives_from(y, x) {
+                return -1;
+            }
+        }
+        match (self.u.is_module_class(x), self.u.is_module_class(y)) {
+            (true, true) => {
+                let (cx, cy) = (self.u.companion_class(x), self.u.companion_class(y));
+                let r = self.compare_owner(cx, cy);
+                let larger = if r < 0 { x } else { y };
+                let own = self
+                    .implicit_members(larger, true)
+                    .iter()
+                    .all(|&m| self.u.symbol(m).owner == Some(larger));
+                if own { r } else { 0 }
+            }
+            (true, false) => {
+                let cx = self.u.companion_class(x);
+                self.compare_owner(cx, Some(y))
+            }
+            (false, true) => {
+                let cy = self.u.companion_class(y);
+                self.compare_owner(Some(x), cy)
+            }
+            _ => 0,
+        }
+    }
+
+    /// For two references to one member: 1 if `a`'s prefix is the more specific, -1 if `b`'s,
+    /// an object's prefix counting as its parents (dotty's `comparePrefixes`).
+    fn compare_prefixes(&mut self, a: Candidate, b: Candidate) -> i32 {
+        let (pa, pb) = (self.widened_prefix(a.prefix), self.widened_prefix(b.prefix));
+        let mark = self.constraint.mark();
+        let wins_a = self.relaxed_conforms(pa, pb);
         self.constraint.rollback(mark);
-        result
+        let wins_b = self.relaxed_conforms(pb, pa);
+        self.constraint.rollback(mark);
+        i32::from(wins_a) - i32::from(wins_b)
+    }
+
+    fn widened_prefix(&mut self, prefix: Option<TypeId>) -> TypeId {
+        let Some(p) = prefix else { return self.u.intern_type(Type::NoPrefix) };
+        let w = self.u.widen(p);
+        match self.u.class_symbol(w) {
+            Some(c) if self.u.is_module_class(c) && self.u.symbol(c).kind != Kind::Package => {
+                self.parents_of(w, c)
+            }
+            _ => w,
+        }
     }
 }
