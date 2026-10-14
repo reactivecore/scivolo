@@ -50,7 +50,8 @@ impl Typer<'_> {
             inst = self.widen_inferred(inst, hi, widen)?;
             if matches!(self.u.types().get(hi), Type::Var(_))
                 && !self.is_below_singleton(hi, 0)
-                && self.widen_singletons(inst, false) != inst
+                && let widened = self.widen_singletons(inst, false)
+                && self.module_ref(widened) != inst
             {
                 return Err("singleton instance below another type variable");
             }
