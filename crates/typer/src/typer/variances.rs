@@ -73,11 +73,10 @@ impl Typer<'_> {
     /// The variables among the top-level union (`or`) or intersection operands of `t`.
     fn var_factors(&self, t: TypeId, or: bool) -> Vec<u32> {
         let mut vars = Vec::new();
-        self.any_factor(t, or, &mut |f| {
+        self.for_each_factor(t, or, &mut |f| {
             if let Type::Var(x) = *self.u.types().get(f) {
                 vars.push(x.0);
             }
-            false
         });
         vars
     }
@@ -98,6 +97,7 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::Var(var) => match self.constraint.instance(var) {
                 Some(i) => go(self, i, v),
+                None if !self.constraint.is_pending(var) => {}
                 None => {
                     let entry = out.entry(var.0).or_insert(v);
                     if *entry != v {

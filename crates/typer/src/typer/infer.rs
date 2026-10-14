@@ -79,28 +79,38 @@ impl Typer<'_> {
         self.fully_defined_as(t, false)
     }
 
-    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok`: a variable with a lower
+    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok`, the variables of each pass
+    /// by their variances at its start: a variable with a lower
     /// bound maximized where it occurs contravariantly, one without minimized where it occurs
     /// covariantly, or invariantly without upper bound.
     pub fn fully_defined_as(&mut self, t: TypeId, bottom_ok: bool) -> Result<TypeId, &'static str> {
         for _ in 0..64 {
             let t = self.zonk(t);
-            let mut open = None;
+            let mut open = Vec::new();
             self.u.map_type(t, &mut |u, part| {
-                if let Type::Var(v) = *u.types().get(part) {
-                    open = open.or(Some(v));
+                if let Type::Var(v) = *u.types().get(part)
+                    && !open.contains(&v)
+                {
+                    open.push(v);
                 }
                 None
             });
-            let Some(v) = open else { return Ok(t) };
-            let (lo, hi) = self.constraint.bounds(v);
-            let variance =
-                if bottom_ok { self.occurrence_variances(t).get(&v.0).copied().unwrap_or(0) } else { 0 };
-            let from_below = match lo != NOTHING {
-                true => variance >= 0,
-                false => bottom_ok && (variance > 0 || variance == 0 && hi == ANY),
-            };
-            self.instantiate_var(v, from_below)?;
+            if open.is_empty() {
+                return Ok(t);
+            }
+            let variances = if bottom_ok { self.occurrence_variances(t) } else { Default::default() };
+            for v in open {
+                if self.constraint.instance(v).is_some() {
+                    continue;
+                }
+                let (lo, hi) = self.constraint.bounds(v);
+                let variance = variances.get(&v.0).copied().unwrap_or(0);
+                let from_below = match lo != NOTHING {
+                    true => variance >= 0,
+                    false => bottom_ok && (variance > 0 || variance == 0 && hi == ANY),
+                };
+                self.instantiate_var(v, from_below)?;
+            }
         }
         Err("type variables")
     }

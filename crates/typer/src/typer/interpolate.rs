@@ -112,7 +112,7 @@ impl Typer<'_> {
         let (lo, hi) = self.constraint.bounds(v);
         referenced
             || self.any_factor(if co { hi } else { lo }, !co, &mut |f| match *self.u.types().get(f) {
-                Type::Var(w) => !except.contains(&w) && self.constraint.instance(w).is_none(),
+                Type::Var(w) => !except.contains(&w) && self.constraint.is_pending(w),
                 _ => false,
             })
     }
@@ -124,7 +124,7 @@ impl Typer<'_> {
             let mut suspended = Vec::new();
             for i in 0..vars.len() {
                 let (v, from_below) = vars[i];
-                if self.constraint.instance(v).is_some() {
+                if !self.constraint.is_pending(v) {
                     continue;
                 }
                 let waits = vars[i + 1..]
@@ -161,6 +161,21 @@ impl Typer<'_> {
             Type::Or(a, b, _) if or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
             Type::And(a, b) if !or => self.any_factor(a, or, p) || self.any_factor(b, or, p),
             _ => p(t),
+        }
+    }
+
+    /// Calls `f` on each operand of the top-level unions (`or`) or intersections of `t`.
+    pub fn for_each_factor(&self, t: TypeId, or: bool, f: &mut impl FnMut(TypeId)) {
+        match *self.u.types().get(t) {
+            Type::Or(a, b, _) if or => {
+                self.for_each_factor(a, or, f);
+                self.for_each_factor(b, or, f);
+            }
+            Type::And(a, b) if !or => {
+                self.for_each_factor(a, or, f);
+                self.for_each_factor(b, or, f);
+            }
+            _ => f(t),
         }
     }
 
