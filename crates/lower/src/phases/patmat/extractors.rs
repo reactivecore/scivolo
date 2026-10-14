@@ -15,7 +15,8 @@ use typer::tpd::{List, TNodeId, Tree};
 
 impl Translator<'_, '_> {
     /// The plan of extractor pattern `pat` with `unapply` method tree `fun` and argument
-    /// patterns `args` on `scrutinee`: a null check unless the scrutinee cannot be null.
+    /// patterns `args` on `scrutinee`: a null check unless the scrutinee cannot be null; `throw
+    /// null` past it for a scrutinee of type `Null` or `Nothing`.
     pub fn unapply_pattern_plan(
         &mut self,
         scrutinee: SymbolId,
@@ -31,14 +32,20 @@ impl Translator<'_, '_> {
         let Type::Method { params, result, .. } = self.l.u.types().get(fun_type).clone() else {
             return unsupported(span, "extractors that are not methods");
         };
-        let value = self.l.ident(scrutinee, Span::NONE);
-        let arg = self.l.ensure_conforms(value, params[0].1);
-        let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
-        let unapp = self.l.positioned(unapp);
-        let args = self.l.tpd.items(args).to_vec();
-        let plan = self.unapply_plan(scrutinee, unapp, &args, on_success)?;
         let info = self.l.u.info(scrutinee);
-        let not_null = matches!(self.l.u.erase(info), tasty::Erased::Prim(_));
+        let erased = self.l.u.erase(info);
+        let plan = if matches!(erased, tasty::Erased::Null | tasty::Erased::Nothing) {
+            let tree = self.throw_null();
+            self.add(Plan::Result { tree })
+        } else {
+            let value = self.l.ident(scrutinee, Span::NONE);
+            let arg = self.l.ensure_conforms(value, params[0].1);
+            let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            let unapp = self.l.positioned(unapp);
+            let args = self.l.tpd.items(args).to_vec();
+            self.unapply_plan(scrutinee, unapp, &args, on_success)?
+        };
+        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing);
         if not_null || self.non_null.contains(&scrutinee) {
             return Ok(plan);
         }

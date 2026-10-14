@@ -195,8 +195,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    an input. Classes, case classes, traits and objects defined in one input
    are used, extended, matched on and redefined in later ones, with default
    and named arguments (`tests/repl/classes.check`), as are lazy vals, enums,
-   generic case classes and `var` class parameters (research 15). `private var`
-   parameters and abstract vars wait for the lowering; inline methods of
+   generic case classes and `var` class parameters, `private` ones too (research 15).
+   Abstract vars wait for the lowering; inline methods of
    earlier inputs, some adaptations and overloads, compound assignment to a selection,
    defaults needing lifting, and dotty's messages for unresolved names, for
    the typer.

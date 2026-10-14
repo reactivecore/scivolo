@@ -1,10 +1,31 @@
-//! `synchronized`, which stays polymorphic after erasure.
+//! Calls whose erased signature is not their method's: the operations of arrays of a known
+//! element type and `synchronized`.
 
 use crate::{Lower, Result, unsupported};
 use tasty::{Erased, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Whether `fun` applies `synchronized` to a type.
+/// The erased parameters and result of array operation `fun`, a selection of `apply`, `update`
+/// or `length` on an array of a known element type; `None` for another function.
+pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return None };
+    let m = l.tpd.sym(fun)?;
+    let owner = l.u.symbol(m).owner?;
+    if l.u.full_name(owner) != "scala.Array" {
+        return None;
+    }
+    let array = l.u.widen(l.tpd.tpe(qualifier));
+    let Erased::Array(elem) = l.u.erase(array) else { return None };
+    let int = Erased::Prim('i');
+    match l.u.symbol(m).name.as_str() {
+        "apply" => Some((vec![int], *elem)),
+        "update" => Some((vec![int, *elem], Erased::Unit)),
+        "length" => Some((Vec::new(), int)),
+        _ => None,
+    }
+}
+
+/// Whether `fun` applies `synchronized` to a type, which stays polymorphic after erasure.
 pub fn is_synchronized(l: &Lower, fun: TNodeId) -> bool {
     matches!(*l.tpd.tree(fun),
         Tree::TypeApply { fun: sel, .. } if l.tpd.sym(sel) == Some(l.defs.monitors.synchronized))

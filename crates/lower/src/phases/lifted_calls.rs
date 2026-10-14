@@ -10,7 +10,7 @@ use super::walk::children;
 use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use tasty::{SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{List, TNodeId, Tree};
 
 /// Makes the calls of the local methods among `functions` under `t`, and the references to those
 /// without parameter lists, call their `methods` with the captured values first.
@@ -25,8 +25,16 @@ pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function],
             redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
         }
         if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            todo.extend(children(l.tpd, t));
+            todo.extend(terms_in(l, t));
         }
+    }
+}
+
+/// The children of `t` but the method a return returns from.
+fn terms_in(l: &Lower, t: TNodeId) -> Vec<TNodeId> {
+    match *l.tpd.tree(t) {
+        Tree::Return { expr, .. } => vec![expr],
+        _ => children(l.tpd, t),
     }
 }
 
@@ -54,7 +62,7 @@ pub fn calls_from_class(
                 call_of(l, t, fs).map(|(i, reference, args)| (c, &fs[i], &ms[i], reference, args))
             });
             let Some((class, f, method, reference, args)) = found else {
-                todo.extend(children(l.tpd, t));
+                todo.extend(terms_in(l, t));
                 continue;
             };
             let span = l.tpd.span(reference);
@@ -90,16 +98,20 @@ pub fn calls_from_class(
 }
 
 /// The index among `functions` of the local method `t` calls or refers to without parameter
-/// lists, the reference and the arguments.
+/// lists, the reference past type arguments, and the arguments.
 fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNodeId, Vec<TNodeId>)> {
-    let (reference, args) = match *l.tpd.tree(t) {
+    let (fun, args) = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         _ => (t, Vec::new()),
+    };
+    let reference = match *l.tpd.tree(fun) {
+        Tree::TypeApply { fun, .. } => fun,
+        _ => fun,
     };
     let i = l.tpd.sym(reference).and_then(|s| functions.iter().position(|f| f.sym == s))?;
     let call = functions[i].closure.is_none()
         && matches!(l.tpd.tree(reference), Tree::Ident { .. })
-        && (reference != t || is_parameterless(l, functions[i].def));
+        && (fun != t || is_parameterless(l, functions[i].def));
     call.then_some((i, reference, args))
 }
 
@@ -128,8 +140,8 @@ pub fn make_call(
 ) {
     let span = l.tpd.span(reference);
     let args = l.tpd.list(&args);
-    if reference == t {
-        let info = l.u.info(m);
+    if !matches!(l.tpd.tree(t), Tree::Apply { .. }) {
+        let info = super::lifted::value_info(l, m);
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
@@ -138,7 +150,10 @@ pub fn make_call(
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
 }
 
-/// Whether method definition `def` has no parameter lists.
+/// Whether method definition `def` has no value parameter lists.
 fn is_parameterless(l: &Lower, def: TNodeId) -> bool {
-    matches!(*l.tpd.tree(def), Tree::DefDef { paramss, .. } if l.tpd.clause_items(paramss).is_empty())
+    let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return false };
+    let type_clause =
+        |&c: &List| l.tpd.items(c).first().is_some_and(|&p| matches!(l.tpd.tree(p), Tree::TypeDef { .. }));
+    l.tpd.clause_items(paramss).iter().all(type_clause)
 }

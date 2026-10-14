@@ -115,7 +115,7 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
     while let Some(s) = todo.pop() {
         out.push(s);
         let skip = match l.tpd.tree(s) {
-            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => true,
+            _ if super::walk::is_type_tree(l, s) => true,
             Tree::TypeDef { .. } => s != t && !nested,
             _ => false,
         };

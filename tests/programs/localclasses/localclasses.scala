@@ -25,7 +25,22 @@ class Box(val n: Int):
       override def toString = s"$label#"
     Tag().toString + n
 
+trait Check[-X]:
+  def check(x: X): Boolean
+
+class Outer:
+  class Inner
+
+def applied(o: Outer): Boolean =
+  ((p: Outer) => {
+    class Always extends Check[p.Inner]:
+      def check(x: p.Inner) = true
+    new Always: Check[Null]
+  }).apply(o).check(null)
+
 @main def localclasses(): Unit =
+  println(applied(Outer()))
+  println(((k: Int) => { class Plus { def get = k + 1 }; Plus().get })(2))
   println(Shapes.area(5))
   Shapes.greeter("world").run()
   println(Shapes.plain())

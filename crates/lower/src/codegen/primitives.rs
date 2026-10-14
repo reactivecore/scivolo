@@ -41,7 +41,10 @@ impl Gen<'_, '_> {
             for t in operands {
                 let erased = crate::phases::adapt::erased_type(self.l, t).full();
                 let ty = self.erased(&erased);
-                if !matches!(self.pool.ty(ty), Type::Ref { .. } | Type::Array { .. } | Type::Null) {
+                if !matches!(
+                    self.pool.ty(ty),
+                    Type::Ref { .. } | Type::Array { .. } | Type::Null | Type::Nothing
+                ) {
                     return unsupported(
                         self.l.tpd.span(t),
                         "universal equality and hashes of primitive values",

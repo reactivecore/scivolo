@@ -103,7 +103,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     module_purity::record(l, root);
     beta_reduce::transform(l, root, unit_owner)?;
     let mut classes = class_defs(l.tpd, root);
-    let inits = first_transform::objects_with_inits(l, &classes);
+    let inits = module_purity::objects_with_inits(l, &classes);
     super_accessors::transform(l, &classes)?;
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;

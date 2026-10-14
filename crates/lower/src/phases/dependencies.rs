@@ -123,7 +123,7 @@ impl Collect<'_, '_> {
                 }
                 return;
             }
-            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => return,
+            _ if super::walk::is_type_tree(l, t) => return,
             Tree::Block { stats, expr } => {
                 for s in companions_last(l, l.tpd.items(stats)) {
                     self.visit(s, encl);

@@ -87,3 +87,6 @@ matchnames
 protectedaccess
 protectedpackages
 localtraits
+casts
+genericarrays
+typetests

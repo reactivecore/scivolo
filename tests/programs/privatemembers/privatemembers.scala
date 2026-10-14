@@ -30,7 +30,23 @@ object Registry:
       n += 1
       twice(n)
 
+class Counter(private var n: Int):
+  def next(): Int =
+    n += 1
+    n
+  def same(o: Counter): Boolean = o.n == n
+
+case class Cell[T](private var t: T):
+  def get = t
+  def set(t2: T) = t = t2
+
 @main def privatemembers(): Unit =
+  val counter = Counter(1)
+  println(counter.next() + counter.next())
+  println(counter.same(Counter(3)))
+  val cell = Cell("a")
+  cell.set("b")
+  println(cell.get)
   println(Registry.Inc() + Registry.Inc() + Registry.count)
   val path = Path(() => println("act"), Some(Path(() => println("parent"), None)))
   path.O()

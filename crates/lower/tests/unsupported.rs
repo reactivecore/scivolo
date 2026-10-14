@@ -11,19 +11,12 @@ const CASES: &[(&str, &str)] = &[
         "object O { def g(): Any = 1; def f(): Boolean = g().isInstanceOf[String | Int] }",
         "type tests of unions or intersections of values other than names",
     ),
-    ("object O { def f(x: Any): Boolean = x.isInstanceOf[Tuple] }", "type tests of tuple types"),
     ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
         "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
         "casts between primitive values or to references",
     ),
-    (
-        "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
-        "ascriptions to Unit of values other than literals",
-    ),
-    ("object O { def f(x: Any): Unit = x.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
-    ("object O { def f(): Unit = null.asInstanceOf[Unit] }", "casts to Unit of values other than blocks"),
     (
         "class U { val a: Unit = (); def f(x: Boolean): Unit = { if x then return a; () } }",
         "returns of Unit values of class members",
@@ -38,12 +31,10 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(m: M) = m.asInstanceOf[N] }",
         "casts between value classes",
     ),
-    ("object O { def f[T](a: Array[T]): T = a(0) }", "operations on generic arrays"),
     (
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",
     ),
-    ("class A(private var p: Int) { def f = p }", "private mutable class parameters"),
     ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
@@ -73,14 +64,6 @@ const CASES: &[(&str, &str)] = &[
         "classes in local classes calling local methods",
     ),
     ("trait T { var x: Int }", "abstract variables"),
-    (
-        "object O { def f() = ((x: Int) => { class N { def g = 1 }; new N().g + x })(2) }",
-        "applications of a lambda defining classes",
-    ),
-    (
-        "object O { def f(x: Null) = x match { case Some(_) => 1; case _ => 2 } }",
-        "matches on values of type Null or Nothing",
-    ),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),

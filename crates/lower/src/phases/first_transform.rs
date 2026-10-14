@@ -1,5 +1,6 @@
 //! The constant folding of dotty's `FirstTransform`: a pure reference to a value of constant
-//! type, and a pure block of constant type, becomes the constant.
+//! type, and a pure block of constant type, becomes the constant; a conditional on a constant
+//! its branch.
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
@@ -26,40 +27,13 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
         }
         super::fold_condition::fold(l, t);
         const_to_literal(l, t, inits);
+        if let Tree::If { cond, thenp, elsep, .. } = *l.tpd.tree(t)
+            && let Tree::Literal { value: Constant::Boolean(c) } = *l.tpd.tree(cond)
+        {
+            l.copy_node(t, if c { thenp } else { elsep });
+        }
         ControlFlow::Continue(())
     });
-}
-
-/// The objects among class definitions `classes` with initialization code: a value with an
-/// initializer, a statement or a parent constructor called with arguments (dotty's not
-/// `NoInits`).
-pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
-    let mut out = FxHashSet::default();
-    for &td in classes {
-        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, parents, .. } = *l.tpd.tree(rhs) else { continue };
-        let calls_with_args = |&p: &TNodeId| match *l.tpd.tree(p) {
-            Tree::Apply { args, .. } => !l.tpd.items(args).is_empty(),
-            Tree::Block { .. } => true,
-            _ => false,
-        };
-        if l.tpd.items(parents).iter().any(calls_with_args) {
-            out.extend(l.u.source_module(class));
-            continue;
-        }
-        let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
-            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
-            Tree::ValDef { rhs, .. } => {
-                rhs.is_some() && l.tpd.sym(s).is_some_and(|v| !has(l.u, v, LAZY) && !l.u.is_module(v))
-            }
-            _ => true,
-        };
-        if l.tpd.items(body).iter().any(initializes) {
-            out.extend(l.u.source_module(class));
-        }
-    }
-    out
 }
 
 /// Makes `t` a literal if it is a pure path to a value of constant type, the path through
