@@ -105,7 +105,7 @@ pub fn is_class_def(tpd: &Tpd, t: TNodeId) -> bool {
 }
 
 /// The direct subtrees of `t`, in order.
-pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
+pub fn children(tpd: &Tpd, t: TNodeId) -> tpd::Children {
     tpd.children(t)
 }
 
