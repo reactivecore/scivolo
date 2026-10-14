@@ -45,6 +45,12 @@ object D:
       if x > 10 then return 10
       x
     sign + clamp(k)
+  def bound(k: Int): Option[Int] =
+    def result = for
+      a <- Option(k)
+      _ = if true then println("bound")
+    yield a
+    result
 
 class C(p: String):
   def twice(f: String => String, x: String): String = f(f(x))
@@ -77,6 +83,7 @@ class TI extends T
   println(D.defInLambda(10))
   println(D.generic(3))
   println(D.early(20) + D.early(-3))
+  println(D.bound(4))
   println(new C("+").field())
   println(new C("+").pure(4))
   println(new TI().n(3))
