@@ -6,7 +6,7 @@
 use super::getters::is_param_accessor;
 use super::walk::{children, subtrees};
 use crate::symbols::{has, is_effectively_final};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use tasty::tags::{LAZY, LOCAL, MUTABLE, PRIVATE, STATIC};
 use tasty::{Kind, SymbolId};
@@ -21,12 +21,6 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(FxHashSet::default()) };
     let stats = l.tpd.items(body).to_vec();
-    for &stat in &stats {
-        let private_var = |s| is_param_accessor(l, s) && has(l.u, s, MUTABLE) && has(l.u, s, PRIVATE);
-        if l.tpd.sym(stat).is_some_and(private_var) {
-            return unsupported(l.tpd.span(stat), "private mutable class parameters");
-        }
-    }
     let values = droppable(l, class, &stats);
     let retained = retained(l, class, &stats, &values);
     let dropped: Vec<SymbolId> = values.iter().map(|&(v, _)| v).filter(|v| !retained.contains(v)).collect();

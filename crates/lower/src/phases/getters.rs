@@ -3,11 +3,13 @@
 //! none for a class parameter only the constructor uses; an assignment to a variable becomes a
 //! call of its setter.
 
+use crate::definitions::symbol;
 use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
-use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC};
-use tasty::{Erased, Kind, SymbolId, Type};
+use syntax::ast::Span;
+use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC};
+use tasty::{Erased, Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -92,6 +94,12 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
         }
         let paramss = l.tpd.clauses(&[]);
         l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs };
+        let setter_name = format!("{}_=", l.u.symbol(sym).name);
+        let class = owner.expect("a value's class");
+        if has(l.u, sym, MUTABLE) && l.u.decl(class, &setter_name).unwrap_or_default().is_empty() {
+            let at = Span::at(l.tpd.span(td).point());
+            kept.push(param_setter(l, class, sym, &setter_name, at));
+        }
     }
     let Tree::Template { constr, parents, self_, .. } = *l.tpd.tree(template) else {
         unreachable!("a template")
@@ -99,6 +107,26 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
     let body = l.tpd.list(&kept);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
+}
+
+/// The setter `name(x$0)` of variable `var` of class `class` that has none (a private mutable
+/// class parameter) at `span`, flagged as `var` with its body left to `Memoize` (dotty's
+/// `ensureSetter`).
+fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span: Span) -> TNodeId {
+    let flags = l.u.symbol(var).flags.with(FIELDaccessor);
+    let setter = l.u.define(symbol(name, Kind::Def, class, flags));
+    let value = l.u.info(var);
+    let unit = l.u.class_ref("scala.Unit");
+    let binder = l.u.fresh_binder();
+    let params = vec![("x$0".to_owned(), value)];
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
+    l.u.set_info(setter, info);
+    let param = l.u.define(symbol("x$0", Kind::Param, setter, Flags::default().with(SYNTHETIC)));
+    l.u.set_info(param, value);
+    let param = l.param_def(param, span);
+    let tpt = l.type_tree(unit, span);
+    l.build().def_def(setter, &[&[param]], tpt, None, span)
 }
 
 /// Makes each assignment to a variable in class definition `td` a call of its setter.
