@@ -4,17 +4,20 @@
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
 use crate::Erased;
 use crate::types::{Binder, TypeId};
-use rustc_hash::FxHashMap;
 
 impl Universe {
     /// Enters `s` into its owner; `s.tree` is `None` for a symbol without TASTy.
+    /// Resolved references are dropped when an owner already looked up by name gets a name new
+    /// to it, a class member or a symbol without TASTy.
     pub fn define(&mut self, s: Symbol) -> SymbolId {
         let id = SymbolId(self.symbols.len() as u32);
         if let Some(o) = s.owner {
             self.symbols[o.0 as usize].decls.push(id);
             if let Some(index) = self.by_name.get_mut(&o) {
-                index.entry(s.name.clone()).or_default().push(id);
-                if s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
+                let named = index.entry(s.name.clone()).or_default();
+                let new_name = named.is_empty();
+                named.push(id);
+                if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
                     self.changed();
                 }
             }
@@ -50,9 +53,22 @@ impl Universe {
         self.binders
     }
 
-    /// The erased methods remembered since the last change, by method and semi-erasure.
-    pub fn erased_methods(&mut self) -> &mut FxHashMap<(SymbolId, bool), (Vec<Erased>, Erased)> {
-        &mut self.erased_methods
+    /// The erased parameters and result of method `def` remembered since the last change, with
+    /// value classes semi-erased if `semi`.
+    pub fn erased_memo(&self, def: SymbolId, semi: bool) -> Option<&(Vec<Erased>, Erased)> {
+        self.erased_methods.get(&(def, semi))
+    }
+
+    /// Remembers `erased` as `erased_memo`'s answer if the generation is still `generation`.
+    pub fn remember_erased(
+        &mut self,
+        (def, semi): (SymbolId, bool),
+        generation: u64,
+        erased: &(Vec<Erased>, Erased),
+    ) {
+        if self.generation == generation {
+            self.erased_methods.insert((def, semi), erased.clone());
+        }
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
@@ -61,20 +77,22 @@ impl Universe {
         self.package_entered(name)
     }
 
-    /// Sets the declared type `info` returns for `sym`.
+    /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
+    /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
             self.changed();
         }
     }
 
-    /// Sets the parents of class `c`; linearizations computed before are dropped.
+    /// Sets the parents of class `c`; linearizations and resolved references are dropped.
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
         self.changed();
     }
 
+    /// Sets the flags of `sym`; changed flags drop the resolved references.
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
         if std::mem::replace(&mut self.symbols[sym.0 as usize].flags, flags) != flags {
             self.changed();

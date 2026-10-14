@@ -79,7 +79,7 @@ impl Universe {
     }
 
     fn erased_method_as(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
-        if let Some(e) = self.erased_methods().get(&(def, semi)) {
+        if let Some(e) = self.erased_memo(def, semi) {
             return e.clone();
         }
         let generation = self.generation();
@@ -89,9 +89,7 @@ impl Universe {
         let previous = self.set_scala2_erasure(scala2);
         let erased = self.erase_method(def, semi);
         self.set_scala2_erasure(previous);
-        if self.generation() == generation {
-            self.erased_methods().insert((def, semi), erased.clone());
-        }
+        self.remember_erased((def, semi), generation, &erased);
         erased
     }
 

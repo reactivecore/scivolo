@@ -94,6 +94,10 @@ fn erased_methods_follow_changed_infos() {
     assert_eq!(u.erased_method(n).1, Erased::Class("D".into()));
     u.rename(d, "E");
     assert_eq!(u.erased_method(n).1, Erased::Class("E".into()));
+    assert!(u.decl(c, "k").unwrap().is_empty());
+    let generation = u.generation();
+    u.define(symbol("k", Kind::Def, c));
+    assert_ne!(u.generation(), generation);
 }
 
 #[test]
