@@ -114,7 +114,12 @@ pub type MapChild<'f, C> = dyn FnMut(&mut C, TNodeId) -> TNodeId + 'f;
 /// Replaces each direct subtree `c` of `t` by `f(cx, c)`, in the order of `Tpd::children`, and
 /// rebuilds `t` in place if one of them changed; whether one did.
 pub fn map_children<C: AsMut<Tpd> + ?Sized>(cx: &mut C, t: TNodeId, f: &mut MapChild<C>) -> bool {
-    let mut slots = cx.as_mut().tree(t).slots();
+    let tree = cx.as_mut().tree(t);
+    let mut slots = tree.slots();
+    if slots.is_empty() {
+        return false;
+    }
+    let mut tree = tree.clone();
     let mut changed = false;
     for slot in slots.iter_mut() {
         changed |= match slot {
@@ -125,7 +130,8 @@ pub fn map_children<C: AsMut<Tpd> + ?Sized>(cx: &mut C, t: TNodeId, f: &mut MapC
         };
     }
     if changed {
-        cx.as_mut().get_mut(t).tree.set_slots(&slots);
+        tree.set_slots(&slots);
+        cx.as_mut().get_mut(t).tree = tree;
     }
     changed
 }
