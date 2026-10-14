@@ -73,7 +73,7 @@ impl Translator<'_, '_> {
                 if t.is_sequence(result_type) {
                     return t.unapply_seq_plan(result, args, on_success);
                 }
-                if let Some(arity) = t.product_seq_arity(result_type, args.len()) {
+                if let Some(arity) = t.product_seq_arity(result_type, args.len())? {
                     return t.unapply_product_seq_plan(result, args, arity, on_success);
                 }
                 let Some(get) = t.member_named(result_type, "get") else {
@@ -86,7 +86,7 @@ impl Translator<'_, '_> {
                     if t.is_sequence(get_type) {
                         return t.unapply_seq_plan(get_result, args, on_success);
                     }
-                    let Some(arity) = t.product_seq_arity(get_type, args.len()) else {
+                    let Some(arity) = t.product_seq_arity(get_type, args.len())? else {
                         return unsupported(span, "sequence extractors of another result type");
                     };
                     t.unapply_product_seq_plan(get_result, args, arity, on_success)

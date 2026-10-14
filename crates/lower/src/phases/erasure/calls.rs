@@ -30,7 +30,7 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
             _ => break,
         }
     }
-    if let Some((op, qualifier)) = runtime_op(l, fun) {
+    if let Some((op, qualifier)) = runtime_op(l, fun)? {
         if all.is_empty() {
             l.tpd.get_mut(t).span = from_start(l.tpd.span(t));
         }

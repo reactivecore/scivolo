@@ -44,7 +44,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
     if is_test_or_cast(l, t) {
         intercept(l, t)?;
     }
-    if generic_arrays::rewrite_select(l, t) {
+    if generic_arrays::rewrite_select(l, t)? {
         return typed(l, t, pt);
     }
     let new = match *l.tpd.tree(t) {

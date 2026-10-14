@@ -14,15 +14,16 @@ use typer::tpd::{TNodeId, Tree};
 impl Translator<'_, '_> {
     /// The number of product selectors of `tpe` if they are at most `n + 1` and the last is a
     /// sequence (dotty's `isProductSeqMatch`).
-    pub fn product_seq_arity(&mut self, tpe: TypeId, n: usize) -> Option<usize> {
-        let selectors = self.product_selectors(tpe, true).ok()?;
-        let info = self.l.u.member_info(tpe, *selectors.last()?);
+    pub fn product_seq_arity(&mut self, tpe: TypeId, n: usize) -> Result<Option<usize>> {
+        let selectors = self.product_selectors(tpe, true)?;
+        let Some(&last) = selectors.last() else { return Ok(None) };
+        let info = self.l.u.member_info(tpe, last);
         let last = match self.l.u.types().get(info).clone() {
             Type::Method { params, result, .. } if params.is_empty() => result,
             Type::ByName(result) => result,
             _ => info,
         };
-        (selectors.len() <= n + 1 && self.is_sequence(last)).then_some(selectors.len())
+        Ok((selectors.len() <= n + 1 && self.is_sequence(last)).then_some(selectors.len()))
     }
 
     /// The plan matching the first `arity - 1` product selectors of `result` against as many of
