@@ -1,6 +1,7 @@
 //! Entering the symbols of definitions before their statements are typed (dotty's `Namer`).
 
 mod annotations;
+mod base_types;
 mod check_static;
 mod checks;
 mod complete;
