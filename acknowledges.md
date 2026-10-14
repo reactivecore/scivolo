@@ -30,7 +30,8 @@ Apache-2.0. Rust translations of:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`;
   `crates/typer/src/unpickle`: `core/tasty/TreeUnpickler.readTree`, `tpd.ref`,
   `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
-  `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`.
+  `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
+  `crates/typer/src/constraint`: `core/ConstraintHandling.addOneBound`.
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),

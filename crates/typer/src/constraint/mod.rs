@@ -18,7 +18,6 @@ pub struct Constraint {
     vars: Vec<Entry>,
     /// The entries changed since a mark, their previous states.
     log: Vec<(usize, Entry)>,
-    frozen: bool,
     /// How many satisfiability checks are in progress, one inside another.
     checks: u32,
     /// Whether a bound is being propagated from another variable.
@@ -73,16 +72,26 @@ impl Constraint {
         ok
     }
 
-    /// Whether `lo <: hi` holds without extending the constraint.
+    /// Whether `lo <: hi` holds, extending the constraint.
     fn satisfiable(&mut self, u: &mut Universe, lo: TypeId, hi: TypeId) -> bool {
         if self.checks >= MAX_CHECKS {
             return false;
         }
         self.checks += 1;
-        let frozen = std::mem::replace(&mut self.frozen, true);
         let ok = u.is_subtype_in(lo, hi, self);
-        self.frozen = frozen;
         self.checks -= 1;
+        ok
+    }
+
+    /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
+    /// the part of `lo` to check (dotty's `addOneBound`).
+    fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
+        let mark = self.mark();
+        self.set(v, lo, hi);
+        let ok = hi == ANY || self.satisfiable(u, checked, hi);
+        if !ok {
+            self.rollback(mark);
+        }
         ok
     }
 }
@@ -113,10 +122,9 @@ impl TypeVars for Constraint {
         {
             return false;
         }
-        if e.hi != ANY && !self.satisfiable(u, unchecked, e.hi) {
+        if !self.narrow(u, v, lo, e.hi, unchecked) {
             return false;
         }
-        self.set(v, lo, e.hi);
         if incoming_union && !self.propagating {
             self.vars[v.0 as usize].hard = true;
         }
@@ -142,11 +150,7 @@ impl TypeVars for Constraint {
         {
             return false;
         }
-        if !self.satisfiable(u, e.lo, hi) {
-            return false;
-        }
-        self.set(v, e.lo, hi);
-        true
+        self.narrow(u, v, e.lo, hi, e.lo)
     }
 
     fn bounds(&self, v: VarId) -> (TypeId, TypeId) {
@@ -155,7 +159,7 @@ impl TypeVars for Constraint {
     }
 
     fn frozen(&self) -> bool {
-        self.frozen
+        false
     }
 
     fn mark(&self) -> Mark {
