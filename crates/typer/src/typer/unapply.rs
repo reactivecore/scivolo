@@ -73,7 +73,7 @@ impl Typer<'_> {
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
         let sel = self.zonk(sel);
-        if self.stripped(own) == self.stripped(sel) || sel == tasty::NOTHING {
+        if self.stripped(own) == self.stripped(sel) || self.is_bottom_type(sel) {
             return Ok(tree);
         }
         let tpt = self.type_tree(own, span.end_pos(), false);
@@ -134,13 +134,18 @@ impl Typer<'_> {
     }
 
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
-    /// `sel` if it conforms, else `arg_type` constrained by `sel` and maximized; type variables
-    /// from id `vars` on instantiated.
+    /// `sel` if it conforms, else `arg_type` constrained by `sel`, unless only variant type
+    /// arguments of an open class would be, and maximized; type variables from id `vars` on
+    /// instantiated.
     fn pattern_type(&mut self, sel: TypeId, arg_type: TypeId, vars: usize) -> Result<TypeId, &'static str> {
         let mark = self.constraint.mark();
         if self.conforms(sel, arg_type) {
             self.fully_defined_as(arg_type, true)?;
-            return Ok(if sel == tasty::NOTHING { self.zonk(arg_type) } else { self.without_unchecked(sel) });
+            return Ok(if self.is_bottom_type(sel) {
+                self.zonk(arg_type)
+            } else {
+                self.without_unchecked(sel)
+            });
         }
         self.constraint.rollback(mark);
         let open = self.u.class_symbol(arg_type).is_none_or(|c| {
@@ -148,10 +153,11 @@ impl Typer<'_> {
             !flags.has(tasty::tags::FINAL) && !flags.has(tasty::tags::CASE)
         });
         let variances = self.variances(arg_type, None, vars);
-        if open && !variances.is_empty() {
-            return Err("type arguments of a pattern of an open class");
+        let unconstrained = open && !variances.is_empty();
+        if unconstrained && variances.values().any(|&v| v == 0) {
+            return Err("invariant type arguments of a pattern of an open class");
         }
-        if !self.conforms(arg_type, sel) {
+        if !unconstrained && !self.conforms(arg_type, sel) {
             self.constraint.rollback(mark);
             if self.has_abstract_arg(sel) {
                 return Err("pattern constraining type parameters (GADT)");
