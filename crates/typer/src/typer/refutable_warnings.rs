@@ -78,10 +78,16 @@ impl Typer<'_> {
         self.path_text(qualifier)
     }
 
-    /// Path `t`, identifiers selected from identifiers, as written.
+    /// Path `t`, identifiers selected from identifiers, an identifier with the prefix of its
+    /// type (`Test.A` for `A`).
     fn path_text(&mut self, t: TNodeId) -> Option<String> {
         match *self.tpd.tree(t) {
-            T::Ident { name } => Some(self.text(name.name).to_owned()),
+            T::Ident { name } => {
+                let shown = self.u.show_user(self.tpd.tpe(t));
+                let name = self.text(name.name);
+                let with_prefix = shown.strip_suffix(".type").filter(|s| s.ends_with(&format!(".{name}")));
+                Some(with_prefix.unwrap_or(name).to_owned())
+            }
             T::Select { qualifier, name } => {
                 let prefix = self.path_text(qualifier)?;
                 Some(format!("{prefix}.{}", self.text(name.name)))
