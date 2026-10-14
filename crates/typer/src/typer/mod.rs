@@ -14,6 +14,7 @@ mod apply;
 mod apply_insertion;
 mod auto_apply;
 mod avoid;
+mod avoid_pattern_types;
 mod call_types;
 mod case_lambdas;
 mod class_bound;

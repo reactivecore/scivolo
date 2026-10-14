@@ -61,7 +61,7 @@ impl Typer<'_> {
     ) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
         let tpe = self.zonk(tpe);
-        if !self.escapes(tpe, locals) {
+        if !self.escapes(tpe, locals) && !self.var_bounds_refer_to(tpe, locals) {
             return Some(expr);
         }
         let mut avoided = self.u.map_type(tpe, &mut |u, part| {
@@ -77,6 +77,7 @@ impl Typer<'_> {
             let dealiased = u.dealias(part);
             (local && dealiased != part).then_some(dealiased)
         });
+        avoided = self.avoid_pattern_types(avoided, bounded);
         let mut checked = avoided != tpe;
         for _ in 0..16 {
             let Type::Sym(_, s) = *self.u.types().get(avoided) else { break };
@@ -132,7 +133,10 @@ impl Typer<'_> {
         {
             (avoided, checked) = (p, true);
         }
-        if self.refers_to(avoided, locals) || checked && !self.u.is_subtype(tpe, avoided) {
+        if self.refers_to(avoided, locals)
+            || self.var_bounds_refer_to(avoided, locals)
+            || checked && !self.u.is_subtype(tpe, avoided)
+        {
             return None;
         }
         Some(self.ascribed(expr, avoided))
