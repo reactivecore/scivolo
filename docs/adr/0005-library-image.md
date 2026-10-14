@@ -27,7 +27,7 @@ roadmap's startup target is a cached hello in ≤ 20 ms; it took 47 ms.
 - Hello takes 20 ms and moderate 35 ms (from 47 and 70); opening the classpath costs 0.3 ms.
   With member tables (2026-09-28): hello 9.3 ms, moderate 17.4 ms.
 - The image is a cache: deleting it is always safe; a changed jar produces a new file. Each
-  use marks an image as used; building one removes images unused for 30 days
+  use marks an image as used; building one removes images unused for a day (30 days before ADR 0024)
   (`crates/libimage/src/cache.rs`). The key also covers the program's version; a truncated
   image is rebuilt.
 - The remaining startup cost is initializing the runtime's modules (~330 files, decoding and

@@ -19,8 +19,19 @@ every name as text (moderate: 188 files, 2.1 MB, 245k nodes; hello decodes `Char
 - **Versioned.** The table starts with `SYMBOL_TABLE_VERSION`, which the image tag also holds; it
   changes with the layout or with what `entries` computes. A table of another version or a
   malformed one is ignored and the file decoded.
+- **Keyed by the build.** The image tag also holds `SCALAI_BUILD`, the hash of the workspace's
+  sources (`crates/scalai/build.rs`, also the build script of `crates/repl`, whose tests open
+  images), so a changed program never reads tables, NIR member tables included, that older code
+  wrote. Building an image removes images unused for a day.
+- **Checked.** When a file entered from its table is decoded, each entered tree must exist and
+  have the tag of its kind; otherwise decoding panics, naming the file.
 
 ## Consequences
+- Measured (2026-10-14, edit-then-run, strict frontend, minima of 20): hello 18.8 → 17.8 ms,
+  caseclasses 36.2 → 35.7 ms, a moderate variant 52.3 → 50.3 ms. Files decoded: hello 22 of 57
+  loaded (30k of 73k nodes), caseclasses 52 of 75 (83k of 113k), moderate variant 151 of 183
+  (200k of 241k): most loaded files still have a tree read through `info` or `parents`.
+- Every change to the workspace's sources builds a new image on first use (about a second).
 - Two readers of one format: `crates/tasty/tests/image.rs` builds an image afresh and checks that
   every symbol of the standard library, nativelib, clib, posixlib and javalib entered from tables
   equals the decoded one.

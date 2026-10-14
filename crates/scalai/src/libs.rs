@@ -24,7 +24,11 @@ pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
         true => tasty::symbol_table(data),
         false => vm::nir_table(name, data),
     };
-    let tag = format!("nir member tables 1, tasty symbol tables {}", tasty::SYMBOL_TABLE_VERSION);
+    let tag = format!(
+        "nir member tables 1, tasty symbol tables {}, build {}",
+        tasty::SYMBOL_TABLE_VERSION,
+        env!("SCALAI_BUILD")
+    );
     let spec = Spec { sources: &sources, keep, extra: &extra, tag: &tag };
     Ok(Box::leak(Box::new(Image::open(&spec, &cache_dir())?)))
 }

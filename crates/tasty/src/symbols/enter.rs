@@ -11,7 +11,10 @@ impl Universe {
     pub fn load(&mut self, path: &str) -> Result<(), Error> {
         let (bytes, table) = self.library.read(path).map_err(|e| Error::Io(path.to_owned(), e))?;
         let (loaded, entries) = match table.and_then(table::decode) {
-            Some((scala2, entries)) => (Loaded::undecoded(path, bytes, scala2), entries),
+            Some((scala2, entries)) => {
+                let entered = entries.iter().map(|e| (e.tree, e.tree_tag())).collect();
+                (Loaded::undecoded(path, bytes, scala2, entered), entries)
+            }
             None => {
                 let decoded = Decoded::parse(&bytes).map_err(|e| Error::Corrupt(path.to_owned(), e))?;
                 let entries = entries(&decoded);

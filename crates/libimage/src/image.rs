@@ -56,7 +56,7 @@ impl Image {
         }
         cache::prune(dir, cache::ABANDONED, |n| cache::is_staging(n, "libs-", ".tmp"));
         build(spec, dir, &path)?;
-        cache::prune(dir, cache::UNUSED, |n| {
+        cache::prune(dir, cache::IMAGE_UNUSED, |n| {
             n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(cache::is_key)
         });
         Self::map(&path)

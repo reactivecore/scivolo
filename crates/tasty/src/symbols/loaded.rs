@@ -1,7 +1,7 @@
 //! A loaded top-level file: its bytes, and its trees and names decoded on first use.
 
 use super::bodies::BodyInfo;
-use crate::{Ast, Tasty};
+use crate::{Ast, NodeId, Tasty};
 use std::borrow::Cow;
 use std::cell::OnceCell;
 
@@ -38,18 +38,25 @@ pub struct Loaded {
     pub bytes: Cow<'static, [u8]>,
     pub scala2: bool,
     decoded: OnceCell<Decoded>,
+    /// The trees its symbol table entered and their tags, checked when it is decoded.
+    entered: Vec<(NodeId, u8)>,
     /// Its spans and signatures, decoded when a body is first read.
     pub body_info: Option<BodyInfo>,
 }
 
 impl Loaded {
     /// A file whose symbols were entered from a symbol table built from the same bytes.
-    pub fn undecoded(path: &str, bytes: Cow<'static, [u8]>, scala2: bool) -> Self {
-        Self { path: path.to_owned(), bytes, scala2, decoded: OnceCell::new(), body_info: None }
+    pub fn undecoded(
+        path: &str,
+        bytes: Cow<'static, [u8]>,
+        scala2: bool,
+        entered: Vec<(NodeId, u8)>,
+    ) -> Self {
+        Self { path: path.to_owned(), bytes, scala2, decoded: OnceCell::new(), entered, body_info: None }
     }
 
     pub fn decoded_now(path: &str, bytes: Cow<'static, [u8]>, decoded: Decoded) -> Self {
-        let loaded = Self::undecoded(path, bytes, decoded.scala2);
+        let loaded = Self::undecoded(path, bytes, decoded.scala2, Vec::new());
         let _ = loaded.decoded.set(decoded);
         loaded
     }
@@ -57,8 +64,17 @@ impl Loaded {
     /// Its trees and names, decoded on first use.
     pub fn decoded(&self) -> &Decoded {
         self.decoded.get_or_init(|| {
-            Decoded::parse(&self.bytes)
-                .unwrap_or_else(|e| panic!("{}: decoded for its symbol table, now {e}", self.path))
+            let path = &self.path;
+            let d = Decoded::parse(&self.bytes).unwrap_or_else(|e| {
+                panic!("{path}: no longer decodes as when its symbol table was built: {e}")
+            });
+            let ast = &d.ast;
+            let wrong =
+                self.entered.iter().find(|&&(id, tag)| id.0 as usize >= ast.len() || ast.tag(id) != tag);
+            if let Some((id, tag)) = wrong {
+                panic!("{path}: symbol table entry at tree {} (tag {tag}) does not match the file", id.0);
+            }
+            d
         })
     }
 

@@ -1,7 +1,7 @@
 use libimage::{Image, Source, Spec};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tasty::{Kind, SymbolId, Universe};
+use tasty::{FileId, Kind, SymbolId, Universe};
 
 fn jars() -> Option<Vec<PathBuf>> {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -61,8 +61,15 @@ fn symbols(u: &mut Universe) -> Vec<String> {
             let t = u.symbol(d);
             let owner = u.full_name(s);
             out.push(format!(
-                "{owner} {} {:?} {:?} {:?} {:?} {} {}",
-                t.name, t.kind, t.flags, t.target, t.tree, t.is_extern, t.derived
+                "{owner} {} {:?} {:?} {:?} {:?} {} {} {}",
+                t.name,
+                t.kind,
+                t.flags,
+                t.target,
+                t.tree,
+                t.is_extern,
+                t.derived,
+                u.is_scala2(d)
             ));
             if t.kind != Kind::Package {
                 stack.push(d);
@@ -86,6 +93,9 @@ fn symbol_tables_enter_what_decoding_enters() {
     assert_eq!(decoded.len(), from_tables.len());
     assert_eq!(from_jars.loaded_files(), from_image.loaded_files());
     assert!(from_image.decoded_files() * 100 < from_image.loaded_files(), "{}", from_image.decoded_files());
+    for f in 0..from_image.loaded_files() {
+        from_image.file(FileId(f as u32));
+    }
 }
 
 #[test]

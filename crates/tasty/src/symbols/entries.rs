@@ -20,6 +20,20 @@ pub struct Entry {
     pub tree: NodeId,
 }
 
+impl Entry {
+    /// The tag of the tree it is read from.
+    pub fn tree_tag(&self) -> u8 {
+        match self.kind {
+            None | Some(Kind::Package) => PACKAGE,
+            Some(Kind::Class | Kind::Type) => TYPEDEF,
+            Some(Kind::TypeParam) => TYPEPARAM,
+            Some(Kind::Param) => PARAM,
+            Some(Kind::Val) => VALDEF,
+            Some(Kind::Def) => DEFDEF,
+        }
+    }
+}
+
 /// The entries of decoded file `file`; method bodies are not entered.
 pub fn entries(file: &Decoded) -> Vec<Entry> {
     let mut out = Vec::new();

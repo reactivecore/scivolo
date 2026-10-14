@@ -2,9 +2,9 @@
 //! enters its symbols without decoding its trees.
 //!
 //! Layout, little-endian: `u32` version, `u8` scala2, `u32` entry count, then per entry `u8` kind
-//! (its index in `KINDS`, 0 for a package clause), `u32` owner index (`u32::MAX` for none), `u32` tree, `u64` flags,
-//! `u8` bits (1 extern, 2 derived, 4 has a target), the name, and the target if it has one; a
-//! string is its `u32` length and its UTF-8 bytes.
+//! (0 for a package clause, else 1 + its index in `KINDS`), `u32` owner index (`u32::MAX` for
+//! none), `u32` tree, `u64` flags, `u8` bits (1 extern, 2 derived, 4 has a target), the name, and
+//! the target if it has one; a string is its `u32` length and its UTF-8 bytes.
 
 use super::entries::{Entry, entries};
 use super::loaded::Decoded;
@@ -12,10 +12,9 @@ use super::{Flags, Kind};
 use crate::NodeId;
 
 /// Changes whenever the layout or what `entries` computes changes; images are keyed by it.
-pub const SYMBOL_TABLE_VERSION: u32 = 1;
+pub const SYMBOL_TABLE_VERSION: u32 = 2;
 
-const KINDS: [Kind; 7] =
-    [Kind::Package, Kind::Class, Kind::Type, Kind::TypeParam, Kind::Param, Kind::Val, Kind::Def];
+const KINDS: [Kind; 6] = [Kind::Class, Kind::Type, Kind::TypeParam, Kind::Param, Kind::Val, Kind::Def];
 
 /// The symbol table of TASTy file `data`; empty if it does not decode.
 pub fn symbol_table(data: &[u8]) -> Vec<u8> {
@@ -29,7 +28,7 @@ pub fn encode(scala2: bool, entries: &[Entry]) -> Vec<u8> {
     out.push(scala2 as u8);
     out.extend_from_slice(&(entries.len() as u32).to_le_bytes());
     for e in entries {
-        out.push(e.kind.and_then(|k| KINDS.iter().position(|&c| c == k)).unwrap_or(0) as u8);
+        out.push(e.kind.and_then(|k| KINDS.iter().position(|&c| c == k)).map_or(0, |i| i as u8 + 1));
         out.extend_from_slice(&e.owner.unwrap_or(u32::MAX).to_le_bytes());
         out.extend_from_slice(&e.tree.0.to_le_bytes());
         out.extend_from_slice(&e.flags.0.to_le_bytes());
@@ -55,7 +54,7 @@ pub fn decode(table: &[u8]) -> Option<(bool, Vec<Entry>)> {
     for i in 0..count {
         let kind = match r.u8()? {
             0 => None,
-            k => Some(*KINDS.get(k as usize)?),
+            k => Some(*KINDS.get(k as usize - 1)?),
         };
         let owner = Some(r.u32()?).filter(|&o| o != u32::MAX);
         if owner.is_some_and(|o| o >= i) {
