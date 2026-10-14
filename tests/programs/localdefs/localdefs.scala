@@ -37,6 +37,14 @@ object D:
     def either[A, B](a: A, b: B, first: Boolean): Any = if first then a else b
     def tagged[T](t: T): String = s"$t$k"
     pair("p").mkString + either(1, "b", false) + tagged(2.5) + pair(k).sum
+  def early(k: Int): Int =
+    def sign: Int =
+      if k > 0 then return 1
+      -1
+    def clamp(x: Int): Int =
+      if x > 10 then return 10
+      x
+    sign + clamp(k)
 
 class C(p: String):
   def twice(f: String => String, x: String): String = f(f(x))
@@ -68,6 +76,7 @@ class TI extends T
   println(D.shadow(5))
   println(D.defInLambda(10))
   println(D.generic(3))
+  println(D.early(20) + D.early(-3))
   println(new C("+").field())
   println(new C("+").pure(4))
   println(new TI().n(3))

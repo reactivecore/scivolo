@@ -99,6 +99,7 @@ pub fn lift(
         let map: FxHashMap<SymbolId, SymbolId> =
             f.captured.iter().copied().zip(methods[i].proxies.iter().copied()).collect();
         substitute(l, rhs, &map);
+        retarget_returns(l, rhs, f.sym, methods[i].sym);
         out.push(def(l, f.def, &methods[i], tpt, rhs));
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
             let closure = f.closure.unwrap_or(f.def);
@@ -168,6 +169,18 @@ fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
             let tpe = type_ref(l.u, proxy);
             let node = l.tpd.get_mut(t);
             (node.tree, node.sym, node.tpe) = (Tree::Ident { name }, Some(proxy), Some(tpe));
+        }
+    }
+}
+
+/// Makes the returns from `function` under `t` return from `method`.
+fn retarget_returns(l: &mut Lower, t: TNodeId, function: SymbolId, method: SymbolId) {
+    for t in super::walk::subtrees(l.tpd, t) {
+        if let Tree::Return { from, .. } = *l.tpd.tree(t)
+            && l.tpd.sym(from) == Some(function)
+        {
+            let tpe = type_ref(l.u, method);
+            (l.tpd.get_mut(from).sym, l.tpd.get_mut(from).tpe) = (Some(method), Some(tpe));
         }
     }
 }
