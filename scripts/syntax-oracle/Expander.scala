@@ -58,7 +58,10 @@ class Expander extends untpd.UntypedTreeMap:
     case _: ForYield | _: ForDo | _: InterpolatedString | _: SymbolLit | _: PostfixOp | _: PrefixOp =>
       val t1 = desugar(tree)
       if t1 eq tree then super.transform(tree) else transform(t1)
-    case Parens(t) => transform(t)
+    case Parens(t) =>
+      val t1 = transform(t)
+      tree.getAttachment(desugar.CheckIrrefutable).foreach(t1.putAttachment(desugar.CheckIrrefutable, _))
+      t1
     case InfixOp(l, op, r) =>
       if ctx.mode.is(Mode.Type) then transform(cpy.AppliedTypeTree(tree)(op, l :: r :: Nil))
       else if ctx.mode.is(Mode.Pattern) then transform(cpy.Apply(tree)(op, l :: r :: Nil))
