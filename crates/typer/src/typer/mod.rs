@@ -37,6 +37,7 @@ mod enum_case_refs;
 mod enum_cases;
 mod equality;
 mod errors;
+mod escaping;
 mod eta;
 mod extension_calls;
 mod features;

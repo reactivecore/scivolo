@@ -54,7 +54,7 @@ impl Typer<'_> {
     pub fn no_local_refs(&mut self, expr: TNodeId, locals: &[SymbolId], pt: Pt) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
         let tpe = self.zonk(tpe);
-        if !self.refers_to(tpe, locals) {
+        if !self.escapes(tpe, locals) {
             return Some(expr);
         }
         let mut avoided = self.u.map_type(tpe, &mut |u, part| {
