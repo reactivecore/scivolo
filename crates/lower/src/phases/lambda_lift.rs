@@ -8,7 +8,7 @@ use super::lift_names::{Named, Pending, name_all};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
 use crate::symbols::{has, is_static};
-use crate::{Lower, Result};
+use crate::{Lower, Result, unsupported};
 use tasty::tags::{FIELDaccessor, LAZY, STATIC};
 use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -58,7 +58,9 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
         deferred.extend(adapted);
         for def in lifted {
             let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
-            let &td = classes.iter().find(|&&td| l.tpd.sym(td) == owner).expect("a class of the unit");
+            let Some(&td) = classes.iter().find(|&&td| l.tpd.sym(td) == owner) else {
+                return unsupported(l.tpd.span(def), "lifting into a class of another unit");
+            };
             super::outer_traits::append(l, td, &[def]);
         }
     }

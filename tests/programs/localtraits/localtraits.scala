@@ -112,6 +112,29 @@ object Shapes {
     h.m
   }
 
+  def sameNames(a: Int, b: Int) = {
+    class Left { def m = { class L { def g = a }; new L().g } }
+    class Right { def m = { class L { def g = b * 10 }; new L().g } }
+    new Left().m + new Right().m
+  }
+
+  def again(k: Int) = {
+    class Countdown(val n: Int) {
+      def m: Int = {
+        class Step { def g = if n > 0 then new Countdown(n - 1).m + k else k }
+        new Step().g
+      }
+    }
+    new Countdown(3).m
+  }
+
+  def againAnon(k: Int) = {
+    class Down(val n: Int) {
+      def m: Int = new Shape { def area = if n > 0 then new Down(n - 1).m + k else k }.area
+    }
+    new Down(3).m
+  }
+
   def nested(k: Int, s: String) = {
     class Outer {
       class Inner {
@@ -150,6 +173,9 @@ object localtraits {
     println(Shapes.parenless(6))
     println(Shapes.fromClass(7))
     println(Shapes.inMethods(8))
+    println(Shapes.sameNames(1, 2))
+    println(Shapes.again(7))
+    println(Shapes.againAnon(2))
     println(Shapes.nested(2, "xy"))
   }
 }

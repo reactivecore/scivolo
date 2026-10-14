@@ -65,8 +65,9 @@ impl Gen<'_, '_> {
             }
             owner = self.l.u.symbol(o).owner;
         }
+        let base = c == class || self.l.u.derives_from(class, c);
         match self.m.this {
-            Some(this) if c == class || method_owner == Some(class) => Ok(this),
+            Some(this) if base && (c == class || method_owner == Some(class)) => Ok(this),
             _ => unsupported(span, "`this` of an enclosing class"),
         }
     }
