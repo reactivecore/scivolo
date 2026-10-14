@@ -79,12 +79,17 @@ impl Universe {
     }
 
     fn erased_method_as(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
+        if let Some(e) = self.erased_memo(def, semi) {
+            return e.clone();
+        }
+        let generation = self.generation();
         let owner = self.symbol(def).owner;
         let in_scala2_class = owner.is_some_and(|o| self.symbol(o).kind == Kind::Class && self.is_scala2(o));
         let scala2 = in_scala2_class && !self.symbol(def).flags.has(INLINE);
         let previous = self.set_scala2_erasure(scala2);
         let erased = self.erase_method(def, semi);
         self.set_scala2_erasure(previous);
+        self.remember_erased((def, semi), generation, &erased);
         erased
     }
 

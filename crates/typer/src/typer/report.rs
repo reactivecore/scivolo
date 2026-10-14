@@ -16,6 +16,7 @@ impl Typer<'_> {
 
     pub fn unsupported_at(&mut self, span: Span, what: &str) {
         self.probe_unsupported();
+        self.reports += 1;
         if self.unsupported.is_none() {
             self.unsupported = Some((span, what.to_owned()));
         }

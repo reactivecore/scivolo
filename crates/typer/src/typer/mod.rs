@@ -161,6 +161,10 @@ pub struct Typer<'a> {
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// How many constructs outside the subset were reported.
+    reports: u32,
+    /// `method_info`'s results in universe generation `.0`.
+    method_infos: (u64, FxHashMap<tasty::TypeId, Option<tasty::TypeId>>),
     /// What a completion request records while typing.
     pub probe: Option<crate::completion::Probe>,
     /// The definitions of the unit's inline methods.
@@ -210,6 +214,8 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             protos: Vec::new(),
             unsupported: None,
+            reports: 0,
+            method_infos: Default::default(),
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),

@@ -2,6 +2,7 @@
 //! and binders for the types made with them.
 
 use super::{FileId, Flags, Kind, Symbol, SymbolId, Universe};
+use crate::Erased;
 use crate::types::{Binder, TypeId};
 
 impl Universe {
@@ -17,7 +18,7 @@ impl Universe {
                 let new_name = named.is_empty();
                 named.push(id);
                 if new_name || s.tree.is_none() || self.symbols[o.0 as usize].kind == Kind::Class {
-                    self.resolved.clear();
+                    self.changed();
                 }
             }
         }
@@ -28,10 +29,46 @@ impl Universe {
         id
     }
 
-    /// Drops the name index of `owner` and the resolved references.
+    /// Drops the name index of `owner` and what `changed` drops.
     fn decls_changed(&mut self, owner: SymbolId) {
         self.by_name.remove(&owner);
+        self.changed();
+    }
+
+    /// Drops the resolved references and the erased methods, and starts a new generation.
+    fn changed(&mut self) {
         self.resolved.clear();
+        self.erased_methods.clear();
+        self.generation += 1;
+    }
+
+    /// How often declarations, parents, or set infos and flags changed; results derived from
+    /// the universe stay valid while it is the same.
+    pub fn generation(&self) -> u64 {
+        self.generation
+    }
+
+    /// How many binders `fresh_binder` has made.
+    pub fn binders_made(&self) -> u32 {
+        self.binders
+    }
+
+    /// The erased parameters and result of method `def` remembered since the last change, with
+    /// value classes semi-erased if `semi`.
+    pub fn erased_memo(&self, def: SymbolId, semi: bool) -> Option<&(Vec<Erased>, Erased)> {
+        self.erased_methods.get(&(def, semi))
+    }
+
+    /// Remembers `erased` as `erased_memo`'s answer if the generation is still `generation`.
+    pub fn remember_erased(
+        &mut self,
+        (def, semi): (SymbolId, bool),
+        generation: u64,
+        erased: &(Vec<Erased>, Erased),
+    ) {
+        if self.generation == generation {
+            self.erased_methods.insert((def, semi), erased.clone());
+        }
     }
 
     /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
@@ -44,7 +81,7 @@ impl Universe {
     /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
         if self.infos.insert(sym, info).is_some_and(|old| old != info) {
-            self.resolved.clear();
+            self.changed();
         }
     }
 
@@ -52,13 +89,13 @@ impl Universe {
     pub fn set_parents(&mut self, c: SymbolId, parents: Vec<TypeId>) {
         self.parents.insert(c, parents);
         self.linearizations.clear();
-        self.resolved.clear();
+        self.changed();
     }
 
     /// Sets the flags of `sym`; changed flags drop the resolved references.
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
         if std::mem::replace(&mut self.symbols[sym.0 as usize].flags, flags) != flags {
-            self.resolved.clear();
+            self.changed();
         }
     }
 
