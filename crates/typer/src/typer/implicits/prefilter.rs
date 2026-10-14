@@ -1,6 +1,8 @@
-//! Rejecting an implicit candidate by the classes of its declared result type, its type
-//! parameters and uninstantiated type variables as wildcards within their bounds, before it is
-//! referenced and typed (dotty's `isCompatible` check in `candidateKind`).
+//! Rejecting an implicit candidate before it is referenced and typed: one with explicit
+//! parameters, as `try_implicit` does, or one whose declared result type cannot conform by the
+//! classes it and its type arguments refer to, type parameters and uninstantiated type
+//! variables taken as wildcards within their bounds (after dotty's `isCompatible` in
+//! `candidateKind`).
 
 use super::super::Typer;
 use crate::symbols::Completion;
@@ -9,8 +11,17 @@ use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, VarId};
 /// How deep type arguments are compared.
 const DEPTH: u32 = 4;
 /// Classes whose types conform to or from others other than by their base classes.
-const SPECIAL: [&str; 9] =
-    ["Any", "AnyKind", "AnyVal", "Matchable", "Object", "Singleton", "Nothing", "Null", "Product"];
+const SPECIAL: [&str; 9] = [
+    "scala.Any",
+    "scala.AnyKind",
+    "scala.AnyVal",
+    "scala.Matchable",
+    "java.lang.Object",
+    "scala.Singleton",
+    "scala.Nothing",
+    "scala.Null",
+    "scala.Product",
+];
 
 impl Typer<'_> {
     /// Whether the value of implicit `sym` cannot conform to `pt`: it takes explicit parameters,
@@ -72,12 +83,7 @@ impl Typer<'_> {
     /// Whether a type of class `sub` may conform to one of class `sup`: `sub` derives from
     /// `sup`, or both are tuple classes other than two `TupleN` of different arities.
     fn related(&mut self, sub: SymbolId, sup: SymbolId) -> bool {
-        let tuple = |name: &str| {
-            let generic = name.starts_with("Tuple") || name.starts_with("EmptyTuple");
-            let generic = generic || name == "NonEmptyTuple" || name == "*:";
-            generic.then(|| name.strip_prefix("Tuple").and_then(|n| n.parse::<u32>().ok()))
-        };
-        match (tuple(&self.u.symbol(sub).name), tuple(&self.u.symbol(sup).name)) {
+        match (tuple_class(&self.u.full_name(sub)), tuple_class(&self.u.full_name(sup))) {
             (Some(Some(n)), Some(Some(m))) if n != m => false,
             (Some(_), Some(_)) => true,
             _ => self.u.derives_from(sub, sup),
@@ -105,10 +111,19 @@ impl Typer<'_> {
             Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
             _ => return None,
         };
-        let sym = self.u.symbol(c);
-        let special = SPECIAL.contains(&sym.name.as_str()) || sym.name.starts_with("ContextFunction");
+        let full = self.u.full_name(c);
+        let special = SPECIAL.contains(&full.as_str()) || full.starts_with("scala.ContextFunction");
         let known = matches!(self.syms.completions.get(&c), None | Some(Completion::Done))
             && !self.syms.incomplete.contains(&c);
-        (sym.kind == Kind::Class && !special && known).then_some((c, args))
+        (self.u.symbol(c).kind == Kind::Class && !special && known).then_some((c, args))
+    }
+}
+
+/// Whether `full` names a tuple class, with its arity if it is a `TupleN`.
+fn tuple_class(full: &str) -> Option<Option<u32>> {
+    let name = full.strip_prefix("scala.")?;
+    match name {
+        "Tuple" | "*:" | "EmptyTuple" | "EmptyTuple$" | "NonEmptyTuple" => Some(None),
+        _ => name.strip_prefix("Tuple")?.parse().ok().map(Some),
     }
 }
