@@ -4,6 +4,7 @@ class Buffer[A](val items: Array[A]):
   def size: Int = items.length
   def get(i: Int): A = items(i)
   def set(i: Int, a: A): Unit = items(i) = a
+  def copy(): Array[A] = items.clone()
 
 def swap[A](xs: Array[A], i: Int, j: Int): Unit =
   val t = xs(i)
@@ -26,3 +27,4 @@ def show[A](xs: Array[A]): Unit =
   val buffer = Buffer(Array(1.5, 2.5))
   buffer.set(1, 4.0)
   println(buffer.get(1) + buffer.size)
+  println(buffer.copy().length)

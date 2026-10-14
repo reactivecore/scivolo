@@ -110,8 +110,8 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
 }
 
 /// The setter `name(x$0)` of variable `var` of class `class` that has none (a private mutable
-/// class parameter) at `span`, flagged as `var` with its body left to `Memoize` (dotty's
-/// `ensureSetter`).
+/// class parameter) at `span`, with all of `var`'s flags and `FIELDaccessor`, its body left to
+/// `Memoize` (dotty's `ensureSetter`).
 fn param_setter(l: &mut Lower, class: SymbolId, var: SymbolId, name: &str, span: Span) -> TNodeId {
     let flags = l.u.symbol(var).flags.with(FIELDaccessor);
     let setter = l.u.define(symbol(name, Kind::Def, class, flags));

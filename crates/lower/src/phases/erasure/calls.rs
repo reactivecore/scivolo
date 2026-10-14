@@ -3,13 +3,13 @@
 
 use super::generic_arrays::runtime_op;
 use super::{typed, typed_qualifier};
-use crate::phases::adapt::{array_op, is_synchronized, qualify_synchronized, synchronized_type};
+use crate::phases::adapt::{array_op, from_start, is_synchronized, qualify_synchronized, synchronized_type};
 use crate::phases::casts::is_cast;
 use crate::{Lower, Result};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped.
-pub fn typed_apply(l: &mut Lower, mut fun: TNodeId, args: List) -> Result<Tree> {
+pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> Result<Tree> {
     let mut all = l.tpd.items(args).to_vec();
     loop {
         match *l.tpd.tree(fun) {
@@ -22,6 +22,9 @@ pub fn typed_apply(l: &mut Lower, mut fun: TNodeId, args: List) -> Result<Tree> 
         }
     }
     if let Some((op, qualifier)) = runtime_op(l, fun) {
+        if all.is_empty() {
+            l.tpd.get_mut(t).span = from_start(l.tpd.span(t));
+        }
         all.insert(0, qualifier);
         fun = op;
     }

@@ -54,16 +54,22 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
 
 /// The value parameters with their types and the result type of function `f`.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
-    let mut info = l.u.info(f.sym);
-    if let Type::Poly { result, .. } = *l.u.types().get(info) {
-        info = result;
-    }
+    let info = value_info(l, f.sym);
     let result = match *l.u.types().get(info) {
         Type::Method { result, .. } | Type::ByName(result) => result,
         _ => info,
     };
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
+}
+
+/// The type of local method `m` past its type parameters.
+pub fn value_info(l: &mut Lower, m: SymbolId) -> TypeId {
+    let info = l.u.info(m);
+    match *l.u.types().get(info) {
+        Type::Poly { result, .. } => result,
+        _ => info,
+    }
 }
 
 /// Lifts named `methods` of `functions` of `class`, inner functions first, each lambda's followed

@@ -10,7 +10,7 @@ use super::walk::children;
 use crate::symbols::is_static_module;
 use crate::{Lower, Result, unsupported};
 use tasty::{SymbolId, Type};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{List, TNodeId, Tree};
 
 /// Makes the calls of the local methods among `functions` under `t`, and the references to those
 /// without parameter lists, call their `methods` with the captured values first.
@@ -123,10 +123,7 @@ fn redirect(
     let all: Vec<TNodeId> = captured.into_iter().chain(args).collect();
     let args = l.tpd.list(&all);
     if !matches!(l.tpd.tree(t), Tree::Apply { .. }) {
-        let mut info = l.u.info(f.sym);
-        if let Type::Poly { result, .. } = *l.u.types().get(info) {
-            info = result;
-        }
+        let info = super::lifted::value_info(l, f.sym);
         let result = if let Type::ByName(r) = *l.u.types().get(info) { r } else { info };
         (l.tpd.get_mut(t).sym, l.tpd.get_mut(t).tpe) = (None, Some(result));
         l.tpd.get_mut(t).span = from_start(span);
@@ -134,7 +131,10 @@ fn redirect(
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
 }
 
-/// Whether method definition `def` has no parameter lists.
+/// Whether method definition `def` has no value parameter lists.
 fn is_parameterless(l: &Lower, def: TNodeId) -> bool {
-    matches!(*l.tpd.tree(def), Tree::DefDef { paramss, .. } if l.tpd.clause_items(paramss).is_empty())
+    let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return false };
+    let type_clause =
+        |&c: &List| l.tpd.items(c).first().is_some_and(|&p| matches!(l.tpd.tree(p), Tree::TypeDef { .. }));
+    l.tpd.clause_items(paramss).iter().all(type_clause)
 }

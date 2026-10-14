@@ -36,7 +36,8 @@ object D:
     def pair[A](a: A): List[A] = List(a, a)
     def either[A, B](a: A, b: B, first: Boolean): Any = if first then a else b
     def tagged[T](t: T): String = s"$t$k"
-    pair("p").mkString + either(1, "b", false) + tagged(2.5) + pair(k).sum
+    def named[T]: String = s"n$k"
+    pair("p").mkString + either(1, "b", false) + tagged(2.5) + pair(k).sum + named[Int]
   def early(k: Int): Int =
     def sign: Int =
       if k > 0 then return 1

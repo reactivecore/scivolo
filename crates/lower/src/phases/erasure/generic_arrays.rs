@@ -8,8 +8,8 @@ use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
 
 /// For selection `sel` of an `Array` member on a receiver erasing to `Object`: the reference to
-/// `ScalaRunTime`'s method for it, the object at the receiver's start, and the receiver, its
-/// first argument.
+/// `ScalaRunTime`'s method for it, the object at the receiver's start; and the receiver, the
+/// method's first argument.
 pub fn runtime_op(l: &mut Lower, sel: TNodeId) -> Option<(TNodeId, TNodeId)> {
     let Tree::Select { qualifier, .. } = *l.tpd.tree(sel) else { return None };
     let m = l.tpd.sym(sel)?;

@@ -45,7 +45,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         return typed(l, t, pt);
     }
     let new = match *l.tpd.tree(t) {
-        Tree::Apply { fun, args } => Some(calls::typed_apply(l, fun, args)?),
+        Tree::Apply { fun, args } => Some(calls::typed_apply(l, t, fun, args)?),
         Tree::Select { qualifier, name } => {
             Some(Tree::Select { qualifier: typed_qualifier(l, t, qualifier)?, name })
         }
