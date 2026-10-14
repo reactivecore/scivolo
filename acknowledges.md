@@ -68,8 +68,10 @@ Apache-2.0. Rust translations of:
   - `SpecializeFunctions`, `SpecializeApplyMethods`, `SpecializeTuples` (with
     `inlines/Inliner.isElideableExpr`, `Definitions.withSpecMethods`)
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
-  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
-    (`rebindSuper`)
+  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`, `transformSelect`),
+    `ResolveSuper` (`rebindSuper`)
+  - `ProtectedAccessors`, `AccessProxies` (`useAccessor`, `useSetter`, `rewire`, `accessorDef`,
+    `hostForAccessorOf`), `TypeErasure.eraseInfo` (a trait's class parent as `Object`)
   - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods, moved bodies), `FullParameterization`
     (`fullyParameterizedDef`, `forwarder`), `VCElideAllocations`, `Erasure.Boxing` (`box`, `unbox`

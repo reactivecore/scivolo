@@ -52,7 +52,8 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
     }
 }
 
-/// Whether a value of erased type `from` is a value of erased reference type `to`.
+/// Whether a value of erased type `from` is a value of erased reference type `to`; a trait
+/// derives from no class but `Object` after erasure.
 pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
     match (from, to) {
         (_, Erased::Class(o)) if o == "java.lang.Object" => true,
@@ -62,7 +63,7 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
                 && matches!(**x, Erased::Class(_) | Erased::Array(_))
         }
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
-            (Some(f), Some(t)) => l.u.derives_from(f, t),
+            (Some(f), Some(t)) => (l.u.is_trait(t) || !l.u.is_trait(f)) && l.u.derives_from(f, t),
             _ => false,
         },
         _ => false,
