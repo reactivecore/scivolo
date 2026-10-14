@@ -5,6 +5,7 @@ mod applied;
 mod atoms;
 mod atoms_lub;
 mod binders;
+mod either;
 mod first;
 mod fourth;
 mod glb;
@@ -44,6 +45,16 @@ pub trait TypeVars {
     fn frozen(&self) -> bool;
     fn mark(&self) -> Mark;
     fn rollback(&mut self, m: Mark);
+    /// The changes since `m` that `redo` makes again after a rollback to `m`.
+    fn changes_since(&self, m: Mark) -> Changes;
+    fn redo(&mut self, changes: Changes);
+}
+
+/// Changes to a constraint: the variables whose bounds or instance differ from before, and
+/// what the constraint needs to make them again.
+pub struct Changes {
+    pub vars: Vec<VarId>,
+    pub redo: Box<dyn std::any::Any>,
 }
 
 /// No constraint: a type variable is a subtype and a supertype of itself only.
@@ -69,6 +80,10 @@ impl TypeVars for NoVars {
         Mark(0)
     }
     fn rollback(&mut self, _: Mark) {}
+    fn changes_since(&self, _: Mark) -> Changes {
+        Changes { vars: Vec::new(), redo: Box::new(()) }
+    }
+    fn redo(&mut self, _: Changes) {}
 }
 
 impl Universe {
@@ -170,20 +185,5 @@ impl<'a> Cmp<'a> {
         let result = self.recur(a, b);
         self.frozen = frozen;
         result
-    }
-
-    /// Whether `first` holds, or else `second`, the constraint a failed `first` added rolled
-    /// back (dotty's `sufficientEither`, keeping the first success).
-    pub fn either(
-        &mut self,
-        first: impl FnOnce(&mut Self) -> bool,
-        second: impl FnOnce(&mut Self) -> bool,
-    ) -> bool {
-        let mark = self.vars.mark();
-        if first(self) {
-            return true;
-        }
-        self.vars.rollback(mark);
-        second(self)
     }
 }

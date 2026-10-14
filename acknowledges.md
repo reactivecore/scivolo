@@ -33,7 +33,8 @@ Apache-2.0. Rust translations of:
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
   `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
   `isCoherent`, `negateIfNot`), `Typer.adaptNoArgsImplicitMethod`; `Applications`
-  (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in `named_args.rs`, `default_args.rs`.
+  (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in `named_args.rs`, `default_args.rs`;
+  `crates/typer/src/constraint`: `core/ConstraintHandling.addOneBound`.
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
@@ -55,7 +56,7 @@ Apache-2.0. Rust translations of:
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
-  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`, `UninitializedDefs`
+  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`, `UninitializedDefs`, `localopt/DropForMap`
   - `ExplicitOuter` (outer accessors of classes and traits, their implementations for mixed-in
     traits, `needsOuterIfReferenced`), `TreeInfo.bodyKind` (`PureInterface`)
   - `Erasure` (boxing, `adaptClosure`, `typedTyped`, `cast` of primitive arrays),

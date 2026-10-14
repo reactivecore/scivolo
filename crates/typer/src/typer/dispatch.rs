@@ -20,7 +20,13 @@ impl Typer<'_> {
                 let call = self.typed_apply(id, fun, args, pt, ctx);
                 self.lifted_right_assoc(call, ctx)
             }
-            Tree::Apply { fun, args } => self.typed_apply(id, fun, args, pt, ctx),
+            Tree::Apply { fun, args } => {
+                let apply = self.typed_apply(id, fun, args, pt, ctx);
+                if self.ast.attrs(id).contains(Attrs::TRAILING_FOR_MAP) {
+                    self.tpd.mark_trailing_map(apply);
+                }
+                apply
+            }
             Tree::Match { selector, cases, kind } => self.typed_match(id, selector, cases, kind, pt, ctx),
             Tree::Alternative { trees } => self.typed_alternative(id, trees, pt, ctx),
             Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, ctx),

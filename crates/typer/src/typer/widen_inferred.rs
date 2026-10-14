@@ -104,7 +104,7 @@ impl Typer<'_> {
 
     /// Whether `t` is a singleton, `Singleton`, or an abstract type or intersection below one
     /// (dotty's `isSingletonBounded`), looking `depth` bounds deep at most 16.
-    fn is_below_singleton(&mut self, t: TypeId, depth: u32) -> bool {
+    pub fn is_below_singleton(&mut self, t: TypeId, depth: u32) -> bool {
         if self.is_singleton(t) {
             return true;
         }

@@ -93,10 +93,14 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
 }
 
 /// The class of binary name `rest` relative to `owner`: a member class `C`, or a class nested in
-/// member class or object `C` named `C$rest`.
+/// member class or object `C` named `C$rest`; operator names encoded.
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
-        let found = l.u.decl(owner, name).unwrap_or_default();
+        let mut found = l.u.decl(owner, name).unwrap_or_default();
+        let decoded = tasty::decode(name);
+        if found.is_empty() && decoded != name {
+            found = l.u.decl(owner, &decoded).unwrap_or_default();
+        }
         found.into_iter().filter(|&s| l.u.is_class(s)).collect()
     };
     if let Some(&c) = classes(l, owner, rest).first() {

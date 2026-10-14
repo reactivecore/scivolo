@@ -106,11 +106,8 @@ impl Universe {
         let info = self.info(s);
         match self.types().get(info).clone() {
             Type::Alias(a) => Some(a),
-            Type::Bounds(lo, hi) if lo == hi => Some(lo),
             Type::Bounds(..) | Type::Other(_) => None,
-            Type::Lambda { result, .. } if matches!(self.types().get(result), Type::Bounds(lo, hi) if lo != hi) => {
-                None
-            }
+            Type::Lambda { result, .. } if matches!(self.types().get(result), Type::Bounds(..)) => None,
             _ => Some(info),
         }
     }

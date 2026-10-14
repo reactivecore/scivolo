@@ -32,13 +32,23 @@ impl Universe {
         let ast = &loaded.ast;
         let Some(&template) = ast.kids(typedef).first() else { return Vec::new() };
         let mut d = Decoder::new((file, ast, &loaded.names), by_tree, packages, types);
-        ast.kids(template)
+        let parents: Vec<TypeId> = ast
+            .kids(template)
             .iter()
             .copied()
             .skip_while(|&k| matches!(ast.tag(k), TYPEPARAM | PARAM | EMPTYCLAUSE))
             .take_while(|&k| !matches!(ast.tag(k), SELFDEF | SPLITCLAUSE | DEFDEF | VALDEF | TYPEDEF))
             .map(|parent| parent_type(&mut d, ast, parent))
-            .collect()
+            .collect();
+        parents.into_iter().map(|p| self.beta_reduced(p)).collect()
+    }
+
+    /// `t`, or the body of type lambda `l` with its parameters replaced if `t` is `l[args]`.
+    fn beta_reduced(&mut self, t: TypeId) -> TypeId {
+        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
+        let Type::Lambda { binder, params, result } = self.types().get(tycon).clone() else { return t };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        self.subst(result, binder, &names, &args)
     }
 
     /// Class `c` and its base classes in linearization order, `c` first.
@@ -128,11 +138,19 @@ impl Universe {
 }
 
 /// The type of a parent in a template: a type tree, or the class of a constructor call such as
-/// `new C[T](x)`, whose `new` carries the type arguments.
+/// `new C[T](x)`, whose `new` or else whose type application carries the type arguments.
 fn parent_type(d: &mut Decoder, ast: &Ast, id: NodeId) -> TypeId {
     let id = ast.deref(id);
     let k = ast.kids(id);
     match ast.tag(id) {
+        TYPEAPPLY if k.len() > 1 => {
+            let fun = parent_type(d, ast, k[0]);
+            if matches!(d.get(fun), Type::Applied(..)) {
+                return fun;
+            }
+            let args = k[1..].iter().map(|&a| d.ty(a)).collect();
+            d.intern(Type::Applied(fun, args))
+        }
         APPLY | TYPEAPPLY | SELECT | SELECTin | BLOCK if !k.is_empty() => parent_type(d, ast, k[0]),
         NEW if !k.is_empty() => d.ty(k[0]),
         _ => d.ty(id),

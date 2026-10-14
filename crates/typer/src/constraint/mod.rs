@@ -5,9 +5,9 @@
 mod attempt;
 
 use attempt::Fate;
-use tasty::{ANY, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 struct Entry {
     lo: TypeId,
     hi: TypeId,
@@ -23,7 +23,6 @@ pub struct Constraint {
     fates: Vec<Fate>,
     /// The entries changed since a mark, their previous states.
     log: Vec<(usize, Entry)>,
-    frozen: bool,
     /// How many satisfiability checks are in progress, one inside another.
     checks: u32,
     /// Whether a bound is being propagated from another variable.
@@ -79,16 +78,49 @@ impl Constraint {
         ok
     }
 
-    /// Whether `lo <: hi` holds without extending the constraint.
+    /// Whether `lo <: hi` holds, extending the constraint.
     fn satisfiable(&mut self, u: &mut Universe, lo: TypeId, hi: TypeId) -> bool {
         if self.checks >= MAX_CHECKS {
             return false;
         }
         self.checks += 1;
-        let frozen = std::mem::replace(&mut self.frozen, true);
         let ok = u.is_subtype_in(lo, hi, self);
-        self.frozen = frozen;
         self.checks -= 1;
+        ok
+    }
+
+    /// Propagates bound `t` of `v`, a lower one if `lower`, to the variable `other` it bounds, if
+    /// one, then narrows `v` to `lo` and `hi` as `narrow` does; false and unchanged if either fails.
+    fn add_bound(
+        &mut self,
+        u: &mut Universe,
+        v: VarId,
+        (t, lower): (TypeId, bool),
+        other: TypeId,
+        (lo, hi): (TypeId, TypeId),
+        checked: TypeId,
+    ) -> bool {
+        let mark = self.mark();
+        let propagated = match *u.types().get(other) {
+            Type::Var(w) => self.propagated(u, w, t, lower),
+            _ => true,
+        };
+        let ok = propagated && self.narrow(u, v, lo, hi, checked);
+        if !ok {
+            self.rollback(mark);
+        }
+        ok
+    }
+
+    /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
+    /// the part of `lo` to check (dotty's `addOneBound`).
+    fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
+        let mark = self.mark();
+        self.set(v, lo, hi);
+        let ok = hi == ANY || self.satisfiable(u, checked, hi);
+        if !ok {
+            self.rollback(mark);
+        }
         ok
     }
 }
@@ -114,15 +146,9 @@ impl TypeVars for Constraint {
             let lub = u.lub(e.lo, lo);
             (lub, lub)
         };
-        if let Type::Var(w) = *u.types().get(e.hi)
-            && !self.propagated(u, w, lo, true)
-        {
+        if !self.add_bound(u, v, (lo, true), e.hi, (lo, e.hi), unchecked) {
             return false;
         }
-        if e.hi != ANY && !self.satisfiable(u, unchecked, e.hi) {
-            return false;
-        }
-        self.set(v, lo, e.hi);
         if incoming_union && !self.propagating {
             self.vars[v.0 as usize].hard = true;
         }
@@ -143,16 +169,7 @@ impl TypeVars for Constraint {
         } else {
             u.glb(e.hi, hi)
         };
-        if let Type::Var(w) = *u.types().get(e.lo)
-            && !self.propagated(u, w, hi, false)
-        {
-            return false;
-        }
-        if !self.satisfiable(u, e.lo, hi) {
-            return false;
-        }
-        self.set(v, e.lo, hi);
-        true
+        self.add_bound(u, v, (hi, false), e.lo, (e.lo, hi), e.lo)
     }
 
     fn bounds(&self, v: VarId) -> (TypeId, TypeId) {
@@ -161,7 +178,7 @@ impl TypeVars for Constraint {
     }
 
     fn frozen(&self) -> bool {
-        self.frozen
+        false
     }
 
     fn mark(&self) -> Mark {
@@ -171,6 +188,28 @@ impl TypeVars for Constraint {
     fn rollback(&mut self, m: Mark) {
         while self.log.len() > m.0 {
             let (i, e) = self.log.pop().expect("a logged entry");
+            self.vars[i] = e;
+        }
+    }
+
+    fn changes_since(&self, m: Mark) -> Changes {
+        let mut before: Vec<(usize, Entry)> = Vec::new();
+        for &(i, e) in &self.log[m.0..] {
+            if !before.iter().any(|&(j, _)| j == i) {
+                before.push((i, e));
+            }
+        }
+        let now: Vec<(usize, Entry)> =
+            before.into_iter().filter(|&(i, e)| self.vars[i] != e).map(|(i, _)| (i, self.vars[i])).collect();
+        Changes { vars: now.iter().map(|&(i, _)| VarId(i as u32)).collect(), redo: Box::new(now) }
+    }
+
+    fn redo(&mut self, changes: Changes) {
+        let Ok(entries) = changes.redo.downcast::<Vec<(usize, Entry)>>() else {
+            unreachable!("changes of this constraint")
+        };
+        for (i, e) in *entries {
+            self.log.push((i, self.vars[i]));
             self.vars[i] = e;
         }
     }
