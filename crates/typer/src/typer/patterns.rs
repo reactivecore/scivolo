@@ -40,6 +40,13 @@ impl Typer<'_> {
     }
 
     pub fn typed_bind(&mut self, id: NodeId, name: TName, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let pt = match pt {
+            Pt::Type(p) if !self.is_fully_defined(p) => match self.fully_defined_as(p, true) {
+                Ok(p) => Pt::Type(p),
+                Err(what) => return self.unsupported(id, what),
+            },
+            pt => pt,
+        };
         let ref_or_literal = matches!(
             self.ast.tree(body),
             Tree::Ident { .. } | Tree::Select { .. } | Tree::Literal { .. } | Tree::Number { .. }
