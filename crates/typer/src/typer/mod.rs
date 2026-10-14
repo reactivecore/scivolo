@@ -11,14 +11,19 @@ mod annotated;
 mod anon_classes;
 mod applicability;
 mod apply;
+mod apply_insertion;
 mod auto_apply;
 mod avoid;
+mod avoid_pattern_types;
 mod call_types;
+mod case_lambdas;
+mod class_bound;
 mod classes;
 mod closures;
 mod const_fold;
 pub(crate) mod const_ops;
 mod constants;
+mod constrain_pattern;
 mod constructor_proxies;
 mod constructors;
 mod context_bounds;
@@ -35,6 +40,7 @@ mod enum_case_refs;
 mod enum_cases;
 mod equality;
 mod errors;
+mod escaping;
 mod eta;
 mod extension_calls;
 mod features;
@@ -51,6 +57,7 @@ mod infer;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
+mod irrefutable;
 mod java_classes;
 mod java_members;
 mod lift;
@@ -75,13 +82,17 @@ mod param_vars;
 mod parent_trees;
 mod parents;
 mod paths;
+mod pattern_args;
+mod pattern_bounds;
 mod patterns;
 mod plain_trees;
 mod purity;
 mod qualifies;
+mod refutable_warnings;
 mod repeated;
 mod report;
 mod right_assoc;
+mod sams;
 pub(crate) mod seen_from;
 mod select;
 pub(crate) mod stability;
@@ -161,6 +172,10 @@ pub struct Typer<'a> {
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
+    /// How many constructs outside the subset were reported.
+    reports: u32,
+    /// `method_info`'s results in universe generation `.0`.
+    method_infos: (u64, FxHashMap<tasty::TypeId, Option<tasty::TypeId>>),
     /// What a completion request records while typing.
     pub probe: Option<crate::completion::Probe>,
     /// The definitions of the unit's inline methods.
@@ -182,6 +197,9 @@ impl<'a> Typer<'a> {
         cfg: Config,
         syms: &mut Syms,
     ) -> Result<Self, String> {
+        if cfg.source_version != SourceVersion::V3_9 {
+            return Err("source versions other than 3.9".into());
+        }
         let defn = Defn::new(u)?;
         let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");
@@ -210,6 +228,8 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             protos: Vec::new(),
             unsupported: None,
+            reports: 0,
+            method_infos: Default::default(),
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),

@@ -24,12 +24,9 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let Pt::Type(sel) = pt else { return Err("extractor without expected type") };
-        let arg_ids = self.ast.items(args).to_vec();
-        let other_typed = |t: &Self, a| matches!(t.ast.tree(a), Tree::Typed { .. }) && !t.is_seq_wildcard(a);
-        if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }) || other_typed(self, a))
-        {
-            return Err("named or typed pattern");
-        }
+        let mut arg_ids = self.ast.items(args).to_vec();
+        let sel_type = self.zonk(sel);
+        self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
         if !matches!(self.ast.tree(fun), Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. })
         {
             return Err("extractor with type arguments");
@@ -53,26 +50,31 @@ impl Typer<'_> {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
-        if !self.is_checkable_class_type(own) {
+        let sel = self.zonk(sel);
+        let tested = self.stripped(own) != self.stripped(sel);
+        if tested && !self.is_checkable_class_type(own) {
             return Err("extractor of a type that needs a type test");
         }
         let result = self.zonk(result);
+        let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
-            let get = self.get_match(result)?.ok_or("sequence extractor result type")?;
-            let elem = self.seq_elem_type(get).ok_or("sequence extractor result type")?;
-            if matches!(self.u.types().get(elem), Type::Bounds(..)) {
-                return Err("sequence extractor of a wildcard element type");
+            if named {
+                return Err("named pattern of a sequence extractor");
             }
-            self.typed_seq_patterns(&arg_ids, elem, ctx)?
+            let types = self.unapply_seq_arg_types(result, arg_ids.len())?;
+            self.typed_seq_patterns(&arg_ids, types, ctx)?
         } else {
+            if named {
+                let target = self.named_patterns_type(result, arg_ids.len())?;
+                arg_ids = self.adapt_pattern_args(&arg_ids, target)?;
+            }
             let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
-            arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed(a, Pt::Type(t), ctx)).collect()
+            arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed_pattern_arg(a, t, ctx)).collect()
         };
         let (implicits, patterns) = (self.tpd.list(&[]), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
-        let sel = self.zonk(sel);
-        if self.stripped(own) == self.stripped(sel) || sel == tasty::NOTHING {
+        if !tested || self.is_bottom_type(sel) {
             return Ok(tree);
         }
         let tpt = self.type_tree(own, span.end_pos(), false);
@@ -133,13 +135,18 @@ impl Typer<'_> {
     }
 
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
-    /// `sel` if it conforms, else `arg_type` constrained by `sel` and maximized; type variables
-    /// from id `vars` on instantiated.
+    /// `sel` if it conforms, else `arg_type` constrained by `sel`, unless only variant type
+    /// arguments of an open class would be, and maximized; type variables from id `vars` on
+    /// instantiated.
     fn pattern_type(&mut self, sel: TypeId, arg_type: TypeId, vars: usize) -> Result<TypeId, &'static str> {
         let mark = self.constraint.mark();
         if self.conforms(sel, arg_type) {
             self.fully_defined_as(arg_type, true)?;
-            return Ok(if sel == tasty::NOTHING { self.zonk(arg_type) } else { self.without_unchecked(sel) });
+            return Ok(if self.is_bottom_type(sel) {
+                self.zonk(arg_type)
+            } else {
+                self.without_unchecked(sel)
+            });
         }
         self.constraint.rollback(mark);
         let open = self.u.class_symbol(arg_type).is_none_or(|c| {
@@ -147,10 +154,11 @@ impl Typer<'_> {
             !flags.has(tasty::tags::FINAL) && !flags.has(tasty::tags::CASE)
         });
         let variances = self.variances(arg_type, None, vars);
-        if open && !variances.is_empty() {
-            return Err("type arguments of a pattern of an open class");
+        let unconstrained = open && !variances.is_empty();
+        if unconstrained && variances.values().any(|&v| v == 0) {
+            return Err("invariant type arguments of a pattern of an open class");
         }
-        if !self.conforms(arg_type, sel) {
+        if !unconstrained && !self.constrain_pattern(arg_type, sel)? {
             self.constraint.rollback(mark);
             if self.has_abstract_arg(sel) {
                 return Err("pattern constraining type parameters (GADT)");

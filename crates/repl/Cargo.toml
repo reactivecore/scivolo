@@ -3,6 +3,7 @@ name = "repl"
 version.workspace = true
 edition.workspace = true
 publish = false
+build = "../scalai/build.rs"
 
 [dependencies]
 libimage.workspace = true

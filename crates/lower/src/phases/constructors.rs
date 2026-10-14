@@ -32,6 +32,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     for stat in stats {
         let sym = l.tpd.sym(stat);
+        super::uninitialized_defs::drop_wildcard(l, stat, class);
         let const_getter = sym.filter(|&s| is_const_final(l, s));
         match *l.tpd.tree(stat) {
             Tree::Import { .. } => {}

@@ -1,8 +1,10 @@
 //! dotty's `SuperAccessors`: `C.super[M].m` in a trait `C` without `M`, or in a class nested in
-//! `C`, becomes `C.this.acc` of a super accessor `C` declares. A trait's accessors have no body
-//! and the classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`.
+//! `C`, becomes `C.this.acc` of a super accessor `C` declares, as does `C.this.m` of a protected
+//! `m` whose protected accessor trait `C` would host. A trait's accessors have no body and the
+//! classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`.
 
-use super::mixin::has_body;
+use super::mixin::{has_body, java_named};
+use super::protected_accessors::super_accessor_needed;
 use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::has;
@@ -30,8 +32,8 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
         .collect();
     let selects: Vec<(SymbolId, Vec<SuperSelect>)> = classes
         .iter()
-        .map(|&td| (l.tpd.sym(td).expect("a class definition's symbol"), super_selects(l, td)))
-        .collect();
+        .map(|&td| Ok((l.tpd.sym(td).expect("a class definition's symbol"), super_selects(l, td)?)))
+        .collect::<Result<_>>()?;
     for (current, ss) in &selects {
         for s in ss {
             let span = l.tpd.span(s.sel);
@@ -67,21 +69,32 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     Ok(())
 }
 
-/// The term selections on `super` in class definition `td`, outside its nested classes, in the
-/// order dotty's `PostTyper` visits them.
-fn super_selects(l: &Lower, td: TNodeId) -> Vec<SuperSelect> {
+/// The term selections on `super` in class definition `td`, outside its nested classes, and those
+/// on `this` of protected members whose accessor a trait would host, in the order dotty's
+/// `PostTyper` visits them.
+fn super_selects(l: &mut Lower, td: TNodeId) -> Result<Vec<SuperSelect>> {
+    let class = l.tpd.sym(td).expect("a class definition's symbol");
     let mut out = Vec::new();
     for t in post_typer_order(l, td) {
         let Tree::Select { qualifier, name } = *l.tpd.tree(t) else { continue };
-        let Tree::Super { mix, .. } = *l.tpd.tree(qualifier) else { continue };
         let (Some(clazz), Some(member)) = (l.tpd.sym(qualifier), l.tpd.sym(t)) else { continue };
-        let Tree::Ident { name: mix } = *l.tpd.tree(mix) else { continue };
-        if !name.is_type && !has(l.u, member, INLINE) {
-            let mix = l.names.text(mix.name).to_owned();
-            out.push(SuperSelect { sel: t, clazz, mix, member });
+        if name.is_type || has(l.u, member, INLINE) {
+            continue;
         }
+        let mix = match *l.tpd.tree(qualifier) {
+            Tree::Super { mix, .. } => match *l.tpd.tree(mix) {
+                Tree::Ident { name: mix } => l.names.text(mix.name).to_owned(),
+                _ => continue,
+            },
+            Tree::This { .. } => match super_accessor_needed(l, member, class, l.tpd.span(t))? {
+                true => String::new(),
+                false => continue,
+            },
+            _ => continue,
+        };
+        out.push(SuperSelect { sel: t, clazz, mix, member });
     }
-    out
+    Ok(out)
 }
 
 /// The trees of class definition `td` but type trees and nested classes, in pre-order, the
@@ -153,6 +166,7 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
         false => unexpanded,
     };
     let info = l.u.widen(l.tpd.tpe(s.sel));
+    let info = java_named(l, s.member, info);
     let declared = l.u.decl(s.clazz, &name).unwrap_or_default();
     if let Some(acc) = declared.into_iter().find(|&a| l.u.info(a) == info) {
         return Ok(acc);

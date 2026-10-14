@@ -137,7 +137,7 @@ impl Typer<'_> {
             None => return self.unsupported(id, "block without result"),
         };
         let locals = self.levels.scope_symbols(level);
-        let Some(expr) = self.no_local_refs(expr, &locals, pt) else {
+        let Some(expr) = self.no_local_refs(expr, &locals, [&[], &[]], pt) else {
             return self.unsupported(id, "block type with local symbols");
         };
         let stats = self.tpd.list(&typed);

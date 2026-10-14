@@ -8,19 +8,23 @@ mod classes;
 mod companions;
 mod define;
 mod enter;
+mod entries;
 mod impure_functions;
 mod info;
 mod inits;
 mod java_stubs;
 mod jdk;
+mod loaded;
 mod lookup;
 mod members;
 mod open;
 mod overrides;
+mod packages;
 mod predicates;
 mod resolve;
 mod seen;
 mod symbol;
+mod table;
 mod varargs;
 mod variance;
 
@@ -35,21 +39,11 @@ pub use bodies::BodyInfo;
 pub use builtin::{ANY, Builtins, NOTHING};
 pub use companions::{module_class_name, module_name};
 pub use jdk::defined_name;
-pub use lookup::encode;
+pub use lookup::{decode, encode};
+pub use packages::{PACKAGE_TABLE, package_table, package_table_version};
 pub use predicates::is_package_object_name;
 pub use symbol::{FileId, Flags, Kind, Symbol, SymbolId};
-
-/// A decoded top-level file: its trees, and its name table shown as text.
-struct Loaded {
-    ast: Ast,
-    names: Vec<String>,
-    /// Whether the file is of the Scala 2 standard library (`SCALA2STANDARDLIBRARY`).
-    scala2: bool,
-    /// Its path in the library.
-    path: String,
-    /// Its spans and signatures, decoded when a body is first read.
-    body_info: Option<bodies::BodyInfo>,
-}
+pub use table::{SYMBOL_TABLE_VERSION, symbol_table};
 
 pub struct Universe {
     library: Library,
@@ -57,9 +51,15 @@ pub struct Universe {
     packages: FxHashMap<String, SymbolId>,
     /// Per package, the files not loaded yet: the file name without `.tasty`, and its path.
     pending: FxHashMap<SymbolId, Vec<(String, String)>>,
-    files: Vec<Loaded>,
+    files: Vec<loaded::Loaded>,
     /// The symbol each definition tree defines.
     by_tree: FxHashMap<(FileId, NodeId), SymbolId>,
+    /// Per owner whose declarations were looked up by name, its declarations by name.
+    by_name: FxHashMap<SymbolId, FxHashMap<String, Vec<SymbolId>>>,
+    /// The symbol each `TypeRef` or `TermRef` resolved to.
+    resolved: FxHashMap<TypeId, SymbolId>,
+    generation: u64,
+    erased_methods: FxHashMap<(SymbolId, bool), (Vec<crate::Erased>, crate::Erased)>,
     types: Types,
     /// The declared type of each symbol whose type was asked for.
     infos: FxHashMap<SymbolId, TypeId>,
@@ -69,12 +69,16 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The annotation classes of the symbols defined outside TASTy.
+    annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
     /// How many binders `fresh_binder` has made.
     binders: u32,
     unions: Unions,
+    /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
+    pub subtype_steps: u64,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }
@@ -124,9 +128,9 @@ impl Universe {
         self.files.len()
     }
 
-    /// The trees and the names, shown as text, of loaded file `file`.
+    /// The trees and the names, shown as text, of loaded file `file`, decoded on first use.
     pub fn file(&self, file: FileId) -> (&Ast, &[String]) {
-        let f = &self.files[file.0 as usize];
+        let f = self.files[file.0 as usize].decoded();
         (&f.ast, &f.names)
     }
 
@@ -168,7 +172,7 @@ impl Universe {
         }
         let (outer, simple) = name.rsplit_once('.').unwrap_or(("", name));
         let owner = self.package_entered(outer);
-        let id = self.add(Symbol {
+        let id = self.define(Symbol {
             name: simple.to_owned(),
             kind: Kind::Package,
             owner: Some(owner),
@@ -180,18 +184,6 @@ impl Universe {
             tree: None,
         });
         self.packages.insert(name.to_owned(), id);
-        id
-    }
-
-    fn add(&mut self, s: Symbol) -> SymbolId {
-        let id = SymbolId(self.symbols.len() as u32);
-        if let Some(o) = s.owner {
-            self.symbols[o.0 as usize].decls.push(id);
-        }
-        if let Some(tree) = s.tree {
-            self.by_tree.insert(tree, id);
-        }
-        self.symbols.push(s);
         id
     }
 }

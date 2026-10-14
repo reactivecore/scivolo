@@ -105,6 +105,7 @@ impl Typer<'_> {
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
+        self.check_base_types(cls, name_span);
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };

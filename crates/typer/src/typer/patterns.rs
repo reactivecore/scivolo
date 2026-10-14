@@ -28,9 +28,10 @@ impl Typer<'_> {
             self.ast.with_span(bind, self.ast.span(id));
             return self.typed(bind, pt, ctx);
         }
-        let tpt = self.typed_type(tpt, ctx.with_mode(Mode::NONE));
+        let pattern = ctx.mode.is(Mode::PATTERN);
+        let tpt = self.typed_type(tpt, ctx.with_mode(if pattern { Mode::PATTERN_TYPE } else { Mode::NONE }));
         let tpe = self.tpd.tpe(tpt);
-        if ctx.mode.is(Mode::PATTERN) && !self.is_checkable_type(tpe) {
+        if pattern && !self.is_testable_type(tpe) {
             return self.unsupported(id, "type pattern needing a type test or type binding");
         }
         let expr = self.typed(expr, Pt::Type(tpe), ctx);
@@ -39,6 +40,13 @@ impl Typer<'_> {
     }
 
     pub fn typed_bind(&mut self, id: NodeId, name: TName, body: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let pt = match pt {
+            Pt::Type(p) if !self.is_fully_defined(p) => match self.fully_defined_as(p, true) {
+                Ok(p) => Pt::Type(p),
+                Err(what) => return self.unsupported(id, what),
+            },
+            pt => pt,
+        };
         let ref_or_literal = matches!(
             self.ast.tree(body),
             Tree::Ident { .. } | Tree::Select { .. } | Tree::Literal { .. } | Tree::Number { .. }
@@ -66,19 +74,13 @@ impl Typer<'_> {
             T::Select { .. } | T::Literal { .. } => true,
             _ => false,
         };
-        let b = self.u.builtins();
-        let (nothing, null) = (b.nothing, b.null);
-        let bottom = |t: &mut Self, p| matches!(t.u.class_symbol(p), Some(c) if c == nothing || c == null);
         let implicit = matches!(pt, Pt::Type(p) if Some(p) == self.syms.implicit_scrutinee);
         let info = match pt {
             _ if !ref_or_literal && self.is_error(body) => body_tpe,
             _ if implicit => body_tpe,
             Pt::Type(p) if stable_or_literal => p,
-            Pt::Type(p) if !bottom(self, p) && !self.u.is_subtype(body_tpe, p) => {
-                if !self.u.is_subtype(p, body_tpe) {
-                    return self.unsupported(id, "pattern variable of an intersection type");
-                }
-                p
+            Pt::Type(p) if !self.is_bottom_type(p) && !self.u.is_subtype(body_tpe, p) => {
+                self.u.glb(body_tpe, p)
             }
             _ => body_tpe,
         };
@@ -92,21 +94,32 @@ impl Typer<'_> {
         self.tpd.node(T::Bind { name, body }, span, Some(tpe), Some(sym))
     }
 
+    /// Whether `t` is `Nothing` or `Null` (dotty's `isBottomType`).
+    pub fn is_bottom_type(&mut self, t: TypeId) -> bool {
+        let b = self.u.builtins();
+        let (nothing, null) = (b.nothing, b.null);
+        matches!(self.u.class_symbol(t), Some(c) if c == nothing || c == null)
+    }
+
     /// Whether `t` is a class type, possibly applied, without wildcard arguments.
     pub fn is_checkable_class_type(&mut self, t: TypeId) -> bool {
         self.is_class_type(t, false)
     }
 
-    /// Whether `t` is a checkable class type or a union or intersection of them.
-    fn is_checkable_type(&mut self, t: TypeId) -> bool {
+    /// Whether a typed pattern can test for `t`: a class type, possibly applied, a singleton
+    /// type, or a union or intersection of them.
+    fn is_testable_type(&mut self, t: TypeId) -> bool {
+        let t = self.dealiased(t);
         match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b, _) => self.is_checkable_type(a) && self.is_checkable_type(b),
-            _ => self.is_checkable_class_type(t),
+            Type::And(a, b) | Type::Or(a, b, _) => self.is_testable_type(a) && self.is_testable_type(b),
+            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
+            Type::Sym(_, s) if !self.u.symbol(s).kind.is_type() => true,
+            _ => self.is_class_type(t, true),
         }
     }
 
-    /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
-    pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
+    /// `t` with its aliases, also those of script symbols, followed.
+    pub fn dealiased(&mut self, t: TypeId) -> TypeId {
         let mut t = self.u.dealias(t);
         for _ in 0..8 {
             let Type::Sym(_, s) = *self.u.types().get(t) else { break };
@@ -118,6 +131,12 @@ impl Typer<'_> {
             let Type::Alias(target) = *self.u.types().get(info) else { break };
             t = target;
         }
+        t
+    }
+
+    /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
+    pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
+        let t = self.dealiased(t);
         let (tycon, args) = match self.u.types().get(t).clone() {
             Type::Applied(tc, args) => (tc, args),
             _ => (t, Vec::new()),
@@ -158,6 +177,7 @@ impl Typer<'_> {
             Type::Sym(_, s) => Some(s),
             Type::TypeRef(p, name) => self.u.resolve(p, &name, true),
             Type::TermRef(p, name) => self.u.resolve(p, &name, false),
+            Type::This(c) => self.u.class_symbol(c),
             _ => None,
         };
         let span = self.ast.span(id);

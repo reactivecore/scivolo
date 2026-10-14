@@ -140,24 +140,30 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scalai FILE.scala` with `SCALAI_FRONTEND=strict` (`crates/scalai/tests/lowered.rs`).
 
-Results (2026-10-11):
+Results (2026-10-14):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 399 |
-| wrong output | 1 |
+| passed | 809 |
+| wrong output | 0 |
 | crashed | 0 |
-| lowering refused | 46 |
-| typer refused | 987 |
+| timeout | 0 |
+| lowering refused | 25 |
+| typer refused | 598 |
 | parser refused | 13 |
+| frontend crashed | 1 |
 | several files | 59 |
 | fails in the VM | 31 |
 | skipped | 175 |
 | **total** | **1711** |
 
-- **Wrong output:** i9939, numeric harmonization in the typer (#60).
-- **Lowering refused:** mostly members value classes inherit (14, #88); other reasons below 8.
-- **Typer refused:** mostly calls of transparent inline methods (314).
+Before the 2026-10-14 batch: 684 passed, 39 refused by the lowering, 709 by the typer.
+
+- **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
+- **Typer refused:** mostly missing implicit arguments (34), members not found (32), function
+  parameters without a type (29) and adaptations (27); 8 tests set a source version other than
+  3.9, which the typer refuses.
+- **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
 

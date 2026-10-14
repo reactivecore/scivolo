@@ -15,7 +15,8 @@ use typer::tpd::{List, TNodeId, Tree};
 
 impl Translator<'_, '_> {
     /// The plan of extractor pattern `pat` with `unapply` method tree `fun` and argument
-    /// patterns `args` on `scrutinee`: a null check unless the scrutinee cannot be null.
+    /// patterns `args` on `scrutinee`: a null check unless the scrutinee cannot be null; `throw
+    /// null` past it for a scrutinee of type `Null` or `Nothing`.
     pub fn unapply_pattern_plan(
         &mut self,
         scrutinee: SymbolId,
@@ -31,14 +32,20 @@ impl Translator<'_, '_> {
         let Type::Method { params, result, .. } = self.l.u.types().get(fun_type).clone() else {
             return unsupported(span, "extractors that are not methods");
         };
-        let value = self.l.ident(scrutinee, Span::NONE);
-        let arg = self.l.ensure_conforms(value, params[0].1);
-        let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
-        let unapp = self.l.positioned(unapp);
-        let args = self.l.tpd.items(args).to_vec();
-        let plan = self.unapply_plan(scrutinee, unapp, &args, on_success)?;
         let info = self.l.u.info(scrutinee);
-        let not_null = matches!(self.l.u.erase(info), tasty::Erased::Prim(_));
+        let erased = self.l.u.erase(info);
+        let plan = if matches!(erased, tasty::Erased::Null | tasty::Erased::Nothing) {
+            let tree = self.throw_null();
+            self.add(Plan::Result { tree })
+        } else {
+            let value = self.l.ident(scrutinee, Span::NONE);
+            let arg = self.l.ensure_conforms(value, params[0].1);
+            let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            let unapp = self.l.positioned(unapp);
+            let args = self.l.tpd.items(args).to_vec();
+            self.unapply_plan(scrutinee, unapp, &args, on_success)?
+        };
+        let not_null = matches!(erased, tasty::Erased::Prim(_) | tasty::Erased::Nothing);
         if not_null || self.non_null.contains(&scrutinee) {
             return Ok(plan);
         }
@@ -66,6 +73,9 @@ impl Translator<'_, '_> {
                 if t.is_sequence(result_type) {
                     return t.unapply_seq_plan(result, args, on_success);
                 }
+                if let Some(arity) = t.product_seq_arity(result_type, args.len())? {
+                    return t.unapply_product_seq_plan(result, args, arity, on_success);
+                }
                 let Some(get) = t.member_named(result_type, "get") else {
                     return unsupported(span, "sequence extractors without `get`");
                 };
@@ -73,10 +83,13 @@ impl Translator<'_, '_> {
                 let get = t.select_member(value, get);
                 let args_plan = t.let_abstract(get, None, |t, get_result| {
                     let get_type = t.l.u.info(get_result);
-                    if !t.is_sequence(get_type) {
-                        return unsupported(span, "sequence extractors of a product and a sequence");
+                    if t.is_sequence(get_type) {
+                        return t.unapply_seq_plan(get_result, args, on_success);
                     }
-                    t.unapply_seq_plan(get_result, args, on_success)
+                    let Some(arity) = t.product_seq_arity(get_type, args.len())? else {
+                        return unsupported(span, "sequence extractors of another result type");
+                    };
+                    t.unapply_product_seq_plan(get_result, args, arity, on_success)
                 })?;
                 let scrutinee = t.l.ident(result, Span::NONE);
                 Ok(t.add(Plan::Test { test: Test::NonEmpty, scrutinee, span, on_success: args_plan }))
@@ -105,7 +118,7 @@ impl Translator<'_, '_> {
         let arity = args.len();
         self.let_abstract(unapp, None, |t, result| {
             let result_type = t.l.u.info(result);
-            let selectors = t.product_selectors(result_type, true);
+            let selectors = t.product_selectors(result_type, true)?;
             if arity > 0 && selectors.len() == arity {
                 let components: Vec<TNodeId> = selectors
                     .iter()
@@ -126,7 +139,7 @@ impl Translator<'_, '_> {
                     1 => vec![t.l.ident(get_result, Span::NONE)],
                     _ => {
                         let get_type = t.l.u.info(get_result);
-                        let selectors = t.product_selectors(get_type, false);
+                        let selectors = t.product_selectors(get_type, false)?;
                         let components = selectors.iter().map(|&s| {
                             let value = t.l.ident(get_result, Span::NONE);
                             t.select_member(value, s)

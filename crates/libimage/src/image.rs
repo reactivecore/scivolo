@@ -22,13 +22,22 @@ pub enum Source {
     Bytes(&'static str, &'static [u8]),
 }
 
+/// A file an image derives from the sorted names of its other files.
+pub struct Derived<'a> {
+    pub name: &'a str,
+    /// What `contents` depends on besides the names; it changes with the file's format.
+    pub version: &'a str,
+    pub contents: &'a dyn Fn(&[&str]) -> Vec<u8>,
+}
+
 /// What an image holds: the files of `sources` whose names `keep` accepts, the first of equal
-/// names winning, each with the blob `extra` computes. `tag` names what `keep` and `extra` do,
-/// and changes when they do.
+/// names winning, each with the blob `extra` computes, and the `derived` files. `tag` names what
+/// `keep` and `extra` do, and changes when they do.
 pub struct Spec<'a> {
     pub sources: &'a [Source],
     pub keep: fn(&str) -> bool,
     pub extra: &'a dyn Fn(&str, &[u8]) -> Vec<u8>,
+    pub derived: &'a [Derived<'a>],
     pub tag: &'a str,
 }
 
@@ -56,7 +65,7 @@ impl Image {
         }
         cache::prune(dir, cache::ABANDONED, |n| cache::is_staging(n, "libs-", ".tmp"));
         build(spec, dir, &path)?;
-        cache::prune(dir, cache::UNUSED, |n| {
+        cache::prune(dir, cache::IMAGE_UNUSED, |n| {
             n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(cache::is_key)
         });
         Self::map(&path)

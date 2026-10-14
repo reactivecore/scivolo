@@ -5,6 +5,7 @@ use super::{adapt, applied_to_none, from_start};
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::phases::casts::{cast, class_named, conforms, type_of};
+use crate::phases::literals::is_wildcard;
 use crate::phases::value_classes::eval_once_as;
 use crate::phases::vc_elide::elided;
 use syntax::ast::Span;
@@ -12,11 +13,22 @@ use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `adapt` of `t` of erased type `from`, value classes boxed into references and unboxed from
-/// them first.
+/// them first; a wildcard stays.
 pub fn adapt_from(l: &mut Lower, t: TNodeId, from: Erased, pt: &Erased) -> TNodeId {
     let reference = |e: &Erased| matches!(e, Erased::Class(_) | Erased::Array(_));
     match (from, pt) {
+        _ if is_wildcard(l, t) => t,
         (from @ Erased::Value(..), pt) if from == *pt => t,
+        (Erased::Value(class, u), Erased::Value(target, v)) if class == *target => {
+            let c = adapt_from(l, t, *u, v);
+            if c == t {
+                return c;
+            }
+            let class = class_named(l, &class).expect("a value class");
+            let tpe = type_ref(l.u, class);
+            let span = l.tpd.span(c);
+            super::ascribed(l, c, tpe, span)
+        }
         (Erased::Value(_, u), Erased::Value(_, v)) => adapt_from(l, t, *u, v),
         (Erased::Value(_, u), pt) if *u == *pt => t,
         (Erased::Value(class, u), pt) if reference(pt) => {
@@ -69,7 +81,7 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
         (l.ident(ev, Span::NONE), Some(def))
     };
     let null = l.null_literal(Span::NONE);
-    let eq = l.select(value, l.defs.patmat.eq, Span::NONE);
+    let eq = l.select(value, l.defs.eq, Span::NONE);
     let eq = l.positioned(eq);
     let boolean = l.u.class_ref("scala.Boolean");
     let cond = l.apply(eq, &[null], boolean, Span::NONE);
@@ -122,7 +134,7 @@ fn cast_generic(l: &mut Lower, t: TNodeId, class: &str, underlying: &Erased, spa
 /// `null` as a value of erased type `to`: unboxed for a primitive, cast for an array.
 fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
     match to {
-        Erased::Prim(c) => match l.defs.primitive(*c) {
+        Erased::Prim(c) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
                 super::converted(l, null, module, unbox_method)

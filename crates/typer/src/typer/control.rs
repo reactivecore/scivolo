@@ -158,7 +158,10 @@ impl Typer<'_> {
 
     /// `throw e`: a call of dotty's `<special-ops>.throw`.
     pub fn typed_throw(&mut self, id: NodeId, expr: NodeId, ctx: Ctx) -> TNodeId {
-        let throwable = type_ref(self.u, self.defn.throwable);
+        let throwable = match self.defn.throwable(self.u) {
+            Ok(t) => type_ref(self.u, t),
+            Err(e) => return self.unsupported(id, &e),
+        };
         let expr = self.typed(expr, Pt::Type(throwable), ctx);
         let throw = self.throw_method();
         let span = self.ast.span(id);

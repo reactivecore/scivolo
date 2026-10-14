@@ -2,7 +2,7 @@
 
 use super::{Desugar, Mode, Owner};
 use crate::ast::tree::Clauses;
-use crate::ast::{List, NodeId, Tree};
+use crate::ast::{Attrs, List, NodeId, Tree};
 
 impl Desugar<'_> {
     /// The desugared tree `id` (the oracle's `Expander.transform`).
@@ -17,7 +17,15 @@ impl Desugar<'_> {
                 let t = self.desugar_expr(id);
                 if t == id { self.map_children(id) } else { self.transform(t) }
             }
-            Tree::Parens { t } => self.transform(t),
+            Tree::Parens { t } => {
+                let t = self.transform(t);
+                for check in [Attrs::CHECK_PAT_DEF, Attrs::CHECK_GEN_FROM] {
+                    if self.ast.attrs(id).contains(check) {
+                        self.ast.add_attrs(t, check);
+                    }
+                }
+                t
+            }
             Tree::InfixOp { left, op, right } => {
                 let args = self.list(&[left, right]);
                 let t = match self.mode {

@@ -1,6 +1,7 @@
-//! The TASTy files of a list of jars or of a library image: their paths, and each file's bytes
-//! on request.
+//! The TASTy files of a list of jars or of a library image: their package table, and each
+//! file's bytes on request.
 
+use crate::symbols::{PACKAGE_TABLE, package_table};
 use libimage::Image;
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
@@ -8,6 +9,9 @@ use std::fs::File;
 use std::io::{self, Read};
 use std::path::PathBuf;
 use zip::ZipArchive;
+
+/// A file's bytes, and its symbol table if an image keeps one.
+pub type Contents = (Cow<'static, [u8]>, Option<&'static [u8]>);
 
 pub enum Library {
     Jars {
@@ -33,26 +37,30 @@ impl Library {
         Ok(Self::Jars { jars: archives, files })
     }
 
-    /// Every `.tasty` path, in no particular order.
-    pub fn paths(&self) -> Box<dyn Iterator<Item = &str> + '_> {
-        match self {
-            Library::Jars { files, .. } => Box::new(files.keys().map(String::as_str)),
-            Library::Image(image) => Box::new(image.names().filter(|n| n.ends_with(".tasty"))),
-        }
+    /// The package table of the TASTy files (`package_table`): the image's, else built.
+    pub fn package_table(&self) -> Cow<'static, str> {
+        let names: Vec<&str> = match self {
+            Library::Jars { files, .. } => files.keys().map(String::as_str).collect(),
+            Library::Image(image) => match image.find(PACKAGE_TABLE).map(|(t, _)| std::str::from_utf8(t)) {
+                Some(Ok(table)) => return Cow::Borrowed(table),
+                _ => image.names().collect(),
+            },
+        };
+        Cow::Owned(package_table(&names))
     }
 
-    /// The bytes of `path`, e.g. `scala/Option.tasty`.
-    pub fn read(&mut self, path: &str) -> io::Result<Cow<'static, [u8]>> {
+    /// The bytes of `path`, e.g. `scala/Option.tasty`, and the symbol table an image keeps of it.
+    pub fn read(&mut self, path: &str) -> io::Result<Contents> {
         match self {
             Library::Jars { jars, files } => {
                 let Some(&jar) = files.get(path) else { return Err(io::ErrorKind::NotFound.into()) };
                 let mut file = jars[jar].by_name(path).map_err(io::Error::other)?;
                 let mut bytes = Vec::with_capacity(file.size() as usize);
                 file.read_to_end(&mut bytes)?;
-                Ok(Cow::Owned(bytes))
+                Ok((Cow::Owned(bytes), None))
             }
             Library::Image(image) => match image.find(path) {
-                Some((data, _)) => Ok(Cow::Borrowed(data)),
+                Some((data, table)) => Ok((Cow::Borrowed(data), table)),
                 None => Err(io::ErrorKind::NotFound.into()),
             },
         }

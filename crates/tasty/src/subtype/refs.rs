@@ -39,13 +39,12 @@ impl Cmp<'_> {
     /// What `t` names, if it is a named type.
     pub fn named(&mut self, t: TypeId) -> Option<Named> {
         let u = &mut *self.u;
-        let (prefix, name, ty) = match u.types().get(t).clone() {
-            Type::TypeRef(p, n) => (p, n, true),
-            Type::TermRef(p, n) => (p, n, false),
+        let (prefix, name) = match u.types().get(t).clone() {
+            Type::TypeRef(p, n) | Type::TermRef(p, n) => (p, n),
             Type::Sym(p, s) => return Some(Named { sym: Some(s), prefix: p, meaning: meaning(u, s, p) }),
             _ => return None,
         };
-        Some(match u.resolve(prefix, &name, ty) {
+        Some(match u.resolve_ref(t) {
             Some(s) => Named { sym: Some(s), prefix: Some(prefix), meaning: meaning(u, s, Some(prefix)) },
             None => {
                 let meaning = u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved);
@@ -65,7 +64,7 @@ impl Cmp<'_> {
         match self.u.types().get(t).clone() {
             Type::Error => true,
             Type::Sym(_, s) => Some(s) == nothing,
-            Type::TypeRef(p, n) => self.u.resolve(p, &n, true) == nothing,
+            Type::TypeRef(..) => self.u.resolve_ref(t) == nothing,
             _ => t == NOTHING,
         }
     }

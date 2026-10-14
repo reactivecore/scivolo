@@ -25,8 +25,9 @@ pub enum Completion {
 pub struct Syms {
     pub flags: FxHashMap<SymbolId, FlagSet>,
     pub completions: FxHashMap<SymbolId, Completion>,
-    /// The classes of the annotations of a symbol, with the annotations' spans.
-    pub annotations: FxHashMap<SymbolId, Vec<(SymbolId, Span)>>,
+    /// The span of the `@main` annotation of each method that has one; the universe keeps the
+    /// classes of all annotations.
+    pub main_annotations: FxHashMap<SymbolId, Span>,
     /// The annotations of the unit's symbols still to be typed, each with its context.
     pub annotation_trees: Vec<(SymbolId, NodeId, Ctx)>,
     /// The symbol each definition tree defines.

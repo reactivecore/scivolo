@@ -4,10 +4,26 @@ use std::fs::File;
 use std::path::Path;
 use std::time::{Duration, SystemTime};
 
-/// How long a library image or compiled script may go unused before it is removed.
+/// How long a compiled script may go unused before it is removed.
 pub const UNUSED: Duration = Duration::from_secs(30 * 24 * 60 * 60);
+/// How long a library image may go unused before building another removes it.
+pub const IMAGE_UNUSED: Duration = Duration::from_secs(24 * 60 * 60);
 /// How long a half-written entry, left by a build that did not finish, is kept.
 pub const ABANDONED: Duration = Duration::from_secs(24 * 60 * 60);
+/// How long after pruning a cache directory it is pruned again at the earliest.
+pub const PRUNED: Duration = Duration::from_secs(60 * 60);
+
+/// Whether `dir` was last pruned at least `PRUNED` ago, by the time of its file `pruned`; if so,
+/// sets that time to now.
+pub fn prune_due(dir: &Path) -> bool {
+    let stamp = dir.join("pruned");
+    let since = std::fs::metadata(&stamp).and_then(|m| m.modified());
+    if since.is_ok_and(|t| t.elapsed().is_ok_and(|e| e < PRUNED)) {
+        return false;
+    }
+    let _ = File::create(&stamp).and_then(|f| f.set_modified(SystemTime::now()));
+    true
+}
 
 /// Whether `s` is a cache key as the cache names its entries: 16 lowercase hex digits.
 pub fn is_key(s: &str) -> bool {
@@ -49,7 +65,7 @@ pub fn prune(dir: &Path, age: Duration, ours: impl Fn(&str) -> bool) {
 
 #[cfg(test)]
 mod tests {
-    use super::{ABANDONED, UNUSED, is_key, is_staging, prune, touch};
+    use super::{ABANDONED, UNUSED, is_key, is_staging, prune, prune_due, touch};
     use std::fs::{self, File};
     use std::time::{Duration, SystemTime};
 
@@ -81,13 +97,17 @@ mod tests {
             age(&dir.join(entry), 40);
         }
         touch(&dir.join(used));
+        let due = [prune_due(&dir), prune_due(&dir)];
         prune(&dir, UNUSED, is_key);
         prune(&dir, ABANDONED, |n| is_staging(n, "", "."));
-        let left: Vec<bool> = [old, used, young, "0000000000000dd0.1", "deploy", "notes"]
+        let left: Vec<bool> = [old, used, young, "0000000000000dd0.1", "deploy", "notes", "pruned"]
             .iter()
             .map(|e| dir.join(e).exists())
             .collect();
+        age(&dir.join("pruned"), 1);
+        let due_again = prune_due(&dir);
         let _ = fs::remove_dir_all(&dir);
-        assert_eq!(left, [false, true, true, false, true, true]);
+        assert_eq!(left, [false, true, true, false, true, true, true]);
+        assert_eq!((due, due_again), ([true, false], true));
     }
 }

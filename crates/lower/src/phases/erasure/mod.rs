@@ -3,8 +3,10 @@
 
 mod calls;
 pub(super) mod erased_defs;
+mod generic_arrays;
+mod members;
 
-use super::adapt::{adapt, applied_to_none, erased_type, is_parameterless_ref};
+use super::adapt::{adapt, applied_to_none, ascription_type, erased_type, is_parameterless_ref};
 use super::casts::receiver_type;
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
 use super::type_tests::{intercept, is_test_or_cast};
@@ -17,53 +19,17 @@ use typer::tpd::{TNodeId, Tree};
 /// Types the methods of class definition `td` against their erased result types, and the
 /// statements and field initializers of its body.
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let result = transform_class(l, td);
+    let result = members::transform_class(l, td);
     l.erasure_owner = None;
     result
 }
 
-fn transform_class(l: &mut Lower, td: TNodeId) -> Result<()> {
-    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
-    let mut stats = Vec::new();
-    let constructor = l.tpd.sym(constr);
-    for stat in std::iter::once(constr).chain(l.tpd.items(body).iter().copied()).collect::<Vec<_>>() {
-        l.erasure_owner = constructor;
-        match *l.tpd.tree(stat) {
-            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) } => {
-                let sym = l.tpd.sym(stat).expect("a method definition's symbol");
-                l.erasure_owner = Some(sym);
-                let pt = if l.u.is_constructor(sym) { Erased::Unit } else { l.u.erased_method_value(sym).1 };
-                let before = l.tpd.span(rhs);
-                let rhs = typed(l, rhs, Some(&pt))?;
-                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
-                if l.u.symbol(sym).kind == Kind::Val
-                    || crate::symbols::has(l.u, sym, tasty::tags::FIELDaccessor)
-                {
-                    keep_class_literal_start(l, stat, before);
-                }
-                l.recopy_class_literals(stat);
-                stats.push(stat);
-            }
-            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => stats.push(stat),
-            _ => stats.push(typed(l, stat, None)?),
-        }
-    }
-    let body = l.tpd.list(&stats[1..]);
-    l.erasure_owner = constructor;
-    let mut typed_parents = Vec::new();
-    for parent in l.tpd.items(parents).to_vec() {
-        let call = matches!(l.tpd.tree(parent), Tree::Apply { .. } | Tree::Block { .. });
-        typed_parents.push(if call { typed(l, parent, None)? } else { parent });
-    }
-    let parents = l.tpd.list(&typed_parents);
-    l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
-    Ok(())
-}
-
 /// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
-/// class the selected member is called on.
+/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
+    if let Some(m) = l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m)) {
+        l.tpd.get_mut(sel).sym = Some(m);
+    }
     let owner = receiver_type(l, sel, qualifier);
     let qualifier = typed(l, qualifier, None)?;
     Ok(match owner {
@@ -77,6 +43,9 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
     let boolean = Erased::Prim('z');
     if is_test_or_cast(l, t) {
         intercept(l, t)?;
+    }
+    if generic_arrays::rewrite_select(l, t)? {
+        return typed(l, t, pt);
     }
     let new = match *l.tpd.tree(t) {
         Tree::Apply { fun, args } => Some(calls::typed_apply(l, t, fun, args)?),
@@ -155,11 +124,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             None
         }
         Tree::Typed { expr, tpt } => {
-            let ascribed = l.u.erase_value(l.tpd.tpe(tpt));
-            let written = !matches!(l.tpd.tree(tpt), Tree::TypeTree { inferred: true });
-            if written && ascribed == Erased::Unit && !is_literal_or_unit(l, expr) {
-                return unsupported(l.tpd.span(t), "ascriptions to Unit of values other than literals");
-            }
+            let ascribed = ascription_type(l, tpt);
             if ascribed == Erased::Unit {
                 let expr = typed(l, expr, Some(&Erased::Unit))?;
                 return Ok(pt.map_or(expr, |pt| adapt(l, expr, pt)));
@@ -176,7 +141,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             };
             let span = l.tpd.span(rhs);
             typed_except(l, t, tpt, Some(&erased))?;
-            keep_class_literal_start(l, t, span);
+            members::keep_class_literal_start(l, t, span);
             None
         }
         Tree::Try { expr, cases, finalizer } => Some(typed_try(l, t, (expr, cases, finalizer), pt)?),
@@ -190,7 +155,8 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         l.tpd.get_mut(t).tree = new;
     }
     l.recopy_class_literals(t);
-    let t = if is_parameterless_ref(l, t) { applied_to_none(l, t) } else { t };
+    let applied = is_parameterless_ref(l, t) || calls::is_unapplied_hash_code(l, t);
+    let t = if applied { applied_to_none(l, t) } else { t };
     let (span, e) = (l.tpd.span(t), elided(l, t));
     let Some(pt) = pt else { return Ok(e) };
     let adapted = adapt(l, e, pt);
@@ -198,22 +164,6 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
         l.tpd.get_mut(adapted).span = super::adapt::from_start(span);
     }
     Ok(adapted)
-}
-
-/// Gives the right-hand side of value definition `t` the start of its span `before` erasure if
-/// it is a class literal.
-fn keep_class_literal_start(l: &mut Lower, t: TNodeId, before: syntax::ast::Span) {
-    let (Tree::ValDef { rhs: Some(rhs), .. } | Tree::DefDef { rhs: Some(rhs), .. }) = *l.tpd.tree(t) else {
-        return;
-    };
-    if matches!(l.tpd.tree(rhs), Tree::ClassLiteral { .. }) && !l.tpd.span(rhs).exists() && before.exists() {
-        l.tpd.get_mut(rhs).span = before.start_pos();
-    }
-}
-
-/// Whether `t` is a literal or erases to `Unit` as erasure leaves it.
-fn is_literal_or_unit(l: &mut Lower, t: TNodeId) -> bool {
-    matches!(l.tpd.tree(t), Tree::Literal { .. }) || erased_type(l, t) == Erased::Unit
 }
 
 /// Whether `t` refers to a `Unit` value or getter of a class.

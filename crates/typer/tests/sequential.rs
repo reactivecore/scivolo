@@ -125,6 +125,52 @@ fn definition_left_incomplete_by_a_failed_unit() {
 }
 
 #[test]
+fn redefined_classes_and_forgotten_lines() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let lines = [
+        "object rs$line$1 { class C { def f: Int = 1 }; val c = new C }",
+        "object rs$line$2 { class C { def f: String = \"\" } }",
+        "object rs$line$3 { import rs$line$1.c; import rs$line$2.C; val x = c.f + new C().f.length }",
+    ];
+    for line in lines {
+        assert_eq!(type_unit(&mut u, &mut units, "line.scala", line), Ok(()), "{line}");
+    }
+    assert_eq!(member_type(&mut u, "rs$line$3", "x"), "scala.Int");
+    units.forget(&mut u, "rs$line$2");
+    let again = [
+        "object rs$line$2 { class C { def f: Boolean = true } }",
+        "object rs$line$4 { import rs$line$2.C; val y = new C().f }",
+    ];
+    for line in again {
+        assert_eq!(type_unit(&mut u, &mut units, "line.scala", line), Ok(()), "{line}");
+    }
+    assert_eq!(member_type(&mut u, "rs$line$4", "y"), "scala.Boolean");
+}
+
+#[test]
+fn aliases_completed_after_use() {
+    let Some(mut u) = universe() else { return };
+    let cases = [
+        (
+            "object A1 { class Box[T](t: T) { def get: T = t }; def g = b.get + 1; val b: B = new Box(1); type B = Box[Int] }",
+            "A1",
+            "g",
+        ),
+        ("object A2 { def f(p: P[Int]) = p._1 + 1; def g = f((1, 2)); type P[X] = (X, X) }", "A2", "g"),
+        (
+            "object A3 { def g = c.get + c.get; val c = new C; class C extends Base[E]; type E = Int; class Base[T] { def get: T = ??? } }",
+            "A3",
+            "g",
+        ),
+    ];
+    for (text, object, member) in cases {
+        assert_eq!(type_unit(&mut u, &mut Units::default(), "a.scala", text), Ok(()), "{text}");
+        assert_eq!(member_type(&mut u, object, member), "scala.Int", "{text}");
+    }
+}
+
+#[test]
 fn deferred_members_of_earlier_units() {
     let Some(mut u) = universe() else { return };
     type_lines(&mut u, &["trait T { def a: Int; def b: Int = 1 }", "class C extends T { def a = 2 }"]);
@@ -208,7 +254,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "self type",
         ),
         (
-            "class Bar[T] { def value: T = ??? }\nobject M:\n  def f(x: Any) = x match\n    case y: Bar[_] => y.value\n",
+            "object M:\n  def f[T](x: Any) = x match\n    case y: T => y\n",
             "type pattern needing a type test or type binding",
         ),
         (

@@ -43,7 +43,7 @@ impl Typer<'_> {
                 _ => self.unsupported(id, "summonFrom"),
             };
         }
-        let f = match self.with_type_vars(f) {
+        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, id, fun_ctx)) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
@@ -58,10 +58,10 @@ impl Typer<'_> {
         if let Err(what) = self.check_clause_args((id, &arg_ids), &params, implicit, contextual) {
             return self.unsupported(id, what);
         }
-        if self.mentions_params(result, binder, method) {
+        let meth = self.tpd.sym(self.tpd.meth_part(f));
+        if self.mentions_params(result, binder, meth) {
             return self.unsupported(id, "dependent result type");
         }
-        let meth = self.tpd.sym(self.tpd.meth_part(f));
         if let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
@@ -84,7 +84,7 @@ impl Typer<'_> {
             .collect();
         if formals.iter().any(|&p| {
             self.is_special_param(p)
-                || self.mentions_params(p, binder, method)
+                || self.mentions_params(p, binder, meth)
                 || self.mentions_foreign_private_type(p, ctx)
         }) {
             return self.unsupported(id, "dependent parameter or private type");
@@ -173,30 +173,6 @@ impl Typer<'_> {
             Ok(tree) => self.wrap_defs(lifted, tree),
             Err(what) => self.unsupported(id, what),
         }
-    }
-
-    /// `f`, or `f.apply` if `f` is not a method (dotty's `tryInsertApplyOrImplicit`), the
-    /// alternative chosen by `pt`, arguments or type arguments.
-    pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        let tpe = self.tpd.tpe(f);
-        let info = self.method_info(tpe).unwrap_or(tpe);
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
-            return Ok(f);
-        }
-        let tpe = self.widen_if_unstable(tpe);
-        let Some(found) = self.members_found(tpe, "apply", false) else {
-            let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
-            return proxy.ok_or("application of a non-method");
-        };
-        let sym = match self.choose(&found.syms, Some(tpe), pt) {
-            Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),
-            chosen => chosen?,
-        };
-        self.check_reference(sym, Some(tpe), ctx)?;
-        let name = syntax::ast::TName { name: self.name("apply"), is_type: false };
-        let apply_tpe = self.ref_type(Some(tpe), sym);
-        let span = self.tpd.span(f).to_synthetic();
-        Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
     }
 
     /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.

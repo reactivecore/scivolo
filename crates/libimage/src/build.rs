@@ -8,11 +8,13 @@ use std::io::{self, Read, Write};
 use std::path::Path;
 use zip::ZipArchive;
 
-/// Identifies what `spec` puts in an image: the program's version, the tag, the jars by path,
-/// size and modification time, and built-in jars by name and contents.
+/// Identifies what `spec` puts in an image: the program's version, the tag, the derived files'
+/// names and versions, the jars by path, size and modification time, and built-in jars by name
+/// and contents.
 pub fn key(spec: &Spec) -> io::Result<u64> {
     let mut h = FxHasher::default();
     (MAGIC, env!("CARGO_PKG_VERSION"), spec.tag).hash(&mut h);
+    spec.derived.iter().for_each(|d| (d.name, d.version).hash(&mut h));
     for source in spec.sources {
         match source {
             Source::File(jar) => {
@@ -55,6 +57,15 @@ fn write(spec: &Spec, mut out_file: File) -> io::Result<()> {
             }
         }
     }
+    files.sort_by(|a, b| a.0.cmp(&b.0));
+    let names: Vec<&str> = files.iter().map(|(name, _)| name.as_str()).collect();
+    let derived: Vec<(String, Vec<u8>)> = spec
+        .derived
+        .iter()
+        .filter(|d| !seen.contains(d.name))
+        .map(|d| (d.name.to_owned(), (d.contents)(&names)))
+        .collect();
+    files.extend(derived);
     files.sort_by(|a, b| a.0.cmp(&b.0));
     let extras: Vec<Vec<u8>> = files.iter().map(|(name, data)| (spec.extra)(name, data)).collect();
     let mut out = Vec::new();

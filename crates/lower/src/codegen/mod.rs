@@ -88,7 +88,7 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         closures: Vec::new(),
         lambdas: 0,
     };
-    g.gen_companion_handle_fields(&type_defs);
+    g.gen_companion_handle_fields(&type_defs)?;
     for td in type_defs {
         g.gen_class(td)?;
     }

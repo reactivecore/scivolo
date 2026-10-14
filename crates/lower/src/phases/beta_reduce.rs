@@ -157,13 +157,6 @@ fn application(
     if params.len() != args.len() || params.iter().any(|&p| !matches!(l.tpd.tree(p), Tree::ValDef { .. })) {
         return Ok(None);
     }
-    let defines_class = |l: &Lower, t: TNodeId| match *l.tpd.tree(t) {
-        Tree::TypeDef { rhs, .. } => matches!(l.tpd.tree(rhs), Tree::Template { .. }),
-        _ => false,
-    };
-    if subtrees(l.tpd, rhs).into_iter().any(|t| defines_class(l, t)) {
-        return unsupported(l.tpd.span(def), "applications of a lambda defining classes");
-    }
     let params: Vec<SymbolId> = params.iter().map(|&p| l.tpd.sym(p).expect("a parameter's symbol")).collect();
     for (&arg, &param) in args.iter().zip(&params) {
         let info = l.u.info(param);

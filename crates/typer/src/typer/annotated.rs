@@ -50,11 +50,16 @@ impl Typer<'_> {
 
     /// `t` without its `@unchecked` annotation (dotty's `dropAnnot(defn.UncheckedAnnot)`).
     pub fn without_unchecked(&mut self, t: TypeId) -> TypeId {
+        self.without_annotation(t, "scala.unchecked")
+    }
+
+    /// `t` without its annotation of class `name` (dotty's `dropAnnot`).
+    pub fn without_annotation(&mut self, t: TypeId, name: &str) -> TypeId {
         let Type::Annotated(inner, annot) = *self.u.types().get(t) else { return t };
-        if self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == "scala.unchecked") {
+        if self.u.class_symbol(annot).is_some_and(|c| self.u.full_name(c) == name) {
             return inner;
         }
-        let inner = self.without_unchecked(inner);
+        let inner = self.without_annotation(inner, name);
         self.u.intern_type(Type::Annotated(inner, annot))
     }
 }

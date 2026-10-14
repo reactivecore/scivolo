@@ -13,7 +13,7 @@ impl Lower<'_> {
     /// typer's forms; lower makes those with `unit_literal`, `null_literal`, `this` and
     /// `lazy_trees::return_`.
     pub fn build(&mut self) -> Build<'_> {
-        Build::new(self.tpd, self.u, self.names, self.defs.patmat.unit)
+        Build::new(self.tpd, self.u, self.names, self.defs.unit)
     }
 
     pub fn term_name(&mut self, s: &str) -> TName {

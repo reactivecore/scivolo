@@ -3,16 +3,24 @@
 
 use super::super::{Pt, Typer};
 use super::candidates::Candidate;
+use super::view_kinds::ViewKind;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
-use tasty::tags::{GIVEN, PRIVATE};
-use tasty::{Kind, Type, TypeId};
+use tasty::tags::PRIVATE;
+use tasty::{Type, TypeId};
 
 /// What a conversion's result must offer.
 #[derive(Clone, Copy)]
 pub enum Goal<'a> {
     Conform(TypeId),
     Member(&'a str),
+}
+
+/// What a view search found: a converted tree, or an implicit value with the extension method a
+/// selection names.
+pub enum Viewed {
+    Converted(TNodeId),
+    Extension(Candidate),
 }
 
 impl Typer<'_> {
@@ -24,6 +32,16 @@ impl Typer<'_> {
         goal: Goal,
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
+        match self.viewed(tree, goal, ctx)? {
+            Some(Viewed::Converted(t)) => Ok(Some(t)),
+            Some(Viewed::Extension(_)) => Err("extension method of an implicit value"),
+            None => Ok(None),
+        }
+    }
+
+    /// `tree` converted to fit `goal` by the implicit conversion the search selects, or the
+    /// implicit value with the extension method a member goal names; `None` if neither applies.
+    pub fn viewed(&mut self, tree: TNodeId, goal: Goal, ctx: Ctx) -> Result<Option<Viewed>, &'static str> {
         let from = self.tpd.tpe(tree);
         let from = self.zonk(from);
         if let Goal::Conform(pt) = goal
@@ -32,10 +50,59 @@ impl Typer<'_> {
             return Ok(None);
         }
         self.implicit_budget = super::search::MAX_TRIES;
-        let mut groups = self.contextual_implicits(ctx)?;
-        let mut scope = self.implicit_scope(from);
+        let contextual = self.contextual_implicits(ctx, &mut |t, c| {
+            t.view_kind(c) != ViewKind::None
+                || matches!(goal, Goal::Member(name) if t.offers_extension(c, name).unwrap_or(false))
+        })?;
+        let levels = contextual.len();
+        let mut contextual = contextual.into_iter();
+        let constant = self.constant_of(tree).is_some();
+        for _ in 0..=levels {
+            let (mut group, containers) = match contextual.next() {
+                Some(group) => (group, Vec::new()),
+                None => self.view_scope(from, goal)?,
+            };
+            let found = self.fitting(&group, |t, c| t.try_conversion(c, (tree, false), goal, ctx))?;
+            let mut widened = Vec::new();
+            if constant {
+                widened = self.fitting(&group, |t, c| t.try_conversion(c, (tree, true), goal, ctx))?;
+                widened.retain(|c| !found.contains(c));
+            }
+            if let Goal::Member(name) = goal {
+                let extra: Vec<Candidate> = containers.into_iter().filter(|c| !group.contains(c)).collect();
+                group.extend(extra);
+                let converts = !found.is_empty() || !widened.is_empty();
+                if let Some(c) = self.extension_container(&group, tree, name, converts, ctx)? {
+                    return Ok(Some(Viewed::Extension(c)));
+                }
+            }
+            let ambiguous = "ambiguous implicit conversions";
+            let winner = match (&found[..], &widened[..]) {
+                ([], []) => continue,
+                ([c], _) | ([], [c]) => *c,
+                ([], _) => self.best_widened(&widened).ok_or(ambiguous)?,
+                _ => self.most_specific(&found, ctx).ok_or(ambiguous)?,
+            };
+            if found.contains(&winner) && !self.beats_widened(winner, &widened) {
+                return Err(ambiguous);
+            }
+            let converted = self.try_conversion(winner, (tree, widened.contains(&winner)), goal, ctx)?;
+            return Ok(Some(Viewed::Converted(converted)));
+        }
+        Ok(None)
+    }
+
+    /// The implicit scope of a view of `from` to `goal`, and the containers of extension methods
+    /// in that of `from`.
+    fn view_scope(
+        &mut self,
+        from: TypeId,
+        goal: Goal,
+    ) -> Result<(Vec<Candidate>, Vec<Candidate>), &'static str> {
+        let super::scope::ImplicitScope { implicits: mut scope, containers } =
+            self.implicit_scope_of(from)?;
         if let Goal::Conform(pt) = goal {
-            scope.extend(self.implicit_scope(pt));
+            scope.extend(self.implicit_scope(pt)?);
         }
         if let Goal::Member(name) = goal
             && scope.iter().any(|c| {
@@ -45,42 +112,7 @@ impl Typer<'_> {
         {
             return Err("extension method in the implicit scope");
         }
-        groups.push(scope);
-        for group in groups {
-            for &c in &group {
-                let method = self.u.symbol(c.sym).kind == Kind::Def;
-                if !method && !self.is_function_value(c) {
-                    continue;
-                }
-                if self.u.symbol(c.sym).flags.has(GIVEN) {
-                    return Err("given conversion");
-                }
-                if !method {
-                    return Err("implicit function value");
-                }
-            }
-            let found = self.fitting(&group, |t, c| t.try_conversion(c, tree, goal, ctx))?;
-            let winner = match found.as_slice() {
-                [] => continue,
-                [c] => *c,
-                _ => self.most_specific(&found).ok_or("ambiguous implicit conversions")?,
-            };
-            return self.try_conversion(winner, tree, goal, ctx).map(Some);
-        }
-        Ok(None)
-    }
-
-    /// Whether candidate value `c` is a function or a `Conversion`, which dotty applies as a view.
-    fn is_function_value(&mut self, c: Candidate) -> bool {
-        self.complete(c.sym);
-        let tpe = self.ref_type(c.prefix, c.sym);
-        let widened = self.u.widen(tpe);
-        self.u.class_symbol(widened).is_some_and(|k| {
-            let base = |t: &mut Self, name: &str| {
-                t.resolve_full_name(name, true).is_some_and(|b| t.u.derives_from(k, b))
-            };
-            base(self, "scala.Function1") || base(self, "scala.Conversion")
-        })
+        Ok((scope, containers))
     }
 
     /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no conversion
@@ -106,26 +138,30 @@ impl Typer<'_> {
         self.u.class_symbol(widened).is_some_and(|c| c == b.nothing || c == b.null)
     }
 
-    /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`.
+    /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`, constant `tree` converted to
+    /// the parameter type if `widen`.
     fn try_conversion(
         &mut self,
         c: Candidate,
-        tree: TNodeId,
+        (tree, widen): (TNodeId, bool),
         goal: Goal,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
+        let kind = self.view_kind(c);
+        if kind == ViewKind::None {
+            return Err("not a conversion");
+        }
         if self.implicit_budget == 0 {
             return Err("implicit search too costly");
         }
         self.implicit_budget -= 1;
-        if self.u.symbol(c.sym).kind != Kind::Def {
-            return Err("not a conversion");
-        }
-        self.complete(c.sym);
         let span = self.tpd.span(tree);
         let fun = self.candidate_ref(c, span.start_pos(), ctx)?;
         let from = self.constraint.count();
-        let fun = self.with_type_vars(fun)?;
+        let mut fun = self.with_type_vars(fun)?;
+        if kind == ViewKind::Value {
+            fun = self.conversion_apply(fun, tree, goal, ctx)?;
+        }
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
@@ -136,19 +172,15 @@ impl Typer<'_> {
             param = p;
         }
         let arg_tpe = self.tpd.tpe(tree);
-        if !self.conforms(arg_tpe, param) {
+        let arg = if self.conforms(arg_tpe, param) {
+            tree
+        } else if widen && self.widens_to(arg_tpe, param) {
+            self.converted_constant(tree, param).ok_or("conversion of another type")?
+        } else {
             return Err("conversion of another type");
-        }
-        let mut converted = self.build().apply(fun, &[tree], result, span.to_synthetic());
-        while let Type::Method { params, result, implicit: true, .. } =
-            self.u.types().get(self.tpd.tpe(converted)).clone()
-        {
-            let mut args = Vec::new();
-            for (_, p) in params {
-                args.push(self.implicit_arg(p, span.end_pos(), ctx, 1)?);
-            }
-            converted = self.build().apply(converted, &args, result, span.to_synthetic());
-        }
+        };
+        let converted = self.build().apply(fun, &[arg], result, span.to_synthetic());
+        let converted = self.with_implicit_args(converted, (span.end_pos(), span.to_synthetic()), ctx, 1)?;
         let result = self.tpd.tpe(converted);
         let pt = match goal {
             Goal::Conform(pt) if self.conforms(result, pt) => Pt::Type(pt),

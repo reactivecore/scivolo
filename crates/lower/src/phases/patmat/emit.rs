@@ -79,7 +79,7 @@ impl Translator<'_, '_> {
             Tree::Apply { fun, .. } => fun,
             _ => t,
         };
-        self.l.tpd.sym(fun) == Some(self.l.defs.patmat.throw)
+        self.l.tpd.sym(fun) == Some(self.l.defs.throw)
     }
 
     /// The condition of test `p`, at the tested pattern.
@@ -91,7 +91,7 @@ impl Translator<'_, '_> {
             Test::Type(tpt) => self.type_test(scrutinee, tpt),
             Test::NonNull => {
                 let null = self.l.null_literal(Span::NONE);
-                self.l.call(scrutinee, self.l.defs.patmat.ne, &[null])
+                self.l.call(scrutinee, self.l.defs.ne, &[null])
             }
             Test::NonEmpty => self.non_empty(scrutinee),
             Test::Length { len, exact } => self.length_test(scrutinee, len, exact),
@@ -101,7 +101,7 @@ impl Translator<'_, '_> {
 
     /// `a && b`.
     fn and(&mut self, a: TNodeId, b: TNodeId) -> TNodeId {
-        self.l.call(a, self.l.defs.patmat.and, &[b])
+        self.l.call(a, self.l.defs.and, &[b])
     }
 
     /// The definition of variable `sym` with its initializer, at the variable.
@@ -153,7 +153,7 @@ impl Translator<'_, '_> {
     }
 
     pub fn unit_type(&mut self) -> TypeId {
-        type_ref(self.l.u, self.l.defs.patmat.unit)
+        type_ref(self.l.u, self.l.defs.unit)
     }
 
     pub fn nothing_type(&mut self) -> TypeId {

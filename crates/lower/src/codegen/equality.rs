@@ -4,6 +4,7 @@
 use super::Gen;
 use super::branch::Part;
 use crate::Result;
+use crate::definitions::Equality;
 use crate::symbols::has;
 use nir::{Bin, Comp, Op, Type, Val, ValId};
 use std::cell::Cell;
@@ -33,23 +34,29 @@ impl<'l, 'a> Gen<'l, 'a> {
             let (l, r) = (self.gen_expr(left)?, self.gen_expr(right)?);
             return Ok(self.emit(Op::Comp { comp, ty: object, l, r }));
         }
-        Ok(if self.must_use_any_comparator(left, right) {
-            let eq = self.l.defs.equality;
+        let eq = self.l.equality()?;
+        Ok(if self.must_use_any_comparator(left, right, eq) {
             self.gen_apply_static(eq.equals, Some(eq.boxes_runtime), &[left, right], span)?
         } else if self.is_non_null(left) {
             let l = self.gen_expr(left)?;
-            let args = self.gen_args(self.l.defs.equality.any_equals, &[right], span)?;
-            self.call_method(self.l.defs.equality.any_equals, false, l, args)
+            let args = self.gen_args(eq.any_equals, &[right], span)?;
+            self.call_method(eq.any_equals, false, l, args)
         } else {
-            self.gen_null_checked_equals(left, right, span)?
+            self.gen_null_checked_equals(left, right, eq.any_equals, span)?
         })
     }
 
-    /// `if (left eq null) right eq null else left.equals(right)`.
-    fn gen_null_checked_equals(&mut self, left: TNodeId, right: TNodeId, span: Span) -> Result<ValId> {
+    /// `if (left eq null) right eq null else left.equals(right)`, calling `Any.equals` as
+    /// `any_equals`.
+    fn gen_null_checked_equals(
+        &mut self,
+        left: TNodeId,
+        right: TNodeId,
+        any_equals: SymbolId,
+        span: Span,
+    ) -> Result<ValId> {
         let object = self.class_ref(self.l.defs.object);
         let bool = self.ty(Type::Bool);
-        let any_equals = self.l.defs.equality.any_equals;
         let l = Cell::new(None);
         let l = &l;
         let parts: [Part<'_, 'l, 'a>; 3] = [
@@ -84,7 +91,7 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     /// `##` of `arg`: `Statics.anyHash(arg)`.
     pub fn gen_hash_code(&mut self, arg: TNodeId, span: Span) -> Result<ValId> {
-        let eq = self.l.defs.equality;
+        let eq = self.l.equality()?;
         self.gen_apply_static(eq.any_hash, Some(eq.statics), &[arg], span)
     }
 
@@ -104,21 +111,20 @@ impl<'l, 'a> Gen<'l, 'a> {
 
     /// Whether either side may be a boxed number, character or boolean at run time, unless both
     /// are of the same final class.
-    fn must_use_any_comparator(&mut self, left: TNodeId, right: TNodeId) -> bool {
+    fn must_use_any_comparator(&mut self, left: TNodeId, right: TNodeId, eq: Equality) -> bool {
         let same_type = self.l.tpd.tpe(left) == self.l.tpd.tpe(right);
         let same_finals = same_type && self.type_class(left).is_some_and(|c| has(self.l.u, c, FINAL));
-        !same_finals && self.is_maybe_boxed(left) && self.is_maybe_boxed(right)
+        !same_finals && self.is_maybe_boxed(left, eq) && self.is_maybe_boxed(right, eq)
     }
 
     /// Whether `t` erases to `Object`, `Serializable` or `Comparable`, or to a subclass of
     /// `Number`, `Character` or `Boolean`.
-    fn is_maybe_boxed(&mut self, t: TNodeId) -> bool {
+    fn is_maybe_boxed(&mut self, t: TNodeId, eq: Equality) -> bool {
         let erased = self.gen_type(self.l.tpd.tpe(t));
         if erased == self.class_ref(self.l.defs.object) {
             return true;
         }
         let Some(c) = self.type_class(t) else { return false };
-        let eq = self.l.defs.equality;
         let bases = [eq.number, eq.character, eq.boolean];
         [eq.serializable, eq.comparable].contains(&c)
             || bases.into_iter().any(|b| self.l.u.derives_from(c, b))

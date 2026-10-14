@@ -47,7 +47,7 @@ impl Builtins {
 /// A symbol of `kind` without TASTy, flagged with the modifier tags `flags`.
 pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flags: &[u8]) -> SymbolId {
     let flags = flags.iter().fold(Flags::default(), |f, &t| f.with(t));
-    u.add(Symbol {
+    u.define(Symbol {
         name: name.into(),
         kind,
         owner: Some(owner),

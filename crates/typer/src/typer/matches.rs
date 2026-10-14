@@ -3,11 +3,9 @@
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::flags;
-use syntax::ast::modifiers::Modifiers;
 use syntax::ast::tree::MatchKind;
-use syntax::ast::{Attrs, List, NodeId, Span, TName, Tree};
-use tasty::{NOTHING, Type, TypeId};
+use syntax::ast::{Attrs, List, NodeId, Tree};
+use tasty::{NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_match(
@@ -59,9 +57,10 @@ impl Typer<'_> {
         }
         let tpe = bodies.iter().fold(NOTHING, |acc, &b| self.u.lub(acc, b));
         let attrs = self.ast.attrs(selector);
-        let sel = if attrs.contains(Attrs::CHECK_PAT_DEF) || attrs.contains(Attrs::CHECK_GEN_FROM) {
+        let pat_def = attrs.contains(Attrs::CHECK_PAT_DEF);
+        let sel = if pat_def || attrs.contains(Attrs::CHECK_GEN_FROM) {
             let T::CaseDef { pat, .. } = *self.tpd.tree(typed_cases[0]) else { unreachable!("a case") };
-            match self.runtime_checked(sel, pat, sel_tpe) {
+            match self.runtime_checked(sel, pat, pat_def) {
                 Ok(sel) => sel,
                 Err(what) => return self.unsupported(id, what),
             }
@@ -71,76 +70,6 @@ impl Typer<'_> {
         let cases = self.tpd.list(&typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Match { selector: Some(sel), cases, kind }, span, Some(tpe), None)
-    }
-
-    /// `{ cases }` as `x$1 => x$1 match { cases }` (dotty's `makeCaseLambda`).
-    fn typed_case_lambda(&mut self, id: NodeId, cases: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let items = self.ast.items(cases).to_vec();
-        let (Some(&first), Some(&last)) = (items.first(), items.last()) else {
-            return self.unsupported(id, "case lambda without cases");
-        };
-        let (start, end) = (self.ast.span(first).start(), self.ast.span(last).end());
-        let at = Span::synthetic(start, start);
-        let name = TName { name: self.name("x$1"), is_type: false };
-        let tpt = self.ast.node(Tree::TypeTree);
-        let mods = self.ast.mods(Modifiers::with_flags(flags::SYNTHETIC_TERM_PARAM));
-        let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
-        self.ast.with_span(param, at);
-        let selector = self.ast.node(Tree::Ident { name });
-        self.ast.with_span(selector, at);
-        let body = self.ast.node(Tree::Match { selector: Some(selector), cases, kind: MatchKind::Plain });
-        self.ast.with_span(body, Span::synthetic(start, end));
-        let args = self.ast.list(&[param]);
-        self.typed_function(id, args, body, pt, ctx)
-    }
-
-    /// Selector `sel` of type `sel_tpe` of a pattern definition or generator with pattern `pat`,
-    /// ascribed `@RuntimeChecked`; `Err` unless `pat` is irrefutable (dotty's `checkIrrefutable`).
-    fn runtime_checked(
-        &mut self,
-        sel: TNodeId,
-        pat: TNodeId,
-        sel_tpe: TypeId,
-    ) -> Result<TNodeId, &'static str> {
-        if matches!(self.u.types().get(sel_tpe), Type::Annotated(..)) {
-            return Err("annotated selector of a pattern definition");
-        }
-        if !self.is_irrefutable(pat, Some(sel_tpe)) {
-            return Err("refutable pattern definition");
-        }
-        let annot = self.resolve_full_name("scala.annotation.internal.RuntimeChecked", true);
-        let annot = annot.ok_or("RuntimeChecked missing from the library")?;
-        let annot = crate::defn::type_ref(self.u, annot);
-        let widened = self.u.widen(sel_tpe);
-        let tpe = self.u.intern_type(Type::Annotated(widened, annot));
-        let span = self.tpd.span(sel);
-        let tpt = self.type_tree(tpe, span.end_pos(), true);
-        Ok(self.tpd.node(T::Typed { expr: sel, tpt }, span.to_synthetic(), Some(tpe), None))
-    }
-
-    /// Whether typed pattern `pat` matches every value of type `sel`: a variable or wildcard, a
-    /// type pattern `sel` conforms to, or a case class extractor of irrefutable patterns; type
-    /// patterns only where `sel` is known.
-    fn is_irrefutable(&mut self, pat: TNodeId, sel: Option<TypeId>) -> bool {
-        match *self.tpd.tree(pat) {
-            T::Bind { body, .. } => self.is_irrefutable(body, sel),
-            T::Ident { name } => self.text(name.name) == "_",
-            T::Typed { expr, tpt } => {
-                let tpe = self.tpd.tpe(tpt);
-                sel.is_some_and(|s| self.u.is_subtype(s, tpe)) && self.is_irrefutable(expr, Some(tpe))
-            }
-            T::UnApply { fun, patterns, .. } => {
-                let mut callee = fun;
-                while let T::TypeApply { fun, .. } = *self.tpd.tree(callee) {
-                    callee = fun;
-                }
-                let synthetic =
-                    self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::SYNTHETIC));
-                let pats = self.tpd.items(patterns).to_vec();
-                synthetic && pats.iter().all(|&p| self.is_irrefutable(p, None))
-            }
-            _ => false,
-        }
     }
 
     /// Case `id` of a match on a value of type `selector`, its body expected to be `pt`; a body
@@ -155,8 +84,13 @@ impl Typer<'_> {
         let boolean = self.boolean();
         let guard = guard.map(|g| self.typed(g, Pt::Type(boolean), cctx));
         let typed_body = self.typed(body, pt, cctx);
-        let locals = self.levels.scope_symbols(level);
-        let Some(body) = self.no_local_refs(typed_body, &locals, pt) else {
+        let mut locals = self.levels.scope_symbols(level);
+        let mut types = Vec::new();
+        self.pattern_types(pat, &mut types);
+        locals.extend(types.iter().filter(|t| !locals.contains(t)).copied().collect::<Vec<_>>());
+        let unconstrained = self.is_top(selector);
+        let (bounded, opaque): (&[_], &[_]) = if unconstrained { (&types, &[]) } else { (&[], &types) };
+        let Some(body) = self.no_local_refs(typed_body, &locals, [bounded, opaque], pt) else {
             return self.unsupported(id, "case type with pattern variables");
         };
         let span = self.ast.span(id);
@@ -177,6 +111,28 @@ impl Typer<'_> {
         let trees = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
+    }
+
+    /// The types bound in pattern `t`, appended to `out`.
+    fn pattern_types(&self, t: TNodeId, out: &mut Vec<SymbolId>) {
+        if let T::Bind { .. } = self.tpd.tree(t)
+            && let Some(s) = self.tpd.sym(t)
+            && self.u.is_type_symbol(s)
+        {
+            out.push(s);
+        }
+        for c in self.tpd.children(t) {
+            self.pattern_types(c, out);
+        }
+    }
+
+    /// Whether `t` is `Any`, `Matchable` or `AnyRef`, against which a pattern's type constrains
+    /// none of its bound types.
+    fn is_top(&mut self, t: TypeId) -> bool {
+        let t = self.u.dealias(t);
+        let b = self.u.builtins();
+        let tops = [b.any, b.matchable, b.object];
+        matches!(*self.u.types().get(t), Type::Sym(_, s) if tops.contains(&s))
     }
 
     /// Whether pattern `t` or a pattern inside it binds a variable.

@@ -129,9 +129,14 @@ fn add_call(called: &mut Vec<(usize, Vec<Callee>)>, caller: usize, callee: Calle
 }
 
 /// Marks local value `s` free in function `i` and the functions it is in, up to the one defining
-/// `s`, outermost first; whether that added any.
+/// `s` or the value `s` is in, outermost first; whether that added any.
 fn mark_free(l: &Lower, functions: &mut [Function], order: &mut Vec<usize>, s: SymbolId, i: usize) -> bool {
-    let owner = l.u.symbol(s).owner;
+    let mut owner = l.u.symbol(s).owner;
+    while let Some(o) =
+        owner.filter(|&o| l.u.symbol(o).kind == Kind::Val && functions.iter().all(|f| f.sym != o))
+    {
+        owner = l.u.symbol(o).owner;
+    }
     let mut chain = Vec::new();
     let mut k = Some(i);
     while let Some(j) = k.filter(|&j| Some(functions[j].sym) != owner) {

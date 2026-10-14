@@ -41,8 +41,7 @@ fn contains_outer_refs(l: &mut Lower, class: SymbolId, t: TNodeId) -> bool {
 
 /// Whether `fun` is `isInstanceOf` or `$isInstanceOf`.
 fn is_type_test(l: &Lower, fun: TNodeId) -> bool {
-    let p = l.defs.patmat;
-    l.tpd.sym(fun).is_some_and(|s| s == p.is_instance_of || s == p.type_test)
+    l.tpd.sym(fun).is_some_and(|s| s == l.defs.is_instance_of || s == l.defs.type_test)
 }
 
 /// Whether `s` is a class properly enclosing `class` that is not a static owner.

@@ -2,11 +2,28 @@
 //! prefix's base type, applied type lambdas reduced, capture annotations dropped.
 
 use super::Typer;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The type of the method `fun_tpe` refers to, as seen from its prefix.
+    /// The type of the method `fun_tpe` refers to, as seen from its prefix; remembered unless the
+    /// universe changes, finding it reports a construct or makes a binder.
     pub fn method_info(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
+        let stamp = |t: &Self| (t.u.generation(), t.u.binders_made(), t.reports);
+        let before = stamp(self);
+        if self.method_infos.0 != before.0 {
+            self.method_infos = (before.0, Default::default());
+        }
+        if let Some(&info) = self.method_infos.1.get(&fun_tpe) {
+            return info;
+        }
+        let info = self.method_info_found(fun_tpe);
+        if stamp(self) == before {
+            self.method_infos.1.insert(fun_tpe, info);
+        }
+        info
+    }
+
+    fn method_info_found(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
         let Type::Sym(prefix, s) = self.u.types().get(fun_tpe).clone() else { return None };
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));
@@ -84,7 +101,7 @@ pub fn resolve_class_params(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 /// annotations dropped, as `Typer::normalized`.
 pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     let retains = |u: &mut tasty::Universe, a| {
-        u.class_symbol(a).is_some_and(|c| u.full_name(c).starts_with("scala.annotation.retains"))
+        u.class_symbol(a).is_some_and(|c| member_of(u, c, "scala.annotation", |n| n.starts_with("retains")))
     };
     let mut again = false;
     let out = u.map_type(t, &mut |u, part| {
@@ -96,10 +113,10 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
         let Type::Applied(tycon, args) = u.types().get(part).clone() else { return None };
         let alias = match u.types().get(tycon).clone() {
             Type::Sym(_, s) => Some(s),
-            Type::TypeRef(p, n) => u.resolve(p, &n, true),
+            Type::TypeRef(..) => u.resolve_ref(tycon),
             _ => None,
         };
-        let impure = alias.is_some_and(|s| u.full_name(s).starts_with("scala.Impure"));
+        let impure = alias.is_some_and(|s| member_of(u, s, "scala", |n| n.starts_with("Impure")));
         let lambda = match alias {
             Some(s) if impure => {
                 let mut annotated = false;
@@ -156,12 +173,17 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     if again { normalized(u, out) } else { out }
 }
 
+/// Whether `s` is a member of package `pkg` whose name `name` accepts.
+fn member_of(u: &tasty::Universe, s: SymbolId, pkg: &str, name: impl Fn(&str) -> bool) -> bool {
+    name(&u.symbol(s).name) && u.symbol(s).owner.is_some_and(|o| u.package(pkg) == Some(o))
+}
+
 fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| match *u.types().get(part) {
         Type::Annotated(inner, annot) => {
             let class = u.class_symbol(annot);
             class
-                .is_some_and(|c| u.full_name(c) == "scala.annotation.unchecked.uncheckedVariance")
+                .is_some_and(|c| member_of(u, c, "scala.annotation.unchecked", |n| n == "uncheckedVariance"))
                 .then(|| simplify(u, inner))
         }
         Type::Or(a, b, soft) => {

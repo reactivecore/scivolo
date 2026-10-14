@@ -29,32 +29,36 @@ impl BodyInfo {
 impl Universe {
     /// The spans and signatures of loaded file `file`.
     pub fn body_info(&mut self, file: FileId) -> Result<&BodyInfo, Error> {
-        let i = file.0 as usize;
-        if self.files[i].body_info.is_none() {
-            let path = self.files[i].path.clone();
-            let bytes = self.library.read(&path).map_err(|e| Error::Io(path.clone(), e))?;
-            let corrupt = |e| Error::Corrupt(path.clone(), e);
-            let tasty = Tasty::parse(&bytes).map_err(corrupt)?;
-            let spans = match tasty.section("Positions") {
-                Some(s) => decode_positions(s.bytes).map_err(corrupt)?,
-                None => FxHashMap::default(),
-            };
-            let signatures = tasty
-                .names
-                .iter()
-                .filter_map(|(r, n)| match n {
-                    Name::Signed { params, .. } => {
-                        let shown = params.iter().map(|p| match p {
-                            ParamSig::TypeParams(n) => n.to_string(),
-                            ParamSig::Term(t) => tasty.names.show(*t),
-                        });
-                        Some((r.0, shown.collect()))
-                    }
-                    _ => None,
-                })
-                .collect();
-            self.files[i].body_info = Some(BodyInfo { spans, signatures });
+        let loaded = &mut self.files[file.0 as usize];
+        if loaded.body_info.is_none() {
+            let info = BodyInfo::decode(&loaded.bytes).map_err(|e| Error::Corrupt(loaded.path.clone(), e))?;
+            loaded.body_info = Some(info);
         }
-        Ok(self.files[i].body_info.as_ref().expect("decoded"))
+        Ok(loaded.body_info.as_ref().expect("decoded"))
+    }
+}
+
+impl BodyInfo {
+    fn decode(bytes: &[u8]) -> crate::Result<BodyInfo> {
+        let tasty = Tasty::parse(bytes)?;
+        let spans = match tasty.section("Positions") {
+            Some(s) => decode_positions(s.bytes)?,
+            None => FxHashMap::default(),
+        };
+        let signatures = tasty
+            .names
+            .iter()
+            .filter_map(|(r, n)| match n {
+                Name::Signed { params, .. } => {
+                    let shown = params.iter().map(|p| match p {
+                        ParamSig::TypeParams(n) => n.to_string(),
+                        ParamSig::Term(t) => tasty.names.show(*t),
+                    });
+                    Some((r.0, shown.collect()))
+                }
+                _ => None,
+            })
+            .collect();
+        Ok(BodyInfo { spans, signatures })
     }
 }

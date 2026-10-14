@@ -1,5 +1,5 @@
 use std::path::Path;
-use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{Binder, Erased, FileId, Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
 fn stdlib() -> Option<Universe> {
     let jar = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs/scala-library-3.9.0.jar");
@@ -72,4 +72,48 @@ fn script_classes_extend_library_classes() {
     let flags = Flags::default().with(tasty::tags::FINAL);
     u.set_flags(shape, flags);
     assert!(u.symbol(shape).flags.has(tasty::tags::FINAL));
+}
+
+#[test]
+fn erased_methods_follow_changed_infos() {
+    let mut u = Universe::empty();
+    let root = u.root();
+    let c = u.define(symbol("C", Kind::Class, root));
+    let m = u.define(symbol("m", Kind::Def, c));
+    let generation = u.generation();
+    u.set_info(m, tasty::ANY);
+    assert_eq!(u.generation(), generation);
+    assert_eq!(u.erased_method(m).1, Erased::Class("java.lang.Object".into()));
+    u.set_info(m, tasty::NOTHING);
+    assert_ne!(u.generation(), generation);
+    assert_eq!(u.erased_method(m).1, Erased::Nothing);
+    let d = u.define(symbol("D", Kind::Class, root));
+    let n = u.define(symbol("n", Kind::Def, c));
+    let d_t = sym_type(&mut u, d);
+    u.set_info(n, d_t);
+    assert_eq!(u.erased_method(n).1, Erased::Class("D".into()));
+    u.rename(d, "E");
+    assert_eq!(u.erased_method(n).1, Erased::Class("E".into()));
+    assert!(u.decl(c, "k").unwrap().is_empty());
+    let generation = u.generation();
+    u.define(symbol("k", Kind::Def, c));
+    assert_ne!(u.generation(), generation);
+}
+
+#[test]
+fn renamed_and_unentered_members_resolve_no_more() {
+    let mut u = Universe::empty();
+    let root = u.root();
+    let c = u.define(symbol("C", Kind::Class, root));
+    let c_t = sym_type(&mut u, c);
+    let this = u.intern_type(Type::This(c_t));
+    let r = u.intern_type(Type::TypeRef(this, "T".into()));
+    let t = u.define(symbol("T", Kind::Type, c));
+    assert_eq!(u.resolve_ref(r), Some(t));
+    u.rename(t, "U");
+    assert_eq!(u.resolve_ref(r), None);
+    let t2 = u.define(symbol("T", Kind::Type, c));
+    assert_eq!(u.resolve_ref(r), Some(t2));
+    u.unenter(t2);
+    assert_eq!(u.resolve_ref(r), None);
 }

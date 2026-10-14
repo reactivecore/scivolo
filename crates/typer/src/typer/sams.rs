@@ -1,0 +1,146 @@
+//! Single abstract method types that function values also implement (dotty's `SAMType`).
+
+use super::Typer;
+use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
+use tasty::{Kind, SymbolId, Type, TypeId};
+
+/// A single abstract method type: the method's parameter and result types, and the base type of
+/// its class that a function value implementing it gets (dotty's `samParent`).
+pub struct Sam {
+    pub params: Vec<TypeId>,
+    pub result: TypeId,
+    pub parent: TypeId,
+}
+
+impl Typer<'_> {
+    /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
+    /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
+    /// single abstract method type outside the subset: of an abstract class, a trait with a class
+    /// parent, with type variables or method type parameters.
+    pub fn sam_parts(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
+        let t = self.zonk(t);
+        let dealiased = self.u.dealias(t);
+        let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
+        let Some(method) = self.sam_method(class) else { return Ok(None) };
+        if !self.u.symbol(class).flags.has(TRAIT) || !self.is_fully_defined(t) {
+            return Err("single abstract method type outside the subset");
+        }
+        let b = self.u.builtins();
+        let class_parent =
+            self.u.linearization(class).into_iter().any(|p| {
+                !self.u.symbol(p).flags.has(TRAIT) && p != b.object && p != b.any && p != b.matchable
+            });
+        let mut method_tparam = false;
+        self.u.map_type(t, &mut |u, part| {
+            if let Type::Sym(_, s) = *u.types().get(part) {
+                let owner = u.symbol(s).owner;
+                method_tparam |= u.symbol(s).kind == Kind::TypeParam
+                    && owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
+            }
+            None
+        });
+        if class_parent || method_tparam {
+            return Err("single abstract method type outside the subset");
+        }
+        let parent = self.u.base_type(t, class).ok_or("single abstract method type outside the subset")?;
+        let parent = self
+            .without_wildcard_args(parent, class, method)
+            .ok_or("single abstract method type of a wildcard argument outside the subset")?;
+        let info = self.u.member_info(parent, method);
+        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+            return Ok(None);
+        };
+        if params.len() != n || matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
+        {
+            return Ok(None);
+        }
+        Ok(Some(Sam { params: params.into_iter().map(|(_, p)| p).collect(), result, parent }))
+    }
+
+    /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower
+    /// bound where the type parameter is a parameter type of `method` and occurs nowhere else,
+    /// by their upper bound where it occurs at most as the result type (dotty's `samParent`);
+    /// `None` otherwise or if `method` is not declared in `c`.
+    fn without_wildcard_args(&mut self, parent: TypeId, c: SymbolId, method: SymbolId) -> Option<TypeId> {
+        let Type::Applied(tycon, args) = self.u.types().get(parent).clone() else { return Some(parent) };
+        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
+            return Some(parent);
+        }
+        if self.u.symbol(method).owner != Some(c) {
+            return None;
+        }
+        let tparams = self.u.type_params(c);
+        let info = self.u.info(method);
+        let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { return None };
+        let occurs = |t: &mut Self, ty: TypeId, p: SymbolId| {
+            let mut found = false;
+            t.u.map_type(ty, &mut |u, part| {
+                found |= matches!(*u.types().get(part), Type::Sym(_, s) if s == p);
+                None
+            });
+            found
+        };
+        let mut new_args = Vec::new();
+        for (i, &a) in args.iter().enumerate() {
+            let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
+                new_args.push(a);
+                continue;
+            };
+            let p = tparams.get(i).copied()?;
+            let is_p = |t: &Self, ty: TypeId| matches!(*t.u.types().get(ty), Type::Sym(_, s) if s == p);
+            let direct = params.iter().any(|&(_, pt)| is_p(self, pt));
+            let nested = params.iter().any(|&(_, pt)| !is_p(self, pt) && occurs(self, pt, p));
+            let in_result = occurs(self, result, p);
+            let result_nested = in_result && !is_p(self, result);
+            new_args.push(match (direct, nested || result_nested, in_result) {
+                (true, false, false) => lo,
+                (false, false, _) => hi,
+                _ => return None,
+            });
+        }
+        Some(self.u.intern_type(Type::Applied(tycon, new_args)))
+    }
+
+    /// The single abstract method of class `c`, a trait or abstract class neither final nor
+    /// sealed.
+    pub fn sam_method(&mut self, c: SymbolId) -> Option<SymbolId> {
+        let flags = self.u.symbol(c).flags;
+        if !(flags.has(TRAIT) || flags.has(ABSTRACT)) || flags.has(FINAL) || flags.has(SEALED) {
+            return None;
+        }
+        let [method] = self.abstract_methods(c)[..] else { return None };
+        Some(method)
+    }
+
+    /// The abstract term members of class `c` that do not match members of `Object` (dotty's
+    /// `possibleSamMethods`).
+    fn abstract_methods(&mut self, c: SymbolId) -> Vec<SymbolId> {
+        let mut names: Vec<String> = Vec::new();
+        for base in self.u.linearization(c) {
+            self.complete(base);
+            for d in self.u.decls(base).unwrap_or_default() {
+                let s = self.u.symbol(d);
+                if matches!(s.kind, Kind::Def | Kind::Val) && s.name != "<init>" && !names.contains(&s.name) {
+                    names.push(s.name.clone());
+                }
+            }
+        }
+        let object = self.u.builtins().object;
+        let any = self.u.builtins().any;
+        let site = crate::defn::type_ref(self.u, c);
+        let mut out = Vec::new();
+        for name in names {
+            for m in self.class_members(c, &name) {
+                if self.is_concrete(m) || self.u.is_type_symbol(m) {
+                    continue;
+                }
+                let mut in_object = self.class_members(object, &name);
+                in_object.extend(self.class_members(any, &name));
+                if !in_object.into_iter().any(|o| self.same_member(site, o, m)) {
+                    out.push(m);
+                }
+            }
+        }
+        out
+    }
+}

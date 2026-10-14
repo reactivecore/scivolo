@@ -30,10 +30,7 @@ impl Typer<'_> {
             let sym = self.tpd.sym(s);
             match *self.tpd.tree(s) {
                 T::DefDef { .. } => {
-                    let annots = sym.and_then(|s| self.syms.annotations.get(&s));
-                    if let Some(&(_, span)) =
-                        annots.into_iter().flatten().find(|(c, _)| *c == self.defn.main_annot)
-                    {
+                    if let Some(&span) = sym.and_then(|s| self.syms.main_annotations.get(&s)) {
                         out.push((sym.expect("a method"), span));
                     }
                 }
@@ -76,7 +73,8 @@ impl Typer<'_> {
     }
 
     fn command_line_parser_member(&mut self, name: &str, kind: Kind) -> Option<SymbolId> {
-        let class = self.u.module_class(self.defn.command_line_parser)?;
+        let module = self.defn.command_line_parser(self.u).ok()?;
+        let class = self.u.module_class(module)?;
         self.u.member(class, name).into_iter().find(|&s| self.u.symbol(s).kind == kind)
     }
 
@@ -138,8 +136,12 @@ impl Typer<'_> {
         let handler = self.ast.node(Tree::CaseDef { pat, guard: None, body: handler_body });
         let cases = self.ast.list(&[handler]);
         let body = self.ast.node(Tree::Try { expr: call, cases, finalizer: None });
+        let Ok(array) = self.defn.array(self.u) else {
+            self.unsupported_at(annot_span, "scala.Array missing from the library");
+            return None;
+        };
         let string = type_ref(self.u, self.defn.string);
-        let array_of_string = applied(self.u, self.defn.array, vec![string]);
+        let array_of_string = applied(self.u, array, vec![string]);
         let args_tpt = self.splice_type(array_of_string);
         let args_name = TName { name: self.name("args"), is_type: false };
         let arg_mods = self.ast.mods(Modifiers::with_flags(f::TERM_PARAM));

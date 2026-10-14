@@ -65,14 +65,14 @@ impl Universe {
     pub fn erase(&mut self, t: TypeId) -> Erased {
         match self.types().get(t).clone() {
             Type::Sym(_, s) => self.erase_symbol(s),
-            Type::TypeRef(p, n) => match self.resolve(p, &n, true) {
+            Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
                 None => match self.unresolved_class(p, &n) {
                     Some(full) => special(&full).unwrap_or(Erased::Class(full)),
                     None => object(),
                 },
             },
-            Type::TermRef(p, n) => match self.resolve(p, &n, false) {
+            Type::TermRef(..) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
                 None => object(),
             },
@@ -136,7 +136,7 @@ impl Universe {
         if self.symbol(c).flags.has(TRAIT) {
             return None;
         }
-        let any_val = self.package("scala").and_then(|p| self.decl(p, "AnyVal").ok()?.into_iter().next())?;
+        let any_val = self.builtins().any_val?;
         if !self.parents(c).into_iter().any(|p| self.class_symbol(p) == Some(any_val)) {
             return None;
         }
@@ -183,7 +183,7 @@ impl Universe {
     fn class_name(&mut self, t: TypeId) -> Option<String> {
         match self.types().get(t).clone() {
             Type::Sym(_, s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
-            Type::TypeRef(p, n) => match self.resolve(p, &n, true) {
+            Type::TypeRef(p, n) => match self.resolve_ref(t) {
                 Some(s) if self.symbol(s).kind == Kind::Class => Some(self.full_name(s)),
                 Some(_) => None,
                 None => self.unresolved_class(p, &n),

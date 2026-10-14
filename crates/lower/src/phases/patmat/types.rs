@@ -4,8 +4,9 @@
 use super::Translator;
 use crate::phases::explicit_outer::{outer_accessor, outer_prefix};
 use crate::phases::lazy_trees::dup;
+use crate::phases::type_tests::singletons::is_instance;
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -21,15 +22,6 @@ impl Translator<'_, '_> {
         self.node(Tree::Typed { expr: bind, tpt }, typed_tpe, None)
     }
 
-    /// Whether `tpe` is the type of one value: a singleton or constant type.
-    pub fn is_singleton(&self, tpe: TypeId) -> bool {
-        match *self.l.u.types().get(tpe) {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) => true,
-            Type::Sym(_, s) => matches!(self.l.u.symbol(s).kind, Kind::Val | Kind::Param),
-            _ => false,
-        }
-    }
-
     /// `value.asInstanceOf[target]`.
     pub fn cast(&mut self, value: TNodeId, target: TypeId) -> TNodeId {
         self.type_apply(value, self.l.defs.as_instance_of, target, target)
@@ -40,8 +32,13 @@ impl Translator<'_, '_> {
     /// (dotty's `addOuterTest`).
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
+        let dealiased = self.l.u.dealias(target);
+        let written = self.written_value(tpt);
+        if let Some(test) = is_instance(self.l, scrutinee, dealiased, written) {
+            return test;
+        }
         let boolean = self.l.u.class_ref("scala.Boolean");
-        let test = self.type_apply(scrutinee, self.l.defs.patmat.type_test, target, boolean);
+        let test = self.type_apply(scrutinee, self.l.defs.type_test, target, boolean);
         let Some(pre) = outer_prefix(self.l, target) else { return test };
         let class = self.l.u.class_symbol(target).expect("a class type");
         let accessor = outer_accessor(self.l, class);
@@ -56,8 +53,22 @@ impl Translator<'_, '_> {
         let Type::This(c) = *self.l.u.types().get(pre) else { unreachable!("a `this` prefix") };
         let c = self.l.u.class_symbol(c).expect("a class");
         let expected = self.l.this(c, Span::NONE);
-        let eq = self.l.call(outer, self.l.defs.patmat.eq, &[expected]);
-        self.l.call(test, self.l.defs.patmat.and, &[eq])
+        let eq = self.l.call(outer, self.l.defs.eq, &[expected]);
+        self.l.call(test, self.l.defs.and, &[eq])
+    }
+
+    /// A copy without spans of the path singleton type tree `tpt` refers to, as the phases before
+    /// left it.
+    fn written_value(&mut self, tpt: TNodeId) -> Option<TNodeId> {
+        let Tree::SingletonTypeTree { reference } = *self.l.tpd.tree(tpt) else { return None };
+        let value = dup(self.l, reference);
+        let mut part = value;
+        loop {
+            self.l.tpd.get_mut(part).span = Span::NONE;
+            let Tree::Select { qualifier, .. } = *self.l.tpd.tree(part) else { break };
+            part = qualifier;
+        }
+        Some(value)
     }
 
     /// `qual.m[target]` of type `tpe`.

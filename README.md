@@ -131,7 +131,7 @@ stderr; later runs of that result print `scalai: FILE: compiled by scala-cli (re
 keyed by the file's path and content, the frontend mode and the `scalai` build; later runs
 compile nothing. Files it pulls in with `//> using file` and changed
 dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
-days are removed when the next one is built.
+days are removed when the next one is built, compiled scripts at most hourly.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
 `SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
@@ -157,7 +157,7 @@ Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
 
 ```
 ROADMAP.md          phases, milestones, next steps, open decisions
-docs/research/      three research reports
+docs/research/      numbered research reports
 docs/adr/           architectural decisions
 spikes/NN-*/        throwaway experiments, each with README.md
 CLAUDE.md           project rules (Rust style from rcui)

@@ -125,7 +125,7 @@ impl Translator<'_, '_> {
         let decls = self.l.u.decl(class, "toInt").unwrap_or_default();
         let to_int = decls.into_iter().find(|&d| self.l.u.symbol(d).kind == Kind::Def).expect("`toInt`");
         let select = self.l.select(t, to_int, Span::NONE);
-        let int = crate::definitions::type_ref(self.l.u, self.l.defs.patmat.int);
+        let int = crate::definitions::type_ref(self.l.u, self.defs.int);
         self.l.tpd.get_mut(select).tpe = Some(int);
         self.l.positioned(select)
     }

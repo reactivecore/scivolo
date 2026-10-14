@@ -1,18 +1,51 @@
-//! Plans of sequence patterns (dotty's `unapplySeqPlan`, `matchElemsPlan`): a length test, the
-//! elements selected by `apply(i)` matched against the element patterns, a vararg pattern
-//! matched against `drop(n)`, or `toSeq` if it comes first.
+//! Plans of sequence patterns (dotty's `unapplySeqPlan`, `matchElemsPlan`,
+//! `unapplyProductSeqPlan`): a length test, the elements selected by `apply(i)` matched against
+//! the element patterns, a vararg pattern matched against `drop(n)`, or `toSeq` if it comes first;
+//! the product selectors before a sequence matched first.
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};
+use super::seq_members::SeqMembers;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
-    /// Whether `tpe` has the members a sequence match selects (dotty's `unapplySeqTypeElemTp`).
-    pub fn is_sequence(&mut self, tpe: TypeId) -> bool {
-        ["lengthCompare", "apply", "drop", "toSeq"].iter().all(|m| self.method_named(tpe, m).is_some())
+    /// The number of product selectors of `tpe` if they are at most `n + 1` and the last is a
+    /// sequence (dotty's `isProductSeqMatch`).
+    pub fn product_seq_arity(&mut self, tpe: TypeId, n: usize) -> Result<Option<usize>> {
+        let selectors = self.product_selectors(tpe, true)?;
+        let Some(&last) = selectors.last() else { return Ok(None) };
+        let info = self.l.u.member_info(tpe, last);
+        let last = match self.l.u.types().get(info).clone() {
+            Type::Method { params, result, .. } if params.is_empty() => result,
+            Type::ByName(result) => result,
+            _ => info,
+        };
+        Ok((selectors.len() <= n + 1 && self.is_sequence(last)).then_some(selectors.len()))
+    }
+
+    /// The plan matching the first `arity - 1` product selectors of `result` against as many of
+    /// `args`, then its last, a sequence, against the others (dotty's `unapplyProductSeqPlan`).
+    pub fn unapply_product_seq_plan(
+        &mut self,
+        result: SymbolId,
+        args: &[TNodeId],
+        arity: usize,
+        on_success: PlanId,
+    ) -> Result<PlanId> {
+        let tpe = self.l.u.info(result);
+        let mut selectors: Vec<TNodeId> = (self.product_selectors(tpe, false)?.into_iter())
+            .map(|s| {
+                let value = self.l.ident(result, Span::NONE);
+                self.select_member(value, s)
+            })
+            .collect();
+        let last = selectors.pop().expect("a sequence selector");
+        let (leading, rest) = args.split_at(arity - 1);
+        let match_seq = self.let_abstract(last, None, |t, seq| t.unapply_seq_plan(seq, rest, on_success))?;
+        self.match_args_plan(&selectors[..arity - 1], leading, match_seq)
     }
 
     /// The plan matching sequence `seq` against element patterns `args`, then `on_success`.
@@ -22,6 +55,10 @@ impl Translator<'_, '_> {
         args: &[TNodeId],
         on_success: PlanId,
     ) -> Result<PlanId> {
+        if !self.members_of(seq).int_length {
+            let span = self.spans.get(&seq).copied().unwrap_or(Span::NONE);
+            return unsupported(span, "sequence matches whose `lengthCompare` is no `Int`");
+        }
         let Some(i) = args.iter().position(|&a| self.var_arg(a).is_some()) else {
             let len = args.len() as i32;
             return self.match_elems_plan(seq, args, Test::Length { len, exact: true }, on_success);
@@ -31,14 +68,13 @@ impl Translator<'_, '_> {
         if rest.len() > 1 {
             return unsupported(self.l.tpd.span(rest[1]), "element patterns after a vararg pattern");
         }
+        let members = self.members_of(seq);
         let value = self.l.ident(seq, Span::NONE);
         let remaining = if leading.is_empty() {
-            let to_seq = self.method_of(seq, "toSeq");
-            self.call_member(value, to_seq, &[])
+            self.call_member(value, members.to_seq, &[])
         } else {
-            let drop = self.method_of(seq, "drop");
             let n = self.l.int_literal(leading.len() as i32);
-            self.call_member(value, drop, &[n])
+            self.call_member(value, members.drop, &[n])
         };
         let match_remaining =
             self.let_abstract(remaining, None, |t, rest| t.pattern_plan(rest, arg, on_success))?;
@@ -54,7 +90,7 @@ impl Translator<'_, '_> {
         length: Test,
         on_success: PlanId,
     ) -> Result<PlanId> {
-        let apply = self.method_of(seq, "apply");
+        let apply = self.members_of(seq).apply;
         let selectors: Vec<TNodeId> = (0..args.len())
             .map(|i| {
                 let value = self.l.ident(seq, Span::NONE);
@@ -81,16 +117,20 @@ impl Translator<'_, '_> {
         (self.l.u.full_name(class) == "scala.<repeated>").then_some(expr)
     }
 
-    /// `scrutinee.lengthCompare(len) == 0`, or `>= 0` unless `exact`.
+    /// `scrutinee.lengthCompare(len) == 0`, or `>= 0` unless `exact`; without `lengthCompare`,
+    /// `scrutinee.length == len` or `>= len`.
     pub fn length_test(&mut self, scrutinee: TNodeId, len: i32, exact: bool) -> TNodeId {
         let tpe = self.l.tpd.tpe(scrutinee);
-        let length_compare = self.method_named(tpe, "lengthCompare").expect("`lengthCompare`");
+        let length = self.seq_members(tpe).expect("a sequence").length;
         let len = self.l.int_literal(len);
-        let compared = self.call_member(scrutinee, length_compare, &[len]);
-        let zero = self.l.int_literal(0);
+        let (compared, operand) = if self.l.u.symbol(length).name == "lengthCompare" {
+            (self.call_member(scrutinee, length, &[len]), self.l.int_literal(0))
+        } else {
+            (self.call_member(scrutinee, length, &[]), len)
+        };
         let op = if exact { "==" } else { ">=" };
-        let op = self.l.operator(compared, op, zero).expect("an `Int` comparison");
-        self.l.call(compared, op, &[zero])
+        let op = self.l.operator(compared, op, operand).expect("an `Int` comparison");
+        self.l.call(compared, op, &[operand])
     }
 
     /// `qual.m(args)`, typed as `m`'s result is seen from `qual`'s type.
@@ -113,40 +153,9 @@ impl Translator<'_, '_> {
         self.l.positioned(apply)
     }
 
-    /// The method `name` of sequence `seq`, which `is_sequence` found.
-    fn method_of(&mut self, seq: SymbolId, name: &str) -> SymbolId {
+    /// The members of sequence `seq`, which `is_sequence` accepted.
+    fn members_of(&mut self, seq: SymbolId) -> SeqMembers {
         let tpe = self.l.u.info(seq);
-        self.method_named(tpe, name).expect("a sequence method")
-    }
-
-    /// The method named `name` of type `tpe`'s class or its bases taking one `Int`, or nothing
-    /// for `toSeq`.
-    fn method_named(&mut self, tpe: TypeId, name: &str) -> Option<SymbolId> {
-        let class = self.l.class_of(tpe)?;
-        let int = self.l.u.class_ref("scala.Int");
-        let int = self.l.u.class_symbol(int);
-        for base in self.l.u.linearization(class) {
-            for m in self.l.u.decl(base, name).unwrap_or_default() {
-                if self.l.u.symbol(m).kind != Kind::Def {
-                    continue;
-                }
-                let info = self.l.u.info(m);
-                let (params, result) = match self.l.u.types().get(info) {
-                    Type::Method { params, result, .. } => (params.clone(), *result),
-                    _ => (Vec::new(), info),
-                };
-                if matches!(self.l.u.types().get(result), Type::Method { .. }) {
-                    continue;
-                }
-                let fits = match name {
-                    "toSeq" => params.is_empty(),
-                    _ => params.len() == 1 && self.l.u.class_symbol(params[0].1) == int,
-                };
-                if fits {
-                    return Some(m);
-                }
-            }
-        }
-        None
+        self.seq_members(tpe).expect("a sequence")
     }
 }

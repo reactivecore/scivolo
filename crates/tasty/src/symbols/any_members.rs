@@ -10,6 +10,25 @@ use crate::{ANY, NOTHING};
 /// The members of `Object`'s TASTy that `Any` declares.
 const HIDDEN: [&str; 4] = ["equals", "hashCode", "toString", "getClass"];
 
+/// The members of `Any` that do not observe their arguments (dotty's `pureMethods`).
+const PURE_ANY_METHODS: [&str; 9] =
+    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf"];
+
+impl Universe {
+    /// Whether method `m` is known not to observe its arguments (dotty's `isKnownPureOp`): a
+    /// method of a primitive class or `String`, or one of `pureMethods`.
+    pub fn is_known_pure_op(&self, m: SymbolId) -> bool {
+        let Some(owner) = self.symbol(m).owner else { return false };
+        let name = self.symbol(m).name.as_str();
+        let full = self.full_name(owner);
+        let builtins = self.builtins();
+        crate::PRIMITIVE_VALUE_CLASSES.contains(&full.as_str())
+            || full == "java.lang.String"
+            || owner == builtins.any && PURE_ANY_METHODS.contains(&name)
+            || owner == builtins.object && matches!(name, "eq" | "ne")
+    }
+}
+
 /// Enters the members of `any` and `object`, and `String`'s `+`; `object`'s TASTy, if loaded,
 /// keeps its members but those `Any` declares.
 pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
@@ -41,10 +60,10 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
     let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
     u.set_flags(type_cast, u.symbol(type_cast).flags.with(ARTIFACT));
-    let hidden: Vec<SymbolId> = u.symbol(object).decls.clone();
-    let kept: Vec<SymbolId> =
-        hidden.into_iter().filter(|&d| !HIDDEN.contains(&u.symbol(d).name.as_str())).collect();
-    u.symbols[object.0 as usize].decls = kept;
+    let hidden: Vec<SymbolId> = (u.symbol(object).decls.iter().copied())
+        .filter(|&d| HIDDEN.contains(&u.symbol(d).name.as_str()))
+        .collect();
+    hidden.into_iter().for_each(|d| u.unenter(d));
     method(u, object, "eq", &[("x$0", object_type)], boolean, &[FINAL]);
     method(u, object, "ne", &[("x$0", object_type)], boolean, &[FINAL]);
     poly(u, object, "synchronized", any_bounds, |u, x0| {

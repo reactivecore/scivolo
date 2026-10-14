@@ -26,6 +26,13 @@ impl Typer<'_> {
         methods.into_iter().any(|m| self.declared_defaults(m, false).contains(&true))
     }
 
+    /// Whether parameter `idx` of method `s`, counted over all its clauses, has a default
+    /// argument, declared or inherited.
+    pub fn has_default_at(&mut self, s: SymbolId, idx: usize) -> bool {
+        let methods: Vec<SymbolId> = std::iter::once(s).chain(self.overridden(s)).collect();
+        methods.into_iter().any(|m| self.declared_defaults(m, false).get(idx) == Some(&true))
+    }
+
     /// The methods of base classes that method `s` overrides, not private, none for a constructor
     /// (dotty's `allOverriddenSymbols`).
     fn overridden(&mut self, s: SymbolId) -> Vec<SymbolId> {

@@ -9,12 +9,14 @@ use crate::ctx::Ctx;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::{Type, TypeId, TypeVars};
+use tasty::{Type, TypeId};
 
 /// How deep implicit arguments of implicit arguments may nest.
 const MAX_DEPTH: u32 = 6;
 /// How many candidates one search may try, nested searches included.
 pub const MAX_TRIES: u32 = 400;
+/// The refusal of a search whose winner among several leaves type variables to instantiate.
+const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
 const MISFITS: [&str; 7] = [
@@ -50,9 +52,21 @@ impl Typer<'_> {
         if depth == 0 {
             self.implicit_budget = MAX_TRIES;
         }
-        let mut groups = self.contextual_implicits(ctx)?;
-        groups.push(self.implicit_scope(pt));
-        for group in groups {
+        if let Some(negated) = self.not_given_arg(pt) {
+            return self.not_given(negated, at, ctx, depth);
+        }
+        if self.is_underspecified(pt) {
+            return Err("no implicit argument");
+        }
+        let coherent = self.class_args(pt, "scala.CanEqual").is_some();
+        let contextual = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
+        let levels = contextual.len();
+        let mut contextual = contextual.into_iter();
+        for _ in 0..=levels {
+            let group = match contextual.next() {
+                Some(group) => group,
+                None => self.implicit_scope(pt)?,
+            };
             let mut nested_failure = false;
             let found = self.fitting(&group, |t, c| {
                 let tried = t.try_implicit(c, pt, at, ctx, depth);
@@ -65,11 +79,16 @@ impl Typer<'_> {
                     return Err("implicit candidate rejected by a search with type variables");
                 }
                 [c] => *c,
-                _ if !self.is_fully_defined(pt) => {
-                    return Err("implicit search for a type with type variables");
-                }
-                _ => self.most_specific(&found).ok_or("ambiguous implicit arguments")?,
+                _ if coherent && !self.is_fully_defined(pt) => return Err(OPEN),
+                [c, ..] if coherent => *c,
+                _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
+            if found.len() > 1 && !self.is_fully_defined(pt) {
+                let tpe = self.alt_type(winner);
+                if matches!(self.u.types().get(tpe), Type::Poly { .. }) {
+                    return Err(OPEN);
+                }
+            }
             return self.try_implicit(winner, pt, at, ctx, depth);
         }
         match self.synthesized(pt, at, ctx, depth)? {
@@ -78,23 +97,35 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with its type variables whose bounds are equal instantiated to them.
-    fn determined(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                vars.push(v);
-            }
-            None
-        });
-        for v in vars {
-            let (lo, hi) = self.constraint.bounds(v);
-            if lo == hi && self.constraint.instance(v).is_none() {
-                self.constraint.instantiate(v, lo);
-            }
+    /// Whether an implicit argument of type `pt` exists at `at` in `ctx`, the constraint unchanged.
+    pub fn implicit_exists(
+        &mut self,
+        pt: TypeId,
+        at: Span,
+        ctx: Ctx,
+        depth: u32,
+    ) -> Result<bool, &'static str> {
+        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
+        let result = self.implicit_arg(pt, at, ctx, depth);
+        let clean = self.unsupported == unsupported;
+        self.constraint.abandon(before);
+        self.unsupported = unsupported;
+        match result {
+            _ if !clean => Err("nested implicit search outside the subset"),
+            Ok(_) => Ok(true),
+            Err(what) if is_misfit(what) => Ok(false),
+            Err(what) => Err(what),
         }
-        self.zonk(t)
+    }
+
+    /// The type arguments of `t` if it refers to class `name`.
+    pub fn class_args(&mut self, t: TypeId, name: &str) -> Option<Vec<TypeId>> {
+        let (tycon, args) = match self.u.types().get(t).clone() {
+            Type::Applied(tycon, args) => (tycon, args),
+            _ => (t, Vec::new()),
+        };
+        let class = self.u.class_symbol(tycon)?;
+        (self.u.full_name(class) == name).then_some(args)
     }
 
     /// The candidates of `group` that `attempt` accepts, each tried with the constraint and the
@@ -109,10 +140,10 @@ impl Typer<'_> {
             if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
                 return Err("implicit candidate whose definition is being completed");
             }
-            let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
+            let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
             let result = attempt(self, c);
             let clean = self.unsupported == unsupported;
-            self.constraint.rollback(mark);
+            self.constraint.abandon(before);
             self.unsupported = unsupported;
             if !clean {
                 return Err("implicit candidate outside the subset");
@@ -136,13 +167,12 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        if self.implicit_budget == 0 {
-            return Err("implicit search too costly");
-        }
-        self.implicit_budget -= 1;
         self.complete(c.sym);
+        if !self.is_implicit(c.sym) {
+            return Err("not an implicit value");
+        }
         let tree = self.candidate_ref(c, at, ctx)?;
-        let mut tree = self.with_type_vars(tree)?;
+        let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         let result = self.strip_implicit(info);
@@ -151,26 +181,16 @@ impl Typer<'_> {
         {
             return Err("implicit of another type");
         }
-        loop {
-            let t = self.tpd.tpe(tree);
-            let info = self.method_info(t).unwrap_or(t);
-            match self.u.types().get(info).clone() {
-                Type::Method { binder, params, result, implicit: true, .. } => {
-                    let mut args = Vec::new();
-                    for &(_, p) in &params {
-                        args.push(self.implicit_arg(p, at, ctx, depth + 1)?);
-                    }
-                    let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-                    let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                    let meth = self.tpd.sym(self.tpd.meth_part(tree));
-                    let result = self.applied_result(result, (binder, &names), meth, &arg_types);
-                    tree = self.build().apply(tree, &args, result, at);
-                }
-                Type::Method { .. } | Type::Poly { .. } => return Err("not an implicit value"),
-                _ => break,
-            }
+        if self.implicit_budget == 0 {
+            return Err("implicit search too costly");
         }
+        self.implicit_budget -= 1;
+        let tree = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         let t = self.tpd.tpe(tree);
+        let info = self.method_info(t).unwrap_or(t);
+        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
+            return Err("not an implicit value");
+        }
         if self.conforms(t, pt) { Ok(tree) } else { Err("implicit of another type") }
     }
 }

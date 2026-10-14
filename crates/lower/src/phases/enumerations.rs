@@ -55,7 +55,7 @@ fn named_value(
     let names = next_name_ref(l, class, next_name);
     let has_next = l.select(names, has_next, Span::NONE);
     let has_next = l.positioned(has_next);
-    let cond = call(l, not_null, l.defs.patmat.and, &[has_next]);
+    let cond = call(l, not_null, l.defs.and, &[has_next]);
     let names = next_name_ref(l, class, next_name);
     let thenp = call(l, names, next, &[]);
     let elsep = l.string_literal(default);

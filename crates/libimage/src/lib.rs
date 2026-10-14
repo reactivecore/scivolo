@@ -5,4 +5,4 @@ mod build;
 pub mod cache;
 mod image;
 
-pub use image::{Image, Source, Spec};
+pub use image::{Derived, Image, Source, Spec};

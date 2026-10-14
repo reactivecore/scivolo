@@ -14,6 +14,7 @@ pub use info::lub_of;
 pub use tree::{Clauses, Field, List, MatchKind, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};
 
+use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 
@@ -30,6 +31,7 @@ pub struct Tpd {
     nodes: Vec<Node>,
     lists: Vec<TNodeId>,
     clauses: Vec<List>,
+    trailing_maps: FxHashSet<TNodeId>,
 }
 
 impl Tpd {
@@ -90,5 +92,19 @@ impl Tpd {
 
     pub fn clause_items(&self, c: Clauses) -> &[List] {
         &self.clauses[c.range()]
+    }
+
+    /// Marks `id`, the `map` call a `for` ends in, as one returning its generator's pattern or
+    /// `()` (dotty's `TrailingForMap`).
+    pub fn mark_trailing_map(&mut self, id: TNodeId) {
+        self.trailing_maps.insert(id);
+    }
+
+    pub fn unmark_trailing_map(&mut self, id: TNodeId) {
+        self.trailing_maps.remove(&id);
+    }
+
+    pub fn is_trailing_map(&self, id: TNodeId) -> bool {
+        self.trailing_maps.contains(&id)
     }
 }

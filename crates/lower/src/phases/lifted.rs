@@ -5,9 +5,10 @@
 use super::closures::{Plan, plan, rewrite};
 use super::lambda_lift::Function;
 use super::lift_names::prefix;
+use super::local_free::top_level;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
 use tasty::tags::{PRIVATE, STATIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -27,7 +28,7 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         let name = l.u.symbol(f.sym).name.clone();
         let params: Vec<(String, TypeId)> =
             params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
-        let method = define(l, class, &name, &f.captured, &params, result, f.this);
+        let method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.this);
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
         }
@@ -37,6 +38,12 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         methods.push(method);
     }
     Ok(methods)
+}
+
+/// The class function `f` of `class` becomes a method of: `class` if it needs `this`, else its
+/// top-level class (dotty's `logicOwner`).
+pub fn home(l: &Lower, class: SymbolId, f: &Function) -> SymbolId {
+    if f.this { class } else { top_level(l, class) }
 }
 
 /// The indices of `functions`, each after the functions in it.
@@ -52,16 +59,24 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
     out
 }
 
-/// The parameters with their types and the result type of function `f`.
+/// The value parameters with their types and the result type of function `f`.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
-    let info = l.u.info(f.sym);
+    let info = value_info(l, f.sym);
     let result = match *l.u.types().get(info) {
         Type::Method { result, .. } | Type::ByName(result) => result,
-        Type::Poly { .. } => return unsupported(l.tpd.span(f.def), "local methods with type parameters"),
         _ => info,
     };
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
+}
+
+/// The type of local method `m` past its type parameters.
+pub fn value_info(l: &mut Lower, m: SymbolId) -> TypeId {
+    let info = l.u.info(m);
+    match *l.u.types().get(info) {
+        Type::Poly { result, .. } => result,
+        _ => info,
+    }
 }
 
 /// Lifts named `methods` of `functions` of `class`, inner functions first, each lambda's followed
@@ -97,6 +112,7 @@ pub fn lift(
         let map: FxHashMap<SymbolId, SymbolId> =
             f.captured.iter().copied().zip(methods[i].proxies.iter().copied()).collect();
         substitute(l, rhs, &map);
+        retarget_returns(l, rhs, f.sym, methods[i].sym);
         out.push(def(l, f.def, &methods[i], tpt, rhs));
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
             let closure = f.closure.unwrap_or(f.def);
@@ -151,11 +167,12 @@ fn leave_block(l: &mut Lower, f: &Function) {
 fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(def) else { return Vec::new() };
     let clauses = l.tpd.clause_items(paramss);
-    clauses.iter().flat_map(|&c| l.tpd.items(c)).filter_map(|&p| l.tpd.sym(p)).collect()
+    let params = clauses.iter().flat_map(|&c| l.tpd.items(c));
+    params.filter(|&&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })).filter_map(|&p| l.tpd.sym(p)).collect()
 }
 
 /// Makes the references to the keys of `map` under `t` refer to their values.
-fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
+pub fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
     let mut todo = vec![t];
     while let Some(t) = todo.pop() {
         todo.extend(children(l.tpd, t));
@@ -165,6 +182,18 @@ fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
             let tpe = type_ref(l.u, proxy);
             let node = l.tpd.get_mut(t);
             (node.tree, node.sym, node.tpe) = (Tree::Ident { name }, Some(proxy), Some(tpe));
+        }
+    }
+}
+
+/// Makes the returns from `function` under `t` return from `method`.
+fn retarget_returns(l: &mut Lower, t: TNodeId, function: SymbolId, method: SymbolId) {
+    for t in super::walk::subtrees(l.tpd, t) {
+        if let Tree::Return { from, .. } = *l.tpd.tree(t)
+            && l.tpd.sym(from) == Some(function)
+        {
+            let tpe = type_ref(l.u, method);
+            (l.tpd.get_mut(from).sym, l.tpd.get_mut(from).tpe) = (Some(method), Some(tpe));
         }
     }
 }

@@ -28,9 +28,9 @@ impl Gen<'_, '_> {
         };
         self.defns.push(Defn { name, attrs, pos, kind });
         if self.l.u.is_module_class(sym) {
-            self.gen_lazy_handle_fields(sym, pos);
+            self.gen_lazy_handle_fields(sym, pos)?;
         }
-        self.gen_lazy_handle_accessors(sym, pos);
+        self.gen_lazy_handle_accessors(sym, pos)?;
         let Tree::TypeDef { rhs: template, .. } = *self.l.tpd.tree(td) else {
             unreachable!("a class definition")
         };

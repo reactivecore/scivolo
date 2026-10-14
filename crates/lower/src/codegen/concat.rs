@@ -19,7 +19,7 @@ impl Gen<'_, '_> {
             return false;
         }
         let Some(owner) = s.owner else { return false };
-        if owner == self.l.defs.strings.string {
+        if owner == self.l.defs.string {
             return true;
         }
         if !is_primitive(&self.l.u.binary_name(owner)) {
@@ -27,30 +27,29 @@ impl Gen<'_, '_> {
         }
         let info = self.l.u.info(sym);
         let tasty::Type::Method { params, .. } = self.l.u.types().get(info).clone() else { return false };
-        let string = self.l.defs.strings.string;
+        let string = self.l.defs.string;
         matches!(params[..], [(_, p)] if self.l.u.class_symbol(p) == Some(string))
     }
 
     pub fn gen_string_concat(&mut self, app: TNodeId, span: Span) -> Result<ValId> {
         let parts = self.lift_string_concat(app);
-        let (string, value_of) = (self.l.defs.strings.string, self.l.defs.strings.value_of);
+        let strings = self.l.strings()?;
         if let [first, arg] = parts[..]
             && self.is_empty_string(first)
         {
-            return self.gen_apply_static(value_of, Some(string), &[arg], span);
+            return self.gen_apply_static(strings.value_of, Some(self.l.defs.string), &[arg], span);
         }
-        let parts: Vec<TNodeId> =
-            parts.into_iter().filter(|&p| !self.is_empty_string(p)).map(|p| self.unboxed(p)).collect();
+        let parts: Vec<TNodeId> = parts.into_iter().filter(|&p| !self.is_empty_string(p)).collect();
+        let parts: Vec<TNodeId> = parts.into_iter().map(|p| self.unboxed(p)).collect();
         let size = parts.iter().map(|&p| self.literal_length(p)).sum::<usize>();
-        let (builder, ctor) = (self.l.defs.strings.builder, self.l.defs.strings.builder_ctor);
-        let name = self.type_name(builder);
+        let name = self.type_name(strings.builder);
         let sb = self.emit(Op::Classalloc { name, zone: None });
         let size = self.val(Val::Int(size as i32));
-        self.call_method(ctor, true, sb, vec![size]);
+        self.call_method(strings.builder_ctor, true, sb, vec![size]);
         for p in parts {
             self.gen_string_builder_append(sb, p)?;
         }
-        Ok(self.call_method(self.l.defs.strings.builder_to_string, true, sb, Vec::new()))
+        Ok(self.call_method(strings.builder_to_string, true, sb, Vec::new()))
     }
 
     /// `sb.append(t)` with the overload for `t`'s type.
@@ -62,12 +61,12 @@ impl Gen<'_, '_> {
             Erased::Class(name) => self.class_named(t, name),
             _ => None,
         };
-        let s = &self.l.defs.strings;
-        let as_class = [s.string, s.string_buffer, s.char_sequence]
+        let s = self.l.strings()?;
+        let as_class = [self.l.defs.string, s.string_buffer, s.char_sequence]
             .into_iter()
             .find(|&c| class.is_some_and(|k| self.l.u.derives_from(k, c)));
         let mut arg_ty = match (as_class, &erased) {
-            (_, Erased::Null | Erased::Nothing) => self.class_ref(self.l.defs.strings.string),
+            (_, Erased::Null | Erased::Nothing) => self.class_ref(self.l.defs.string),
             (Some(c), _) => self.class_ref(c),
             (None, Erased::Class(_) | Erased::Array(_)) => self.class_ref(self.l.defs.object),
             (None, e) => self.erased(e),
@@ -79,8 +78,7 @@ impl Gen<'_, '_> {
             value = self.coerce(value, arg_ty, int);
             arg_ty = int;
         }
-        let appends = self.l.defs.strings.appends.clone();
-        let Some(append) = appends.into_iter().find(|&m| self.param_types(m) == [arg_ty]) else {
+        let Some(append) = s.appends.into_iter().find(|&m| self.param_types(m) == [arg_ty]) else {
             return unsupported(span, "concatenation of a value without an `append` overload");
         };
         self.call_method(append, true, sb, vec![value]);
@@ -116,9 +114,9 @@ impl Gen<'_, '_> {
     }
 
     /// The value `t` boxes if it is a call of a primitive's `box`, else `t`.
-    fn unboxed(&self, t: TNodeId) -> TNodeId {
+    fn unboxed(&mut self, t: TNodeId) -> TNodeId {
         if let Tree::Apply { fun, args } = *self.l.tpd.tree(t)
-            && self.l.tpd.sym(fun).is_some_and(|s| self.l.defs.is_box(s))
+            && self.l.tpd.sym(fun).is_some_and(|s| self.l.is_box(s))
             && let [value] = self.l.tpd.items(args)
         {
             return *value;

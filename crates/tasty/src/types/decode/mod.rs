@@ -45,6 +45,10 @@ impl<'a> Decoder<'a> {
         self.types.intern(t)
     }
 
+    pub fn get(&self, t: TypeId) -> &Type {
+        self.types.get(t)
+    }
+
     fn binder(&self, id: NodeId) -> Binder {
         Binder(self.file, self.ast.node(id).addr)
     }

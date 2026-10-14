@@ -2,8 +2,8 @@
 //! and `ty`).
 
 use super::Gen;
+use crate::definitions::boxed_class;
 use nir::{Inst, Op, Type, TypeId, Val, ValId};
-use tasty::SymbolId;
 
 impl Gen<'_, '_> {
     /// `let %n = op`, with the current unwind edge; the value `%n`.
@@ -66,13 +66,10 @@ impl Gen<'_, '_> {
             Op::Fence(_) => self.ty(Type::Unit),
             Op::Stackalloc { .. } => self.ty(Type::Ptr),
             Op::Unbox { ty, .. } => {
-                let boxes: Vec<(char, SymbolId)> =
-                    self.l.defs.primitives.iter().map(|p| (p.letter, p.box_method)).collect();
-                let (letter, _) = boxes
-                    .into_iter()
-                    .find(|&(_, b)| self.result_type(b) == ty)
-                    .expect("the class of a boxed primitive");
-                self.erased(&tasty::Erased::Prim(letter))
+                let Type::Ref { name, .. } = *self.pool.ty(ty) else { unreachable!("a box class") };
+                let class = self.pool.top_name(name);
+                let letter = "zcbsijfd".chars().find(|&c| boxed_class(c) == Some(class));
+                self.erased(&tasty::Erased::Prim(letter.expect("the class of a boxed primitive")))
             }
             Op::Extract { .. } | Op::Insert { .. } => {
                 unreachable!("not generated yet: {op:?}")

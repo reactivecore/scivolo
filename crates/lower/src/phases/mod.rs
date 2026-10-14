@@ -19,6 +19,7 @@ pub(crate) mod casts;
 mod closures;
 mod constructors;
 mod dependencies;
+mod drop_for_map;
 mod drop_inlined;
 mod elideable;
 mod enum_values;
@@ -31,6 +32,10 @@ mod expand_private;
 mod explicit_outer;
 mod extension_methods;
 mod first_transform;
+mod fold_condition;
+mod format_checker;
+mod format_interpolator;
+mod format_spec;
 mod get_class;
 mod getters;
 mod hoist_super_args;
@@ -45,24 +50,27 @@ mod library_traits;
 mod lift_names;
 mod lifted;
 mod lifted_calls;
-mod literals;
+pub(crate) mod literals;
 mod local_classes;
 mod local_free;
 mod local_lazy;
 mod local_lift;
 mod local_outer;
 mod local_proxies;
+mod local_traits;
 mod memoize;
 mod methods;
 mod mirrors;
 mod mixin;
 mod module_purity;
+mod nested_reads;
 mod non_local_returns;
 mod outer_args;
 mod outer_fields;
 mod outer_traits;
 mod package_objects;
 mod patmat;
+mod protected_accessors;
 mod pure_stats;
 mod references_outer;
 mod repeated;
@@ -82,23 +90,25 @@ mod trait_fields;
 mod trait_init;
 mod trait_lazies;
 mod type_tests;
+mod uninitialized_defs;
 mod value_classes;
 mod value_members;
 mod vc_elide;
 pub(crate) mod walk;
 
 use crate::{Lower, Result};
-use rustc_hash::FxHashSet;
-use typer::tpd::{TNodeId, Tpd, Tree};
+use typer::tpd::TNodeId;
+use walk::{class_defs, retain_outside};
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
     trait_fields::find_inits(l, &class_defs(l.tpd, root));
     module_purity::record(l, root);
     beta_reduce::transform(l, root, unit_owner)?;
     let mut classes = class_defs(l.tpd, root);
-    let inits = first_transform::objects_with_inits(l, &classes);
+    let inits = module_purity::objects_with_inits(l, &classes);
     super_accessors::transform(l, &classes)?;
     for &td in &classes {
         synthetic::add_synthetic_members(l, root, td)?;
@@ -106,12 +116,15 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
+    protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {
+        uninitialized_defs::transform(l, td);
         let retained = initializers::transform(l, td)?;
         getters::transform(l, td, &retained)?;
     }
+    uninitialized_defs::refuse_others(l, root)?;
     for &td in &classes {
         getters::setter_calls(l, td)?;
     }
@@ -149,7 +162,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         bridges::transform(l, td, &deferred)?;
     }
     drop_inlined::unmark_calls(l);
-    array_apply::transform(l, &classes);
+    array_apply::transform(l, &classes)?;
     for &td in &classes {
         select_static::transform(l, td);
         tailrec::transform(l, td);
@@ -173,25 +186,4 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     expand_private::transform(l, &classes);
     Ok(())
-}
-
-/// Keeps the class definitions of `classes` that are not inside the `dropped` trees.
-fn retain_outside(tpd: &Tpd, classes: &mut Vec<TNodeId>, dropped: Vec<TNodeId>) {
-    let inside: FxHashSet<TNodeId> = dropped.into_iter().flat_map(|d| walk::subtrees(tpd, d)).collect();
-    classes.retain(|td| !inside.contains(td));
-}
-
-/// The class definitions of unit `root`, local ones too, each before the classes it contains.
-fn class_defs(tpd: &Tpd, root: TNodeId) -> Vec<TNodeId> {
-    let mut out = Vec::new();
-    let mut todo = vec![root];
-    while let Some(t) = todo.pop() {
-        match *tpd.tree(t) {
-            Tree::TypeDef { rhs, .. } if !matches!(tpd.tree(rhs), Tree::Template { .. }) => continue,
-            Tree::TypeDef { .. } => out.push(t),
-            _ => {}
-        }
-        todo.extend(walk::children(tpd, t).into_iter().rev());
-    }
-    out
 }

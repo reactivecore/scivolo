@@ -15,7 +15,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
     let prim = |e: &Erased| matches!(e, Erased::Prim(_));
     let t = match (super::adapt::erased_type(l, t), to) {
         (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
-            let module = l.defs.scala_run_time;
+            let module = l.scala_run_time().expect("`ScalaRunTime`");
             let class = l.u.module_class(module).expect("ScalaRunTime's class");
             let method = l.u.decl(class, "toObjectArray").unwrap_or_default();
             let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
@@ -39,7 +39,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             l.u.intern_type(Type::Applied(array, vec![elem]))
         }
         Erased::Prim(c) => {
-            let p = l.defs.primitive(*c).expect("a primitive letter").module;
+            let p = l.primitive(*c).expect("a primitive letter").module;
             let class = l.u.module_class(p).expect("a primitive's object class");
             let name = l.u.full_name(class);
             l.u.class_ref(name.trim_end_matches('$'))
@@ -48,6 +48,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             Some(c) => type_ref(l.u, c),
             None => l.u.class_ref(name),
         },
+        Erased::Nothing => l.u.class_ref("scala.Nothing"),
         _ => l.u.class_ref("java.lang.Object"),
     }
 }
@@ -62,11 +63,23 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
                 && matches!(**x, Erased::Class(_) | Erased::Array(_))
         }
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
-            (Some(f), Some(t)) => l.u.derives_from(f, t),
+            (Some(f), Some(t)) => {
+                l.u.derives_from(f, t) && (!l.u.is_trait(f) || erased_trait_derives(l, f, t))
+            }
             _ => false,
         },
         _ => false,
     }
+}
+
+/// Whether trait `f` is or derives from `t` through its trait parents, the only ones erasure
+/// keeps besides `Object` (dotty's `TypeErasure.eraseInfo`).
+fn erased_trait_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
+    if f == t {
+        return true;
+    }
+    let parents: Vec<SymbolId> = l.u.parents(f).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
+    parents.into_iter().any(|p| l.u.is_trait(p) && l.u.derives_from(p, t) && erased_trait_derives(l, p, t))
 }
 
 /// The class of binary name `name`, through the classes and objects it is nested in.
@@ -80,10 +93,14 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
 }
 
 /// The class of binary name `rest` relative to `owner`: a member class `C`, or a class nested in
-/// member class or object `C` named `C$rest`.
+/// member class or object `C` named `C$rest`; operator names encoded.
 fn member_named(l: &mut Lower, owner: SymbolId, rest: &str) -> Option<SymbolId> {
     let classes = |l: &mut Lower, owner: SymbolId, name: &str| -> Vec<SymbolId> {
-        let found = l.u.decl(owner, name).unwrap_or_default();
+        let mut found = l.u.decl(owner, name).unwrap_or_default();
+        let decoded = tasty::decode(name);
+        if found.is_empty() && decoded != name {
+            found = l.u.decl(owner, &decoded).unwrap_or_default();
+        }
         found.into_iter().filter(|&s| l.u.is_class(s)).collect()
     };
     if let Some(&c) = classes(l, owner, rest).first() {

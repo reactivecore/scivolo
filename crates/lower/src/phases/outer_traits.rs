@@ -4,6 +4,8 @@
 //! accessor returning the prefix of the trait in its type.
 
 use super::explicit_outer::{enclosing_instance, outer_accessor, outer_accessor_name, outer_this, terms};
+use super::local_free::{enclosing_class, is_term};
+use super::local_outer::needs_outer_if_referenced;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{is_static, is_static_owner};
 use crate::{Lower, Result, Unsupported, unsupported};
@@ -18,12 +20,15 @@ pub fn outer_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
         return enclosing_instance(l, c);
     }
     let owner = l.u.symbol(c).owner?;
+    if is_term(l, owner) {
+        return needs_outer_if_referenced(l, c).then(|| enclosing_class(l, owner));
+    }
     let nested = l.u.is_class(owner) && !is_static_owner(l.u, owner) && !is_static(l.u, c);
     (nested && !is_pure_interface(l.u, c)).then_some(owner)
 }
 
 /// Whether trait `t` has only abstract members and types (dotty's `PureInterface`).
-fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
+pub fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
     let concrete = |s: SymbolId| match u.symbol(s).tree.is_some() {
         true => u.body(s).is_some(),
         false => !u.is_deferred(s),
@@ -114,7 +119,8 @@ fn end_span(l: &Lower, td: TNodeId) -> Span {
     Span::at(l.tpd.span(template).end().max(l.tpd.span(td).point()))
 }
 
-fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
+/// Appends `defs` to the body of class definition `td`.
+pub fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return };
     let stats: Vec<TNodeId> = l.tpd.items(body).iter().chain(defs).copied().collect();
@@ -158,17 +164,19 @@ fn method_type(l: &mut Lower, result: TypeId) -> TypeId {
     l.u.intern_type(Type::Method { binder, params: Vec::new(), result, implicit: false, contextual: false })
 }
 
-/// Stable prefix `p` as a tree in `class`: `this` of a class, an object seen from outside it
-/// through its value (dotty's `fixThis`), values selected on such paths.
+/// Stable prefix `p` as a tree in `class`: `this` of a class, a static object or one seen from
+/// outside it through its value (dotty's `fixThis`), values selected on such paths.
 fn path(l: &mut Lower, class: SymbolId, p: TypeId, span: Span) -> Result<TNodeId> {
     match l.u.types().get(p).clone() {
         Type::This(c) => {
             let c = l.u.class_symbol(c).expect("a class's this");
             let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
-            match module.filter(|_| !super::local_free::within(l, class, c)) {
-                Some(m) if is_static(l.u, m) => Ok(l.ident(m, span)),
-                Some(_) => unsupported(span, "outer prefixes of mixed-in traits other than paths"),
-                None => Ok(l.this(c, span)),
+            match module {
+                Some(m) if is_static(l.u, m) && c != class => Ok(l.ident(m, span)),
+                Some(_) if !super::local_free::within(l, class, c) => {
+                    unsupported(span, "outer prefixes of mixed-in traits other than paths")
+                }
+                _ => Ok(l.this(c, span)),
             }
         }
         Type::Sym(q, s) if l.u.symbol(s).kind.is_term() => {

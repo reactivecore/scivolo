@@ -17,7 +17,7 @@ impl Gen<'_, '_> {
         }
         let mut out = Vec::new();
         for (i, (&a, param)) in args.iter().zip(params).enumerate() {
-            if i == 0 && sym == self.l.defs.lazy_vals.obj_cas {
+            if i == 0 && self.l.u.symbol(sym).name == "objCAS" && sym == self.l.lazy_vals()?.obj_cas {
                 out.push(self.gen_field_ptr(a)?);
                 continue;
             }

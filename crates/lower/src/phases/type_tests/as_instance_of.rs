@@ -4,7 +4,6 @@ use crate::phases::adapt::{adapt, ascribed, converted, erased_type};
 use crate::phases::casts::{class_named, type_of};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use syntax::ast::constant::Constant;
 use tasty::{Erased, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -19,18 +18,19 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
     let found = l.u.erase(widened);
     let from = erased_type(l, expr);
     let span = l.tpd.span(t);
-    if l.u.value_class(target).is_some() || l.u.value_class(widened).is_some() {
+    let widened_target = l.u.widen(target);
+    if l.u.value_class(widened_target).is_some() || l.u.value_class(widened).is_some() {
         return value_cast(l, t, expr, tpt);
     }
     if l.u.erase_boxed(target) != to || l.u.erase_boxed(widened) != found {
         return unsupported(span, "casts to or from value classes");
     }
     let refused = || unsupported(span, "casts between primitive values or to references");
+    let ascription = matches!((&found, &to), (Erased::Prim(a), Erased::Prim(b)) if a == b)
+        || (matches!(found, Erased::Null | Erased::Unit) && to == Erased::Unit);
     Ok(match (&found, &to) {
-        (Erased::Prim(a), Erased::Prim(b)) if a == b => {
-            l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None)
-        }
-        (Erased::Null, Erased::Prim(c)) => match l.defs.primitive(*c) {
+        _ if ascription => l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None),
+        (Erased::Null, Erased::Prim(c)) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
                 converted(l, expr, module, unbox_method)
@@ -38,10 +38,6 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
             None => return refused(),
         },
         (found, Erased::Unit) if *found != Erased::Unit => {
-            let literal = matches!(l.tpd.tree(expr), Tree::Literal { value } if *value != Constant::Null);
-            if !literal && !matches!(l.tpd.tree(expr), Tree::Block { .. }) {
-                return unsupported(span, "casts to Unit of values other than blocks or literals");
-            }
             let span = l.tpd.span(expr);
             let unit = l.unit_literal(Span::NONE);
             let block = l.block(&[expr], unit, Span::NONE);
@@ -70,7 +66,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
 /// derives from `tpt`'s, the boxed primitive cast, the boxed value unboxed to a primitive,
 /// `expr` for `adapt` to unbox if `tpt` is a value class, else `t` on the boxed value.
 fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TNodeId> {
-    let target = l.tpd.tpe(tpt);
+    let target = l.u.widen(l.tpd.tpe(tpt));
     let widened = l.u.widen(l.tpd.tpe(expr));
     let (test, found) = (l.u.erase_boxed(target), l.u.erase_boxed(widened));
     let span = l.tpd.span(t);
@@ -112,7 +108,7 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
 
 /// Cast `t` of primitive `expr` of erased letter `c` made a cast of `expr` boxed.
 fn boxed_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, c: char) -> Option<TNodeId> {
-    let p = l.defs.primitive(c)?;
+    let p = l.primitive(c)?;
     let (module, box_method) = (p.module, p.box_method);
     let boxed = converted(l, expr, module, box_method);
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { unreachable!("a type application") };

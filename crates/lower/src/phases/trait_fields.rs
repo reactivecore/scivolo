@@ -12,18 +12,20 @@ use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
+use tasty::tags::{EXTENSION, FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// Records the unit's traits among `classes` whose bodies have values or statements.
+/// Records the unit's traits among `classes` whose bodies have values, statements or extension
+/// methods.
 pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
     for &td in classes {
         let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { continue };
         let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
         let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
-            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
+            Tree::DefDef { .. } => l.tpd.sym(s).is_some_and(|d| has(l.u, d, EXTENSION)),
+            Tree::TypeDef { .. } | Tree::Import { .. } => false,
             Tree::ValDef { rhs, .. } => {
                 let synthetic_module =
                     l.tpd.sym(s).is_some_and(|v| l.u.is_module(v) && has(l.u, v, SYNTHETIC));

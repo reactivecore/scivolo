@@ -33,7 +33,7 @@ impl Typer<'_> {
     }
 
     /// The types of the product selectors `_1`, `_2`, ... of `t`.
-    fn product_selectors(&mut self, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
+    pub fn product_selectors(&mut self, t: TypeId) -> Result<Vec<TypeId>, &'static str> {
         let mut out = Vec::new();
         while let Some(s) = self.extractor_member(t, &format!("_{}", out.len() + 1))? {
             out.push(s);
@@ -58,6 +58,7 @@ impl Typer<'_> {
         let info = self.method_info(tpe).unwrap_or(tpe);
         Ok(match *self.u.types().get(info) {
             Type::Method { .. } | Type::Poly { .. } => None,
+            Type::Bounds(..) => return Err("extractor member typed by a wildcard argument"),
             Type::ByName(r) => Some(r),
             _ => Some(info),
         })

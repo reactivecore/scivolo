@@ -21,20 +21,23 @@ impl Typer<'_> {
             return false;
         }
         self.complete(m);
+        if !self.is_implicit(m) {
+            return false;
+        }
         let mut info = self.u.info(m);
         if let Type::Poly { result, .. } = self.u.types().get(info) {
             info = *result;
         }
         if let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() {
             let [(_, param)] = params[..] else { return false };
-            let result = self.strip_implicit_clauses(result);
+            let result = self.strip_implicit(result);
             return self.may_accept(param, q, matches!(goal, Goal::Conform(_)))
                 && match goal {
                     Goal::Member(name) => self.may_have(result, param, name),
                     Goal::Conform(to) => self.may_conform(result, param, to),
                 };
         }
-        let value = self.strip_implicit_clauses(info);
+        let value = self.strip_implicit(info);
         let mut value = self.u.widen(value);
         while let Type::Refined(t, ..) | Type::Rec(_, t) | Type::Annotated(t, _) = *self.u.types().get(value)
         {
@@ -46,18 +49,9 @@ impl Typer<'_> {
         {
             return true;
         }
-        let is_view = ["scala.Conversion", "scala.<:<"]
-            .iter()
-            .any(|v| self.resolve_full_name(v, true).is_some_and(|b| self.u.derives_from(c, b)));
+        let is_view = self.is_view_type(value);
         let identity = matches!(self.u.types().get(value), Type::Applied(_, args) if args.len() == 2 && args[0] == args[1]);
         is_view && !(identity && ["scala.<:<", "scala.=:="].contains(&&*self.u.full_name(c)))
-    }
-
-    fn strip_implicit_clauses(&self, mut t: TypeId) -> TypeId {
-        while let Type::Method { result, implicit: true, .. } = self.u.types().get(t) {
-            t = *result;
-        }
-        t
     }
 
     /// Whether class `q`, whose base classes the universe knows, may conform or widen numerically

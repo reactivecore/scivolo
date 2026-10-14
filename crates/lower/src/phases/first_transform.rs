@@ -1,5 +1,6 @@
 //! The constant folding of dotty's `FirstTransform`: a pure reference to a value of constant
-//! type, and a pure block of constant type, becomes the constant.
+//! type, and a pure block of constant type, becomes the constant; a conditional on a constant
+//! its branch.
 #![allow(non_upper_case_globals)]
 
 use super::getters::is_const_final;
@@ -14,7 +15,7 @@ use syntax::names::to_utf16;
 use tasty::tags::{
     CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Folds the references to values of constant type and the constant blocks in class definition
@@ -24,41 +25,15 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
         if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
             l.copy_node(t, arg);
         }
+        super::fold_condition::fold(l, t);
         const_to_literal(l, t, inits);
+        if let Tree::If { cond, thenp, elsep, .. } = *l.tpd.tree(t)
+            && let Tree::Literal { value: Constant::Boolean(c) } = *l.tpd.tree(cond)
+        {
+            l.copy_node(t, if c { thenp } else { elsep });
+        }
         ControlFlow::Continue(())
     });
-}
-
-/// The objects among class definitions `classes` with initialization code: a value with an
-/// initializer, a statement or a parent constructor called with arguments (dotty's not
-/// `NoInits`).
-pub fn objects_with_inits(l: &mut Lower, classes: &[TNodeId]) -> FxHashSet<SymbolId> {
-    let mut out = FxHashSet::default();
-    for &td in classes {
-        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_module_class(c)) else { continue };
-        let Tree::TypeDef { rhs, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, parents, .. } = *l.tpd.tree(rhs) else { continue };
-        let calls_with_args = |&p: &TNodeId| match *l.tpd.tree(p) {
-            Tree::Apply { args, .. } => !l.tpd.items(args).is_empty(),
-            Tree::Block { .. } => true,
-            _ => false,
-        };
-        if l.tpd.items(parents).iter().any(calls_with_args) {
-            out.extend(l.u.source_module(class));
-            continue;
-        }
-        let initializes = |&s: &TNodeId| match *l.tpd.tree(s) {
-            Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => false,
-            Tree::ValDef { rhs, .. } => {
-                rhs.is_some() && l.tpd.sym(s).is_some_and(|v| !has(l.u, v, LAZY) && !l.u.is_module(v))
-            }
-            _ => true,
-        };
-        if l.tpd.items(body).iter().any(initializes) {
-            out.extend(l.u.source_module(class));
-        }
-    }
-    out
 }
 
 /// Makes `t` a literal if it is a pure path to a value of constant type, the path through
@@ -134,8 +109,8 @@ pub fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     l.tpd.sym(qualifier).is_some_and(|q| inits.contains(&q)) || through(l, qualifier, inits)
 }
 
-/// Whether `t` is an operation of a primitive class or `String` on literals and pure paths, not
-/// through objects `inits` (dotty's `isPureApply` for a constant type).
+/// Whether `t` is an operation known to be pure on literals and pure paths, not through objects
+/// `inits` (dotty's `isPureApply` for a constant type).
 fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let operand = |mut a: TNodeId| {
         while let Tree::Typed { expr, .. } = *l.tpd.tree(a) {
@@ -149,9 +124,7 @@ fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
         _ => return false,
     };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
-    let Some(owner) = l.tpd.sym(fun).and_then(|m| l.u.symbol(m).owner) else { return false };
-    let owner = l.u.full_name(owner);
-    let known = PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == "java.lang.String";
+    let known = l.tpd.sym(fun).is_some_and(|m| l.u.is_known_pure_op(m));
     known && operand(qualifier) && args.into_iter().all(operand)
 }
 

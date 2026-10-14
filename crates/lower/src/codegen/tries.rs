@@ -2,6 +2,7 @@
 //! (nscplugin's `genTry` and `genTryCatch`).
 
 use super::Gen;
+use crate::phases::literals::is_wildcard;
 use crate::{Result, unsupported};
 use nir::{Local, Op, Param, PosId, TypeId, Val, ValId};
 use tasty::SymbolId;
@@ -70,10 +71,12 @@ impl<'l, 'a> Gen<'l, 'a> {
         };
         let pos = self.pos_or(span, self.m.pos);
         let (ty, bind) = match *self.l.tpd.tree(pat) {
-            Tree::Typed { expr, tpt } if self.is_wildcard(expr) => (self.gen_type(self.l.tpd.tpe(tpt)), None),
-            _ if self.is_wildcard(pat) => (self.throwable_type(), None),
+            Tree::Typed { expr, tpt } if is_wildcard(self.l, expr) => {
+                (self.gen_type(self.l.tpd.tpe(tpt)), None)
+            }
+            _ if is_wildcard(self.l, pat) => (self.throwable_type(), None),
             Tree::Bind { body: inner, .. }
-                if self.is_wildcard(inner) || matches!(self.l.tpd.tree(inner), Tree::Typed { .. }) =>
+                if is_wildcard(self.l, inner) || matches!(self.l.tpd.tree(inner), Tree::Typed { .. }) =>
             {
                 let sym = self.l.tpd.sym(pat).expect("a bound symbol");
                 let info = self.l.u.info(sym);
@@ -82,10 +85,6 @@ impl<'l, 'a> Gen<'l, 'a> {
             _ => return unsupported(span, "a catch pattern other than a type test"),
         };
         Ok(Case { ty, body, bind, pos })
-    }
-
-    fn is_wildcard(&self, t: TNodeId) -> bool {
-        matches!(*self.l.tpd.tree(t), Tree::Ident { name } if self.l.names.text(name.name) == "_")
     }
 
     /// The cases in turn: a type test, the body if it holds, the remaining cases if not, a

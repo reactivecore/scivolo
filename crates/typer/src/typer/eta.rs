@@ -121,7 +121,7 @@ impl Typer<'_> {
         if !defs.is_empty() {
             let locals: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
             closure = self
-                .no_local_refs(closure, &locals, pt)
+                .no_local_refs(closure, &locals, [&[], &[]], pt)
                 .ok_or("method value of a type referring to a lifted prefix")?;
             let block_span = defs.iter().fold(whole, |s, &d| s.union(self.tpd.span(d)));
             let stats = self.tpd.list(&defs);

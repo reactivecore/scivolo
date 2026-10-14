@@ -4,24 +4,24 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::OPAQUE;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     pub fn converted_new_generic_array(&mut self, tree: TNodeId) -> Result<TNodeId, &'static str> {
         let T::Apply { fun, args } = *self.tpd.tree(tree) else { return Ok(tree) };
         let T::TypeApply { fun: ctor, args: targs } = *self.tpd.tree(fun) else { return Ok(tree) };
         let &[targ] = self.tpd.items(targs) else { return Ok(tree) };
-        let array = self.defn.array;
         let Some(s) = self.tpd.sym(ctor).filter(|&s| self.u.symbol(s).name == "<init>") else {
             return Ok(tree);
         };
+        let array = self.defn.array(self.u).map_err(|_| "scala.Array")?;
         if self.u.symbol(s).owner != Some(array) {
             return Ok(tree);
         }
         let tpe = self.tpd.tpe(tree);
         self.fully_defined(tpe)?;
         let elem = self.zonk(self.tpd.tpe(targ));
-        if !self.is_generic_array_arg(elem) {
+        if !self.is_generic_array_arg(elem, array) {
             return Ok(tree);
         }
         let module = self.resolve_full_name("scala.runtime.Arrays", false).ok_or("scala.runtime.Arrays")?;
@@ -37,12 +37,13 @@ impl Typer<'_> {
         Ok(self.build().apply(type_apply, &args, result, span))
     }
 
-    /// Whether `t` is `Array[...[U]]` of a generic `U` (dotty's `isGenericArrayArg`).
-    fn is_generic_array_arg(&mut self, t: TypeId) -> bool {
+    /// Whether `t` is `Array[...[U]]` of a generic `U` (dotty's `isGenericArrayArg`), `array`
+    /// the class `Array`.
+    fn is_generic_array_arg(&mut self, t: TypeId, array: SymbolId) -> bool {
         let t = self.u.dealias(t);
         match self.u.types().get(t).clone() {
-            Type::Applied(tycon, args) if self.u.class_symbol(tycon) == Some(self.defn.array) => {
-                args.first().is_some_and(|&a| self.is_generic_array_arg(a))
+            Type::Applied(tycon, args) if self.u.class_symbol(tycon) == Some(array) => {
+                args.first().is_some_and(|&a| self.is_generic_array_arg(a, array))
             }
             _ => self.is_generic(t, 16),
         }

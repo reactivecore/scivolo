@@ -20,6 +20,8 @@ impl Mode {
     /// The type argument of `constValue` or `constValueOpt`, where a compile-time operation type
     /// may stand.
     pub const CONST_VALUE_ARG: Mode = Mode(8);
+    /// The type tree of a typed pattern, whose wildcard arguments become pattern-bound types.
+    pub const PATTERN_TYPE: Mode = Mode(16);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

@@ -2,6 +2,7 @@
 //! them, sequences and results, built from a match's cases.
 
 use super::Translator;
+use crate::phases::type_tests::singletons::has_value_class_this;
 use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::SymbolId;
@@ -88,11 +89,6 @@ impl Translator<'_, '_> {
             return crate::unsupported(self.l.tpd.span(m), "sub match");
         }
         let cases = self.l.tpd.items(cases).to_vec();
-        let selector_type = self.l.u.widen(self.l.tpd.tpe(selector));
-        let bottom = matches!(self.l.u.erase(selector_type), tasty::Erased::Null | tasty::Erased::Nothing);
-        if bottom && !cases.iter().all(|&c| self.is_simple_case(c)) {
-            return unsupported(self.l.tpd.span(m), "matches on values of type Null or Nothing");
-        }
         self.let_abstract(selector, None, |t, scrutinee| {
             let error = t.match_error(scrutinee);
             let mut next = t.add(Plan::Result { tree: error });
@@ -104,26 +100,28 @@ impl Translator<'_, '_> {
         })
     }
 
-    /// Whether case `c` matches a wildcard or a literal, bound or not.
-    fn is_simple_case(&self, c: TNodeId) -> bool {
-        let Tree::CaseDef { mut pat, .. } = *self.l.tpd.tree(c) else { return false };
-        while let Tree::Bind { body, .. } = *self.l.tpd.tree(pat) {
-            pat = body;
-        }
-        matches!(self.l.tpd.tree(pat), Tree::Ident { .. } | Tree::Literal { .. })
-    }
-
     /// `throw new MatchError(scrutinee)`.
     fn match_error(&mut self, scrutinee: SymbolId) -> TNodeId {
-        let p = self.l.defs.patmat;
+        let p = self.defs;
         let new = self.l.new_(p.match_error, Span::NONE);
         let arg = self.l.ident(scrutinee, Span::NONE);
         let error = self.l.call(new, p.match_error_ctor, &[arg]);
         let tpe = self.l.tpd.tpe(new);
         self.l.tpd.get_mut(error).tpe = Some(tpe);
-        let throw = self.l.ident(p.throw, Span::NONE);
+        self.thrown(error)
+    }
+
+    /// `throw null`.
+    pub fn throw_null(&mut self) -> TNodeId {
+        let null = self.l.null_literal(Span::NONE);
+        self.thrown(null)
+    }
+
+    /// `throw exception`.
+    fn thrown(&mut self, exception: TNodeId) -> TNodeId {
+        let throw = self.l.ident(self.l.defs.throw, Span::NONE);
         let nothing = self.nothing_type();
-        let apply = self.l.apply(throw, &[error], nothing, Span::NONE);
+        let apply = self.l.apply(throw, &[exception], nothing, Span::NONE);
         self.l.positioned(apply)
     }
 
@@ -144,8 +142,10 @@ impl Translator<'_, '_> {
         match *self.l.tpd.tree(pat) {
             Tree::Typed { expr: inner, tpt } => {
                 let target = self.l.tpd.tpe(tpt);
-                if self.is_singleton(target) {
-                    return unsupported(span, "type patterns of singleton types");
+                let dealiased = self.l.u.dealias(target);
+                let written = matches!(self.l.tpd.tree(tpt), Tree::SingletonTypeTree { .. });
+                if !written && has_value_class_this(self.l, dealiased) {
+                    return unsupported(span, "type tests of this.type of value classes");
                 }
                 let value = self.l.ident(scrutinee, Span::NONE);
                 let cast = self.cast(value, target);

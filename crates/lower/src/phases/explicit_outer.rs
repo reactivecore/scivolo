@@ -2,7 +2,7 @@
 //! arguments of their constructor calls, then the paths to enclosing instances
 //! (`outer_fields.rs`, `outer_traits.rs`).
 
-use super::local_free::is_term;
+use super::local_free::{is_local, is_term};
 use super::outer_traits::outer_class;
 use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
@@ -21,9 +21,13 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     let mut with_outer = Vec::new();
     for (&td, mixes_inner) in classes.iter().zip(mixes_inner) {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        if let Some(outer) = super::local_outer::local_outer(l, td, class) {
-            super::outer_fields::declare(l, td, class, outer);
-            with_outer.push((td, class));
+        if is_local(l, class) {
+            if let Some(outer) = super::local_outer::local_outer(l, td, class) {
+                if !l.u.is_trait(class) {
+                    super::outer_fields::declare(l, td, class, outer);
+                }
+                with_outer.push((td, class));
+            }
             continue;
         }
         let Some(outer) = outer_class(l, class) else { continue };
@@ -63,7 +67,7 @@ pub fn enclosing_instance(l: &Lower, class: SymbolId) -> Option<SymbolId> {
 }
 
 /// Whether `class` is defined in a method or value, directly or through other classes.
-fn in_term(l: &Lower, class: SymbolId) -> bool {
+pub fn in_term(l: &Lower, class: SymbolId) -> bool {
     let mut owner = l.u.symbol(class).owner;
     while let Some(o) = owner {
         if l.u.symbol(o).kind.is_term() {
@@ -85,7 +89,7 @@ pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) ->
     }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
-    let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some());
+    let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some() && !is_local(l, c));
     let tested = outer_prefix(l, target).is_some();
     (in_match && inner && !tested).then_some("patterns of classes in classes")
 }
@@ -111,7 +115,7 @@ pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {
     while let Some(s) = todo.pop() {
         out.push(s);
         let skip = match l.tpd.tree(s) {
-            Tree::SingletonTypeTree { .. } | Tree::AppliedTypeTree { .. } | Tree::TypeTree { .. } => true,
+            _ if super::walk::is_type_tree(l, s) => true,
             Tree::TypeDef { .. } => s != t && !nested,
             _ => false,
         };
@@ -152,7 +156,7 @@ fn instance_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
         return Some(outer);
     }
     let local = l.u.symbol(c).owner.is_some_and(|o| is_term(l, o));
-    if local { None } else { outer_class(l, c) }
+    if local && !l.outer_accessors.contains_key(&c) { None } else { outer_class(l, c) }
 }
 
 /// The accessor `C$$$outer()` of the enclosing instance of class `class`, defined once; `class`
@@ -162,15 +166,10 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
         return m;
     }
     let owner = l.u.symbol(class).owner.expect("a class's owner");
-    let (name, outer) = match super::local_free::is_term(l, owner) {
-        true => (
-            format!("{}$$$outer", super::local_outer::accessor_prefix(l, class)),
-            super::local_free::enclosing_class(l, owner),
-        ),
-        false => (
-            outer_accessor_name(l, class),
-            outer_class(l, class).expect("a class with an enclosing instance"),
-        ),
+    let name = outer_accessor_name(l, class);
+    let outer = match is_term(l, owner) {
+        true => super::local_free::enclosing_class(l, owner),
+        false => outer_class(l, class).expect("a class with an enclosing instance"),
     };
     let m = l.u.define(symbol(&name, Kind::Def, class, Flags::default().with(FINAL)));
     let result = type_ref(l.u, outer);
@@ -187,7 +186,11 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
     m
 }
 
-/// `C$$$outer`, the name of the accessor of the enclosing instance of class `class`.
+/// `C$$$outer`, the name of the accessor of the enclosing instance of class `class`, `C` its
+/// `separated_name` if in a term.
 pub fn outer_accessor_name(l: &Lower, class: SymbolId) -> String {
-    format!("{}$$$outer", l.u.binary_name(class).replace('.', "$"))
+    match in_term(l, class) {
+        true => format!("{}$$$outer", super::local_outer::separated_name(l, class)),
+        false => format!("{}$$$outer", l.u.binary_name(class).replace('.', "$")),
+    }
 }

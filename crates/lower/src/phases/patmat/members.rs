@@ -2,6 +2,7 @@
 //! of a product, the test `!x.isEmpty`.
 
 use super::Translator;
+use crate::Result;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::TNodeId;
@@ -32,17 +33,18 @@ impl Translator<'_, '_> {
 
     /// The selectors `_1`, `_2`… of type `tpe`, none unless it is a product if `product` (dotty's
     /// `productSelectors`, `productArity`).
-    pub fn product_selectors(&mut self, tpe: TypeId, product: bool) -> Vec<SymbolId> {
-        let product_class = self.l.defs.case_classes.product;
-        let derives_product = self.l.class_of(tpe).is_some_and(|c| self.l.u.derives_from(c, product_class));
-        if product && !derives_product {
-            return Vec::new();
+    pub fn product_selectors(&mut self, tpe: TypeId, product: bool) -> Result<Vec<SymbolId>> {
+        if product {
+            let product_class = self.l.product()?;
+            if !self.l.class_of(tpe).is_some_and(|c| self.l.u.derives_from(c, product_class)) {
+                return Ok(Vec::new());
+            }
         }
         let mut out = Vec::new();
         while let Some(s) = self.member_named(tpe, &format!("_{}", out.len() + 1)) {
             out.push(s);
         }
-        out
+        Ok(out)
     }
 
     /// The parameterless method or the value of type `tpe`'s class or its bases named `name`.

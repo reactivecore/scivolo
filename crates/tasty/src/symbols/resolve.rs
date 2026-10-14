@@ -9,6 +9,20 @@ use crate::types::{Type, TypeId};
 const MAX_RESOLVING: u32 = 64;
 
 impl Universe {
+    /// The symbol the `TypeRef` or `TermRef` `t` refers to, remembered once found.
+    pub fn resolve_ref(&mut self, t: TypeId) -> Option<SymbolId> {
+        if let Some(&s) = self.resolved.get(&t) {
+            return Some(s);
+        }
+        let s = match self.types.get(t).clone() {
+            Type::TypeRef(p, n) => self.resolve(p, &n, true)?,
+            Type::TermRef(p, n) => self.resolve(p, &n, false)?,
+            _ => return None,
+        };
+        self.resolved.insert(t, s);
+        Some(s)
+    }
+
     /// The symbol `prefix.name` refers to, a type symbol if `ty`, else a term symbol; `None` for
     /// a reference whose prefix leads back to itself deeper than `MAX_RESOLVING`.
     pub fn resolve(&mut self, prefix: TypeId, name: &str, ty: bool) -> Option<SymbolId> {
@@ -37,8 +51,8 @@ impl Universe {
             Type::Package(p) => Some(p),
             Type::This(c) | Type::Super(_, c) => self.prefix_owner(c),
             Type::Sym(_, s) => self.symbol_owner(s),
-            Type::TermRef(p, n) => {
-                let term = self.resolve(p, &n, false)?;
+            Type::TermRef(..) => {
+                let term = self.resolve_ref(prefix)?;
                 self.symbol_owner(term)
             }
             _ => self.class_symbol(prefix),

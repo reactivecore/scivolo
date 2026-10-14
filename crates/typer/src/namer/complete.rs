@@ -24,6 +24,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let vars = self.constraint.count();
         self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
@@ -48,6 +49,7 @@ impl Typer<'_> {
             _ => {}
         }
         self.syms.completions.insert(sym, Completion::Done);
+        self.constraint.keep_from(vars);
     }
 
     fn is_class_def(&self, tree: NodeId) -> bool {
@@ -61,19 +63,19 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
+        if inherited.is_none() {
+            self.check_inferred_implicit(sym);
+        }
         let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
-        let approx = match raw_default.filter(|_| lambda && default.is_none()) {
-            Some(d) => match self.own_type_params_approximated(d, sym) {
-                Some(a) => Some(a),
-                None => {
-                    self.unsupported(rhs, "function default of a bounded type parameter");
-                    None
-                }
-            },
-            None => None,
-        };
+        let approx = raw_default.filter(|_| lambda && default.is_none()).and_then(|d| {
+            let a = self.own_type_params_approximated(d, sym);
+            if a.is_none() {
+                self.unsupported(rhs, "function default of a bounded type parameter");
+            }
+            a
+        });
         let pt = inherited.or(default).or(approx).map_or(Pt::Any, Pt::Type);
         let typed = self.typed(rhs, pt, ctx);
         self.typed_ahead(rhs, typed, ctx);

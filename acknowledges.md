@@ -30,7 +30,16 @@ Apache-2.0. Rust translations of:
   `ast/Trees` `TreeTraverser`, `TreeAccumulator`, `DeepFolder`, `tpd.localCtx`;
   `crates/typer/src/unpickle`: `core/tasty/TreeUnpickler.readTree`, `tpd.ref`,
   `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
-  `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`.
+  `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
+  `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
+  `isCoherent`, `negateIfNot`, `ContextualImplicits.level`, `combineEligibles`,
+  `collectCompanions`, `hasExtMethod`), `Synthesizer` (`synthesizedClassTag`,
+  `synthesizedValueOf`), `TypeErasure.hasStableErasure`, `Typer.adaptNoArgsImplicitMethod`,
+  `Applications.extMethodApply`; `Applications` (`compare`, `isAsGood`, `isAsGoodValueType`,
+  `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`, `as_good.rs`,
+  `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
+  `named_args.rs`, `default_args.rs`; `crates/typer/src/constraint`:
+  `core/ConstraintHandling.addOneBound`.
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
@@ -40,13 +49,19 @@ Apache-2.0. Rust translations of:
   `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
   (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
+- `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
+  (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
+- `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,
+  `UnapplyArgs`, `unapplySeqTypeElemTp`, `isProductSeqMatch`, `Desugar.adaptPatternArgs`.
+- `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
+  `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
     forwarders, `traitInits` of lazy values), `MixinOps` (`mkForwarderSym`),
     `Constructors` (constructor body, `intoConstr`, `markUsedPrivateSymbols`)
-  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`
+  - `BetaReduce`, `LetOverApply`, `NonLocalReturns`, `UninitializedDefs`, `localopt/DropForMap`
   - `ExplicitOuter` (outer accessors of classes and traits, their implementations for mixed-in
     traits, `needsOuterIfReferenced`), `TreeInfo.bodyKind` (`PureInterface`)
   - `Erasure` (boxing, `adaptClosure`, `typedTyped`, `cast` of primitive arrays),
@@ -55,22 +70,27 @@ Apache-2.0. Rust translations of:
   - `InterceptedMethods` (`!=`), `ElimRepeated` (`adaptToArray`, `arrayToSeq`), `SeqLiterals`,
     `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
-    and creating local classes, the naming order of proxies, `setLogicOwner` of classes,
-    returns of blocks), `CapturedVars`, `ElimByName` (calls),
+    and creating local classes, the naming order of proxies, `setLogicOwner` of classes and
+    functions, local traits and their members, intermediate classes of `markFree`, returns of
+    blocks), `ExpandPrivate` (expanded names of lifted methods), `CapturedVars`, `ElimByName` (calls),
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
-    classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
-  - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
-    guards, switches),
-    `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
+    classes and traits, `fixThis`), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
+  - `PatternMatcher` (literal, binding, alternative, type, extractor, sequence and
+    product-sequence patterns, guards, switches),
+    `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, singletons through
+    `tpd.isInstance` and `tpd.singleton`, unions and intersections,
     casts of primitives, `primitiveConversion`),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`, `SpecializeTuples` (with
     `inlines/Inliner.isElideableExpr`, `Definitions.withSpecMethods`)
   - `ExpandPrivate`, `SymDenotations.ensureNotPrivate`, `expandedName`
-  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`), `ResolveSuper`
-    (`rebindSuper`)
-  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `transformS`), `tpd.evalOnce`
+  - `SuperAccessors` (`superAccessorCall`, `transformSuperSelect`, `transformSelect`),
+    `ResolveSuper` (`rebindSuper`)
+  - `ProtectedAccessors`, `AccessProxies` (`useAccessor`, `useSetter`, `rewire`, `accessorDef`,
+    `hostForAccessorOf`), `TypeErasure.eraseInfo` (a trait's class parent as `Object`)
+  - `localopt/StringInterpolatorOpt` (`s`, `raw`, `f`, `transformS`, `transformF`),
+    `localopt/FormatChecker` (`TypedFormatChecker`), `tpd.evalOnce`
   - `VCInlineMethods`, `ExtensionMethods` (extension methods, moved bodies), `FullParameterization`
     (`fullyParameterizedDef`, `forwarder`), `VCElideAllocations`, `Erasure.Boxing` (`box`, `unbox`
     of value classes), `SyntheticMembers` (`valueHashCodeBody`), `TypeErasure.valueErasure`

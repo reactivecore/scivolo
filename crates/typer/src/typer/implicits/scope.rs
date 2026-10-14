@@ -1,110 +1,166 @@
-//! The implicit scope of a type (dotty's `implicitScope`): the implicits of the companions of the
-//! classes of its parts and of their base classes.
+//! The implicit scope of a type (dotty's `implicitScope`, `collectCompanions`): the implicits of
+//! the companions of the classes of its parts and of their base classes, and of the values on
+//! their prefix paths.
 
 use super::super::Typer;
 use super::candidates::Candidate;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use super::parts::Parts;
+use tasty::tags::EXTENSION;
+use tasty::{SymbolId, Type, TypeId};
+
+/// The implicits of an implicit scope, and the objects and values they are members of (dotty's
+/// `companionRefs`) as references.
+#[derive(Default)]
+pub struct ImplicitScope {
+    pub implicits: Vec<Candidate>,
+    pub containers: Vec<Candidate>,
+}
 
 impl Typer<'_> {
     /// The implicits of the companions of the classes `t` refers to, those of the objects it
-    /// refers to, and those of their base classes.
-    pub fn implicit_scope(&mut self, t: TypeId) -> Vec<Candidate> {
+    /// refers to, those of their base classes, and those of the stable values their prefixes go
+    /// through.
+    pub fn implicit_scope(&mut self, t: TypeId) -> Result<Vec<Candidate>, &'static str> {
+        Ok(self.implicit_scope_of(t)?.implicits)
+    }
+
+    /// `implicit_scope` with the containers; `Err` if a companion with implicits or extension
+    /// methods cannot be referenced.
+    pub fn implicit_scope_of(&mut self, t: TypeId) -> Result<ImplicitScope, &'static str> {
         let t = self.zonk(t);
-        let mut classes = Vec::new();
-        self.collect_parts(t, &mut Vec::new(), &mut classes);
-        let mut out = Vec::new();
-        for c in classes {
+        let mut parts = Parts::default();
+        self.collect_parts(t, &mut Vec::new(), &mut parts);
+        let mut out = ImplicitScope::default();
+        for (c, prefix) in parts.classes {
+            let owner = self.u.symbol(c).owner;
             for base in self.u.linearization(c) {
-                let Some(module) = self.companion_module(base) else { continue };
-                let Some(module_class) = self.u.module_class(module) else { continue };
-                let prefix = Some(crate::defn::type_ref(self.u, module));
-                for sym in self.implicit_members(module_class, false) {
-                    let candidate = Candidate { sym, prefix };
-                    if !out.contains(&candidate) {
-                        out.push(candidate);
+                let base_owner = self.u.symbol(base).owner;
+                if base_owner != owner && base_owner.is_some_and(|o| self.is_instance_class(o)) {
+                    return Err("implicit scope with a base class of another class's instance");
+                }
+                let term_path = prefix.filter(
+                    |&p| matches!(*self.u.types().get(p), Type::Sym(_, s) if self.u.symbol(s).kind.is_term()),
+                );
+                let (module, module_ref) = match self.companion_module(base) {
+                    Some(module) => match term_path.filter(|_| base == c) {
+                        Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
+                        None => (module, crate::defn::type_ref(self.u, module)),
+                    },
+                    None => {
+                        let Some(module) = self.class_companion(base) else { continue };
+                        let path = prefix.filter(|&p| match *self.u.types().get(p) {
+                            Type::This(_) => true,
+                            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+                            _ => false,
+                        });
+                        match path {
+                            Some(p) => (module, self.u.intern_type(Type::Sym(Some(p), module))),
+                            None if self.holds_implicits(module) => {
+                                return Err("implicit scope with an inner companion out of reach");
+                            }
+                            None => continue,
+                        }
                     }
-                }
+                };
+                let Some(module_class) = self.u.module_class(module) else { continue };
+                self.add_members(module_class, module_ref, &mut out);
+            }
+            if let Some(p) = prefix {
+                self.add_path(p, &mut out)?;
             }
         }
-        out
+        for (s, prefix) in parts.anchors {
+            if self.anchor_companion(s).is_some_and(|m| self.holds_implicits(m)) {
+                return Err("implicit scope of an abstract or opaque type with a companion");
+            }
+            if let Some(p) = prefix {
+                self.add_path(p, &mut out)?;
+            }
+        }
+        Ok(out)
     }
 
-    /// Adds to `classes` the classes of the parts of `t` (dotty's `collectParts`): of the
-    /// references in `t` dealiased, of the types of its term references, and of the prefixes of
-    /// its class, abstract type and term references; never of packages or package objects.
-    fn collect_parts(&mut self, t: TypeId, seen: &mut Vec<TypeId>, classes: &mut Vec<SymbolId>) {
-        if seen.contains(&t) {
-            return;
+    /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.
+    fn add_members(&mut self, class: SymbolId, prefix: TypeId, out: &mut ImplicitScope) {
+        for sym in self.implicit_members(class, false) {
+            let candidate = Candidate { sym, prefix: Some(prefix) };
+            if !out.implicits.contains(&candidate) {
+                out.implicits.push(candidate);
+            }
         }
-        seen.push(t);
-        let t = self.u.dealias(t);
-        let (prefix, sym) = match self.u.types().get(t).clone() {
-            Type::Sym(p, s) => (p, s),
-            Type::TypeRef(p, n) | Type::TermRef(p, n) => {
-                let ty = matches!(self.u.types().get(t), Type::TypeRef(..));
-                let Some(s) = self.u.resolve(p, &n, ty) else { return };
-                (Some(p), s)
-            }
-            Type::This(c) => return self.collect_parts(c, seen, classes),
-            _ => {
-                for part in self.children(t) {
-                    self.collect_parts(part, seen, classes);
-                }
-                return;
-            }
-        };
-        if self.is_excluded(sym) {
-            return;
-        }
-        let class = match self.u.symbol(sym).kind.is_term() {
-            true => {
-                let widened = self.u.widen(t);
-                (widened != t).then(|| self.u.class_symbol(widened)).flatten()
-            }
-            false => self.u.class_symbol(t),
-        };
-        if let Some(c) = class.filter(|&c| !self.is_excluded(c))
-            && !classes.contains(&c)
+        if let Type::Sym(p, sym) = *self.u.types().get(prefix)
+            && !out.containers.contains(&Candidate { sym, prefix: p })
         {
-            classes.push(c);
-        }
-        let param = self.u.symbol(sym).kind == Kind::TypeParam;
-        if let Some(p) = prefix.filter(|_| !param && self.u.alias_of(sym).is_none()) {
-            self.collect_parts(p, seen, classes);
+            out.containers.push(Candidate { sym, prefix: p });
         }
     }
 
-    /// The types `t` is built from.
-    fn children(&mut self, t: TypeId) -> Vec<TypeId> {
-        let mut out = Vec::new();
-        self.u.map_type(t, &mut |_, part| {
-            (part != t).then(|| {
-                out.push(part);
-                part
-            })
-        });
-        out
-    }
-
-    /// Whether `s` is a package, a package object or its class (dotty's `isExcluded`).
-    fn is_excluded(&mut self, s: SymbolId) -> bool {
-        let class = match self.u.is_module(s) {
-            true => self.u.module_class(s),
-            false => Some(s),
+    /// Adds the implicit members of the stable values that are not static objects on path `p` to
+    /// `out` (dotty's `addPath`).
+    fn add_path(&mut self, p: TypeId, out: &mut ImplicitScope) -> Result<(), &'static str> {
+        let outer = match *self.u.types().get(p) {
+            Type::Sym(outer, _) => outer,
+            Type::TermRef(outer, _) => Some(outer),
+            _ => return Ok(()),
         };
-        self.u.symbol(s).kind == Kind::Package || class.is_some_and(|c| self.is_named_package_object(c))
+        let s = self.referenced(p).ok_or("implicit scope through an unresolved path")?;
+        if !self.u.symbol(s).kind.is_term()
+            || self.is_excluded(s)
+            || self.is_static_term(s) && self.u.is_module(s)
+        {
+            return Ok(());
+        }
+        self.complete(s);
+        let info = self.u.info(s);
+        if matches!(self.u.types().get(info), Type::Sym(_, x) if self.u.symbol(*x).kind.is_term()) {
+            return self.add_path(info, out);
+        }
+        let widened = self.u.widen(p);
+        let class = self.u.class_symbol(widened).ok_or("implicit scope through a value of no class type")?;
+        self.add_members(class, p, out);
+        match outer {
+            Some(outer) => self.add_path(outer, out),
+            None => Ok(()),
+        }
+    }
+
+    /// Whether object `module` has implicit members or extension methods.
+    fn holds_implicits(&mut self, module: SymbolId) -> bool {
+        let Some(class) = self.u.module_class(module) else { return false };
+        !self.implicit_members(class, false).is_empty()
+            || self.u.linearization(class).into_iter().any(|b| {
+                let decls = self.u.decls(b).unwrap_or_default();
+                decls.iter().any(|&d| self.u.symbol(d).flags.has(EXTENSION))
+            })
+    }
+
+    /// The companion object of class `c`, the object itself of a module class.
+    fn class_companion(&mut self, c: SymbolId) -> Option<SymbolId> {
+        match self.u.is_module_class(c) {
+            true => self.u.source_module(c),
+            false => self.u.companion_module(c),
+        }
+    }
+
+    /// The object beside abstract or opaque type `s` that has its name.
+    fn anchor_companion(&mut self, s: SymbolId) -> Option<SymbolId> {
+        let owner = self.u.symbol(s).owner?;
+        let name = self.u.symbol(s).name.clone();
+        self.u.decl(owner, &name).ok()?.into_iter().find(|&m| self.u.is_module(m))
     }
 
     /// The companion object of class `c`, the object itself of a module class, if `c` is not
     /// nested in a class other than an object's.
     fn companion_module(&mut self, c: SymbolId) -> Option<SymbolId> {
         let owner = self.u.symbol(c).owner?;
-        if self.u.is_class(owner) && !self.u.is_module_class(owner) {
+        if self.is_instance_class(owner) {
             return None;
         }
-        if self.u.is_module_class(c) {
-            return self.u.source_module(c);
-        }
-        self.u.companion_module(c)
+        self.class_companion(c)
+    }
+
+    /// Whether `c` is a class other than an object's.
+    fn is_instance_class(&self, c: SymbolId) -> bool {
+        self.u.is_class(c) && !self.u.is_module_class(c)
     }
 }

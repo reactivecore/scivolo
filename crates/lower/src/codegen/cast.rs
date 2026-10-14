@@ -9,7 +9,8 @@ use crate::symbols::is_singleton;
 use crate::{Result, unsupported};
 use nir::{Conv, Op, Type, TypeId, ValId};
 use syntax::ast::Span;
-use tasty::SymbolId;
+use syntax::ast::constant::Constant;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
@@ -45,14 +46,14 @@ impl Gen<'_, '_> {
             Type::Double => 'd',
             _ => return None,
         };
-        let box_method = self.l.defs.primitive(letter)?.box_method;
+        let box_method = self.l.primitive(letter)?.box_method;
         Some(self.result_type(box_method))
     }
 
     /// A call of `box` or `unbox` method `sym` with `args`; `None` for another method.
     pub fn gen_boxing(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Option<ValId>> {
-        let unboxed = self.l.defs.unboxed_by(sym).map(|p| p.box_method);
-        if !self.l.defs.is_box(sym) && unboxed.is_none() {
+        let unboxed = self.l.unboxed_by(sym).map(|p| p.box_method);
+        if unboxed.is_none() && !self.l.is_box(sym) {
             return Ok(None);
         }
         let [arg] = args[..] else { unreachable!("one argument to `box` or `unbox`") };
@@ -77,7 +78,7 @@ impl Gen<'_, '_> {
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else {
             return unsupported(span, "type applications without a call");
         };
-        if self.l.tpd.sym(fun) == Some(self.l.defs.patmat.is_instance_of) {
+        if self.l.tpd.sym(fun) == Some(self.l.defs.is_instance_of) {
             let value = self.gen_expr(qualifier)?;
             let saved = self.at_span(span);
             let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else {
@@ -101,8 +102,11 @@ impl Gen<'_, '_> {
         let (from, to) = (self.val_ty(value), self.erased(&erased_to));
         let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, ty) = (self.pool.ty(from).clone(), self.pool.ty(to).clone());
-        let null_conforms =
-            f == Type::Null && !is_singleton(self.l.u, self.l.tpd.tpe(t)) && !self.l.null_casts.contains(&t);
+        let null_literal = matches!(self.l.tpd.tree(qualifier), Tree::Literal { value: Constant::Null });
+        let null_conforms = (erased_from == Erased::Null || null_literal)
+            && !matches!(ty, Type::Array { .. })
+            && !is_singleton(self.l.u, self.l.tpd.tpe(t))
+            && !self.l.null_casts.contains(&t);
         let same = match (&f, &ty) {
             (Type::Ref { name: a, .. }, Type::Ref { name: b, .. }) => a == b,
             (Type::Array { elem: a, .. }, Type::Array { elem: b, .. }) => a == b,
@@ -113,7 +117,7 @@ impl Gen<'_, '_> {
             _ if ty == Type::Nothing && (reference(&f) || f == Type::Null) => {
                 self.gen_cast_to_nothing(value, from)
             }
-            _ if null_conforms || (subtype && reference(&f)) => value,
+            _ if null_conforms || (subtype && (reference(&f) || f == Type::Null)) => value,
             _ if (reference(&f) || f == Type::Null) && reference(&ty) => {
                 self.emit(Op::As { ty: to, obj: value })
             }
