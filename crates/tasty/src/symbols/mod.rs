@@ -77,6 +77,8 @@ pub struct Universe {
     /// How many binders `fresh_binder` has made.
     binders: u32,
     unions: Unions,
+    /// How many steps comparisons have taken computing atoms and `Nothing`-ness.
+    pub subtype_steps: u64,
     /// Whether `erase` erases as Scala 2 does, for the signature of a Scala 2 symbol.
     scala2_erasure: bool,
 }

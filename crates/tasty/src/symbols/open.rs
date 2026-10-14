@@ -44,6 +44,7 @@ impl Universe {
             builtins: Builtins::PENDING,
             binders: 0,
             unions: Default::default(),
+            subtype_steps: 0,
             scala2_erasure: false,
         };
         let root = u.add(Symbol {

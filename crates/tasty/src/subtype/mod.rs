@@ -133,6 +133,7 @@ impl<'a> Cmp<'a> {
 
     /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.
     fn step(&mut self) -> bool {
+        self.u.subtype_steps += 1;
         self.steps = self.steps.saturating_sub(1);
         self.steps > 0
     }
