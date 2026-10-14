@@ -120,7 +120,7 @@ impl Typer<'_> {
                 Type::ByName(r) => r,
                 _ => info,
             };
-            avoided = if prefix.is_some() { info } else { self.u.dealias(info) };
+            avoided = if prefix.is_some() { self.resolve_class_params(info) } else { self.u.dealias(info) };
         }
         if self.refers_to(avoided, opaque) {
             return None;
