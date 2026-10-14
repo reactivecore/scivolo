@@ -5,6 +5,7 @@ mod applied;
 mod atoms;
 mod atoms_lub;
 mod binders;
+mod either;
 mod first;
 mod fourth;
 mod glb;
@@ -44,6 +45,10 @@ pub trait TypeVars {
     fn frozen(&self) -> bool;
     fn mark(&self) -> Mark;
     fn rollback(&mut self, m: Mark);
+    /// The variables changed since `m`.
+    fn changed_since(&self, _: Mark) -> Vec<VarId> {
+        Vec::new()
+    }
 }
 
 /// No constraint: a type variable is a subtype and a supertype of itself only.
@@ -169,20 +174,5 @@ impl<'a> Cmp<'a> {
         let result = self.recur(a, b);
         self.frozen = frozen;
         result
-    }
-
-    /// Whether `first` holds, or else `second`, the constraint a failed `first` added rolled
-    /// back (dotty's `sufficientEither`, keeping the first success).
-    pub fn either(
-        &mut self,
-        first: impl FnOnce(&mut Self) -> bool,
-        second: impl FnOnce(&mut Self) -> bool,
-    ) -> bool {
-        let mark = self.vars.mark();
-        if first(self) {
-            return true;
-        }
-        self.vars.rollback(mark);
-        second(self)
     }
 }

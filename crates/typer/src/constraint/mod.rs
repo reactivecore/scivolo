@@ -83,6 +83,29 @@ impl Constraint {
         ok
     }
 
+    /// Propagates bound `t` of `v`, a lower one if `lower`, to the variable `other` it bounds, if
+    /// one, then narrows `v` to `lo` and `hi` as `narrow` does; false and unchanged if either fails.
+    fn add_bound(
+        &mut self,
+        u: &mut Universe,
+        v: VarId,
+        (t, lower): (TypeId, bool),
+        other: TypeId,
+        (lo, hi): (TypeId, TypeId),
+        checked: TypeId,
+    ) -> bool {
+        let mark = self.mark();
+        let propagated = match *u.types().get(other) {
+            Type::Var(w) => self.propagated(u, w, t, lower),
+            _ => true,
+        };
+        let ok = propagated && self.narrow(u, v, lo, hi, checked);
+        if !ok {
+            self.rollback(mark);
+        }
+        ok
+    }
+
     /// Sets the bounds of `v` to `lo` and `hi` if `checked <: hi` holds then, `checked` being
     /// the part of `lo` to check (dotty's `addOneBound`).
     fn narrow(&mut self, u: &mut Universe, v: VarId, lo: TypeId, hi: TypeId, checked: TypeId) -> bool {
@@ -117,12 +140,7 @@ impl TypeVars for Constraint {
             let lub = u.lub(e.lo, lo);
             (lub, lub)
         };
-        if let Type::Var(w) = *u.types().get(e.hi)
-            && !self.propagated(u, w, lo, true)
-        {
-            return false;
-        }
-        if !self.narrow(u, v, lo, e.hi, unchecked) {
+        if !self.add_bound(u, v, (lo, true), e.hi, (lo, e.hi), unchecked) {
             return false;
         }
         if incoming_union && !self.propagating {
@@ -145,12 +163,7 @@ impl TypeVars for Constraint {
         } else {
             u.glb(e.hi, hi)
         };
-        if let Type::Var(w) = *u.types().get(e.lo)
-            && !self.propagated(u, w, hi, false)
-        {
-            return false;
-        }
-        self.narrow(u, v, e.lo, hi, e.lo)
+        self.add_bound(u, v, (hi, false), e.lo, (e.lo, hi), e.lo)
     }
 
     fn bounds(&self, v: VarId) -> (TypeId, TypeId) {
@@ -164,6 +177,13 @@ impl TypeVars for Constraint {
 
     fn mark(&self) -> Mark {
         Mark(self.log.len())
+    }
+
+    fn changed_since(&self, m: Mark) -> Vec<VarId> {
+        let mut vars: Vec<VarId> = self.log[m.0..].iter().map(|&(i, _)| VarId(i as u32)).collect();
+        vars.sort_unstable_by_key(|v| v.0);
+        vars.dedup();
+        vars
     }
 
     fn rollback(&mut self, m: Mark) {

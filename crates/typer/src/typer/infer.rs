@@ -48,6 +48,12 @@ impl Typer<'_> {
         if from_below {
             let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
             inst = self.widen_inferred(inst, hi, widen)?;
+            if matches!(self.u.types().get(hi), Type::Var(_))
+                && !self.is_below_singleton(hi, 0)
+                && self.widen_singletons(inst, false) != inst
+            {
+                return Err("singleton instance below another type variable");
+            }
         }
         let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {
