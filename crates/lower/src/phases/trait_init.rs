@@ -4,7 +4,7 @@
 use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_setter};
-use super::uninitialized_defs::is_wildcard;
+use super::literals::is_wildcard;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;

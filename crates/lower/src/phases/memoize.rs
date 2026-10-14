@@ -5,7 +5,7 @@
 
 use super::accessor_names::setter_getter_name;
 use super::getters::{is_const_final, is_param_accessor, is_setter};
-use super::uninitialized_defs::is_wildcard;
+use super::literals::is_wildcard;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result};
@@ -58,14 +58,14 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Makes getter definition `stat` of `getter` return its field, or the value of a type needing
-/// none; the field's definition, none for a mixed-in getter of such a type.
+/// none; the field's definition, none for a mixed-in or uninitialized getter of such a type.
 fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Option<TNodeId> {
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(stat) else { unreachable!("a getter") };
     let mixed_in = l.mixed_in.contains(&getter);
     let bottom = bottom(l, getter);
     let span = l.tpd.span(stat);
     let init = rhs.filter(|&r| !is_wildcard(l, r));
-    let field = (!(mixed_in && bottom.is_some())).then(|| {
+    let field = (bottom.is_none() || !mixed_in && init.is_some()).then(|| {
         let name_text = super::accessor_names::run_name(l, getter).to_owned();
         let mut flags = Flags::default().with(PRIVATE).with(LOCAL);
         if has(l.u, getter, MUTABLE) {

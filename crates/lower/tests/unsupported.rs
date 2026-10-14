@@ -86,6 +86,14 @@ const CASES: &[(&str, &str)] = &[
         "class W(val v: Int) { trait In { def get: Int }; def f = new In { def get = new In { def get = v }.get }.get }",
         "classes in anonymous classes using the enclosing instance",
     ),
+    (
+        "class A { val x: Int = scala.compiletime.uninitialized }",
+        "`uninitialized` other than as a variable field's value",
+    ),
+    (
+        "object O { def f() = { var y: Int = scala.compiletime.uninitialized; y } }",
+        "`uninitialized` other than as a variable field's value",
+    ),
 ];
 
 #[test]

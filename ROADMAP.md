@@ -227,7 +227,7 @@ frontend; edit-then-run takes 15 ms for hello, 25 ms for matches, 38 ms for case
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Where we are and what's next (2026-10-13)
+## Where we are and what's next (2026-10-14)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-14,

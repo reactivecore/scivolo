@@ -39,8 +39,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// The local variables referred to under `t`, in class `class`, from inside a function, class or
-/// lazy value other than their own function.
+/// lazy value other than their own function; the class body counts as the constructor.
 fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<SymbolId>) {
+    let body = match *l.tpd.tree(t) {
+        Tree::TypeDef { rhs, .. } => l.tpd.sym(rhs),
+        _ => None,
+    };
     traverse(l, t, class, &mut |l, t, function| {
         if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
             && has(l.u, s, MUTABLE)
@@ -48,6 +52,9 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
             && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
             && !l.u.is_class(owner)
             && owner != function
+            && !(Some(function) == body
+                && l.u.is_constructor(owner)
+                && l.u.symbol(owner).owner == Some(class))
         {
             out.insert(s);
         }

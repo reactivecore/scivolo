@@ -16,9 +16,19 @@ class Fields:
     hidden += 1.5
     hidden
 
+class Counted:
+  private var count: Int = uninitialized
+  private var name: String = uninitialized
+  private var total: Long = uninitialized
+  count += 3
+  name = s"$name!"
+  total += count
+  println(s"$count $name $total")
+
 trait Slots:
   var slot: Int = uninitialized
   var label: String = uninitialized
+  var none: Unit = uninitialized
 
 class Holder extends Slots
 
@@ -50,3 +60,5 @@ object Registry:
   println(h.label)
   h.slot = 5
   println(h.slot)
+  println(h.none)
+  Counted()
