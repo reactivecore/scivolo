@@ -171,6 +171,9 @@ impl Typer<'_> {
         if !self.is_implicit(c.sym) {
             return Err("not an implicit value");
         }
+        if self.cannot_fit(c.sym, pt) {
+            return Err("implicit of another type");
+        }
         let tree = self.candidate_ref(c, at, ctx)?;
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);

@@ -1,0 +1,114 @@
+//! Rejecting an implicit candidate by the classes of its declared result type, its type
+//! parameters and uninstantiated type variables as wildcards within their bounds, before it is
+//! referenced and typed (dotty's `isCompatible` check in `candidateKind`).
+
+use super::super::Typer;
+use crate::symbols::Completion;
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars, VarId};
+
+/// How deep type arguments are compared.
+const DEPTH: u32 = 4;
+/// Classes whose types conform to or from others other than by their base classes.
+const SPECIAL: [&str; 9] =
+    ["Any", "AnyKind", "AnyVal", "Matchable", "Object", "Singleton", "Nothing", "Null", "Product"];
+
+impl Typer<'_> {
+    /// Whether the value of implicit `sym` cannot conform to `pt`: it takes explicit parameters,
+    /// or the class of its declared result type does not derive from that of `pt`, or a type
+    /// argument of its base type at that class cannot conform to the corresponding one of `pt`.
+    pub fn cannot_fit(&mut self, sym: SymbolId, pt: TypeId) -> bool {
+        let mut t = self.u.info(sym);
+        loop {
+            t = match *self.u.types().get(t) {
+                Type::Poly { result, .. }
+                | Type::Method { result, implicit: true, .. }
+                | Type::ByName(result) => result,
+                Type::Method { .. } => return true,
+                _ => break,
+            };
+        }
+        let (Some((ca, _)), Some((cb, ba))) = (self.nominal(t), self.nominal(pt)) else { return false };
+        if !self.related(ca, cb) {
+            return true;
+        }
+        let t = self.u.dealias(t);
+        let Some((_, aa)) = self.u.base_type(t, cb).and_then(|b| self.nominal(b)) else { return false };
+        let variances = self.u.variances(cb);
+        aa.len() == ba.len()
+            && aa.iter().zip(&ba).enumerate().any(|(i, (&x, &y))| {
+                match (self.open_var(y), variances.get(i)) {
+                    (Some(v), Some(&variance)) => self.outside_bounds(x, v, variance),
+                    (Some(_), None) => false,
+                    (None, _) => self.unrelated(x, y, DEPTH),
+                }
+            })
+    }
+
+    /// Whether `x` cannot be an argument of variance `variance` for type variable `v` within
+    /// its bounds.
+    fn outside_bounds(&mut self, x: TypeId, v: VarId, variance: i8) -> bool {
+        let Some((cx, _)) = self.nominal(x) else { return false };
+        let (lo, hi) = self.constraint.bounds(v);
+        if variance <= 0
+            && let Some((cl, _)) = self.nominal(lo)
+            && !self.related(cl, cx)
+        {
+            return true;
+        }
+        variance >= 0 && self.nominal(hi).is_some_and(|(ch, _)| !self.related(cx, ch))
+    }
+
+    /// Whether `a` and `b` cannot be related by conformance in either direction.
+    fn unrelated(&mut self, a: TypeId, b: TypeId, depth: u32) -> bool {
+        let (Some((ca, aa)), Some((cb, ba))) = (self.nominal(a), self.nominal(b)) else { return false };
+        if ca != cb {
+            return !self.related(ca, cb) && !self.related(cb, ca);
+        }
+        depth > 0
+            && aa.len() == ba.len()
+            && aa.iter().zip(&ba).any(|(&x, &y)| self.unrelated(x, y, depth - 1))
+    }
+
+    /// Whether a type of class `sub` may conform to one of class `sup`: `sub` derives from
+    /// `sup`, or both are tuple classes other than two `TupleN` of different arities.
+    fn related(&mut self, sub: SymbolId, sup: SymbolId) -> bool {
+        let tuple = |name: &str| {
+            let generic = name.starts_with("Tuple") || name.starts_with("EmptyTuple");
+            let generic = generic || name == "NonEmptyTuple" || name == "*:";
+            generic.then(|| name.strip_prefix("Tuple").and_then(|n| n.parse::<u32>().ok()))
+        };
+        match (tuple(&self.u.symbol(sub).name), tuple(&self.u.symbol(sup).name)) {
+            (Some(Some(n)), Some(Some(m))) if n != m => false,
+            (Some(_), Some(_)) => true,
+            _ => self.u.derives_from(sub, sup),
+        }
+    }
+
+    /// The type variable `t` is, if not instantiated.
+    fn open_var(&self, t: TypeId) -> Option<VarId> {
+        match *self.u.types().get(t) {
+            Type::Var(v) if self.constraint.instance(v).is_none() => Some(v),
+            _ => None,
+        }
+    }
+
+    /// The class `t` refers to and its type arguments, if it is a class other than a special one
+    /// whose base classes are known.
+    fn nominal(&mut self, t: TypeId) -> Option<(SymbolId, Vec<TypeId>)> {
+        let t = self.u.dealias(t);
+        let (tycon, args) = match self.u.types().get(t) {
+            Type::Applied(tycon, args) => (*tycon, args.clone()),
+            _ => (t, Vec::new()),
+        };
+        let c = match *self.u.types().get(tycon) {
+            Type::Sym(_, s) => s,
+            Type::TypeRef(..) => self.u.resolve_ref(tycon)?,
+            _ => return None,
+        };
+        let sym = self.u.symbol(c);
+        let special = SPECIAL.contains(&sym.name.as_str()) || sym.name.starts_with("ContextFunction");
+        let known = matches!(self.syms.completions.get(&c), None | Some(Completion::Done))
+            && !self.syms.incomplete.contains(&c);
+        (sym.kind == Kind::Class && !special && known).then_some((c, args))
+    }
+}
