@@ -1,8 +1,8 @@
 //! Members of arrays of an element type erasure does not know, as `ScalaRunTime`'s
 //! `array_apply`, `array_update`, `array_length` and `array_clone` (dotty's `selectArrayMember`).
 
-use crate::{Lower, Result, unsupported};
 use crate::phases::adapt::from_start;
+use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::Erased;
 use typer::tpd::{TNodeId, Tree};
