@@ -5,7 +5,7 @@ use super::adapt::adapt;
 use super::array_literals::array_literal;
 use super::casts::cast;
 use super::walk::children;
-use crate::Lower;
+use crate::{Lower, Result};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, Type};
@@ -13,7 +13,7 @@ use typer::tpd::{TNodeId, Tree};
 
 /// Rewrites the array and sequence constructions in class definitions `classes`; lifted lambdas
 /// and local classes start with the budget left where they are made.
-pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
+pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     let mut budgets = FxHashMap::default();
     loop {
         let known = budgets.clone();
@@ -30,7 +30,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             trees.iter().filter_map(|&(t, _, p)| p.map(|p| (t, p))).collect();
         for (t, budget, _) in trees.into_iter().rev() {
             if let Some(elems) = seq_elems(l, t).filter(|e| budget > 0 || e.is_empty()) {
-                cons(l, t, &elems);
+                cons(l, t, &elems)?;
             } else if let Some(literal) = array_literal(l, t) {
                 l.copy_node(t, literal);
             } else {
@@ -43,6 +43,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) {
             }
         }
     }
+    Ok(())
 }
 
 /// The trees of class definition `td` in pre-order, each with the budget left in it and its
@@ -146,8 +147,8 @@ pub fn wrapped_literal(l: &Lower, t: TNodeId) -> Option<TNodeId> {
 }
 
 /// `new ::(e1, ... new ::(en, Nil))` for `List(e1, ..., en)` call `t`, cast to its erased result.
-fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) {
-    let defs = l.defs.sequences;
+fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) -> Result<()> {
+    let defs = l.sequences()?;
     let object = Erased::Class("java.lang.Object".into());
     let mut acc = l.ident(defs.nil, Span::NONE);
     for &e in elems.iter().rev() {
@@ -165,4 +166,5 @@ fn cons(l: &mut Lower, t: TNodeId, elems: &[TNodeId]) {
     let consed = l.positioned(consed);
     l.copy_node(t, consed);
     l.explicit_casts.insert(t);
+    Ok(())
 }

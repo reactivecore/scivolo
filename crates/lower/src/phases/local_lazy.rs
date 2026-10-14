@@ -110,7 +110,7 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let receiver = dup(l, holder_ref);
     let initialize = holder_call(l, &holder, receiver, "initialize", &[rhs], span)?;
     let receiver = dup(l, holder_ref);
-    let sync = l.select(receiver, l.defs.monitors.synchronized, Span::NONE);
+    let sync = l.select(receiver, l.defs.synchronized, Span::NONE);
     let sync = l.positioned(sync);
     let targ = l.type_tree(info, Span::NONE);
     let sync = l.build().type_apply(sync, &[targ], info, Span::NONE);

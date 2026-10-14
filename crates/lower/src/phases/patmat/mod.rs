@@ -14,7 +14,7 @@ mod try_catch;
 mod types;
 
 use super::walk::children;
-use crate::definitions::symbol;
+use crate::definitions::{Patmat, symbol};
 use crate::{Lower, Result};
 use plan::{Plan, PlanId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -49,7 +49,8 @@ pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
         todo.extend(children(l.tpd, t).into_iter().rev().map(|c| (c, inner, false)));
     }
     for (m, owner) in matches {
-        Translator::new(l, m, owner).translate(m)?;
+        let defs = l.patmat()?;
+        Translator::new(l, m, owner, defs).translate(m)?;
     }
     Ok(())
 }
@@ -76,12 +77,14 @@ pub struct Translator<'t, 'a> {
     non_null: FxHashSet<SymbolId>,
     owner: SymbolId,
     result_label: SymbolId,
+    defs: Patmat,
 }
 
 impl<'t, 'a> Translator<'t, 'a> {
-    fn new(l: &'t mut Lower<'a>, m: TNodeId, owner: SymbolId) -> Self {
+    fn new(l: &'t mut Lower<'a>, m: TNodeId, owner: SymbolId, defs: Patmat) -> Self {
         let mut t = Translator {
             l,
+            defs,
             plans: Vec::new(),
             initializer: FxHashMap::default(),
             spans: FxHashMap::default(),
@@ -142,7 +145,7 @@ impl<'t, 'a> Translator<'t, 'a> {
 
     /// The plan `l: { expr(return l) }` for a fresh label `l`.
     fn alts_labeled(&mut self, expr: impl FnOnce(&mut Self, PlanId) -> Result<PlanId>) -> Result<PlanId> {
-        let unit = crate::definitions::type_ref(self.l.u, self.l.defs.patmat.unit);
+        let unit = crate::definitions::type_ref(self.l.u, self.l.defs.unit);
         let label = self.label("matchAlts", unit);
         let ret = self.add(Plan::Return { label });
         let expr = expr(self, ret)?;

@@ -130,7 +130,7 @@ fn process_escapes(s: &[u16]) -> Option<Vec<u16>> {
 /// `parts[0] + args[0] + parts[1] + …`, empty parts but the first dropped, each `+` at the span
 /// of what it appends.
 fn concat(l: &mut Lower, parts: &[TNodeId], args: &[TNodeId]) -> TNodeId {
-    let plus = l.u.decl(l.defs.strings.string, "+").unwrap_or_default()[0];
+    let plus = l.u.decl(l.defs.string, "+").unwrap_or_default()[0];
     let tpe = l.u.class_ref("java.lang.String");
     let mut result = parts[0];
     for (&arg, &part) in args.iter().zip(&parts[1..]) {

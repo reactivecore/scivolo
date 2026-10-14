@@ -37,7 +37,8 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         let init = l.u.decl(l.defs.object, "<init>").unwrap_or_default();
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
-    if l.tpd.sym(fun) == Some(l.defs.array_clone) {
+    let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == "clone");
+    if clone.is_some() && clone == Some(l.array_clone()?) {
         let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { unreachable!("a selection") };
         if !matches!(erased_type(l, qualifier), Erased::Array(_)) {
             return unsupported(l.tpd.span(t), "`clone` of a generic array");

@@ -43,7 +43,10 @@ impl Typer<'_> {
             pt => pt,
         };
         let expr = self.typed(expr, pt, ctx);
-        let throwable = crate::defn::type_ref(self.u, self.defn.throwable);
+        let throwable = match self.defn.throwable(self.u) {
+            Ok(t) => crate::defn::type_ref(self.u, t),
+            Err(e) => return self.unsupported(id, &e),
+        };
         let typed_cases: Vec<TNodeId> =
             cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)).collect();
         let mut types: Vec<TypeId> = vec![self.by_name_result(self.tpd.tpe(expr))];

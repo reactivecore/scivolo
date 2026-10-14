@@ -56,6 +56,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             stats.extend(eager_module(l, accessor, stat, rhs));
             continue;
         }
+        let defs = l.lazy_vals()?;
         let info = l.u.info(accessor);
         let lazy = define(l, class, accessor);
         let object = object(l);
@@ -64,12 +65,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         stats.push(l.build().val_def(lazy.field, field_tpt, None, field_span));
         let rhs_span = l.tpd.span(rhs);
         let at = if rhs_span.exists() { rhs_span.with_point(rhs_span.start()) } else { span };
-        let body = accessor_body(l, &lazy, info);
+        let body = accessor_body(l, &lazy, info, defs);
         let node = l.tpd.get_mut(stat);
         node.tree = Tree::DefDef { name, paramss, tpt, rhs: Some(body) };
         node.span = Span::NONE;
         stats.push(l.with_span(stat, at));
-        stats.push(init_method(l, &lazy, rhs, info));
+        stats.push(init_method(l, &lazy, rhs, info, defs));
         let field = LazyField { class, field: lazy.field, accessor, span };
         match l.mixed_in.contains(&accessor) {
             true => mixed_in.push(field),

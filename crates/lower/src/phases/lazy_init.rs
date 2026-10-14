@@ -8,28 +8,28 @@ use super::casts::cast;
 use super::lazy_trees::{assign, block, call, eq, field_ref, if_, local, object, return_, unit, val_def};
 use super::lazy_vals::Lazy;
 use crate::Lower;
-use crate::definitions::type_ref;
+use crate::definitions::{LazyVals, type_ref};
 use syntax::ast::Span;
 use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// The trees every compare-and-set of one lazy value shares.
+/// The trees every compare-and-set of one lazy value shares, and the symbols they refer to.
 struct Shared {
     cas: TNodeId,
     field: TNodeId,
     evaluating: TNodeId,
     null_value: TNodeId,
+    defs: LazyVals,
 }
 
 /// The `$lzyINIT` method of `lazy` computing `rhs` of type `info`.
-pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId) -> TNodeId {
-    let defs = l.defs.lazy_vals;
+pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId, defs: LazyVals) -> TNodeId {
     let native = l.ident(defs.native, Span::NONE);
     let cas = l.select(native, defs.obj_cas, Span::NONE);
     let field = field_ref(l, lazy);
     let evaluating = l.ident(defs.evaluating, Span::NONE);
     let null_value = l.ident(defs.null_value, Span::NONE);
-    let s = Shared { cas, field, evaluating, null_value };
+    let s = Shared { cas, field, evaluating, null_value, defs };
     let (object, unit) = (object(l), unit(l));
     let result = local(l, lazy.init, "result", object, true);
     let nullable = local(l, lazy.init, "resultNullable", object, true);
@@ -67,7 +67,7 @@ pub fn init_method(l: &mut Lower, lazy: &Lazy, rhs: TNodeId, info: TypeId) -> TN
 /// `if !CAS(Evaluating, result) then { val lock = x$lzy.asInstanceOf[Waiting]; CAS(lock, result);
 /// lock.countDown() }`.
 fn release(l: &mut Lower, lazy: &Lazy, s: &Shared, result: SymbolId) -> TNodeId {
-    let defs = l.defs.lazy_vals;
+    let defs = s.defs;
     let waiting = type_ref(l.u, defs.waiting);
     let lock = local(l, lazy.init, "lock", waiting, false);
     let field = field_ref(l, lazy);
@@ -126,7 +126,7 @@ fn evaluate(
 /// CAS(current, new Waiting) else if current.isInstanceOf[Waiting] then current.await() else
 /// return null) else return current`.
 fn not_uninitialized(l: &mut Lower, lazy: &Lazy, s: &Shared, current: SymbolId) -> TNodeId {
-    let defs = l.defs.lazy_vals;
+    let defs = s.defs;
     let (control, waiting, unit) = (type_ref(l.u, defs.control_state), type_ref(l.u, defs.waiting), unit(l));
     let read = l.ident(current, Span::NONE);
     let is_control = l.is_instance(read, control);

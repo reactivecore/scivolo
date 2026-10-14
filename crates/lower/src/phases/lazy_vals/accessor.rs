@@ -2,32 +2,33 @@
 
 use super::Lazy;
 use crate::Lower;
+use crate::definitions::LazyVals;
 use crate::phases::adapt::adapt;
 use crate::phases::lazy_trees::{block, call, eq, field_ref, if_, local, object, val_def};
 use crate::symbols::is_singleton;
 use syntax::ast::Span;
-use tasty::{Erased, TypeId};
+use tasty::{Erased, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `{ val result = x$lzy; if result.isInstanceOf[T] then result else if result eq NullValue then
 /// null else x$lzyINIT() }`, each branch adapted to the value's type `info`; the test is
 /// `result != null && !result.isInstanceOf[LazyValControlState]` where `T` includes the states.
-pub fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
+pub fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId, defs: LazyVals) -> TNodeId {
     let object = object(l);
     let result = local(l, lazy.accessor, "result", object, false);
     let field = field_ref(l, lazy);
     let def = val_def(l, result, field);
     let erased = l.u.erased_method(lazy.accessor).1;
     let info = if l.u.erase(info) == Erased::Unit { crate::phases::casts::type_of(l, &erased) } else { info };
-    let cond = if holds_control_states(l, &erased) {
+    let cond = if holds_control_states(l, &erased, defs.control_state) {
         let read = l.ident(result, Span::NONE);
         let null = l.null_literal(Span::NONE);
-        let set = call(l, read, l.defs.patmat.ne, &[null]);
+        let set = call(l, read, l.defs.ne, &[null]);
         let read = l.ident(result, Span::NONE);
-        let control = crate::definitions::type_ref(l.u, l.defs.lazy_vals.control_state);
+        let control = crate::definitions::type_ref(l.u, defs.control_state);
         let is_control = l.is_instance(read, control);
-        let not_control = call(l, is_control, l.defs.lazy_vals.not, &[]);
-        call(l, set, l.defs.patmat.and, &[not_control])
+        let not_control = call(l, is_control, defs.not, &[]);
+        call(l, set, l.defs.and, &[not_control])
     } else {
         let test_type = boxed_type(l, &erased, info);
         let read = l.ident(result, Span::NONE);
@@ -36,7 +37,7 @@ pub fn accessor_body(l: &mut Lower, lazy: &Lazy, info: TypeId) -> TNodeId {
     let read = l.ident(result, Span::NONE);
     let value = conform(l, read, &erased, info);
     let read = l.ident(result, Span::NONE);
-    let null_value = l.ident(l.defs.lazy_vals.null_value, Span::NONE);
+    let null_value = l.ident(defs.null_value, Span::NONE);
     let is_null = eq(l, read, null_value);
     let null = l.null_literal(Span::NONE);
     if erased != Erased::Null {
@@ -70,10 +71,9 @@ fn conform(l: &mut Lower, t: TNodeId, erased: &Erased, tpe: TypeId) -> TNodeId {
     }
 }
 
-/// Whether the values of erased type `erased` include `LazyValControlState`'s.
-fn holds_control_states(l: &mut Lower, erased: &Erased) -> bool {
+/// Whether the values of erased type `erased` include those of `control`, `LazyValControlState`.
+fn holds_control_states(l: &mut Lower, erased: &Erased, control: SymbolId) -> bool {
     let Erased::Class(name) = erased else { return false };
-    let control = l.defs.lazy_vals.control_state;
     crate::phases::casts::class_named(l, name).is_some_and(|c| l.u.derives_from(control, c))
 }
 

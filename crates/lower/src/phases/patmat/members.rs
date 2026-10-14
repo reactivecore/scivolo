@@ -33,8 +33,10 @@ impl Translator<'_, '_> {
     /// The selectors `_1`, `_2`… of type `tpe`, none unless it is a product if `product` (dotty's
     /// `productSelectors`, `productArity`).
     pub fn product_selectors(&mut self, tpe: TypeId, product: bool) -> Vec<SymbolId> {
-        let product_class = self.l.defs.case_classes.product;
-        let derives_product = self.l.class_of(tpe).is_some_and(|c| self.l.u.derives_from(c, product_class));
+        let product_type = self.l.u.class_ref("scala.Product");
+        let product_class = self.l.u.class_symbol(product_type);
+        let class = self.l.class_of(tpe);
+        let derives_product = class.zip(product_class).is_some_and(|(c, p)| self.l.u.derives_from(c, p));
         if product && !derives_product {
             return Vec::new();
         }

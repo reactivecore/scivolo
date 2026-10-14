@@ -18,15 +18,14 @@ pub struct LazyVals {
     /// The object `scala.scalanative.runtime.LazyVals` and its `objCAS`.
     pub native: SymbolId,
     pub obj_cas: SymbolId,
-    /// `Object.eq` and `Boolean.unary_!`.
-    pub eq: SymbolId,
+    /// `Boolean.unary_!`.
     pub not: SymbolId,
     /// `java.lang.invoke.VarHandle`.
     pub var_handle: SymbolId,
 }
 
 impl LazyVals {
-    pub fn new(u: &mut Universe, object: SymbolId) -> Result<LazyVals, String> {
+    pub fn new(u: &mut Universe) -> Result<LazyVals, String> {
         let runtime = package(u, "scala.runtime")?;
         let lazy_vals = member(u, runtime, "LazyVals", Kind::Val)?;
         let lazy_vals = u.module_class(lazy_vals).ok_or("scala.runtime.LazyVals's class missing")?;
@@ -50,7 +49,6 @@ impl LazyVals {
             await_: member(u, latch, "await", Kind::Def)?,
             native,
             obj_cas: member(u, native_class, "objCAS", Kind::Def)?,
-            eq: member(u, object, "eq", Kind::Def)?,
             not: member(u, boolean, "unary_!", Kind::Def)?,
             var_handle: member(u, invoke, "VarHandle", Kind::Class)?,
         })

@@ -73,7 +73,7 @@ fn repeated_arg(l: &mut Lower, app: TNodeId, i: usize, a: TNodeId) -> Result<TNo
 /// `wrapArray`), at `span`.
 fn wrap_array(l: &mut Lower, array: TNodeId, elem: TypeId, tpe: TypeId, span: Span) -> Result<TNodeId> {
     let wrap = wrapper(l, elem);
-    let module = l.defs.scala_run_time;
+    let module = l.scala_run_time()?;
     let class = l.u.module_class(module).expect("ScalaRunTime's class");
     let Some(&wrap) = l.u.decl(class, wrap).unwrap_or_default().first() else {
         return unsupported(l.tpd.span(array), format!("ScalaRunTime.{wrap} missing from the library"));

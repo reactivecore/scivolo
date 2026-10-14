@@ -45,14 +45,14 @@ impl Gen<'_, '_> {
             Type::Double => 'd',
             _ => return None,
         };
-        let box_method = self.l.defs.primitive(letter)?.box_method;
+        let box_method = self.l.primitive(letter)?.box_method;
         Some(self.result_type(box_method))
     }
 
     /// A call of `box` or `unbox` method `sym` with `args`; `None` for another method.
     pub fn gen_boxing(&mut self, sym: SymbolId, args: &[TNodeId], span: Span) -> Result<Option<ValId>> {
-        let unboxed = self.l.defs.unboxed_by(sym).map(|p| p.box_method);
-        if !self.l.defs.is_box(sym) && unboxed.is_none() {
+        let unboxed = self.l.unboxed_by(sym).map(|p| p.box_method);
+        if unboxed.is_none() && !self.l.is_box(sym) {
             return Ok(None);
         }
         let [arg] = args[..] else { unreachable!("one argument to `box` or `unbox`") };
@@ -77,7 +77,7 @@ impl Gen<'_, '_> {
         let Tree::Select { qualifier, .. } = *self.l.tpd.tree(fun) else {
             return unsupported(span, "type applications without a call");
         };
-        if self.l.tpd.sym(fun) == Some(self.l.defs.patmat.is_instance_of) {
+        if self.l.tpd.sym(fun) == Some(self.l.defs.is_instance_of) {
             let value = self.gen_expr(qualifier)?;
             let saved = self.at_span(span);
             let Tree::TypeApply { args, .. } = *self.l.tpd.tree(t) else {

@@ -20,12 +20,8 @@ pub struct Equality {
 }
 
 impl Equality {
-    pub fn new(
-        u: &mut Universe,
-        any: SymbolId,
-        object: SymbolId,
-        runtime: SymbolId,
-    ) -> Result<Equality, String> {
+    pub fn new(u: &mut Universe, any: SymbolId, object: SymbolId) -> Result<Equality, String> {
+        let runtime = package(u, "scala.runtime")?;
         let java_lang = package(u, "java.lang")?;
         let java_io = package(u, "java.io")?;
         let scala = package(u, "scala")?;

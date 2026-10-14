@@ -24,7 +24,7 @@ impl Lower<'_> {
 
     /// `lhs == rhs`, with the `==` of `lhs`'s class taking `rhs`'s class if any, else `Any`'s.
     pub fn equal(&mut self, lhs: TNodeId, rhs: TNodeId) -> TNodeId {
-        let eq = self.operator(lhs, "==", rhs).unwrap_or(self.defs.patmat.any_eq);
+        let eq = self.operator(lhs, "==", rhs).unwrap_or(self.defs.any_eq);
         self.call(lhs, eq, &[rhs])
     }
 
@@ -47,7 +47,7 @@ impl Lower<'_> {
 
     /// `throw e`.
     pub fn throw_(&mut self, e: TNodeId) -> TNodeId {
-        let throw = self.defs.patmat.throw;
+        let throw = self.defs.throw;
         let throw = self.ident(throw, Span::NONE);
         let nothing = self.u.builtins().nothing;
         let nothing = type_ref(self.u, nothing);

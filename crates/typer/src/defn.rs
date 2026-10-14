@@ -2,39 +2,72 @@
 
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
 
+/// The symbols every unit needs, and those resolved on first use.
 pub struct Defn {
     pub scala: SymbolId,
     pub java_lang: SymbolId,
     /// The `Predef` object, its value.
     pub predef: SymbolId,
     pub unit: SymbolId,
-    pub throwable: SymbolId,
     pub object: SymbolId,
     pub string: SymbolId,
-    pub array: SymbolId,
-    pub main_annot: SymbolId,
-    /// The `scala.util.CommandLineParser` object, its value.
-    pub command_line_parser: SymbolId,
+    throwable: Option<SymbolId>,
+    array: Option<SymbolId>,
+    main_annot: Option<SymbolId>,
+    command_line_parser: Option<SymbolId>,
 }
 
 impl Defn {
     pub fn new(u: &mut Universe) -> Result<Defn, String> {
         let scala = package(u, "scala")?;
         let java_lang = package(u, "java.lang")?;
-        let util = package(u, "scala.util")?;
         Ok(Defn {
             scala,
             java_lang,
             predef: member(u, scala, "Predef", Kind::Val)?,
             unit: member(u, scala, "Unit", Kind::Class)?,
-            throwable: member(u, java_lang, "Throwable", Kind::Class)?,
             object: member(u, java_lang, "Object", Kind::Class)?,
             string: member(u, java_lang, "String", Kind::Class)?,
-            array: member(u, scala, "Array", Kind::Class)?,
-            main_annot: member(u, scala, "main", Kind::Class)?,
-            command_line_parser: member(u, util, "CommandLineParser", Kind::Val)?,
+            throwable: None,
+            array: None,
+            main_annot: None,
+            command_line_parser: None,
         })
     }
+
+    pub fn throwable(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
+        resolved(&mut self.throwable, u, self.java_lang, "Throwable", Kind::Class)
+    }
+
+    pub fn array(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
+        resolved(&mut self.array, u, self.scala, "Array", Kind::Class)
+    }
+
+    pub fn main_annot(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
+        resolved(&mut self.main_annot, u, self.scala, "main", Kind::Class)
+    }
+
+    /// The `scala.util.CommandLineParser` object, its value.
+    pub fn command_line_parser(&mut self, u: &mut Universe) -> Result<SymbolId, String> {
+        let util = package(u, "scala.util")?;
+        resolved(&mut self.command_line_parser, u, util, "CommandLineParser", Kind::Val)
+    }
+}
+
+/// `slot`, else the member `name` of `kind` of `owner`, kept in `slot`.
+fn resolved(
+    slot: &mut Option<SymbolId>,
+    u: &mut Universe,
+    owner: SymbolId,
+    name: &str,
+    kind: Kind,
+) -> Result<SymbolId, String> {
+    if let Some(s) = *slot {
+        return Ok(s);
+    }
+    let s = member(u, owner, name, kind)?;
+    *slot = Some(s);
+    Ok(s)
 }
 
 fn package(u: &Universe, name: &str) -> Result<SymbolId, String> {

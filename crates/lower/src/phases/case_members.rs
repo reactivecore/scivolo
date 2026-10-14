@@ -3,7 +3,7 @@
 //! `productArity`, `productPrefix`, `productElement`, `productElementName`.
 
 use super::value_members::hash_code_body as value_hash_code_body;
-use crate::definitions::type_ref;
+use crate::definitions::{CaseClasses, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
@@ -16,11 +16,11 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
     if !has(l.u, class, CASE) {
         return Ok(Vec::new());
     }
-    let cc = l.defs.case_classes;
+    let cc = l.case_classes()?;
     let module = l.u.is_module_class(class);
     let members = [
         cc.hash_code,
-        l.defs.equality.any_equals,
+        cc.any_equals,
         cc.to_string,
         cc.can_equal,
         cc.product_arity,
@@ -32,14 +32,14 @@ pub fn case_members(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TN
     let mut out = Vec::new();
     let can_equal = existing_def(l, class, cc.can_equal);
     for sym in members {
-        if module && sym == l.defs.equality.any_equals || existing_def(l, class, sym).is_some() {
+        if module && sym == cc.any_equals || existing_def(l, class, sym).is_some() {
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
         let info = l.u.info(sym);
         let mut locals = Vec::new();
         let (method, def) = l.method_like(class, sym, flags, info, focus, |l, args, _| {
-            body(l, class, sym, args, can_equal, &mut locals)
+            body(l, class, sym, args, can_equal, &mut locals, cc)
         })?;
         for local in locals {
             l.u.set_owner(local, method);
@@ -59,18 +59,16 @@ fn body(
     args: &[TNodeId],
     can_equal: Option<SymbolId>,
     locals: &mut Vec<SymbolId>,
+    cc: CaseClasses,
 ) -> TNodeId {
-    let cc = l.defs.case_classes;
     let accessors = case_accessors(l, class);
     let own_name = own_name(l, class);
     match sym {
         _ if sym == cc.hash_code => match l.u.underlying(class) {
-            Some(value) => value_hash_code_body(l, class, value),
-            None => l.hash_code_body(class, &accessors, &own_name, locals),
+            Some(value) => value_hash_code_body(l, class, value, cc),
+            None => l.hash_code_body(class, &accessors, &own_name, locals, cc),
         },
-        _ if sym == l.defs.equality.any_equals => {
-            l.equals_body(class, &accessors, args[0], can_equal, locals)
-        }
+        _ if sym == cc.any_equals => l.equals_body(class, &accessors, args[0], can_equal, locals, cc),
         _ if sym == cc.to_string && l.u.is_module_class(class) => l.string_literal(&own_name),
         _ if sym == cc.to_string => {
             let run_time = l.ident(cc.scala_run_time, Span::NONE);
@@ -96,24 +94,23 @@ fn body(
                     select
                 })
                 .collect();
-            index_match(l, args[0], elems)
+            index_match(l, args[0], elems, cc)
         }
         _ => {
             let names: Vec<String> = accessors.iter().map(|&a| l.u.symbol(a).name.clone()).collect();
             let names: Vec<TNodeId> = names.iter().map(|n| l.string_literal(n)).collect();
-            index_match(l, args[0], names)
+            index_match(l, args[0], names, cc)
         }
     }
 }
 
 /// `index match { case 0 => elems(0) ... case _ => throw new IndexOutOfBoundsException(index) }`.
-fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>) -> TNodeId {
+fn index_match(l: &mut Lower, index: TNodeId, elems: Vec<TNodeId>, cc: CaseClasses) -> TNodeId {
     let mut cases = Vec::new();
     for (i, body) in elems.into_iter().enumerate() {
         let pat = l.int_literal(i as i32);
         cases.push(l.tpd.node(Tree::CaseDef { pat, guard: None, body }, Span::NONE, None, None));
     }
-    let cc = l.defs.case_classes;
     let new = l.new_(cc.ioobe, Span::NONE);
     let index_ref = l.copy_ident(index);
     let error = l.call(new, cc.ioobe_ctor, &[index_ref]);

@@ -47,7 +47,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     if fence {
         let spans = super::walk::children(l.tpd, template).into_iter().map(|c| l.tpd.span(c));
         let end = spans.filter(|s| s.exists()).reduce(Span::union).unwrap_or(l.tpd.span(template));
-        let call = l.static_call(l.defs.equality.release_fence, &[]);
+        let release_fence = l.equality()?.release_fence;
+        let call = l.static_call(release_fence, &[]);
         l.tpd.get_mut(call).span = end.end_pos();
         stats.push(call);
     }

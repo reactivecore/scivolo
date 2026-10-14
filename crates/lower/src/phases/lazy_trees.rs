@@ -48,7 +48,7 @@ pub fn call(l: &mut Lower, qual: TNodeId, m: SymbolId, args: &[TNodeId]) -> TNod
 
 /// `a eq b`.
 pub fn eq(l: &mut Lower, a: TNodeId, b: TNodeId) -> TNodeId {
-    let eq = l.defs.lazy_vals.eq;
+    let eq = l.defs.eq;
     call(l, a, eq, &[b])
 }
 

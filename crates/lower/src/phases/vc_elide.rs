@@ -21,7 +21,7 @@ pub fn elided(l: &mut Lower, t: TNodeId) -> TNodeId {
     }
     let [other] = args[..] else { return t };
     match new_with_arg(l, other) {
-        Some((c, v)) if c == class && m == l.defs.patmat.any_eq && !has_own_equals(l, class) => {
+        Some((c, v)) if c == class && m == l.defs.any_eq && !has_own_equals(l, class) => {
             let span = l.tpd.span(t);
             let eq = equal_values(l, u, v);
             l.tpd.get_mut(eq).span = span;
@@ -67,5 +67,5 @@ fn equal_values(l: &mut Lower, a: TNodeId, b: TNodeId) -> TNodeId {
     let class = name.and_then(|n| class_named(l, &n));
     let ops = class.and_then(|c| l.u.decl(c, "==").ok()).unwrap_or_default();
     let op = ops.into_iter().find(|&m| l.u.erased_method(m).0 == [eb.clone()]);
-    l.call(a, op.unwrap_or(l.defs.patmat.any_eq), &[b])
+    l.call(a, op.unwrap_or(l.defs.any_eq), &[b])
 }

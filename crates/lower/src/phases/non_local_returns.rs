@@ -134,7 +134,7 @@ fn try_(l: &mut Lower, body: TNodeId, key: SymbolId, method: SymbolId, class: Sy
     let ex_ref = l.ident(ex, Span::NONE);
     let key_of = field(l, ex_ref, class, "key");
     let key_ref = l.ident(key, Span::NONE);
-    let eq = l.defs.patmat.eq;
+    let eq = l.defs.eq;
     let same = l.call(key_of, eq, &[key_ref]);
     let ex_ref = l.ident(ex, Span::NONE);
     let value = field(l, ex_ref, class, "value");

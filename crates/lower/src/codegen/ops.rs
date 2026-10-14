@@ -67,7 +67,7 @@ impl Gen<'_, '_> {
             Op::Stackalloc { .. } => self.ty(Type::Ptr),
             Op::Unbox { ty, .. } => {
                 let boxes: Vec<(char, SymbolId)> =
-                    self.l.defs.primitives.iter().map(|p| (p.letter, p.box_method)).collect();
+                    self.l.defs.resolved_primitives().map(|p| (p.letter, p.box_method)).collect();
                 let (letter, _) = boxes
                     .into_iter()
                     .find(|&(_, b)| self.result_type(b) == ty)
