@@ -116,7 +116,8 @@ fn the_package_table_is_that_of_the_jars() {
         names.extend(zip.file_names().map(str::to_owned));
     }
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
-    let (table, _) = image(&jars, "tasty-packages", true).find(tasty::PACKAGE_TABLE).expect("the package table");
+    let (table, _) =
+        image(&jars, "tasty-packages", true).find(tasty::PACKAGE_TABLE).expect("the package table");
     assert_eq!(std::str::from_utf8(table).unwrap(), tasty::package_table(&names));
 }
 
