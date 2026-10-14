@@ -116,6 +116,14 @@ bench name runs="10" *args: release
 bench-base base name runs="10" *args: release
     python3 scripts/bench.py --base {{ base }} {{ name }} {{ runs }} {{ args }}
 
+# Edit-then-run time of Scala script `file` with the strict frontend, cache miss and hit.
+bench-edit file runs="10": release
+    python3 scripts/bench_edit.py {{ file }} {{ runs }}
+
+# Like bench-edit, alternating runs between the scalai binary `base` and the release one.
+bench-edit-base base file runs="10": release
+    python3 scripts/bench_edit.py --base {{ base }} {{ file }} {{ runs }}
+
 # Run test program `name` with call and instruction counts on stderr (`SCALAI_PROFILE`).
 vm-profile name *args: release
     SCALAI_PROFILE=1 target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}

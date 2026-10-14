@@ -6,7 +6,7 @@ use super::Typer;
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through an
@@ -35,11 +35,11 @@ impl Typer<'_> {
     /// Whether an implicit conversion takes a value of type `arg` to `param` (dotty's
     /// `viewExists`): `None` if the search is outside the subset.
     fn view_exists(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
-        let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
+        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
         let dummy = self.tpd.node(T::TypeTree { inferred: true }, syntax::ast::Span::NONE, Some(arg), None);
         let found = self.converted(dummy, Goal::Conform(param), ctx);
         let clean = self.unsupported == unsupported;
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         self.unsupported = unsupported;
         match found {
             Ok(found) if clean => Some(found.is_some()),
@@ -71,9 +71,9 @@ impl Typer<'_> {
         views: bool,
         ctx: Ctx,
     ) -> Option<bool> {
-        let mark = self.constraint.mark();
+        let before = self.constraint.attempt();
         let fits = self.applicable_with_vars(alt, prefix, args, views, ctx);
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         fits
     }
 

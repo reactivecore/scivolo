@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use syntax::config::Features;
-use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 const NUMERIC: [&str; 7] = ["Byte", "Short", "Char", "Int", "Long", "Float", "Double"];
 const BOXED: [(&str, &str); 9] = [
@@ -70,10 +70,10 @@ impl Typer<'_> {
     /// Whether a `CanEqual[t, t]` instance exists under `strictEquality`.
     fn has_eq(&mut self, t: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<bool, &'static str> {
         let pt = self.can_equal_type(t, t).ok_or("CanEqual")?;
-        let (mark, unsupported) = (self.constraint.mark(), self.unsupported.clone());
+        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
         let result = self.implicit_arg(pt, at, ctx.with_mode(Mode::STRICT_EQUALITY), depth + 1);
         let clean = self.unsupported == unsupported;
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         self.unsupported = unsupported;
         match result {
             _ if !clean => Err("reflexive CanEqual search outside the subset"),

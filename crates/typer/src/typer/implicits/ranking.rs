@@ -4,7 +4,7 @@
 
 use super::super::Typer;
 use super::candidates::Candidate;
-use tasty::{Type, TypeId, TypeVars};
+use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// The candidate of `found` that ranks above all others.
@@ -91,7 +91,7 @@ impl Typer<'_> {
     /// Whether candidate `a` is as specific as `b` (dotty's `isAsSpecific`): `b` applies to the
     /// parameters of `a`, or `a`'s value type conforms to `b`'s.
     fn as_specific(&mut self, a: Candidate, b: Candidate) -> bool {
-        let mark = self.constraint.mark();
+        let before = self.constraint.attempt();
         let (pa, ta) = self.candidate_shape(a, false);
         let (pb, tb) = self.candidate_shape(b, true);
         let result = match (pa, pb) {
@@ -101,7 +101,7 @@ impl Typer<'_> {
             (None, None) => self.conforms(ta, tb),
             _ => false,
         };
-        self.constraint.rollback(mark);
+        self.constraint.abandon(before);
         result
     }
 }

@@ -1,7 +1,10 @@
 //! The bounds and instances of the type variables of a unit (dotty's `OrderingConstraint`,
 //! without the ordering between variables), with an undo log for `either` and failed
-//! comparisons.
+//! comparisons and abandoned attempts.
 
+mod attempt;
+
+use attempt::Fate;
 use tasty::{ANY, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 #[derive(Clone, Copy)]
@@ -16,6 +19,8 @@ struct Entry {
 #[derive(Default)]
 pub struct Constraint {
     vars: Vec<Entry>,
+    /// The fate of each variable, not undone by `rollback`.
+    fates: Vec<Fate>,
     /// The entries changed since a mark, their previous states.
     log: Vec<(usize, Entry)>,
     frozen: bool,
@@ -32,6 +37,7 @@ impl Constraint {
     /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
         self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false });
+        self.fates.push(Fate::Open);
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
 
