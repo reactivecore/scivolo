@@ -50,6 +50,19 @@ impl Universe {
         self.with_inits.insert(c);
     }
 
+    /// Records that an annotation of class `class` annotates `sym`, a symbol defined outside TASTy.
+    pub fn annotate(&mut self, sym: SymbolId, class: SymbolId) {
+        let classes = self.annotations.entry(sym).or_default();
+        if !classes.contains(&class) {
+            classes.push(class);
+        }
+    }
+
+    /// The annotation classes recorded for `sym`, a symbol defined outside TASTy, in order.
+    pub fn annotations(&self, sym: SymbolId) -> &[SymbolId] {
+        self.annotations.get(&sym).map_or(&[], Vec::as_slice)
+    }
+
     /// Whether `sym` is a method or value defined outside TASTy without a body; `false` for
     /// the library's symbols, whose bodies `body` gives.
     pub fn is_deferred(&self, sym: SymbolId) -> bool {

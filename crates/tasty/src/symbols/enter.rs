@@ -83,9 +83,12 @@ impl Universe {
         }
     }
 
-    /// Whether an annotation of the class named `name` annotates method `sym` in its TASTy.
+    /// Whether an annotation of the class named `name` annotates method `sym` in its TASTy, or
+    /// `sym` defined outside TASTy.
     pub fn is_annotated(&self, sym: SymbolId, name: &str) -> bool {
-        let Some((file, id)) = self.symbol(sym).tree else { return false };
+        let Some((file, id)) = self.symbol(sym).tree else {
+            return self.annotations(sym).iter().any(|&c| self.symbol(c).name == name);
+        };
         let loaded = &self.files[file.0 as usize];
         let View::DefDef { parts, .. } = view(&loaded.ast, id) else { return false };
         annotations(&loaded.ast, parts.mods).any(|(ty, _)| names_ref(&loaded.ast, &loaded.names, ty, name))

@@ -76,7 +76,7 @@ def build(name):
 
 
 def nir(directory):
-    return {p.name for p in directory.glob("*.nir")}
+    return {str(p.relative_to(directory)) for p in directory.rglob("*.nir")}
 
 
 def definitions(path):
@@ -88,10 +88,14 @@ def definitions(path):
 
 def update(name):
     out = build(name)
-    for f in (PROGRAMS / name).glob("*.nir"):
-        f.unlink()
-    for f in (WORK / name / "out").glob("*.nir"):
-        shutil.copy(f, PROGRAMS / name)
+    for f in nir(PROGRAMS / name):
+        (PROGRAMS / name / f).unlink()
+    for d in sorted((p for p in (PROGRAMS / name).rglob("*") if p.is_dir()), reverse=True):
+        if not any(d.iterdir()):
+            d.rmdir()
+    for f in nir(WORK / name / "out"):
+        (PROGRAMS / name / f).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(WORK / name / "out" / f, PROGRAMS / name / f)
     if out is not None:
         (PROGRAMS / name / f"{name}.check").write_text(out)
 

@@ -62,11 +62,23 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
                 && matches!(**x, Erased::Class(_) | Erased::Array(_))
         }
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
-            (Some(f), Some(t)) => l.u.derives_from(f, t),
+            (Some(f), Some(t)) => {
+                l.u.derives_from(f, t) && (!l.u.is_trait(f) || erased_trait_derives(l, f, t))
+            }
             _ => false,
         },
         _ => false,
     }
+}
+
+/// Whether trait `f` is or derives from `t` through its trait parents, the only ones erasure
+/// keeps besides `Object` (dotty's `TypeErasure.eraseInfo`).
+fn erased_trait_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
+    if f == t {
+        return true;
+    }
+    let parents: Vec<SymbolId> = l.u.parents(f).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
+    parents.into_iter().any(|p| l.u.is_trait(p) && l.u.derives_from(p, t) && erased_trait_derives(l, p, t))
 }
 
 /// The class of binary name `name`, through the classes and objects it is nested in.

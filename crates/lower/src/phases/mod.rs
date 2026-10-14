@@ -64,6 +64,7 @@ mod outer_fields;
 mod outer_traits;
 mod package_objects;
 mod patmat;
+mod protected_accessors;
 mod pure_stats;
 mod references_outer;
 mod repeated;
@@ -108,6 +109,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
+    protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
     for &td in &classes {

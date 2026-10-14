@@ -24,9 +24,7 @@ impl Gen<'_, '_> {
             || self.l.bridges.contains(&sym)
             || self.l.local_lazy_accessors.contains(&sym);
         let mut attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
-        if let Some(&target) = self.l.forwarded.get(&sym) {
-            attrs.extend(self.annotation_attrs(target));
-        }
+        attrs.extend(self.annotation_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym)));
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
@@ -39,7 +37,7 @@ impl Gen<'_, '_> {
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
     }
 
-    /// The attributes the `@inline` and `@noinline` annotations of library method `m` give.
+    /// The attributes the `@inline` and `@noinline` annotations of method `m` give.
     fn annotation_attrs(&self, m: SymbolId) -> Vec<Attr> {
         let annotations = [("noinline", Attr::NoInline), ("inline", Attr::InlineHint)];
         annotations.into_iter().filter(|(name, _)| self.l.u.is_annotated(m, name)).map(|(_, a)| a).collect()

@@ -193,6 +193,12 @@ pub fn javalib_only_bases(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     out
 }
 
+/// Type `info` of `member`, with Java's parameter names if a JDK class declares it.
+pub fn java_named(l: &mut Lower, member: SymbolId, info: TypeId) -> TypeId {
+    let owner = l.u.symbol(member).owner.expect("a member's owner");
+    if is_jdk(l, owner) { with_java_param_names(l, info) } else { info }
+}
+
 /// Method type `info` of a JDK method with its parameters named as dotty names those of Java
 /// class files: `x$0`, `x$1`, ...
 pub fn with_java_param_names(l: &mut Lower, info: TypeId) -> TypeId {

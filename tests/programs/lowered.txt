@@ -84,3 +84,5 @@ emptycases
 nullcasts
 outerthis
 matchnames
+protectedaccess
+protectedpackages
