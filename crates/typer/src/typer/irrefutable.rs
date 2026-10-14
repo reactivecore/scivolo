@@ -138,7 +138,8 @@ impl Typer<'_> {
     /// The result type of extractor `fun`.
     fn extractor_result(&mut self, fun: TNodeId) -> TypeId {
         let fun_tpe = self.tpd.tpe(fun);
-        let result = self.final_result(fun_tpe);
+        let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
+        let result = self.final_result(info);
         self.zonk(result)
     }
 

@@ -19,3 +19,13 @@ object Main:
 
   def nul(): Unit =
     val B(_) = null
+
+case class Pair(a: Int, b: Int)
+object Q:
+  def unapply(x: Int): Option[Int] = Some(x)
+
+object Plain:
+  def run(p: Pair): Int =
+    val Pair(a, b) = p
+    val Q(c) = 3
+    a + b + c
