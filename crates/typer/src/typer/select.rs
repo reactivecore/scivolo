@@ -162,7 +162,9 @@ impl Typer<'_> {
     fn jdk_inherited(&mut self, sym: SymbolId) -> SymbolId {
         let s = self.u.symbol(sym);
         let name = s.name.clone();
-        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), "equals" | "hashCode")) else { return sym };
+        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), "equals" | "hashCode")) else {
+            return sym;
+        };
         if self.u.full_name(owner) != "java.lang.Class" {
             return sym;
         }
