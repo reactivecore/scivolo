@@ -58,6 +58,13 @@ pub struct Lower<'a> {
     /// The fields of lifted local classes holding the values they capture, each with the
     /// constructor parameter setting it.
     proxies: Vec<(SymbolId, SymbolId)>,
+    /// The field of each lifted local class holding a value it captures, by class and value.
+    captured_fields: FxHashMap<(SymbolId, SymbolId), SymbolId>,
+    /// The methods of local traits taking the local values they use first: each one's type
+    /// before, and the values with the parameters standing for them.
+    trait_methods: FxHashMap<SymbolId, (tasty::TypeId, Vec<(SymbolId, SymbolId)>)>,
+    /// The methods of local traits each class gets forwarders to, decided before `LambdaLift`.
+    trait_forwards: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The casts phases make that codegen keeps even to a supertype (dotty's `cast`).
     explicit_casts: FxHashSet<TNodeId>,
     /// The casts of `null` codegen keeps: unboxed nulls of value classes.
@@ -123,6 +130,9 @@ pub fn lower(
         local_lazy_accessors: FxHashSet::default(),
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),
+        captured_fields: FxHashMap::default(),
+        trait_methods: FxHashMap::default(),
+        trait_forwards: FxHashMap::default(),
         local_classes: FxHashSet::default(),
         explicit_casts: FxHashSet::default(),
         null_casts: FxHashSet::default(),

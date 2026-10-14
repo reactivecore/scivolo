@@ -4,7 +4,7 @@
 //! enclosing it (`referencesOuter`).
 
 use super::local_free::{enclosing_class, is_term};
-use super::outer_traits::outer_class;
+use super::outer_traits::{is_pure_interface, outer_class};
 use super::references_outer::references_outer;
 use crate::Lower;
 use crate::symbols::{has, is_static_owner};
@@ -25,7 +25,7 @@ pub fn local_outer(l: &mut Lower, td: TNodeId, class: SymbolId) -> Option<Symbol
 }
 
 /// Whether class `c` takes the instance of its enclosing class where it uses it (dotty's
-/// `needsOuterIfReferenced` with `outerOwner`): unless a trait, or its owner, past values that
+/// `needsOuterIfReferenced` with `outerOwner`): unless a pure interface, or its owner, past values that
 /// are not lazy and from a superclass argument's method to its class, is a static owner.
 pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
     let Some(mut owner) = l.u.symbol(c).owner else { return false };
@@ -39,7 +39,7 @@ pub fn needs_outer_if_referenced(l: &Lower, c: SymbolId) -> bool {
     if l.u.symbol(owner).kind == Kind::Def && l.u.symbol(owner).name.contains("$superArg$") {
         owner = enclosing_class(l, owner);
     }
-    !(l.u.is_trait(c) || is_static_owner(l.u, owner))
+    !(l.u.is_trait(c) && is_pure_interface(l.u, c) || is_static_owner(l.u, owner))
 }
 
 /// Whether local class `class` is anonymous.
@@ -50,7 +50,7 @@ pub fn is_anonymous(l: &Lower, class: SymbolId) -> bool {
 /// The prefix of the name of the accessor of the enclosing instance of local class `class`:
 /// its enclosing class's name, without an object's `$`, a `_$` for each term it is in, then its
 /// name (dotty's `fullNameSeparated`).
-pub fn accessor_prefix(l: &Lower, class: SymbolId) -> String {
+fn accessor_prefix(l: &Lower, class: SymbolId) -> String {
     let mut filler = String::new();
     let mut owner = l.u.symbol(class).owner.expect("a local class's owner");
     while is_term(l, owner) {
@@ -60,4 +60,16 @@ pub fn accessor_prefix(l: &Lower, class: SymbolId) -> String {
     let enclosing = l.u.binary_name(owner).replace('.', "$");
     let enclosing = enclosing.strip_suffix('$').filter(|_| l.u.is_module_class(owner)).unwrap_or(&enclosing);
     format!("{enclosing}${filler}{}", l.u.symbol(class).name)
+}
+
+/// The prefix of the name of the accessor of the enclosing instance of class `class` defined in a
+/// term or in a class defined in one (dotty's `fullNameSeparated`).
+pub fn separated_name(l: &Lower, class: SymbolId) -> String {
+    let owner = l.u.symbol(class).owner.expect("a class's owner");
+    if is_term(l, owner) {
+        return accessor_prefix(l, class);
+    }
+    let prefix = separated_name(l, owner);
+    let prefix = prefix.strip_suffix('$').filter(|_| l.u.is_module_class(owner)).unwrap_or(&prefix);
+    format!("{prefix}${}", l.u.symbol(class).name)
 }

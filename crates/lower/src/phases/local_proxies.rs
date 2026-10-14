@@ -5,6 +5,7 @@ use super::lift_names::{Pending, Proxy};
 use super::local_free::Local;
 use crate::Lower;
 use crate::definitions::symbol;
+use syntax::ast::Span;
 use tasty::tags::{LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -41,12 +42,25 @@ pub fn constructor(l: &Lower, td: TNodeId) -> SymbolId {
 }
 
 /// A symbol of `owner` standing for value `v`, named as `v` until named `v$N`.
-fn proxy(l: &mut Lower, v: SymbolId, owner: SymbolId, kind: Kind, flags: Flags) -> SymbolId {
+pub fn proxy(l: &mut Lower, v: SymbolId, owner: SymbolId, kind: Kind, flags: Flags) -> SymbolId {
     let name = l.u.symbol(v).name.clone();
     let p = l.u.define(symbol(&name, kind, owner, flags));
     let info = l.u.info(v);
     l.u.set_info(p, info);
     p
+}
+
+/// The span of the definition of local value `v` in unit `root`, none for a parameter of an
+/// `apply` that `SpecializeFunctions` copies with new parameters.
+pub fn definition_span(l: &mut Lower, root: TNodeId, v: SymbolId) -> Span {
+    let owner = l.u.symbol(v).owner;
+    if l.u.symbol(v).kind == Kind::Param && owner.is_some_and(|m| super::specialize::is_specialized(l, m)) {
+        return Span::NONE;
+    }
+    let def = super::walk::subtrees(l.tpd, root)
+        .into_iter()
+        .find(|&t| matches!(l.tpd.tree(t), Tree::ValDef { .. }) && l.tpd.sym(t) == Some(v));
+    def.map_or(Span::NONE, |d| l.tpd.span(d))
 }
 
 /// The indices of `locals` in the order of their definitions, an object's class after its

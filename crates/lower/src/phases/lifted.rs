@@ -162,7 +162,7 @@ fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
 }
 
 /// Makes the references to the keys of `map` under `t` refer to their values.
-fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
+pub fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
     let mut todo = vec![t];
     while let Some(t) = todo.pop() {
         todo.extend(children(l.tpd, t));

@@ -79,3 +79,4 @@ valuelambdas
 valuepatterns
 unions
 outerclasses
+localtraits

@@ -74,10 +74,15 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if !library || !l.u.no_inits(mixin) {
             forwarders.extend(mixed_in(l, class, mixin, span)?);
         }
-        for meth in l.u.decls(mixin).unwrap_or_default() {
-            if has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth) {
-                forwarders.push(forwarder(l, class, mixin, meth, at)?);
+        let methods = match l.local_classes.contains(&mixin) {
+            true => {
+                let decided = l.trait_forwards.get(&class).cloned().unwrap_or_default();
+                decided.into_iter().filter(|&m| l.u.symbol(m).owner == Some(mixin)).collect()
             }
+            false => forwarded(l, class, mixin),
+        };
+        for meth in methods {
+            forwarders.push(forwarder(l, class, mixin, meth, at)?);
         }
     }
     if forwarders.is_empty() {
@@ -108,6 +113,25 @@ pub fn function_arity(l: &Lower, class: SymbolId) -> Option<usize> {
         "scala.Function2" => Some(2),
         _ => None,
     }
+}
+
+/// The methods of trait `mixin` that `class` gets forwarders to.
+pub fn forwarded(l: &mut Lower, class: SymbolId, mixin: SymbolId) -> Vec<SymbolId> {
+    let decls = l.u.decls(mixin).unwrap_or_default();
+    decls
+        .into_iter()
+        .filter(|&meth| has_body(l, meth) && !has(l.u, meth, INLINE) && needs_forwarder(l, class, meth))
+        .collect()
+}
+
+/// `f` with method `meth` of a local trait having its type before `LambdaLift`.
+fn before_lifting<'a, R>(l: &mut Lower<'a>, meth: SymbolId, f: impl FnOnce(&mut Lower<'a>) -> R) -> R {
+    let Some(&(before, _)) = l.trait_methods.get(&meth) else { return f(l) };
+    let lifted = l.u.info(meth);
+    l.u.set_info(meth, before);
+    let out = f(l);
+    l.u.set_info(meth, lifted);
+    out
 }
 
 /// Whether `meth` is a method `class` inherits as it is: the first non-private concrete method
@@ -146,7 +170,8 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     false
 }
 
-/// `def m(params) = C.super[T].m(params)` in class `class` for method `meth` of trait `mixin`.
+/// `def m(params) = C.super[T].m(params)` in class `class` for method `meth` of trait `mixin`,
+/// passing first the fields of `class` holding the local values a local trait's `meth` takes.
 fn forwarder(
     l: &mut Lower,
     class: SymbolId,
@@ -154,16 +179,32 @@ fn forwarder(
     meth: SymbolId,
     span: syntax::ast::Span,
 ) -> Result<TNodeId> {
-    let mut info = l.u.info(meth);
-    let jdk = is_jdk(l, mixin);
-    if jdk {
-        info = with_java_param_names(l, info);
+    let values = l.trait_methods.get(&meth).map(|(_, vs)| vs.clone()).unwrap_or_default();
+    let mut fields = Vec::new();
+    for (v, _) in values {
+        let Some(&field) = l.captured_fields.get(&(class, v)) else {
+            return unsupported(span, "classes mixing in local traits other than local classes");
+        };
+        fields.push(field);
     }
+    let jdk = is_jdk(l, mixin);
     let flags = l.u.symbol(meth).flags;
-    let (sym, def) = l.method_like(class, meth, flags, info, span, |l, args, result| {
-        let sup = l.super_mix(class, mixin, span);
-        let fun = l.select(sup, meth, span);
-        l.apply(fun, args, result, span)
+    let (sym, def) = before_lifting(l, meth, |l| {
+        let info = l.u.info(meth);
+        let info = if jdk { with_java_param_names(l, info) } else { info };
+        l.method_like(class, meth, flags, info, span, |l, args, result| {
+            let sup = l.super_mix(class, mixin, span);
+            let fun = l.select(sup, meth, span);
+            let mut all: Vec<TNodeId> = fields
+                .iter()
+                .map(|&f| {
+                    let this = l.this(class, span);
+                    l.select(this, f, span)
+                })
+                .collect();
+            all.extend_from_slice(args);
+            l.apply(fun, &all, result, span)
+        })
     })?;
     if !jdk {
         l.forwarded.insert(sym, meth);

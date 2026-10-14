@@ -80,6 +80,11 @@ fn outside_nested<'a, 'f>(
     }
 }
 
+/// Whether `t` defines a class.
+pub fn is_class_def(tpd: &Tpd, t: TNodeId) -> bool {
+    matches!(*tpd.tree(t), Tree::TypeDef { rhs, .. } if matches!(tpd.tree(rhs), Tree::Template { .. }))
+}
+
 /// The direct subtrees of `t`, in order.
 pub fn children(tpd: &Tpd, t: TNodeId) -> Vec<TNodeId> {
     tpd.children(t)
