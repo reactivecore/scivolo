@@ -1,12 +1,15 @@
 //! Which implicits convert a tree (dotty's `candidateKind` for a view prototype): a method of one
 //! explicit parameter, or a value, or a method's result after its implicit clauses, of a class
-//! deriving from `Conversion` or `<:<`.
+//! deriving from `Conversion` or `<:<`; and the `apply` of such a value.
 
-use super::super::Typer;
 use super::super::widening::widens;
+use super::super::{Pt, Typer};
 use super::candidates::Candidate;
+use super::conversions::Goal;
+use crate::ctx::Ctx;
+use crate::tpd::TNodeId;
 use tasty::tags::EXTENSION;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewKind {
@@ -31,13 +34,54 @@ impl Typer<'_> {
         }
     }
 
+    /// Conversion value `fun` applied to its implicit arguments and its `apply` selected, its type
+    /// first constrained to take `tree` to `goal` (dotty's `typedImplicit` adapting it to
+    /// `Conversion[from, pt]`).
+    pub fn conversion_apply(
+        &mut self,
+        fun: TNodeId,
+        tree: TNodeId,
+        goal: Goal,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        let t = self.tpd.tpe(fun);
+        let info = self.method_info(t).unwrap_or(t);
+        let mut value = self.strip_implicit(info);
+        if let Type::ByName(r) = *self.u.types().get(value) {
+            value = r;
+        }
+        let to = match goal {
+            Goal::Conform(pt) => pt,
+            Goal::Member(_) => self.u.intern_type(Type::Wildcard(None)),
+        };
+        let function = self.function_class(1).ok_or("Function1")?;
+        let expected = self.u.intern_type(Type::Applied(function, vec![self.tpd.tpe(tree), to]));
+        if !self.conforms(value, expected) {
+            return Err("conversion of another type");
+        }
+        let at = self.tpd.span(tree).start_pos();
+        let fun = self.with_implicit_args(fun, (at, at), ctx, 1)?;
+        self.with_apply(fun, Pt::Any, ctx)
+    }
+
     /// Whether candidate `c` gives a value with an extension method `name`.
-    pub fn offers_extension(&mut self, c: Candidate, name: &str) -> bool {
-        let Ok(value) = self.candidate_value(c) else { return false };
+    pub fn offers_extension(&mut self, c: Candidate, name: &str) -> Result<bool, &'static str> {
+        let Ok(value) = self.candidate_value(c) else { return Ok(false) };
+        Ok(!self.extension_members(value, name)?.is_empty())
+    }
+
+    /// The extension methods `name` of a value of type `value`; `Err` for a type that is not a
+    /// class's, or if other members are named so too.
+    pub fn extension_members(&mut self, value: TypeId, name: &str) -> Result<Vec<SymbolId>, &'static str> {
         let value = self.u.widen(value);
-        self.u.class_symbol(value).is_some_and(|k| {
-            self.class_members(k, name).iter().any(|&e| self.u.symbol(e).flags.has(EXTENSION))
-        })
+        let k = self.u.class_symbol(value).ok_or("implicit value of a type other than a class")?;
+        let members = self.class_members(k, name);
+        let extensions: Vec<SymbolId> =
+            members.iter().copied().filter(|&e| self.u.symbol(e).flags.has(EXTENSION)).collect();
+        if !extensions.is_empty() && extensions.len() < members.len() {
+            return Err("extension method of an implicit value among other members");
+        }
+        Ok(extensions)
     }
 
     /// Whether dotty ranks view method `c` above each of `widened`, views that take the constant

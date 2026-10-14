@@ -1,6 +1,6 @@
 //! Selections `qual.name` (dotty's `typedSelect`).
 
-use super::implicits::conversions::Goal;
+use super::implicits::conversions::{Goal, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
@@ -54,8 +54,11 @@ impl Typer<'_> {
             if self.extension_visible(&text, ctx) {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
-            match self.converted(qual, Goal::Member(&text), ctx) {
-                Ok(Some(q)) => qual = q,
+            match self.viewed(qual, Goal::Member(&text), ctx) {
+                Ok(Some(Viewed::Converted(q))) => qual = q,
+                Ok(Some(Viewed::Extension(c))) => {
+                    return self.implicit_extension_select(id, qual, c, name, pt, ctx);
+                }
                 Ok(None) if !widened => return self.member_not_found(id, qual, name, ctx),
                 Ok(None) => return self.unsupported(id, "member not found"),
                 Err(what) => return self.unsupported(id, what),

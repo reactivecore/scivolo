@@ -59,9 +59,14 @@ impl Typer<'_> {
             return Err("no implicit argument");
         }
         let coherent = self.class_args(pt, "scala.CanEqual").is_some();
-        let mut groups = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
-        groups.push(self.implicit_scope(pt));
-        for group in groups {
+        let contextual = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
+        let levels = contextual.len();
+        let mut contextual = contextual.into_iter();
+        for _ in 0..=levels {
+            let group = match contextual.next() {
+                Some(group) => group,
+                None => self.implicit_scope(pt)?,
+            };
             let mut nested_failure = false;
             let found = self.fitting(&group, |t, c| {
                 let tried = t.try_implicit(c, pt, at, ctx, depth);

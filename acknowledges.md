@@ -32,10 +32,12 @@ Apache-2.0. Rust translations of:
   `typer/TypeAssigner` (`Apply`, `TypeApply`, `If`, `Block`, `safeSubstParams`);
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
   `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
-  `isCoherent`, `negateIfNot`, `ContextualImplicits.level`, `combineEligibles`),
-  `Typer.adaptNoArgsImplicitMethod`; `Applications` (`compare`, `isAsGood`,
-  `isAsGoodValueType`, `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`,
-  `as_good.rs`, `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
+  `isCoherent`, `negateIfNot`, `ContextualImplicits.level`, `combineEligibles`,
+  `collectCompanions`, `hasExtMethod`), `Synthesizer` (`synthesizedClassTag`,
+  `synthesizedValueOf`), `TypeErasure.hasStableErasure`, `Typer.adaptNoArgsImplicitMethod`,
+  `Applications.extMethodApply`; `Applications` (`compare`, `isAsGood`, `isAsGoodValueType`,
+  `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`, `as_good.rs`,
+  `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
   `named_args.rs`, `default_args.rs`; `crates/typer/src/constraint`:
   `core/ConstraintHandling.addOneBound`.
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,

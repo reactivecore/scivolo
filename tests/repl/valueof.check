@@ -1,0 +1,26 @@
+scala> val k = 42
+val k: Int = 42
+
+scala> summon[ValueOf[k.type]].value
+val res0: Int = 42
+
+scala> summon[ValueOf[true]].value
+val res1: Boolean = true
+
+scala> summon[ValueOf['c']].value
+val res2: Char = 'c'
+
+scala> class Box { override def toString = "Box"; val v = "boxv"; def self = summon[ValueOf[this.type]].value; def vv = summon[ValueOf[v.type]].value }
+// defined class Box
+
+scala> val b = new Box
+val b: Box = Box
+
+scala> b.self eq b
+val res3: Boolean = true
+
+scala> b.vv
+val res4: String = "boxv"
+
+scala> summon[ValueOf[b.type]].value eq b
+val res5: Boolean = true
