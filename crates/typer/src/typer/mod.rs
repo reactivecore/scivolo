@@ -83,6 +83,7 @@ mod qualifies;
 mod repeated;
 mod report;
 mod right_assoc;
+mod sams;
 pub(crate) mod seen_from;
 mod select;
 pub(crate) mod stability;
