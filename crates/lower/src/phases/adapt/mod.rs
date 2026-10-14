@@ -189,6 +189,7 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
         },
         (from, Erased::Unit) if reference(from) || matches!(from, Erased::Prim(_)) => units::discarded(l, t),
         (from, to) if reference(from) && reference(to) && !conforms(l, from, to) => cast(l, t, to),
+        (Erased::Null, Erased::Array(_)) => cast(l, t, pt),
         _ => t,
     }
 }

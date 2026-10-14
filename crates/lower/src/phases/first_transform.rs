@@ -14,7 +14,7 @@ use syntax::names::to_utf16;
 use tasty::tags::{
     CHARconst, CLASSconst, DOUBLEconst, FALSEconst, FLOATconst, INTconst, LAZY, LONGconst, MUTABLE, TRUEconst,
 };
-use tasty::{Kind, PRIMITIVE_VALUE_CLASSES, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree, Walk};
 
 /// Folds the references to values of constant type and the constant blocks in class definition
@@ -135,8 +135,8 @@ pub fn through(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     l.tpd.sym(qualifier).is_some_and(|q| inits.contains(&q)) || through(l, qualifier, inits)
 }
 
-/// Whether `t` is an operation of a primitive class or `String` on literals and pure paths, not
-/// through objects `inits` (dotty's `isPureApply` for a constant type).
+/// Whether `t` is an operation known to be pure on literals and pure paths, not through objects
+/// `inits` (dotty's `isPureApply` for a constant type).
 fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
     let operand = |mut a: TNodeId| {
         while let Tree::Typed { expr, .. } = *l.tpd.tree(a) {
@@ -150,9 +150,7 @@ fn is_constant_op(l: &Lower, t: TNodeId, inits: &FxHashSet<SymbolId>) -> bool {
         _ => return false,
     };
     let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { return false };
-    let Some(owner) = l.tpd.sym(fun).and_then(|m| l.u.symbol(m).owner) else { return false };
-    let owner = l.u.full_name(owner);
-    let known = PRIMITIVE_VALUE_CLASSES.contains(&owner.as_str()) || owner == "java.lang.String";
+    let known = l.tpd.sym(fun).is_some_and(|m| super::pure_ops::is_known_pure_op(l, m));
     known && operand(qualifier) && args.into_iter().all(operand)
 }
 

@@ -101,8 +101,10 @@ impl Gen<'_, '_> {
         let (from, to) = (self.val_ty(value), self.erased(&erased_to));
         let reference = |t: &Type| matches!(t, Type::Ref { .. } | Type::Array { .. });
         let (f, ty) = (self.pool.ty(from).clone(), self.pool.ty(to).clone());
-        let null_conforms =
-            f == Type::Null && !is_singleton(self.l.u, self.l.tpd.tpe(t)) && !self.l.null_casts.contains(&t);
+        let null_conforms = f == Type::Null
+            && !matches!(ty, Type::Array { .. })
+            && !is_singleton(self.l.u, self.l.tpd.tpe(t))
+            && !self.l.null_casts.contains(&t);
         let same = match (&f, &ty) {
             (Type::Ref { name: a, .. }, Type::Ref { name: b, .. }) => a == b,
             (Type::Array { elem: a, .. }, Type::Array { elem: b, .. }) => a == b,

@@ -5,7 +5,7 @@ use super::{typed, typed_qualifier};
 use crate::phases::adapt::{array_op, erased_type, is_synchronized, qualify_synchronized, synchronized_type};
 use crate::phases::casts::is_cast;
 use crate::{Lower, Result, unsupported};
-use tasty::Erased;
+use tasty::{Erased, SymbolId};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped.
@@ -54,4 +54,21 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         typed_args.push(typed(l, a, params.get(i))?);
     }
     Ok(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
+}
+
+/// The member of `Any` that the JDK's `java.lang.Class` inherits where nativelib's `_Class`
+/// overrides `m`: `equals`, `hashCode`.
+pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
+    let s = l.u.symbol(m);
+    let (name, owner) = (s.name.clone(), s.owner?);
+    if !matches!(name.as_str(), "equals" | "hashCode") || l.u.binary_name(owner) != "java.lang.Class" {
+        return None;
+    }
+    l.u.decl(l.defs.any, &name).unwrap_or_default().first().copied()
+}
+
+/// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves
+/// `_Class`'s parameterless `hashCode`.
+pub fn is_unapplied_hash_code(l: &Lower, t: TNodeId) -> bool {
+    matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t) == Some(l.defs.case_classes.hash_code)
 }
