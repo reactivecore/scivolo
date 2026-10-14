@@ -5,6 +5,13 @@ class Store:
 
 def name(i: Int) = s"n$i"
 
+class Units:
+  val done: Unit = ()
+  def id[T](t: T): T = t
+  def ascribed(): Unit = (done: Unit)
+  def generic(): Unit = (id(()): Unit)
+  def call(): Unit = (println("call"): Unit)
+
 @main def casts =
   val u = null.asInstanceOf[Unit]
   println(u)
@@ -14,6 +21,10 @@ def name(i: Int) = s"n$i"
   println(7.asInstanceOf[AnyRef & Int].getClass)
   println((7: Any).##)
   println(null.asInstanceOf[Int] + null.asInstanceOf[Long])
+  val units = Units()
+  println(units.ascribed())
+  println(units.generic())
+  units.call()
   val store = Store()
   try
     "key" match

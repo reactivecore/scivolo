@@ -19,10 +19,6 @@ const CASES: &[(&str, &str)] = &[
         "casts between primitive values or to references",
     ),
     (
-        "class U { val a: Unit = (); def f(): Unit = (a: Unit) }",
-        "ascriptions to Unit of values other than literals",
-    ),
-    (
         "class U { val a: Unit = (); def f(x: Boolean): Unit = { if x then return a; () } }",
         "returns of Unit values of class members",
     ),
