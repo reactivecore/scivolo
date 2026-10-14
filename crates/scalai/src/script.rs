@@ -3,13 +3,11 @@
 
 use crate::frontend::{self, Mode, Refused};
 use crate::libs::{NATIVE, SCALA, cache_dir};
+use crate::mains;
 use libimage::{Image, cache};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-
-/// The mangled signature of the static `main(Array[String]): Unit` of a main class.
-const MAIN: &str = "D4mainLAL16java.lang.String_uEo";
 
 /// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
 const FALLBACK: &str = "fallback";
@@ -49,15 +47,17 @@ fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(Pat
     (&source, &text, mode, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
-    cache::touch(&dir);
     if let Some(cached) = cached(&dir) {
+        cache::touch(&dir);
         if let Ok(why) = std::fs::read_to_string(dir.join(FALLBACK)) {
             eprintln!("scalai: {file}: compiled by scala-cli ({why})");
         }
         return Ok(cached);
     }
-    cache::prune(&scripts, cache::UNUSED, cache::is_key);
-    cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
+    if cache::prune_due(&scripts) {
+        cache::prune(&scripts, cache::UNUSED, cache::is_key);
+        cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
+    }
     let staging = dir.with_extension(std::process::id().to_string());
     let built = build(file, &source, &text, mode, image, &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
@@ -85,10 +85,11 @@ fn build(
     out: &Path,
 ) -> Result<(), String> {
     let classes = out.join("classes");
+    let mut mains = Vec::new();
     match mode {
-        Mode::Jvm => scala_cli(source, out)?,
+        Mode::Jvm => scala_cli(source, out, &mut mains)?,
         _ => match frontend::compile(source, text, image, &classes) {
-            Ok(()) => {}
+            Ok(own) => mains = own,
             Err(Refused { why, errors }) if mode == Mode::Strict => {
                 errors.iter().for_each(|line| eprintln!("{line}"));
                 return Err(format!("{file}: the own frontend refuses it ({why})"));
@@ -96,13 +97,11 @@ fn build(
             Err(Refused { why, .. }) => {
                 eprintln!("scalai: {file}: falling back to scala-cli ({why})");
                 let _ = std::fs::remove_dir_all(&classes);
-                scala_cli(source, out)?;
+                scala_cli(source, out, &mut mains)?;
                 std::fs::write(out.join(FALLBACK), why).map_err(|e| format!("{}: {e}", out.display()))?;
             }
         },
     }
-    let mut mains = Vec::new();
-    main_classes(&classes, &mut mains)?;
     if mains.is_empty() {
         return Err(format!("{file}: no main method"));
     }
@@ -110,8 +109,8 @@ fn build(
     std::fs::write(out.join("main"), mains.join("\n")).map_err(|e| format!("{}: {e}", out.display()))
 }
 
-/// Compiles `source` into `out`/`classes` through scala-cli.
-fn scala_cli(source: &Path, out: &Path) -> Result<(), String> {
+/// Compiles `source` into `out`/`classes` through scala-cli and adds its main classes to `mains`.
+fn scala_cli(source: &Path, out: &Path, mains: &mut Vec<String>) -> Result<(), String> {
     let cli = std::env::var_os("SCALAI_SCALA_CLI").unwrap_or_else(|| "scala-cli".into());
     let classes = out.join("classes");
     let status = Command::new(&cli)
@@ -128,34 +127,7 @@ fn scala_cli(source: &Path, out: &Path) -> Result<(), String> {
         return Err(format!("compiling {} failed", source.display()));
     }
     let _ = std::fs::remove_dir_all(out.join("work"));
-    Ok(())
-}
-
-/// Adds the classes under `dir` that define `main` to `mains`.
-fn main_classes(dir: &Path, mains: &mut Vec<String>) -> Result<(), String> {
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    for path in entries.flatten().map(|e| e.path()) {
-        if path.is_dir() {
-            main_classes(&path, mains)?;
-        } else if path.extension().is_some_and(|e| e == "nir") {
-            let data = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
-            mains.extend(defines_main(&data).map_err(|e| format!("{}: {e}", path.display()))?);
-        }
-    }
-    Ok(())
-}
-
-/// The class in one NIR file that defines `main`, if any.
-fn defines_main(data: &[u8]) -> nir::Result<Option<String>> {
-    let (mut pool, mut caches) = (nir::pool::Pool::default(), nir::Caches::default());
-    let index = nir::Reader::new(data, &mut caches, &mut pool)?.index()?;
-    Ok(index.iter().find_map(|&(g, _)| match *pool.global(g) {
-        nir::Global::Member(top, sig) if pool.str(sig) == MAIN => match *pool.global(top) {
-            nir::Global::Top(name) => Some(pool.str(name).to_owned()),
-            _ => None,
-        },
-        _ => None,
-    }))
+    mains::in_dir(&classes, mains)
 }
 
 #[cfg(test)]

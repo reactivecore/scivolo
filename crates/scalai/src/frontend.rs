@@ -1,7 +1,9 @@
 //! The own frontend for scripts: parser, typer and lowering into NIR files.
 
 use crate::libs::SCALA;
+use crate::mains;
 use libimage::Image;
+use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use syntax::source::SourceFile;
@@ -42,14 +44,14 @@ impl<T: Into<String>> From<T> for Refused {
     }
 }
 
-/// Writes the NIR files of `source`, whose content is `text`, under `classes`, or why the own
-/// frontend does not compile it.
+/// Writes the NIR files of `source`, whose content is `text`, under `classes` and returns the
+/// classes that define `main`, or why the own frontend does not compile it.
 pub fn compile(
     source: &Path,
     text: &[u8],
     image: Option<&'static Image>,
     classes: &Path,
-) -> Result<(), Refused> {
+) -> Result<Vec<String>, Refused> {
     if source.extension().is_some_and(|e| e == "sc") {
         return Err(".sc scripts".into());
     }
@@ -70,14 +72,19 @@ pub fn compile(
         },
         why: r.what,
     })?;
-    std::fs::create_dir_all(classes).map_err(|e| format!("{}: {e}", classes.display()))?;
+    let mut dirs = HashSet::new();
+    let mut mains = Vec::new();
     for f in files {
         let path = classes.join(format!("{}.nir", f.name.replace('.', "/")));
         let dir = path.parent().unwrap_or(classes);
-        std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        if !dirs.contains(dir) {
+            std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+            dirs.insert(dir.to_owned());
+        }
+        mains.extend(mains::defined(&f.bytes).map_err(|e| format!("{}: {e}", path.display()))?);
         std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     }
-    Ok(())
+    Ok(mains)
 }
 
 /// The lines before the code of `text`: blank lines, comments and a first line starting with `#!`.
