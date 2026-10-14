@@ -1,6 +1,7 @@
-//! The TASTy files of a list of jars or of a library image: their paths, and each file's bytes
-//! on request.
+//! The TASTy files of a list of jars or of a library image: their package table, and each
+//! file's bytes on request.
 
+use crate::symbols::{PACKAGE_TABLE, package_table};
 use libimage::Image;
 use rustc_hash::FxHashMap;
 use std::borrow::Cow;
@@ -33,12 +34,16 @@ impl Library {
         Ok(Self::Jars { jars: archives, files })
     }
 
-    /// Every `.tasty` path, in no particular order.
-    pub fn paths(&self) -> Box<dyn Iterator<Item = &str> + '_> {
-        match self {
-            Library::Jars { files, .. } => Box::new(files.keys().map(String::as_str)),
-            Library::Image(image) => Box::new(image.names().filter(|n| n.ends_with(".tasty"))),
-        }
+    /// The package table of the TASTy files (`package_table`): the image's, else built.
+    pub fn package_table(&self) -> Cow<'static, str> {
+        let names: Vec<&str> = match self {
+            Library::Jars { files, .. } => files.keys().map(String::as_str).collect(),
+            Library::Image(image) => match image.find(PACKAGE_TABLE).map(|(t, _)| std::str::from_utf8(t)) {
+                Some(Ok(table)) => return Cow::Borrowed(table),
+                _ => image.names().collect(),
+            },
+        };
+        Cow::Owned(package_table(&names))
     }
 
     /// The bytes of `path`, e.g. `scala/Option.tasty`.

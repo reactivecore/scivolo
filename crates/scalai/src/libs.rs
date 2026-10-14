@@ -14,13 +14,20 @@ const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "
 const JAVALIB_TASTY: &[u8] = include_bytes!("../../../libs/javalib-tasty-0.5.12.jar");
 
 /// The library image of `jars`, the standard library's TASTy and javalib's: their NIR with
-/// member tables, and their TASTy.
+/// member tables, and their TASTy with its package table.
 pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
     let mut sources: Vec<Source> = jars.iter().cloned().map(Source::File).collect();
     sources.extend(scala_library().map(Source::File));
     sources.push(Source::Bytes("javalib-tasty-0.5.12.jar", JAVALIB_TASTY));
     let keep = |name: &str| name.ends_with(".nir") || name.ends_with(".tasty");
-    let spec = Spec { sources: &sources, keep, extra: &vm::nir_table, tag: "nir member tables 1" };
+    let packages = |names: &[&str]| tasty::package_table(names).into_bytes();
+    let spec = Spec {
+        sources: &sources,
+        keep,
+        extra: &vm::nir_table,
+        derived: &[(tasty::PACKAGE_TABLE, &packages)],
+        tag: "nir member tables 1",
+    };
     Ok(Box::leak(Box::new(Image::open(&spec, &cache_dir())?)))
 }
 

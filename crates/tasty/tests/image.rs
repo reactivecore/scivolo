@@ -24,10 +24,12 @@ fn jars() -> Option<Vec<PathBuf>> {
 /// The image of the TASTy of `jars`, in the repository's `tmp/`.
 fn image(jars: &[PathBuf]) -> &'static Image {
     let sources: Vec<Source> = jars.iter().cloned().map(Source::File).collect();
+    let packages = |names: &[&str]| tasty::package_table(names).into_bytes();
     let spec = Spec {
         sources: &sources,
         keep: |n| n.ends_with(".tasty"),
         extra: &|_, _| Vec::new(),
+        derived: &[(tasty::PACKAGE_TABLE, &packages)],
         tag: "tasty test",
     };
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tmp/tasty-image");
@@ -51,7 +53,9 @@ fn class_names(u: &mut Universe, pkg: &str) -> Vec<String> {
 fn an_image_holds_what_the_jars_hold() {
     let Some(jars) = jars() else { return };
     let mut from_jars = Universe::open(&jars).unwrap();
-    let mut from_image = Universe::open_image(image(&jars));
+    let image = image(&jars);
+    assert!(image.find(tasty::PACKAGE_TABLE).is_some());
+    let mut from_image = Universe::open_image(image);
     for pkg in ["scala.collection.immutable", "java.lang", "java.util"] {
         assert_eq!(class_names(&mut from_jars, pkg), class_names(&mut from_image, pkg), "{pkg}");
     }
