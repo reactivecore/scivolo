@@ -21,7 +21,7 @@ pub fn runtime_op(l: &mut Lower, sel: TNodeId) -> Option<(TNodeId, TNodeId)> {
     if matches!(l.u.erase(array), Erased::Array(_)) {
         return None;
     }
-    let module = l.defs.scala_run_time;
+    let module = l.scala_run_time().ok()?;
     let class = l.u.module_class(module)?;
     let name = format!("array_{}", l.u.symbol(m).name);
     let method = *l.u.decl(class, &name).ok()?.first()?;

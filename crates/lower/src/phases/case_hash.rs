@@ -2,7 +2,7 @@
 //! `caseHashCodeBody`, `hashImpl`).
 
 use crate::Lower;
-use crate::definitions::symbol;
+use crate::definitions::{CaseClasses, symbol};
 use syntax::ast::Span;
 use tasty::tags::{MUTABLE, SYNTHETIC};
 use tasty::{Erased, Flags, Kind, SymbolId};
@@ -18,8 +18,8 @@ impl Lower<'_> {
         accessors: &[SymbolId],
         own_name: &str,
         locals: &mut Vec<SymbolId>,
+        cc: CaseClasses,
     ) -> TNodeId {
-        let cc = self.defs.case_classes;
         let name_hash = string_hash(own_name);
         if accessors.is_empty() {
             return self.int_literal(name_hash);
@@ -46,10 +46,10 @@ impl Lower<'_> {
         let def = Tree::ValDef { name, tpt, rhs: Some(init) };
         let mut stats = vec![self.tpd.node(def, Span::NONE, Some(int), Some(acc))];
         let prefix = self.int_literal(name_hash);
-        stats.push(self.mix_into(acc, prefix));
+        stats.push(self.mix_into(acc, prefix, cc.mix));
         for &a in accessors {
-            let hash = self.field_hash(a);
-            stats.push(self.mix_into(acc, hash));
+            let hash = self.field_hash(a, cc);
+            stats.push(self.mix_into(acc, hash, cc.mix));
         }
         let acc_ref = self.ident(acc, Span::NONE);
         let size = self.int_literal(accessors.len() as i32);
@@ -58,19 +58,18 @@ impl Lower<'_> {
         self.positioned(block)
     }
 
-    /// `acc = Statics.mix(acc, hash)`.
-    fn mix_into(&mut self, acc: SymbolId, hash: TNodeId) -> TNodeId {
+    /// `acc = mix(acc, hash)` for `mix` the method `Statics.mix`.
+    fn mix_into(&mut self, acc: SymbolId, hash: TNodeId, mix: SymbolId) -> TNodeId {
         let lhs = self.ident(acc, Span::NONE);
         let current = self.ident(acc, Span::NONE);
-        let rhs = self.static_call(self.defs.case_classes.mix, &[current, hash]);
+        let rhs = self.static_call(mix, &[current, hash]);
         let unit = self.u.class_ref("scala.Unit");
         let assign = self.tpd.node(Tree::Assign { lhs, rhs }, Span::NONE, Some(unit), None);
         self.positioned(assign)
     }
 
     /// The hash of field `a` (dotty's `hashImpl`).
-    fn field_hash(&mut self, a: SymbolId) -> TNodeId {
-        let cc = self.defs.case_classes;
+    fn field_hash(&mut self, a: SymbolId, cc: CaseClasses) -> TNodeId {
         let value = self.ident(a, Span::NONE);
         let info = self.u.info(a);
         match self.u.erase(info) {
@@ -94,7 +93,7 @@ impl Lower<'_> {
             Erased::Prim('j') => self.static_call(cc.long_hash, &[value]),
             Erased::Prim('d') => self.static_call(cc.double_hash, &[value]),
             Erased::Prim('f') => self.static_call(cc.float_hash, &[value]),
-            _ => self.static_call(self.defs.equality.any_hash, &[value]),
+            _ => self.static_call(cc.any_hash, &[value]),
         }
     }
 }

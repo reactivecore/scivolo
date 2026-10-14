@@ -24,7 +24,7 @@ impl Gen<'_, '_> {
     }
 
     fn gen_monitored(&mut self, receiver: TNodeId, body: TNodeId) -> Result<ValId> {
-        let monitors = self.l.defs.monitors;
+        let monitors = self.l.monitors()?;
         let span = self.l.tpd.span(receiver);
         let at = self.m.pos;
         let (normal, handler, merge) = (self.fresh(), self.fresh(), self.fresh());

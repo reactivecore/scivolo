@@ -45,7 +45,8 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         let init = l.u.decl(l.defs.object, "<init>").unwrap_or_default();
         l.tpd.get_mut(sel).sym = init.first().copied();
     }
-    if l.tpd.sym(fun) == Some(l.defs.array_clone) {
+    let clone = l.tpd.sym(fun).filter(|&m| l.u.symbol(m).name == "clone");
+    if clone.is_some() && clone == Some(l.array_clone()?) {
         l.tpd.get_mut(fun).sym = Some(l.defs.object_clone);
     }
     let params = match (array_op(l, fun), synchronized_type(l, fun)) {
@@ -74,5 +75,6 @@ pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
 /// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves
 /// `_Class`'s parameterless `hashCode`.
 pub fn is_unapplied_hash_code(l: &Lower, t: TNodeId) -> bool {
-    matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t) == Some(l.defs.case_classes.hash_code)
+    let any_hash_code = |m| l.u.symbol(m).name == "hashCode" && l.u.symbol(m).owner == Some(l.defs.any);
+    matches!(l.tpd.tree(t), Tree::Select { .. }) && l.tpd.sym(t).is_some_and(any_hash_code)
 }

@@ -15,7 +15,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
     let prim = |e: &Erased| matches!(e, Erased::Prim(_));
     let t = match (super::adapt::erased_type(l, t), to) {
         (Erased::Array(e), Erased::Array(p)) if prim(&e) && !prim(p) => {
-            let module = l.defs.scala_run_time;
+            let module = l.scala_run_time().expect("`ScalaRunTime`");
             let class = l.u.module_class(module).expect("ScalaRunTime's class");
             let method = l.u.decl(class, "toObjectArray").unwrap_or_default();
             let method = *method.first().expect("`ScalaRunTime.toObjectArray`");
@@ -39,7 +39,7 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             l.u.intern_type(Type::Applied(array, vec![elem]))
         }
         Erased::Prim(c) => {
-            let p = l.defs.primitive(*c).expect("a primitive letter").module;
+            let p = l.primitive(*c).expect("a primitive letter").module;
             let class = l.u.module_class(p).expect("a primitive's object class");
             let name = l.u.full_name(class);
             l.u.class_ref(name.trim_end_matches('$'))

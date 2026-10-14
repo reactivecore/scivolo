@@ -135,7 +135,7 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
         return arg;
     }
     match (from, pt) {
-        (Erased::Prim(c), pt) if reference(pt) => match l.defs.primitive(*c) {
+        (Erased::Prim(c), pt) if reference(pt) => match l.primitive(*c) {
             Some(p) => {
                 let (module, box_method) = (p.module, p.box_method);
                 converted(l, t, module, box_method)
@@ -143,7 +143,7 @@ fn adapt_plain(l: &mut Lower, t: TNodeId, from: &Erased, pt: &Erased) -> TNodeId
             None => t,
         },
         (Erased::Unit, pt) if reference(pt) => boxed_unit(l, t),
-        (Erased::Class(_), Erased::Prim(c)) => match l.defs.primitive(*c) {
+        (Erased::Class(_), Erased::Prim(c)) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
                 converted(l, t, module, unbox_method)

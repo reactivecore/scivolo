@@ -29,7 +29,7 @@ pub fn cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<TN
         || (matches!(found, Erased::Null | Erased::Unit) && to == Erased::Unit);
     Ok(match (&found, &to) {
         _ if ascription => l.tpd.node(Tree::Typed { expr, tpt }, Span::NONE, Some(target), None),
-        (Erased::Null, Erased::Prim(c)) => match l.defs.primitive(*c) {
+        (Erased::Null, Erased::Prim(c)) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
                 converted(l, expr, module, unbox_method)
@@ -107,7 +107,7 @@ fn value_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, tpt: TNodeId) -> Result<
 
 /// Cast `t` of primitive `expr` of erased letter `c` made a cast of `expr` boxed.
 fn boxed_cast(l: &mut Lower, t: TNodeId, expr: TNodeId, c: char) -> Option<TNodeId> {
-    let p = l.defs.primitive(c)?;
+    let p = l.primitive(c)?;
     let (module, box_method) = (p.module, p.box_method);
     let boxed = converted(l, expr, module, box_method);
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { unreachable!("a type application") };

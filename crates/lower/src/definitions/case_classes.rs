@@ -1,4 +1,4 @@
-use super::equality::method;
+use super::equality::{Equality, method};
 use super::{java_class, java_static, member, package, type_ref};
 use tasty::{Kind, SymbolId, Type, Universe};
 
@@ -16,6 +16,9 @@ pub struct CaseClasses {
     /// `Object.eq`, `Boolean.||`.
     pub eq: SymbolId,
     pub or: SymbolId,
+    /// `Any.equals`, and `Statics.anyHash(Object)`, a Java static.
+    pub any_equals: SymbolId,
+    pub any_hash: SymbolId,
     /// `ScalaRunTime._toString`, its object.
     pub runtime_to_string: SymbolId,
     pub scala_run_time: SymbolId,
@@ -46,8 +49,9 @@ impl CaseClasses {
         u: &mut Universe,
         any: SymbolId,
         object: SymbolId,
-        statics: SymbolId,
+        equality: Equality,
     ) -> Result<CaseClasses, String> {
+        let statics = equality.statics;
         let scala = package(u, "scala")?;
         let product = member(u, scala, "Product", Kind::Class)?;
         let equals = member(u, scala, "Equals", Kind::Class)?;
@@ -86,6 +90,8 @@ impl CaseClasses {
             product,
             eq: member(u, object, "eq", Kind::Def)?,
             or: member(u, boolean, "||", Kind::Def)?,
+            any_equals: equality.any_equals,
+            any_hash: equality.any_hash,
             runtime_to_string: member(u, run_time_class, "_toString", Kind::Def)?,
             scala_run_time,
             mix: statics_method(u, "mix", &[int, int]),

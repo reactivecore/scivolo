@@ -1,4 +1,6 @@
-use libimage::{Image, Source, Spec};
+use libimage::{Derived, Image, Source, Spec};
+use std::collections::BTreeSet;
+use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 use tasty::{FileId, Kind, SymbolId, Universe};
@@ -21,15 +23,19 @@ fn jars() -> Option<Vec<PathBuf>> {
     Some(jars)
 }
 
-/// The image of the TASTy of `jars` with symbol tables, built afresh in directory `name` of
-/// `CARGO_TARGET_TMPDIR`.
-fn image(jars: &[PathBuf], name: &str) -> &'static Image {
+/// The image of the TASTy of `jars` with symbol tables, and the package table if `table`, built
+/// afresh in directory `name` of `CARGO_TARGET_TMPDIR`.
+fn image(jars: &[PathBuf], name: &str, table: bool) -> &'static Image {
     let sources: Vec<Source> = jars.iter().cloned().map(Source::File).collect();
     let tag = format!("tasty test, symbol tables {}", tasty::SYMBOL_TABLE_VERSION);
+    let packages = |names: &[&str]| tasty::package_table(names).into_bytes();
+    let version = tasty::package_table_version();
+    let derived = [Derived { name: tasty::PACKAGE_TABLE, version: &version, contents: &packages }];
     let spec = Spec {
         sources: &sources,
         keep: |n| n.ends_with(".tasty"),
         extra: &|_, data| tasty::symbol_table(data),
+        derived: if table { &derived } else { &[] },
         tag: &tag,
     };
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(name);
@@ -83,26 +89,42 @@ fn symbols(u: &mut Universe) -> Vec<String> {
 fn symbol_tables_enter_what_decoding_enters() {
     let Some(jars) = jars() else { return };
     let mut from_jars = Universe::open(&jars).unwrap();
-    let mut from_image = Universe::open_image(image(&jars, "tasty-tables"));
     let decoded = symbols(&mut from_jars);
-    let from_tables = symbols(&mut from_image);
     assert!(decoded.len() > 100_000, "{} symbols", decoded.len());
-    if let Some(i) = (0..decoded.len()).find(|&i| decoded.get(i) != from_tables.get(i)) {
-        panic!("symbol {i}: decoded {:?}, from tables {:?}", decoded.get(i), from_tables.get(i));
+    for (name, table) in [("tasty-tables", true), ("tasty-tables-no-packages", false)] {
+        let mut from_image = Universe::open_image(image(&jars, name, table));
+        let from_tables = symbols(&mut from_image);
+        if let Some(i) = (0..decoded.len()).find(|&i| decoded.get(i) != from_tables.get(i)) {
+            panic!("symbol {i}: decoded {:?}, from tables {:?}", decoded.get(i), from_tables.get(i));
+        }
+        assert_eq!(decoded.len(), from_tables.len());
+        assert_eq!(from_jars.loaded_files(), from_image.loaded_files());
+        let decoded_files = from_image.decoded_files();
+        assert!(decoded_files * 100 < from_image.loaded_files(), "{decoded_files}");
+        for f in 0..from_image.loaded_files() {
+            from_image.file(FileId(f as u32));
+        }
     }
-    assert_eq!(decoded.len(), from_tables.len());
-    assert_eq!(from_jars.loaded_files(), from_image.loaded_files());
-    assert!(from_image.decoded_files() * 100 < from_image.loaded_files(), "{}", from_image.decoded_files());
-    for f in 0..from_image.loaded_files() {
-        from_image.file(FileId(f as u32));
+}
+
+#[test]
+fn the_package_table_is_that_of_the_jars() {
+    let Some(jars) = jars() else { return };
+    let mut names = BTreeSet::new();
+    for jar in &jars {
+        let zip = zip::ZipArchive::new(File::open(jar).unwrap()).unwrap();
+        names.extend(zip.file_names().map(str::to_owned));
     }
+    let names: Vec<&str> = names.iter().map(String::as_str).collect();
+    let (table, _) = image(&jars, "tasty-packages", true).find(tasty::PACKAGE_TABLE).expect("the package table");
+    assert_eq!(std::str::from_utf8(table).unwrap(), tasty::package_table(&names));
 }
 
 #[test]
 #[ignore = "measurement"]
 fn open_times() {
     let Some(jars) = jars() else { return };
-    let image = image(&jars, "tasty-times");
+    let image = image(&jars, "tasty-times", true);
     for _ in 0..3 {
         let start = Instant::now();
         let _ = Universe::open(&jars).unwrap();

@@ -41,7 +41,7 @@ impl Translator<'_, '_> {
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
         let boolean = self.l.u.class_ref("scala.Boolean");
-        let test = self.type_apply(scrutinee, self.l.defs.patmat.type_test, target, boolean);
+        let test = self.type_apply(scrutinee, self.l.defs.type_test, target, boolean);
         let Some(pre) = outer_prefix(self.l, target) else { return test };
         let class = self.l.u.class_symbol(target).expect("a class type");
         let accessor = outer_accessor(self.l, class);
@@ -56,8 +56,8 @@ impl Translator<'_, '_> {
         let Type::This(c) = *self.l.u.types().get(pre) else { unreachable!("a `this` prefix") };
         let c = self.l.u.class_symbol(c).expect("a class");
         let expected = self.l.this(c, Span::NONE);
-        let eq = self.l.call(outer, self.l.defs.patmat.eq, &[expected]);
-        self.l.call(test, self.l.defs.patmat.and, &[eq])
+        let eq = self.l.call(outer, self.l.defs.eq, &[expected]);
+        self.l.call(test, self.l.defs.and, &[eq])
     }
 
     /// `qual.m[target]` of type `tpe`.

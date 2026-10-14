@@ -71,7 +71,7 @@ fn unboxed(l: &mut Lower, t: TNodeId, from: &Erased, class: &str, underlying: &E
         (l.ident(ev, Span::NONE), Some(def))
     };
     let null = l.null_literal(Span::NONE);
-    let eq = l.select(value, l.defs.patmat.eq, Span::NONE);
+    let eq = l.select(value, l.defs.eq, Span::NONE);
     let eq = l.positioned(eq);
     let boolean = l.u.class_ref("scala.Boolean");
     let cond = l.apply(eq, &[null], boolean, Span::NONE);
@@ -124,7 +124,7 @@ fn cast_generic(l: &mut Lower, t: TNodeId, class: &str, underlying: &Erased, spa
 /// `null` as a value of erased type `to`: unboxed for a primitive, cast for an array.
 fn null_as(l: &mut Lower, null: TNodeId, to: &Erased) -> TNodeId {
     match to {
-        Erased::Prim(c) => match l.defs.primitive(*c) {
+        Erased::Prim(c) => match l.primitive(*c) {
             Some(p) => {
                 let (module, unbox_method) = (p.module, p.unbox_method);
                 super::converted(l, null, module, unbox_method)

@@ -1,174 +1,115 @@
 //! The library symbols the lowering refers to by name (dotty's `Definitions`, nscplugin's
-//! `NirDefinitions`).
+//! `NirDefinitions`): those of the builtin classes up front, the others on first use.
 
 mod case_classes;
+mod defined;
 mod equality;
 mod interfaces;
 mod lazy_vals;
 mod monitors;
 mod patmat;
+mod primitives;
 mod refs;
+mod resolved;
 mod sequences;
 mod strings;
 mod tuples;
 
 pub use case_classes::CaseClasses;
+pub use defined::symbol;
+use defined::{java_class, java_static};
 pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_applies, specialized_apply};
 pub use lazy_vals::LazyVals;
+pub use monitors::Monitors;
 pub use patmat::Patmat;
+pub use primitives::{Primitive, boxed_class, primitive_class_name};
 pub use refs::{Ref, ref_class};
+pub use resolved::Serialization;
 pub use sequences::Sequences;
 pub use strings::Strings;
-use tasty::tags::STATIC;
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 pub use tuples::{specialized_accessor, specialized_tuple_ctor, tuple_tags};
-
-/// A primitive value class: its erased letter, its object and that object's `box` and `unbox`
-/// methods.
-pub struct Primitive {
-    pub letter: char,
-    pub module: SymbolId,
-    pub box_method: SymbolId,
-    pub unbox_method: SymbolId,
-}
 
 pub struct Definitions {
     pub object: SymbolId,
     pub any: SymbolId,
     pub any_ref: SymbolId,
     pub any_val: SymbolId,
-    pub class: SymbolId,
-    pub module_serialization_proxy: SymbolId,
-    pub module_serialization_proxy_ctor: SymbolId,
-    pub primitives: Vec<Primitive>,
+    pub unit: SymbolId,
+    pub string: SymbolId,
+    /// `Any.asInstanceOf`, `Any.isInstanceOf`, and `Any.$isInstanceOf` that pattern matches
+    /// test with.
+    pub as_instance_of: SymbolId,
+    pub is_instance_of: SymbolId,
+    pub type_test: SymbolId,
+    /// `Any.$asInstanceOf$`, the cast the compiler inserts.
+    pub type_cast: SymbolId,
+    /// `Any.==`, `Object.ne`, `Object.eq`, `Object.synchronized`, and `Object.clone` that
+    /// erasure calls instead of `Array.clone`.
+    pub any_eq: SymbolId,
+    pub ne: SymbolId,
+    pub eq: SymbolId,
+    pub synchronized: SymbolId,
+    pub object_clone: SymbolId,
+    /// `Boolean.&&`.
+    pub and: SymbolId,
     /// `scala.runtime.BoxedUnit.UNIT`, a Java static field.
     pub boxed_unit_unit: SymbolId,
-    pub equality: Equality,
-    pub strings: Strings,
-    pub patmat: Patmat,
-    pub case_classes: CaseClasses,
-    pub lazy_vals: LazyVals,
-    pub monitors: monitors::Monitors,
-    pub sequences: Sequences,
-    /// The object `scala.runtime.ScalaRunTime`.
-    pub scala_run_time: SymbolId,
-    /// `Any.asInstanceOf`.
-    pub as_instance_of: SymbolId,
-    /// `Array.clone` and the `Object.clone` erasure calls instead.
-    pub array_clone: SymbolId,
-    pub object_clone: SymbolId,
-}
-
-/// The primitive value classes of package `scala` and their erased letters.
-const PRIMITIVES: [(&str, char); 8] = [
-    ("Boolean", 'z'),
-    ("Char", 'c'),
-    ("Byte", 'b'),
-    ("Short", 's'),
-    ("Int", 'i'),
-    ("Long", 'j'),
-    ("Float", 'f'),
-    ("Double", 'd'),
-];
-
-/// The binary name of the primitive value class of erased letter `letter`.
-pub fn primitive_class_name(letter: char) -> Option<String> {
-    PRIMITIVES.iter().find(|&&(_, l)| l == letter).map(|(name, _)| format!("scala.{name}"))
+    /// dotty's `<special-ops>.throw`.
+    pub throw: SymbolId,
+    primitives: [Option<Primitive>; 8],
+    equality: Option<Equality>,
+    strings: Option<Strings>,
+    patmat: Option<Patmat>,
+    case_classes: Option<CaseClasses>,
+    lazy_vals: Option<LazyVals>,
+    monitors: Option<Monitors>,
+    sequences: Option<Sequences>,
+    serialization: Option<Serialization>,
+    product: Option<SymbolId>,
+    scala_run_time: Option<SymbolId>,
+    array_clone: Option<SymbolId>,
 }
 
 impl Definitions {
     pub fn new(u: &mut Universe) -> Result<Definitions, String> {
-        let java_lang = package(u, "java.lang")?;
-        let scala = package(u, "scala")?;
-        let runtime = package(u, "scala.runtime")?;
-        let proxy = member(u, runtime, "ModuleSerializationProxy", Kind::Class)?;
-        let mut primitives = Vec::new();
-        for (name, letter) in PRIMITIVES {
-            let module = member(u, scala, name, Kind::Val)?;
-            let class = u.module_class(module).ok_or_else(|| format!("scala.{name}'s object missing"))?;
-            let box_method = member(u, class, "box", Kind::Def)?;
-            let unbox_method = member(u, class, "unbox", Kind::Def)?;
-            primitives.push(Primitive { letter, module, box_method, unbox_method });
-        }
         let b = u.builtins();
-        let equality = Equality::new(u, b.any, b.object, runtime)?;
-        let array = member(u, scala, "Array", Kind::Class)?;
+        let (scala, java_lang) = (package(u, "scala")?, package(u, "java.lang")?);
+        let runtime = package(u, "scala.runtime")?;
+        let boolean = member(u, scala, "Boolean", Kind::Class)?;
         Ok(Definitions {
             object: b.object,
             any: b.any,
             any_ref: b.any_ref,
             any_val: member(u, scala, "AnyVal", Kind::Class)?,
-            class: member(u, java_lang, "Class", Kind::Class)?,
-            module_serialization_proxy: proxy,
-            module_serialization_proxy_ctor: member(u, proxy, "<init>", Kind::Def)?,
-            primitives,
-            boxed_unit_unit: boxed_unit_unit(u, runtime),
-            equality,
-            strings: Strings::new(u)?,
-            patmat: Patmat::new(u, b.any, b.object)?,
-            case_classes: CaseClasses::new(u, b.any, b.object, equality.statics)?,
-            lazy_vals: LazyVals::new(u, b.object)?,
-            monitors: monitors::Monitors::new(u, b.object)?,
-            sequences: Sequences::new(u)?,
-            scala_run_time: member(u, runtime, "ScalaRunTime", Kind::Val)?,
+            unit: member(u, scala, "Unit", Kind::Class)?,
+            string: member(u, java_lang, "String", Kind::Class)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
-            array_clone: member(u, array, "clone", Kind::Def)?,
+            is_instance_of: member(u, b.any, "isInstanceOf", Kind::Def)?,
+            type_test: member(u, b.any, "$isInstanceOf", Kind::Def)?,
+            type_cast: member(u, b.any, "$asInstanceOf$", Kind::Def)?,
+            any_eq: member(u, b.any, "==", Kind::Def)?,
+            ne: member(u, b.object, "ne", Kind::Def)?,
+            eq: member(u, b.object, "eq", Kind::Def)?,
+            synchronized: member(u, b.object, "synchronized", Kind::Def)?,
             object_clone: member(u, b.object, "clone", Kind::Def)?,
+            and: member(u, boolean, "&&", Kind::Def)?,
+            boxed_unit_unit: defined::boxed_unit_unit(u, runtime),
+            throw: patmat::throw(u)?,
+            primitives: [None; 8],
+            equality: None,
+            strings: None,
+            patmat: None,
+            case_classes: None,
+            lazy_vals: None,
+            monitors: None,
+            sequences: None,
+            serialization: None,
+            product: None,
+            scala_run_time: None,
+            array_clone: None,
         })
-    }
-
-    pub fn primitive(&self, letter: char) -> Option<&Primitive> {
-        self.primitives.iter().find(|p| p.letter == letter)
-    }
-
-    pub fn is_box(&self, m: SymbolId) -> bool {
-        self.primitives.iter().any(|p| p.box_method == m)
-    }
-
-    /// The primitive whose `unbox` method `m` is.
-    pub fn unboxed_by(&self, m: SymbolId) -> Option<&Primitive> {
-        self.primitives.iter().find(|p| p.unbox_method == m)
-    }
-}
-
-/// `BoxedUnit.UNIT`, defined with its class if the library has no TASTy for them.
-fn boxed_unit_unit(u: &mut Universe, runtime: SymbolId) -> SymbolId {
-    let class = java_class(u, runtime, "BoxedUnit");
-    let info = type_ref(u, class);
-    java_static(u, class, "UNIT", Kind::Val, info)
-}
-
-/// Class `name` of package `owner`, defined if the library has no TASTy for it.
-fn java_class(u: &mut Universe, owner: SymbolId, name: &str) -> SymbolId {
-    match member(u, owner, name, Kind::Class) {
-        Ok(c) => c,
-        Err(_) => u.define(symbol(name, Kind::Class, owner, Flags::default())),
-    }
-}
-
-/// Static member `name` of Java class `class`, defined of type `info` if missing.
-fn java_static(u: &mut Universe, class: SymbolId, name: &str, kind: Kind, info: TypeId) -> SymbolId {
-    if let Ok(s) = member(u, class, name, kind) {
-        return s;
-    }
-    let s = u.define(symbol(name, kind, class, Flags::default().with(STATIC)));
-    u.set_info(s, info);
-    s
-}
-
-/// A symbol defined outside TASTy.
-pub fn symbol(name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> Symbol {
-    Symbol {
-        name: name.into(),
-        kind,
-        owner: Some(owner),
-        flags,
-        target: None,
-        is_extern: false,
-        derived: false,
-        decls: Vec::new(),
-        tree: None,
     }
 }
 

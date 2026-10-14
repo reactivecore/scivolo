@@ -28,7 +28,7 @@ pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
 /// Whether `fun` applies `synchronized` to a type, which stays polymorphic after erasure.
 pub fn is_synchronized(l: &Lower, fun: TNodeId) -> bool {
     matches!(*l.tpd.tree(fun),
-        Tree::TypeApply { fun: sel, .. } if l.tpd.sym(sel) == Some(l.defs.monitors.synchronized))
+        Tree::TypeApply { fun: sel, .. } if l.tpd.sym(sel) == Some(l.defs.synchronized))
 }
 
 /// The erased type argument of `synchronized` application `fun`, `BoxedUnit` for `Unit`; `None`

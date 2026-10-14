@@ -63,7 +63,7 @@ impl Typer<'_> {
                 _ => {}
             }
             self.u.annotate(sym, class);
-            if class == self.defn.main_annot {
+            if self.defn.main_annot(self.u) == Ok(class) {
                 self.syms.main_annotations.insert(sym, self.ast.span(annot));
             }
             if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {

@@ -2,7 +2,7 @@
 
 use super::casts::cast;
 use crate::Lower;
-use crate::definitions::{primitive_class_name, symbol, type_ref};
+use crate::definitions::{CaseClasses, primitive_class_name, symbol, type_ref};
 use crate::symbols::has;
 use syntax::ast::Span;
 use tasty::tags::{FINAL, SYNTHETIC};
@@ -20,8 +20,8 @@ impl Lower<'_> {
         that: TNodeId,
         can_equal: Option<SymbolId>,
         locals: &mut Vec<SymbolId>,
+        cc: CaseClasses,
     ) -> TNodeId {
-        let cc = self.defs.case_classes;
         let class_type = type_ref(self.u, class);
         let that_as_class = self.u.define(symbol("x$0", Kind::Val, class, Flags::default().with(SYNTHETIC)));
         locals.push(that_as_class);
@@ -57,13 +57,13 @@ impl Lower<'_> {
             .collect();
         let mut rhs = match comparisons.is_empty() {
             true => self.boolean_literal(true),
-            false => self.reduce_balanced(&comparisons, self.defs.patmat.and),
+            false => self.reduce_balanced(&comparisons, self.defs.and),
         };
         if !has(self.u, class, FINAL) || can_equal.is_some() {
             let other = self.ident(that_as_class, Span::NONE);
             let this = self.this(class, Span::NONE);
             let can_equal = self.call(other, can_equal.unwrap_or(cc.can_equal), &[this]);
-            rhs = self.call(rhs, self.defs.patmat.and, &[can_equal]);
+            rhs = self.call(rhs, self.defs.and, &[can_equal]);
         }
         let matching = Tree::CaseDef { pat: pattern, guard: None, body: rhs };
         let matching = self.tpd.node(matching, Span::NONE, None, None);

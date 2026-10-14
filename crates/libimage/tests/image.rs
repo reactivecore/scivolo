@@ -9,8 +9,14 @@ fn a_truncated_image_is_rebuilt() {
         .join("../../tmp/libimage-test")
         .join(std::process::id().to_string());
     let sources = [Source::Bytes("javalib-tasty.jar", JAR)];
-    let spec =
-        Spec { sources: &sources, keep: |n| n.ends_with(".tasty"), extra: &|_, _| Vec::new(), tag: "test" };
+    let spec = Spec {
+        sources: &sources,
+        keep: |n| n.ends_with(".tasty"),
+        extra: &|_, _| Vec::new(),
+        derived: &[],
+
+        tag: "test",
+    };
     let string = "java/lang/_String.tasty";
     let size = {
         let image = Image::open(&spec, &dir).unwrap();

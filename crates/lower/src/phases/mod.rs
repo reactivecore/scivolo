@@ -160,7 +160,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         bridges::transform(l, td, &deferred)?;
     }
     drop_inlined::unmark_calls(l);
-    array_apply::transform(l, &classes);
+    array_apply::transform(l, &classes)?;
     for &td in &classes {
         select_static::transform(l, td);
         tailrec::transform(l, td);

@@ -19,22 +19,21 @@ pub fn mirror_support(
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
-    let cc = l.defs.case_classes;
     if is_enum_value(l, class) {
-        return Ok(Some((cc.mirror_singleton, Vec::new())));
+        return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
     if !l.u.is_module_class(class) {
         return Ok(None);
     }
     if has(l.u, class, CASE) {
-        return Ok(Some((cc.mirror_singleton, Vec::new())));
+        return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
     let Some(linked) = l.u.companion_class(class) else { return Ok(None) };
     if has(l.u, linked, SEALED) && has(l.u, linked, ENUM) {
         mono_type(l, class, linked);
         let focus = Span::new(span.point(), span.point(), span.point());
         let ordinal = ordinal(l, class, linked, focus)?;
-        return Ok(Some((cc.mirror_sum, vec![ordinal])));
+        return Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])));
     }
     if has(l.u, linked, SEALED) {
         return unsupported(span, "companions of sealed classes other than enums");
@@ -46,7 +45,7 @@ pub fn mirror_support(
     mono_type(l, class, linked);
     let focus = Span::new(span.point(), span.point(), span.point());
     let from_product = from_product(l, class, linked, focus)?;
-    Ok(Some((cc.mirror_product, vec![from_product])))
+    Ok(Some((l.case_classes()?.mirror_product, vec![from_product])))
 }
 
 /// The number of parameter lists of the primary constructor of class `c`.
@@ -75,7 +74,7 @@ fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
 /// (dotty's `fromProductBody`).
 fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Span) -> Result<TNodeId> {
-    let cc = l.defs.case_classes;
+    let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let result = type_ref(l.u, case_class);
     let binder = l.u.fresh_binder();
@@ -132,7 +131,7 @@ fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Spa
 
 /// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
 fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
-    let cc = l.defs.case_classes;
+    let cc = l.case_classes()?;
     let param = type_ref(l.u, enum_class);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();

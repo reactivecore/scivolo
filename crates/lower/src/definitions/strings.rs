@@ -2,8 +2,8 @@ use super::{member, package};
 use tasty::{Erased, Kind, SymbolId, Universe};
 
 /// What string concatenation calls (nscplugin's `jlStringBuilder*` definitions).
+#[derive(Clone)]
 pub struct Strings {
-    pub string: SymbolId,
     /// `String.valueOf(Object)`, a method of the companion object.
     pub value_of: SymbolId,
     pub builder: SymbolId,
@@ -19,7 +19,6 @@ pub struct Strings {
 impl Strings {
     pub fn new(u: &mut Universe) -> Result<Strings, String> {
         let java_lang = package(u, "java.lang")?;
-        let string = member(u, java_lang, "String", Kind::Class)?;
         let companion = member(u, java_lang, "String", Kind::Val)?;
         let companion = u.module_class(companion).ok_or("java.lang.String's object missing")?;
         let object = Erased::Class("java.lang.Object".into());
@@ -32,7 +31,6 @@ impl Strings {
         let builder_to_string = with_params(u, builder, "toString", <[Erased]>::is_empty)
             .ok_or("java.lang.StringBuilder.toString missing")?;
         Ok(Strings {
-            string,
             value_of,
             builder,
             builder_ctor,

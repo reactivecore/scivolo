@@ -39,7 +39,7 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
     };
     let focus = Span::new(span.point(), span.point(), span.point());
     let mut out = vec![read_resolve(l, class, owner, focus)?];
-    let cc = l.defs.case_classes;
+    let cc = l.case_classes()?;
     for sym in [cc.product_prefix, cc.to_string, cc.enum_ordinal, cc.hash_code] {
         if existing_def(l, class, sym).is_some() {
             continue;
@@ -123,7 +123,8 @@ fn read_resolve(l: &mut Lower, class: SymbolId, owner: SymbolId, focus: Span) ->
     };
     let (sym, any_ref) = private_method(l, class, "readResolve");
     let this = l.this(class, Span::NONE);
-    let ordinal = l.call(this, l.defs.case_classes.enum_ordinal, &[]);
+    let enum_ordinal = l.case_classes()?.enum_ordinal;
+    let ordinal = l.call(this, enum_ordinal, &[]);
     let module = l.ident(module, Span::NONE);
     let rhs = l.call(module, from_ordinal, &[ordinal]);
     let tpt = l.type_tree(any_ref, focus);

@@ -37,7 +37,7 @@ impl Lower<'_> {
 
     /// `t.isInstanceOf[tpe]`.
     pub fn is_instance(&mut self, t: TNodeId, tpe: TypeId) -> TNodeId {
-        let m = self.defs.patmat.is_instance_of;
+        let m = self.defs.is_instance_of;
         let fun = self.select(t, m, Span::NONE);
         let fun = self.positioned(fun);
         let tpt = self.type_tree(tpe, Span::NONE);

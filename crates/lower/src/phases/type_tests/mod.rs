@@ -9,6 +9,7 @@ mod runtime_tests;
 
 use super::adapt::erased_type;
 use super::casts::type_of;
+use crate::definitions::boxed_class;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Erased, Type};
@@ -18,17 +19,17 @@ use typer::tpd::{TNodeId, Tree};
 /// `x.asInstanceOf[T]` or `x.$asInstanceOf$[T]`.
 pub fn is_test_or_cast(l: &Lower, t: TNodeId) -> bool {
     let Tree::TypeApply { fun, .. } = *l.tpd.tree(t) else { return false };
-    let p = l.defs.patmat;
+    let d = &l.defs;
     l.tpd
         .sym(fun)
-        .is_some_and(|s| [p.is_instance_of, p.type_test, l.defs.as_instance_of, p.type_cast].contains(&s))
+        .is_some_and(|s| [d.is_instance_of, d.type_test, d.as_instance_of, d.type_cast].contains(&s))
 }
 
 /// Makes type test or cast `t` its erased form, at `t`'s span; `$asInstanceOf$` as
 /// `asInstanceOf`.
 pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
     let Tree::TypeApply { fun, args } = *l.tpd.tree(t) else { unreachable!("a type application") };
-    if l.tpd.sym(fun) == Some(l.defs.patmat.type_cast) {
+    if l.tpd.sym(fun) == Some(l.defs.type_cast) {
         l.tpd.get_mut(fun).sym = Some(l.defs.as_instance_of);
     }
     let span = l.tpd.span(t);
@@ -40,7 +41,7 @@ pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {
     let new = if l.tpd.sym(fun) == Some(l.defs.as_instance_of) {
         as_instance_of::cast(l, t, expr, tpt)?
     } else {
-        let in_match = l.tpd.sym(fun) == Some(l.defs.patmat.type_test);
+        let in_match = l.tpd.sym(fun) == Some(l.defs.type_test);
         type_test(l, expr, target, in_match, span)?
     };
     if new != t {
@@ -121,7 +122,7 @@ fn is_instance_of(
             return Ok(constant(l, expr, true));
         }
         let null = l.null_literal(Span::NONE);
-        let ne = l.select(expr, l.defs.patmat.ne, Span::NONE);
+        let ne = l.select(expr, l.defs.ne, Span::NONE);
         let ne = l.positioned(ne);
         let boolean = l.u.class_ref("scala.Boolean");
         let test = l.apply(ne, &[null], boolean, Span::NONE);
@@ -141,11 +142,11 @@ fn is_instance_of(
         return is_instance_of(l, expr, Erased::Class(boxed.into()), &test, in_match, span);
     }
     let tested = type_of(l, &test);
-    let fun = l.select(expr, l.defs.patmat.is_instance_of, l.tpd.span(expr));
+    let fun = l.select(expr, l.defs.is_instance_of, l.tpd.span(expr));
     let tpt = l.type_tree(tested, Span::NONE);
     let args = l.tpd.list(&[tpt]);
     let boolean = l.u.class_ref("scala.Boolean");
-    Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.patmat.is_instance_of)))
+    Ok(l.tpd.node(Tree::TypeApply { fun, args }, span, Some(boolean), Some(l.defs.is_instance_of)))
 }
 
 /// Whether a value of type `tpe` is never null: a constant other than `null` or of a value class
@@ -177,19 +178,4 @@ fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
     let block = l.block(&[expr], lit, Span::NONE);
     let block = l.positioned(block);
     l.with_span(block, span)
-}
-
-/// The box class of the primitive of erased letter `c`.
-pub fn boxed_class(c: char) -> Option<&'static str> {
-    Some(match c {
-        'z' => "java.lang.Boolean",
-        'c' => "java.lang.Character",
-        'b' => "java.lang.Byte",
-        's' => "java.lang.Short",
-        'i' => "java.lang.Integer",
-        'j' => "java.lang.Long",
-        'f' => "java.lang.Float",
-        'd' => "java.lang.Double",
-        _ => return None,
-    })
 }

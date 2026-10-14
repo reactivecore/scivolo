@@ -12,8 +12,8 @@ pub fn fold(l: &mut Lower, t: TNodeId) {
     let Tree::Select { qualifier: x, .. } = *l.tpd.tree(fun) else { return };
     let &Tree::Literal { value: Constant::Boolean(c) } = l.tpd.tree(x) else { return };
     let and = match l.tpd.sym(fun) {
-        Some(op) if op == l.defs.patmat.and => true,
-        Some(op) if op == l.defs.case_classes.or => false,
+        Some(op) if op == l.defs.and => true,
+        Some(op) if l.u.symbol(op).name == "||" && l.case_classes().is_ok_and(|c| c.or == op) => false,
         _ => return,
     };
     l.copy_node(t, if c == and { y } else { x });

@@ -1,7 +1,7 @@
 //! Opening a universe over the TASTy of jars or of a library image: its packages known, no file
 //! read yet.
 
-use super::{Builtins, Error, Flags, Kind, Symbol, Universe, builtin, jdk};
+use super::{Builtins, Error, Flags, Kind, Symbol, Universe, builtin};
 use crate::library::Library;
 use crate::types::Types;
 use libimage::Image;
@@ -63,17 +63,14 @@ impl Universe {
             tree: None,
         });
         u.packages.insert(String::new(), root);
-        let mut paths: Vec<String> = u.library.paths().map(str::to_owned).collect();
-        paths.sort();
-        for path in paths {
-            let (dir, file) = path.rsplit_once('/').unwrap_or(("", path.as_str()));
-            let (dir, stem) = (dir.replace('/', "."), file.strip_suffix(".tasty").unwrap_or(file));
-            let (dir, stem) = match jdk::jdk_name(&dir, stem) {
-                Some((pkg, name)) => (pkg.to_owned(), name),
-                None => (dir, stem.to_owned()),
+        let table = u.library.package_table();
+        for line in table.lines() {
+            let mut fields = line.split('\t');
+            let (Some(pkg), Some(stem), Some(path)) = (fields.next(), fields.next(), fields.next()) else {
+                continue;
             };
-            let pkg = u.package_entered(&dir);
-            u.pending.entry(pkg).or_default().push((stem, path.clone()));
+            let pkg = u.package_entered(pkg);
+            u.pending.entry(pkg).or_default().push((stem.to_owned(), path.to_owned()));
         }
         u.builtins = builtin::enter(&mut u);
         u

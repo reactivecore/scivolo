@@ -101,7 +101,7 @@ impl Translator<'_, '_> {
 
     /// `throw new MatchError(scrutinee)`.
     fn match_error(&mut self, scrutinee: SymbolId) -> TNodeId {
-        let p = self.l.defs.patmat;
+        let p = self.defs;
         let new = self.l.new_(p.match_error, Span::NONE);
         let arg = self.l.ident(scrutinee, Span::NONE);
         let error = self.l.call(new, p.match_error_ctor, &[arg]);
@@ -118,7 +118,7 @@ impl Translator<'_, '_> {
 
     /// `throw exception`.
     fn thrown(&mut self, exception: TNodeId) -> TNodeId {
-        let throw = self.l.ident(self.l.defs.patmat.throw, Span::NONE);
+        let throw = self.l.ident(self.l.defs.throw, Span::NONE);
         let nothing = self.nothing_type();
         let apply = self.l.apply(throw, &[exception], nothing, Span::NONE);
         self.l.positioned(apply)

@@ -4,6 +4,7 @@
 
 use super::Gen;
 use super::method::Method;
+use crate::Result;
 use nir::sig::{Scope, Sig};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, PosId, Type, Val};
 use tasty::{Kind, SymbolId};
@@ -11,34 +12,36 @@ use typer::tpd::TNodeId;
 
 impl Gen<'_, '_> {
     /// The fields of the `VarHandle`s of the lazy values of class `c`, the latest first.
-    pub fn gen_lazy_handle_fields(&mut self, c: SymbolId, pos: PosId) {
+    pub fn gen_lazy_handle_fields(&mut self, c: SymbolId, pos: PosId) -> Result<()> {
         let fields: Vec<SymbolId> =
             self.l.lazy_fields.iter().filter(|f| f.class == c).map(|f| f.field).collect();
         for &f in fields.iter().rev() {
             let (name, _) = self.handle(c, f);
-            let ty = self.handle_type();
+            let ty = self.handle_type()?;
             let rhs = self.val(Val::Zero(ty));
             self.defns.push(Defn { name, attrs: vec![Attr::Final], pos, kind: DefnKind::Var { ty, rhs } });
         }
+        Ok(())
     }
 
     /// The `VarHandle` fields of the lazy values of the classes of `type_defs` that are not
     /// objects', first in their companions' files.
-    pub fn gen_companion_handle_fields(&mut self, type_defs: &[TNodeId]) {
+    pub fn gen_companion_handle_fields(&mut self, type_defs: &[TNodeId]) -> Result<()> {
         for &td in type_defs {
             let Some(c) = self.l.tpd.sym(td).filter(|&c| !self.l.u.is_module_class(c)) else { continue };
             let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
-            self.gen_lazy_handle_fields(c, pos);
+            self.gen_lazy_handle_fields(c, pos)?;
         }
+        Ok(())
     }
 
     /// The static methods of class `c` reading the `VarHandle`s of its lazy values.
-    pub fn gen_lazy_handle_accessors(&mut self, c: SymbolId, pos: PosId) {
+    pub fn gen_lazy_handle_accessors(&mut self, c: SymbolId, pos: PosId) -> Result<()> {
         let fields: Vec<SymbolId> =
             self.l.lazy_fields.iter().filter(|f| f.class == c).map(|f| f.field).collect();
         for f in fields {
             let (field, holder) = self.handle(c, f);
-            let ty = self.handle_type();
+            let ty = self.handle_type()?;
             let class = self.type_name(c);
             let id = format!("{}$lzyHandle", self.local_name(f));
             let name = self.pool.member(class, &Sig::Method(id, vec![ty], Scope::PrivateStatic(class)));
@@ -60,6 +63,7 @@ impl Gen<'_, '_> {
                 kind: DefnKind::Define { ty: fn_ty, body },
             });
         }
+        Ok(())
     }
 
     /// The `VarHandle` field of lazy field `f` of class `class`, and the object holding it.
@@ -90,8 +94,8 @@ impl Gen<'_, '_> {
         self.l.u.symbol(class).tree.is_none().then_some(class)
     }
 
-    fn handle_type(&mut self) -> nir::TypeId {
-        let var_handle = self.l.defs.lazy_vals.var_handle;
-        self.class_ref(var_handle)
+    fn handle_type(&mut self) -> Result<nir::TypeId> {
+        let var_handle = self.l.lazy_vals()?.var_handle;
+        Ok(self.class_ref(var_handle))
     }
 }
