@@ -82,3 +82,4 @@ outerclasses
 emptycases
 nullcasts
 outerthis
+matchnames
