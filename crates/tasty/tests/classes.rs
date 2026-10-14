@@ -47,6 +47,17 @@ fn parents_and_linearization() {
 }
 
 #[test]
+fn parent_type_arguments_of_the_constructor_call() {
+    let Some(mut u) = stdlib() else { return };
+    let p = u.package("scala.collection.immutable").unwrap();
+    let module = u.decl(p, "NumericRange$").unwrap()[0];
+    let inclusive = u.decl(module, "Inclusive").unwrap()[0];
+    let parents: Vec<String> = u.parents(inclusive).into_iter().map(|t| u.show(t)).collect();
+    let parent = "scala.collection.immutable.NumericRange[scala.collection.immutable.NumericRange$.this.Inclusive.this.T]";
+    assert_eq!(parents, [parent]);
+}
+
+#[test]
 fn classes_without_initialization_code() {
     let Some(mut u) = stdlib() else { return };
     for (pkg, name, expected) in [
