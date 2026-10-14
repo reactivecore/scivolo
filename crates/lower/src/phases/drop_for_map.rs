@@ -45,11 +45,16 @@ fn dropped(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
     })
 }
 
-/// The receiver, `map` method and arguments of `r.map(lambda)(implicits)` marked as trailing.
+/// The receiver, `map` method and arguments of `r.map(lambda)(implicits)` marked as trailing,
+/// the mark removed.
 fn unmapped(l: &mut Lower, t: TNodeId) -> Option<(Option<TNodeId>, SymbolId, Vec<TNodeId>)> {
     match *l.tpd.tree(t) {
         Tree::Apply { fun, args } if l.tpd.items(args).len() == 1 && is_lambda(l, l.tpd.items(args)[0]) => {
-            l.tpd.is_trailing_map(t).then(|| map_call(l, fun, Vec::new())).flatten()
+            if !l.tpd.is_trailing_map(t) {
+                return None;
+            }
+            l.tpd.unmark_trailing_map(t);
+            map_call(l, fun, Vec::new())
         }
         Tree::Apply { fun, .. } => {
             let implicit = matches!(l.u.types().get(l.tpd.tpe(fun)), Type::Method { implicit: true, .. });

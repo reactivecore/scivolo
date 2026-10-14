@@ -100,6 +100,10 @@ impl Tpd {
         self.trailing_maps.insert(id);
     }
 
+    pub fn unmark_trailing_map(&mut self, id: TNodeId) {
+        self.trailing_maps.remove(&id);
+    }
+
     pub fn is_trailing_map(&self, id: TNodeId) -> bool {
         self.trailing_maps.contains(&id)
     }
