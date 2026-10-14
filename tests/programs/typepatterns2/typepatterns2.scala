@@ -8,6 +8,34 @@ class Node(val id: Int):
     case n: Node => "node " + n.id
     case _ => "other"
 
+class V(val n: Int) extends AnyVal:
+  def same(x: Any): String = x match
+    case _: this.type => "self"
+    case _ => "other"
+
+object Q:
+  type A = "a"
+  type Three = 3
+  type OneTwo = 1 | 2
+  type R = Red.type
+  def alias(x: Any): String = x match
+    case _: A => "a"
+    case _: Three => "three"
+    case _: R => "red"
+    case _ => "other"
+  def lits(x: Any): String = x match
+    case _: OneTwo => "1or2"
+    case _ => "other"
+  def strs(x: Any): String = x match
+    case _: ("a" | "b") => "aorb"
+    case _ => "other"
+  def colors(x: Any): String = x match
+    case _: (Red.type | Green.type) => "rg"
+    case _ => "other"
+  def nodes(a: Node, b: Node, x: Any): String = x match
+    case _: (a.type | b.type) => "aorb"
+    case _ => "other"
+
 object P:
   type IS = Int | String
   def size(x: Any): Int = x match
@@ -58,3 +86,11 @@ object P:
   println(P.union(4))
   println(P.union("s"))
   println(P.union(2.5))
+  for x <- List("a", "zzz", 3, 4, Red, Green) do println(Q.alias(x))
+  for x <- List(1, 2, 5) do println(Q.lits(x))
+  for x <- List("a", "b", "c") do println(Q.strs(x))
+  for x <- List(Red, Green, 1) do println(Q.colors(x))
+  val m = Node(2)
+  for x <- List(n, m, Node(3)) do println(Q.nodes(n, m, x))
+  val v = V(1)
+  for x <- List(v, V(1), V(2), 1) do println(v.same(x))

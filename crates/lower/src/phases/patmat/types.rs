@@ -4,6 +4,7 @@
 use super::Translator;
 use crate::phases::explicit_outer::{outer_accessor, outer_prefix};
 use crate::phases::lazy_trees::dup;
+use crate::phases::type_tests::singletons::is_instance;
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -40,8 +41,10 @@ impl Translator<'_, '_> {
     /// (dotty's `addOuterTest`).
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
-        if let Tree::SingletonTypeTree { reference } = *self.l.tpd.tree(tpt) {
-            return self.singleton_test(scrutinee, reference, target);
+        let dealiased = self.l.u.dealias(target);
+        let written = self.written_value(tpt);
+        if let Some(test) = is_instance(self.l, scrutinee, dealiased, written) {
+            return test;
         }
         let boolean = self.l.u.class_ref("scala.Boolean");
         let test = self.type_apply(scrutinee, self.l.defs.patmat.type_test, target, boolean);
@@ -63,9 +66,10 @@ impl Translator<'_, '_> {
         self.l.call(test, self.l.defs.patmat.and, &[eq])
     }
 
-    /// The test of singleton type `target` of path `reference`: `scrutinee.asInstanceOf[Object] eq
-    /// reference` for a reference type, else `reference == scrutinee` (dotty's `isInstance`).
-    fn singleton_test(&mut self, scrutinee: TNodeId, reference: TNodeId, target: TypeId) -> TNodeId {
+    /// A copy without spans of the path singleton type tree `tpt` refers to, as the phases before
+    /// left it.
+    fn written_value(&mut self, tpt: TNodeId) -> Option<TNodeId> {
+        let Tree::SingletonTypeTree { reference } = *self.l.tpd.tree(tpt) else { return None };
         let value = dup(self.l, reference);
         let mut part = value;
         loop {
@@ -73,13 +77,7 @@ impl Translator<'_, '_> {
             let Tree::Select { qualifier, .. } = *self.l.tpd.tree(part) else { break };
             part = qualifier;
         }
-        let object = self.l.u.class_ref("java.lang.Object");
-        let widened = self.l.u.widen(target);
-        if matches!(self.l.u.types().get(target), Type::Str(_)) || !self.l.u.is_subtype(widened, object) {
-            return self.l.equal(value, scrutinee);
-        }
-        let scrutinee = self.l.ensure_conforms(scrutinee, object);
-        self.l.call(scrutinee, self.l.defs.patmat.eq, &[value])
+        Some(value)
     }
 
     /// `qual.m[target]` of type `tpe`.

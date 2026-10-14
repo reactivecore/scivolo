@@ -6,6 +6,7 @@
 mod as_instance_of;
 mod combined;
 mod runtime_tests;
+pub(super) mod singletons;
 
 use super::adapt::erased_type;
 use super::casts::type_of;
@@ -66,6 +67,9 @@ fn type_test(
     if let Type::Or(a, b, _) | Type::And(a, b) = *l.u.types().get(dealiased) {
         let or = matches!(l.u.types().get(dealiased), Type::Or(..));
         return combined::test(l, expr, (a, b), or, in_match, span);
+    }
+    if let Some(test) = singletons::is_instance(l, expr, dealiased, None) {
+        return Ok(l.with_span(test, span));
     }
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);

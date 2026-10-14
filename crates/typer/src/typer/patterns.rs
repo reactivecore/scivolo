@@ -126,27 +126,6 @@ impl Typer<'_> {
         t
     }
 
-    /// Type arguments `args` of a pattern's type tree with each wildcard replaced by a bind of a
-    /// pattern-bound type `_$n` (dotty's `typedType` with `mapPatternBounds`); their types.
-    pub fn pattern_bound_args(&mut self, args: &mut [TNodeId], types: Vec<TypeId>, ctx: Ctx) -> Vec<TypeId> {
-        if !ctx.mode.is(Mode::PATTERN_TYPE) {
-            return types;
-        }
-        for a in args.iter_mut() {
-            let T::TypeBoundsTree { alias: None, .. } = *self.tpd.tree(*a) else { continue };
-            let name = self.fresh.next(self.names, "_$");
-            let text = self.text(name).to_owned();
-            let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
-            self.u.set_info(sym, self.tpd.tpe(*a));
-            let tpe = self.u.intern_type(Type::Sym(None, sym));
-            let span = self.tpd.span(*a);
-            let name = TName { name, is_type: true };
-            let span = Span::synthetic(span.start(), span.end());
-            *a = self.tpd.node(T::Bind { name, body: *a }, span, Some(tpe), Some(sym));
-        }
-        args.iter().map(|&a| self.tpd.tpe(a)).collect()
-    }
-
     /// Whether `t` is a class type, possibly applied, with wildcard arguments if `wildcards`.
     pub fn is_class_type(&mut self, t: TypeId, wildcards: bool) -> bool {
         let t = self.dealiased(t);

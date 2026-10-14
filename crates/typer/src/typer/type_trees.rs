@@ -54,7 +54,7 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "parameterized type alias applied to a wildcard");
                 }
-                let arg_types = self.pattern_bound_args(&mut typed_args, arg_types, ctx);
+                let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let dealiased = self.u.dealias(tpe);
                 if matches!(self.u.types().get(dealiased), Type::Match(_)) && self.is_ground(tpe) {

@@ -40,8 +40,8 @@ Apache-2.0. Rust translations of:
   `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
   (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
-- `crates/typer/src/typer/patterns.rs`: `Typer.typedType` with `mapPatternBounds` (pattern-bound
-  wildcard types).
+- `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
+  (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/lower/src/phases`, from `transform/`:
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)
@@ -63,8 +63,9 @@ Apache-2.0. Rust translations of:
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
     classes), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
   - `PatternMatcher` (literal, binding, alternative, type, extractor and sequence patterns,
-    guards, switches; singleton type tests through `tpd.isInstance`),
-    `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, unions and intersections,
+    guards, switches),
+    `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, singletons through
+    `tpd.isInstance` and `tpd.singleton`, unions and intersections,
     casts of primitives, `primitiveConversion`),
     `ast/Positioned.envelope`, `ast/Trees.TreeCopier` (spans of the trees phases make or copy)
   - `SpecializeFunctions`, `SpecializeApplyMethods`, `SpecializeTuples` (with
