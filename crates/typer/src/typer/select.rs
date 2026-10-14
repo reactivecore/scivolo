@@ -72,7 +72,7 @@ impl Typer<'_> {
             return self.unsupported(id, "member not found");
         }
         let sym = match self.choose(&syms, Some(qual_tpe), pt) {
-            Ok(sym) => sym,
+            Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
         };
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
@@ -155,6 +155,19 @@ impl Typer<'_> {
             .iter()
             .filter(|(_, m)| *m == name)
             .any(|(i, _)| self.resolve_full_name(i, true).is_some_and(|i| self.u.derives_from(class, i)))
+    }
+
+    /// The member of `Any` the JDK's `java.lang.Class` inherits where nativelib's `_Class`
+    /// overrides `sym` (`equals`, `hashCode`); `sym` otherwise.
+    fn jdk_inherited(&mut self, sym: SymbolId) -> SymbolId {
+        let s = self.u.symbol(sym);
+        let name = s.name.clone();
+        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), "equals" | "hashCode")) else { return sym };
+        if self.u.full_name(owner) != "java.lang.Class" {
+            return sym;
+        }
+        let any = self.u.builtins().any;
+        self.u.decl(any, &name).unwrap_or_default().first().copied().unwrap_or(sym)
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {
