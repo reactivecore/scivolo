@@ -6,9 +6,11 @@
 use super::explicit_outer::{outer_accessor, outer_this, terms};
 use super::local_free::is_local;
 use super::local_outer::is_anonymous;
+use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
+use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, LAZY, LOCAL, PRIVATE};
 use tasty::{Flags, Kind, SymbolId};
@@ -44,9 +46,12 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
             (Tree::DefDef { .. }, Some(s)) => !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY),
             _ => false,
         };
-        for t in terms(l, stat, false) {
+        let all = terms(l, stat, false);
+        let parents: FxHashMap<TNodeId, TNodeId> =
+            all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect();
+        for t in all {
             let Some(chain) = outer_this(l, t, class) else { continue };
-            let span = l.tpd.span(t);
+            let span = parents.get(&t).and_then(|&p| l.after_siblings(p, t)).unwrap_or(l.tpd.span(t));
             let start = if method {
                 let this = l.this(class, span);
                 let field = field(l, class);

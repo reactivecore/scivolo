@@ -56,6 +56,14 @@ impl Lower<'_> {
         self.envelope_of(trees, Span::NONE);
     }
 
+    /// The span a child `t` of `parent` without one gets when `parent` is copied: the end of the
+    /// children before it, if any has a span.
+    pub fn after_siblings(&self, parent: TNodeId, t: TNodeId) -> Option<Span> {
+        let before = children(self.tpd, parent).into_iter().take_while(|&c| c != t);
+        let span = before.fold(Span::NONE, |span, c| span.union(self.tpd.span(c)));
+        span.exists().then(|| span.end_pos().to_synthetic())
+    }
+
     /// The union of `start` and the spans of `t`'s children, assigning spans to those without.
     fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
         let parts = children(self.tpd, t);
