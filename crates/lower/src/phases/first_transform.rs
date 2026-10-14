@@ -24,6 +24,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
         if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
             l.copy_node(t, arg);
         }
+        super::fold_condition::fold(l, t);
         const_to_literal(l, t, inits);
         ControlFlow::Continue(())
     });

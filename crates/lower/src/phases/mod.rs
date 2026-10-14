@@ -31,6 +31,7 @@ mod expand_private;
 mod explicit_outer;
 mod extension_methods;
 mod first_transform;
+mod fold_condition;
 mod get_class;
 mod getters;
 mod hoist_super_args;
