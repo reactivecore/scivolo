@@ -1,4 +1,3 @@
-import scala.language.`3.7`
 object Q:
   def unapply(x: Int): Option[Int] = Some(x)
 

@@ -193,6 +193,9 @@ impl<'a> Typer<'a> {
         cfg: Config,
         syms: &mut Syms,
     ) -> Result<Self, String> {
+        if cfg.source_version != SourceVersion::V3_9 {
+            return Err("source versions other than 3.9".into());
+        }
         let defn = Defn::new(u)?;
         let mut syms = std::mem::take(syms);
         let ops = u.package("<special-ops>");
