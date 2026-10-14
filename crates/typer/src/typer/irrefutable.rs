@@ -29,6 +29,7 @@ impl Typer<'_> {
         pat_def: bool,
     ) -> Result<TNodeId, &'static str> {
         let sel_tpe = self.tpd.tpe(sel);
+        let sel_tpe = self.zonk(sel_tpe);
         if self.has_annotation(sel_tpe, UNCHECKED) || self.has_annotation(sel_tpe, RUNTIME_CHECKED) {
             return Ok(sel);
         }
