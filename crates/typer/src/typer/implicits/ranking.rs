@@ -59,10 +59,14 @@ impl Typer<'_> {
         let owner = self.compare_owner(self.u.symbol(a.sym).owner, self.u.symbol(b.sym).owner);
         let wins_a = self.is_as_good((a, ta), (b, tb), ctx, old)?;
         let wins_b = self.is_as_good((b, tb), (a, ta), ctx, old)?;
+        let same = |t: &mut Self| {
+            let (ra, rb) = (t.ref_type(a.prefix, a.sym), t.ref_type(b.prefix, b.sym));
+            a.sym == b.sym && t.u.is_subtype(ra, rb) && t.u.is_subtype(rb, ra)
+        };
         if wins_a
             && wins_b
             && self.is_stable_alt(a)
-            && (a.sym == b.sym || self.is_singleton(ta) || self.is_singleton(tb))
+            && (self.is_singleton(ta) || self.is_singleton(tb) || same(self))
         {
             return None;
         }
@@ -72,13 +76,7 @@ impl Typer<'_> {
             1 if wins_a || !wins_b || new_scheme => 1,
             -1 if wins_b || !wins_a || new_scheme => -1,
             1 | -1 => 0,
-            _ if wins_a != wins_b => {
-                if wins_a {
-                    1
-                } else {
-                    -1
-                }
-            }
+            _ if wins_a != wins_b => i32::from(wins_a) - i32::from(wins_b),
             _ if a.sym == b.sym => self.compare_prefixes(a, b),
             _ => 0,
         })

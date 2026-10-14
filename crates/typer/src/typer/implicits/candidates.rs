@@ -21,22 +21,40 @@ impl Typer<'_> {
     }
 
     /// The implicit members of class `c` and its base classes, the private ones of `c` if
-    /// `own_private`.
+    /// `own_private`, those overridden in a class before them in the linearization left out.
     pub fn implicit_members(&mut self, c: SymbolId, own_private: bool) -> Vec<SymbolId> {
         self.complete(c);
+        let site = crate::defn::type_ref(self.u, c);
+        let lin = self.u.linearization(c);
         let mut out = Vec::new();
-        for base in self.u.linearization(c) {
+        for (i, &base) in lin.iter().enumerate() {
             self.complete(base);
             for d in self.u.decls(base).unwrap_or_default() {
                 if self.is_implicit(d)
                     && (own_private && base == c || !self.u.symbol(d).flags.has(PRIVATE))
                     && !out.contains(&d)
+                    && !self.overridden_in(site, &lin[..i], d)
                 {
                     out.push(d);
                 }
             }
         }
         out
+    }
+
+    /// Whether a class of `bases` declares a member that overrides `d` as seen from `site`.
+    fn overridden_in(&mut self, site: TypeId, bases: &[SymbolId], d: SymbolId) -> bool {
+        let name = self.u.symbol(d).name.clone();
+        for &b in bases {
+            for m in self.u.decl(b, &name).unwrap_or_default() {
+                let s = self.u.symbol(m);
+                let term = s.kind.is_term() && s.kind != Kind::Param;
+                if m != d && term && !s.flags.has(PRIVATE) && self.same_member(site, m, d) {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     /// The implicits import `i` makes visible, with the names they are visible under: implicit

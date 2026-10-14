@@ -97,7 +97,7 @@ impl Typer<'_> {
         let mut kept_outer = Vec::new();
         for (c, n, l) in outer {
             if names.contains(&n) {
-                if l != level {
+                if l != level || !eligible(self, c) {
                     continue;
                 }
                 names.retain(|m| *m != n);

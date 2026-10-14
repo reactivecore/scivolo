@@ -73,6 +73,22 @@ object Shadowing {
     implicitly[Box]
   }
 }
+class Cell(val n: Int)
+object Cell { implicit val dflt: Cell = new Cell(0) }
+object c1 { implicit val cell: Cell = new Cell(1) }
+object c2 { implicit val cell: Int = 2 }
+object IneligibleShadows {
+  def local = {
+    implicit val cell: Int = 3
+    import c1._
+    implicitly[Cell]
+  }
+  def named = {
+    import c2.cell
+    import c1._
+    implicitly[Cell]
+  }
+}
 object OpenVars {
   implicit def anyList[T]: List[T] = Nil
   implicit def intList: List[Int] = 42 :: Nil

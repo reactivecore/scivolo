@@ -55,6 +55,9 @@ impl Typer<'_> {
         if let Some(negated) = self.not_given_arg(pt) {
             return self.not_given(negated, at, ctx, depth);
         }
+        if self.is_underspecified(pt) {
+            return Err("no implicit argument");
+        }
         let coherent = self.class_args(pt, "scala.CanEqual").is_some();
         let mut groups = self.contextual_implicits(ctx, &mut |t, c| t.is_eligible(c, pt))?;
         groups.push(self.implicit_scope(pt));
@@ -118,25 +121,6 @@ impl Typer<'_> {
         };
         let class = self.u.class_symbol(tycon)?;
         (self.u.full_name(class) == name).then_some(args)
-    }
-
-    /// `t` with its type variables whose bounds are equal instantiated to them.
-    fn determined(&mut self, t: TypeId) -> TypeId {
-        let t = self.zonk(t);
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                vars.push(v);
-            }
-            None
-        });
-        for v in vars {
-            let (lo, hi) = self.constraint.bounds(v);
-            if lo == hi && self.constraint.instance(v).is_none() {
-                self.constraint.instantiate(v, lo);
-            }
-        }
-        self.zonk(t)
     }
 
     /// The candidates of `group` that `attempt` accepts, each tried with the constraint and the
