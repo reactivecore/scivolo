@@ -36,7 +36,10 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             continue;
         }
         if !is_alone(l, m) {
-            return unsupported(l.tpd.span(t), "overridable methods with context function results");
+            return unsupported(
+                l.tpd.span(t),
+                "overridable or overloaded methods with context function results",
+            );
         }
         let info = l.u.info(m);
         let clauses = method_clauses(l, info);
@@ -84,7 +87,8 @@ fn has_context_result(l: &mut Lower, s: SymbolId) -> bool {
 }
 
 /// Whether method `m` neither overrides nor can be overridden: local, or effectively final in a
-/// class whose parents are `Object` or `Any` only.
+/// class whose parents are `Object` or `Any` only, without other members of its name there or
+/// in `Object` or `Any`.
 fn is_alone(l: &mut Lower, m: SymbolId) -> bool {
     let Some(owner) = l.u.symbol(m).owner else { return false };
     if l.u.symbol(owner).kind != Kind::Class {
@@ -94,10 +98,24 @@ fn is_alone(l: &mut Lower, m: SymbolId) -> bool {
         return false;
     }
     let parents = l.u.parents(owner);
-    parents.into_iter().all(|p| {
+    let only_roots = parents.into_iter().all(|p| {
         l.u.class_symbol(p)
             .is_some_and(|c| matches!(l.u.full_name(c).as_str(), "java.lang.Object" | "scala.Any"))
-    })
+    });
+    let name = l.u.symbol(m).name.clone();
+    only_roots
+        && l.u.decl(owner, &name).is_ok_and(|d| d.len() == 1)
+        && [("java.lang", "Object"), ("scala", "Any")]
+            .into_iter()
+            .all(|(p, c)| !root_declares(l, p, c, &name))
+}
+
+/// Whether class `class` of package `package` declares a member `name`, or cannot be found.
+fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool {
+    let Some(pkg) = l.u.package(package) else { return true };
+    let found = l.u.decl(pkg, class).unwrap_or_default();
+    let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
+    classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
 }
 
 /// How many parameter clauses method type `t` has.
@@ -136,9 +154,11 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
             l.u.set_owner(s, m);
         }
     }
-    let mut info = l.u.info(*anons.last().expect("a context closure"));
+    let last = l.u.info(*anons.last().expect("a context closure"));
+    let mut info = synthetic_names(l, last);
     for &a in anons.iter().rev().skip(1) {
         let outer = l.u.info(a);
+        let outer = synthetic_names(l, outer);
         info = with_result(l, outer, info);
     }
     let own = l.u.info(m);
@@ -149,6 +169,15 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
     node.tree = Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) };
     node.tpe = Some(info);
     anons.len()
+}
+
+/// Method type `t` with its parameters named `x$0`, `x$1`, … (a context function's method type).
+fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
+    let Type::Method { binder, params, result, implicit, contextual } = l.u.types().get(t).clone() else {
+        return t;
+    };
+    let params = params.into_iter().enumerate().map(|(i, (_, p))| (format!("x${i}"), p)).collect();
+    l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
 }
 
 /// Method type `t` with its final result `result`.
