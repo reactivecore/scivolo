@@ -65,7 +65,7 @@ Apache-2.0. Rust translations of:
 - `crates/typer/src/typer/{arg_shapes,pretyped_args}.rs`: `Applications` (`typeShape`, `normArg`,
   `narrowByShapes`, `pretypeArgs`, `ptIsCorrectProduct`), `FunProto.typedArgs` without forcing,
   `TreeInfo.functionWithUnknownParamType`.
-- `crates/typer/src/typer/sams.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
+- `crates/typer/src/typer/{sams,sam_closures}.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
   `Typer.typedClosure` (the closure's target type).
 - `crates/typer/src/typer/selves.rs`, `crates/tasty/src/types/widen.rs` (`self_type`):
   `Namer.completeConstructor` (`selfInfo`), `ContextOps.inClassContext`, `denotNamed`,

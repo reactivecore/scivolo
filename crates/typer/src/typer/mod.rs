@@ -95,6 +95,7 @@ mod refutable_warnings;
 mod repeated;
 mod report;
 mod right_assoc;
+mod sam_closures;
 mod sams;
 pub(crate) mod seen_from;
 mod select;
