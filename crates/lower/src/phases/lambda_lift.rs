@@ -59,7 +59,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     }
     let named: Vec<Named> = liftings
         .iter()
-        .map(|c| Named { class: c.class, functions: &c.functions, methods: &c.methods })
+        .map(|c| Named { td: c.td, class: c.class, functions: &c.functions, methods: &c.methods })
         .collect();
     name_all(l, &named, &mut pending)?;
     let lifted: Vec<_> = liftings.iter().map(|c| (c.class, &c.functions[..], &c.methods[..])).collect();

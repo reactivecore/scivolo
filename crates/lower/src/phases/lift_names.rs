@@ -66,15 +66,17 @@ impl Pending {
     }
 }
 
-/// The functions of a class to lift and their methods.
+/// The functions of a class definition to lift and their methods.
 pub struct Named<'a> {
+    pub td: TNodeId,
     pub class: SymbolId,
     pub functions: &'a [Function],
     pub methods: &'a [Method],
 }
 
 /// Names the proxies of the functions of `named` and of the local classes of `pending`, then the
-/// functions' methods and the local classes, each class's in order, merged by position.
+/// functions' methods and the local classes, each class's in order, merged by position, those of
+/// a constructor at the start of its class.
 pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result<()> {
     let mut proxies: Vec<Proxy> = pending.proxies.clone();
     for n in named {
@@ -84,17 +86,24 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result
         }
     }
     name_proxies(l, &proxies, pending)?;
-    let functions: Vec<Vec<(Offset, (usize, usize))>> = named
+    let key = |n: &Named, f: &Function| {
+        let at = l.tpd.span(f.def).start();
+        (if f.ctor { l.tpd.span(n.td).start() } else { at }, at)
+    };
+    let functions: Vec<Vec<_>> = named
         .iter()
         .enumerate()
         .map(|(c, n)| {
-            n.functions.iter().enumerate().map(|(i, f)| (l.tpd.span(f.def).start(), (c, i))).collect()
+            let mut keyed: Vec<_> =
+                n.functions.iter().enumerate().map(|(i, f)| (key(n, f), (key(n, f).0, c, i))).collect();
+            keyed.sort_by_key(|&(_, (_, _, i))| !n.functions[i].ctor);
+            keyed
         })
         .collect();
-    for (c, i) in merged(&functions) {
+    for (at, c, i) in merged(&functions) {
         let n = &named[c];
-        pending.name_classes_before(l, Some(l.tpd.span(n.functions[i].def).start()));
         let f = &n.functions[i];
+        pending.name_classes_before(l, Some(at));
         let name = if f.is_anonymous(l) {
             fresh(l, &format!("{}$anonfun", prefix(l, n.class, n.functions, n.methods, f)))
         } else {
@@ -169,7 +178,7 @@ pub fn fresh(l: &mut Lower, base: &str) -> String {
 
 /// The items of `sequences` merged by position, each sequence's in its order, an earlier
 /// sequence's first on a tie.
-pub fn merged<T: Copy>(sequences: &[Vec<(Offset, T)>]) -> Vec<T> {
+pub fn merged<K: Ord + Copy, T: Copy>(sequences: &[Vec<(K, T)>]) -> Vec<T> {
     let mut next = vec![0; sequences.len()];
     let mut out = Vec::new();
     loop {

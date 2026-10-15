@@ -1,3 +1,4 @@
+//> using scala 3.9.0
 trait Link { def next: Link }
 object Link {
   implicit def link(implicit rec: => Link): Link = new Link { def next = rec }
