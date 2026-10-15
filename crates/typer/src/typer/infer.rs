@@ -122,7 +122,8 @@ impl Typer<'_> {
         Err("type variables")
     }
 
-    /// Makes the types of all trees, and of closures' symbols, fully defined.
+    /// Makes the types of all trees, and of closures' symbols, fully defined; `Err` if a local
+    /// symbol escaped into the bound of a type variable.
     pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
         for s in self.syms.closure_syms.clone() {
             let info = self.u.info(s);
@@ -144,6 +145,9 @@ impl Typer<'_> {
                     return Err("skolem in the type of a definition");
                 }
             }
+        }
+        if self.constraint.escaped() {
+            return Err("local type escaping through a type variable");
         }
         Ok(())
     }

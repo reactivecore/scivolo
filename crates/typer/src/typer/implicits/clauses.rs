@@ -57,9 +57,9 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        self.constraint.searches += 1;
+        self.constraint.enter_search();
         let arg = self.implicit_arg(pt, at, ctx, depth);
-        self.constraint.searches -= 1;
+        self.constraint.leave_search();
         arg
     }
 

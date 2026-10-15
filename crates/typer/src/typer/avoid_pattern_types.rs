@@ -41,29 +41,37 @@ impl Typer<'_> {
         (locals.contains(&s) && matches!(self.u.types().get(info), Type::Bounds(..))).then_some(info)
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to an abstract type
-    /// among `locals`.
+    /// Whether an uninstantiated type variable in `t` has a bound that refers to a class or type
+    /// among `locals`, directly or through the bounds of the variables in it.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
-        let mut syms = Vec::new();
-        for &s in locals {
-            let info = self.u.info(s);
-            if self.u.symbol(s).kind == Kind::Type && matches!(self.u.types().get(info), Type::Bounds(..)) {
-                syms.push(s);
-            }
-        }
-        if syms.is_empty() {
+        let locals: Vec<SymbolId> = locals.iter().copied().filter(|&s| self.u.is_type_symbol(s)).collect();
+        let locals = &locals[..];
+        if locals.is_empty() {
             return false;
         }
-        let mut vars = Vec::new();
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Var(v) = *u.types().get(part) {
-                vars.push(v);
+        let mut seen = Vec::new();
+        let mut todo = vec![t];
+        while let Some(t) = todo.pop() {
+            let mut vars = Vec::new();
+            self.u.map_type(t, &mut |u, part| {
+                if let Type::Var(v) = *u.types().get(part) {
+                    vars.push(v);
+                }
+                None
+            });
+            for v in vars {
+                if seen.contains(&v) || self.constraint.instance(v).is_some() {
+                    continue;
+                }
+                seen.push(v);
+                let (lo, hi) = self.constraint.bounds(v);
+                let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+                if self.refers_to(lo, locals) || self.refers_to(hi, locals) {
+                    return true;
+                }
+                todo.extend([lo, hi]);
             }
-            None
-        });
-        vars.into_iter().any(|v| {
-            let (lo, hi) = self.constraint.bounds(v);
-            self.constraint.instance(v).is_none() && (self.refers_to(lo, &syms) || self.refers_to(hi, &syms))
-        })
+        }
+        false
     }
 }
