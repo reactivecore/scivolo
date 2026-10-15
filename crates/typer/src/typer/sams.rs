@@ -22,9 +22,10 @@ impl Typer<'_> {
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
         self.ensure_self(class);
-        let Some(method) = self.sam_method(class).filter(|_| self.u.given_self_type(class).is_none()) else {
+        if self.u.given_self_type(class).is_some() {
             return Ok(None);
-        };
+        }
+        let Some(method) = self.sam_method(class) else { return Ok(None) };
         if !self.u.symbol(class).flags.has(TRAIT) || !self.is_fully_defined(t) {
             return Err("single abstract method type outside the subset");
         }

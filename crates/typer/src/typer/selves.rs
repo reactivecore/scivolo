@@ -62,6 +62,56 @@ impl Typer<'_> {
         self.tpd.node(T::ValDef { name, tpt, rhs: None }, self.ast.span(s), None, sym)
     }
 
+    /// Refuses class `cls` if its self type does not conform to a parent's given self type seen
+    /// from `cls`, or that type still mentions the parent's `this` or type members.
+    pub fn check_parent_selves(&mut self, cls: SymbolId) -> Result<(), &'static str> {
+        let own = self.u.self_type(cls);
+        let class = crate::defn::type_ref(self.u, cls);
+        let this = self.u.intern_type(Type::This(class));
+        for p in self.u.parents(cls) {
+            let Some(pc) = self.u.class_symbol(p) else { continue };
+            self.ensure_self(pc);
+            let Some(s) = self.u.given_self_type(pc) else { continue };
+            let s = self.u.as_seen_from(s, this, pc);
+            let mut own_parts = false;
+            self.u.map_type(s, &mut |u, part| {
+                own_parts |= match *u.types().get(part) {
+                    Type::This(c) => u.class_symbol(c) == Some(pc),
+                    Type::Sym(_, t) => u.is_type_symbol(t) && u.symbol(t).owner == Some(pc),
+                    _ => false,
+                };
+                None
+            });
+            let module = self.u.is_module_class(cls).then(|| self.u.source_module(cls)).flatten();
+            let own_module = matches!(*self.u.types().get(s), Type::Sym(_, m) if Some(m) == module);
+            if own_parts || !own_module && !self.u.is_subtype(own, s) {
+                return Err("class not conforming to a parent's self type");
+            }
+        }
+        Ok(())
+    }
+
+    /// The type a definition infers from `this` type `t` of class type `c`: `t` for an object, the
+    /// self type for a class with a given one, else `c`.
+    pub fn widened_this(&mut self, t: TypeId, c: TypeId) -> TypeId {
+        let Some(k) = self.u.class_symbol(c) else { return c };
+        if self.u.symbol(k).flags.has(tasty::tags::OBJECT) {
+            return t;
+        }
+        self.ensure_self(k);
+        match self.u.given_self_type(k) {
+            Some(_) => self.u.self_type(k),
+            None => c,
+        }
+    }
+
+    /// Whether `ctx` is the parent call context of a class with parent class `c`.
+    pub fn is_parent_call(&mut self, c: SymbolId, ctx: Ctx) -> bool {
+        let Some(k) = self.u.symbol(ctx.owner).owner else { return false };
+        self.syms.primary_ctors.get(&k) == Some(&ctx.owner)
+            && self.u.parents(k).into_iter().any(|p| self.u.class_symbol(p) == Some(c))
+    }
+
     /// Refuses member `sym` selected through `prefix`, not a `this`, if its info refers through
     /// its owner's `this` to a member of the owner's self type the owner does not inherit.
     pub fn check_self_members(&mut self, sym: SymbolId, prefix: Option<TypeId>) -> Result<(), &'static str> {

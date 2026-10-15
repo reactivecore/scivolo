@@ -148,7 +148,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     retain_outside(l.tpd, &mut classes, dropped);
     local_lazy::transform(l, root)?;
     for &td in &classes {
-        explicit_self::transform(l, td);
+        explicit_self::transform(l, td)?;
     }
     explicit_outer::transform(l, &classes)?;
     let erased = erasure::erased_defs::drop(l, root);

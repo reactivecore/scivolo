@@ -2,17 +2,17 @@
 //! `C.this` that `C` does not inherit is selected on `C.this.asInstanceOf[S & C.this.type]`, `S`
 //! the self type of `C`.
 
-use super::walk::walk_class;
-use crate::Lower;
+use super::walk::try_walk_class_up;
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::{SymbolId, Type};
-use typer::tpd::{TNodeId, Tree, Walk};
+use typer::tpd::{TNodeId, Tree};
 
-pub fn transform(l: &mut Lower, td: TNodeId) {
-    walk_class(l, td, &mut |l, t, _| {
+pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
+    try_walk_class_up(l, td, &mut |l, t, _| {
         rewrite(l, t);
-        Walk::Children
-    });
+        Ok(())
+    })
 }
 
 fn rewrite(l: &mut Lower, t: TNodeId) {
@@ -67,5 +67,8 @@ fn cast(l: &mut Lower, this: TNodeId, c: SymbolId) -> TNodeId {
     let tpt = l.type_tree(target, Span::NONE);
     let args = l.tpd.list(&[tpt]);
     let t = l.tpd.node(Tree::TypeApply { fun, args }, Span::NONE, Some(target), Some(m));
-    l.positioned(t)
+    let t = l.positioned(t);
+    let end = l.tpd.span(this).end_pos().to_synthetic();
+    l.tpd.get_mut(this).span = end;
+    t
 }
