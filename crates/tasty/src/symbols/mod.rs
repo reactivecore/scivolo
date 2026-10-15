@@ -179,28 +179,4 @@ impl Universe {
     pub fn unions(&mut self) -> &mut Unions {
         &mut self.unions
     }
-
-    /// The package of qualified name `name`, entered with its enclosing packages if new;
-    /// `<empty>`, the package of files at the root of a jar, is the root.
-    fn package_entered(&mut self, name: &str) -> SymbolId {
-        let name = if name == "<empty>" { "" } else { name };
-        if let Some(&p) = self.packages.get(name) {
-            return p;
-        }
-        let (outer, simple) = name.rsplit_once('.').unwrap_or(("", name));
-        let owner = self.package_entered(outer);
-        let id = self.define(Symbol {
-            name: simple.to_owned(),
-            kind: Kind::Package,
-            owner: Some(owner),
-            flags: Flags::default(),
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        self.packages.insert(name.to_owned(), id);
-        id
-    }
 }

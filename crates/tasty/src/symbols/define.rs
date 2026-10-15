@@ -71,12 +71,6 @@ impl Universe {
         }
     }
 
-    /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
-    /// and `<empty>` are the root.
-    pub fn enter_package(&mut self, name: &str) -> SymbolId {
-        self.package_entered(name)
-    }
-
     /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
     /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {

@@ -33,7 +33,7 @@ impl Universe {
         for e in entries {
             let owner = e.owner.map_or(self.root(), |o| ids[o as usize]);
             let Some(kind) = e.kind else {
-                ids.push(self.package_entered(&e.name));
+                ids.push(self.enter_package(&e.name));
                 continue;
             };
             let (owner, name) = self.jdk_renamed(owner, e.name);
@@ -85,7 +85,7 @@ impl Universe {
             return (owner, renamed.unwrap_or(name));
         }
         match super::jdk::jdk_name(&self.full_name(owner), &name) {
-            Some((pkg, jdk)) => (self.package_entered(pkg), jdk),
+            Some((pkg, jdk)) => (self.enter_package(pkg), jdk),
             None => (owner, name),
         }
     }
