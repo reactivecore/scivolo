@@ -5,6 +5,7 @@
 
 use super::adapt::from_start;
 use super::adapted::{adapted_types, specializable};
+use super::casts::erased_function_class;
 use super::lambda_lift::{Function, fresh};
 use super::lifted::{Method, define, home};
 use super::sam::{abstract_methods, adaptation_needed};
@@ -35,7 +36,9 @@ pub fn plan(
     let span = l.tpd.span(f.block);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
     let function = tpt.is_none();
-    let interface = l.u.class_symbol(tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t)));
+    let declared = l.u.class_symbol(tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t)));
+    let interface = declared.and_then(|c| erased_function_class(l, c));
+    let erased_context = (interface != declared).then_some(interface).flatten();
     let Some(sam) = interface.and_then(|c| abstract_methods(l, c).first().copied()) else {
         return unsupported(span, "closures of a type without an abstract method");
     };
@@ -66,7 +69,7 @@ pub fn plan(
         deferred.extend(adapted.proxies.iter().copied());
         adapted
     });
-    Ok(Plan { interface, adapted })
+    Ok(Plan { interface: interface.or(erased_context), adapted })
 }
 
 /// Makes the block of lambda `f` the closure of `method`, or of its `$adapted` method.

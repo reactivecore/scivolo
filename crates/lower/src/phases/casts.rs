@@ -82,6 +82,15 @@ fn erased_trait_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
     parents.into_iter().any(|p| l.u.is_trait(p) && l.u.derives_from(p, t) && erased_trait_derives(l, p, t))
 }
 
+/// Class `c` as erasure leaves it: `scala.FunctionN` for `scala.ContextFunctionN`.
+pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
+    let full = l.u.full_name(c);
+    match full.strip_prefix("scala.Context") {
+        Some(rest) if rest.starts_with("Function") => class_named(l, &format!("scala.{rest}")),
+        _ => Some(c),
+    }
+}
+
 /// The class of binary name `name`, through the classes and objects it is nested in.
 pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
     let (pkg, rest) = match name.rsplit_once('.') {

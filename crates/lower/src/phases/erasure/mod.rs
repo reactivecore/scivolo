@@ -25,9 +25,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Qualifier `qualifier` of selection `sel` typed without an expected type, then adapted to the
-/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class`.
+/// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class` or
+/// `function_member`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
-    if let Some(m) = l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m)) {
+    let retargeted =
+        l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m).or_else(|| calls::function_member(l, m)));
+    if let Some(m) = retargeted {
         l.tpd.get_mut(sel).sym = Some(m);
     }
     let owner = receiver_type(l, sel, qualifier);
