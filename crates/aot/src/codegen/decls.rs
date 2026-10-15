@@ -79,6 +79,8 @@ pub struct Decls {
     loads: FxHashMap<ClassId, FuncId>,
     imports: FxHashMap<&'static str, FuncId>,
     pub strings: FxHashMap<Vec<u16>, DataId>,
+    /// Constants defined so far, which number their names.
+    pub anon: usize,
 }
 
 impl Decls {
@@ -100,6 +102,7 @@ impl Decls {
             loads: FxHashMap::default(),
             imports: FxHashMap::default(),
             strings: FxHashMap::default(),
+            anon: 0,
         })
     }
 

@@ -15,13 +15,14 @@ pub struct Linktime {
     conds: FxHashMap<usize, bool>,
 }
 
-enum Prop {
+pub enum Prop {
     Bool(bool),
     Int(i32),
     Str(&'static str),
 }
 
-fn property(name: &str) -> Option<Prop> {
+/// The value of link-time property `name`, if it is one the VM knows.
+pub fn property(name: &str) -> Option<Prop> {
     let key = name.strip_prefix(PREFIX)?;
     Some(match key {
         "debugMode"

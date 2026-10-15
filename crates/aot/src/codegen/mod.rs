@@ -2,8 +2,11 @@
 //! load functions and the class metadata.
 
 mod arrays;
+mod blocks;
 mod body;
+mod consts;
 mod decls;
+mod linktime;
 mod memory;
 mod modules;
 mod objects;

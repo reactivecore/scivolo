@@ -24,6 +24,7 @@ pub use error::VmError;
 pub use gcinfo::FIRST_ARRAY;
 pub use interp::lookup_order;
 pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
+pub use linktime::{Prop, accessor_property, property};
 pub use natives::exit_immediately;
 pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, java_name};
 pub use throwable::{Frame, Thrown};

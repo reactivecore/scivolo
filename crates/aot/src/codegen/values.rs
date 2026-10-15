@@ -61,7 +61,12 @@ impl FnBuilder<'_, '_> {
                 let gv = self.module.declare_data_in_func(data, self.b.func);
                 self.b.ins().symbol_value(self.decls.ptr, gv)
             }
-            // Temporary until #113 aot 3 (constants, static fields).
+            Val::Const(inner) => {
+                let data = self.decls.constant(self.module, self.reach, inner)?;
+                let gv = self.module.declare_data_in_func(data, self.b.func);
+                self.b.ins().symbol_value(self.decls.ptr, gv)
+            }
+            // Temporary until #113 aot 3 (static fields, aggregate values).
             v => return Err(format!("value not supported yet: {v:?}")),
         })
     }

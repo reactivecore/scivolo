@@ -60,9 +60,14 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             }
             self.blocks.insert(l.0, block);
         }
+        let reachable = super::blocks::reachable(&self.reach.world.pool, body)?;
         let mut open = false;
         for inst in &body.insts {
             if let Inst::Label(l, params) = inst {
+                if !reachable.contains(&l.0) {
+                    open = false;
+                    continue;
+                }
                 let block = self.blocks[&l.0];
                 self.b.switch_to_block(block);
                 let values = self.b.block_params(block).to_vec();
@@ -145,8 +150,11 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             Inst::Unreachable(_) => {
                 self.b.ins().trap(TrapCode::unwrap_user(1));
             }
-            // Temporary until #113 aot 5 (linktime conditions).
-            Inst::Label(..) | Inst::LinktimeIf(..) => {
+            Inst::LinktimeIf(cond, then, els) => {
+                let taken = super::linktime::decide(&self.reach.world.pool, cond)?;
+                self.jump(if taken { then } else { els })?;
+            }
+            Inst::Label(..) => {
                 return Err(format!("instruction not supported yet: {inst:?}"));
             }
         }
