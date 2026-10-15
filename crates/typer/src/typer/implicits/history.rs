@@ -21,7 +21,7 @@ pub struct Open {
 
 /// A by-name implicit under construction: its type, number, the trees that refer to it, and its
 /// definition once found.
-#[derive(Clone, PartialEq)]
+#[derive(Clone)]
 pub struct Lazy {
     pub tpe: TypeId,
     pub number: u32,
@@ -51,6 +51,12 @@ impl History {
     pub fn restore(&mut self, (lazies, names): Snapshot) {
         self.lazies = lazies;
         self.names = names;
+    }
+
+    /// Whether the dictionary has implicits or definitions that `before` lacks.
+    pub fn changed(&self, (before, _): &Snapshot) -> bool {
+        self.lazies.len() != before.len()
+            || self.lazies.iter().zip(before).any(|(a, b)| (a.tpe, a.rhs) != (b.tpe, b.rhs))
     }
 }
 
@@ -144,7 +150,7 @@ impl Typer<'_> {
     /// A reference to the by-name implicit of `tpe`, entered if new (dotty's
     /// `linkBynameImplicit`).
     fn linked(&mut self, tpe: TypeId, at: Span) -> Result<TNodeId, &'static str> {
-        if self.history.open.first().is_some_and(|o| o.view) {
+        if self.history.open.iter().any(|o| o.view) {
             return Err("by-name implicit in a conversion");
         }
         let i = match self.lazy_of(tpe) {

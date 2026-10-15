@@ -20,14 +20,7 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<bool, &'static str> {
-        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
-        let dictionary = self.history.snapshot();
-        let result = self.implicit_arg(pt, at, ctx, depth);
-        let clean = self.unsupported == unsupported;
-        let linked = self.history.lazies != dictionary.0;
-        self.constraint.abandon(before);
-        self.unsupported = unsupported;
-        self.history.restore(dictionary);
+        let (result, clean, linked) = self.speculatively(|t| t.implicit_arg(pt, at, ctx, depth));
         match result {
             _ if !clean => Err("nested implicit search outside the subset"),
             _ if linked => Err(STALE),
@@ -51,14 +44,7 @@ impl Typer<'_> {
             if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
                 return Err("implicit candidate whose definition is being completed");
             }
-            let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
-            let dictionary = self.history.snapshot();
-            let result = attempt(self, c);
-            let clean = self.unsupported == unsupported;
-            let linked = self.history.lazies != dictionary.0;
-            self.constraint.abandon(before);
-            self.unsupported = unsupported;
-            self.history.restore(dictionary);
+            let (result, clean, linked) = self.speculatively(|t| attempt(t, c));
             if !clean {
                 return Err("implicit candidate outside the subset");
             }
@@ -76,5 +62,19 @@ impl Typer<'_> {
             return Err(STALE);
         }
         Ok(found)
+    }
+
+    /// The result of `f` run with the constraint, the recorded fallback and the dictionary
+    /// restored afterwards; whether it recorded no fallback, and whether it changed the dictionary.
+    fn speculatively<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> (T, bool, bool) {
+        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
+        let dictionary = self.history.snapshot();
+        let result = f(self);
+        let clean = self.unsupported == unsupported;
+        let linked = self.history.changed(&dictionary);
+        self.constraint.abandon(before);
+        self.unsupported = unsupported;
+        self.history.restore(dictionary);
+        (result, clean, linked)
     }
 }

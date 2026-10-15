@@ -90,9 +90,9 @@ impl Typer<'_> {
                 Type::Poly { binder: bb, params: pb, result: rb },
             ) => ((ba, pa, ra), (bb, pb, rb)),
             (
-                Type::Method { binder: ba, params: pa, result: ra, implicit: ia, contextual: ca },
-                Type::Method { binder: bb, params: pb, result: rb, implicit: ib, contextual: cb },
-            ) if (ia, ca) == (ib, cb) => ((ba, pa, ra), (bb, pb, rb)),
+                Type::Method { binder: ba, params: pa, result: ra, implicit: ia, .. },
+                Type::Method { binder: bb, params: pb, result: rb, implicit: ib, .. },
+            ) if ia == ib => ((ba, pa, ra), (bb, pb, rb)),
             (Type::Poly { .. } | Type::Method { .. }, _) | (_, Type::Poly { .. } | Type::Method { .. }) => {
                 return false;
             }

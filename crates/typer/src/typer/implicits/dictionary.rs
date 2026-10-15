@@ -102,14 +102,11 @@ impl Typer<'_> {
         while let Some(t) = todo.pop() {
             if let Some(&m) = members.get(&t) {
                 let span = self.tpd.span(t);
-                let q = qual(self, span);
-                let select = self.build().select(q, m, span);
-                let (tree, tpe, sym) = {
-                    let n = self.tpd.get(select);
-                    (n.tree.clone(), n.tpe, n.sym)
-                };
+                let qualifier = qual(self, span);
+                let name = TName { name: self.names.intern(&self.u.symbol(m).name), is_type: false };
+                let tpe = self.u.intern_type(Type::Sym(Some(self.tpd.tpe(qualifier)), m));
                 let n = self.tpd.get_mut(t);
-                (n.tree, n.tpe, n.sym) = (tree, tpe, sym);
+                (n.tree, n.tpe, n.sym) = (T::Select { qualifier, name }, Some(tpe), Some(m));
             } else {
                 todo.extend(self.tpd.children(t));
             }
