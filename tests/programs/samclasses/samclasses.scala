@@ -7,6 +7,10 @@ abstract class Inc {
   def twice(x: Int): Int = apply(apply(x))
 }
 
+abstract class Unit0 {
+  def u(): Unit
+}
+
 abstract class Mapper[A, B] {
   def map(a: A): B
 }
@@ -57,6 +61,8 @@ object Test {
     val k = 10
     val add: Inc = x => x + k
     println(add(5))
+    val u0: Unit0 = () => println("u0 ran")
+    u0.u()
     val h = new Holder(4)
     println(h.nested.map(2))
     println(h.adder(1).map(2))

@@ -19,10 +19,10 @@ pub fn to_anon_class(
     anon: SymbolId,
     sam: TypeId,
 ) -> Result<()> {
-    let span = Span::at(l.tpd.span(fn_def).point());
+    let span = coord(l, fn_def, anon);
     let class = l.u.class_symbol(sam).expect("a single abstract method class");
     let [method] = abstract_methods(l, class)[..] else {
-        return unsupported(span, "single abstract method classes with bridged methods");
+        return unsupported(span, "single abstract method types whose expansion needs bridges");
     };
     let mut parents = vec![sam];
     if l.u.is_trait(class) {
@@ -44,6 +44,17 @@ pub fn to_anon_class(
     let Tree::Block { stats, .. } = *l.tpd.tree(block) else { unreachable!("a lambda's block") };
     l.tpd.get_mut(block).tree = Tree::Block { stats, expr: new };
     Ok(())
+}
+
+/// The position of closure method `anon` defined by `fn_def`, as dotty's symbol of it has: the
+/// point of the definition, its end if the method takes no parameters.
+fn coord(l: &mut Lower, fn_def: TNodeId, anon: SymbolId) -> Span {
+    let span = l.tpd.span(fn_def);
+    let info = l.u.info(anon);
+    match l.u.types().get(info) {
+        Type::Method { params, .. } if params.is_empty() => Span::at(span.end()),
+        _ => Span::at(span.point()),
+    }
 }
 
 /// The final method of class `cls` named as `method` calling `anon` with its parameters, at `span`.

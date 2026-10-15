@@ -93,9 +93,10 @@ pub fn name_all(l: &mut Lower, named: &[Named], pending: &mut Pending) -> Result
         let n = &named[c];
         pending.name_classes_before(l, Some(l.tpd.span(n.functions[i].def).start()));
         let f = &n.functions[i];
-        let name = match f.is_anonymous(l) {
-            true => fresh(l, &format!("{}$anonfun", prefix(l, n.class, n.functions, n.methods, f))),
-            false => fresh(l, &l.u.symbol(f.sym).name.clone()),
+        let name = if f.is_anonymous(l) {
+            fresh(l, &format!("{}$anonfun", prefix(l, n.class, n.functions, n.methods, f)))
+        } else {
+            fresh(l, &l.u.symbol(f.sym).name.clone())
         };
         l.u.rename(n.methods[i].sym, &name);
     }
