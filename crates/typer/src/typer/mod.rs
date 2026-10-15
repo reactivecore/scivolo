@@ -169,6 +169,8 @@ pub struct Typer<'a> {
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
+    /// The level of each nested package clause, whose statements are indexed with the enclosing ones.
+    pub package_levels: FxHashMap<NodeId, LevelId>,
     /// The bounds and instances of the type variables.
     pub constraint: crate::constraint::Constraint,
     /// How many more candidates the implicit search in progress may try.
@@ -230,6 +232,7 @@ impl<'a> Typer<'a> {
             splice_owners: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
+            package_levels: FxHashMap::default(),
             constraint: Default::default(),
             implicit_budget: 0,
             history: Default::default(),

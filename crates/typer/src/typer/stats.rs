@@ -13,10 +13,16 @@ impl Typer<'_> {
         };
         let pkg = self.tpd.sym(typed_pid).expect("a package");
         let tpe = self.tpd.tpe(typed_pid);
-        let level = self.levels.push(Some(ctx.level), Level::Members(pkg));
-        let pctx = Ctx { owner: pkg, level, ..ctx };
         let stat_ids = self.ast.items(stats).to_vec();
-        self.index(&stat_ids, pctx);
+        let pctx = match self.package_levels.get(&id) {
+            Some(&level) => Ctx { owner: pkg, level, ..ctx },
+            None => {
+                let level = self.levels.push(Some(ctx.level), Level::Members(pkg));
+                let pctx = Ctx { owner: pkg, level, ..ctx };
+                self.index(&stat_ids, pctx);
+                pctx
+            }
+        };
         let mut typed = self.typed_stats(&stat_ids, pctx);
         let proxies = self.main_proxies(&typed, pctx);
         typed.extend(proxies);
