@@ -2,10 +2,10 @@
 
 use super::body::FnBuilder;
 use crate::R;
-use cranelift_codegen::ir::{InstBuilder, MemFlagsData, StackSlotData, StackSlotKind, Value};
+use cranelift_codegen::ir::{InstBuilder, MemFlagsData, StackSlotData, StackSlotKind, Value, types};
 use cranelift_module::Module;
 use nir::{Op, Type, TypeId, Val};
-use vm::layout::{align_of, size_of, struct_layout};
+use vm::{align_of, size_of, struct_layout};
 
 impl FnBuilder<'_, '_> {
     pub fn memory_op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
@@ -29,8 +29,8 @@ impl FnBuilder<'_, '_> {
                     Val::Int(k) if *k >= 0 => *k as u32,
                     Val::Long(k) if *k >= 0 => *k as u32,
                     Val::Size(k) => *k as u32,
-                    // Temporary until #113 aot 5 (stackalloc shadow stack): dynamic counts take
-                    // zeroed memory that is never freed.
+                    // Temporary until #115 (stackalloc shadow stack): dynamic counts take zeroed
+                    // memory that is never freed and not scanned by the collector.
                     _ => {
                         let ptr = self.decls.ptr;
                         let n = self.val(*n)?;
@@ -46,7 +46,15 @@ impl FnBuilder<'_, '_> {
                         return Ok(Some(self.b.inst_results(call)[0]));
                     }
                 };
-                self.stack_slot(size * count.max(1), align)
+                let bytes = size * count.max(1);
+                let addr = self.stack_slot(bytes, align);
+                let ptr = self.decls.ptr;
+                let memset = self.decls.import(self.module, "memset", &[ptr, types::I32, ptr], Some(ptr))?;
+                let (zero, len) =
+                    (self.b.ins().iconst(types::I32, 0), self.b.ins().iconst(ptr, bytes as i64));
+                let fref = self.module.declare_func_in_func(memset, self.b.func);
+                self.b.ins().call(fref, &[addr, zero, len]);
+                addr
             }
             Op::Var(ty) => {
                 let pool = &self.reach.world.pool;

@@ -7,7 +7,7 @@ use crate::reach::Reach;
 use cranelift_module::{DataId, Linkage, Module};
 use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId, Pool, Val, ValId};
-use vm::layout::{align_of, size_of};
+use vm::{align_of, size_of};
 
 /// The size and alignment of value `v`, and the offsets of its members if it is a struct.
 fn shape(pool: &Pool, v: ValId) -> R<(usize, usize, Vec<usize>)> {
@@ -47,7 +47,7 @@ impl Decls {
             (_, Some(name)) => {
                 module.declare_data(&name, Linkage::Import, true, false).map_err(|e| e.to_string())?
             }
-            // Temporary until #113 aot 3 (static fields): references in globals are no collector roots.
+            // Temporary until #113 aot 4 (global roots): references in globals are no collector roots.
             (DefnKind::Var { rhs, .. } | DefnKind::Const { rhs, .. }, None) => {
                 let (size, _, _) = shape(&reach.world.pool, *rhs)?;
                 let mut blob = Blob::zeroed(size.max(1));

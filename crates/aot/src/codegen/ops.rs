@@ -11,7 +11,10 @@ impl FnBuilder<'_, '_> {
     /// Translates `op`, the operation of local `id`; its value, if any.
     pub fn op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
         Ok(Some(match op {
-            Op::Call { ty, ptr, args } => return self.call(*ty, *ptr, args),
+            Op::Call { ty, ptr, args } => match self.intrinsic(*ptr, args)? {
+                Some(v) => v,
+                None => return self.call(*ty, *ptr, args),
+            },
             Op::Bin { bin, l, r, .. } => {
                 let (l, r) = (self.val(*l)?, self.val(*r)?);
                 self.bin(*bin, l, r)?
@@ -34,7 +37,7 @@ impl FnBuilder<'_, '_> {
     }
 
     fn call(&mut self, ty: nir::TypeId, ptr: nir::ValId, args: &[nir::ValId]) -> R<Option<Value>> {
-        if self.is_variadic(ty) {
+        if self.reach.world.pool.is_variadic(ty) {
             let Val::Global(g, _) = *self.reach.world.pool.val(ptr) else {
                 return Err("a variadic call through a pointer".into());
             };
@@ -90,7 +93,7 @@ impl FnBuilder<'_, '_> {
 
     /// Division and remainder; division by zero traps, `MIN / -1` wraps.
     fn div(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
-        // Temporary until #113 aot 3 (slow paths): division by zero calls throwDivisionByZero.
+        // Temporary until #113 aot 4 (slow paths): division by zero calls throwDivisionByZero.
         self.b.ins().trapz(r, TrapCode::INTEGER_DIVISION_BY_ZERO);
         Ok(match bin {
             Bin::Udiv => self.b.ins().udiv(l, r),

@@ -15,6 +15,9 @@ Cranelift, LLVM and smaller backends and measures a spike (`spikes/aot-cranelift
   returning to the caller, as the VM's `Result` unwinding does. No Itanium tables: Cranelift
   writes none on Mach-O, and `try_call` leaves unwinding to the embedder.
 - **GC:** Immix scans stacks conservatively; no stack maps.
+- **Threads:** executables are single-threaded: the link-time property and the `LinktimeInfo`
+  accessor `isMultithreadingEnabled` are both false, so objects have no lock word and
+  `Thread.start` is refused.
 
 ## Consequences
 - Codegen takes microseconds per function; the external link dominates the build time.

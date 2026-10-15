@@ -20,7 +20,7 @@ impl FnBuilder<'_, '_> {
             }
             Op::Classalloc { name, zone } => {
                 if zone.is_some() {
-                    // Temporary until #113 aot 5 (zones).
+                    // Temporary until #115 (zones).
                     return Err("allocation in a zone is not supported yet".into());
                 }
                 let cls = self.reach.link(*name)?;
@@ -67,9 +67,9 @@ impl FnBuilder<'_, '_> {
             Op::Arraylength(arr) => self.array_length(*arr)?,
             Op::Box { ty, obj } => self.boxing(*ty, *obj, true)?,
             Op::Unbox { ty, obj } => self.boxing(*ty, *obj, false)?,
-            // Temporary until #113 aot 3 (slow paths): a failing cast throws ClassCastException.
+            // Temporary until #113 aot 4 (slow paths): a failing cast throws ClassCastException.
             Op::As { obj, .. } => self.val(*obj)?,
-            // Temporary until #113 aot 3 (heap) and aot 5 (stackalloc, externs).
+            // Temporary until #115 (`dynmethod`, aggregates).
             op => return Err(format!("operation not supported yet: {op:?}")),
         }))
     }
@@ -125,7 +125,7 @@ impl FnBuilder<'_, '_> {
             return Ok(self.b.ins().func_addr(ptr, fref));
         }
         let o = self.val(obj)?;
-        // Temporary until #113 aot 3 (slow paths): a null receiver throws NullPointerException.
+        // Temporary until #113 aot 4 (slow paths): a null receiver throws NullPointerException.
         let rtti = self.load(ptr, o, 0);
         let slot = self.reach.classes.get(cls).slot_of.get(&sig).copied();
         if let (Some(slot), false) = (slot, kind == Kind::Trait) {
@@ -133,8 +133,7 @@ impl FnBuilder<'_, '_> {
             return Ok(self.load(ptr, rtti, self.decls.rtti.vtable + 8 * slot as i32));
         }
         self.reach.icalls.insert(sig);
-        // Temporary until #113 aot 3 (slow paths): an itable miss throws AbstractMethodError
-        // instead of returning null.
+        // Temporary until #115 (AbstractMethodError): an itable miss returns null.
         let table = self.load(ptr, rtti, self.decls.rtti.itable);
         let len = self.load(types::I64, rtti, self.decls.rtti.itable_len);
         let key = self.b.ins().iconst(types::I64, method_key(self.reach.world.pool.str(sig)) as i64);

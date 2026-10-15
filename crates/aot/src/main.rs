@@ -22,7 +22,6 @@ struct Args {
     classpath: Vec<PathBuf>,
     /// Name of an `(Int) => Int` method the executable calls with its argument, instead of a
     /// main class.
-    // Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
     #[arg(long, conflicts_with = "main")]
     entry: Option<String>,
     /// Path of the executable.

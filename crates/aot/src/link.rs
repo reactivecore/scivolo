@@ -11,33 +11,40 @@ fn beside(output: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
+fn cc() -> Command {
+    Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()))
+}
+
+fn run(cmd: &mut Command, what: &str) -> Result<(), String> {
+    let status = cmd.status().map_err(|e| format!("{what}: {e}"))?;
+    match status.success() {
+        true => Ok(()),
+        false => Err(format!("{what} failed")),
+    }
+}
+
 /// Links `object` and the C source `shims` with the C stub `stub` (`main.c` or `entry.c`) into
 /// `output`.
 pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Result<(), String> {
     if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
-    let (obj, src) = (beside(output, ".scalai-aot.o"), beside(output, ".scalai-aot.c"));
+    let (obj, src, shim_obj) =
+        (beside(output, ".scalai-aot.o"), beside(output, ".scalai-aot.c"), beside(output, ".shims.o"));
     std::fs::write(&obj, object).map_err(|e| format!("{}: {e}", obj.display()))?;
     std::fs::write(&src, shims).map_err(|e| format!("{}: {e}", src.display()))?;
     let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");
-    let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
-    cmd.args(["-w", "-o"])
-        .arg(output)
-        .arg(&obj)
-        .arg(&src)
-        .arg(c.join(stub))
-        .arg(c.join("rt.c"))
-        .arg(c.join("natives.c"));
+    let shimmed = run(cc().args(["-w", "-c", "-o"]).arg(&shim_obj).arg(&src), "cc (shims)");
+    let mut cmd = cc();
+    cmd.arg("-o").arg(output).arg(&obj).arg(&shim_obj);
+    cmd.arg(c.join(stub)).arg(c.join("rt.c")).arg(c.join("natives.c"));
     cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);
     }
-    let status = cmd.status().map_err(|e| format!("cc: {e}"));
-    let _ = std::fs::remove_file(&obj);
-    let _ = std::fs::remove_file(&src);
-    if !status?.success() {
-        return Err("cc failed".into());
+    let linked = shimmed.and_then(|()| run(&mut cmd, "cc"));
+    for file in [&obj, &src, &shim_obj] {
+        let _ = std::fs::remove_file(file);
     }
-    Ok(())
+    linked
 }

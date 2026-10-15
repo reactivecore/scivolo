@@ -3,13 +3,13 @@
 
 extern int scalai_aot_main(int argc, char **argv);
 extern void *scalai_aot_exception;
-void scalai_aot_start_gc(void *low, void *high);
+void scalai_aot_start_gc(void);
 
 int main(int argc, char **argv) {
-    scalai_aot_start_gc(&argc, __builtin_frame_address(0));
+    scalai_aot_start_gc();
     int code = scalai_aot_main(argc, argv);
     if (scalai_aot_exception != 0) {
-        // Temporary until #113 aot 4 (stack traces): the exception is reported without its trace.
+        // Temporary until #115 (stack traces): the exception is reported without its trace.
         fprintf(stderr, "Exception in thread \"main\" (uncaught)\n");
         return 1;
     }

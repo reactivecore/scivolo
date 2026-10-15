@@ -6,7 +6,7 @@ use crate::R;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
 use nir::{Type, TypeId, Val, ValId};
-use vm::layout::{ARRAY_HEADER, ARRAY_LENGTH, size_of};
+use vm::{ARRAY_HEADER, ARRAY_LENGTH, size_of};
 
 impl FnBuilder<'_, '_> {
     /// A new array of `elem`s, of length `init` or holding the elements of constant `init`.
@@ -42,7 +42,7 @@ impl FnBuilder<'_, '_> {
     }
 
     /// The address of element `idx` of array `arr` of `elem`s.
-    // Temporary until #113 aot 3 (slow paths): an index out of bounds throws.
+    // Temporary until #113 aot 4 (slow paths): an index out of bounds throws.
     pub fn element(&mut self, elem: TypeId, arr: ValId, idx: ValId) -> R<Value> {
         let (a, i) = (self.val(arr)?, self.val(idx)?);
         let i = self.b.ins().sextend(self.decls.ptr, i);
@@ -62,7 +62,7 @@ impl FnBuilder<'_, '_> {
             return Err("box into a non-class type".into());
         };
         let class = self.reach.world.pool.top_name(name).to_owned();
-        let (owner, sig) = helper(&class, boxing).ok_or_else(|| format!("box {class}"))?;
+        let (owner, sig) = vm::box_method(&class, boxing).ok_or_else(|| format!("box {class}"))?;
         let owner = self.reach.world.top(owner);
         let g = self.reach.world.member(owner, &sig);
         let cls = self.reach.link(owner)?;
@@ -77,36 +77,4 @@ impl FnBuilder<'_, '_> {
         let call = self.b.ins().call(fref, &[instance, v]);
         Ok(self.b.inst_results(call)[0])
     }
-}
-
-/// The module and mangled method that box or unbox values of box class `class`, as the VM's.
-fn helper(class: &str, boxing: bool) -> Option<(&'static str, String)> {
-    let (module, prim, short, unboxed) = match class {
-        "java.lang.Boolean" => ("scala.runtime.BoxesRunTime$", "z", "Boolean", "Boolean"),
-        "java.lang.Character" => ("scala.runtime.BoxesRunTime$", "c", "Character", "Char"),
-        "java.lang.Byte" => ("scala.runtime.BoxesRunTime$", "b", "Byte", "Byte"),
-        "java.lang.Short" => ("scala.runtime.BoxesRunTime$", "s", "Short", "Short"),
-        "java.lang.Integer" => ("scala.runtime.BoxesRunTime$", "i", "Integer", "Int"),
-        "java.lang.Long" => ("scala.runtime.BoxesRunTime$", "j", "Long", "Long"),
-        "java.lang.Float" => ("scala.runtime.BoxesRunTime$", "f", "Float", "Float"),
-        "java.lang.Double" => ("scala.runtime.BoxesRunTime$", "d", "Double", "Double"),
-        other => {
-            let short = other.rsplit('.').next()?;
-            let prim = match short {
-                "UByte" => "b",
-                "UShort" => "s",
-                "UInt" => "i",
-                "ULong" => "j",
-                "USize" | "Size" => "w",
-                s if s == "Ptr" || s == "CArray" || s == "CVarArgList" || s.starts_with("CFuncPtr") => "R_",
-                _ => return None,
-            };
-            ("scala.scalanative.runtime.Boxes$", prim, short, short)
-        }
-    };
-    let (name, tys) = match boxing {
-        true => (format!("boxTo{short}"), format!("{prim}L{}{class}", class.len())),
-        false => (format!("unboxTo{unboxed}"), format!("L16java.lang.Object{prim}")),
-    };
-    Some((module, format!("D{}{name}{tys}EO", name.len())))
 }

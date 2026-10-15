@@ -33,7 +33,7 @@ pub fn define(
     let size = if is_trait { l.itable } else { l.vtable + 8 * c.slots.len() as i32 };
     let mut blob = Blob { bytes: vec![0; size as usize], ..Blob::default() };
     blob.data.push((0, decls.rtti(module, reach, meta)?));
-    // Temporary until #113 aot 3 (strings): the class name stays null.
+    // Temporary until #113 aot 4 (class names): the class name stays null.
     blob.i32_at(id, ids[cls as usize].0);
     let mut traits: Vec<ClassId> = c
         .ancestors
@@ -93,7 +93,7 @@ fn class_part(
         let called = reach.vcalls.contains(&sig);
         match target(module, reach, decls, cls, sig, true)? {
             Some(f) => blob.funcs.push((vtable as usize + 8 * i, f)),
-            // Temporary until #113 aot 4 (bridges, ADR 0008): the VM generates the missing bridge.
+            // Temporary until #113 aot 5 (bridges, ADR 0008): the VM generates the missing bridge.
             None if called => {
                 let (class, method) =
                     (reach.world.name(reach.classes.get(cls).name), reach.world.pool.str(sig));

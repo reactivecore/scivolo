@@ -6,6 +6,7 @@ mod blocks;
 mod body;
 mod consts;
 mod decls;
+mod intrinsics;
 mod linktime;
 mod memory;
 mod modules;
@@ -49,8 +50,7 @@ fn object_module() -> R<ObjectModule> {
 
 /// What the executable runs.
 pub enum Root {
-    /// An `(Int) => Int` method, called by the entry stub.
-    // Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
+    /// An `(Int) => Int` method, called by the entry stub, for tests.
     Entry(GlobalId),
     /// The main class, run by `scalai_aot_main`.
     Main(GlobalId),

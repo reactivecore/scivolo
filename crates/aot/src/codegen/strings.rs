@@ -7,7 +7,7 @@ use crate::blob::Blob;
 use crate::reach::Reach;
 use cranelift_module::{DataId, Linkage, Module};
 use cranelift_object::ObjectModule;
-use vm::layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
+use vm::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
 
 impl Decls {
     /// The `java.lang.String` holding `units`, defined on first use.

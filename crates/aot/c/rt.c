@@ -47,7 +47,7 @@ void scalai_aot_start_gc(void) {
 }
 
 // `bytes` zeroed bytes for a stackalloc of a dynamic count.
-// Temporary until #113 aot 5 (stackalloc shadow stack): never freed.
+// Temporary until #115 (stackalloc shadow stack): never freed, not scanned by the collector.
 void *scalai_aot_stackalloc(int64_t bytes) { return calloc(1, bytes > 0 ? bytes : 1); }
 
 // A zeroed object of `size` bytes with metadata `info`.

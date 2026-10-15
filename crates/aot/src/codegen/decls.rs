@@ -12,14 +12,12 @@ use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId, Pool, Type, TypeId};
 use rustc_hash::FxHashMap;
 
-/// The C name of extern member `g`: its signature is `C`, the name's length, the name.
+/// The C name of extern member `g`; an `llvm.` intrinsic's is its C implementation's.
 pub fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
-    let rest = pool.member_sig(g)?.strip_prefix('C')?;
-    let digits = rest.find(|c: char| !c.is_ascii_digit())?;
-    let name = rest[digits..].trim_start_matches('-');
+    let name = nir::demangle::extern_name(pool.member_sig(g)?)?;
     Some(match name.strip_prefix("llvm.") {
         Some(intrinsic) => format!("scalai_aot_llvm_{}", intrinsic.replace('.', "_")),
-        None => name.to_owned(),
+        None => name,
     })
 }
 
@@ -78,7 +76,6 @@ impl Decls {
         }
         let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
         if let (DefnKind::Declare { ty }, Some(name)) = (&defn.kind, extern_name(&reach.world.pool, g)) {
-            // Temporary until #113 aot 5 (externs): variadic externs and VM-only natives are refused.
             let sig = self.signature(&reach.world.pool, *ty)?;
             let id = module.declare_function(&name, Linkage::Import, &sig).map_err(|e| e.to_string())?;
             self.funcs.insert(g, id);

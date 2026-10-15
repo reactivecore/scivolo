@@ -20,12 +20,6 @@ fn c_type(t: Option<types::Type>) -> &'static str {
 }
 
 impl FnBuilder<'_, '_> {
-    /// Whether function type `ty` ends in `...`.
-    pub fn is_variadic(&self, ty: TypeId) -> bool {
-        let pool = &self.reach.world.pool;
-        matches!(pool.ty(ty), Type::Function(ps, _) if ps.last().is_some_and(|&p| matches!(pool.ty(p), Type::Vararg)))
-    }
-
     /// Calls extern `g` of variadic type `ty` with `args` through a shim.
     pub fn variadic_call(&mut self, g: GlobalId, ty: TypeId, args: &[ValId]) -> R<Option<Value>> {
         let pool = &self.reach.world.pool;

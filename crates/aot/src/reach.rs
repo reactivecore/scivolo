@@ -89,7 +89,6 @@ impl<'w> Reach<'w> {
         }
         let defn = self.world.defn(g).map_err(|e| e.to_string())?;
         if !matches!(defn.kind, DefnKind::Define { .. }) {
-            // Temporary until #113 aot 5 (externs with real signatures).
             return Err(format!("{} is not defined here", self.world.name(g)));
         }
         self.funcs.insert(g);

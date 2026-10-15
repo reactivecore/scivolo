@@ -1,7 +1,7 @@
 // Natives the VM implements in Rust, for executables: the current thread, stack guards, the
 // unwinder, and the LLVM intrinsics Scala Native's code calls.
-// Temporary until #113 aot 4 (stack traces) and aot 5 (intrinsics, natives): the unwinder
-// reports no frames, stack guards are absent, and only the intrinsics hello world needs exist.
+// Temporary until #115 (stack traces, stack overflow guard): the unwinder reports no frames
+// and stack guards are absent.
 #include <math.h>
 #include <stdint.h>
 

@@ -73,7 +73,7 @@ impl FnBuilder<'_, '_> {
                 let gv = self.module.declare_data_in_func(data, self.b.func);
                 self.b.ins().symbol_value(self.decls.ptr, gv)
             }
-            // Temporary until #113 aot 3 (static fields, aggregate values).
+            // Temporary until #115 (aggregate values).
             v => return Err(format!("value not supported yet: {v:?}")),
         })
     }
