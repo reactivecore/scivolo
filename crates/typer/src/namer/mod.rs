@@ -29,8 +29,14 @@ impl Typer<'_> {
                     ctx.level = self.import_level(stat, ctx);
                     continue;
                 }
-                Tree::PackageDef { pid, .. } => {
-                    self.typed_pid(pid, ctx.owner);
+                Tree::PackageDef { pid, stats } => {
+                    let pkg = self.typed_pid(pid, ctx.owner).and_then(|p| self.tpd.sym(p));
+                    if let Some(pkg) = pkg {
+                        let level = self.levels.push(Some(ctx.level), Level::Members(pkg));
+                        self.package_levels.insert(stat, level);
+                        let stat_ids = self.ast.items(stats).to_vec();
+                        self.index(&stat_ids, Ctx { owner: pkg, level, ..ctx });
+                    }
                     continue;
                 }
                 _ => {}
