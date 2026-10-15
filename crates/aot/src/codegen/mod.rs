@@ -104,15 +104,24 @@ impl<'p> Symbols<'p> {
     /// The `(Int) => Int` function whose method name is `name`.
     fn entry(&self, name: &str) -> R<usize> {
         let prefix = format!("D{}{name}", name.len());
-        self.defns
-            .iter()
-            .position(|d| {
+        let found: Vec<usize> = (0..self.defns.len())
+            .filter(|&i| {
+                let d = &self.defns[i];
                 let DefnKind::Define { ty, .. } = d.kind else { return false };
                 let int = |t: &TypeId| matches!(self.pool.ty(*t), Type::Int);
                 self.pool.member_sig(d.name).is_some_and(|s| s.starts_with(&prefix))
                     && matches!(self.pool.ty(ty), Type::Function(ps, r) if ps.len() == 1 && int(&ps[0]) && int(r))
             })
-            .ok_or_else(|| format!("no method `{name}` of type (Int) => Int"))
+            .collect();
+        match found[..] {
+            [i] => Ok(i),
+            [] => Err(format!("no method `{name}` of type (Int) => Int")),
+            _ => {
+                let names: Vec<String> =
+                    found.iter().map(|&i| nir::show::global(self.pool, self.defns[i].name, true)).collect();
+                Err(format!("several methods `{name}` of type (Int) => Int: {}", names.join(", ")))
+            }
+        }
     }
 
     /// The function of definition `i`, declared and queued for definition on first use.
@@ -130,10 +139,19 @@ impl<'p> Symbols<'p> {
         Ok(id)
     }
 
-    /// The instance of module `g`: an empty slot until modules are allocated.
+    /// The instance of module `g`, which must have no fields: a zeroed slot whose constructor
+    /// does not run.
     fn module(&mut self, module: &mut ObjectModule, g: GlobalId) -> R<DataId> {
         if let Some(&id) = self.modules.get(&g) {
             return Ok(id);
+        }
+        let pool = self.pool;
+        let field = |d: &&Defn| {
+            matches!(d.kind, DefnKind::Var { .. })
+                && matches!(pool.global(d.name), nir::Global::Member(owner, _) if *owner == g)
+        };
+        if self.defns.iter().any(|d| field(&d)) {
+            return Err(format!("module {} has fields: not supported yet", pool.top_name(g)));
         }
         let name = format!("_S{}.instance", self.pool.mangle(g));
         let id = module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;

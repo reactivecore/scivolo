@@ -58,13 +58,14 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
                 open = true;
                 continue;
             }
-            if !open {
-                let block = self.b.create_block();
-                self.b.switch_to_block(block);
+            if open {
+                open = !self.inst(inst)?;
             }
-            open = !self.inst(inst)?;
         }
-        Ok(())
+        match open {
+            true => Err("a block without terminator".into()),
+            false => Ok(()),
+        }
     }
 
     pub fn finish(mut self) {
@@ -87,10 +88,7 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
             Inst::Ret(v) => {
                 let ret = self.b.func.signature.returns.first().map(|r| r.value_type);
                 let args = match ret {
-                    Some(t) => {
-                        let v = self.val(*v)?;
-                        vec![self.coerce(v, t)]
-                    }
+                    Some(t) => vec![self.arg(*v, t)?],
                     None => vec![],
                 };
                 self.b.ins().return_(&args);
@@ -100,7 +98,14 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
                 let c = self.val(*c)?;
                 let (then, then_args) = self.target(then)?;
                 let (els, els_args) = self.target(els)?;
-                self.b.ins().brif(c, then, &then_args, els, &els_args);
+                if then == els {
+                    let via = self.b.create_block();
+                    self.b.ins().brif(c, then, &then_args, via, &[]);
+                    self.b.switch_to_block(via);
+                    self.b.ins().jump(els, &els_args);
+                } else {
+                    self.b.ins().brif(c, then, &then_args, els, &els_args);
+                }
             }
             Inst::Switch(scrut, default, cases) => {
                 let s = self.val(*scrut)?;
@@ -131,8 +136,7 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
         let types: Vec<types::Type> = self.b.func.dfg.block_param_types(block).collect();
         let mut out = Vec::with_capacity(args.len());
         for (&a, t) in args.iter().zip(types) {
-            let v = self.val(a)?;
-            out.push(BlockArg::from(self.coerce(v, t)));
+            out.push(BlockArg::from(self.arg(a, t)?));
         }
         Ok((block, out))
     }
@@ -161,9 +165,9 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
                 t => int(&mut self.b, t, 0),
             },
             Val::Char(c) => int(&mut self.b, types::I16, *c as i64),
-            Val::Byte(x) => int(&mut self.b, types::I8, *x as i64),
-            Val::Short(x) => int(&mut self.b, types::I16, *x as i64),
-            Val::Int(x) => int(&mut self.b, types::I32, *x as i64),
+            Val::Byte(x) => int(&mut self.b, types::I8, *x as u8 as i64),
+            Val::Short(x) => int(&mut self.b, types::I16, *x as u16 as i64),
+            Val::Int(x) => int(&mut self.b, types::I32, *x as u32 as i64),
             Val::Long(x) => int(&mut self.b, types::I64, *x),
             Val::Size(x) => int(&mut self.b, types::I64, *x as i64),
             Val::Float(bits) => self.b.ins().f32const(Ieee32::with_bits(*bits)),
@@ -172,13 +176,13 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
         })
     }
 
-    /// `v` as integer type `t`: NIR passes `unit` and `null` where other types are expected.
-    pub fn coerce(&mut self, v: Value, t: types::Type) -> Value {
-        let from = self.b.func.dfg.value_type(v);
-        match (from.is_int() && t.is_int(), from.bits().cmp(&t.bits())) {
-            (true, std::cmp::Ordering::Less) => self.b.ins().uextend(t, v),
-            (true, std::cmp::Ordering::Greater) => self.b.ins().ireduce(t, v),
-            _ => v,
+    /// `v` where a value of type `t` is expected: `unit` and `null` become zero of type `t`.
+    pub fn arg(&mut self, v: ValId, t: types::Type) -> R<Value> {
+        let pool = self.sym.pool;
+        match pool.val(v) {
+            Val::Unit | Val::Null => Ok(self.b.ins().iconst(t, 0)),
+            Val::Local(_, ty) if matches!(pool.ty(*ty), Type::Unit) => Ok(self.b.ins().iconst(t, 0)),
+            _ => self.val(v),
         }
     }
 }

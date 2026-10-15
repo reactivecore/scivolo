@@ -58,8 +58,7 @@ impl FnBuilder<'_, '_> {
         }
         let mut values = Vec::with_capacity(args.len());
         for (&a, p) in args.iter().zip(&sig.params) {
-            let v = self.val(a)?;
-            values.push(self.coerce(v, p.value_type));
+            values.push(self.arg(a, p.value_type)?);
         }
         let callee = match pool.val(ptr) {
             Val::Global(g, _) => {
@@ -96,7 +95,7 @@ impl FnBuilder<'_, '_> {
         })
     }
 
-    /// Division and remainder; division by zero traps until exceptions exist, `MIN / -1` wraps.
+    /// Division and remainder; division by zero traps, `MIN / -1` wraps.
     fn div(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
         self.b.ins().trapz(r, TrapCode::INTEGER_DIVISION_BY_ZERO);
         Ok(match bin {
@@ -128,8 +127,8 @@ impl FnBuilder<'_, '_> {
             }
             Conv::Fptrunc => ins.fdemote(to, v),
             Conv::Fpext => ins.fpromote(to, v),
-            Conv::Fptoui => ins.fcvt_to_uint_sat(to, v),
-            Conv::Fptosi => ins.fcvt_to_sint_sat(to, v),
+            Conv::Fptoui if to.bits() >= 32 => ins.fcvt_to_uint_sat(to, v),
+            Conv::Fptosi if to.bits() >= 32 => ins.fcvt_to_sint_sat(to, v),
             Conv::Uitofp => ins.fcvt_from_uint(to, v),
             Conv::Sitofp => ins.fcvt_from_sint(to, v),
             Conv::Ptrtoint | Conv::Inttoptr | Conv::Bitcast if from == to => v,

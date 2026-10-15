@@ -21,35 +21,52 @@ fn check(cmd: &mut Command, what: &str) {
     assert!(status.success(), "{what} failed");
 }
 
-/// Compiles every source into its own object under `obj_dir`, in parallel.
+/// Compiles every source into its own object under `obj_dir`, `jobs` at a time.
 fn objects(cc: &str, native: &Path, files: &[PathBuf], obj_dir: &Path) -> Vec<PathBuf> {
     std::fs::create_dir_all(obj_dir).expect("creating the object directory");
-    let mut jobs = Vec::new();
-    for file in files {
-        let rel = file.strip_prefix(native).expect("source under native/");
-        let obj = obj_dir.join(rel.to_string_lossy().replace('/', "_")).with_extension("o");
-        let child = Command::new(cc)
-            .args(["-std=gnu11", "-O2", "-fPIC", "-w", "-c"])
-            .args(["-DSCALANATIVE_COMPILE_ALWAYS", "-D__SCALANATIVE_JAVALIB_Z", "-DSCALANATIVE_GC_IMMIX"])
-            .arg("-I")
-            .arg(native.join("nativelib/scala-native"))
-            .arg("-I")
-            .arg(native.join("nativelib/scala-native/gc"))
-            .arg(file)
-            .arg("-o")
-            .arg(&obj)
-            .stdin(Stdio::null())
-            .spawn()
-            .expect("running the C compiler");
-        jobs.push((child, obj));
+    let jobs = std::env::var("NUM_JOBS")
+        .ok()
+        .and_then(|n| n.parse().ok())
+        .or_else(|| std::thread::available_parallelism().ok().map(|n| n.get()))
+        .unwrap_or(4)
+        .max(1);
+    let objs: Vec<PathBuf> =
+        files.iter().enumerate().map(|(i, f)| object_name(obj_dir, native, i, f)).collect();
+    let mut failed = Vec::new();
+    for chunk in files.iter().zip(&objs).collect::<Vec<_>>().chunks(jobs) {
+        let children: Vec<_> =
+            chunk.iter().map(|(file, obj)| (compile(cc, native, file, obj), obj)).collect();
+        for (mut child, obj) in children {
+            let ok = child.wait().is_ok_and(|s| s.success());
+            if !ok {
+                failed.push(obj.display().to_string());
+            }
+        }
     }
-    jobs.into_iter()
-        .map(|(mut child, obj)| {
-            let status = child.wait().expect("waiting for the C compiler");
-            assert!(status.success(), "compiling {} failed", obj.display());
-            obj
-        })
-        .collect()
+    assert!(failed.is_empty(), "compiling {} failed", failed.join(", "));
+    objs
+}
+
+/// `obj_dir/<index>_<path under native with _ for />.o`.
+fn object_name(obj_dir: &Path, native: &Path, index: usize, file: &Path) -> PathBuf {
+    let rel = file.strip_prefix(native).expect("source under native/");
+    obj_dir.join(format!("{index}_{}", rel.to_string_lossy().replace('/', "_"))).with_extension("o")
+}
+
+fn compile(cc: &str, native: &Path, file: &Path, obj: &Path) -> std::process::Child {
+    Command::new(cc)
+        .args(["-std=gnu11", "-O2", "-fPIC", "-w", "-c"])
+        .args(["-DSCALANATIVE_COMPILE_ALWAYS", "-D__SCALANATIVE_JAVALIB_Z", "-DSCALANATIVE_GC_IMMIX"])
+        .arg("-I")
+        .arg(native.join("nativelib/scala-native"))
+        .arg("-I")
+        .arg(native.join("nativelib/scala-native/gc"))
+        .arg(file)
+        .arg("-o")
+        .arg(obj)
+        .stdin(Stdio::null())
+        .spawn()
+        .expect("running the C compiler")
 }
 
 fn main() {
@@ -71,7 +88,8 @@ fn main() {
     check(&mut cmd, "linking the Scala Native C runtime");
     let archive = out_dir.join("libsnrt.a");
     let _ = std::fs::remove_file(&archive);
-    check(Command::new("ar").arg("crs").arg(&archive).args(&objs), "archiving the Scala Native C runtime");
+    let ar = std::env::var("AR").unwrap_or_else(|_| "ar".into());
+    check(Command::new(ar).arg("crs").arg(&archive).args(&objs), "archiving the Scala Native C runtime");
     println!("cargo:rerun-if-changed={}", native.display());
     println!("cargo:rustc-env=SNRT_PATH={}", lib.display());
     println!("cargo:rustc-env=SNRT_ARCHIVE={}", archive.display());
