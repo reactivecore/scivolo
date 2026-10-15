@@ -56,11 +56,13 @@ fn post_order(functions: &[Function]) -> Vec<usize> {
 
 /// The value parameters with their types and the result type of function `f`.
 fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, TypeId)> {
-    let info = value_info(l, f.sym);
-    let result = match *l.u.types().get(info) {
-        Type::Method { result, .. } | Type::ByName(result) => result,
-        _ => info,
-    };
+    let mut result = value_info(l, f.sym);
+    if let Type::ByName(r) = *l.u.types().get(result) {
+        result = r;
+    }
+    while let Type::Method { result: r, .. } = *l.u.types().get(result) {
+        result = r;
+    }
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();
     Ok((params, result))
 }

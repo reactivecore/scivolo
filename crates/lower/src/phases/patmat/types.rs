@@ -2,11 +2,11 @@
 //! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches.
 
 use super::Translator;
-use crate::phases::explicit_outer::{outer_accessor, outer_prefix};
+use crate::phases::explicit_outer::{OuterTest, outer_accessor, outer_test};
 use crate::phases::lazy_trees::dup;
-use crate::phases::type_tests::singletons::is_instance;
+use crate::phases::type_tests::singletons::{is_instance, singleton};
 use syntax::ast::Span;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -27,9 +27,9 @@ impl Translator<'_, '_> {
         self.type_apply(value, self.l.defs.as_instance_of, target, target)
     }
 
-    /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`, for `O.this.C` of a
-    /// class `C` with an enclosing instance also `scrutinee.asInstanceOf[C].C$$$outer() eq O.this`
-    /// (dotty's `addOuterTest`).
+    /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`, for `p.C` of a class
+    /// `C` with an enclosing instance also `scrutinee.asInstanceOf[C].C$$$outer() eq p` for a
+    /// singleton `p`, `….$isInstanceOf[P]` for a class type `P` (dotty's `addOuterTest`).
     pub fn type_test(&mut self, scrutinee: TNodeId, tpt: TNodeId) -> TNodeId {
         let target = self.l.tpd.tpe(tpt);
         let dealiased = self.l.u.dealias(target);
@@ -39,7 +39,8 @@ impl Translator<'_, '_> {
         }
         let boolean = self.l.u.class_ref("scala.Boolean");
         let test = self.type_apply(scrutinee, self.l.defs.type_test, target, boolean);
-        let Some(pre) = outer_prefix(self.l, target) else { return test };
+        let outer_test = outer_test(self.l, target);
+        let (Some(OuterTest::Is(pre)) | Some(OuterTest::Has(pre))) = outer_test else { return test };
         let class = self.l.u.class_symbol(target).expect("a class type");
         let accessor = outer_accessor(self.l, class);
         let value = dup(self.l, scrutinee);
@@ -50,11 +51,14 @@ impl Translator<'_, '_> {
         let outer_type = self.l.u.result_type(info);
         let outer = self.l.apply(fun, &[], outer_type, Span::NONE);
         let outer = self.l.positioned(outer);
-        let Type::This(c) = *self.l.u.types().get(pre) else { unreachable!("a `this` prefix") };
-        let c = self.l.u.class_symbol(c).expect("a class");
-        let expected = self.l.this(c, Span::NONE);
-        let eq = self.l.call(outer, self.l.defs.eq, &[expected]);
-        self.l.call(test, self.l.defs.and, &[eq])
+        let outer_test = match outer_test {
+            Some(OuterTest::Has(_)) => self.type_apply(outer, self.l.defs.type_test, pre, boolean),
+            _ => {
+                let expected = singleton(self.l, pre).expect("a singleton prefix");
+                self.l.call(outer, self.l.defs.eq, &[expected])
+            }
+        };
+        self.l.call(test, self.l.defs.and, &[outer_test])
     }
 
     /// A copy without spans of the path singleton type tree `tpt` refers to, as the phases before
