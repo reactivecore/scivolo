@@ -3,10 +3,10 @@
 
 use super::dependencies::Dependencies;
 use super::explicit_outer::terms;
+use super::leading_params::add_params;
 use super::lift_names::{Pending, Proxy};
 use super::lifted::substitute;
 use super::lifted_calls::make_call;
-use super::local_classes::add_params;
 use super::local_free::{is_method, is_term, within};
 use super::local_proxies::proxy;
 use super::walk::subtrees;

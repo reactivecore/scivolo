@@ -4,7 +4,7 @@
 
 use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
-use super::lambda_lift::fresh;
+use super::lift_names::fresh;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};

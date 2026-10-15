@@ -96,7 +96,12 @@ impl Gen<'_, '_> {
         }
         let erased_from = erased_type(self.l, qualifier).full();
         let erased_to = self.l.u.erase_boxed(self.l.tpd.tpe(t));
-        let subtype = conforms(self.l, &erased_from, &erased_to) && !self.l.explicit_casts.contains(&t);
+        let literal = matches!(self.l.tpd.tree(self.l.tpd.strip_typed(qualifier)), Tree::SeqLiteral { .. });
+        let other_array = literal
+            && matches!((&erased_from, &erased_to), (Erased::Array(_), Erased::Array(_)))
+            && erased_from != erased_to;
+        let subtype =
+            conforms(self.l, &erased_from, &erased_to) && !other_array && !self.l.explicit_casts.contains(&t);
         let value = self.gen_expr(qualifier)?;
         let saved = self.at_span(span);
         let (from, to) = (self.val_ty(value), self.erased(&erased_to));

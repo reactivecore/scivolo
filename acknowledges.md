@@ -72,7 +72,8 @@ Apache-2.0. Rust translations of:
     `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
     and creating local classes, the naming order of proxies, `setLogicOwner` of classes and
-    functions, local traits and their members, intermediate classes of `markFree`, returns of
+    functions, `narrowLogicOwner` and `computeLogicOwners`, local traits and their members,
+    intermediate classes of `markFree`, `topLevelClass`, returns of
     blocks), `ExpandPrivate` (expanded names of lifted methods), `CapturedVars`, `ElimByName` (calls),
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
