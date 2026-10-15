@@ -24,7 +24,7 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
     let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
     l.u.set_info(param, tpe);
-    super::local_classes::add_params(l, constr, ctor, &[param]);
+    super::leading_params::add_params(l, constr, ctor, &[param]);
     l.outers.insert(class, (None, param));
 }
 

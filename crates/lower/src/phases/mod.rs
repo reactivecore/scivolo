@@ -45,6 +45,7 @@ mod lambda_lift;
 mod lazy_init;
 mod lazy_trees;
 pub(crate) mod lazy_vals;
+mod leading_params;
 mod let_over_apply;
 mod library_traits;
 mod lift_names;
