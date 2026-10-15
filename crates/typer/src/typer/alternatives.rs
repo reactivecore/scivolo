@@ -171,7 +171,7 @@ impl Typer<'_> {
         let args = self.protos[proto].typed.clone().unwrap_or_default();
         let reported = self.diags.has_errors() || self.unsupported.is_some();
         reported
-            && args.into_iter().any(|a| {
+            && args.into_iter().flatten().any(|a| {
                 let tpe = self.tpd.tpe(a);
                 let tpe = self.zonk(tpe);
                 self.type_parts(tpe).into_iter().any(|p| *self.u.types().get(p) == Type::Error)

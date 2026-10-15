@@ -54,6 +54,9 @@ Apache-2.0. Rust translations of:
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,
   `UnapplyArgs`, `unapplySeqTypeElemTp`, `isProductSeqMatch`, `Desugar.adaptPatternArgs`.
+- `crates/typer/src/typer/{arg_shapes,pretyped_args}.rs`: `Applications` (`typeShape`, `normArg`,
+  `narrowByShapes`, `pretypeArgs`, `ptIsCorrectProduct`), `FunProto.typedArgs` without forcing,
+  `TreeInfo.functionWithUnknownParamType`.
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:

@@ -53,6 +53,9 @@ impl Typer<'_> {
     fn sam_arg_ok(&mut self, arg: TypeId, param: TypeId) -> Result<Option<bool>, &'static str> {
         let arg = self.u.widen(arg);
         let Some(n) = (0..=22).find(|&n| self.function_parts(arg, n).is_some()) else { return Ok(None) };
+        if self.function_parts(param, n).is_some() {
+            return Ok(None);
+        }
         let Some(sam) = self.sam_parts(param, n)? else { return Ok(None) };
         let class = self.function_class(n).ok_or("function class")?;
         let mut args = sam.params;
