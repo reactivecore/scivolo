@@ -58,11 +58,13 @@ Apache-2.0. Rust translations of:
   `narrowByShapes`, `pretypeArgs`, `ptIsCorrectProduct`), `FunProto.typedArgs` without forcing,
   `TreeInfo.functionWithUnknownParamType`.
 - `crates/typer/src/typer/sams.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
-  `Typer.typedClosure` (the closure's target type).
+  `SAMType.samClass`, `Typer.typedClosure` (the closure's target type).
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
-  - `ExpandSAMs.toPartialFunction`, `ast/tpd` (`AnonClass`, `ClassDef`), `ast/TreeTypeMap`
+  - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
+    `config/JavaPlatform.isSam`, `TypeErasure.samExpansionNotNeeded`, `ast/tpd` (`AnonClass`,
+    `ClassDef`), `ast/TreeTypeMap`
     (`subst`, `changeOwner`)
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)

@@ -15,48 +15,85 @@ pub fn class_symbol(l: &mut Lower, owner: SymbolId, parents: Vec<TypeId>) -> Sym
     cls
 }
 
-/// The block defining class `cls` of members `body` and creating an instance of it: its first
-/// parent a class whose constructor `parent_ctor` takes no arguments.
-pub fn instance(l: &mut Lower, cls: SymbolId, parent_ctor: SymbolId, body: &[TNodeId]) -> TNodeId {
+/// The block defining class `cls` of members `body`, at `span` if it exists, and creating an
+/// instance of it: its first parent a class whose constructor `parent_ctor` takes no arguments.
+pub fn instance(
+    l: &mut Lower,
+    cls: SymbolId,
+    parent_ctor: SymbolId,
+    body: &[TNodeId],
+    span: Span,
+) -> TNodeId {
     let ctor = l.u.define(symbol("<init>", Kind::Def, cls, Flags::default().with(SYNTHETIC)));
     let class_ref = type_ref(l.u, cls);
     let info = nullary(l, class_ref);
     l.u.set_info(ctor, info);
     let unit = type_ref(l.u, l.defs.unit);
     let tpt = l.type_tree(unit, Span::NONE);
-    let constr = l.build().def_def(ctor, &[&[]], tpt, None, Span::NONE);
+    let constr = l.build().def_def(ctor, &[&[]], tpt, None, span);
     l.positioned(constr);
     let parents = l.u.parents(cls);
-    let mut parent_trees = vec![super_call(l, parents[0], parent_ctor)];
+    let mut parent_trees = vec![super_call(l, parents[0], parent_ctor, span)];
     for &p in &parents[1..] {
         parent_trees.push(l.type_tree(p, Span::NONE));
     }
     let parents = l.tpd.list(&parent_trees);
     let body = l.tpd.list(body);
     let template = Tree::Template { constr, parents, self_: None, body };
-    let template = l.tpd.node(template, Span::NONE, None, Some(cls));
+    let template = l.tpd.node(template, span, None, Some(cls));
     l.positioned(template);
     let name = TName { name: l.names.intern("$anon"), is_type: true };
-    let td = l.tpd.node(Tree::TypeDef { name, rhs: template }, Span::NONE, None, Some(cls));
+    let td = l.tpd.node(Tree::TypeDef { name, rhs: template }, span, None, Some(cls));
     l.positioned(td);
     let new = new_call(l, class_ref, ctor);
     let block = l.block(&[td], new, Span::NONE);
     l.positioned(block)
 }
 
-/// `new parent()` through constructor `ctor`, its type arguments those of `parent`.
-fn super_call(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> TNodeId {
-    let fun = new_select(l, parent, ctor);
+pub fn param(l: &mut Lower, method: SymbolId, name: &str, info: TypeId) -> SymbolId {
+    let p = l.u.define(symbol(name, Kind::Param, method, Flags::default()));
+    l.u.set_info(p, info);
+    p
+}
+
+/// The definition of `method` of type parameters `tparams` and parameters `params`, these at
+/// `at`, of result type `result`.
+pub fn def(
+    l: &mut Lower,
+    method: SymbolId,
+    (tparams, params): (&[SymbolId], &[SymbolId]),
+    (result, rhs): (TypeId, TNodeId),
+    at: Span,
+) -> TNodeId {
+    let mut tdefs = Vec::new();
+    for &t in tparams {
+        let name = l.u.symbol(t).name.clone();
+        let name = TName { name: l.names.intern(&name), is_type: true };
+        let info = l.u.info(t);
+        let tpt = l.type_tree(info, at);
+        tdefs.push(l.tpd.node(Tree::TypeDef { name, rhs: tpt }, at, None, Some(t)));
+    }
+    let vdefs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, at)).collect();
+    let tpt = l.type_tree(result, Span::NONE);
+    let clauses: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![&vdefs] } else { vec![&tdefs, &vdefs] };
+    let d = l.build().def_def(method, &clauses, tpt, Some(rhs), Span::NONE);
+    l.positioned(d)
+}
+
+/// `new parent()` through constructor `ctor`, its type arguments those of `parent`, at `span` if
+/// it exists.
+fn super_call(l: &mut Lower, parent: TypeId, ctor: SymbolId, span: Span) -> TNodeId {
+    let fun = new_select(l, parent, ctor, span);
     let fun = match l.u.types().get(parent).clone() {
         Type::Applied(_, args) => {
-            let args: Vec<TNodeId> = args.into_iter().map(|a| l.type_tree(a, Span::NONE)).collect();
+            let args: Vec<TNodeId> = args.into_iter().map(|a| l.type_tree(a, span)).collect();
             let method = nullary(l, parent);
-            let applied = l.build().type_apply(fun, &args, method, Span::NONE);
+            let applied = l.build().type_apply(fun, &args, method, span);
             l.positioned(applied)
         }
         _ => fun,
     };
-    let call = l.apply(fun, &[], parent, Span::NONE);
+    let call = l.apply(fun, &[], parent, span);
     l.positioned(call)
 }
 
@@ -68,15 +105,15 @@ fn nullary(l: &mut Lower, result: TypeId) -> TypeId {
 
 /// `new tpe()` through constructor `ctor`.
 fn new_call(l: &mut Lower, tpe: TypeId, ctor: SymbolId) -> TNodeId {
-    let fun = new_select(l, tpe, ctor);
+    let fun = new_select(l, tpe, ctor, Span::NONE);
     let call = l.apply(fun, &[], tpe, Span::NONE);
     l.positioned(call)
 }
 
-fn new_select(l: &mut Lower, tpe: TypeId, ctor: SymbolId) -> TNodeId {
-    let tpt = l.type_tree(tpe, Span::NONE);
-    let new = l.tpd.node(Tree::New { tpt }, Span::NONE, Some(tpe), None);
+fn new_select(l: &mut Lower, tpe: TypeId, ctor: SymbolId, span: Span) -> TNodeId {
+    let tpt = l.type_tree(tpe, span);
+    let new = l.tpd.node(Tree::New { tpt }, span, Some(tpe), None);
     l.positioned(new);
-    let select = l.select(new, ctor, Span::NONE);
+    let select = l.select(new, ctor, span);
     l.positioned(select)
 }

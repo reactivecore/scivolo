@@ -1,16 +1,19 @@
 //! Closures of `PartialFunction` types as anonymous classes overriding `isDefinedAt` and
 //! `applyOrElse` with the closure's cases (dotty's `ExpandSAMs.toPartialFunction`); closures of
-//! other single abstract method types stay closures.
+//! other single abstract method types that are not functional interfaces as anonymous classes
+//! too, those of functional interfaces stay closures.
 
-use super::anon_class::{class_symbol, instance};
+use super::anon_class::{class_symbol, def, instance, param};
 use super::lambda_lift::lambda;
+use super::sam::is_platform_sam;
+use super::sam_classes::to_anon_class;
 use super::tree_copy::{Copier, copy};
 use super::walk::subtrees;
 use crate::definitions::{PartialFunctions, applied, symbol, type_ref};
 use crate::{Lower, Result, unsupported};
+use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use syntax::ast::tree::MatchKind;
-use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, FINAL, OVERRIDE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
@@ -33,16 +36,22 @@ struct Expansion {
     span: Span,
 }
 
-/// Expands the closures of `PartialFunction` types in unit `root`; whether there were any.
+/// Expands the closures of `PartialFunction` types and of other single abstract method types
+/// that are not functional interfaces in unit `root`; whether there were any.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
     let mut found = Vec::new();
+    let mut classes = false;
     for t in subtrees(l.tpd, root) {
         let Some((def, closure, anon)) = lambda(l, t) else { continue };
         let Tree::Closure { tpt: Some(tpt), .. } = *l.tpd.tree(closure) else { continue };
         let sam = l.tpd.tpe(tpt);
         let dealiased = l.u.dealias(sam);
-        if l.u.class_symbol(dealiased).is_some_and(|c| l.u.full_name(c) == "scala.PartialFunction") {
+        let Some(class) = l.u.class_symbol(dealiased) else { continue };
+        if l.u.full_name(class) == "scala.PartialFunction" {
             found.push(Closure { block: t, def, anon, sam });
+        } else if !is_platform_sam(l, class, l.tpd.span(t))? {
+            to_anon_class(l, t, def, anon, dealiased)?;
+            classes = true;
         }
     }
     for c in &found {
@@ -54,7 +63,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
     for c in &found {
         to_partial_function(l, c)?;
     }
-    Ok(!found.is_empty())
+    Ok(classes || !found.is_empty())
 }
 
 fn to_partial_function(l: &mut Lower, c: &Closure) -> Result<()> {
@@ -77,7 +86,7 @@ fn to_partial_function(l: &mut Lower, c: &Closure) -> Result<()> {
     let x = Expansion { anon: c.anon, param, rhs, span };
     let is_defined_at = is_defined_at_def(l, &x, cls, &pf, c.sam)?;
     let apply_or_else = apply_or_else_def(l, &x, cls, &pf, c.sam)?;
-    let block = instance(l, cls, pf.abstract_ctor, &[is_defined_at, apply_or_else]);
+    let block = instance(l, cls, pf.abstract_ctor, &[is_defined_at, apply_or_else], Span::NONE);
     l.copy_node(c.block, block);
     l.u.unenter(c.anon);
     Ok(())
@@ -260,34 +269,4 @@ fn override_sym(l: &mut Lower, cls: SymbolId, m: SymbolId, sam: TypeId) -> (Symb
     }
     l.u.set_info(s, info);
     (s, tparams)
-}
-
-fn param(l: &mut Lower, method: SymbolId, name: &str, info: TypeId) -> SymbolId {
-    let p = l.u.define(symbol(name, Kind::Param, method, Flags::default()));
-    l.u.set_info(p, info);
-    p
-}
-
-/// The definition of `method` of type parameters `tparams` and parameters `params`, these at
-/// `at`, of result type `result`.
-fn def(
-    l: &mut Lower,
-    method: SymbolId,
-    (tparams, params): (&[SymbolId], &[SymbolId]),
-    (result, rhs): (TypeId, TNodeId),
-    at: Span,
-) -> TNodeId {
-    let mut tdefs = Vec::new();
-    for &t in tparams {
-        let name = l.u.symbol(t).name.clone();
-        let name = TName { name: l.names.intern(&name), is_type: true };
-        let info = l.u.info(t);
-        let tpt = l.type_tree(info, at);
-        tdefs.push(l.tpd.node(Tree::TypeDef { name, rhs: tpt }, at, None, Some(t)));
-    }
-    let vdefs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, at)).collect();
-    let tpt = l.type_tree(result, Span::NONE);
-    let clauses: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![&vdefs] } else { vec![&tdefs, &vdefs] };
-    let d = l.build().def_def(method, &clauses, tpt, Some(rhs), Span::NONE);
-    l.positioned(d)
 }

@@ -96,6 +96,8 @@ pub struct Lower<'a> {
     coords: FxHashMap<SymbolId, Span>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
+    /// The method each function `LambdaLift` lifted became.
+    lifted_to: FxHashMap<SymbolId, SymbolId>,
     /// The member each super accessor of the unit accesses, whether through a named mixin.
     super_accessors: FxHashMap<SymbolId, (SymbolId, bool)>,
     /// The span of the outermost `Inlined` tree without bindings each tree was the expansion of.
@@ -149,6 +151,7 @@ pub fn lower(
         outer_accessors: FxHashMap::default(),
         coords: FxHashMap::default(),
         lifted_from: FxHashMap::default(),
+        lifted_to: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),
         inlined_blocks: FxHashSet::default(),
