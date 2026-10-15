@@ -180,6 +180,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    function argument shapes, partial functions from closures, SAMs of abstract classes and with
    open type variables), E in part (self types, opaque types, ADR 0027) and G in part
    (higher-kinded abstract types, kind checks of forward references); `-Wnonunit-statement`.
+   Research 20 N2 and N5: infix tuple arguments untupled, views on the qualifier of a failed
+   application, case companions as functions, `Object` parameters of Java members taking any
+   type; `given` imports of implicits and sibling calls in collective extensions.
    `just typer-report`: tests/pos 1359 typed as dotty, 32 differ, 1618 refused (source
    versions other than 3.9 among them); tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
@@ -192,8 +195,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    `UninitializedDefs`, generic array operations, tuple and singleton type tests (#34, #92,
    research 15), the `f` interpolator (#82), lambdas and local methods in local classes,
    context functions erased to `FunctionN` and flattened in results of final methods, and
-   ExpandSAMs' partial functions and SAM classes.
-   Of dotty's `tests/run`, 861 pass through typer, lowering and VM on 2026-10-15 (809 before the
+   ExpandSAMs' partial functions and SAM classes, and super accessors that library traits declare.
+   Of dotty's `tests/run`, 869 pass through typer, lowering and VM on 2026-10-15 (809 before the
    2026-10-15 batches, 399 on 2026-10-11), 28 are refused by the lowering, none crashes in the
    VM; see
    [docs/conformance.md](docs/conformance.md).
@@ -252,8 +255,8 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-15,
-861 of 1711 pass (855 before the afternoon batch, 809 before the batches below, 399 on
-2026-10-11), 543 stop at the typer, 28 at the lowering, and 1 crashes in the frontend (t8199).
+869 of 1711 pass (861 before the evening batch, 809 before the batches below, 399 on
+2026-10-11), 535 stop at the typer, 28 at the lowering, and 1 crashes in the frontend (t8199).
 
 Merged in the 2026-10-15 batch (one integration MR): typer group A further (#83: search
 history with by-name implicits, divergence checks and their dictionary; context functions,
@@ -273,10 +276,16 @@ types seeing type members (#83, #111, research 20); NIR byte fixes of constructo
 `moderate.scala` runs through the own frontend in 48 ms edit-then-run, within the exit
 criterion.
 
+Merged in the 2026-10-15 evening batch (one integration MR): research 20 N2 (infix tuple
+arguments, views on the qualifier of a failed application, case companions as functions) and N5
+(`Object` parameters of Java members), implicits through `given` imports and sibling calls in
+collective extensions (#83); super accessors of library traits in the lowering (#34; `super[Q]`
+ones, #114); research 21 on match-type reduction.
+
 Next, in order of the tests they unblock:
-1. **Typer groups** (research 14, 18, 19, 20): members not found (34); the rest of A (no
-   implicit argument, 28, among them lazy-implicit-nums and -lists, which need unification
-   inside implicit searches); adaptations (26); the rest of D, refined type trees (21); the rest of E,
+1. **Typer groups** (research 14, 18, 19, 20): members not found (33, research 20 N4 and N6
+   next); the rest of A (no implicit argument, 29, among them lazy-implicit-nums and -lists, which
+   need unification inside implicit searches); adaptations (17); the rest of D, refined type trees (21); the rest of E,
    opaque aliases other than classes (8); the rest of G, type lambdas and higher-kinded type
    lambda parameters (4 each); match-type reduction for generic tuples and `scala.compiletime`
    ([research 21](docs/research/21-match-type-reduction.md), #39, ~33 tests).
