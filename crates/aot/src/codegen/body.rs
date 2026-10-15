@@ -20,6 +20,10 @@ pub struct FnBuilder<'a, 'w> {
     pub vals: HashMap<u64, Value>,
     /// Locals holding a statically resolved method.
     pub methods: HashMap<u64, FuncId>,
+    /// The block returning to the caller with an exception pending.
+    pub propagate: Option<Block>,
+    /// The type of each `var`.
+    pub var_types: HashMap<u64, nir::TypeId>,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -37,6 +41,8 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             blocks: HashMap::new(),
             vals: HashMap::new(),
             methods: HashMap::new(),
+            propagate: None,
+            var_types: HashMap::new(),
         }
     }
 
@@ -75,6 +81,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
     }
 
     pub fn finish(mut self) {
+        self.define_propagate();
         self.b.seal_all_blocks();
         self.b.finalize(self.module.target_config());
     }
@@ -88,14 +95,17 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
     fn inst(&mut self, inst: &Inst) -> R<bool> {
         match inst {
             Inst::Let { id, op, unwind, .. } => {
-                if !matches!(unwind, Next::None) {
-                    // Temporary until #113 aot 4 (exceptions as flags).
-                    return Err("exception handlers are not supported yet".into());
-                }
                 if let Some(v) = self.op(id.0, op)? {
                     self.vals.insert(id.0, v);
                 }
+                if super::unwind::may_throw(op) {
+                    self.after_call(unwind)?;
+                }
                 return Ok(false);
+            }
+            Inst::Throw(v, unwind) => {
+                let exc = self.val(*v)?;
+                self.throw(exc, unwind)?;
             }
             Inst::Ret(v) => {
                 let ret = self.b.func.signature.returns.first().map(|r| r.value_type);
@@ -135,8 +145,8 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             Inst::Unreachable(_) => {
                 self.b.ins().trap(TrapCode::unwrap_user(1));
             }
-            // Temporary until #113 aot 4 (throw) and aot 5 (linktime conditions).
-            Inst::Label(..) | Inst::Throw(..) | Inst::LinktimeIf(..) => {
+            // Temporary until #113 aot 5 (linktime conditions).
+            Inst::Label(..) | Inst::LinktimeIf(..) => {
                 return Err(format!("instruction not supported yet: {inst:?}"));
             }
         }
@@ -154,7 +164,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
         Ok((block, out))
     }
 
-    fn jump(&mut self, next: &Next) -> R<()> {
+    pub fn jump(&mut self, next: &Next) -> R<()> {
         let (block, args) = self.target(next)?;
         self.b.ins().jump(block, &args);
         Ok(())

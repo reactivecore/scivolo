@@ -12,7 +12,7 @@ use cranelift_object::ObjectModule;
 
 pub fn define_loads(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let ptr = decls.ptr;
-    let alloc = decls.import(module, "scalanative_GC_alloc", &[ptr, ptr], Some(ptr))?;
+    let alloc = decls.import(module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
     let mut ctx = Context::new();
     let mut fb = FunctionBuilderContext::new();
     for slot in 0..reach.modules.len() {

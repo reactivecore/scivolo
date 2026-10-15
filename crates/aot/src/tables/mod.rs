@@ -17,15 +17,7 @@ const RUNTIME: &str = "scala.scalanative.runtime.";
 // Temporary until #113 aot 6 (library cache): the tables go into the program's object, not an
 // object of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
-    let mut fixed = Vec::new();
-    for (i, (name, _)) in vm::PRIMITIVES.iter().enumerate() {
-        fixed.push((i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
-    }
-    fixed.push((vm::FIRST_ARRAY - 2, reach.link_top("java.lang.Object")?));
-    fixed.push((vm::FIRST_ARRAY - 1, reach.link_top(&format!("{RUNTIME}Array"))?));
-    for (i, name) in vm::array_names().enumerate() {
-        fixed.push((vm::FIRST_ARRAY + i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
-    }
+    let fixed = link_runtime(reach)?;
     let meta = reach.link_top(CLASS)?;
     let ids = ids(&reach.classes, &reach.world.pool);
     for &(expected, cls) in &fixed {
@@ -44,6 +36,21 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
         return Err("a function was reached after compilation".into());
     }
     gc_ids(module, reach, &ids)
+}
+
+/// Links the classes with ids fixed by the runtime, the primitives, `Object` and the arrays:
+/// each with the id the VM gives it.
+pub fn link_runtime(reach: &mut Reach) -> R<Vec<(i32, ClassId)>> {
+    let mut fixed = Vec::new();
+    for (i, (name, _)) in vm::PRIMITIVES.iter().enumerate() {
+        fixed.push((i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
+    }
+    fixed.push((vm::FIRST_ARRAY - 2, reach.link_top("java.lang.Object")?));
+    fixed.push((vm::FIRST_ARRAY - 1, reach.link_top(&format!("{RUNTIME}Array"))?));
+    for (i, name) in vm::array_names().enumerate() {
+        fixed.push((vm::FIRST_ARRAY + i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
+    }
+    Ok(fixed)
 }
 
 /// Each class's id and the last id of its subclasses; traits count down from -1.

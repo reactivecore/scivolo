@@ -1,6 +1,6 @@
 // Starts the collector, then calls the compiled entry method with the first argument and prints
 // its result.
-// Temporary until #113 aot 3 (generated main): replaced by a `main` that runs the program's own.
+// Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
 #include <stdio.h>
 #include <stdlib.h>
 

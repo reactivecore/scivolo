@@ -4,7 +4,8 @@
 use std::path::Path;
 use std::process::Command;
 
-pub fn executable(object: &[u8], output: &Path) -> Result<(), String> {
+/// Links `object` with the C stub `stub` (`main.c` or `entry.c`) into `output`.
+pub fn executable(object: &[u8], stub: &str, output: &Path) -> Result<(), String> {
     if let Some(dir) = output.parent().filter(|d| !d.as_os_str().is_empty()) {
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
@@ -14,7 +15,7 @@ pub fn executable(object: &[u8], output: &Path) -> Result<(), String> {
     std::fs::write(&obj, object).map_err(|e| format!("{}: {e}", obj.display()))?;
     let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");
     let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
-    cmd.arg("-o").arg(output).arg(&obj).arg(c.join("entry.c")).arg(c.join("rt.c"));
+    cmd.arg("-o").arg(output).arg(&obj).arg(c.join(stub)).arg(c.join("rt.c"));
     cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);

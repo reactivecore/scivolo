@@ -35,6 +35,16 @@ aot-build name entry:
     cargo build -q --release -p aot
     target/release/scalai-aot --cp tests/programs/{{ name }} --entry {{ entry }} -o tmp/aot/{{ name }}
 
+# Build test program `name` (main class `name`) as the native executable tmp/aot/<name> and
+# compare its output with its `.check` file.
+aot-check name:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cargo build -q --release -p aot
+    target/release/scalai-aot --cp tests/programs/{{ name }} -o tmp/aot/{{ name }} {{ name }}
+    diff <(tmp/aot/{{ name }}) tests/programs/{{ name }}/{{ name }}.check
+    echo "{{ name }}: ok"
+
 # Build as aot-build does and run the executable with `args`.
 aot-run name entry *args: (aot-build name entry)
     tmp/aot/{{ name }} {{ args }}

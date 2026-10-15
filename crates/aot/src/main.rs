@@ -20,13 +20,17 @@ struct Args {
     /// Directory of `.nir` files.
     #[arg(long = "cp", required = true)]
     classpath: Vec<PathBuf>,
-    /// Name of the `(Int) => Int` method the executable calls with its argument.
-    // Temporary until #113 aot 3 (generated main): replaced by the main class.
-    #[arg(long)]
-    entry: String,
+    /// Name of an `(Int) => Int` method the executable calls with its argument, instead of a
+    /// main class.
+    // Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
+    #[arg(long, conflicts_with = "main")]
+    entry: Option<String>,
     /// Path of the executable.
     #[arg(short = 'o')]
     output: PathBuf,
+    /// The object or class whose `main` the executable runs.
+    #[arg(required_unless_present = "entry")]
+    main: Option<String>,
 }
 
 fn run(args: &Args) -> R<()> {
@@ -34,9 +38,13 @@ fn run(args: &Args) -> R<()> {
     let image = libs::image(&jars).map_err(|e| format!("library image: {e}"))?;
     let classpath = vm::Classpath::with_image(&args.classpath, image).map_err(|e| e.to_string())?;
     let mut world = vm::World::new(classpath);
-    let entry = entry::find(&args.classpath, &args.entry, &mut world)?;
-    let object = codegen::compile(&mut world, entry)?;
-    link::executable(&object, &args.output)
+    let (root, stub) = match (&args.entry, &args.main) {
+        (Some(entry), _) => (codegen::Root::Entry(entry::find(&args.classpath, entry, &mut world)?), "entry.c"),
+        (None, Some(main)) => (codegen::Root::Main(world.top(main)), "main.c"),
+        (None, None) => return Err("a main class or --entry is required".into()),
+    };
+    let object = codegen::compile(&mut world, root)?;
+    link::executable(&object, stub, &args.output)
 }
 
 fn main() {

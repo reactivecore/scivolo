@@ -1,4 +1,5 @@
-// Collector start-up, and lookups the generated code calls: itable search and trait tests.
+// Collector start-up, allocation, the exception slot, and lookups the generated code calls:
+// itable search and trait tests.
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <stdint.h>
@@ -10,8 +11,17 @@ extern const int64_t scalai_aot_modules_count;
 void scalai_GC_init(void *low, void *high);
 void scalai_GC_set_ids(const int32_t *ids);
 void scalanative_GC_add_roots(void *low, void *high);
+void *scalanative_GC_alloc(void *info, uint64_t size);
+void *scalanative_GC_alloc_array(void *info, uint64_t length, uint64_t stride);
 
-// Starts the collector on the calling thread's whole stack, with the module slots as roots.
+// The thrown object while it propagates to a handler (ADR 0028); a collector root.
+void *scalai_aot_exception = 0;
+
+// Throws `exc` from C: the calling Scala code finds it after the call returns.
+void scalanative_throw(void *exc) { scalai_aot_exception = exc; }
+
+// Starts the collector on the calling thread's whole stack, with the module slots and the
+// exception slot as roots.
 void scalai_aot_start_gc(void) {
     char *low, *high;
 #ifdef __APPLE__
@@ -30,6 +40,15 @@ void scalai_aot_start_gc(void) {
     scalai_GC_init(low, high);
     scalai_GC_set_ids(scalai_aot_gc_ids);
     scalanative_GC_add_roots(scalai_aot_modules, scalai_aot_modules + scalai_aot_modules_count);
+    scalanative_GC_add_roots(&scalai_aot_exception, &scalai_aot_exception + 1);
+}
+
+// A zeroed object of `size` bytes with metadata `info`.
+void *scalai_aot_alloc(void *info, int64_t size) { return scalanative_GC_alloc(info, size); }
+
+// A zeroed array of `length` elements of `stride` bytes with metadata `info`.
+void *scalai_aot_alloc_array(void *info, int64_t length, int64_t stride) {
+    return scalanative_GC_alloc_array(info, length, stride);
 }
 
 typedef struct {

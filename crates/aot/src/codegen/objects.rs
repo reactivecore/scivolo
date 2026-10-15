@@ -78,7 +78,7 @@ impl FnBuilder<'_, '_> {
     pub fn alloc(&mut self, cls: ClassId) -> R<Value> {
         self.reach.allocate(cls);
         let ptr = self.decls.ptr;
-        let alloc = self.decls.import(self.module, "scalanative_GC_alloc", &[ptr, ptr], Some(ptr))?;
+        let alloc = self.decls.import(self.module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
         let rtti = self.rtti_addr(cls)?;
         let size = self.b.ins().iconst(ptr, self.reach.classes.get(cls).size as i64);
         let fref = self.module.declare_func_in_func(alloc, self.b.func);

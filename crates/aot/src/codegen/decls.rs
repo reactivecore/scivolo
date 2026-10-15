@@ -29,6 +29,13 @@ pub struct RttiLayout {
 
 pub const CLASS: &str = "java.lang.Class";
 
+/// The C name of extern member `g`: its signature is `C`, the name's length, the name.
+fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
+    let rest = pool.member_sig(g)?.strip_prefix('C')?;
+    let digits = rest.find(|c: char| !c.is_ascii_digit())?;
+    Some(rest[digits..].trim_start_matches('-').to_owned())
+}
+
 impl RttiLayout {
     pub fn new(reach: &mut Reach) -> R<Self> {
         let meta = reach.link_top(CLASS)?;
@@ -65,6 +72,8 @@ pub struct Decls {
     pub ptr: types::Type,
     pub rtti: RttiLayout,
     pub module_slots: DataId,
+    /// `scalai_aot_exception`, the thrown object waiting for a handler.
+    pub exception: DataId,
     funcs: FxHashMap<GlobalId, FuncId>,
     rttis: FxHashMap<ClassId, DataId>,
     loads: FxHashMap<ClassId, FuncId>,
@@ -77,7 +86,11 @@ impl Decls {
         let module_slots = module
             .declare_data("scalai_aot_modules", Linkage::Export, true, false)
             .map_err(|e| e.to_string())?;
+        let exception = module
+            .declare_data("scalai_aot_exception", Linkage::Import, true, false)
+            .map_err(|e| e.to_string())?;
         Ok(Decls {
+            exception,
             call_conv: module.isa().default_call_conv(),
             ptr: module.target_config().pointer_type(),
             rtti,
@@ -90,9 +103,21 @@ impl Decls {
         })
     }
 
-    /// Function `g`, reached for compilation.
+    pub fn has_func(&self, g: GlobalId) -> bool {
+        self.funcs.contains_key(&g)
+    }
+
+    /// Function `g`, reached for compilation, or the C function an extern `g` names.
     pub fn func(&mut self, module: &mut ObjectModule, reach: &mut Reach, g: GlobalId) -> R<FuncId> {
         if let Some(&id) = self.funcs.get(&g) {
+            return Ok(id);
+        }
+        let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
+        if let (DefnKind::Declare { ty }, Some(name)) = (&defn.kind, extern_name(&reach.world.pool, g)) {
+            // Temporary until #113 aot 5 (externs): variadic externs and VM-only natives are refused.
+            let sig = self.signature(&reach.world.pool, *ty)?;
+            let id = module.declare_function(&name, Linkage::Import, &sig).map_err(|e| e.to_string())?;
+            self.funcs.insert(g, id);
             return Ok(id);
         }
         reach.func(g)?;

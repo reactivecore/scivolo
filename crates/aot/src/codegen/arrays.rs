@@ -26,7 +26,7 @@ impl FnBuilder<'_, '_> {
                 self.b.ins().sextend(ptr, n)
             }
         };
-        let alloc = self.decls.import(self.module, "scalanative_GC_alloc_array", &[ptr, ptr, ptr], Some(ptr))?;
+        let alloc = self.decls.import(self.module, "scalai_aot_alloc_array", &[ptr, ptr, ptr], Some(ptr))?;
         let rtti = self.rtti_addr(cls)?;
         let stride_v = self.b.ins().iconst(ptr, stride as i64);
         let fref = self.module.declare_func_in_func(alloc, self.b.func);

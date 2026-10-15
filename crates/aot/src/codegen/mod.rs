@@ -4,10 +4,13 @@
 mod arrays;
 mod body;
 mod decls;
+mod memory;
 mod modules;
 mod objects;
 mod ops;
+mod start;
 mod strings;
+mod unwind;
 mod values;
 
 pub use decls::{CLASS, Decls, RttiLayout};
@@ -38,15 +41,30 @@ fn object_module() -> R<ObjectModule> {
     Ok(ObjectModule::new(builder))
 }
 
-pub fn compile(world: &mut World, entry: GlobalId) -> R<Vec<u8>> {
+/// What the executable runs.
+pub enum Root {
+    /// An `(Int) => Int` method, called by the entry stub.
+    // Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
+    Entry(GlobalId),
+    /// The main class, run by `scalai_aot_main`.
+    Main(GlobalId),
+}
+
+pub fn compile(world: &mut World, root: Root) -> R<Vec<u8>> {
     let mut module = object_module()?;
     let mut reach = Reach::new(world);
     let rtti = RttiLayout::new(&mut reach)?;
     let mut decls = Decls::new(&mut module, rtti)?;
     let meta = reach.link_top(CLASS)?;
     reach.allocate(meta);
-    let target = decls.func(&mut module, &mut reach, entry)?;
-    entry_wrapper(&mut module, &decls, target)?;
+    crate::tables::link_runtime(&mut reach)?;
+    match root {
+        Root::Entry(entry) => {
+            let target = decls.func(&mut module, &mut reach, entry)?;
+            entry_wrapper(&mut module, &decls, target)?;
+        }
+        Root::Main(top) => start::reach_main(&mut module, &mut reach, &mut decls, top)?,
+    }
     let mut ctx = Context::new();
     let mut fb = FunctionBuilderContext::new();
     loop {
@@ -56,9 +74,15 @@ pub fn compile(world: &mut World, entry: GlobalId) -> R<Vec<u8>> {
         for g in reach.dispatch_targets() {
             decls.func(&mut module, &mut reach, g)?;
         }
+        if matches!(root, Root::Main(_)) {
+            start::reach_initializers(&mut module, &mut reach, &mut decls)?;
+        }
         if reach.queue.is_empty() {
             break;
         }
+    }
+    if let Root::Main(top) = root {
+        start::define_main(&mut module, &mut reach, &mut decls, top)?;
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;

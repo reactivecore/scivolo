@@ -29,7 +29,7 @@ impl FnBuilder<'_, '_> {
                 self.conv(*conv, v, to)?
             }
             Op::Copy(v) => self.val(*v)?,
-            op => return self.object_op(id, op),
+            op => return self.memory_op(id, op),
         }))
     }
 
