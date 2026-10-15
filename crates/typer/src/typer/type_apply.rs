@@ -25,6 +25,9 @@ impl Typer<'_> {
         let arg_ctx = if const_value { ctx.with_mode(ctx.mode.with(Mode::CONST_VALUE_ARG)) } else { ctx };
         let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect();
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        if arg_types.iter().any(|&a| self.type_arity(a) > 0) {
+            return self.unsupported(id, "higher-kinded type argument of a method");
+        }
         let mut tpe = match self.instantiated(f, &arg_types) {
             Ok(tpe) => tpe,
             Err(what) => return self.unsupported(id, what),
@@ -116,7 +119,7 @@ impl Typer<'_> {
     /// The lower and upper bound of type parameter info `bounds` and the arity of the parameter;
     /// of a higher-kinded one, `[X] =>> >: L <: H`, `[X] =>> L` and `[X] =>> H`, the lower one
     /// `None` for `Nothing`.
-    fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
+    pub fn bounds_of(&mut self, bounds: TypeId) -> (Option<TypeId>, TypeId, usize) {
         match self.u.types().get(bounds).clone() {
             Type::Bounds(lo, hi) => (Some(lo), hi, self.type_arity(hi)),
             Type::Lambda { binder, params, result } => {

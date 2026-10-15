@@ -74,7 +74,7 @@ impl Universe {
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, _) => self.info(s),
-                (false, _) => self.expand(tycon, &args)?,
+                (false, _) => self.expand_upper(tycon, &args)?,
             };
             let dealiased = match *self.types().get(dealiased) {
                 Type::ByName(r) if term => r,

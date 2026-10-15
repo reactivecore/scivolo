@@ -60,6 +60,9 @@ Apache-2.0. Rust translations of:
   `ContextFunctionResults.annotateContextResults` in `crates/lower/src/phases`.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
+- `crates/typer/src/typer/type_lambdas.rs`: `HKTypeLambda.boundsFromParams`;
+  `crates/typer/src/typer/type_args.rs`: `Typer.adaptType` (eta-expanded constructor
+  arguments); `crates/tasty/src/erasure/applied.rs`: `AppliedType.superType`.
 - `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,
   `UnapplyArgs`, `unapplySeqTypeElemTp`, `isProductSeqMatch`, `Desugar.adaptPatternArgs`.
 - `crates/typer/src/typer/{arg_shapes,pretyped_args}.rs`: `Applications` (`typeShape`, `normArg`,

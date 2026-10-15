@@ -54,8 +54,8 @@ impl Typer<'_> {
             _ => (pt, false),
         };
         let pt = self.determined(pt);
-        if self.has_open_union(pt) {
-            return Err("implicit search for a union with type variables");
+        if let Some(what) = self.unsettled(pt) {
+            return Err(what);
         }
         if depth > MAX_DEPTH {
             return Err("implicit search too deep");

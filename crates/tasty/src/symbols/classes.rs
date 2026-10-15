@@ -44,7 +44,7 @@ impl Universe {
     }
 
     /// `t`, or the body of type lambda `l` with its parameters replaced if `t` is `l[args]`.
-    fn beta_reduced(&mut self, t: TypeId) -> TypeId {
+    pub fn beta_reduced(&mut self, t: TypeId) -> TypeId {
         let Type::Applied(tycon, args) = self.types().get(t).clone() else { return t };
         let Type::Lambda { binder, params, result } = self.types().get(tycon).clone() else { return t };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();

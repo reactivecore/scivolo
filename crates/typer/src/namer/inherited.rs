@@ -8,19 +8,15 @@ use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The intersection of the result types of the members `sym` overrides, as seen from its class;
-    /// `None` if it overrides none or one whose result depends on its parameters. A polymorphic
-    /// method overriding anything is outside the subset.
+    /// The intersection of the result types of the members `sym` overrides, as seen from its class,
+    /// a polymorphic member's instantiated to the type parameters of `sym`; `None` if it overrides
+    /// none or one whose result depends on its parameters.
     pub fn inherited_result(&mut self, sym: SymbolId) -> Option<TypeId> {
         let cls = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class)?;
         let name = self.u.symbol(sym).name.clone();
         let decls = self.u.symbol(sym).decls.clone();
-        if decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam) {
-            if !self.class_members(cls, &name).iter().all(|&m| self.u.symbol(m).owner == Some(cls)) {
-                self.unsupported_at(syntax::ast::Span::NONE, "polymorphic method overriding a member");
-            }
-            return None;
-        }
+        let tparams: Vec<SymbolId> =
+            decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::TypeParam).collect();
         let own_params = self.value_param_types(sym);
         let class = crate::defn::type_ref(self.u, cls);
         let site = self.u.intern_type(Type::This(class));
@@ -37,7 +33,7 @@ impl Typer<'_> {
                 {
                     continue;
                 }
-                let Some(res) = self.matching_result(site, m, &own_params) else { continue };
+                let Some(res) = self.matching_result(site, m, &tparams, &own_params) else { continue };
                 result = Some(match result {
                     Some(r) => self.u.glb(r, res),
                     None => res,
@@ -53,12 +49,31 @@ impl Typer<'_> {
         clauses.iter().map(|c| c.iter().map(|&p| self.u.info(p)).collect()).collect()
     }
 
-    /// The result type of member `m` as seen from `site` if its value parameters have the types
-    /// `params`, clause by clause, `Any` matching a Java method's `Object`.
-    fn matching_result(&mut self, site: TypeId, m: SymbolId, params: &[Vec<TypeId>]) -> Option<TypeId> {
+    /// The result type of member `m` as seen from `site` if it has as many type parameters as
+    /// `tparams`, instantiated to them, and its value parameters have the types `params`, clause
+    /// by clause, `Any` matching a Java method's `Object`.
+    fn matching_result(
+        &mut self,
+        site: TypeId,
+        m: SymbolId,
+        tparams: &[SymbolId],
+        params: &[Vec<TypeId>],
+    ) -> Option<TypeId> {
         self.complete(m);
         let java = self.is_java_member(m);
         let mut t = self.u.member_info(site, m);
+        if !tparams.is_empty() {
+            let Type::Poly { binder, params: ps, result } = self.u.types().get(t).clone() else {
+                return None;
+            };
+            if ps.len() != tparams.len() {
+                return None;
+            }
+            let args: Vec<TypeId> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+            let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
+            t = self.u.subst(result, binder, &names, &args);
+        }
+        t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
         for clause in params {
             let Type::Method { params: ps, result, .. } = self.u.types().get(t).clone() else { return None };
             if ps.len() != clause.len() {

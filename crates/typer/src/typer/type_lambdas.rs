@@ -1,5 +1,5 @@
-//! Type lambdas `[T] =>> body`, the right-hand sides of parameterized type aliases (dotty's
-//! `typedLambdaTypeTree`).
+//! Type lambdas `[T] =>> body`, the right-hand sides of parameterized type aliases, abstract
+//! types and type parameters (dotty's `typedLambdaTypeTree`, `HKTypeLambda.boundsFromParams`).
 
 use super::Typer;
 use crate::ctx::{Ctx, Level};
@@ -10,14 +10,14 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Type lambda `id` of type parameters `tparams` and `body`, typed in `ctx`: its parameters
-    /// entered in a scope of their own, its type a lambda over them.
+    /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
-        if matches!(self.ast.tree(body), Tree::TypeBoundsTree { .. }) {
-            return self.unsupported(id, "higher-kinded abstract type");
-        }
-        let Some(owner) = self.alias_with_rhs(id) else {
-            return self.unsupported(id, "type lambda other than an alias's right-hand side");
+        let Some(owner) = self.type_def_with_rhs(id) else {
+            return self.unsupported(id, "type lambda other than the right-hand side of a type definition");
         };
+        if matches!(self.ast.tree(body), Tree::TypeBoundsTree { alias: Some(_), .. }) {
+            return self.unsupported(id, "opaque type");
+        }
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let lctx = Ctx { level, ..ctx };
         let params = self.ast.items(tparams).to_vec();
@@ -83,32 +83,58 @@ impl Typer<'_> {
             })
             .collect();
         let body_tpe = self.tpd.tpe(body);
-        let result = refs(self.u, body_tpe);
-        let tpe = self.u.intern_type(Type::Lambda { binder, params: lambda_params, result });
+        let lambda = |u: &mut tasty::Universe, t: TypeId| {
+            let result = refs(u, t);
+            u.intern_type(Type::Lambda { binder, params: lambda_params.clone(), result })
+        };
+        let bounds = matches!(self.u.types().get(body_tpe), Type::Bounds(..));
+        if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
+            return self.unsupported(id, "private type in the bounds of a higher-kinded type");
+        }
+        let tpe = match *self.u.types().get(body_tpe) {
+            Type::Bounds(lo, hi) => {
+                let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+                let lo = if nothing { lo } else { lambda(self.u, lo) };
+                let hi = lambda(self.u, hi);
+                self.u.intern_type(Type::Bounds(lo, hi))
+            }
+            _ => lambda(self.u, body_tpe),
+        };
         let tparams = self.tpd.list(&typed_params);
         self.tpd.node(T::LambdaTypeTree { tparams, body }, self.ast.span(id), Some(tpe), None)
     }
 
-    /// The type alias being completed whose right-hand side is `rhs`.
-    fn alias_with_rhs(&self, rhs: NodeId) -> Option<SymbolId> {
-        self.syms.completions.iter().find_map(|(&s, c)| match *c {
-            crate::symbols::Completion::Completing(tree) => {
-                matches!(*self.ast.tree(tree), Tree::TypeDef { rhs: r, .. } if r == rhs).then_some(s)
-            }
-            _ => None,
-        })
+    /// Whether `bounds` or the bounds of `params` of non-private `owner` refer to a private type.
+    fn leaks_private_type(&mut self, owner: SymbolId, bounds: TypeId, params: &[SymbolId]) -> bool {
+        let flags = &self.syms.flags;
+        let private = |s: SymbolId| flags.get(&s).is_some_and(|fl| fl.is(f::PRIVATE));
+        if private(owner) {
+            return false;
+        }
+        let infos: Vec<TypeId> = params.iter().map(|&p| self.u.info(p)).chain([bounds]).collect();
+        let mut leaks = false;
+        for t in infos {
+            self.u.map_type(t, &mut |u, x| {
+                if let Type::Sym(_, s) = *u.types().get(x) {
+                    leaks |= u.is_type_symbol(s) && u.symbol(s).kind != Kind::TypeParam && private(s);
+                }
+                None
+            });
+        }
+        leaks
     }
 
-    /// What about type arguments `args` of a type constructor taking `arity` is outside the
-    /// subset: their number, or a class type constructor, which dotty eta-expands to a lambda.
-    pub fn type_args_problem(&mut self, arity: usize, args: &[TypeId]) -> Option<&'static str> {
-        if arity != args.len() {
-            return Some("wrong number of type arguments");
-        }
-        let constructor = args.iter().any(|&a| {
-            matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class)
-                && self.type_arity(a) > 0
+    /// The type definition whose right-hand side is `rhs`: an alias or abstract type being
+    /// completed, else a type parameter.
+    fn type_def_with_rhs(&self, rhs: NodeId) -> Option<SymbolId> {
+        let defines = |tree: NodeId| matches!(*self.ast.tree(tree), Tree::TypeDef { rhs: r, .. } if r == rhs);
+        let completing = self.syms.completions.iter().find_map(|(&s, c)| match *c {
+            crate::symbols::Completion::Completing(tree) => defines(tree).then_some(s),
+            _ => None,
         });
-        constructor.then_some("class type constructor argument")
+        completing.or_else(|| {
+            let (_, &s) = self.syms.by_tree.iter().find(|&(&tree, _)| defines(tree))?;
+            (self.u.symbol(s).kind == Kind::TypeParam).then_some(s)
+        })
     }
 }
