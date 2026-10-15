@@ -43,8 +43,11 @@ impl FnBuilder<'_, '_> {
         Ok(())
     }
 
-    /// `throw exc`: to `unwind`'s handler, or out of this function with the slot set.
+    /// `throw exc`: to `unwind`'s handler, or out of this function with the slot set; `throw
+    /// null` throws a NullPointerException.
     pub fn throw(&mut self, exc: Value, unwind: &Next) -> R<()> {
+        self.unwind = unwind.clone();
+        self.null_check(exc)?;
         if let Next::Unwind(param, to) = unwind {
             self.vals.insert(param.id.0, exc);
             return self.jump(to);

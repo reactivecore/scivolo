@@ -5,7 +5,7 @@ use super::Decls;
 use crate::R;
 use crate::reach::Reach;
 use cranelift_codegen::Context;
-use cranelift_codegen::ir::{AbiParam, InstBuilder, Signature, types};
+use cranelift_codegen::ir::{AbiParam, InstBuilder, MemFlagsData, Signature, types};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{FuncId, Linkage, Module};
 use cranelift_object::ObjectModule;
@@ -75,10 +75,18 @@ pub fn define_main(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Dec
     b.append_block_params_for_function_params(block);
     b.switch_to_block(block);
     let (argc, argv) = (b.block_params(block)[0], b.block_params(block)[1]);
+    let uncaught = b.create_block();
+    let slot = module.declare_data_in_func(decls.exception, b.func);
     let mut call = |b: &mut FunctionBuilder, f: FuncId, args: &[cranelift_codegen::ir::Value]| {
         let fref = module.declare_func_in_func(f, b.func);
         let inst = b.ins().call(fref, args);
-        b.inst_results(inst).first().copied()
+        let result = b.inst_results(inst).first().copied();
+        let addr = b.ins().symbol_value(ptr, slot);
+        let exc = b.ins().load(ptr, MemFlagsData::new(), addr, 0);
+        let cont = b.create_block();
+        b.ins().brif(exc, uncaught, &[], cont, &[]);
+        b.switch_to_block(cont);
+        result
     };
     for f in clinits {
         call(&mut b, f, &[]);
@@ -89,6 +97,9 @@ pub fn define_main(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Dec
     call(&mut b, shutdown, &[rt]);
     let zero = b.ins().iconst(types::I32, 0);
     b.ins().return_(&[zero]);
+    b.switch_to_block(uncaught);
+    let one = b.ins().iconst(types::I32, 1);
+    b.ins().return_(&[one]);
     b.seal_all_blocks();
     b.finalize(module.target_config());
     module.define_function(id, &mut ctx).map_err(|e| format!("{e:?}"))

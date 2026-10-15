@@ -145,12 +145,23 @@ impl Decls {
         let Type::Function(params, ret) = pool.ty(ty) else { return Err("not a function type".into()) };
         let mut sig = Signature::new(self.call_conv);
         for &p in params {
-            sig.params.push(AbiParam::new(self.value_type(pool, p)?));
+            sig.params.push(self.abi_param(pool, p)?);
         }
         if !matches!(pool.ty(*ret), Type::Unit | Type::Nothing) {
-            sig.returns.push(AbiParam::new(self.value_type(pool, *ret)?));
+            sig.returns.push(self.abi_param(pool, *ret)?);
         }
         Ok(sig)
+    }
+
+    /// A parameter or result of NIR type `t`: bytes and shorts sign-extended, booleans and
+    /// chars zero-extended, as C expects them.
+    pub fn abi_param(&self, pool: &Pool, t: TypeId) -> R<AbiParam> {
+        let param = AbiParam::new(self.value_type(pool, t)?);
+        Ok(match pool.ty(t) {
+            Type::Byte | Type::Short => param.sext(),
+            Type::Bool | Type::Char => param.uext(),
+            _ => param,
+        })
     }
 
     /// The Cranelift type of NIR values of type `t`.
