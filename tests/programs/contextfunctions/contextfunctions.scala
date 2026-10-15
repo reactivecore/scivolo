@@ -1,5 +1,5 @@
 // Context functions: terms wrapped in context closures, `?=>` types, implicit and explicit
-// applications of context function values.
+// applications of context function values, methods with context function results.
 
 class Config(val name: String, val level: Int)
 
@@ -29,6 +29,15 @@ object Contexts {
   }
 
   def twice[A](f: A ?=> A)(a: A): A = f(using f(using a))
+
+  def greet: Configured[String] = "hi " + name
+
+  def tagged[A](n: Int)(a: A): Int ?=> Config ?=> String = name * n + a + summon[Int]
+
+  def local(c: Config): String = {
+    def shout: Configured[String] = name.toUpperCase + "!"
+    shout(using c) + greet(using c)
+  }
 }
 
 object contextfunctions {
@@ -47,5 +56,8 @@ object contextfunctions {
     given Config = new Config("given", 3)
     println(greeting)
     println(curried(using 1))
+    println(greet)
+    println(tagged(2)('x')(using 7))
+    println(local(c))
   }
 }
