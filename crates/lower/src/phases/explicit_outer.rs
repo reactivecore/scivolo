@@ -90,21 +90,41 @@ pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) ->
     let widened = l.u.widen(target);
     let dealiased = l.u.dealias(widened);
     let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some() && !is_local(l, c));
-    let tested = outer_prefix(l, target).is_some();
+    let tested = outer_test(l, target).is_some();
     (in_match && inner && !tested).then_some("patterns of classes in classes")
 }
 
-/// The prefix `O.this` of type `O.this.C` of a class `C` with an enclosing instance, the instance
-/// a match tests (dotty's `addOuterTest` for a singleton prefix).
-pub fn outer_prefix(l: &mut Lower, target: tasty::TypeId) -> Option<tasty::TypeId> {
+/// What a match tests of the enclosing instance of a value of type `p.C` (dotty's
+/// `addOuterTest`).
+pub enum OuterTest {
+    /// It is `p`, a singleton.
+    Is(tasty::TypeId),
+    /// It has class type `p`.
+    Has(tasty::TypeId),
+    Nothing,
+}
+
+/// The test of the enclosing instance of a value of type `p.C` of a class `C`, `None` if `C` has
+/// no enclosing instance or `p` is neither a singleton nor a class type.
+pub fn outer_test(l: &mut Lower, target: tasty::TypeId) -> Option<OuterTest> {
     let target = l.u.dealias(target);
     let target = match *l.u.types().get(target) {
         Type::Applied(tycon, _) => tycon,
         _ => target,
     };
     let Type::Sym(Some(pre), c) = *l.u.types().get(target) else { return None };
-    let singleton = matches!(l.u.types().get(pre), Type::This(_));
-    (singleton && l.u.is_class(c) && enclosing_instance(l, c).is_some()).then_some(pre)
+    if !l.u.is_class(c) || enclosing_instance(l, c).is_none() {
+        return None;
+    }
+    if super::type_tests::singletons::is_singleton(l, pre) {
+        return Some(OuterTest::Is(pre));
+    }
+    let base = l.u.class_symbol(pre)?;
+    let owner = l.u.symbol(c).owner.expect("a class's owner");
+    Some(match l.u.derives_from(owner, base) {
+        true => OuterTest::Nothing,
+        false => OuterTest::Has(pre),
+    })
 }
 
 /// `t` and the trees in it but those in type trees, and in class definitions within `t` unless

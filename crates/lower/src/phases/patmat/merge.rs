@@ -2,6 +2,7 @@
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test, set_on_success};
+use crate::phases::explicit_outer::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::is_singleton;
 use crate::phases::walk::{same, subtrees};
 use tasty::{SymbolId, Type, TypeId};
@@ -87,12 +88,15 @@ impl Translator<'_, '_> {
         tests && same(self.l.tpd, s1, s2)
     }
 
-    /// Whether `a` and `b` both are references to the same class, through aliases.
+    /// Whether `a` and `b` both are references to the same class, through aliases, whose
+    /// enclosing instance a match does not test.
     fn same_class(&mut self, a: TypeId, b: TypeId) -> bool {
         let mut class = |t: TypeId| {
             let t = self.l.u.dealias(t);
+            let untested = !matches!(outer_test(self.l, t), Some(OuterTest::Is(_) | OuterTest::Has(_)));
             let plain = matches!(self.l.u.types().get(t), Type::Sym(..) | Type::TypeRef(..))
-                && !is_singleton(self.l, t);
+                && !is_singleton(self.l, t)
+                && untested;
             plain.then(|| self.l.u.class_symbol(t)).flatten()
         };
         let a = class(a);
