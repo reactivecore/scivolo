@@ -27,7 +27,8 @@ every later phase. Our universe is shared across REPL inputs, which must keep th
 ## Consequences
 - Outside its scope an opaque type is abstract; a missing lift shows as a refusal or an
   error, never as an alias seen where dotty would not see it.
-- Comparisons made outside the typer (the lowering) lift nothing.
+- Comparisons made outside the typer (the lowering) lift nothing; there the owner is unset,
+  which counts as inside every object, so only the prefix decides visibility.
 - Refused for now: higher-kinded and top-level opaque types, opaque types outside objects,
   aliases other than a class, inline methods inside an object with opaque types, and a
   conformance that holds only through a lift (where dotty inserts a `Typed`). dotty's

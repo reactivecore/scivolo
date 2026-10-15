@@ -236,6 +236,7 @@ impl<'a> Typer<'a> {
             depth: 0,
         };
         typer.enter_and_or();
+        typer.u.set_comparison_owner(None);
         Ok(typer)
     }
 

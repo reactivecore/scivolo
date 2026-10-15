@@ -5,6 +5,8 @@ object Meters {
   def sum(a: Meter, b: Meter): Meter = a + b
   def lifted(d: Double): Meter = Meters(d)
   extension (m: Meter) def value: Double = m
+  def pair(a: Double, b: Double): Array[Meter] = Array(a, b)
+  def best(xs: Array[Meter]): Meter = xs.max
 }
 
 object Ids {
@@ -17,6 +19,7 @@ object opaques {
   def main(args: Array[String]): Unit = {
     val m = Meters.sum(Meters(1.5), Meters.lifted(2.0))
     println(m.value)
+    println(Meters.best(Meters.pair(1.5, 4.0)).value)
     val ids = List(Ids.of("a"), Ids.of("b"))
     println(Ids.all(ids).mkString(","))
     val id: AnyRef = ids.head

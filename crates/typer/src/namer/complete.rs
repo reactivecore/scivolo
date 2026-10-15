@@ -43,10 +43,7 @@ impl Typer<'_> {
                 self.complete_class(sym, rhs, ctx)
             }
             Tree::TypeDef { rhs, .. } => {
-                let info = match self.u.symbol(sym).flags.has(tasty::tags::OPAQUE) {
-                    true => self.opaque_info(sym, rhs, ctx),
-                    false => self.type_def_info(rhs, ctx),
-                };
+                let info = self.type_member_info(sym, rhs, ctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
             }
@@ -164,18 +161,6 @@ impl Typer<'_> {
                 let implicit = contextual || flags.is(syntax::ast::flags::IMPLICIT);
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }
-        })
-    }
-
-    /// `t` with references to type parameters `tparams` made references to the parameters of
-    /// polymorphic type `binder`.
-    fn param_refs(&mut self, t: TypeId, tparams: &[SymbolId], binder: tasty::Binder) -> TypeId {
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => {
-                let i = tparams.iter().position(|&p| p == s)?;
-                Some(u.intern_type(Type::Param(binder, i as u32)))
-            }
-            _ => None,
         })
     }
 

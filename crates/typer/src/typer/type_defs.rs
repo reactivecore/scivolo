@@ -28,9 +28,17 @@ impl Typer<'_> {
         }
     }
 
+    /// The info of type member or type parameter `sym` with right-hand side `rhs`.
+    pub fn type_member_info(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
+        match self.u.symbol(sym).flags.has(tasty::tags::OPAQUE) {
+            true => self.opaque_info(sym, rhs, ctx),
+            false => self.type_def_info(rhs, ctx),
+        }
+    }
+
     /// The info of opaque type `sym` with right-hand side `rhs`: its declared bounds, else
     /// `Nothing..Any`; its alias is recorded apart (dotty's `opaqueToBounds`).
-    pub fn opaque_info(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
+    fn opaque_info(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
         let error = self.u.intern_type(Type::Error);
         if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. }) {
             self.unsupported(rhs, "higher-kinded opaque type");

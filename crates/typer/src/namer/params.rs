@@ -7,6 +7,23 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
+    /// `t` with references to type parameters `tparams` made references to the parameters of
+    /// polymorphic type `binder`.
+    pub fn param_refs(
+        &mut self,
+        t: tasty::TypeId,
+        tparams: &[SymbolId],
+        binder: tasty::Binder,
+    ) -> tasty::TypeId {
+        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
+            Type::Sym(None, s) => {
+                let i = tparams.iter().position(|&p| p == s)?;
+                Some(u.intern_type(Type::Param(binder, i as u32)))
+            }
+            _ => None,
+        })
+    }
+
     /// The type of parameter `p` in its method's type, `@InlineParam` if it is inline, inside a
     /// by-name type (dotty's `adaptParamInfo`).
     pub fn method_param_type(&mut self, p: SymbolId) -> tasty::TypeId {

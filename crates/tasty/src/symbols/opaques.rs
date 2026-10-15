@@ -84,10 +84,11 @@ impl Universe {
 
     /// Whether class `c` declares opaque types defined outside TASTy.
     fn has_opaques(&self, c: SymbolId) -> bool {
-        self.symbol(c).decls.iter().any(|&d| {
-            let s = self.symbol(d);
-            s.kind == Kind::Type && s.tree.is_none() && s.flags.has(OPAQUE)
-        })
+        self.symbol(c).flags.has(OPAQUE)
+            && self.symbol(c).decls.iter().any(|&d| {
+                let s = self.symbol(d);
+                s.kind == Kind::Type && s.tree.is_none() && s.flags.has(OPAQUE)
+            })
     }
 
     /// Whether `inner` is `outer` or owned by it, transitively.
