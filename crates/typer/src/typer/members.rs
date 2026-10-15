@@ -75,7 +75,7 @@ impl Typer<'_> {
                 }
             },
             Type::Alias(a) | Type::Bounds(_, a) => self.members_within(a, name, within),
-            Type::Applied(..) if self.u.dealias(t) != t => {
+            Type::Applied(..) | Type::TypeRef(..) if self.u.dealias(t) != t => {
                 let dealiased = self.u.dealias(t);
                 self.members_within(dealiased, name, within)
             }
