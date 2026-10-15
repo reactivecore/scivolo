@@ -58,7 +58,7 @@ impl Typer<'_> {
     }
 
     /// The implicits import `i` makes visible, with the names they are visible under: implicit
-    /// members by a wildcard, givens by `given`, either by name.
+    /// members by a wildcard, both by `given`, either by name.
     pub fn imported_implicits(&mut self, i: usize) -> Result<Vec<(Candidate, String)>, &'static str> {
         let Some(info) = self.import_info(i) else { return Ok(Vec::new()) };
         let qual = info.qual;
@@ -95,7 +95,7 @@ impl Typer<'_> {
             let given = self.u.symbol(sym).flags.has(GIVEN);
             let excluded = names.iter().any(|(n, r)| *n == name && r == "_");
             let named = names.iter().find(|(n, r)| *n == name && r != "_").map(|(_, r)| r.clone());
-            if !excluded && (named.is_some() || if given { givens } else { wildcard }) {
+            if !excluded && (named.is_some() || givens || (!given && wildcard)) {
                 out.push((Candidate { sym, prefix: Some(qual) }, named.unwrap_or(name)));
             }
         }
