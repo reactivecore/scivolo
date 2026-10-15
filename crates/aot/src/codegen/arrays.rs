@@ -32,9 +32,8 @@ impl FnBuilder<'_, '_> {
         let fref = self.module.declare_func_in_func(alloc, self.b.func);
         let call = self.b.ins().call(fref, &[rtti, len, stride_v]);
         let arr = self.b.inst_results(call)[0];
-        let t = self.ty(elem)?;
         for (i, &e) in elems.iter().flatten().enumerate() {
-            let v = self.arg(e, t)?;
+            let v = self.arg_of(e, elem)?;
             let at = ARRAY_HEADER as i32 + (stride as usize * i) as i32;
             self.b.ins().store(MemFlagsData::new(), v, arr, at);
         }
@@ -44,7 +43,7 @@ impl FnBuilder<'_, '_> {
     /// The address of element `idx` of array `arr` of `elem`s, checked against null and bounds.
     pub fn element(&mut self, elem: TypeId, arr: ValId, idx: ValId) -> R<Value> {
         let (a, i) = (self.val(arr)?, self.val(idx)?);
-        self.null_check(a)?;
+        self.null_check_of(arr, a)?;
         let len = self.b.ins().load(types::I32, MemFlagsData::new(), a, ARRAY_LENGTH as i32);
         self.bounds_check(i, len)?;
         let i = self.b.ins().sextend(self.decls.ptr, i);
@@ -55,7 +54,7 @@ impl FnBuilder<'_, '_> {
 
     pub fn array_length(&mut self, arr: ValId) -> R<Value> {
         let a = self.val(arr)?;
-        self.null_check(a)?;
+        self.null_check_of(arr, a)?;
         Ok(self.b.ins().load(types::I32, MemFlagsData::new(), a, ARRAY_LENGTH as i32))
     }
 

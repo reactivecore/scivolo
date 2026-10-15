@@ -5,7 +5,7 @@ use super::body::FnBuilder;
 use crate::R;
 use cranelift_codegen::ir::{Block, InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
-use nir::{Next, Op};
+use nir::{Next, Op, Type, TypeId, ValId};
 
 /// Whether `op` calls code that may throw.
 pub fn may_throw(op: &Op) -> bool {
@@ -43,11 +43,16 @@ impl FnBuilder<'_, '_> {
         Ok(())
     }
 
-    /// `throw exc`: to `unwind`'s handler, or out of this function with the slot set; `throw
-    /// null` throws a NullPointerException.
-    pub fn throw(&mut self, exc: Value, unwind: &Next) -> R<()> {
+    /// `throw v`: to `unwind`'s handler, or out of this function with the slot set; `throw null`
+    /// throws a NullPointerException, a value that is no Throwable a ClassCastException.
+    pub fn throw(&mut self, v: ValId, unwind: &Next) -> R<()> {
         self.unwind = unwind.clone();
-        self.null_check(exc)?;
+        let exc = self.val(v)?;
+        self.null_check_of(v, exc)?;
+        let world = &mut self.reach.world;
+        let name = world.top("java.lang.Throwable");
+        let throwable = TypeId(world.pool.types.intern(Type::Ref { name, exact: false, nullable: true }));
+        let exc = self.cast(v, throwable)?;
         if let Next::Unwind(param, to) = unwind {
             self.vals.insert(param.id.0, exc);
             return self.jump(to);

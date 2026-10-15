@@ -16,12 +16,16 @@ mod ops;
 mod rtti_layout;
 mod start;
 mod strings;
+mod type_tests;
 mod unwind;
 mod values;
 mod variadic;
 
 pub use decls::Decls;
 pub use rtti_layout::{CLASS, RttiLayout};
+
+/// The module of Scala Native's runtime functions the generated code calls.
+pub const RUNTIME: &str = "scala.scalanative.runtime.package$";
 
 use crate::R;
 use crate::reach::Reach;
@@ -63,8 +67,10 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     let mut reach = Reach::new(world);
     let rtti = RttiLayout::new(&mut reach)?;
     let mut decls = Decls::new(&mut module, rtti)?;
-    let meta = reach.link_top(CLASS)?;
-    reach.allocate(meta);
+    for class in [CLASS, "java.lang.String", "scala.scalanative.runtime.CharArray"] {
+        let cls = reach.link_top(class)?;
+        reach.allocate(cls);
+    }
     crate::tables::link_runtime(&mut reach)?;
     match root {
         Root::Entry(entry) => {
@@ -111,7 +117,12 @@ fn define(
     ctx.func.signature = decls.signature(&reach.world.pool, *ty)?;
     let id = decls.func(module, reach, g)?;
     let name = reach.world.name(g);
+    let ret = match reach.world.pool.ty(*ty) {
+        nir::Type::Function(_, ret) => Some(*ret),
+        _ => None,
+    };
     let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
+    f.ret_ty = ret;
     f.body(body).map_err(|e| format!("{name}: {e}"))?;
     f.finish();
     module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;

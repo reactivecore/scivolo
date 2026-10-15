@@ -9,12 +9,24 @@ use cranelift_module::Module;
 use nir::{Type, TypeId, Val, ValId};
 
 impl FnBuilder<'_, '_> {
-    /// The NIR type of value `v`.
-    pub fn type_of(&self, v: ValId) -> R<TypeId> {
-        match self.reach.world.pool.val(v) {
-            Val::Local(_, ty) | Val::Global(_, ty) => Ok(*ty),
-            v => Err(format!("the type of {v:?}")),
-        }
+    /// The NIR type of value `v`, a local, global or primitive constant.
+    pub fn type_of(&mut self, v: ValId) -> R<TypeId> {
+        let pool = &mut self.reach.world.pool;
+        let ty = match pool.val(v) {
+            Val::Local(_, ty) | Val::Global(_, ty) | Val::Zero(ty) => return Ok(*ty),
+            Val::True | Val::False => Type::Bool,
+            Val::Char(_) => Type::Char,
+            Val::Byte(_) => Type::Byte,
+            Val::Short(_) => Type::Short,
+            Val::Int(_) => Type::Int,
+            Val::Long(_) => Type::Long,
+            Val::Float(_) => Type::Float,
+            Val::Double(_) => Type::Double,
+            Val::Size(_) => Type::Size,
+            Val::Null | Val::String(_) | Val::Const(_) | Val::ClassOf(_) => Type::Ptr,
+            v => return Err(format!("the type of {v:?}")),
+        };
+        Ok(TypeId(pool.types.intern(ty)))
     }
 
     pub fn val(&mut self, v: ValId) -> R<Value> {
@@ -78,20 +90,41 @@ impl FnBuilder<'_, '_> {
         })
     }
 
-    /// `v` where a value of type `t` is expected: `null` becomes zero of type `t`, `unit` the
-    /// `BoxedUnit` instance where an object is expected and zero elsewhere.
+    /// `v` where a value of NIR type `ty` is expected: `unit` is the `BoxedUnit` instance where
+    /// `ty` is an object type.
+    pub fn arg_of(&mut self, v: ValId, ty: TypeId) -> R<Value> {
+        let pool = &self.reach.world.pool;
+        let object = matches!(pool.ty(ty), Type::Ref { .. } | Type::Array { .. });
+        let unit = match pool.val(v) {
+            Val::Unit => true,
+            Val::Local(_, t) => matches!(pool.ty(*t), Type::Unit),
+            _ => false,
+        };
+        match unit && object {
+            true => self.boxed_unit(),
+            false => {
+                let t = self.ty(ty)?;
+                self.arg(v, t)
+            }
+        }
+    }
+
+    /// `v` where a value of Cranelift type `t` is expected: `null`, `unit` and `nothing` become
+    /// zero of type `t`.
     pub fn arg(&mut self, v: ValId, t: types::Type) -> R<Value> {
         let pool = &self.reach.world.pool;
-        let (null, unit) = match pool.val(v) {
-            Val::Null => (true, false),
-            Val::Unit => (false, true),
-            Val::Local(_, ty) => (false, matches!(pool.ty(*ty), Type::Unit)),
-            _ => (false, false),
+        let zero = match pool.val(v) {
+            Val::Null | Val::Unit => true,
+            Val::Local(_, ty) => matches!(pool.ty(*ty), Type::Unit | Type::Nothing),
+            _ => false,
         };
-        match (null, unit) {
-            (false, true) if t == self.decls.ptr => self.boxed_unit(),
-            (true, _) | (_, true) => Ok(self.b.ins().iconst(t, 0)),
-            _ => self.val(v),
+        if !zero {
+            return self.val(v);
         }
+        Ok(match t {
+            types::F32 => self.b.ins().f32const(0.0),
+            types::F64 => self.b.ins().f64const(0.0),
+            t => self.b.ins().iconst(t, 0),
+        })
     }
 }

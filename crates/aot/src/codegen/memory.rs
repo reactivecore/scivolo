@@ -16,8 +16,8 @@ impl FnBuilder<'_, '_> {
                 self.b.ins().load(t, flags, p, 0)
             }
             Op::Store { ty, ptr, value, .. } => {
-                let (t, p) = (self.ty(*ty)?, self.val(*ptr)?);
-                let v = self.arg(*value, t)?;
+                let p = self.val(*ptr)?;
+                let v = self.arg_of(*value, *ty)?;
                 self.b.ins().store(flags, v, p, 0);
                 return Ok(None);
             }
@@ -75,8 +75,8 @@ impl FnBuilder<'_, '_> {
                     return Err("varstore".into());
                 };
                 let ty = *self.var_types.get(&l.0).ok_or("varstore of an unknown var")?;
-                let (t, p) = (self.ty(ty)?, self.val(*slot)?);
-                let v = self.arg(*value, t)?;
+                let p = self.val(*slot)?;
+                let v = self.arg_of(*value, ty)?;
                 self.b.ins().store(flags, v, p, 0);
                 return Ok(None);
             }

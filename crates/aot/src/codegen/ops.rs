@@ -16,8 +16,13 @@ impl FnBuilder<'_, '_> {
                 None => return self.call(*ty, *ptr, args),
             },
             Op::Bin { bin, l, r, .. } => {
+                let nonzero = match *self.reach.world.pool.val(*r) {
+                    Val::Int(x) => x != 0,
+                    Val::Long(x) => x != 0,
+                    _ => false,
+                };
                 let (l, r) = (self.val(*l)?, self.val(*r)?);
-                self.bin(*bin, l, r)?
+                self.bin(*bin, l, r, nonzero)?
             }
             Op::Comp { comp, l, r, .. } => {
                 let (l, r) = (self.val(*l)?, self.val(*r)?);
@@ -47,9 +52,12 @@ impl FnBuilder<'_, '_> {
         if args.len() != sig.params.len() {
             return Err("call arity".into());
         }
+        let nir::Type::Function(params, _) = self.reach.world.pool.ty(ty).clone() else {
+            return Err("a call of a non-function type".into());
+        };
         let mut values = Vec::with_capacity(args.len());
-        for (&a, p) in args.iter().zip(&sig.params) {
-            values.push(self.arg(a, p.value_type)?);
+        for (&a, p) in args.iter().zip(params) {
+            values.push(self.arg_of(a, p)?);
         }
         let direct = match *self.reach.world.pool.val(ptr) {
             Val::Global(g, _) => Some(self.decls.func(self.module, self.reach, g)?),
@@ -70,7 +78,8 @@ impl FnBuilder<'_, '_> {
         Ok(self.b.inst_results(call).first().copied())
     }
 
-    fn bin(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
+    /// `l bin r`; `nonzero` when `r` is a constant other than zero.
+    fn bin(&mut self, bin: Bin, l: Value, r: Value, nonzero: bool) -> R<Value> {
         let ins = self.b.ins();
         Ok(match bin {
             Bin::Iadd => ins.iadd(l, r),
@@ -86,7 +95,7 @@ impl FnBuilder<'_, '_> {
             Bin::And => ins.band(l, r),
             Bin::Or => ins.bor(l, r),
             Bin::Xor => ins.bxor(l, r),
-            Bin::Sdiv | Bin::Srem | Bin::Udiv | Bin::Urem => return self.div(bin, l, r),
+            Bin::Sdiv | Bin::Srem | Bin::Udiv | Bin::Urem => return self.div(bin, l, r, nonzero),
             Bin::Frem => return self.frem(l, r),
         })
     }
@@ -102,9 +111,11 @@ impl FnBuilder<'_, '_> {
     }
 
     /// Division and remainder; division by zero throws, `MIN / -1` wraps.
-    fn div(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
-        let ok = self.b.ins().icmp_imm_s(IntCC::NotEqual, r, 0);
-        self.check(ok, super::checks::DIVISION_BY_ZERO, &[])?;
+    fn div(&mut self, bin: Bin, l: Value, r: Value, nonzero: bool) -> R<Value> {
+        if !nonzero {
+            let ok = self.b.ins().icmp_imm_s(IntCC::NotEqual, r, 0);
+            self.check(ok, super::checks::DIVISION_BY_ZERO, &[])?;
+        }
         Ok(match bin {
             Bin::Udiv => self.b.ins().udiv(l, r),
             Bin::Urem => self.b.ins().urem(l, r),

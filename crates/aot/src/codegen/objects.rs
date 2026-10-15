@@ -3,15 +3,17 @@
 use super::body::FnBuilder;
 use crate::R;
 use crate::classes::{ClassId, Kind, is_virtual, method_key};
-use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
-use nir::{GlobalId, Op, StrId, TypeId, ValId};
+use nir::{GlobalId, Op, StrId, ValId};
 
 const BOXED_UNIT: &str = "scala.scalanative.runtime.BoxedUnit$";
 
 impl FnBuilder<'_, '_> {
     pub fn object_op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
+        if matches!(op, Op::Module(_) | Op::Classalloc { .. } | Op::Arrayalloc { .. } | Op::Box { .. }) {
+            self.non_null.insert(id);
+        }
         Ok(Some(match op {
             Op::Module(g) => {
                 let cls = self.reach.link(*g)?;
@@ -38,9 +40,10 @@ impl FnBuilder<'_, '_> {
             }
             Op::Fieldstore { ty, obj, name, value } => {
                 let (o, offset) = self.field(*obj, *name)?;
-                let unit = matches!(self.reach.world.pool.ty(*ty), nir::Type::Unit);
-                let t = if unit { self.decls.ptr } else { self.ty(*ty)? };
-                let v = self.arg(*value, t)?;
+                let v = match self.reach.world.pool.ty(*ty) {
+                    nir::Type::Unit => self.boxed_unit()?,
+                    _ => self.arg_of(*value, *ty)?,
+                };
                 self.b.ins().store(MemFlagsData::new(), v, o, offset);
                 return Ok(None);
             }
@@ -60,9 +63,8 @@ impl FnBuilder<'_, '_> {
                 self.load(t, at, 0)
             }
             Op::Arraystore { ty, arr, idx, value } => {
-                let t = self.ty(*ty)?;
                 let at = self.element(*ty, *arr, *idx)?;
-                let v = self.arg(*value, t)?;
+                let v = self.arg_of(*value, *ty)?;
                 self.b.ins().store(MemFlagsData::new(), v, at, 0);
                 return Ok(None);
             }
@@ -94,7 +96,7 @@ impl FnBuilder<'_, '_> {
     }
 
     /// The static class of value `v`, if it is an object.
-    fn class_of_val(&mut self, v: ValId) -> R<Option<ClassId>> {
+    pub fn class_of_val(&mut self, v: ValId) -> R<Option<ClassId>> {
         Ok(Some(match self.reach.world.pool.val(v) {
             nir::Val::String(_) => self.reach.link_top("java.lang.String")?,
             nir::Val::ClassOf(_) => self.reach.link_top(crate::codegen::CLASS)?,
@@ -119,22 +121,8 @@ impl FnBuilder<'_, '_> {
     /// Object `obj`, checked not to be null, and the offset of its field `name`.
     fn field(&mut self, obj: ValId, name: GlobalId) -> R<(Value, i32)> {
         let o = self.val(obj)?;
-        self.null_check(o)?;
+        self.null_check_of(obj, o)?;
         Ok((o, self.field_offset(name)?))
-    }
-
-    /// `obj as ty`: `obj` if it is null or an instance of `ty`, else a thrown ClassCastException.
-    fn cast(&mut self, obj: ValId, ty: TypeId) -> R<Value> {
-        let o = self.val(obj)?;
-        let Some(cls) = self.reach.class_of_type(ty)? else { return Ok(o) };
-        let is = self.is_instance(o, ty)?;
-        let null = self.b.ins().icmp_imm_s(IntCC::Equal, o, 0);
-        let ok = self.b.ins().bor(is, null);
-        let target = self.rtti_addr(cls)?;
-        let readable = self.b.ins().select(null, target, o);
-        let from = self.load(self.decls.ptr, readable, 0);
-        self.check(ok, super::checks::CLASS_CAST, &[from, target])?;
-        Ok(o)
     }
 
     fn field_offset(&mut self, name: GlobalId) -> R<i32> {
@@ -145,7 +133,7 @@ impl FnBuilder<'_, '_> {
         }
     }
 
-    fn load(&mut self, t: types::Type, addr: Value, offset: i32) -> Value {
+    pub fn load(&mut self, t: types::Type, addr: Value, offset: i32) -> Value {
         self.b.ins().load(t, MemFlagsData::new(), addr, offset)
     }
 
@@ -164,7 +152,7 @@ impl FnBuilder<'_, '_> {
             return Ok(self.b.ins().func_addr(ptr, fref));
         }
         let o = self.val(obj)?;
-        self.null_check(o)?;
+        self.null_check_of(obj, o)?;
         let rtti = self.load(ptr, o, 0);
         let slot = self.reach.classes.get(cls).slot_of.get(&sig).copied();
         if let (Some(slot), false) = (slot, kind == Kind::Trait) {
@@ -181,45 +169,5 @@ impl FnBuilder<'_, '_> {
         let fref = self.module.declare_func_in_func(lookup, self.b.func);
         let call = self.b.ins().call(fref, &[table, len, key]);
         Ok(self.b.inst_results(call)[0])
-    }
-
-    /// Whether `obj` is an instance of type `ty`: a class id range test or a search of the
-    /// object's traits.
-    fn is_instance(&mut self, obj: Value, ty: TypeId) -> R<Value> {
-        let cls = self.reach.class_of_type(ty)?.ok_or("a type test against a non-class type")?;
-        let ptr = self.decls.ptr;
-        let test = self.b.create_block();
-        let done = self.b.create_block();
-        self.b.append_block_param(done, types::I8);
-        let no = self.b.ins().iconst(types::I8, 0);
-        self.b.ins().brif(obj, test, &[], done, &[no.into()]);
-        self.b.switch_to_block(test);
-        let target = self.rtti_addr(cls)?;
-        let rtti = self.load(ptr, obj, 0);
-        let l = &self.decls.rtti;
-        let (id, range, interfaces, count) = (l.id, l.range, l.interfaces, l.interfaces_count);
-        let result = if self.reach.classes.get(cls).kind == Kind::Trait {
-            let list = self.load(ptr, rtti, interfaces);
-            let n = self.load(types::I32, rtti, count);
-            let has = self.decls.import(
-                self.module,
-                "scalai_aot_has_trait",
-                &[ptr, types::I32, ptr],
-                Some(types::I8),
-            )?;
-            let fref = self.module.declare_func_in_func(has, self.b.func);
-            let call = self.b.ins().call(fref, &[list, n, target]);
-            self.b.inst_results(call)[0]
-        } else {
-            let own = self.load(types::I32, rtti, id);
-            let lo = self.load(types::I32, target, id);
-            let hi = self.load(types::I32, target, range);
-            let offset = self.b.ins().isub(own, lo);
-            let width = self.b.ins().isub(hi, lo);
-            self.b.ins().icmp(IntCC::UnsignedLessThanOrEqual, offset, width)
-        };
-        self.b.ins().jump(done, &[result.into()]);
-        self.b.switch_to_block(done);
-        Ok(self.b.block_params(done)[0])
     }
 }

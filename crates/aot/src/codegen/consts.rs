@@ -36,8 +36,8 @@ fn shape(pool: &Pool, v: ValId) -> R<(usize, usize, Vec<usize>)> {
 }
 
 impl Decls {
-    /// The data of global variable or constant `g`: the C variable an extern names, else a
-    /// writable copy of its initial value.
+    /// The data of global variable or constant `g`: the C variable an extern names, else its
+    /// initial value, writable and scanned by the collector for a variable.
     pub fn global_data(&mut self, module: &mut ObjectModule, reach: &mut Reach, g: GlobalId) -> R<DataId> {
         if let Some(&id) = self.globals.get(&g) {
             return Ok(id);
@@ -52,10 +52,12 @@ impl Decls {
                 let mut blob = Blob::zeroed(size.max(1));
                 self.encode(module, reach, *rhs, &mut blob, 0)?;
                 let name = format!("_S{}", reach.world.pool.mangle(g));
-                let id =
-                    module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
+                let var = matches!(defn.kind, DefnKind::Var { .. });
+                let id = module.declare_data(&name, Linkage::Local, var, false).map_err(|e| e.to_string())?;
                 blob.define(module, id)?;
-                self.roots.push((id, size.max(1)));
+                if var {
+                    self.roots.push((id, size.max(1)));
+                }
                 id
             }
             _ => return Err(format!("{} is no variable", reach.world.name(g))),

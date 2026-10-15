@@ -18,25 +18,6 @@ fn side_table(module: &mut ObjectModule, reach: &Reach, cls: ClassId, suffix: &s
     Ok(id)
 }
 
-/// The name `Class.getName` reports for class `name`.
-fn type_name(name: &str) -> &str {
-    match name.strip_prefix("scala.scalanative.runtime.") {
-        Some("PrimitiveByte") => "byte",
-        Some("PrimitiveShort") => "short",
-        Some("PrimitiveInt") => "int",
-        Some("PrimitiveLong") => "long",
-        Some("PrimitiveChar") => "char",
-        Some("PrimitiveFloat") => "float",
-        Some("PrimitiveDouble") => "double",
-        Some("PrimitiveBoolean") => "boolean",
-        Some("PrimitiveUnit") => "void",
-        Some("RawSize") => "size",
-        Some("RawPtr") => "pointer",
-        Some("BoxedUnit$") => "scala.runtime.BoxedUnit",
-        _ => name,
-    }
-}
-
 pub fn define(
     module: &mut ObjectModule,
     reach: &mut Reach,
@@ -53,7 +34,7 @@ pub fn define(
     let mut blob = Blob { bytes: vec![0; size as usize], ..Blob::default() };
     blob.data.push((0, decls.rtti(module, reach, meta)?));
     blob.i32_at(id, ids[cls as usize].0);
-    let name: Vec<u16> = type_name(reach.world.pool.top_name(c.name)).encode_utf16().collect();
+    let name: Vec<u16> = vm::java_name(reach.world.pool.top_name(c.name)).encode_utf16().collect();
     blob.data.push((name_at, decls.string(module, reach, &name)?));
     let c = reach.classes.get(cls);
     let mut traits: Vec<ClassId> = c

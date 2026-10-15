@@ -26,6 +26,14 @@ pub struct FnBuilder<'a, 'w> {
     pub var_types: HashMap<u64, nir::TypeId>,
     /// The unwind edge of the instruction being translated.
     pub unwind: Next,
+    /// The shared block of each runtime throw without a handler.
+    pub fail_blocks: HashMap<&'static str, Block>,
+    /// Locals known not to be null: fresh objects.
+    pub non_null: std::collections::HashSet<u64>,
+    /// The NIR types of each block's parameters.
+    param_types: HashMap<u64, Vec<nir::TypeId>>,
+    /// The NIR result type of the function.
+    pub ret_ty: Option<nir::TypeId>,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -46,6 +54,10 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             propagate: None,
             var_types: HashMap::new(),
             unwind: Next::None,
+            fail_blocks: HashMap::new(),
+            non_null: Default::default(),
+            param_types: HashMap::new(),
+            ret_ty: None,
         }
     }
 
@@ -62,6 +74,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 }
             }
             self.blocks.insert(l.0, block);
+            self.param_types.insert(l.0, params.iter().map(|p| p.ty).collect());
         }
         let reachable = super::blocks::reachable(&self.reach.world.pool, body)?;
         let mut open = false;
@@ -112,15 +125,13 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 }
                 return Ok(false);
             }
-            Inst::Throw(v, unwind) => {
-                let exc = self.val(*v)?;
-                self.throw(exc, unwind)?;
-            }
+            Inst::Throw(v, unwind) => self.throw(*v, unwind)?,
             Inst::Ret(v) => {
                 let ret = self.b.func.signature.returns.first().map(|r| r.value_type);
-                let args = match ret {
-                    Some(t) => vec![self.arg(*v, t)?],
-                    None => vec![],
+                let args = match (ret, self.ret_ty) {
+                    (Some(_), Some(ty)) => vec![self.arg_of(*v, ty)?],
+                    (Some(t), None) => vec![self.arg(*v, t)?],
+                    (None, _) => vec![],
                 };
                 self.b.ins().return_(&args);
             }
@@ -168,10 +179,10 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
     fn target(&mut self, next: &Next) -> R<(Block, Vec<BlockArg>)> {
         let Next::Label(l, args) = next else { return Err(format!("jump to {next:?}")) };
         let block = *self.blocks.get(&l.0).ok_or("unknown label")?;
-        let types: Vec<types::Type> = self.b.func.dfg.block_param_types(block).collect();
+        let types = self.param_types.get(&l.0).cloned().unwrap_or_default();
         let mut out = Vec::with_capacity(args.len());
-        for (&a, t) in args.iter().zip(types) {
-            out.push(BlockArg::from(self.arg(a, t)?));
+        for (&a, ty) in args.iter().zip(types) {
+            out.push(BlockArg::from(self.arg_of(a, ty)?));
         }
         Ok((block, out))
     }
