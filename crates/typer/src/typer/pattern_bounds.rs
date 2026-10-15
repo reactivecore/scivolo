@@ -49,7 +49,12 @@ impl Typer<'_> {
 
     /// Bounds `bounds` intersected with those of type parameter `param` that refer to none of
     /// `params`.
-    fn with_param_bounds(&mut self, bounds: TypeId, param: Option<SymbolId>, params: &[SymbolId]) -> TypeId {
+    pub fn with_param_bounds(
+        &mut self,
+        bounds: TypeId,
+        param: Option<SymbolId>,
+        params: &[SymbolId],
+    ) -> TypeId {
         let (Some(param), Type::Bounds(lo, hi)) = (param, self.u.types().get(bounds).clone()) else {
             return bounds;
         };

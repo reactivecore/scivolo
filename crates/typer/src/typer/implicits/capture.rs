@@ -5,19 +5,26 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// `t` with each top-level wildcard argument `_ >: lo <: hi` replaced by the `CAP` member of
-    /// a fresh skolem of type `scala.runtime.TypeBox[lo, hi]`; `None` if `t` has none.
+    /// `t` with each top-level wildcard argument `_ >: lo <: hi`, bounded also by its type
+    /// parameter, replaced by the `CAP` member of a fresh skolem of type
+    /// `scala.runtime.TypeBox[lo, hi]`; `None` if `t` has none.
     pub fn captured_wildcards(&mut self, t: TypeId) -> Option<TypeId> {
         let t = self.zonk(t);
         let t = self.u.widen(t);
+        let t = self.u.dealias(t);
         let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
         if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..))) {
+            return None;
+        }
+        let params = self.u.class_symbol(tycon).map(|c| self.u.type_params(c)).unwrap_or_default();
+        if params.len() != args.len() {
             return None;
         }
         let type_box = self.resolve_full_name("scala.runtime.TypeBox", true)?;
         let cap = self.u.decl(type_box, "CAP").ok()?.first().copied()?;
         let mut captured = Vec::new();
-        for a in args {
+        for (a, &p) in args.into_iter().zip(&params) {
+            let a = self.with_param_bounds(a, Some(p), &params);
             let Type::Bounds(lo, hi) = *self.u.types().get(a) else {
                 captured.push(a);
                 continue;
