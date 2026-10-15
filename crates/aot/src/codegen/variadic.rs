@@ -29,7 +29,9 @@ impl FnBuilder<'_, '_> {
     /// Calls extern `g` of variadic type `ty` with `args` through a shim.
     pub fn variadic_call(&mut self, g: GlobalId, ty: TypeId, args: &[ValId]) -> R<Option<Value>> {
         let pool = &self.reach.world.pool;
-        let Type::Function(params, ret) = pool.ty(ty).clone() else { return Err("not a function type".into()) };
+        let Type::Function(params, ret) = pool.ty(ty).clone() else {
+            return Err("not a function type".into());
+        };
         let name = super::decls::extern_name(pool, g).ok_or("a variadic call of a non-extern")?;
         let fixed = params.len() - 1;
         let ret = match pool.ty(ret) {
@@ -52,10 +54,17 @@ impl FnBuilder<'_, '_> {
     }
 
     /// The shim calling `name`, whose first `fixed` parameters are fixed, with `args`.
-    fn shim(&mut self, name: &str, fixed: usize, args: &[types::Type], ret: Option<types::Type>) -> R<FuncId> {
+    fn shim(
+        &mut self,
+        name: &str,
+        fixed: usize,
+        args: &[types::Type],
+        ret: Option<types::Type>,
+    ) -> R<FuncId> {
         let n = self.decls.shims.len();
         let shim = format!("scalai_aot_variadic_{n}");
-        let params: Vec<String> = args.iter().enumerate().map(|(i, &t)| format!("{} a{i}", c_type(Some(t)))).collect();
+        let params: Vec<String> =
+            args.iter().enumerate().map(|(i, &t)| format!("{} a{i}", c_type(Some(t)))).collect();
         let fixed_types: Vec<&str> = args[..fixed].iter().map(|&t| c_type(Some(t))).collect();
         let names: Vec<String> = (0..args.len()).map(|i| format!("a{i}")).collect();
         let (r, ret_c) = (if ret.is_some() { "return " } else { "" }, c_type(ret));

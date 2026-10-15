@@ -20,6 +20,28 @@ fn run(name: &str, entry: &str, arg: &str) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
+/// What the executable built from test program `name`, main class `name`, prints.
+fn run_main(name: &str) -> String {
+    let bin = Path::new(env!("CARGO_TARGET_TMPDIR")).join("aot-main").join(name);
+    let out = Command::new(env!("CARGO_BIN_EXE_scalai-aot"))
+        .arg("--cp")
+        .arg(program(name))
+        .arg("-o")
+        .arg(&bin)
+        .arg(name)
+        .output()
+        .expect("running scalai-aot");
+    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+    let out = Command::new(&bin).output().expect("running the executable");
+    String::from_utf8_lossy(&out.stdout).into_owned()
+}
+
+#[test]
+fn hello_and_fib_run_through_their_main() {
+    assert_eq!(run_main("hello"), check("hello"));
+    assert_eq!(run_main("fib"), check("fib"));
+}
+
 fn check(name: &str) -> String {
     std::fs::read_to_string(program(name).join(format!("{name}.check"))).expect("the .check file")
 }

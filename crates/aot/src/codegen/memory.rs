@@ -39,7 +39,8 @@ impl FnBuilder<'_, '_> {
                             false => self.b.ins().sextend(ptr, n),
                         };
                         let bytes = self.b.ins().imul_imm_s(n, size as i64);
-                        let alloc = self.decls.import(self.module, "scalai_aot_stackalloc", &[ptr], Some(ptr))?;
+                        let alloc =
+                            self.decls.import(self.module, "scalai_aot_stackalloc", &[ptr], Some(ptr))?;
                         let fref = self.module.declare_func_in_func(alloc, self.b.func);
                         let call = self.b.ins().call(fref, &[bytes]);
                         return Ok(Some(self.b.inst_results(call)[0]));
@@ -54,21 +55,29 @@ impl FnBuilder<'_, '_> {
                 self.stack_slot(size, align)
             }
             Op::Varload(slot) => {
-                let Val::Local(l, _) = *self.reach.world.pool.val(*slot) else { return Err("varload".into()) };
+                let Val::Local(l, _) = *self.reach.world.pool.val(*slot) else {
+                    return Err("varload".into());
+                };
                 let ty = *self.var_types.get(&l.0).ok_or("varload of an unknown var")?;
                 let (t, p) = (self.ty(ty)?, self.val(*slot)?);
                 self.b.ins().load(t, flags, p, 0)
             }
             Op::Varstore { slot, value } => {
-                let Val::Local(l, _) = *self.reach.world.pool.val(*slot) else { return Err("varstore".into()) };
+                let Val::Local(l, _) = *self.reach.world.pool.val(*slot) else {
+                    return Err("varstore".into());
+                };
                 let ty = *self.var_types.get(&l.0).ok_or("varstore of an unknown var")?;
                 let (t, p) = (self.ty(ty)?, self.val(*slot)?);
                 let v = self.arg(*value, t)?;
                 self.b.ins().store(flags, v, p, 0);
                 return Ok(None);
             }
-            Op::SizeOf(ty) => self.b.ins().iconst(self.decls.ptr, size_of(&self.reach.world.pool, *ty) as i64),
-            Op::AlignmentOf(ty) => self.b.ins().iconst(self.decls.ptr, align_of(&self.reach.world.pool, *ty) as i64),
+            Op::SizeOf(ty) => {
+                self.b.ins().iconst(self.decls.ptr, size_of(&self.reach.world.pool, *ty) as i64)
+            }
+            Op::AlignmentOf(ty) => {
+                self.b.ins().iconst(self.decls.ptr, align_of(&self.reach.world.pool, *ty) as i64)
+            }
             Op::Fence(_) => {
                 self.b.ins().fence();
                 return Ok(None);

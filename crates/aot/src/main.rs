@@ -39,7 +39,9 @@ fn run(args: &Args) -> R<()> {
     let classpath = vm::Classpath::with_image(&args.classpath, image).map_err(|e| e.to_string())?;
     let mut world = vm::World::new(classpath);
     let (root, stub) = match (&args.entry, &args.main) {
-        (Some(entry), _) => (codegen::Root::Entry(entry::find(&args.classpath, entry, &mut world)?), "entry.c"),
+        (Some(entry), _) => {
+            (codegen::Root::Entry(entry::find(&args.classpath, entry, &mut world)?), "entry.c")
+        }
         (None, Some(main)) => (codegen::Root::Main(world.top(main)), "main.c"),
         (None, None) => return Err("a main class or --entry is required".into()),
     };

@@ -22,7 +22,13 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
     std::fs::write(&src, shims).map_err(|e| format!("{}: {e}", src.display()))?;
     let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");
     let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
-    cmd.args(["-w", "-o"]).arg(output).arg(&obj).arg(&src).arg(c.join(stub)).arg(c.join("rt.c")).arg(c.join("natives.c"));
+    cmd.args(["-w", "-o"])
+        .arg(output)
+        .arg(&obj)
+        .arg(&src)
+        .arg(c.join(stub))
+        .arg(c.join("rt.c"))
+        .arg(c.join("natives.c"));
     cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);

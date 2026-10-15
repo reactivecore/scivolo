@@ -45,6 +45,28 @@ aot-check name:
     diff <(tmp/aot/{{ name }}) tests/programs/{{ name }}/{{ name }}.check
     echo "{{ name }}: ok"
 
+# Build every test program as a native executable, compare each output with its `.check` file
+# (20 s each), and list the failures with the first line of their error in tmp/aot/failures.txt.
+aot-check-all:
+    #!/usr/bin/env bash
+    cargo build -q --release -p aot
+    mkdir -p tmp/aot
+    : > tmp/aot/failures.txt
+    pass=0; fail=0
+    for dir in tests/programs/*/; do
+      name=$(basename "$dir")
+      [ -f "$dir$name.check" ] || continue
+      if target/release/scalai-aot --cp "$dir" -o "tmp/aot/$name" "$name" 2> "tmp/aot/$name.err" \
+        && perl -e 'alarm 20; exec @ARGV' "tmp/aot/$name" > "tmp/aot/$name.out" 2>> "tmp/aot/$name.err" \
+        && diff -q "tmp/aot/$name.out" "$dir$name.check" > /dev/null; then
+        pass=$((pass + 1))
+      else
+        fail=$((fail + 1))
+        echo "$name: $(head -c 300 "tmp/aot/$name.err" | head -n 1)" >> tmp/aot/failures.txt
+      fi
+    done
+    echo "aot: $pass passed, $fail failed (tmp/aot/failures.txt)"
+
 # Build as aot-build does and run the executable with `args`.
 aot-run name entry *args: (aot-build name entry)
     tmp/aot/{{ name }} {{ args }}

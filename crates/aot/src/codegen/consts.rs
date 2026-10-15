@@ -16,7 +16,9 @@ fn shape(pool: &Pool, v: ValId) -> R<(usize, usize, Vec<usize>)> {
         Val::Char(_) | Val::Short(_) => (2, 2, vec![]),
         Val::Int(_) | Val::Float(_) => (4, 4, vec![]),
         Val::Zero(ty) => (size_of(pool, *ty) as usize, align_of(pool, *ty) as usize, vec![]),
-        Val::ArrayValue(ty, vs) => (size_of(pool, *ty) as usize * vs.len(), align_of(pool, *ty) as usize, vec![]),
+        Val::ArrayValue(ty, vs) => {
+            (size_of(pool, *ty) as usize * vs.len(), align_of(pool, *ty) as usize, vec![])
+        }
         Val::ByteString(bytes) => (bytes.len(), 1, vec![]),
         Val::StructValue(vs) => {
             let (mut at, mut max, mut offsets) = (0usize, 1usize, Vec::new());
@@ -42,14 +44,17 @@ impl Decls {
         }
         let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
         let id = match (&defn.kind, super::decls::extern_name(&reach.world.pool, g)) {
-            (_, Some(name)) => module.declare_data(&name, Linkage::Import, true, false).map_err(|e| e.to_string())?,
+            (_, Some(name)) => {
+                module.declare_data(&name, Linkage::Import, true, false).map_err(|e| e.to_string())?
+            }
             // Temporary until #113 aot 3 (static fields): references in globals are no collector roots.
             (DefnKind::Var { rhs, .. } | DefnKind::Const { rhs, .. }, None) => {
                 let (size, _, _) = shape(&reach.world.pool, *rhs)?;
                 let mut blob = Blob::zeroed(size.max(1));
                 self.encode(module, reach, *rhs, &mut blob, 0)?;
                 let name = format!("_S{}", reach.world.pool.mangle(g));
-                let id = module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
+                let id =
+                    module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
                 blob.define(module, id)?;
                 id
             }
@@ -71,7 +76,14 @@ impl Decls {
         Ok(id)
     }
 
-    fn encode(&mut self, module: &mut ObjectModule, reach: &mut Reach, v: ValId, blob: &mut Blob, at: usize) -> R<()> {
+    fn encode(
+        &mut self,
+        module: &mut ObjectModule,
+        reach: &mut Reach,
+        v: ValId,
+        blob: &mut Blob,
+        at: usize,
+    ) -> R<()> {
         let mut put = |bytes: &[u8]| blob.bytes[at..at + bytes.len()].copy_from_slice(bytes);
         match reach.world.pool.val(v).clone() {
             Val::True => put(&[1]),
