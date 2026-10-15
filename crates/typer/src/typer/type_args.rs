@@ -4,7 +4,8 @@
 use super::Typer;
 use crate::symbols::Completion;
 use crate::tpd::TNodeId;
-use tasty::{Kind, Type, TypeId};
+use syntax::ast::{NodeId, Tree};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
@@ -57,7 +58,8 @@ impl Typer<'_> {
     }
 
     /// How many type parameters the `i`th type parameter of class constructor `tycon` takes;
-    /// `None` while that parameter is not completed.
+    /// while that parameter is not completed, the number of type parameters of its tree in the
+    /// class's primary constructor if it has any, else `None`.
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
         let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
         if self.u.symbol(c).kind != Kind::Class {
@@ -65,9 +67,23 @@ impl Typer<'_> {
         }
         let p = *self.u.type_params(c).get(i)?;
         if self.syms.completions.get(&p).is_some_and(|c| !matches!(c, Completion::Done)) {
-            return None;
+            return self.param_tree_arity(c, i);
         }
         let info = self.u.info(p);
         Some(self.bounds_of(info).2)
+    }
+
+    /// The number of type parameters of the `i`th type parameter tree of script class `c`'s
+    /// primary constructor; `None` if it has none.
+    fn param_tree_arity(&self, c: SymbolId, i: usize) -> Option<usize> {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(*self.syms.def_trees.get(&c)?) else { return None };
+        let Tree::Template { constr, .. } = *self.ast.tree(rhs) else { return None };
+        let Tree::DefDef { paramss, .. } = *self.ast.tree(constr) else { return None };
+        let is_type_def = |&p: &NodeId| matches!(self.ast.tree(p), Tree::TypeDef { .. });
+        let mut clauses = self.ast.clause_items(paramss).iter().map(|&l| self.ast.items(l));
+        let clause = clauses.find(|ps| ps.first().is_some_and(is_type_def))?;
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(*clause.get(i)?) else { return None };
+        let Tree::LambdaTypeTree { tparams, .. } = *self.ast.tree(rhs) else { return None };
+        Some(self.ast.items(tparams).len())
     }
 }
