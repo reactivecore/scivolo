@@ -35,6 +35,7 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         if let Some(owner) = l.u.symbol(f.sym).owner {
             l.lifted_from.insert(method.sym, owner);
         }
+        l.lifted_to.insert(f.sym, method.sym);
         methods.push(method);
     }
     Ok(methods)

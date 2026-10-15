@@ -1,9 +1,12 @@
 //! Closures of `PartialFunction` types as anonymous classes overriding `isDefinedAt` and
 //! `applyOrElse` with the closure's cases (dotty's `ExpandSAMs.toPartialFunction`); closures of
-//! other single abstract method types stay closures.
+//! other single abstract method types that are not functional interfaces as anonymous classes
+//! too, those of functional interfaces stay closures.
 
 use super::anon_class::{class_symbol, def, instance, override_sym, param, wildcard};
 use super::lambda_lift::lambda;
+use super::sam::is_platform_sam;
+use super::sam_classes::to_anon_class;
 use super::tree_copy::{Copier, copy};
 use super::walk::subtrees;
 use crate::definitions::{PartialFunctions, applied, symbol, type_ref};
@@ -33,17 +36,22 @@ struct Expansion {
     span: Span,
 }
 
-/// Expands the closures of `PartialFunction` types in unit `root`; whether there were any.
+/// Expands the closures of `PartialFunction` types and of other single abstract method types
+/// that are not functional interfaces in unit `root`; whether there were any.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
     let mut found = Vec::new();
+    let mut classes = false;
     for t in subtrees(l.tpd, root) {
         let Some((def, closure, anon)) = lambda(l, t) else { continue };
         let Tree::Closure { tpt: Some(tpt), .. } = *l.tpd.tree(closure) else { continue };
         let sam = l.tpd.tpe(tpt);
         let dealiased = l.u.dealias(sam);
-        let class = l.u.class_symbol(dealiased);
-        if class.is_some() && class == Some(l.partial_functions()?.class) {
+        let Some(class) = l.u.class_symbol(dealiased) else { continue };
+        if class == l.partial_functions()?.class {
             found.push(Closure { block: t, def, anon, sam });
+        } else if !is_platform_sam(l, class, l.tpd.span(t))? {
+            to_anon_class(l, t, def, anon, dealiased)?;
+            classes = true;
         }
     }
     for c in &found {
@@ -55,7 +63,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
     for c in &found {
         to_partial_function(l, c)?;
     }
-    Ok(!found.is_empty())
+    Ok(classes || !found.is_empty())
 }
 
 fn to_partial_function(l: &mut Lower, c: &Closure) -> Result<()> {
@@ -78,7 +86,7 @@ fn to_partial_function(l: &mut Lower, c: &Closure) -> Result<()> {
     let x = Expansion { anon: c.anon, param, rhs, span };
     let is_defined_at = is_defined_at_def(l, &x, cls, &pf, c.sam)?;
     let apply_or_else = apply_or_else_def(l, &x, cls, &pf, c.sam)?;
-    let block = instance(l, cls, pf.abstract_ctor, &[is_defined_at, apply_or_else]);
+    let block = instance(l, cls, pf.abstract_ctor, &[is_defined_at, apply_or_else], Span::NONE);
     l.copy_node(c.block, block);
     l.u.unenter(c.anon);
     Ok(())

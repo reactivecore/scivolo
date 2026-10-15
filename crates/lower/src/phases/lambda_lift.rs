@@ -34,6 +34,11 @@ impl Function {
     pub fn instance(&self) -> bool {
         self.this || self.into.is_some()
     }
+
+    /// Whether this is a lambda's method, kept as a closure or not (dotty's `isAnonymousFunction`).
+    pub fn is_anonymous(&self, l: &Lower) -> bool {
+        self.closure.is_some() || l.u.symbol(self.sym).name == "$anonfun"
+    }
 }
 
 /// The functions of a class to lift and their methods.
@@ -114,7 +119,7 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     let in_class =
         is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
-        f.this = (f.closure.is_none() || f.ctor) && in_class;
+        f.this = (!f.is_anonymous(l) || f.ctor) && in_class;
     }
     super::narrowed::narrow(l, class, &mut functions);
     dependencies(l, &mut functions, class, &roots, (in_class, pending))?;

@@ -57,6 +57,7 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
         let mut from = l.lifted_from.get(&s).copied();
         while let Some(term) = from.filter(|&t| l.u.symbol(t).kind.is_term()) {
             filler.push_str("_$");
+            let term = l.lifted_to.get(&term).copied().unwrap_or(term);
             from = l.u.symbol(term).owner;
         }
         let base = from.or(l.u.symbol(s).owner).expect("a member's owner");

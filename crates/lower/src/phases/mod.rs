@@ -85,6 +85,7 @@ mod repeated;
 mod resolve_super;
 mod returns;
 pub(crate) mod sam;
+mod sam_classes;
 pub(crate) mod select_static;
 mod sensical;
 mod specialize;

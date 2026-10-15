@@ -103,3 +103,4 @@ contextfunctions
 partialfuns
 selftypes
 opaques
+samclasses
