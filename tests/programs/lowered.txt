@@ -97,3 +97,4 @@ subpatterns
 implicitviews
 evidence
 classtags
+partialfuns

@@ -183,7 +183,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
 }
 
 /// The `$anonfun` definition, closure and method symbol of lambda block `t`.
-fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
+pub fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     let &[def] = l.tpd.items(stats) else { return None };
     let Tree::Closure { meth, .. } = *l.tpd.tree(expr) else { return None };

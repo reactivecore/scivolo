@@ -1,6 +1,7 @@
 //! Single abstract method types that function values also implement (dotty's `SAMType`).
 
 use super::Typer;
+use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -22,7 +23,8 @@ impl Typer<'_> {
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
         let Some(method) = self.sam_method(class) else { return Ok(None) };
-        if !self.u.symbol(class).flags.has(TRAIT) || !self.is_fully_defined(t) {
+        let open = !self.is_fully_defined(t) && !self.is_partial_function(t);
+        if !self.u.symbol(class).flags.has(TRAIT) || open {
             return Err("single abstract method type outside the subset");
         }
         let b = self.u.builtins();
@@ -102,14 +104,62 @@ impl Typer<'_> {
     }
 
     /// The single abstract method of class `c`, a trait or abstract class neither final nor
-    /// sealed.
+    /// sealed; `apply` of `PartialFunction`.
     pub fn sam_method(&mut self, c: SymbolId) -> Option<SymbolId> {
         let flags = self.u.symbol(c).flags;
         if !(flags.has(TRAIT) || flags.has(ABSTRACT)) || flags.has(FINAL) || flags.has(SEALED) {
             return None;
         }
+        if self.u.full_name(c) == "scala.PartialFunction" {
+            return self.class_members(c, "apply").first().copied();
+        }
         let [method] = self.abstract_methods(c)[..] else { return None };
         Some(method)
+    }
+
+    /// Whether `t` is a `PartialFunction` type.
+    pub fn is_partial_function(&mut self, t: TypeId) -> bool {
+        let t = self.zonk(t);
+        let t = self.u.dealias(t);
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == "scala.PartialFunction")
+    }
+
+    /// The type a closure of parameter types `params` and result `result` implementing single
+    /// abstract method type `parent` gets: `parent` with its type variables instantiated, a
+    /// `PartialFunction` of `params` and `result` if `parent` is one left open by the expected
+    /// type (dotty's `typedClosure`).
+    pub fn closure_parent(
+        &mut self,
+        parent: TypeId,
+        params: &[TypeId],
+        result: TypeId,
+    ) -> Result<TypeId, &'static str> {
+        if self.is_fully_defined(parent) && !self.has_proto_wildcard(parent) {
+            return Ok(parent);
+        }
+        if !self.has_proto_wildcard(parent) {
+            return self.fully_defined_as(parent, true);
+        }
+        let [param] = params[..] else { return Err("underspecified single abstract method type") };
+        self.partial_function_of(param, result)
+    }
+
+    /// Function value `tree` typed as single abstract method type `pt` if it does not conform but
+    /// fits the method (dotty's `toSAM`).
+    pub fn to_sam(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
+        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return None };
+        let T::Closure { env, meth, tpt: None } = *self.tpd.tree(expr) else { return None };
+        let tpe = self.tpd.tpe(tree);
+        if self.u.is_subtype(tpe, pt) {
+            return None;
+        }
+        let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
+        let parent = self.sam_parts(pt, n).ok()??.parent;
+        let span = self.tpd.span(expr);
+        let tpt = Some(self.type_tree(parent, span.start_pos(), false));
+        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);
+        let span = self.tpd.span(tree);
+        Some(self.build().block(stats, closure, span))
     }
 
     /// The abstract term members of class `c` that do not match members of `Object` (dotty's
