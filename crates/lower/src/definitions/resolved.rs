@@ -1,6 +1,8 @@
 //! The definitions resolved on first use, each kept once resolved.
 
-use super::{CaseClasses, Equality, LazyVals, Monitors, Patmat, Sequences, Strings, member, package};
+use super::{
+    CaseClasses, Equality, LazyVals, Monitors, PartialFunctions, Patmat, Sequences, Strings, member, package,
+};
 use crate::{Lower, Result, Unsupported};
 use syntax::ast::Span;
 use tasty::{Kind, SymbolId, Universe};
@@ -52,6 +54,10 @@ impl Lower<'_> {
             let proxy = member(u, package(u, "scala.runtime")?, "ModuleSerializationProxy", Kind::Class)?;
             Ok(Serialization { class, proxy, proxy_ctor: member(u, proxy, "<init>", Kind::Def)? })
         })
+    }
+
+    pub fn partial_functions(&mut self) -> Result<PartialFunctions> {
+        resolved(&mut self.defs.partial_functions, self.u, PartialFunctions::new)
     }
 
     /// The trait `scala.Product`.

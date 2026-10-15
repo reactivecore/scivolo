@@ -118,6 +118,10 @@ impl Typer<'_> {
         });
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
+        let sam = match sam.map(|p| self.closure_parent(p, &param_types, result)).transpose() {
+            Ok(sam) => sam,
+            Err(what) => return self.unsupported(id, what),
+        };
         let mut fun_args = param_types;
         fun_args.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
@@ -132,24 +136,6 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// Function value `tree` typed as single abstract method type `pt` if it does not conform but
-    /// fits the method (dotty's `toSAM`).
-    pub fn to_sam(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
-        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return None };
-        let T::Closure { env, meth, tpt: None } = *self.tpd.tree(expr) else { return None };
-        let tpe = self.tpd.tpe(tree);
-        if self.u.is_subtype(tpe, pt) {
-            return None;
-        }
-        let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
-        let parent = self.sam_parts(pt, n).ok()??.parent;
-        let span = self.tpd.span(expr);
-        let tpt = Some(self.type_tree(parent, span.start_pos(), false));
-        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);
-        let span = self.tpd.span(tree);
-        Some(self.build().block(stats, closure, span))
     }
 
     /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span

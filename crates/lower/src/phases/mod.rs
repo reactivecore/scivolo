@@ -3,6 +3,7 @@
 mod accessor_names;
 pub(crate) mod adapt;
 mod adapted;
+mod anon_class;
 mod array_apply;
 mod array_literals;
 mod beta_reduce;
@@ -30,6 +31,7 @@ mod erased_branches;
 mod erasure;
 mod eta_reduce;
 mod expand_private;
+mod expand_sams;
 mod explicit_outer;
 mod extension_methods;
 mod first_transform;
@@ -92,6 +94,7 @@ mod tailrec;
 mod trait_fields;
 mod trait_init;
 mod trait_lazies;
+mod tree_copy;
 mod type_tests;
 mod uninitialized_defs;
 mod value_classes;
@@ -119,6 +122,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         enumerations::transform(l, td)?;
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
+    }
+    if expand_sams::transform(l, root)? {
+        classes = class_defs(l.tpd, root);
     }
     protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;

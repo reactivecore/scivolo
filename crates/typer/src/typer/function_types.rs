@@ -65,7 +65,7 @@ impl Typer<'_> {
         if let Some(parts) = self.function_parts(p, n) {
             return Ok((Some(parts), None));
         }
-        if self.has_proto_wildcard(p) {
+        if self.has_proto_wildcard(p) && !self.is_partial_function(p) {
             return Err(
                 self.unsupported(id, "function against an underspecified single abstract method type")
             );

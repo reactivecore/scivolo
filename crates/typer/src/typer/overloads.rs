@@ -20,12 +20,12 @@ pub enum Pt {
     AnyFunction,
 }
 
-/// The arguments of an application, typed once without an expected type when overloading needs
-/// their types (dotty's `FunProto`).
+/// The arguments of an application, typed once when overloading needs their types, but for
+/// functions left for the chosen alternative (dotty's `FunProto`).
 pub struct FunProto {
     pub args: Vec<NodeId>,
     pub ctx: Ctx,
-    pub typed: Option<Vec<TNodeId>>,
+    pub typed: Option<Vec<Option<TNodeId>>>,
     /// Whether the application is applied to further arguments.
     pub applied: bool,
     /// The type the application's result is expected to conform to, if any.
@@ -62,18 +62,31 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
         proto: usize,
     ) -> Result<SymbolId, &'static str> {
-        let args = self.pretyped_args(proto, alts, prefix);
         let ctx = self.protos[proto].ctx;
-        let mut arg_types = Vec::new();
-        for &a in &args {
-            let t = self.tpd.tpe(a);
-            arg_types.push(self.zonk(t));
-        }
         let mut applicable = Vec::new();
         let mut views = false;
         for phase in [false, true] {
             views = phase;
-            for &alt in alts {
+            let narrowed = self.narrow_by_shapes(alts, prefix, proto, views)?;
+            if narrowed.len() < 2 {
+                applicable = narrowed;
+                if applicable.is_empty() {
+                    continue;
+                }
+                break;
+            }
+            let args = self.pretyped_args(proto, &narrowed, prefix)?;
+            let mut arg_types = Vec::new();
+            for (&a, &id) in args.iter().zip(&self.protos[proto].args.clone()) {
+                arg_types.push(match a {
+                    Some(a) => {
+                        let t = self.tpd.tpe(a);
+                        self.zonk(t)
+                    }
+                    None => self.untyped_arg_type(id)?,
+                });
+            }
+            for &alt in &narrowed {
                 match self.applicable(alt, prefix, &arg_types, views, ctx) {
                     Some(true) => applicable.push(alt),
                     Some(false) => {}
@@ -131,63 +144,5 @@ impl Typer<'_> {
         let tasty::Type::Method { result, .. } = *self.u.types().get(info) else { return false };
         let result = self.strip_implicit(result);
         matches!(self.u.types().get(result), tasty::Type::Method { .. })
-    }
-
-    /// The arguments of `proto`, typed without an expected type once.
-    fn pretyped_args(&mut self, proto: usize, alts: &[SymbolId], prefix: Option<TypeId>) -> Vec<TNodeId> {
-        if let Some(typed) = &self.protos[proto].typed {
-            return typed.clone();
-        }
-        let (args, ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
-        let mut typed = Vec::new();
-        for (i, &a) in args.iter().enumerate() {
-            let pt = self.common_function_formal(a, i, alts, prefix).map_or(Pt::Any, Pt::Type);
-            typed.push(self.typed(a, pt, ctx));
-        }
-        self.protos[proto].typed = Some(typed.clone());
-        typed
-    }
-
-    /// For function value `arg` at position `i` with parameters without types, the function type
-    /// of the parameter types all of `alts` agree on there (dotty's `pretypeArgs`).
-    fn common_function_formal(
-        &mut self,
-        arg: NodeId,
-        i: usize,
-        alts: &[SymbolId],
-        prefix: Option<TypeId>,
-    ) -> Option<TypeId> {
-        let syntax::ast::Tree::Function { args, .. } = *self.ast.tree(arg) else { return None };
-        let params = self.ast.items(args).to_vec();
-        let untyped = params.iter().any(|&p| {
-            matches!(*self.ast.tree(p), syntax::ast::Tree::ValDef { tpt, .. } if matches!(self.ast.tree(tpt), syntax::ast::Tree::TypeTree))
-        });
-        if !untyped {
-            return None;
-        }
-        let mut common: Option<Vec<TypeId>> = None;
-        for &alt in alts {
-            let (formals, _) = self.param_types(alt, prefix, false)?;
-            let formal = *formals.get(i)?;
-            let (ps, _) = (0..=22).find_map(|n| self.function_parts(formal, n))?;
-            match &common {
-                None => common = Some(ps),
-                Some(c) if c.len() != ps.len() => return None,
-                Some(c) => {
-                    let same =
-                        c.iter().zip(&ps).all(|(&a, &b)| self.u.is_subtype(a, b) && self.u.is_subtype(b, a));
-                    if !same {
-                        return None;
-                    }
-                }
-            }
-        }
-        let mut fun_args = common?;
-        if !fun_args.iter().all(|&a| self.is_fully_defined(a)) {
-            return None;
-        }
-        let class = self.function_class(fun_args.len())?;
-        fun_args.push(self.u.intern_type(tasty::Type::Wildcard(None)));
-        Some(self.u.intern_type(tasty::Type::Applied(class, fun_args)))
     }
 }

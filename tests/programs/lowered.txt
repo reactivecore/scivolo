@@ -100,3 +100,4 @@ classtags
 locallifts
 lowerfixes
 contextfunctions
+partialfuns

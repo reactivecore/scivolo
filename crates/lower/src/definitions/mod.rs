@@ -7,6 +7,7 @@ mod equality;
 mod interfaces;
 mod lazy_vals;
 mod monitors;
+mod partial_functions;
 mod patmat;
 mod primitives;
 mod refs;
@@ -22,6 +23,7 @@ pub use equality::Equality;
 pub use interfaces::{procedure, specialized, specialized_applies, specialized_apply};
 pub use lazy_vals::LazyVals;
 pub use monitors::Monitors;
+pub use partial_functions::PartialFunctions;
 pub use patmat::Patmat;
 pub use primitives::{Primitive, boxed_class, primitive_class_name};
 pub use refs::{Ref, ref_class};
@@ -67,6 +69,7 @@ pub struct Definitions {
     monitors: Option<Monitors>,
     sequences: Option<Sequences>,
     serialization: Option<Serialization>,
+    partial_functions: Option<PartialFunctions>,
     product: Option<SymbolId>,
     scala_run_time: Option<SymbolId>,
     array_clone: Option<SymbolId>,
@@ -106,6 +109,7 @@ impl Definitions {
             monitors: None,
             sequences: None,
             serialization: None,
+            partial_functions: None,
             product: None,
             scala_run_time: None,
             array_clone: None,

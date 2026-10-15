@@ -138,6 +138,11 @@ fn is_eager_module(l: &Lower, accessor: SymbolId) -> bool {
         && !l.mixed_in.contains(&accessor)
 }
 
+/// Whether `field` holds an eager object.
+pub fn is_eager_field(l: &Lower, field: SymbolId) -> bool {
+    l.lazy_members.iter().any(|(&accessor, m)| m.field == field && is_eager_module(l, accessor))
+}
+
 /// The field `x$lzyN` of eager object `accessor` of definition `stat`, initialized with `rhs`,
 /// and `stat` reading it.
 fn eager_module(l: &mut Lower, accessor: SymbolId, stat: TNodeId, rhs: TNodeId) -> [TNodeId; 2] {
