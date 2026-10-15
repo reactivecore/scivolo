@@ -39,6 +39,14 @@ impl Typer<'_> {
             if syms.is_empty() && self.needs_joint_member(qual_tpe, &text) {
                 return self.unsupported(id, "intersection member of an intersected type");
             }
+            if !syms.is_empty()
+                && !converted
+                && !name.is_type
+                && let Some(q) = self.qualifier_view(qual, (qual_tpe, &syms), &text, pt, ctx)
+            {
+                (qual, converted) = (q, true);
+                continue;
+            }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }

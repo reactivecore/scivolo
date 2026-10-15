@@ -30,6 +30,8 @@ pub struct FunProto {
     pub applied: bool,
     /// The type the application's result is expected to conform to, if any.
     pub result: Option<TypeId>,
+    /// The elements of an infix operation's tuple argument, until it is untupled.
+    pub dual: Option<Vec<NodeId>>,
 }
 
 impl Typer<'_> {

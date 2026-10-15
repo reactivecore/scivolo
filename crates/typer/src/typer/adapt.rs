@@ -96,6 +96,12 @@ impl Typer<'_> {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);
         }
+        if let Some(applied) = self.case_companion_applied(tree, pt, ctx) {
+            return applied.unwrap_or_else(|what| {
+                self.unsupported_at(span, what);
+                tree
+            });
+        }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
             Ok(None) => self.type_mismatch(tree, pt, ctx).unwrap_or_else(|| {
@@ -107,6 +113,30 @@ impl Typer<'_> {
                 tree
             }
         }
+    }
+
+    /// `tree.apply` fitted to function type `pt` for a reference `tree` to the companion of a case
+    /// class, with dotty's warning (`adaptNoArgsOther`'s `caseCompanion`).
+    fn case_companion_applied(
+        &mut self,
+        tree: TNodeId,
+        pt: TypeId,
+        ctx: Ctx,
+    ) -> Option<Result<TNodeId, &'static str>> {
+        let T::Ident { name } = *self.tpd.tree(tree) else { return None };
+        let module = self.tpd.sym(tree).filter(|&m| self.u.is_module(m))?;
+        let class = self.u.module_class(module).and_then(|c| self.u.companion_class(c))?;
+        if !self.u.symbol(class).flags.has(tasty::tags::CASE)
+            || !(0..=22).any(|n| self.function_parts(pt, n).is_some())
+        {
+            return None;
+        }
+        let msg = format!(
+            "The method `apply` is inserted. The auto insertion will be deprecated, please write `{}.apply` explicitly.",
+            self.text(name.name)
+        );
+        self.diags.warning(self.tpd.span(tree).point(), msg);
+        Some(self.with_apply(tree, Pt::Any, ctx).map(|apply| self.adapt(apply, Pt::Type(pt), ctx)))
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

@@ -16,12 +16,14 @@ impl Typer<'_> {
         let proto = self.protos.len();
         let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun);
         let result = if let Pt::Type(p) = pt { Some(p) } else { None };
+        let dual = self.infix_tuple_elems(id, &arg_ids);
         self.protos.push(super::overloads::FunProto {
-            args: arg_ids.clone(),
+            args: arg_ids,
             ctx,
             typed: None,
             applied,
             result,
+            dual,
         });
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
@@ -29,6 +31,12 @@ impl Typer<'_> {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
+        if let Some(m) = self.tpd.sym(self.tpd.meth_part(f))
+            && let Err(what) = self.untuple_unless_unary(proto, &[m])
+        {
+            return self.unsupported(id, what);
+        }
+        let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
             return match arg_ids[..] {
