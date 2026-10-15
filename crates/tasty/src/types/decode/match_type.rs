@@ -2,31 +2,21 @@
 //! `BIND`s when it has any.
 
 use super::{Binder, Decoder, Type, TypeId};
-use crate::NodeId;
 use crate::tags::*;
+use crate::{ANY, NodeId};
 
 impl Decoder<'_> {
     pub fn match_tpt(&mut self, id: NodeId) -> Type {
         let ast = self.ast;
-        let kids = ast.kids(id);
-        let heads: Vec<NodeId> = kids.iter().copied().filter(|&c| ast.tag(c) != CASEDEF).collect();
+        let (cases, heads): (Vec<NodeId>, Vec<NodeId>) =
+            ast.kids(id).iter().map(|&c| ast.deref(c)).partition(|&c| ast.tag(c) == CASEDEF);
         let (bound, scrutinee) = match heads[..] {
             [bound, scrutinee] => (self.ty(bound), self.ty(scrutinee)),
-            [scrutinee] => (self.any(), self.ty(scrutinee)),
+            [scrutinee] => (ANY, self.ty(scrutinee)),
             _ => return Type::Other(MATCHtpt),
         };
-        let cases = kids.iter().copied().filter(|&c| ast.tag(c) == CASEDEF).map(|c| self.case(c)).collect();
+        let cases = cases.into_iter().map(|c| self.case(c)).collect();
         Type::Match { bound, scrutinee, cases }
-    }
-
-    /// `scala.Any`, the bound of a match type tree without one.
-    fn any(&mut self) -> TypeId {
-        let scala = match self.packages.get("scala") {
-            Some(&p) => Type::Package(p),
-            None => Type::PackageName("scala".into()),
-        };
-        let scala = self.intern(scala);
-        self.intern(Type::TypeRef(scala, "Any".into()))
     }
 
     /// The capture the `BIND` at `id` stands for.
