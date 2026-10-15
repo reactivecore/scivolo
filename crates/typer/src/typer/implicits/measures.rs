@@ -50,7 +50,7 @@ impl Typer<'_> {
         let d = self.u.dealias(t);
         match self.u.types().get(d) {
             _ if d == t => Ok(None),
-            Type::Lambda { .. } | Type::Match(_) => Err(OUTSIDE),
+            Type::Lambda { .. } | Type::Match { .. } => Err(OUTSIDE),
             _ => Ok(Some(d)),
         }
     }

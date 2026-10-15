@@ -152,7 +152,7 @@ impl Cmp<'_> {
             }
             Type::And(x, y) => self.and_atoms(x, y, depth),
             Type::Refined(p, ..) | Type::Rec(_, p) | Type::Annotated(p, _) => self.atoms_at(p, depth).upper(),
-            Type::Match(p) => match self.atoms_at(p, depth).upper() {
+            Type::Match { bound, .. } => match self.atoms_at(bound, depth).upper() {
                 Atoms::Known(r) => Atoms::Known(r),
                 _ => Atoms::Unmodelled,
             },

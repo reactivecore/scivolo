@@ -19,7 +19,7 @@ impl Unpickler<'_> {
         let mut refusal = None;
         self.u.map_type(t, &mut |u, part| {
             let found = match u.types().get(part).clone() {
-                Type::Match(_) => Some("match type in a library inline body"),
+                Type::Match { .. } | Type::MatchCase(..) => Some("match type in a library inline body"),
                 Type::Other(_) | Type::Local(..) | Type::PackageName(_) => {
                     Some("undecoded type in a library inline body")
                 }
@@ -57,7 +57,7 @@ fn is_match_alias(u: &mut Universe, s: tasty::SymbolId) -> bool {
 /// Whether `t` is a match type, also as the result of a type lambda.
 fn is_match(u: &Universe, t: TypeId) -> bool {
     match *u.types().get(t) {
-        Type::Match(_) => true,
+        Type::Match { .. } => true,
         Type::Lambda { result, .. } => is_match(u, result),
         _ => false,
     }
