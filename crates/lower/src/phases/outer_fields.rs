@@ -99,8 +99,8 @@ fn through(l: &mut Lower, start: TNodeId, chain: &[SymbolId], span: Span) -> Res
 }
 
 /// The instance of `target` enclosing `class` of definition `td` read in a method of `class` if
-/// `in_method`, else in its constructor, adding the field it reads; fails where `class` holds no
-/// instance.
+/// `in_method`, else in its constructor, adding the field it reads, or of a trait through its
+/// accessor; fails where `class` holds no instance.
 pub fn outer_path(
     l: &mut Lower,
     (td, class): (TNodeId, SymbolId),
@@ -109,12 +109,21 @@ pub fn outer_path(
     span: Span,
 ) -> Result<TNodeId> {
     let refused = "local classes calling local methods that use the enclosing instance";
-    let chain = super::explicit_outer::outer_chain(l, class, target);
-    let (Some(chain), Some(&(had, param))) = (chain, l.outers.get(&class)) else {
+    let accessor = l.outer_accessors.get(&class).copied().filter(|_| l.u.is_trait(class));
+    let chain = match accessor {
+        Some(a) => {
+            let info = l.u.info(a);
+            let first = l.u.class_symbol(l.u.result_type(info)).expect("an outer class");
+            let rest = super::explicit_outer::outer_chain(l, first, target);
+            if first == target { Some(vec![first]) } else { rest.map(|r| [vec![first], r].concat()) }
+        }
+        None => super::explicit_outer::outer_chain(l, class, target),
+    };
+    let Some(chain) = chain else {
         return unsupported(span, refused);
     };
-    let start = match in_method {
-        true => {
+    let start = match l.outers.get(&class).copied() {
+        Some((had, _)) if in_method => {
             let f = field(l, class);
             if had.is_none() {
                 append_field(l, td, f);
@@ -122,7 +131,14 @@ pub fn outer_path(
             let this = l.this(class, span);
             l.select(this, f, span)
         }
-        false => l.ident(param, span),
+        Some((_, param)) => l.ident(param, span),
+        None => {
+            let Some(accessor) = accessor else { return unsupported(span, refused) };
+            let this = l.this(class, span);
+            let fun = l.select(this, accessor, span);
+            let tpe = type_ref(l.u, chain[0]);
+            l.apply(fun, &[], tpe, span)
+        }
     };
     through(l, start, &chain, span)
 }

@@ -12,22 +12,46 @@ use crate::{Lower, Result, unsupported};
 use tasty::{SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
 
-/// Makes the calls of the local methods among `functions` under `t`, and the references to those
-/// without parameter lists, call their `methods` with the captured values first.
-pub fn calls(l: &mut Lower, class: SymbolId, t: TNodeId, functions: &[Function], methods: &[Method]) {
-    let mut todo = vec![t];
-    while let Some(t) = todo.pop() {
-        if let Some((i, reference, args)) = call_of(l, t, functions) {
-            let span = l.tpd.span(reference);
-            let captured: Vec<TNodeId> = functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
-            let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
-            let receiver = l.this(home, span);
-            redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
-        }
-        if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
-            push_terms_in(l, t, &mut todo);
+/// Makes the calls of the local methods among `functions` in definition `td` of `class`, and the
+/// references to those without parameter lists, call their `methods` with the captured values
+/// first, those narrowed into an enclosing class from outside them through the enclosing
+/// instance.
+pub fn calls(
+    l: &mut Lower,
+    (td, class): (TNodeId, SymbolId),
+    functions: &[Function],
+    methods: &[Method],
+) -> Result<()> {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
+    for stat in children(l.tpd, template) {
+        let in_method = matches!(l.tpd.tree(stat), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(stat));
+        let mut todo = vec![(stat, None)];
+        while let Some((t, around)) = todo.pop() {
+            if let Some((i, reference, args)) = call_of(l, t, functions) {
+                let span = l.tpd.span(reference);
+                let captured: Vec<TNodeId> =
+                    functions[i].captured.iter().map(|&s| l.ident(s, span)).collect();
+                let home = l.u.symbol(methods[i].sym).owner.unwrap_or(class);
+                let receiver = match functions[i].into {
+                    Some(c) if around == Some(c) || c == class => l.this(c, span),
+                    Some(_) if around.is_some() => {
+                        return unsupported(span, "local functions narrowed into different classes");
+                    }
+                    Some(c) => super::outer_fields::outer_path(l, (td, class), c, in_method, span)?,
+                    None => l.this(home, span),
+                };
+                redirect(l, t, (receiver, &functions[i], &methods[i]), reference, captured, args);
+            }
+            if matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
+                continue;
+            }
+            let around = functions.iter().find(|f| f.def == t).map_or(around, |f| f.into);
+            let mut next = Vec::new();
+            push_terms_in(l, t, &mut next);
+            todo.extend(next.into_iter().map(|c| (c, around)));
         }
     }
+    Ok(())
 }
 
 /// Pushes the children of `t` but the method a return returns from onto `todo`.
@@ -66,11 +90,10 @@ pub fn calls_from_class(
                 continue;
             };
             let span = l.tpd.span(reference);
-            let receiver = match f.this && !is_static_module(l.u, class) {
-                true => {
-                    super::outer_fields::outer_path(l, (caller.td, caller.class), class, in_method, span)?
-                }
-                false => l.this(l.u.symbol(method.sym).owner.unwrap_or(class), span),
+            let home = l.u.symbol(method.sym).owner.unwrap_or(class);
+            let receiver = match f.instance() && !is_static_module(l.u, home) {
+                true => super::outer_fields::outer_path(l, (caller.td, caller.class), home, in_method, span)?,
+                false => l.this(home, span),
             };
             let mut captured = Vec::new();
             for &v in &f.captured {

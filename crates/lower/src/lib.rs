@@ -72,8 +72,8 @@ pub struct Lower<'a> {
     explicit_casts: FxHashSet<TNodeId>,
     /// The casts of `null` codegen keeps: unboxed nulls of value classes.
     null_casts: FxHashSet<TNodeId>,
-    /// The local classes lifted out of blocks.
-    local_classes: FxHashSet<SymbolId>,
+    /// The local classes lifted out of blocks, each with its owner before.
+    local_classes: FxHashMap<SymbolId, SymbolId>,
     /// The `while` loops without a condition (dotty's `WhileDo(EmptyTree, _)`) that phases made.
     endless_loops: FxHashSet<TNodeId>,
     /// The accessors `Mixin` made in classes for the values of their traits, without a position.
@@ -94,6 +94,9 @@ pub struct Lower<'a> {
     outer_accessors: FxHashMap<SymbolId, SymbolId>,
     /// The positions of the methods whose symbols dotty places elsewhere than their definitions.
     coords: FxHashMap<SymbolId, Span>,
+    /// The local functions of classes in local classes that read values captured by an enclosing
+    /// local class, each with that class, which they are lifted into (dotty's `narrowLogicOwner`).
+    narrowed: FxHashMap<SymbolId, SymbolId>,
     /// The term each method `LambdaLift` lifted was defined in.
     lifted_from: FxHashMap<SymbolId, SymbolId>,
     /// The member each super accessor of the unit accesses, whether through a named mixin.
@@ -137,7 +140,7 @@ pub fn lower(
         trait_methods: FxHashMap::default(),
         trait_forwards: FxHashMap::default(),
         applied_references: FxHashSet::default(),
-        local_classes: FxHashSet::default(),
+        local_classes: FxHashMap::default(),
         explicit_casts: FxHashSet::default(),
         null_casts: FxHashSet::default(),
         mixed_in: FxHashSet::default(),
@@ -148,6 +151,7 @@ pub fn lower(
         outers: FxHashMap::default(),
         outer_accessors: FxHashMap::default(),
         coords: FxHashMap::default(),
+        narrowed: FxHashMap::default(),
         lifted_from: FxHashMap::default(),
         super_accessors: FxHashMap::default(),
         inlined_spans: FxHashMap::default(),

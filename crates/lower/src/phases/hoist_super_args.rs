@@ -4,7 +4,7 @@
 //! place: a static method of a top-level class, else a method after the class, local or of the
 //! enclosing class.
 
-use super::lambda_lift::fresh;
+use super::lift_names::fresh;
 use super::local_free::is_term;
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};

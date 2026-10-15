@@ -91,8 +91,8 @@ const CASES: &[(&str, &str)] = &[
         "classes in local classes capturing values",
     ),
     (
-        "object O { def f() = { class C { val g = (x: Int) => x }; new C().g(1) } }",
-        "lambdas and local methods in local classes",
+        "object O { def f(k: Int) = { class C { def g = { class D { def h = List(1).map(_ + k) }; new D().h } }; new C().g } }",
+        "lambdas reading values of enclosing local classes",
     ),
     (
         "class W(val v: Int) { trait In { def get: Int }; def f = new In { def get = new In { def get = v }.get }.get }",

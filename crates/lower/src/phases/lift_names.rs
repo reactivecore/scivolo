@@ -3,10 +3,10 @@
 //! in the order they are defined.
 
 use super::dependencies::Dependencies;
-use super::lambda_lift::{Function, fresh};
+use super::lambda_lift::Function;
 use super::lifted::Method;
 use crate::{Lower, Result, unsupported};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::source::Offset;
 use tasty::{Kind, SymbolId};
@@ -126,19 +126,34 @@ pub fn prefix(
 /// `generateProxies`).
 fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &Pending) -> Result<()> {
     let mut ranked = Vec::new();
+    let trait_params = l.trait_methods.values().flat_map(|(_, pairs)| pairs);
+    let originals: FxHashMap<SymbolId, SymbolId> = trait_params.map(|&(v, p)| (p, v)).collect();
     for p in proxies {
-        let Some(rank) = pending.deps.as_ref().and_then(|d| d.rank(p.owner, p.value)) else {
+        let value = originals.get(&p.value).copied().unwrap_or(p.value);
+        let Some(rank) = pending.deps.as_ref().and_then(|d| d.rank(p.owner, value)) else {
             return unsupported(Span::NONE, "lifting a value the dependencies of the unit do not record");
         };
         ranked.push((rank, p.sym));
     }
     ranked.sort_by_key(|&(rank, _)| rank);
-    for (_, s) in ranked {
-        let base = l.u.symbol(s).name.clone();
-        let name = fresh(l, &base);
-        l.u.rename(s, &name);
-    }
+    let syms: Vec<SymbolId> = ranked.into_iter().map(|(_, s)| s).collect();
+    name_each(l, &syms);
     Ok(())
+}
+
+/// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
+pub fn name_each(l: &mut Lower, proxies: &[SymbolId]) {
+    for &p in proxies {
+        let base = l.u.symbol(p).name.clone();
+        let name = fresh(l, &base);
+        l.u.rename(p, &name);
+    }
+}
+
+/// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
+pub fn fresh(l: &mut Lower, base: &str) -> String {
+    let name = l.fresh.next(l.names, &format!("{base}$"));
+    l.names.text(name).to_owned()
 }
 
 /// The items of `sequences` merged by position, each sequence's in its order, an earlier

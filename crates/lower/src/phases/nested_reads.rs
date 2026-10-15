@@ -2,10 +2,10 @@
 //! methods read the values the local class captures from its fields, through their enclosing
 //! instances (dotty's `proxyRef` through `outer.path`).
 
-use super::explicit_outer::{outer_chain, terms};
-use super::local_free::{is_local, is_method};
+use super::explicit_outer::outer_chain;
+use super::local_free::{is_local, is_method, is_term};
 use super::outer_fields::outer_path;
-use super::walk::{is_class_def, subtrees};
+use super::walk::{children, is_class_def, is_type_tree, subtrees};
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::SymbolId;
@@ -18,9 +18,10 @@ pub struct Nested {
 }
 
 /// Makes the references to `values` in the classes defined in `stat` of local class `class`
-/// read its `fields` through their enclosing instances, but those to the values `own` lists for
-/// a nested local class, which captures them itself; fails where not in methods. The local
-/// classes that read fields are named in `class` (dotty's `narrowLogicOwner`), put in `named_in`.
+/// read its `fields` through their enclosing instances, in local functions through `this` of
+/// `class`, which they are then lifted into; but not those to the values `own` lists for a nested
+/// local class, which captures them itself; fails where not in methods. The local classes that
+/// read fields are named in `class` (dotty's `narrowLogicOwner`), put in `named_in`.
 pub fn redirect(
     l: &mut Lower,
     stat: TNodeId,
@@ -40,7 +41,7 @@ pub fn redirect(
             stats.into_iter().filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();
         for s in stats {
             let method = matches!(l.tpd.tree(s), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(s));
-            for t in terms(l, s, false) {
+            for (t, functions) in in_functions(l, s) {
                 let used = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::Ident { .. }));
                 let used = used.filter(|v| !captured.contains(v));
                 let Some(i) = used.and_then(|v| values.iter().position(|&w| w == v)) else { continue };
@@ -52,7 +53,11 @@ pub fn redirect(
                 if !method || !reachable {
                     return unsupported(span, "classes in local classes capturing values");
                 }
-                let outer = outer_path(l, (td, inner), class, true, span)?;
+                let outer = match functions.is_empty() {
+                    true => outer_path(l, (td, inner), class, true, span)?,
+                    false => l.this(class, span),
+                };
+                l.narrowed.extend(functions.into_iter().map(|f| (f, class)));
                 let read = l.select(outer, fields[i], span);
                 l.copy_node(t, read);
                 if is_local(l, inner) {
@@ -62,4 +67,23 @@ pub fn redirect(
         }
     }
     Ok(())
+}
+
+/// The trees in `stat` but those in type trees and nested classes, each with the local functions
+/// it is in, outermost first.
+fn in_functions(l: &Lower, stat: TNodeId) -> Vec<(TNodeId, Vec<SymbolId>)> {
+    let mut out = Vec::new();
+    let mut todo = vec![(stat, Vec::new())];
+    while let Some((t, mut functions)) = todo.pop() {
+        if is_type_tree(l, t) || t != stat && matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
+            continue;
+        }
+        let local = l.tpd.sym(t).filter(|&f| l.u.symbol(f).owner.is_some_and(|o| is_term(l, o)));
+        if let (Tree::DefDef { .. }, Some(f)) = (l.tpd.tree(t), local) {
+            functions.push(f);
+        }
+        todo.extend(children(l.tpd, t).into_iter().map(|c| (c, functions.clone())));
+        out.push((t, functions));
+    }
+    out
 }

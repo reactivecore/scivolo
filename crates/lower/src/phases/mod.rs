@@ -63,6 +63,7 @@ mod methods;
 mod mirrors;
 mod mixin;
 mod module_purity;
+mod narrowed;
 mod nested_reads;
 mod non_local_returns;
 mod outer_args;

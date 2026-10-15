@@ -62,8 +62,8 @@ pub fn dependencies(
         }
         let Some(i) = enclosure else { continue };
         match (l.tpd.tree(t), l.tpd.sym(t)) {
-            (Tree::This { .. }, _) => functions[i].this = true,
-            (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains(c)) => {
+            (Tree::This { .. }, s) => functions[i].this |= s.is_none() || s != functions[i].into,
+            (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains_key(c)) => {
                 functions[i].this |= in_class
             }
             (Tree::Ident { .. }, Some(s)) if pending.passed.contains(&t) => {
@@ -93,6 +93,9 @@ pub fn dependencies(
                     Callee::Function(j) => {
                         changed |= functions[j].this && !functions[*caller].this;
                         functions[*caller].this |= functions[j].this;
+                        let narrowed = functions[j].into.filter(|_| !functions[*caller].instance());
+                        changed |= narrowed.is_some();
+                        functions[*caller].into = functions[*caller].into.or(narrowed);
                         functions[j].captured.clone()
                     }
                     Callee::Value(s) => vec![s],

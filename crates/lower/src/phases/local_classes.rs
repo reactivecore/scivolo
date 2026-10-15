@@ -2,9 +2,11 @@
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.
 
-use super::dependencies::dependencies;
+use super::dependencies::{Dependencies, dependencies};
 use super::lift_names::{Caller, LocalClass, Pending};
-use super::local_free::{Free, Local, enclosing_class, free_values, is_method, is_term, lifted_into};
+use super::local_free::{
+    Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
+};
 use super::local_lift::{lift, pass_values};
 use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
 use super::nested_reads::Nested;
@@ -42,7 +44,8 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         if l.u.is_trait(class) {
             traits.push(td);
         }
-        let named_in = lifted_into(l, outer);
+        let in_trait = l.u.is_trait(outer) && is_local(l, outer) && uses_outside(l, &deps, class, outer);
+        let named_in = if in_trait { outer } else { lifted_into(l, outer) };
         locals.push(Local { td, class, named_in, free });
     }
     let order = definition_order(l, &locals);
@@ -86,6 +89,13 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         pending.classes.push(LocalClass { at, class: c.class, outer: c.outer });
     }
     Ok(pending)
+}
+
+/// Whether `class` or what is defined in it uses a local value from outside `outer` (dotty's
+/// `narrowLogicOwner` to an intermediate local trait).
+fn uses_outside(l: &Lower, deps: &Dependencies, class: SymbolId, outer: SymbolId) -> bool {
+    let inside = deps.free.iter().filter(|(o, _)| within(l, *o, class));
+    inside.flat_map(|(_, vs)| vs).any(|&v| !within(l, v, outer))
 }
 
 /// Adds to class definition `td` a leading constructor parameter of `params` for each value of
