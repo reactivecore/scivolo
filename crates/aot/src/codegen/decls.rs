@@ -38,6 +38,8 @@ pub struct Decls {
     /// The C source of each variadic call shim.
     pub shims: Vec<String>,
     pub globals: FxHashMap<GlobalId, DataId>,
+    /// Global variables and their sizes, which the collector scans.
+    pub roots: Vec<(DataId, usize)>,
 }
 
 impl Decls {
@@ -62,6 +64,7 @@ impl Decls {
             anon: 0,
             shims: Vec::new(),
             globals: FxHashMap::default(),
+            roots: Vec::new(),
         })
     }
 

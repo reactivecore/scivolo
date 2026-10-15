@@ -94,6 +94,7 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;
+    decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
     Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
 }

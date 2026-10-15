@@ -9,6 +9,11 @@ extern const int32_t scalai_aot_gc_ids[8];
 extern void *scalai_aot_modules[];
 extern const int64_t scalai_aot_modules_count;
 extern void *scalai_aot_thread[2];
+extern const struct {
+    void *start;
+    int64_t size;
+} scalai_aot_globals[];
+extern const int64_t scalai_aot_globals_count;
 
 void scalai_GC_init(void *low, void *high);
 void scalai_GC_set_ids(const int32_t *ids);
@@ -44,6 +49,10 @@ void scalai_aot_start_gc(void) {
     scalanative_GC_add_roots(scalai_aot_modules, scalai_aot_modules + scalai_aot_modules_count);
     scalanative_GC_add_roots(&scalai_aot_exception, &scalai_aot_exception + 1);
     scalanative_GC_add_roots(scalai_aot_thread, scalai_aot_thread + 2);
+    for (int64_t i = 0; i < scalai_aot_globals_count; i++) {
+        char *start = scalai_aot_globals[i].start;
+        scalanative_GC_add_roots(start, start + scalai_aot_globals[i].size);
+    }
 }
 
 // `bytes` zeroed bytes for a stackalloc of a dynamic count.

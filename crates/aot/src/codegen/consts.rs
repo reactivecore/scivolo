@@ -47,7 +47,6 @@ impl Decls {
             (_, Some(name)) => {
                 module.declare_data(&name, Linkage::Import, true, false).map_err(|e| e.to_string())?
             }
-            // Temporary until #113 aot 4 (global roots): references in globals are no collector roots.
             (DefnKind::Var { rhs, .. } | DefnKind::Const { rhs, .. }, None) => {
                 let (size, _, _) = shape(&reach.world.pool, *rhs)?;
                 let mut blob = Blob::zeroed(size.max(1));
@@ -56,12 +55,31 @@ impl Decls {
                 let id =
                     module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
                 blob.define(module, id)?;
+                self.roots.push((id, size.max(1)));
                 id
             }
             _ => return Err(format!("{} is no variable", reach.world.name(g))),
         };
         self.globals.insert(g, id);
         Ok(id)
+    }
+
+    /// `scalai_aot_globals`: the address and size of each global variable, for the collector to
+    /// scan, and `scalai_aot_globals_count` of them.
+    pub fn define_roots(&mut self, module: &mut ObjectModule) -> R<()> {
+        let mut table = Blob::zeroed(16 * self.roots.len().max(1));
+        for (i, &(id, size)) in self.roots.iter().enumerate() {
+            table.data.push((16 * i, id));
+            table.bytes[16 * i + 8..16 * i + 16].copy_from_slice(&(size as u64).to_le_bytes());
+        }
+        let declare = |module: &mut ObjectModule, name: &str| {
+            module.declare_data(name, Linkage::Export, false, false).map_err(|e| e.to_string())
+        };
+        let id = declare(module, "scalai_aot_globals")?;
+        table.define(module, id)?;
+        let count = Blob { bytes: (self.roots.len() as u64).to_le_bytes().to_vec(), ..Blob::default() };
+        let id = declare(module, "scalai_aot_globals_count")?;
+        count.define(module, id)
     }
 
     /// A data object holding value `v`.
