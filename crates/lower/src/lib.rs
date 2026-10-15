@@ -155,6 +155,7 @@ pub fn lower(
         impure_modules: FxHashSet::default(),
         erasure_owner: None,
     };
-    phases::run(&mut l, root)?;
-    codegen::unit(&mut l, root)
+    let files = phases::run(&mut l, root).and_then(|()| codegen::unit(&mut l, root));
+    l.u.elide_opaques(false);
+    files
 }

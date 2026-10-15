@@ -98,6 +98,9 @@ Apache-2.0. Rust translations of:
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)
   - `TailRec` (`TailRecElimination`)
+  - `ElimOpaque` (`crates/lower/src/phases/elim_opaque.rs`); `TypeComparer.liftToThis`,
+    `SymDenotations.opaqueToBounds`/`opaqueAlias`, `TypeOps.asSeenFrom` (`seesOpaques`)
+    (`crates/tasty/src/subtype/lift.rs`, `crates/tasty/src/symbols/opaques.rs`)
 - `crates/tasty/src/erasure/scala2.rs`: `core/unpickleScala2/Scala2Erasure`
   (`intersectionDominator`), `SourceLanguage`.
 - `crates/tasty/src/types/show_user`: `printing/{ReplPrinter,RefinedPrinter,PlainPrinter}`

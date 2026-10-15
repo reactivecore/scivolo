@@ -25,6 +25,7 @@ impl Typer<'_> {
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
         let vars = self.constraint.count();
+        let outer = self.u.set_comparison_owner(Some(ctx.owner));
         self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
@@ -42,12 +43,16 @@ impl Typer<'_> {
                 self.complete_class(sym, rhs, ctx)
             }
             Tree::TypeDef { rhs, .. } => {
-                let info = self.type_def_info(rhs, ctx);
+                let info = match self.u.symbol(sym).flags.has(tasty::tags::OPAQUE) {
+                    true => self.opaque_info(sym, rhs, ctx),
+                    false => self.type_def_info(rhs, ctx),
+                };
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
             }
             _ => {}
         }
+        self.u.set_comparison_owner(outer);
         self.syms.completions.insert(sym, Completion::Done);
         self.constraint.keep_from(vars);
     }

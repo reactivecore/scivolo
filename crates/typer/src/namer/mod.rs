@@ -71,7 +71,8 @@ impl Typer<'_> {
             }
             Tree::TypeDef { name, mods, rhs } => {
                 let param = self.ast.modifiers(mods).flags.is(f::TYPE_PARAM);
-                let abstract_ = matches!(self.ast.tree(rhs), Tree::TypeBoundsTree { .. });
+                let abstract_ = matches!(self.ast.tree(rhs), Tree::TypeBoundsTree { .. })
+                    || self.ast.modifiers(mods).flags.is(f::OPAQUE);
                 let kind = if param { Kind::TypeParam } else { Kind::Type };
                 (name, mods, kind, if abstract_ && !param { f::DEFERRED } else { f::EMPTY })
             }
@@ -99,6 +100,12 @@ impl Typer<'_> {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
+        if flags.is(f::OPAQUE)
+            && kind == Kind::Type
+            && let Some(&owner_flags) = self.syms.flags.get(&ctx.owner)
+        {
+            self.syms.set_flags(self.u, ctx.owner, owner_flags.or(f::OPAQUE));
+        }
         if package_private {
             let owner = ctx.owner;
             let package = if self.u.symbol(owner).kind == Kind::Package {

@@ -6,7 +6,7 @@ use crate::ctx::Ctx;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The info of type definition `sym` with right-hand side `rhs`: bounds for an abstract type
@@ -26,6 +26,33 @@ impl Typer<'_> {
             _ if matches!(self.ast.tree(rhs), Tree::DerivedTypeTree { .. }) => tpe,
             _ => self.u.intern_type(Type::Alias(tpe)),
         }
+    }
+
+    /// The info of opaque type `sym` with right-hand side `rhs`: its declared bounds, else
+    /// `Nothing..Any`; its alias is recorded apart (dotty's `opaqueToBounds`).
+    pub fn opaque_info(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
+        let error = self.u.intern_type(Type::Error);
+        if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. }) {
+            self.unsupported(rhs, "higher-kinded opaque type");
+            return error;
+        }
+        let typed = self.typed_type(rhs, ctx);
+        self.typed_ahead(rhs, typed, ctx);
+        let alias = self.tpd.tpe(typed);
+        let (lo, hi) = match *self.tpd.tree(typed) {
+            T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
+            _ => (tasty::NOTHING, tasty::ANY),
+        };
+        if self.type_arity(alias) > 0 {
+            self.unsupported(rhs, "alias of a type constructor");
+            return error;
+        }
+        if !self.u.is_subtype(lo, alias) || !self.u.is_subtype(alias, hi) {
+            self.unsupported(rhs, "opaque alias outside its bounds");
+            return error;
+        }
+        self.u.set_opaque_alias(sym, alias);
+        self.u.intern_type(Type::Bounds(lo, hi))
     }
 
     pub fn typed_type_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {

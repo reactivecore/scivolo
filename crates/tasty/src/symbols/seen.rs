@@ -65,8 +65,9 @@ impl Universe {
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,
         };
-        if self.symbol(s).flags.has(OPAQUE) {
-            return None;
+        if self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE) {
+            let underlying = self.opaque_underlying(s, prefix).filter(|_| args.is_empty())?;
+            return self.base_type_within(underlying, base, depth);
         }
         if self.symbol(s).kind != Kind::Class {
             let term = self.symbol(s).kind.is_term();
@@ -130,7 +131,7 @@ impl Universe {
             _ => prefix,
         };
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
-            Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
+            Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)

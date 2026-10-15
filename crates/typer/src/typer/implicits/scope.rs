@@ -70,14 +70,36 @@ impl Typer<'_> {
             }
         }
         for (s, prefix) in parts.anchors {
-            if self.anchor_companion(s).is_some_and(|m| self.holds_implicits(m)) {
-                return Err("implicit scope of an abstract or opaque type with a companion");
-            }
             if let Some(p) = prefix {
+                self.add_static_module(p, &mut out);
                 self.add_path(p, &mut out)?;
+            }
+            if let Some(m) = self.anchor_companion(s).filter(|&m| self.holds_implicits(m)) {
+                let path = prefix.filter(|&p| match *self.u.types().get(p) {
+                    Type::Sym(_, x) => self.u.symbol(x).kind.is_term() && !self.is_excluded(x),
+                    _ => false,
+                });
+                let (Some(p), Some(class)) = (path, self.u.module_class(m)) else {
+                    return Err("implicit scope of an abstract or opaque type with a companion");
+                };
+                let module_ref = self.u.intern_type(Type::Sym(Some(p), m));
+                self.add_members(class, module_ref, &mut out);
             }
         }
         Ok(out)
+    }
+
+    /// Adds the implicit members of `p` to `out` if it is a static object other than a package
+    /// object (dotty's `addPath` of a module).
+    fn add_static_module(&mut self, p: TypeId, out: &mut ImplicitScope) {
+        let Some(s) = self.referenced(p) else { return };
+        if self.u.is_module(s)
+            && self.is_static_term(s)
+            && !self.is_excluded(s)
+            && let Some(class) = self.u.module_class(s)
+        {
+            self.add_members(class, p, out);
+        }
     }
 
     /// Adds the implicit members of `class` selected from path `prefix`, and `prefix`, to `out`.

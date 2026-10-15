@@ -40,6 +40,12 @@ impl Typer<'_> {
         let class = match self.u.symbol(sym).kind.is_term() {
             true => {
                 let widened = self.u.widen(t);
+                if let Some(w) = self.referenced(widened)
+                    && self.u.symbol(w).kind == Kind::Type
+                    && self.u.alias_of(w).is_none()
+                {
+                    self.collect_parts(widened, seen, parts);
+                }
                 let class = (widened != t).then(|| self.u.class_symbol(widened)).flatten();
                 class.map(|c| (c, class_prefix(self.u, widened, c)))
             }

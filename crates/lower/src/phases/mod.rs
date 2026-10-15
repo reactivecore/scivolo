@@ -22,6 +22,7 @@ mod dependencies;
 mod drop_for_map;
 mod drop_inlined;
 mod elideable;
+mod elim_opaque;
 mod enum_values;
 mod enumerations;
 mod envelope;
@@ -146,6 +147,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let dropped = pure_stats::transform(l, root);
     retain_outside(l.tpd, &mut classes, dropped);
     local_lazy::transform(l, root)?;
+    elim_opaque::transform(l, root)?;
     explicit_outer::transform(l, &classes)?;
     let erased = erasure::erased_defs::drop(l, root);
     retain_outside(l.tpd, &mut classes, erased);

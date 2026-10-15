@@ -11,6 +11,7 @@ mod fourth;
 mod glb;
 mod hk;
 mod join;
+mod lift;
 mod lub;
 mod nothing;
 mod null;

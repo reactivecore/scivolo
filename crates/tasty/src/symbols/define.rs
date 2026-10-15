@@ -99,6 +99,14 @@ impl Universe {
         }
     }
 
+    /// Makes the right-hand sides of opaque types defined outside TASTy seen through every
+    /// prefix if `elided`, else through their owner's `this` only.
+    pub fn elide_opaques(&mut self, elided: bool) {
+        if std::mem::replace(&mut self.opaques_elided, elided) != elided {
+            self.changed();
+        }
+    }
+
     /// Gives `sym`, a symbol defined outside TASTy, the run-time name `target` (`@targetName`).
     pub fn set_target(&mut self, sym: SymbolId, target: &str) {
         self.symbols[sym.0 as usize].target = Some(target.to_owned());

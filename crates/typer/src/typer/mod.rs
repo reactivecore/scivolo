@@ -244,6 +244,7 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
         let tree = match self.ready(id, ctx) {
             Some(t) => t,
@@ -254,6 +255,7 @@ impl<'a> Typer<'a> {
         }
         self.settle_type(tree, ctx);
         let tree = self.adapt(tree, pt, ctx);
+        self.u.set_comparison_owner(outer);
         self.depth -= 1;
         tree
     }
