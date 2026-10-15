@@ -7,7 +7,7 @@ use crate::mains;
 use libimage::{Image, cache};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
 const FALLBACK: &str = "fallback";
@@ -120,11 +120,11 @@ fn build(
 }
 
 /// Compiles `source` with compiler options `options` into `out`/`classes` through scala-cli and
-/// adds its main classes to `mains`.
+/// adds its main classes to `mains`; reported errors fail it also when scala-cli exits with 0.
 fn scala_cli(source: &Path, options: &[String], out: &Path, mains: &mut Vec<String>) -> Result<(), String> {
     let cli = std::env::var_os("SCALAI_SCALA_CLI").unwrap_or_else(|| "scala-cli".into());
     let classes = out.join("classes");
-    let status = Command::new(&cli)
+    let run = Command::new(&cli)
         .args(["--power", "compile", "--quiet", "--native", "--native-version", NATIVE, "--scala", SCALA])
         .args(["--scalac-option", "-Wconf:msg=reserved for internal compiler use:s"])
         .args(options.iter().flat_map(|o| ["--scalac-option", o.as_str()]))
@@ -133,9 +133,13 @@ fn scala_cli(source: &Path, options: &[String], out: &Path, mains: &mut Vec<Stri
         .arg("-d")
         .arg(&classes)
         .arg(source)
-        .status()
+        .stdout(Stdio::inherit())
+        .output()
         .map_err(|e| format!("{}: {e}", cli.to_string_lossy()))?;
-    if !status.success() {
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    eprint!("{stderr}");
+    let errors = stderr.lines().any(|l| l.ends_with(" error found") || l.ends_with(" errors found"));
+    if !run.status.success() || errors {
         return Err(format!("compiling {} failed", source.display()));
     }
     let _ = std::fs::remove_dir_all(out.join("work"));

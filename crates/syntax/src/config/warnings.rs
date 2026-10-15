@@ -1,4 +1,4 @@
-/// The warning settings: `-Werror`, `-nowarn` and the `-W` lints.
+/// The warning settings: `-Werror`, `-nowarn` and the `-W` lints; `apply` reads the latter two.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
 pub struct Warnings {
     /// `-Werror` or `-Xfatal-warnings`.
@@ -37,7 +37,6 @@ impl Warnings {
     /// option this type knows.
     pub fn apply(&mut self, key: &str, colon_value: Option<&str>) -> bool {
         match (key, colon_value) {
-            ("-Werror" | "-Xfatal-warnings", None) => self.fatal = true,
             ("-nowarn", None) => self.nowarn = true,
             _ => match key.strip_prefix("-W").filter(|_| colon_value.is_none()).and_then(Lints::named) {
                 Some(lint) => self.lints.insert(lint),

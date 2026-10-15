@@ -9,6 +9,7 @@ const BAD: &str = "@main def bad(): Unit =\n  val n: Int = \"no\"\n  println(n)\
 const WARN: &str = "@main def warn(): Unit =\n  val Some(n) = Option(1)\n  println(n)\n";
 const FAKE: &str = "#!/bin/sh
 echo \"$@\" >> LOG
+case \"$*\" in *-Xfatal-warnings*) echo '1 error found' >&2;; esac
 while [ \"$#\" -gt 0 ]; do
   if [ \"$1\" = -d ]; then mkdir -p \"$2\" && cp NIR/*.nir \"$2\"; fi
   shift
@@ -102,23 +103,38 @@ fn the_frontend_mode_chooses_the_compiler() {
     assert!(r.stderr.ends_with("1 warning found\n"), "{}", r.stderr);
     assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("1\n", 3));
 
-    let r = scalai_with(&dir, &["-Werror"], "warn.scala", "");
-    assert!(!r.out.status.success());
-    assert!(r.stderr.contains("No warnings can be incurred under -Werror"), "{}", r.stderr);
-    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 3));
-
     let r = scalai_with(&dir, &["-Wnonunit-statement"], "unused.scala", "");
     assert!(r.stderr.contains("unused value of type Int"), "{}", r.stderr);
     assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("1\n", 3));
 
-    let r = scalai(&dir, "fatal.scala", "");
-    assert!(r.stderr.ends_with("fatal.scala: warnings under -Werror\n"), "{}", r.stderr);
+    let r = scalai_with(&dir, &["-nowarn"], "warn.scala", "");
+    assert_eq!((r.stdout.as_str(), r.stderr.as_str(), cli_calls(&dir)), ("1\n", "", 3));
+
+    let r = scalai_with(&dir, &["-Werror"], "warn.scala", "strict");
+    assert!(r.stderr.ends_with("the own frontend refuses it (option `-Werror`)\n"), "{}", r.stderr);
     assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 3));
+
+    let r = scalai_with(&dir, &["-Werror"], "warn.scala", "");
+    assert!(r.stderr.ends_with("warn.scala: falling back to scala-cli (option `-Werror`)\n"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 4));
+
+    let r = scalai(&dir, "fatal.scala", "");
+    assert!(
+        r.stderr.ends_with("fatal.scala: falling back to scala-cli (option `-Werror`)\n"),
+        "{}",
+        r.stderr
+    );
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 5));
 
     let r = scalai_with(&dir, &["-Wfoo"], "good.scala", "");
     assert!(r.stderr.ends_with("good.scala: falling back to scala-cli (option `-Wfoo`)\n"), "{}", r.stderr);
-    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 4));
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 6));
     assert!(std::fs::read_to_string(dir.join("log")).unwrap().contains("--scalac-option -Wfoo"));
+
+    let r = scalai_with(&dir, &["-Xfatal-warnings"], "good.scala", "");
+    assert!(!r.out.status.success());
+    assert!(r.stderr.contains("1 error found\n"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 7));
 
     let r = scalai(&dir, "good.scala", "fast");
     assert!(!r.out.status.success());
