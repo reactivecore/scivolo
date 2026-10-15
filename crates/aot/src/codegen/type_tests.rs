@@ -42,9 +42,9 @@ impl FnBuilder<'_, '_> {
         let target = self.rtti_addr(cls)?;
         let rtti = self.load(ptr, obj, 0);
         let l = &self.decls.rtti;
-        let (id, range, interfaces, count) = (l.id, l.range, l.traits, l.traits_len);
+        let (id, range, traits, count) = (l.id, l.range, l.traits, l.traits_len);
         let result = if self.reach.classes.get(cls).kind == Kind::Trait {
-            let list = self.load(ptr, rtti, interfaces);
+            let list = self.load(ptr, rtti, traits);
             let n = self.load(types::I32, rtti, count);
             let params = [ptr, types::I32, ptr];
             let has = self.decls.import(self.module, "scalai_aot_has_trait", &params, Some(types::I8))?;

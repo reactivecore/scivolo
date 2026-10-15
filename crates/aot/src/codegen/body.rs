@@ -26,6 +26,10 @@ pub struct FnBuilder<'a, 'w> {
     pub var_types: HashMap<u64, nir::TypeId>,
     /// The unwind edge of the instruction being translated.
     pub unwind: Next,
+    /// Locals holding a `@resolvedAtLinktime` method, whose calls are its value.
+    pub linktime_methods: HashMap<u64, nir::GlobalId>,
+    /// The parts of locals holding a pair of values.
+    pub pairs: HashMap<u64, Vec<Value>>,
     /// The shared block of each runtime throw without a handler.
     pub fail_blocks: HashMap<&'static str, Block>,
     /// Locals known not to be null: fresh objects.
@@ -34,8 +38,6 @@ pub struct FnBuilder<'a, 'w> {
     param_types: HashMap<u64, Vec<nir::TypeId>>,
     /// The NIR result type of the function.
     pub ret_ty: Option<nir::TypeId>,
-    /// Locals holding a `@resolvedAtLinktime` method, whose calls are its value.
-    pub linktime_methods: HashMap<u64, nir::GlobalId>,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -56,11 +58,12 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             propagate: None,
             var_types: HashMap::new(),
             unwind: Next::None,
+            linktime_methods: HashMap::new(),
+            pairs: HashMap::new(),
             fail_blocks: HashMap::new(),
             non_null: Default::default(),
             param_types: HashMap::new(),
             ret_ty: None,
-            linktime_methods: HashMap::new(),
         }
     }
 

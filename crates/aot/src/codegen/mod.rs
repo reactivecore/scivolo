@@ -13,6 +13,7 @@ mod memory;
 mod modules;
 mod objects;
 mod ops;
+mod overflow;
 mod rtti_layout;
 mod start;
 mod strings;

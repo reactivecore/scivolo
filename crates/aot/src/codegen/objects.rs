@@ -148,6 +148,9 @@ impl FnBuilder<'_, '_> {
             let g = target.ok_or_else(|| format!("no method {}", self.reach.world.pool.str(sig)))?;
             if self.is_linktime_resolved(g) {
                 self.linktime_methods.insert(id, g);
+            } else if kind != Kind::Module {
+                let o = self.val(obj)?;
+                self.null_check(o)?;
             }
             let f = self.decls.func(self.module, self.reach, g)?;
             self.methods.insert(id, f);

@@ -11,10 +11,15 @@ impl FnBuilder<'_, '_> {
     /// Translates `op`, the operation of local `id`; its value, if any.
     pub fn op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
         Ok(Some(match op {
-            Op::Call { ty, ptr, args } => match self.intrinsic(*ptr, args)? {
+            Op::Call { ptr, args, .. } if self.with_overflow(id, *ptr, args)? => return Ok(None),
+            Op::Call { ty, ptr, args } => match self.overflow_accessor(*ptr, args)? {
                 Some(v) => v,
-                None => return self.call(*ty, *ptr, args),
+                None => match self.intrinsic(*ptr, args)? {
+                    Some(v) => v,
+                    None => return self.call(*ty, *ptr, args),
+                },
             },
+            Op::Extract { aggr, indexes } => self.extract(*aggr, indexes)?,
             Op::Bin { bin, l, r, .. } => {
                 let nonzero = match *self.reach.world.pool.val(*r) {
                     Val::Int(x) => x != 0,
@@ -59,7 +64,12 @@ impl FnBuilder<'_, '_> {
         {
             return Ok(Some(v));
         }
-        let sig = self.decls.signature(&self.reach.world.pool, ty)?;
+        let pool = &self.reach.world.pool;
+        let callee = match pool.val(ptr) {
+            Val::Global(g, _) => pool.mangle(*g),
+            v => format!("{v:?}"),
+        };
+        let sig = self.decls.signature(pool, ty).map_err(|e| format!("{e} (call of {callee})"))?;
         if args.len() != sig.params.len() {
             return Err("call arity".into());
         }
@@ -83,7 +93,11 @@ impl FnBuilder<'_, '_> {
                 }
                 if decl.signature.params.len() != values.len() {
                     let name = decl.linkage_name(f).into_owned();
-                    return Err(format!("{name} takes {} arguments, the call passes {}", decl.signature.params.len(), values.len()));
+                    return Err(format!(
+                        "{name} takes {} arguments, the call passes {}",
+                        decl.signature.params.len(),
+                        values.len()
+                    ));
                 }
                 let fref = self.module.declare_func_in_func(f, self.b.func);
                 self.b.ins().call(fref, &values)

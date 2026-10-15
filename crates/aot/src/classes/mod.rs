@@ -99,8 +99,16 @@ impl Classes {
             let g = GlobalId(world.pool.globals.intern(Global::Member(owner, sig)));
             world.defn(g).ok().filter(|d| matches!(d.kind, DefnKind::Define { .. })).map(|_| g)
         });
+        let declared = |world: &mut World| {
+            order.iter().any(|&owner| {
+                let g = GlobalId(world.pool.globals.intern(Global::Member(owner, sig)));
+                world.defn(g).is_ok_and(|d| matches!(d.kind, DefnKind::Declare { .. }))
+            })
+        };
         match found {
-            None if is_virtual(world.pool.str(sig)) => vm::bridge(world, &order, sig).ok().flatten(),
+            None if is_virtual(world.pool.str(sig)) && declared(world) => {
+                vm::bridge(world, &order, sig).ok().flatten()
+            }
             found => found,
         }
     }

@@ -24,7 +24,9 @@ fn side_table(module: &mut ObjectModule, reach: &Reach, cls: ClassId, suffix: &s
 fn direct_traits(reach: &Reach, cls: ClassId) -> Vec<ClassId> {
     let classes = &reach.classes;
     let c = classes.get(cls);
-    let array = c.parent.filter(|&p| reach.world.pool.top_name(classes.get(p).name) == "scala.scalanative.runtime.Array");
+    let array = c
+        .parent
+        .filter(|&p| reach.world.pool.top_name(classes.get(p).name) == "scala.scalanative.runtime.Array");
     if let Some(p) = array {
         return classes.get(p).traits.iter().rev().copied().collect();
     }
@@ -123,7 +125,6 @@ fn class_part(
         let called = reach.vcalls.contains(&sig);
         match target(module, reach, decls, cls, sig, true)? {
             Some(f) => blob.funcs.push((vtable as usize + 8 * i, f)),
-            // Temporary until #113 aot 5 (bridges, ADR 0008): the VM generates the missing bridge.
             None if called => {
                 let (class, method) =
                     (reach.world.name(reach.classes.get(cls).name), reach.world.pool.str(sig));
