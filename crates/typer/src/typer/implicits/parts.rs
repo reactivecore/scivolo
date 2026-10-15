@@ -26,6 +26,7 @@ impl Typer<'_> {
             Type::Sym(p, _) => p,
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::This(c) => return self.collect_parts(c, seen, parts),
+            Type::Match { bound, .. } => return self.collect_parts(bound, seen, parts),
             _ => {
                 for part in self.children(t) {
                     self.collect_parts(part, seen, parts);

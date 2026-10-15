@@ -52,7 +52,16 @@ impl Universe {
             Type::Poly { params: ps, result, .. } => format!("[{}]{}", params(ps), self.show(*result)),
             Type::Lambda { params: ps, result, .. } => format!("[{}] =>> {}", params(ps), self.show(*result)),
             Type::Param(_, i) => format!("<param {i}>"),
-            Type::Match(bound) => format!("<match <: {}>", self.show(*bound)),
+            Type::Match { bound, scrutinee, cases } => {
+                let cases: Vec<String> = cases.iter().map(|&c| self.show(c)).collect();
+                format!(
+                    "({} match {{ {} }} <: {})",
+                    self.show(*scrutinee),
+                    cases.join("; "),
+                    self.show(*bound)
+                )
+            }
+            Type::MatchCase(p, b) => format!("case {} => {}", self.show(*p), self.show(*b)),
             Type::Constant(tag, v) => format!("{}({v})", crate::tags::name(*tag)),
             Type::Str(s) => format!("{s:?}"),
             Type::Other(tag) => format!("<{}>", crate::tags::name(*tag)),

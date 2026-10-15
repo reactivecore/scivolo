@@ -116,7 +116,8 @@ impl<'u> Printer<'u> {
             },
             Type::Method { .. } | Type::Poly { .. } => paren(GLOBAL, prec, self.lambda(t)),
             Type::Param(b, i) => self.param(b, i),
-            Type::Match(bound) => self.text(bound, prec),
+            Type::Match { bound, .. } => self.text(bound, prec),
+            Type::MatchCase(p, b) => format!("case {} => {}", self.text(p, GLOBAL), self.text(b, GLOBAL)),
             Type::Constant(crate::tags::CLASSconst, bits) => {
                 format!("classOf[{}]", self.text(TypeId(bits as u32), GLOBAL))
             }
