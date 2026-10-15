@@ -58,6 +58,8 @@ pub struct Syms {
     pub primary_ctors: FxHashMap<SymbolId, SymbolId>,
     /// The self symbol of each script class that names or types its self.
     pub selves: FxHashMap<SymbolId, SymbolId>,
+    /// The self definitions whose types are still to be typed, by class, each with its context.
+    pub pending_selves: FxHashMap<SymbolId, (NodeId, Ctx)>,
     /// The result type of each script method as its definition states it, before its type
     /// parameters become parameter references of its info.
     pub def_results: FxHashMap<SymbolId, tasty::TypeId>,
@@ -114,6 +116,7 @@ impl Syms {
             }
         }
         self.by_tree.clear();
+        self.pending_selves.clear();
         self.def_trees.clear();
         self.closure_syms.clear();
         self.annotation_trees.clear();

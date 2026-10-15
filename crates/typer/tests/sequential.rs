@@ -249,10 +249,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
             "Export",
         ),
-        (
-            "trait T:\n  def getRoot(): Int\nabstract class S { self: T =>\n  def f() = this.getRoot()\n}\n",
-            "self type",
-        ),
+        ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
         (
             "object M:\n  def f[T](x: Any) = x match\n    case y: T => y\n",
             "type pattern needing a type test or type binding",

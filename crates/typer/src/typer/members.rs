@@ -26,7 +26,10 @@ impl Typer<'_> {
         let within = (depth, ctx);
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
-            Type::This(c) => match self.u.class_symbol(c).filter(|&k| self.u.given_self_type(k).is_some()) {
+            Type::This(c) => match self.u.class_symbol(c).filter(|&k| {
+                self.ensure_self(k);
+                self.u.given_self_type(k).is_some()
+            }) {
                 Some(k) => {
                     let self_type = self.u.self_type(k);
                     self.members_within(self_type, name, within)
