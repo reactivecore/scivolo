@@ -6,7 +6,7 @@ mod error;
 mod gcinfo;
 mod heap;
 mod interp;
-pub mod layout;
+mod layout;
 mod linktime;
 mod member_table;
 mod natives;
@@ -18,9 +18,14 @@ mod threads;
 mod throwable;
 mod world;
 
+pub use class::{FieldSlot, array_names, instance_fields};
 pub use classpath::{Classpath, nir_table};
 pub use error::VmError;
+pub use gcinfo::FIRST_ARRAY;
+pub use interp::lookup_order;
+pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
 pub use natives::exit_immediately;
+pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, java_name};
 pub use throwable::{Frame, Thrown};
 pub use world::{LoadError, World};
 

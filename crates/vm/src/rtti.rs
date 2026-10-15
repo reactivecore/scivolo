@@ -6,7 +6,7 @@ use crate::heap;
 use crate::{Vm, VmError};
 
 /// The primitive classes in id order, with the name `Class.getName` reports for each.
-const PRIMITIVES: [(&str, &str); 11] = [
+pub const PRIMITIVES: [(&str, &str); 11] = [
     ("PrimitiveByte", "byte"),
     ("PrimitiveShort", "short"),
     ("PrimitiveInt", "int"),
@@ -21,8 +21,18 @@ const PRIMITIVES: [(&str, &str); 11] = [
 ];
 
 /// The `java.lang.Class` fields the collector reads, at their offsets in its C `Rtti` struct.
-const GC_RTTI_FIELDS: [(&str, usize); 5] =
+pub const GC_RTTI_FIELDS: [(&str, usize); 5] =
     [("F2idO", 8), ("F4nameO", 24), ("F4sizeO", 32), ("F15refFieldOffsetsO", 40), ("F10superClassO", 64)];
+
+/// The name `Class.getName` reports for class `name`.
+pub fn java_name(name: &str) -> &str {
+    let short = name.strip_prefix("scala.scalanative.runtime.").unwrap_or("");
+    match PRIMITIVES.iter().find(|(p, _)| *p == short) {
+        Some((_, java)) => java,
+        None if short == "BoxedUnit$" => "scala.runtime.BoxedUnit",
+        None => name,
+    }
+}
 
 #[derive(Default)]
 pub struct Rtti {
@@ -128,13 +138,7 @@ impl Vm {
     }
 
     fn name_rtti(&mut self, id: ClassId) -> Result<(), VmError> {
-        let name = self.class_name(id);
-        let short = name.strip_prefix("scala.scalanative.runtime.").unwrap_or("");
-        let name = match PRIMITIVES.iter().find(|(p, _)| *p == short) {
-            Some((_, java)) => java.to_string(),
-            None if short == "BoxedUnit$" => "scala.runtime.BoxedUnit".into(),
-            None => name.to_owned(),
-        };
+        let name = java_name(self.class_name(id)).to_owned();
         let s = self.new_string_in(&name, crate::object::Space::Permanent)?;
         let at = self.class(id).rtti + self.meta_field("F4nameO")?;
         heap::write(at, s);

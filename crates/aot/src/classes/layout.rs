@@ -1,66 +1,27 @@
 //! Instance fields and vtable slots of a class: inherited ones keep their places, own ones follow.
 
-use super::{ClassId, Classes, Field, is_virtual};
+use super::{ClassId, Classes, is_virtual};
 use crate::R;
-use nir::{Attr, DefnKind, GlobalId, StrId};
+use nir::{DefnKind, GlobalId, StrId};
 use rustc_hash::FxHashMap;
-use vm::World;
-use vm::layout::{self, ARRAY_HEADER, OBJECT_HEADER};
-
-const ARRAYS: [&str; 10] = [
-    "BooleanArray",
-    "CharArray",
-    "ByteArray",
-    "ShortArray",
-    "IntArray",
-    "LongArray",
-    "FloatArray",
-    "DoubleArray",
-    "ObjectArray",
-    "BlobArray",
-];
+use vm::{FieldSlot, World};
 
 /// Whether `name` is one of the runtime's array classes.
 pub fn is_array(name: &str) -> bool {
-    name.strip_prefix("scala.scalanative.runtime.").is_some_and(|short| ARRAYS.contains(&short))
-}
-
-pub fn array_names() -> impl Iterator<Item = &'static str> {
-    ARRAYS.iter().copied()
+    name.strip_prefix("scala.scalanative.runtime.").is_some_and(|short| vm::array_names().any(|a| a == short))
 }
 
 impl Classes {
+    /// The fields of class `name`, inherited ones first, as the VM lays them out, and the size.
     pub fn fields(
         &self,
         world: &mut World,
         name: GlobalId,
         parent: Option<ClassId>,
-    ) -> R<(FxHashMap<GlobalId, Field>, u32)> {
-        let err = |e: vm::LoadError| e.to_string();
-        let mut fields = FxHashMap::default();
-        let mut start = if is_array(world.pool.top_name(name)) { ARRAY_HEADER } else { OBJECT_HEADER };
-        if let Some(p) = parent {
-            for (&f, field) in &self.get(p).fields {
-                fields.insert(f, Field { offset: field.offset, ty: field.ty });
-                start = start.max(field.offset + layout::size_of(&world.pool, field.ty));
-            }
-        }
-        let mut own = Vec::new();
-        let mut specs = Vec::new();
-        for m in world.fields(name).map_err(err)? {
-            let Some((ty, attrs)) = world.var(m).map_err(err)? else { continue };
-            let align = attrs.iter().find_map(|a| match a {
-                Attr::Align { size, group } => Some((*size, *group)),
-                _ => None,
-            });
-            own.push(m);
-            specs.push(layout::Field { ty, align });
-        }
-        let (size, offsets) = layout::aligned_fields(&world.pool, start, &specs);
-        for ((f, spec), offset) in own.into_iter().zip(&specs).zip(offsets) {
-            fields.insert(f, Field { offset, ty: spec.ty });
-        }
-        Ok((fields, size))
+    ) -> R<(Vec<FieldSlot>, u32)> {
+        let inherited = parent.map_or(&[][..], |p| &self.get(p).field_list[..]);
+        let array = is_array(world.pool.top_name(name));
+        vm::instance_fields(world, name, inherited, array).map_err(|e| e.to_string())
     }
 
     pub fn slots(

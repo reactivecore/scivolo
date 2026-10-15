@@ -5,7 +5,7 @@
 mod rtti;
 
 use crate::R;
-use crate::classes::{ClassId, Classes, Kind, array_names};
+use crate::classes::{ClassId, Classes, Kind};
 use crate::codegen::{CLASS, Decls};
 use crate::reach::Reach;
 use cranelift_module::{DataDescription, Linkage, Module};
@@ -14,37 +14,22 @@ use nir::Pool;
 
 const RUNTIME: &str = "scala.scalanative.runtime.";
 
-/// The primitive classes, in id order.
-const PRIMITIVES: [&str; 11] = [
-    "PrimitiveByte",
-    "PrimitiveShort",
-    "PrimitiveInt",
-    "PrimitiveLong",
-    "PrimitiveChar",
-    "PrimitiveFloat",
-    "PrimitiveDouble",
-    "PrimitiveBoolean",
-    "PrimitiveUnit",
-    "RawSize",
-    "RawPtr",
-];
-
 // Temporary until #113 aot 6 (library cache): the tables go into the program's object, not an
 // object of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let mut fixed = Vec::new();
-    for name in PRIMITIVES {
-        fixed.push(reach.link_top(&format!("{RUNTIME}{name}"))?);
+    for (i, (name, _)) in vm::PRIMITIVES.iter().enumerate() {
+        fixed.push((i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
     }
-    fixed.push(reach.link_top("java.lang.Object")?);
-    fixed.push(reach.link_top(&format!("{RUNTIME}Array"))?);
-    for name in array_names() {
-        fixed.push(reach.link_top(&format!("{RUNTIME}{name}"))?);
+    fixed.push((vm::FIRST_ARRAY - 2, reach.link_top("java.lang.Object")?));
+    fixed.push((vm::FIRST_ARRAY - 1, reach.link_top(&format!("{RUNTIME}Array"))?));
+    for (i, name) in vm::array_names().enumerate() {
+        fixed.push((vm::FIRST_ARRAY + i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
     }
     let meta = reach.link_top(CLASS)?;
     let ids = ids(&reach.classes, &reach.world.pool);
-    for (expected, &cls) in fixed.iter().enumerate() {
-        if ids[cls as usize].0 != expected as i32 {
+    for &(expected, cls) in &fixed {
+        if ids[cls as usize].0 != expected {
             let name = reach.world.name(reach.classes.get(cls).name);
             return Err(format!(
                 "{name} has class id {}, the runtime expects {expected}",
@@ -72,10 +57,11 @@ fn ids(classes: &Classes, pool: &Pool) -> Vec<(i32, i32)> {
             None => roots.push(i as ClassId),
         }
     }
-    roots.sort_by_key(|&c| PRIMITIVES.iter().position(|p| *p == name(c)).unwrap_or(PRIMITIVES.len()));
+    let primitives = &vm::PRIMITIVES;
+    roots.sort_by_key(|&c| primitives.iter().position(|p| p.0 == name(c)).unwrap_or(primitives.len()));
     let rank = |c: ClassId| match name(c) {
         "Array" => 0,
-        n => 1 + array_names().position(|a| a == n).unwrap_or(array_names().count()),
+        n => 1 + vm::array_names().position(|a| a == n).unwrap_or(vm::array_names().count()),
     };
     for list in &mut children {
         list.sort_by_key(|&c| rank(c));

@@ -38,8 +38,8 @@ impl RttiLayout {
             let f = classes.get(meta).fields.get(&g).ok_or_else(|| format!("no field {CLASS}::{sig}"))?;
             Ok::<_, String>(f.offset as i32)
         };
-        for (sig, offset) in GC_RTTI_FIELDS {
-            if field(sig)? != offset {
+        for (sig, offset) in vm::GC_RTTI_FIELDS {
+            if field(sig)? != offset as i32 {
                 return Err(format!("{CLASS}::{sig} is not where Immix reads it"));
             }
         }
@@ -59,10 +59,6 @@ impl RttiLayout {
         })
     }
 }
-
-/// The `java.lang.Class` fields the collector reads, at their offsets in its C `Rtti` struct.
-const GC_RTTI_FIELDS: [(&str, i32); 5] =
-    [("F2idO", 8), ("F4nameO", 24), ("F4sizeO", 32), ("F15refFieldOffsetsO", 40), ("F10superClassO", 64)];
 
 pub struct Decls {
     pub call_conv: CallConv,
@@ -113,7 +109,7 @@ impl Decls {
             return Ok(id);
         }
         let name = format!("_S{}", reach.world.pool.mangle(reach.classes.get(cls).name));
-        let id = module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
+        let id = module.declare_data(&name, Linkage::Local, false, false).map_err(|e| e.to_string())?;
         self.rttis.insert(cls, id);
         Ok(id)
     }

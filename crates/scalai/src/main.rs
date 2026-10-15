@@ -1,6 +1,5 @@
 mod frontend;
 mod history;
-mod libs;
 mod mains;
 mod repl;
 mod script;

@@ -79,12 +79,11 @@ dependencies = [
  "cranelift-frontend",
  "cranelift-module",
  "cranelift-object",
- "libimage",
+ "libs",
  "nir",
  "rustc-hash",
  "snrt",
  "target-lexicon",
- "tasty",
  "vm",
 ]
 
@@ -493,6 +492,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
+name = "libs"
+version = "0.1.0"
+dependencies = [
+ "libimage",
+ "tasty",
+ "vm",
+]
+
+[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -611,6 +619,7 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "libimage",
+ "libs",
  "lower",
  "syntax",
  "tasty",
@@ -650,6 +659,7 @@ dependencies = [
  "clap",
  "libc",
  "libimage",
+ "libs",
  "lower",
  "nir",
  "repl",

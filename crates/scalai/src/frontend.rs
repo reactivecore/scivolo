@@ -1,8 +1,8 @@
 //! The own frontend for scripts: parser, typer and lowering into NIR files.
 
-use crate::libs::SCALA;
 use crate::mains;
 use libimage::Image;
+use libs::SCALA;
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;

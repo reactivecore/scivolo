@@ -29,6 +29,7 @@ use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId};
 use std::rc::Rc;
 
+pub use dispatch::lookup_order;
 pub use funcs::{Func, FuncId, Funcs, StackGuard, func_ref, is_func_ref};
 pub use unwind::{Flow, Unwind, Unwound};
 

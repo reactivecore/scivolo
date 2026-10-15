@@ -2,8 +2,6 @@
 
 mod layout;
 
-pub use layout::array_names;
-
 use crate::R;
 use nir::{DefnKind, Global, GlobalId, StrId};
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -30,6 +28,8 @@ pub struct Class {
     pub traits: Vec<ClassId>,
     pub ancestors: FxHashSet<ClassId>,
     pub fields: FxHashMap<GlobalId, Field>,
+    /// The fields in layout order, inherited ones first.
+    pub field_list: Vec<vm::FieldSlot>,
     pub size: u32,
     /// The virtual methods in vtable order: the parent's, then the ones this class declares first.
     pub slots: Vec<StrId>,
@@ -66,12 +66,14 @@ impl Classes {
         for &a in parent.iter().chain(&traits) {
             ancestors.extend(self.get(a).ancestors.iter().copied());
         }
-        let (fields, size) = self.fields(world, name, parent)?;
+        let (field_list, size) = self.fields(world, name, parent)?;
+        let fields = field_list.iter().map(|&(f, offset, ty)| (f, Field { offset, ty })).collect();
         let (slots, slot_of) = match kind {
             Kind::Trait => Default::default(),
             _ => self.slots(world, name, parent)?,
         };
-        self.all.push(Class { name, kind, parent, traits, ancestors, fields, size, slots, slot_of });
+        let class = Class { name, kind, parent, traits, ancestors, fields, field_list, size, slots, slot_of };
+        self.all.push(class);
         self.by_name.insert(name, id);
         Ok(id)
     }
@@ -85,28 +87,8 @@ impl Classes {
         self.by_name.get(&name).copied()
     }
 
-    /// Where methods of `cls` are looked up: its class chain, then the traits of each class in
-    /// the chain, later-mixed traits first.
     fn lookup_order(&self, cls: ClassId) -> Vec<ClassId> {
-        let mut order = Vec::new();
-        let mut c = Some(cls);
-        while let Some(id) = c {
-            order.push(id);
-            c = self.get(id).parent;
-        }
-        for id in order.clone() {
-            self.push_traits(id, &mut order);
-        }
-        order
-    }
-
-    fn push_traits(&self, id: ClassId, order: &mut Vec<ClassId>) {
-        for &t in self.get(id).traits.iter().rev() {
-            if !order.contains(&t) {
-                order.push(t);
-                self.push_traits(t, order);
-            }
-        }
+        vm::lookup_order(cls, |id| self.get(id).parent, |id| &self.get(id).traits)
     }
 
     /// The first concrete definition of `sig` in `cls`'s lookup order.
@@ -120,7 +102,7 @@ impl Classes {
 
 /// Whether `sig` names a public instance method, the methods vtables and itables hold.
 pub fn is_virtual(sig: &str) -> bool {
-    sig.starts_with('D') && sig.ends_with("EO")
+    nir::demangle::method(sig).is_some()
 }
 
 /// The itable key of method `sig`: its 64-bit FNV-1a hash.

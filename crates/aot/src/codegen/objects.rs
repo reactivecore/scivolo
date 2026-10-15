@@ -26,6 +26,9 @@ impl FnBuilder<'_, '_> {
                 let cls = self.reach.link(*name)?;
                 self.alloc(cls)?
             }
+            Op::Fieldload { ty, .. } if matches!(self.reach.world.pool.ty(*ty), nir::Type::Unit) => {
+                self.b.ins().iconst(types::I8, 0)
+            }
             Op::Fieldload { ty, obj, name } => {
                 let (o, offset) = (self.val(*obj)?, self.field_offset(*name)?);
                 let t = self.ty(*ty)?;
@@ -33,7 +36,8 @@ impl FnBuilder<'_, '_> {
             }
             Op::Fieldstore { ty, obj, name, value } => {
                 let (o, offset) = (self.val(*obj)?, self.field_offset(*name)?);
-                let t = self.ty(*ty)?;
+                let unit = matches!(self.reach.world.pool.ty(*ty), nir::Type::Unit);
+                let t = if unit { self.decls.ptr } else { self.ty(*ty)? };
                 let v = self.arg(*value, t)?;
                 self.b.ins().store(MemFlagsData::new(), v, o, offset);
                 return Ok(None);

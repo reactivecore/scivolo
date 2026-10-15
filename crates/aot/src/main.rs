@@ -3,8 +3,6 @@
 mod classes;
 mod codegen;
 mod entry;
-#[path = "../../scalai/src/libs.rs"]
-mod libs;
 mod link;
 mod reach;
 mod tables;
