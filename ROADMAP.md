@@ -278,7 +278,8 @@ Next, in order of the tests they unblock:
    implicit argument, 28, among them lazy-implicit-nums and -lists, which need unification
    inside implicit searches); adaptations (26); the rest of D, refined type trees (21); the rest of E,
    opaque aliases other than classes (8); the rest of G, type lambdas and higher-kinded type
-   lambda parameters (4 each).
+   lambda parameters (4 each); match-type reduction for generic tuples and `scala.compiletime`
+   ([research 21](docs/research/21-match-type-reduction.md), #39, ~33 tests).
 2. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 3. **Lowering gaps** (research 15): patterns of classes in classes, calls with several argument
    lists, `Unit`/`Null`/`Nothing` parameters and private fields, sub matches, reflective calls,
