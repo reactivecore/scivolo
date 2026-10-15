@@ -97,6 +97,7 @@ impl FnBuilder<'_, '_> {
 
     /// Division and remainder; division by zero traps, `MIN / -1` wraps.
     fn div(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
+        // Temporary until #113 aot 3 (slow paths): division by zero calls throwDivisionByZero.
         self.b.ins().trapz(r, TrapCode::INTEGER_DIVISION_BY_ZERO);
         Ok(match bin {
             Bin::Udiv => self.b.ins().udiv(l, r),

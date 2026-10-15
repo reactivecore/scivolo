@@ -13,7 +13,8 @@ struct Args {
     /// Directory of `.nir` files.
     #[arg(long = "cp", required = true)]
     classpath: Vec<PathBuf>,
-    /// Name of the `(Int) => Int` method the executable calls with its first argument.
+    /// Name of the `(Int) => Int` method the executable calls with its argument.
+    // Temporary until #113 aot 3 (generated main): replaced by the main class.
     #[arg(long)]
     entry: String,
     /// Path of the executable.

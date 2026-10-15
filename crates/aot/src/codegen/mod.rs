@@ -141,6 +141,7 @@ impl<'p> Symbols<'p> {
 
     /// The instance of module `g`, which must have no fields: a zeroed slot whose constructor
     /// does not run.
+    // Temporary until #113 aot 2 (module load functions): modules are allocated and constructed.
     fn module(&mut self, module: &mut ObjectModule, g: GlobalId) -> R<DataId> {
         if let Some(&id) = self.modules.get(&g) {
             return Ok(id);

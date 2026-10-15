@@ -78,6 +78,7 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
         match inst {
             Inst::Let { id, op, unwind, .. } => {
                 if !matches!(unwind, Next::None) {
+                    // Temporary until #113 aot 4 (exceptions as flags).
                     return Err("exception handlers are not supported yet".into());
                 }
                 if let Some(v) = self.op(id.0, op)? {
@@ -123,6 +124,7 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
             Inst::Unreachable(_) => {
                 self.b.ins().trap(TrapCode::unwrap_user(1));
             }
+            // Temporary until #113 aot 4 (throw) and aot 5 (linktime conditions).
             Inst::Label(..) | Inst::Throw(..) | Inst::LinktimeIf(..) => {
                 return Err(format!("instruction not supported yet: {inst:?}"));
             }
