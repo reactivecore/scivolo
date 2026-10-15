@@ -106,6 +106,7 @@ impl Typer<'_> {
                 Type::ByName(r) => r,
                 _ => x,
             };
+            let p = self.from_java_object(Some(alt), p);
             let (a, p) = (by_name_result(self, a), by_name_result(self, p));
             all &= self.compatible(a, p, views, ctx)?;
         }

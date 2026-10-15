@@ -151,7 +151,8 @@ impl Printer<'_> {
                     _ => format!("{name}#{i}"),
                 }
             }
-            Type::Match(bound) => format!("(<match> <: {})", self.tpe(bound, n)),
+            Type::Match { bound, .. } => format!("(<match> <: {})", self.tpe(bound, n)),
+            Type::MatchCase(p, b) => format!("(<case> {} => {})", self.tpe(p, n), self.tpe(b, n)),
             Type::Constant(tasty::tags::CLASSconst, bits) => {
                 format!("#Class:{}", self.tpe(TypeId(bits as u32), n))
             }

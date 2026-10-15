@@ -154,7 +154,7 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             _ => tycon,
         };
         let Type::Lambda { binder, params, result } = u.types().get(lambda).clone() else { return None };
-        if matches!(u.types().get(result), Type::Match(_)) {
+        if matches!(u.types().get(result), Type::Match { .. }) {
             return None;
         }
         let eta = matches!(u.types().get(result), Type::Applied(_, rargs)

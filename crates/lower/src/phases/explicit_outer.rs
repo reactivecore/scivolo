@@ -78,35 +78,6 @@ pub fn in_term(l: &Lower, class: SymbolId) -> bool {
     false
 }
 
-/// Why a type test against `target` cannot be lowered: an object of a class, or in a match a
-/// class that may test its enclosing instance (dotty's `addOuterTest`).
-pub fn unsupported_test(l: &mut Lower, target: tasty::TypeId, in_match: bool) -> Option<&'static str> {
-    if let Type::Sym(_, s) = *l.u.types().get(target)
-        && l.u.is_module(s)
-        && !is_static(l.u, s)
-    {
-        return Some("type tests of objects nested in classes");
-    }
-    let widened = l.u.widen(target);
-    let dealiased = l.u.dealias(widened);
-    let inner = l.u.class_symbol(dealiased).is_some_and(|c| outer_class(l, c).is_some() && !is_local(l, c));
-    let tested = outer_prefix(l, target).is_some();
-    (in_match && inner && !tested).then_some("patterns of classes in classes")
-}
-
-/// The prefix `O.this` of type `O.this.C` of a class `C` with an enclosing instance, the instance
-/// a match tests (dotty's `addOuterTest` for a singleton prefix).
-pub fn outer_prefix(l: &mut Lower, target: tasty::TypeId) -> Option<tasty::TypeId> {
-    let target = l.u.dealias(target);
-    let target = match *l.u.types().get(target) {
-        Type::Applied(tycon, _) => tycon,
-        _ => target,
-    };
-    let Type::Sym(Some(pre), c) = *l.u.types().get(target) else { return None };
-    let singleton = matches!(l.u.types().get(pre), Type::This(_));
-    (singleton && l.u.is_class(c) && enclosing_instance(l, c).is_some()).then_some(pre)
-}
-
 /// `t` and the trees in it but those in type trees, and in class definitions within `t` unless
 /// `nested`.
 pub fn terms(l: &Lower, t: TNodeId, nested: bool) -> Vec<TNodeId> {

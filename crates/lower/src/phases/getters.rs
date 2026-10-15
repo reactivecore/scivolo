@@ -9,7 +9,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -75,14 +75,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.u.set_owner(sym, constructor);
             continue;
         }
-        let info = l.u.info(sym);
-        let erased = l.u.erase(info);
-        if (private_local || is_param_accessor(l, sym))
-            && matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing)
-        {
-            return unsupported(span, "parameters and private local fields of type Unit, Null or Nothing");
-        }
         if private_local {
+            if super::memoize::bottom(l, sym).is_some() {
+                return unsupported(span, "private local fields of type Unit, Null or Nothing");
+            }
             l.fields.insert(sym, sym);
             continue;
         }
@@ -177,10 +173,10 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
 }
 
-/// Whether `s` is a `final` value of a constant type.
+/// Whether `s` is a `final` value, not a variable, of a constant type.
 pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
     let value = l.u.symbol(s).kind == Kind::Val || has(l.u, s, FIELDaccessor);
-    if !has(l.u, s, FINAL) || !value {
+    if !has(l.u, s, FINAL) || has(l.u, s, MUTABLE) || !value {
         return false;
     }
     let info = l.u.info(s);

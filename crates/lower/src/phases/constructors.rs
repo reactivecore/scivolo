@@ -36,16 +36,16 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let const_getter = sym.filter(|&s| is_const_final(l, s));
         match *l.tpd.tree(stat) {
             Tree::Import { .. } => {}
-            Tree::DefDef { name, paramss, tpt, rhs: Some(rhs) }
+            Tree::DefDef { name, paramss, tpt, rhs }
                 if const_getter.is_some()
-                    && !matches!(l.tpd.tree(rhs), Tree::Literal { .. } | Tree::ClassLiteral { .. }) =>
+                    && !rhs.is_some_and(|r| {
+                        matches!(l.tpd.tree(r), Tree::Literal { .. } | Tree::ClassLiteral { .. })
+                    }) =>
             {
                 let getter = const_getter.expect("a getter's symbol");
-                let literal = literal_of(l, getter, l.tpd.span(stat)).unwrap_or(rhs);
-                if literal != rhs {
-                    inits.push(rhs);
-                }
-                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: Some(literal) };
+                let literal = literal_of(l, getter, l.tpd.span(stat)).or(rhs);
+                inits.extend(rhs.filter(|&r| Some(r) != literal));
+                l.tpd.get_mut(stat).tree = Tree::DefDef { name, paramss, tpt, rhs: literal };
                 class_stats.push(stat);
             }
             Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::ValDef { rhs: None, .. } => {
@@ -91,7 +91,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let param = params.iter().copied().find(|&p| &l.u.symbol(p).name == name);
         let param = param.expect("a class parameter's constructor parameter");
         let field = l.fields.iter().find(|&(_, &g)| g == accessor).map(|(&f, _)| f);
-        let field = field.expect("a class parameter's field");
+        let Some(field) = field else {
+            let fieldless = bottom(l, accessor).is_some() || is_const_final(l, accessor);
+            assert!(fieldless, "a class parameter's field");
+            continue;
+        };
         let lhs = l.field_ref(field, template_span);
         let value = l.ident(param, template_span);
         stats.push(assign(l, lhs, value, template_span));

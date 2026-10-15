@@ -1,6 +1,7 @@
 //! Decoding the types of a file's type trees, types and paths.
 
 mod defs;
+mod match_type;
 
 pub use defs::param_tree_clauses;
 
@@ -21,6 +22,9 @@ pub struct Decoder<'a> {
     depth: u32,
     /// The refinements being decoded; a reference back to one decodes as `Other`.
     refining: Vec<NodeId>,
+    /// The captures of the match type cases being decoded: the `BIND` tree, the case's binder
+    /// and the capture's index.
+    captures: Vec<(NodeId, Binder, u32)>,
 }
 
 /// How deep types nest at most; deeper ones decode as `Other`.
@@ -33,7 +37,17 @@ impl<'a> Decoder<'a> {
         packages: &'a FxHashMap<String, SymbolId>,
         types: &'a mut Types,
     ) -> Self {
-        Self { file, ast, names, by_tree, packages, types, depth: 0, refining: Vec::new() }
+        Self {
+            file,
+            ast,
+            names,
+            by_tree,
+            packages,
+            types,
+            depth: 0,
+            refining: Vec::new(),
+            captures: Vec::new(),
+        }
     }
 
     /// The name the node at `id` refers to.
@@ -115,6 +129,9 @@ impl<'a> Decoder<'a> {
             TYPEREFdirect | TERMREFdirect | TYPEREFsymbol | TERMREFsymbol => {
                 let prefix = matches!(n.tag, TYPEREFsymbol | TERMREFsymbol).then(|| self.kid(id, 0));
                 let Some(def) = ast.at(n.a as u32) else { return Type::Other(n.tag) };
+                if let Some((binder, i)) = self.capture(def) {
+                    return Type::Param(binder, i);
+                }
                 match self.by_tree.get(&(self.file, def)) {
                     Some(&s) => Type::Sym(prefix, s),
                     None => Type::Local(Binder(self.file, n.a as u32), self.name(def)),
@@ -161,14 +178,16 @@ impl<'a> Decoder<'a> {
             ORtype => Type::Or(self.kid(id, 0), self.kid(id, 1), false),
             BYNAMEtype | BYNAMEtpt => Type::ByName(self.kid(id, 0)),
             REFINEDtype => Type::Refined(self.kid(id, 0), self.name(id), self.kid(id, 1)),
-            MATCHtype => Type::Match(self.kid(id, 0)),
-            MATCHtpt => {
-                let heads: Vec<NodeId> = k.iter().copied().filter(|&c| ast.tag(c) != CASEDEF).collect();
-                match heads[..] {
-                    [bound, _] => Type::Match(self.ty(bound)),
-                    _ => Type::Match(self.types.intern(Type::Other(n.tag))),
-                }
+            MATCHtype if k.len() > 1 => {
+                let (bound, scrutinee) = (self.ty(k[0]), self.ty(k[1]));
+                Type::Match { bound, scrutinee, cases: k[2..].iter().map(|&c| self.ty(c)).collect() }
             }
+            MATCHCASEtype => Type::MatchCase(self.kid(id, 0), self.kid(id, 1)),
+            MATCHtpt => self.match_tpt(id),
+            BIND => match self.capture(id) {
+                Some((binder, i)) => Type::Param(binder, i),
+                None => Type::Other(n.tag),
+            },
             PARAMtype => Type::Param(Binder(self.file, n.a as u32), n.b as u32),
             POLYtype | METHODtype | TYPELAMBDAtype if !k.is_empty() => self.lambda_type(id),
             LAMBDAtpt if !k.is_empty() => {

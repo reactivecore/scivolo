@@ -23,10 +23,13 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
+        if text == "*:" && self.is_large_generic_tuple(qual) {
+            return self.unsupported(id, "generic tuple of more than 22 elements");
+        }
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
-        let (mut converted, mut widened) = (false, false);
+        let (mut converted, mut widened, mut tupled) = (false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -39,6 +42,14 @@ impl Typer<'_> {
             if syms.is_empty() && self.needs_joint_member(qual_tpe, &text) {
                 return self.unsupported(id, "intersection member of an intersected type");
             }
+            if !syms.is_empty()
+                && !converted
+                && !name.is_type
+                && let Some(q) = self.qualifier_view(qual, (qual_tpe, &syms), &text, pt, ctx)
+            {
+                (qual, converted) = (q, true);
+                continue;
+            }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
@@ -46,6 +57,10 @@ impl Typer<'_> {
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;
+            }
+            if !tupled && let Some(q) = self.small_generic_tuple(qual) {
+                (qual, tupled) = (q, true);
+                continue;
             }
             if let Some(case) = self.widened_enum_case(qual) {
                 qual = case;

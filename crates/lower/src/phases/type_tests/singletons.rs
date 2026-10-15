@@ -47,7 +47,7 @@ pub fn has_value_class_this(l: &mut Lower, tp: TypeId) -> bool {
 
 /// The value of singleton type `tp` without a span: a reference, `this` or a literal (dotty's
 /// `singleton`).
-fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
+pub fn singleton(l: &mut Lower, tp: TypeId) -> Option<TNodeId> {
     if !is_singleton(l, tp) {
         return None;
     }

@@ -36,7 +36,11 @@ impl Universe {
             Type::ByName(a) => Type::ByName(m(self, a)),
             Type::Refined(p, n, i) => Type::Refined(m(self, p), n, m(self, i)),
             Type::Rec(b, a) => Type::Rec(b, m(self, a)),
-            Type::Match(a) => Type::Match(m(self, a)),
+            Type::Match { bound, scrutinee, cases } => {
+                let (bound, scrutinee) = (m(self, bound), m(self, scrutinee));
+                Type::Match { bound, scrutinee, cases: cases.into_iter().map(|c| m(self, c)).collect() }
+            }
+            Type::MatchCase(p, b) => Type::MatchCase(m(self, p), m(self, b)),
             Type::Wildcard(Some(b)) => Type::Wildcard(Some(m(self, b))),
             Type::Skolem(_, info) => {
                 let mapped = m(self, info);

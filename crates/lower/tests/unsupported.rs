@@ -54,16 +54,12 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",
     ),
-    ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
+    ("class A(u: Unit) { def f = u }", "private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
     ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
-    (
-        "class A { class B }; object O { def f(x: Any) = x match { case _: A#B => 1; case _ => 0 } }",
-        "patterns of classes in classes",
-    ),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
     ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
     (

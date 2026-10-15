@@ -61,7 +61,7 @@ fn type_test(
     in_match: bool,
     span: Span,
 ) -> Result<TNodeId> {
-    if let Some(what) = super::explicit_outer::unsupported_test(l, target, in_match) {
+    if let Some(what) = super::outer_tests::unsupported_test(l, target, in_match) {
         return unsupported(span, what);
     }
     let dealiased = l.u.dealias(target);

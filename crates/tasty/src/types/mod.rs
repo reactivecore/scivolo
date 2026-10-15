@@ -76,8 +76,15 @@ pub enum Type {
         result: TypeId,
     },
     Param(Binder, u32),
-    /// A match type, by its upper bound.
-    Match(TypeId),
+    /// A match type: its upper bound, scrutinee and cases; a case is a `MatchCase`, or a
+    /// `Lambda` over its captures whose result is one.
+    Match {
+        bound: TypeId,
+        scrutinee: TypeId,
+        cases: Vec<TypeId>,
+    },
+    /// A match type's case: its pattern and body (dotty's `MatchCase[P, B]`).
+    MatchCase(TypeId, TypeId),
     /// A constant's tag and bits; strings are `Str`, and a `CLASSconst`'s bits are the id of its
     /// class type.
     Constant(u8, i64),

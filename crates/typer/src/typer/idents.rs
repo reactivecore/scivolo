@@ -70,6 +70,11 @@ impl Typer<'_> {
         {
             return self.self_ref(id, name, s);
         }
+        if !name.is_type
+            && let Some(sel) = self.local_extension_selection(id, name, &found.syms, pt, ctx)
+        {
+            return sel;
+        }
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
             Err(what) => return self.unchosen(id, what, pt),

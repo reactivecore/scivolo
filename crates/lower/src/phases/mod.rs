@@ -74,6 +74,7 @@ mod nested_reads;
 mod non_local_returns;
 mod outer_args;
 mod outer_fields;
+mod outer_tests;
 mod outer_traits;
 mod package_objects;
 mod patmat;
