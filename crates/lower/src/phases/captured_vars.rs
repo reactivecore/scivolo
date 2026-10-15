@@ -47,19 +47,21 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
         _ => None,
     };
     let initializer = |l: &Lower, f: SymbolId| {
-        let getter = has(l.u, f, FIELDaccessor) && !has(l.u, f, LAZY) && l.u.symbol(f).owner == Some(class);
-        f == class || Some(f) == body || getter
+        let field = !has(l.u, f, LAZY) && l.u.symbol(f).owner == Some(class);
+        f == class
+            || Some(f) == body
+            || field && (has(l.u, f, FIELDaccessor) || l.u.symbol(f).kind == Kind::Val)
     };
     traverse(l, t, class, &mut |l, t, function| {
         if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
             && has(l.u, s, MUTABLE)
             && let Some(owner) = l.u.symbol(s).owner
-            && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY))
+            && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY) || initializer(l, owner))
             && !l.u.is_class(owner)
             && owner != function
             && !(initializer(l, function)
-                && l.u.is_constructor(owner)
-                && l.u.symbol(owner).owner == Some(class))
+                && (initializer(l, owner)
+                    || l.u.is_constructor(owner) && l.u.symbol(owner).owner == Some(class)))
         {
             out.insert(s);
         }

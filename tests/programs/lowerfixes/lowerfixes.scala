@@ -1,6 +1,6 @@
 //> using scala 3.9.0
 // Lambdas creating inner classes of their object; nested objects reached through package paths;
-// array literals passed as arrays of a type parameter.
+// array literals passed as arrays of a type parameter; variables of class-body blocks captured.
 
 package pkg {
   object Outer {
@@ -19,6 +19,11 @@ object Maker {
   def many(n: Int) = List(n).map(k => new Item(k).v + 1)
 }
 
+class Counter {
+  { var i = 0; List(1, 2, 3).foreach(x => i += x); println(i) }
+  val total = { var k = 10; List(1).foreach(x => k += x); k }
+}
+
 object lowerfixes {
   def refs[T <: AnyRef](xs: Array[T]): Int = xs.length
 
@@ -28,5 +33,6 @@ object lowerfixes {
     println(Maker.first().v + Maker.make().v)
     println(Maker.many(3))
     println(pkg.Outer.In.f)
+    println(new Counter().total)
   }
 }
