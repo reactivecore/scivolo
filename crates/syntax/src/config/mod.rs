@@ -1,8 +1,10 @@
 //! What the compiler settings and language imports decide about syntax.
 
 mod version;
+mod warnings;
 
 pub use version::SourceVersion;
+pub use warnings::{Lints, Warnings};
 
 /// Language features that change scanning, parsing or typing.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -87,6 +89,7 @@ pub struct Config {
     pub preview: bool,
     pub features: Features,
     pub kind_projector: KindProjector,
+    pub warnings: Warnings,
 }
 
 impl Default for Config {
@@ -100,15 +103,29 @@ impl Default for Config {
             preview: false,
             features: Features::default(),
             kind_projector: KindProjector::Disabled,
+            warnings: Warnings::default(),
         }
     }
 }
 
 impl Config {
     /// The settings given by scalac options such as `-source:future`, `-no-indent`,
-    /// `-Xkind-projector` and `-language:experimental.erasedDefinitions`; other options are
-    /// ignored.
+    /// `-Xkind-projector`, `-Werror` and `-language:experimental.erasedDefinitions`; other
+    /// options are ignored.
     pub fn from_options(options: &[&str]) -> Config {
+        Config::read(options, |_| {})
+    }
+
+    /// The settings given by `options`, or the first option they do not implement.
+    pub fn checked(options: &[&str]) -> Result<Config, String> {
+        let mut unknown = None;
+        let cfg = Config::read(options, |o| {
+            unknown.get_or_insert_with(|| o.to_owned());
+        });
+        unknown.map_or(Ok(cfg), Err)
+    }
+
+    fn read(options: &[&str], mut unknown: impl FnMut(&str)) -> Config {
         let mut cfg = Config::default();
         let mut args = options.iter().copied();
         while let Some(arg) = args.next() {
@@ -147,7 +164,11 @@ impl Config {
                         Some(_) => KindProjector::Disabled,
                     }
                 }
-                _ => {}
+                _ => {
+                    if !cfg.warnings.apply(key, colon_value) {
+                        unknown(arg)
+                    }
+                }
             }
         }
         cfg

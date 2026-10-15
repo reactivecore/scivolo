@@ -6,6 +6,7 @@ use libimage::Image;
 use std::collections::HashSet;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
+use syntax::config::Config;
 use syntax::source::SourceFile;
 use tasty::Universe;
 
@@ -32,46 +33,66 @@ impl Mode {
 }
 
 /// Why the own frontend does not compile a script, and its syntax or type errors as dotty
-/// prints them.
+/// prints them; `fatal` if the script fails rather than taking scala-cli.
 pub struct Refused {
     pub why: String,
     pub errors: Vec<String>,
+    pub fatal: bool,
 }
 
 impl<T: Into<String>> From<T> for Refused {
     fn from(why: T) -> Self {
-        Refused { why: why.into(), errors: Vec::new() }
+        Refused { why: why.into(), errors: Vec::new(), fatal: false }
     }
 }
 
-/// Writes the NIR files of `source`, whose content is `text`, under `classes` and returns the
-/// classes that define `main`, or why the own frontend does not compile it.
+/// The keys of the `//> using` directive for compiler options.
+const OPTIONS: [&str; 6] =
+    ["option", "options", "scalacOption", "scalacOptions", "scalac-option", "scalac-options"];
+
+/// Writes the NIR files of `source`, whose content is `text`, under `classes` with compiler
+/// options `given` and returns the classes that define `main`, or why the own frontend does
+/// not compile it.
 pub fn compile(
     source: &Path,
     text: &[u8],
     image: Option<&'static Image>,
     classes: &Path,
+    given: &[String],
 ) -> Result<Vec<String>, Refused> {
     if source.extension().is_some_and(|e| e == "sc") {
         return Err(".sc scripts".into());
     }
     let text = std::str::from_utf8(text).map_err(|_| "a file not in UTF-8")?;
-    if let Some(directive) = header(text).find_map(foreign_directive) {
-        return Err(format!("`//> using {directive}`").into());
-    }
+    let mut options: Vec<&str> = given.iter().map(String::as_str).collect();
+    options.extend(directive_options(text)?);
+    let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
     let image = image.ok_or("no library image")?;
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     let source = SourceFile::new(name, without_header(text));
-    let lowered =
-        catch_unwind(AssertUnwindSafe(|| lower::compile(&mut Universe::open_image(image), &source, &[])));
-    let files = lowered.map_err(|p| crate::panicked(p.as_ref()))?.map_err(|r| Refused {
+    let lowered = catch_unwind(AssertUnwindSafe(|| {
+        lower::compile_with(&mut Universe::open_image(image), &source, cfg)
+    }));
+    let (files, warnings) = lowered.map_err(|p| crate::panicked(p.as_ref()))?.map_err(|r| Refused {
         errors: if r.diags.items.is_empty() {
             Vec::new()
         } else {
             repl::compile_errors(&source, &r.diags, 80)
         },
         why: r.what,
+        fatal: false,
     })?;
+    if !cfg.warnings.nowarn && !warnings.items.is_empty() {
+        let mut lines = repl::compile_errors(&source, &warnings, 80);
+        if cfg.warnings.fatal {
+            let count = lines.pop();
+            lines.push("No warnings can be incurred under -Werror (or -Xfatal-warnings)".into());
+            lines.extend(count);
+            lines.push("1 error found".into());
+            return Err(Refused { why: "warnings under -Werror".into(), errors: lines, fatal: true });
+        }
+        lines.iter().for_each(|line| eprintln!("{line}"));
+    }
     let mut dirs = HashSet::new();
     let mut mains = Vec::new();
     for f in files {
@@ -103,14 +124,22 @@ fn header(text: &str) -> impl Iterator<Item = &str> {
     })
 }
 
-/// The key of the `//> using` directive on `line`, unless it is `scala` with the version
-/// the own frontend compiles.
-fn foreign_directive(line: &str) -> Option<&str> {
-    let mut words = line.trim_start().strip_prefix("//> using")?.split_whitespace();
-    let key = words.next().unwrap_or("");
-    let version = words.next().unwrap_or("");
-    let ours = key == "scala" && (version == "3.9" || version == SCALA) && words.next().is_none();
-    (!ours).then_some(key)
+/// The compiler options of the `//> using` directives of `text`, or the first directive the own
+/// frontend does not honour: any but options and `scala` with the version it compiles.
+fn directive_options(text: &str) -> Result<Vec<&str>, String> {
+    let mut options = Vec::new();
+    for line in header(text) {
+        let Some(rest) = line.trim_start().strip_prefix("//> using") else { continue };
+        let mut words = rest.split_whitespace().map(|w| w.trim_matches('"'));
+        let key = words.next().unwrap_or("");
+        let values: Vec<&str> = words.collect();
+        match key {
+            "scala" if matches!(values[..], [v] if v == "3.9" || v == SCALA) => {}
+            k if OPTIONS.contains(&k) => options.extend(values),
+            _ => return Err(format!("`//> using {key}`")),
+        }
+    }
+    Ok(options)
 }
 
 /// `text` with a first line starting with `#!` blanked, offsets kept.
@@ -126,23 +155,26 @@ fn without_header(text: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{foreign_directive, header, without_header};
+    use super::{directive_options, without_header};
 
     #[test]
     fn directives_are_read_before_the_code_only() {
         let text = "#!/usr/bin/env scalai\n\n// c\n//> using dep x\nobject A\n//> using dep y\n";
-        assert_eq!(header(text).filter_map(foreign_directive).collect::<Vec<_>>(), ["dep"]);
+        assert_eq!(directive_options(text), Err("`//> using dep`".into()));
         let text = "/*\n  License text\n*/\n/* c */\n//> using dep z\n@main def m() = ()\n";
-        assert_eq!(header(text).filter_map(foreign_directive).collect::<Vec<_>>(), ["dep"]);
+        assert_eq!(directive_options(text), Err("`//> using dep`".into()));
+        assert_eq!(directive_options("object A\n//> using dep y\n"), Ok(vec![]));
     }
 
     #[test]
-    fn accepts_only_the_scala_version_directive() {
-        assert_eq!(foreign_directive("//> using scala 3.9.0"), None);
-        assert_eq!(foreign_directive("//> using scala 3.9"), None);
-        assert_eq!(foreign_directive("//> using scala 3.8.3"), Some("scala"));
-        assert_eq!(foreign_directive("  //> using dep com.lihaoyi::os-lib:0.11.4"), Some("dep"));
-        assert_eq!(foreign_directive("// using dep x"), None);
+    fn accepts_the_scala_version_and_options_directives() {
+        let ok = "//> using scala 3.9.0\n//> using scala 3.9\n// using dep x\n";
+        assert_eq!(directive_options(ok), Ok(vec![]));
+        let options = "//> using options -Werror \"-Wnonunit-statement\"\n//> using option -nowarn\n";
+        assert_eq!(directive_options(options), Ok(vec!["-Werror", "-Wnonunit-statement", "-nowarn"]));
+        assert_eq!(directive_options("//> using scala 3.8.3"), Err("`//> using scala`".into()));
+        let dep = "  //> using dep com.lihaoyi::os-lib:0.11.4";
+        assert_eq!(directive_options(dep), Err("`//> using dep`".into()));
     }
 
     #[test]

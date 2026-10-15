@@ -6,6 +6,7 @@ use std::process::{Command, Output};
 
 const GOOD: &str = "#!/usr/bin/env scalai\n//> using scala 3.9.0\n@main def good(): Unit = println(\"hi\")\n";
 const BAD: &str = "@main def bad(): Unit =\n  val n: Int = \"no\"\n  println(n)\n";
+const WARN: &str = "@main def warn(): Unit =\n  val Some(n) = Option(1)\n  println(n)\n";
 const FAKE: &str = "#!/bin/sh
 echo \"$@\" >> LOG
 while [ \"$#\" -gt 0 ]; do
@@ -22,8 +23,13 @@ struct Run {
 }
 
 fn scalai(dir: &Path, file: &str, mode: &str) -> Run {
+    scalai_with(dir, &[], file, mode)
+}
+
+fn scalai_with(dir: &Path, options: &[&str], file: &str, mode: &str) -> Run {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let out = Command::new(env!("CARGO_BIN_EXE_scalai"))
+        .args(options.iter().flat_map(|o| ["-O", o]))
         .env("SCALAI_LIBS", root.join("ref/libs"))
         .env("SCALAI_CACHE", dir.join("cache"))
         .env("SCALAI_FRONTEND", mode)
@@ -53,7 +59,9 @@ fn the_frontend_mode_chooses_the_compiler() {
     let _ = std::fs::remove_dir_all(dir.join("cache/scripts"));
     let _ = std::fs::remove_file(dir.join("log"));
     std::fs::create_dir_all(&dir).unwrap();
-    for (file, text) in [("good.scala", GOOD), ("bad.scala", BAD), ("good.sc", "println(1)\n")] {
+    let fatal = format!("//> using options -Werror\n{WARN}");
+    let files = [("good.scala", GOOD), ("bad.scala", BAD), ("good.sc", "println(1)\n"), ("warn.scala", WARN)];
+    for (file, text) in files.into_iter().chain([("fatal.scala", fatal.as_str())]) {
         std::fs::write(dir.join(file), text).unwrap();
     }
     let nir = root.join("tests/programs/hello").canonicalize().unwrap();
@@ -87,6 +95,25 @@ fn the_frontend_mode_chooses_the_compiler() {
     let r = scalai(&dir, "good.sc", "");
     assert!(r.stderr.ends_with("good.sc: falling back to scala-cli (.sc scripts)\n"), "{}", r.stderr);
     assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 3));
+
+    let r = scalai(&dir, "warn.scala", "");
+    assert!(r.out.status.success(), "{}", r.stderr);
+    assert!(r.stderr.ends_with("1 warning found\n"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("1\n", 3));
+
+    let r = scalai_with(&dir, &["-Werror"], "warn.scala", "");
+    assert!(!r.out.status.success());
+    assert!(r.stderr.contains("No warnings can be incurred under -Werror"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 3));
+
+    let r = scalai(&dir, "fatal.scala", "");
+    assert!(r.stderr.ends_with("fatal.scala: warnings under -Werror\n"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 3));
+
+    let r = scalai_with(&dir, &["-Wfoo"], "good.scala", "");
+    assert!(r.stderr.ends_with("good.scala: falling back to scala-cli (option `-Wfoo`)\n"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), (HELLO, 4));
+    assert!(std::fs::read_to_string(dir.join("log")).unwrap().contains("--scalac-option -Wfoo"));
 
     let r = scalai(&dir, "good.scala", "fast");
     assert!(!r.out.status.success());
