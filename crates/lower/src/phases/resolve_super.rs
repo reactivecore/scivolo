@@ -25,7 +25,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         for acc in l.u.decls(mixin).unwrap_or_default() {
             if l.super_accessors.contains_key(&acc) {
                 defs.push(implementation(l, class, acc, at)?);
-            } else if library && is_library_accessor(&l.u.symbol(acc).name) {
+            } else if library && has(l.u, acc, ARTIFACT) && is_library_accessor(&l.u.symbol(acc).name) {
                 defs.push(library_implementation(l, class, acc, at)?);
             }
         }
@@ -81,7 +81,9 @@ fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: S
         return unsupported(span, "super accessors of library traits without an expanded name");
     };
     let expanded = format!("{prefix}$$super${name}");
-    l.u.rename(acc, &expanded);
+    if pickled != expanded {
+        l.u.rename(acc, &expanded);
+    }
     let target = rebind_super(l, class, acc, name, span)?;
     let owner = l.u.symbol(target).owner.expect("a member's owner");
     let this = l.u.this_type(class);
