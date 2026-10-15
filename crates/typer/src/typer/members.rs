@@ -65,6 +65,7 @@ impl Typer<'_> {
                             let info = self.resolve_class_params(info);
                             self.instantiated_selected(info)
                         }
+                        Some(p) if let Some(info) = self.u.refinement_info(p, s) => info,
                         _ => self.u.opaque_underlying(s, prefix).unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = match *self.u.types().get(info) {
@@ -74,7 +75,9 @@ impl Typer<'_> {
                     self.members_within(info, name, within)
                 }
             },
-            Type::Alias(a) | Type::Bounds(_, a) => self.members_within(a, name, within),
+            Type::Alias(a) | Type::Bounds(_, a) | Type::Refined(a, ..) => {
+                self.members_within(a, name, within)
+            }
             Type::Applied(..) if self.u.dealias(t) != t => {
                 let dealiased = self.u.dealias(t);
                 self.members_within(dealiased, name, within)

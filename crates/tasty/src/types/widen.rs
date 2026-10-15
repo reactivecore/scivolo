@@ -89,6 +89,11 @@ impl Universe {
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(t)?),
             _ => return None,
         };
+        if let Some(info) = prefix.and_then(|p| self.refinement_info(p, s))
+            && let Type::Alias(a) = *self.types().get(info)
+        {
+            return Some(a);
+        }
         let alias = match self.visible_opaque_alias(s, prefix) {
             Some(a) => a,
             None => self.alias_of(s)?,
@@ -98,6 +103,27 @@ impl Universe {
             Some(p) if self.symbol(owner).kind == Kind::Class => self.as_seen_from(alias, p, owner),
             _ => alias,
         })
+    }
+
+    /// The info a refinement of `prefix`'s widened type gives type member `s` (dotty's
+    /// `goRefined`).
+    pub fn refinement_info(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        if self.symbol(s).kind != Kind::Type {
+            return None;
+        }
+        let name = self.symbol(s).name.clone();
+        let mut t = self.widen(prefix);
+        for _ in 0..MAX_STEPS {
+            match self.types().get(t).clone() {
+                Type::Refined(_, n, info) if n == name => return Some(info),
+                Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
+                _ => match self.dealias(t) {
+                    d if d != t => t = d,
+                    _ => return None,
+                },
+            }
+        }
+        None
     }
 
     /// The right-hand side of type alias `s`; `None` for classes, abstract types (higher-kinded
