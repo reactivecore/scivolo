@@ -48,6 +48,17 @@ impl FnBuilder<'_, '_> {
             };
             return self.variadic_call(g, ty, args);
         }
+        let target = match *self.reach.world.pool.val(ptr) {
+            Val::Global(g, _) => Some(g),
+            Val::Local(l, _) => self.linktime_methods.get(&l.0).copied(),
+            _ => None,
+        };
+        let linktime = target.filter(|&g| self.is_linktime_resolved(g));
+        if let Some(g) = linktime
+            && let Ok(v) = self.linktime_value(g)
+        {
+            return Ok(Some(v));
+        }
         let sig = self.decls.signature(&self.reach.world.pool, ty)?;
         if args.len() != sig.params.len() {
             return Err("call arity".into());
@@ -66,6 +77,14 @@ impl FnBuilder<'_, '_> {
         };
         let call = match direct {
             Some(f) => {
+                let decl = self.module.declarations().get_function_decl(f);
+                if linktime.is_some() && decl.signature.params.len() + 1 == values.len() {
+                    values.remove(0);
+                }
+                if decl.signature.params.len() != values.len() {
+                    let name = decl.linkage_name(f).into_owned();
+                    return Err(format!("{name} takes {} arguments, the call passes {}", decl.signature.params.len(), values.len()));
+                }
                 let fref = self.module.declare_func_in_func(f, self.b.func);
                 self.b.ins().call(fref, &values)
             }

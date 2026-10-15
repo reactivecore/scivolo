@@ -34,6 +34,8 @@ pub struct FnBuilder<'a, 'w> {
     param_types: HashMap<u64, Vec<nir::TypeId>>,
     /// The NIR result type of the function.
     pub ret_ty: Option<nir::TypeId>,
+    /// Locals holding a `@resolvedAtLinktime` method, whose calls are its value.
+    pub linktime_methods: HashMap<u64, nir::GlobalId>,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -58,6 +60,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             non_null: Default::default(),
             param_types: HashMap::new(),
             ret_ty: None,
+            linktime_methods: HashMap::new(),
         }
     }
 

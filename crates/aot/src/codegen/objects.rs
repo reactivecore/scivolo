@@ -146,6 +146,9 @@ impl FnBuilder<'_, '_> {
         if kind == Kind::Module || !is_virtual(self.reach.world.pool.str(sig)) {
             let target = self.reach.classes.resolve(self.reach.world, cls, sig);
             let g = target.ok_or_else(|| format!("no method {}", self.reach.world.pool.str(sig)))?;
+            if self.is_linktime_resolved(g) {
+                self.linktime_methods.insert(id, g);
+            }
             let f = self.decls.func(self.module, self.reach, g)?;
             self.methods.insert(id, f);
             let fref = self.module.declare_func_in_func(f, self.b.func);
