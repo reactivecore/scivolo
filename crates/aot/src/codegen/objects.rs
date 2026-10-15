@@ -107,8 +107,13 @@ impl FnBuilder<'_, '_> {
     /// The address of method `sig` of `obj`: resolved here for modules and non-virtual methods,
     /// else from the vtable of its class or, if its static class has no slot, from the itable.
     fn method(&mut self, id: u64, obj: ValId, sig: StrId) -> R<Value> {
-        let ty = self.type_of(obj)?;
-        let cls = self.reach.class_of_type(ty)?.ok_or("a method of a value that is no object")?;
+        let cls = match self.reach.world.pool.val(obj) {
+            nir::Val::String(_) => self.reach.link_top("java.lang.String")?,
+            _ => {
+                let ty = self.type_of(obj)?;
+                self.reach.class_of_type(ty)?.ok_or("a method of a value that is no object")?
+            }
+        };
         let kind = self.reach.classes.get(cls).kind;
         let ptr = self.decls.ptr;
         if kind == Kind::Module || !is_virtual(self.reach.world.pool.str(sig)) {

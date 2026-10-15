@@ -1,8 +1,9 @@
 //! The object's symbols: functions, class metadata, module load functions and runtime imports,
 //! declared on first use.
 
+use super::RttiLayout;
 use crate::R;
-use crate::classes::{ClassId, Classes};
+use crate::classes::ClassId;
 use crate::reach::Reach;
 use cranelift_codegen::ir::{AbiParam, Signature, types};
 use cranelift_codegen::isa::CallConv;
@@ -11,60 +12,15 @@ use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId, Pool, Type, TypeId};
 use rustc_hash::FxHashMap;
 
-/// Offsets in a class's metadata: a `java.lang.Class` instance, then its itable and vtable.
-pub struct RttiLayout {
-    pub id: i32,
-    pub range: i32,
-    pub size: i32,
-    pub interfaces: i32,
-    pub interfaces_count: i32,
-    pub ref_offsets: i32,
-    pub super_class: i32,
-    /// Scala Native's itable size; negative makes `Class.is` search the interfaces.
-    pub itables_count: i32,
-    pub itable: i32,
-    pub itable_len: i32,
-    pub vtable: i32,
-}
-
-pub const CLASS: &str = "java.lang.Class";
-
 /// The C name of extern member `g`: its signature is `C`, the name's length, the name.
-fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
+pub fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
     let rest = pool.member_sig(g)?.strip_prefix('C')?;
     let digits = rest.find(|c: char| !c.is_ascii_digit())?;
-    Some(rest[digits..].trim_start_matches('-').to_owned())
-}
-
-impl RttiLayout {
-    pub fn new(reach: &mut Reach) -> R<Self> {
-        let meta = reach.link_top(CLASS)?;
-        let classes: &Classes = &reach.classes;
-        let mut field = |sig: &str| {
-            let g = reach.world.member(classes.get(meta).name, sig);
-            let f = classes.get(meta).fields.get(&g).ok_or_else(|| format!("no field {CLASS}::{sig}"))?;
-            Ok::<_, String>(f.offset as i32)
-        };
-        for (sig, offset) in vm::GC_RTTI_FIELDS {
-            if field(sig)? != offset as i32 {
-                return Err(format!("{CLASS}::{sig} is not where Immix reads it"));
-            }
-        }
-        let header = classes.get(meta).size.next_multiple_of(8) as i32;
-        Ok(RttiLayout {
-            id: field("F2idO")?,
-            range: field("F12idRangeUntilO")?,
-            size: field("F4sizeO")?,
-            interfaces: field("F10interfacesO")?,
-            interfaces_count: field("F15interfacesCountO")?,
-            ref_offsets: field("F15refFieldOffsetsO")?,
-            super_class: field("F10superClassO")?,
-            itables_count: field("F12itablesCountO")?,
-            itable: header,
-            itable_len: header + 8,
-            vtable: header + 16,
-        })
-    }
+    let name = rest[digits..].trim_start_matches('-');
+    Some(match name.strip_prefix("llvm.") {
+        Some(intrinsic) => format!("scalai_aot_llvm_{}", intrinsic.replace('.', "_")),
+        None => name.to_owned(),
+    })
 }
 
 pub struct Decls {
@@ -81,6 +37,9 @@ pub struct Decls {
     pub strings: FxHashMap<Vec<u16>, DataId>,
     /// Constants defined so far, which number their names.
     pub anon: usize,
+    /// The C source of each variadic call shim.
+    pub shims: Vec<String>,
+    pub globals: FxHashMap<GlobalId, DataId>,
 }
 
 impl Decls {
@@ -103,6 +62,8 @@ impl Decls {
             imports: FxHashMap::default(),
             strings: FxHashMap::default(),
             anon: 0,
+            shims: Vec::new(),
+            globals: FxHashMap::default(),
         })
     }
 

@@ -3,7 +3,7 @@
 use super::body::FnBuilder;
 use crate::R;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
-use cranelift_codegen::ir::{InstBuilder, TrapCode, Value, types};
+use cranelift_codegen::ir::{InstBuilder, MemFlagsData, TrapCode, Value, types};
 use cranelift_module::Module;
 use nir::{Bin, Comp, Conv, Op, Val};
 
@@ -34,6 +34,12 @@ impl FnBuilder<'_, '_> {
     }
 
     fn call(&mut self, ty: nir::TypeId, ptr: nir::ValId, args: &[nir::ValId]) -> R<Option<Value>> {
+        if self.is_variadic(ty) {
+            let Val::Global(g, _) = *self.reach.world.pool.val(ptr) else {
+                return Err("a variadic call through a pointer".into());
+            };
+            return self.variadic_call(g, ty, args);
+        }
         let sig = self.decls.signature(&self.reach.world.pool, ty)?;
         if args.len() != sig.params.len() {
             return Err("call arity".into());
@@ -120,6 +126,10 @@ impl FnBuilder<'_, '_> {
             Conv::Uitofp => ins.fcvt_from_uint(to, v),
             Conv::Sitofp => ins.fcvt_from_sint(to, v),
             Conv::Ptrtoint | Conv::Inttoptr | Conv::Bitcast if from == to => v,
+            Conv::Ptrtoint | Conv::Inttoptr | Conv::Bitcast if from.is_int() && to.is_int() => {
+                if to.bits() > from.bits() { ins.uextend(to, v) } else { ins.ireduce(to, v) }
+            }
+            Conv::Bitcast if from.bits() == to.bits() => ins.bitcast(to, MemFlagsData::new(), v),
             conv => return Err(format!("conversion not supported yet: {conv:?} {from} to {to}")),
         })
     }

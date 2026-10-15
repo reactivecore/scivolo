@@ -11,12 +11,15 @@ mod memory;
 mod modules;
 mod objects;
 mod ops;
+mod rtti_layout;
 mod start;
 mod strings;
 mod unwind;
 mod values;
+mod variadic;
 
-pub use decls::{CLASS, Decls, RttiLayout};
+pub use decls::Decls;
+pub use rtti_layout::{CLASS, RttiLayout};
 
 use crate::R;
 use crate::reach::Reach;
@@ -53,7 +56,8 @@ pub enum Root {
     Main(GlobalId),
 }
 
-pub fn compile(world: &mut World, root: Root) -> R<Vec<u8>> {
+/// The object file and the C source of the variadic call shims it calls.
+pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     let mut module = object_module()?;
     let mut reach = Reach::new(world);
     let rtti = RttiLayout::new(&mut reach)?;
@@ -89,7 +93,8 @@ pub fn compile(world: &mut World, root: Root) -> R<Vec<u8>> {
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;
-    module.finish().emit().map_err(|e| e.to_string())
+    let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
+    Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
 }
 
 fn define(

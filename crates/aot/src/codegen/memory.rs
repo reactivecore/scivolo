@@ -3,6 +3,7 @@
 use super::body::FnBuilder;
 use crate::R;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, StackSlotData, StackSlotKind, Value};
+use cranelift_module::Module;
 use nir::{Op, Type, TypeId, Val};
 use vm::layout::{align_of, size_of, struct_layout};
 
@@ -28,8 +29,21 @@ impl FnBuilder<'_, '_> {
                     Val::Int(k) if *k >= 0 => *k as u32,
                     Val::Long(k) if *k >= 0 => *k as u32,
                     Val::Size(k) => *k as u32,
-                    // Temporary until #113 aot 5 (stackalloc shadow stack): dynamic counts.
-                    _ => return Err("stackalloc of a dynamic count".into()),
+                    // Temporary until #113 aot 5 (stackalloc shadow stack): dynamic counts take
+                    // zeroed memory that is never freed.
+                    _ => {
+                        let ptr = self.decls.ptr;
+                        let n = self.val(*n)?;
+                        let n = match self.b.func.dfg.value_type(n) == ptr {
+                            true => n,
+                            false => self.b.ins().sextend(ptr, n),
+                        };
+                        let bytes = self.b.ins().imul_imm_s(n, size as i64);
+                        let alloc = self.decls.import(self.module, "scalai_aot_stackalloc", &[ptr], Some(ptr))?;
+                        let fref = self.module.declare_func_in_func(alloc, self.b.func);
+                        let call = self.b.ins().call(fref, &[bytes]);
+                        return Ok(Some(self.b.inst_results(call)[0]));
+                    }
                 };
                 self.stack_slot(size * count.max(1), align)
             }

@@ -47,9 +47,16 @@ impl FnBuilder<'_, '_> {
                 self.rtti_addr(cls)?
             }
             Val::Global(g, _) => {
-                let f = self.decls.func(self.module, self.reach, g)?;
-                let fref = self.module.declare_func_in_func(f, self.b.func);
-                self.b.ins().func_addr(self.decls.ptr, fref)
+                let defn = self.reach.world.defn(g).map_err(|e| e.to_string())?;
+                if matches!(defn.kind, nir::DefnKind::Var { .. } | nir::DefnKind::Const { .. }) {
+                    let data = self.decls.global_data(self.module, self.reach, g)?;
+                    let gv = self.module.declare_data_in_func(data, self.b.func);
+                    self.b.ins().symbol_value(self.decls.ptr, gv)
+                } else {
+                    let f = self.decls.func(self.module, self.reach, g)?;
+                    let fref = self.module.declare_func_in_func(f, self.b.func);
+                    self.b.ins().func_addr(self.decls.ptr, fref)
+                }
             }
             Val::String(s) => {
                 let pool = &self.reach.world.pool;

@@ -3,10 +3,12 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 extern const int32_t scalai_aot_gc_ids[8];
 extern void *scalai_aot_modules[];
 extern const int64_t scalai_aot_modules_count;
+extern void *scalai_aot_thread[2];
 
 void scalai_GC_init(void *low, void *high);
 void scalai_GC_set_ids(const int32_t *ids);
@@ -41,7 +43,12 @@ void scalai_aot_start_gc(void) {
     scalai_GC_set_ids(scalai_aot_gc_ids);
     scalanative_GC_add_roots(scalai_aot_modules, scalai_aot_modules + scalai_aot_modules_count);
     scalanative_GC_add_roots(&scalai_aot_exception, &scalai_aot_exception + 1);
+    scalanative_GC_add_roots(scalai_aot_thread, scalai_aot_thread + 2);
 }
+
+// `bytes` zeroed bytes for a stackalloc of a dynamic count.
+// Temporary until #113 aot 5 (stackalloc shadow stack): never freed.
+void *scalai_aot_stackalloc(int64_t bytes) { return calloc(1, bytes > 0 ? bytes : 1); }
 
 // A zeroed object of `size` bytes with metadata `info`.
 void *scalai_aot_alloc(void *info, int64_t size) { return scalanative_GC_alloc(info, size); }

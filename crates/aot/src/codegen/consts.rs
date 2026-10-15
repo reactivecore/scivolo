@@ -6,7 +6,7 @@ use crate::blob::Blob;
 use crate::reach::Reach;
 use cranelift_module::{DataId, Linkage, Module};
 use cranelift_object::ObjectModule;
-use nir::{Pool, Val, ValId};
+use nir::{DefnKind, GlobalId, Pool, Val, ValId};
 use vm::layout::{align_of, size_of};
 
 /// The size and alignment of value `v`, and the offsets of its members if it is a struct.
@@ -34,6 +34,31 @@ fn shape(pool: &Pool, v: ValId) -> R<(usize, usize, Vec<usize>)> {
 }
 
 impl Decls {
+    /// The data of global variable or constant `g`: the C variable an extern names, else a
+    /// writable copy of its initial value.
+    pub fn global_data(&mut self, module: &mut ObjectModule, reach: &mut Reach, g: GlobalId) -> R<DataId> {
+        if let Some(&id) = self.globals.get(&g) {
+            return Ok(id);
+        }
+        let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
+        let id = match (&defn.kind, super::decls::extern_name(&reach.world.pool, g)) {
+            (_, Some(name)) => module.declare_data(&name, Linkage::Import, true, false).map_err(|e| e.to_string())?,
+            // Temporary until #113 aot 3 (static fields): references in globals are no collector roots.
+            (DefnKind::Var { rhs, .. } | DefnKind::Const { rhs, .. }, None) => {
+                let (size, _, _) = shape(&reach.world.pool, *rhs)?;
+                let mut blob = Blob::zeroed(size.max(1));
+                self.encode(module, reach, *rhs, &mut blob, 0)?;
+                let name = format!("_S{}", reach.world.pool.mangle(g));
+                let id = module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
+                blob.define(module, id)?;
+                id
+            }
+            _ => return Err(format!("{} is no variable", reach.world.name(g))),
+        };
+        self.globals.insert(g, id);
+        Ok(id)
+    }
+
     /// A data object holding value `v`.
     pub fn constant(&mut self, module: &mut ObjectModule, reach: &mut Reach, v: ValId) -> R<DataId> {
         let (size, _, _) = shape(&reach.world.pool, v)?;

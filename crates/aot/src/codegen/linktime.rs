@@ -22,6 +22,7 @@ fn accessor(mangled: &str) -> Option<Prop> {
         "isNetBSD" => os("netbsd"),
         "isImmix" => Some(Prop::Bool(true)),
         "isBoehm" | "isCommix" | "isNone" | "isExperimental" => Some(Prop::Bool(false)),
+        "asanEnabled" | "isFreeBSD32" | "hasDebugInfo" => Some(Prop::Bool(false)),
         _ => vm::property(&vm::accessor_property(owner, method)?),
     }
 }

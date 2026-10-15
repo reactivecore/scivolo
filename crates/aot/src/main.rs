@@ -43,8 +43,8 @@ fn run(args: &Args) -> R<()> {
         (None, Some(main)) => (codegen::Root::Main(world.top(main)), "main.c"),
         (None, None) => return Err("a main class or --entry is required".into()),
     };
-    let object = codegen::compile(&mut world, root)?;
-    link::executable(&object, stub, &args.output)
+    let (object, shims) = codegen::compile(&mut world, root)?;
+    link::executable(&object, &shims, stub, &args.output)
 }
 
 fn main() {
