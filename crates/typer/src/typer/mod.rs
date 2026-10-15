@@ -168,6 +168,8 @@ pub struct Typer<'a> {
     pub constraint: crate::constraint::Constraint,
     /// How many more candidates the implicit search in progress may try.
     pub implicit_budget: u32,
+    /// The implicit searches in progress and their by-name implicits.
+    pub history: implicits::History,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
@@ -226,6 +228,7 @@ impl<'a> Typer<'a> {
             import_levels: FxHashMap::default(),
             constraint: Default::default(),
             implicit_budget: 0,
+            history: Default::default(),
             protos: Vec::new(),
             unsupported: None,
             reports: 0,

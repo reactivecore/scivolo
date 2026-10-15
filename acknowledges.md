@@ -33,7 +33,9 @@ Apache-2.0. Rust translations of:
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
   `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
   `isCoherent`, `negateIfNot`, `ContextualImplicits.level`, `combineEligibles`,
-  `collectCompanions`, `hasExtMethod`, `filterMatching`), `ProtoTypes` (`isCompatible`,
+  `collectCompanions`, `hasExtMethod`, `filterMatching`, `checkDivergence`, `recursiveRef`,
+  `SearchHistory`, `SearchRoot.emitDictionary`), `Types` (`TypeSizeAccumulator`,
+  `CoveringSetAccumulator`) in `measures.rs`, `ProtoTypes` (`isCompatible`,
   `wildApprox`) in `prefilter.rs`, `Synthesizer` (`synthesizedClassTag`,
   `synthesizedValueOf`), `TypeErasure.hasStableErasure`, `Typer.adaptNoArgsImplicitMethod`,
   `Applications.extMethodApply`; `Applications` (`compare`, `isAsGood`, `isAsGoodValueType`,

@@ -6,7 +6,6 @@
 use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
-use crate::symbols::Completion;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
 use tasty::{Type, TypeId};
@@ -19,8 +18,9 @@ pub const MAX_TRIES: u32 = 400;
 const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
-const MISFITS: [&str; 7] = [
+const MISFITS: [&str; 8] = [
     "implicit of another type",
+    "diverging implicit",
     "not an implicit value",
     "no implicit argument",
     "not a conversion",
@@ -34,7 +34,8 @@ pub fn is_misfit(what: &str) -> bool {
 }
 
 impl Typer<'_> {
-    /// An implicit argument of type `pt` at `at` in `ctx`.
+    /// An implicit argument of type `pt` at `at` in `ctx`, with the dictionary of its by-name
+    /// implicits if the search is outermost.
     pub fn implicit_arg(
         &mut self,
         pt: TypeId,
@@ -42,6 +43,16 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
+        let outermost = self.history.open.is_empty();
+        let found = self.searched_arg(pt, at, ctx, depth);
+        if outermost { self.emitted(found, at, ctx) } else { found }
+    }
+
+    fn searched_arg(&mut self, pt: TypeId, at: Span, ctx: Ctx, depth: u32) -> Result<TNodeId, &'static str> {
+        let (pt, by_name) = match *self.u.types().get(pt) {
+            Type::ByName(r) => (r, true),
+            _ => (pt, false),
+        };
         let pt = self.determined(pt);
         if self.has_open_union(pt) {
             return Err("implicit search for a union with type variables");
@@ -51,6 +62,9 @@ impl Typer<'_> {
         }
         if depth == 0 {
             self.implicit_budget = MAX_TRIES;
+        }
+        if let Some(found) = self.recursive_ref(pt, by_name, at)? {
+            return Ok(found);
         }
         if let Some(negated) = self.not_given_arg(pt) {
             return self.not_given(negated, at, ctx, depth);
@@ -69,7 +83,7 @@ impl Typer<'_> {
             };
             let mut nested_failure = false;
             let found = self.fitting(&group, |t, c| {
-                let tried = t.try_implicit(c, pt, at, ctx, depth);
+                let tried = t.tried(c, (pt, by_name), at, ctx, depth);
                 nested_failure |= tried == Err("no implicit argument");
                 tried
             })?;
@@ -89,32 +103,11 @@ impl Typer<'_> {
                     return Err(OPEN);
                 }
             }
-            return self.try_implicit(winner, pt, at, ctx, depth);
+            return self.tried(winner, (pt, by_name), at, ctx, depth);
         }
         match self.synthesized(pt, at, ctx, depth)? {
             Some(tree) => Ok(tree),
             None => Err("no implicit argument"),
-        }
-    }
-
-    /// Whether an implicit argument of type `pt` exists at `at` in `ctx`, the constraint unchanged.
-    pub fn implicit_exists(
-        &mut self,
-        pt: TypeId,
-        at: Span,
-        ctx: Ctx,
-        depth: u32,
-    ) -> Result<bool, &'static str> {
-        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
-        let result = self.implicit_arg(pt, at, ctx, depth);
-        let clean = self.unsupported == unsupported;
-        self.constraint.abandon(before);
-        self.unsupported = unsupported;
-        match result {
-            _ if !clean => Err("nested implicit search outside the subset"),
-            Ok(_) => Ok(true),
-            Err(what) if is_misfit(what) => Ok(false),
-            Err(what) => Err(what),
         }
     }
 
@@ -128,38 +121,9 @@ impl Typer<'_> {
         (self.u.full_name(class) == name).then_some(args)
     }
 
-    /// The candidates of `group` that `attempt` accepts, each tried with the constraint and the
-    /// recorded fallback restored afterwards; `Err` if one fails other than by not fitting.
-    pub fn fitting(
-        &mut self,
-        group: &[Candidate],
-        mut attempt: impl FnMut(&mut Self, Candidate) -> Result<TNodeId, &'static str>,
-    ) -> Result<Vec<Candidate>, &'static str> {
-        let mut found = Vec::new();
-        for &c in group {
-            if matches!(self.syms.completions.get(&c.sym), Some(Completion::Completing(_))) {
-                return Err("implicit candidate whose definition is being completed");
-            }
-            let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
-            let result = attempt(self, c);
-            let clean = self.unsupported == unsupported;
-            self.constraint.abandon(before);
-            self.unsupported = unsupported;
-            if !clean {
-                return Err("implicit candidate outside the subset");
-            }
-            match result {
-                Ok(_) => found.push(c),
-                Err(what) if is_misfit(what) => {}
-                Err(what) => return Err(what),
-            }
-        }
-        Ok(found)
-    }
-
-    /// Candidate `c` as an argument of type `pt`: referenced, applied to type variables and to
-    /// its own implicit arguments.
-    fn try_implicit(
+    /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
+    /// to type variables and to its own implicit arguments.
+    pub fn try_implicit(
         &mut self,
         c: Candidate,
         pt: TypeId,
@@ -167,13 +131,6 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
-        self.complete(c.sym);
-        if !self.is_implicit(c.sym) {
-            return Err("not an implicit value");
-        }
-        if self.cannot_fit(c.sym, pt) {
-            return Err("implicit of another type");
-        }
         let tree = self.candidate_ref(c, at, ctx)?;
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
