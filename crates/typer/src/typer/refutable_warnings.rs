@@ -1,18 +1,17 @@
-//! dotty's migration warnings about refutable patterns of definitions and generators (the
-//! messages of `Checking.checkIrrefutable`).
+//! dotty's migration warnings about refutable patterns of definitions (the messages of
+//! `Checking.checkIrrefutable`).
 
 use super::Typer;
 use super::irrefutable::{RUNTIME_CHECKED, Refutable, UNCHECKED};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::config::SourceVersion;
 use syntax::diag::rewrite_notice;
 use tasty::TypeId;
 
 impl Typer<'_> {
-    /// Reports `reason` as dotty's migration warning about a refutable pattern of selector `sel`,
-    /// in a definition if `pat_def`, else in a generator.
-    pub fn warn_refutable(&mut self, reason: Refutable, sel: TNodeId, pat_def: bool) {
-        let (message, usage, node, span) = match reason {
+    /// Reports `reason` as dotty's migration warning about a refutable pattern definition of
+    /// selector `sel`.
+    pub fn warn_refutable(&mut self, reason: Refutable, sel: TNodeId) {
+        let (message, usage, span) = match reason {
             Refutable::NonConforming(p, pt) => {
                 let p_tpe = self.tpd.tpe(p);
                 let pt = self.without_annotation(pt, UNCHECKED);
@@ -24,7 +23,7 @@ impl Typer<'_> {
                 let message = format!(
                     "pattern's type {p_text} {problem} the right hand side expression's type {pt_text}"
                 );
-                (message, "the narrowing", p, self.tpd.span(sel))
+                (message, "the narrowing", self.tpd.span(sel))
             }
             Refutable::Extractor(p) => {
                 let message = match self.extractor_name(p) {
@@ -32,32 +31,14 @@ impl Typer<'_> {
                     None => "pattern binding uses refutable extractor".to_owned(),
                 };
                 let span = self.tpd.span(p).union(self.tpd.span(sel));
-                (message, "this usage", p, span)
+                (message, "this usage", span)
             }
             Refutable::Unknown => return,
         };
-        let span = if pat_def { span } else { self.tpd.span(node) };
-        let since_3_8 = self.source_version.is_at_least(SourceVersion::V3_8);
-        let (fix, addendum, version) = match (pat_def, since_3_8) {
-            (true, true) => (
-                "adding `.runtimeChecked` after the expression",
-                "may result in a MatchError at runtime",
-                "3.8-migration",
-            ),
-            (true, false) => (
-                "adding `: @unchecked` after the expression",
-                "may result in a MatchError at runtime",
-                "3.2-migration",
-            ),
-            (false, _) => (
-                "adding the `case` keyword before the full pattern",
-                "will result in a filtering for expression (using `withFilter`)",
-                "3.2-migration",
-            ),
-        };
-        let rewrite = rewrite_notice("This patch", version, "");
+        let rewrite = rewrite_notice("This patch", "3.8-migration", "");
         let text = format!(
-            "{message}\n\nIf {usage} is intentional, this can be communicated by {fix},\nwhich {addendum}.{rewrite}"
+            "{message}\n\nIf {usage} is intentional, this can be communicated by adding `.runtimeChecked` \
+             after the expression,\nwhich may result in a MatchError at runtime.{rewrite}"
         );
         self.diags.warning_at(span.start(), span.end(), span.point(), text);
     }

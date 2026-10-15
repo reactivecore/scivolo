@@ -49,16 +49,13 @@ impl Typer<'_> {
         }
         let mut seen: Vec<Leveled> = Vec::new();
         let mut outer: Option<(u32, Prec, Option<SymbolId>)> = None;
-        let migrating = self.source_version.migrate_to_3();
         for refs in chain.into_iter().rev() {
             let level = match outer {
-                Some((n, ..)) if migrating => n,
                 Some((n, _, o)) if refs.prec != Prec::Definition && o.is_some() && refs.owner == o => n,
                 Some((n, ..)) => n + 1,
                 None => 1,
             };
-            let same_level_beaten =
-                !migrating && outer.is_some_and(|(n, p, _)| n == level && p.beats(refs.prec));
+            let same_level_beaten = outer.is_some_and(|(n, p, _)| n == level && p.beats(refs.prec));
             seen = self.combined(refs.cands, seen, (level, same_level_beaten), eligible);
             outer = Some((level, refs.prec, refs.owner));
         }

@@ -3,9 +3,7 @@
 //! `Space.isIrrefutable`).
 
 use super::Typer;
-use super::migrations::Migration;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::config::SourceVersion;
 use tasty::{Const, Type, TypeId, constant};
 
 pub const UNCHECKED: &str = "scala.unchecked";
@@ -21,7 +19,7 @@ pub enum Refutable {
 impl Typer<'_> {
     /// Selector `sel` of a pattern definition (`pat_def`) or generator whose pattern is `pat`,
     /// ascribed `@RuntimeChecked` unless annotated so or `@unchecked`; a refutable `pat` warned
-    /// about or refused by the source version.
+    /// about in a definition, refused in a generator.
     pub fn runtime_checked(
         &mut self,
         sel: TNodeId,
@@ -36,19 +34,15 @@ impl Typer<'_> {
         if matches!(self.u.types().get(sel_tpe), Type::Annotated(..)) {
             return Err("annotated selector of a pattern definition");
         }
-        let error_from = if pat_def { SourceVersion::FUTURE_VERSION } else { SourceVersion::V3_4 };
-        let migration = self.migration(SourceVersion::V3_2, error_from);
-        if migration != Migration::Silent
-            && let Err(reason) = self.check_irrefutable(pat, sel_tpe)
-        {
-            if migration == Migration::Error || matches!(reason, Refutable::Unknown) {
+        if let Err(reason) = self.check_irrefutable(pat, sel_tpe) {
+            if !pat_def || matches!(reason, Refutable::Unknown) {
                 return Err(if pat_def {
                     "refutable pattern definition"
                 } else {
                     "refutable pattern in a generator"
                 });
             }
-            self.warn_refutable(reason, sel, pat_def);
+            self.warn_refutable(reason, sel);
         }
         let annot =
             self.resolve_full_name(RUNTIME_CHECKED, true).ok_or("RuntimeChecked missing from the library")?;

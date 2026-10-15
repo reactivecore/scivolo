@@ -152,7 +152,6 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
-    pub source_version: SourceVersion,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -218,7 +217,6 @@ impl<'a> Typer<'a> {
             syms,
             diags: Diagnostics::default(),
             features: cfg.features,
-            source_version: cfg.source_version,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
