@@ -12,6 +12,7 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
+mod arg_shapes;
 mod auto_apply;
 mod avoid;
 mod avoid_pattern_types;
@@ -27,6 +28,7 @@ mod constrain_pattern;
 mod constructor_proxies;
 mod constructors;
 mod context_bounds;
+mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
@@ -86,15 +88,18 @@ mod pattern_args;
 mod pattern_bounds;
 mod patterns;
 mod plain_trees;
+mod pretyped_args;
 mod purity;
 mod qualifies;
 mod refutable_warnings;
 mod repeated;
 mod report;
 mod right_assoc;
+mod sam_closures;
 mod sams;
 pub(crate) mod seen_from;
 mod select;
+mod selves;
 pub(crate) mod stability;
 mod stats;
 mod summon_from;
@@ -105,6 +110,7 @@ mod transparent;
 mod transparent_traits;
 mod tries;
 pub(crate) mod type_apply;
+mod type_args;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;
@@ -152,7 +158,6 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
-    pub source_version: SourceVersion,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -168,6 +173,8 @@ pub struct Typer<'a> {
     pub constraint: crate::constraint::Constraint,
     /// How many more candidates the implicit search in progress may try.
     pub implicit_budget: u32,
+    /// The implicit searches in progress and their by-name implicits.
+    pub history: implicits::History,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
     /// The first construct outside the subset, and where.
@@ -218,7 +225,6 @@ impl<'a> Typer<'a> {
             syms,
             diags: Diagnostics::default(),
             features: cfg.features,
-            source_version: cfg.source_version,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
@@ -226,6 +232,7 @@ impl<'a> Typer<'a> {
             import_levels: FxHashMap::default(),
             constraint: Default::default(),
             implicit_budget: 0,
+            history: Default::default(),
             protos: Vec::new(),
             unsupported: None,
             reports: 0,
@@ -236,6 +243,7 @@ impl<'a> Typer<'a> {
             depth: 0,
         };
         typer.enter_and_or();
+        typer.u.set_comparison_owner(None);
         Ok(typer)
     }
 
@@ -244,16 +252,19 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
-        let tree = match self.ready(id, ctx) {
+        let inner = ctx.with_mode(ctx.mode.without(crate::ctx::Mode::APPLY_QUALIFIER));
+        let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
-            None => self.typed_unadapted(id, pt, ctx),
+            None => self.typed_unadapted(id, pt, inner),
         };
         if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);
         }
-        self.settle_type(tree, ctx);
+        self.settle_type(tree, inner);
         let tree = self.adapt(tree, pt, ctx);
+        self.u.set_comparison_owner(outer);
         self.depth -= 1;
         tree
     }

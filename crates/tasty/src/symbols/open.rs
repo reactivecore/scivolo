@@ -43,7 +43,12 @@ impl Universe {
             linearizations: FxHashMap::default(),
             deferred: Default::default(),
             with_inits: Default::default(),
+            self_types: Default::default(),
             annotations: Default::default(),
+            opaque_aliases: Default::default(),
+            opaques_elided: false,
+            comparison_owner: None,
+            opaque_lifts: 0,
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,
@@ -69,7 +74,7 @@ impl Universe {
             let (Some(pkg), Some(stem), Some(path)) = (fields.next(), fields.next(), fields.next()) else {
                 continue;
             };
-            let pkg = u.package_entered(pkg);
+            let pkg = u.enter_package(pkg);
             u.pending.entry(pkg).or_default().push((stem.to_owned(), path.to_owned()));
         }
         u.builtins = builtin::enter(&mut u);

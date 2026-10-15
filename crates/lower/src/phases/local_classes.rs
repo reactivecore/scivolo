@@ -2,9 +2,12 @@
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.
 
-use super::dependencies::dependencies;
+use super::dependencies::{Dependencies, dependencies};
+use super::leading_params::add_params;
 use super::lift_names::{Caller, LocalClass, Pending};
-use super::local_free::{Free, Local, enclosing_class, free_values, is_method, is_term, lifted_into};
+use super::local_free::{
+    Free, Local, enclosing_class, free_values, is_local, is_method, is_term, lifted_into, within,
+};
 use super::local_lift::{lift, pass_values};
 use super::local_proxies::{constructor, definition_order, definition_span, make_proxies};
 use super::nested_reads::Nested;
@@ -13,7 +16,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
 use tasty::tags::MUTABLE;
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Lifts the local classes among `classes` out of the blocks of unit `root`; their names and
@@ -42,7 +45,8 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         if l.u.is_trait(class) {
             traits.push(td);
         }
-        let named_in = lifted_into(l, outer);
+        let in_trait = l.u.is_trait(outer) && is_local(l, outer) && uses_outside(l, &deps, class, outer);
+        let named_in = if in_trait { outer } else { lifted_into(l, outer) };
         locals.push(Local { td, class, named_in, free });
     }
     let order = definition_order(l, &locals);
@@ -86,6 +90,13 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         pending.classes.push(LocalClass { at, class: c.class, outer: c.outer });
     }
     Ok(pending)
+}
+
+/// Whether `class` or what is defined in it uses a local value from outside `outer` (dotty's
+/// `narrowLogicOwner` to an intermediate local trait).
+fn uses_outside(l: &Lower, deps: &Dependencies, class: SymbolId, outer: SymbolId) -> bool {
+    let inside = deps.free.iter().filter(|(o, _)| within(l, *o, class));
+    inside.flat_map(|(_, vs)| vs).any(|&v| !within(l, v, outer))
 }
 
 /// Adds to class definition `td` a leading constructor parameter of `params` for each value of
@@ -133,48 +144,6 @@ fn add_proxies(
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     Ok(())
-}
-
-/// Puts `params` first in the first parameter clause of constructor `constr` of `ctor`.
-pub fn add_params(l: &mut Lower, constr: TNodeId, ctor: SymbolId, params: &[SymbolId]) {
-    let span = l.tpd.span(constr);
-    let param_defs: Vec<TNodeId> = params.iter().map(|&p| l.param_def(p, span)).collect();
-    let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
-    let mut clauses = l.tpd.clause_items(paramss).to_vec();
-    match clauses.first_mut() {
-        Some(first) => {
-            let items: Vec<TNodeId> = param_defs.iter().chain(l.tpd.items(*first)).copied().collect();
-            *first = l.tpd.list(&items);
-        }
-        None => clauses.push(l.tpd.list(&param_defs)),
-    }
-    let paramss = l.tpd.clauses(&clauses);
-    l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
-    let info = l.u.info(ctor);
-    let info = with_leading_params(l, info, params);
-    l.u.set_info(ctor, info);
-}
-
-/// Method type `info`, also under type parameters, with `params` first in its first clause; of a
-/// method without parameter lists, a method type of `params`.
-fn with_leading_params(l: &mut Lower, info: tasty::TypeId, params: &[SymbolId]) -> tasty::TypeId {
-    match l.u.types().get(info).clone() {
-        Type::Poly { binder, params: tparams, result } => {
-            let result = with_leading_params(l, result, params);
-            l.u.intern_type(Type::Poly { binder, params: tparams, result })
-        }
-        Type::Method { binder, params: old, result, implicit, contextual } => {
-            let new = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p)));
-            let params = new.chain(old).collect();
-            l.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
-        }
-        other => {
-            let result = if let Type::ByName(r) = other { r } else { info };
-            let params = params.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
-            let binder = l.u.fresh_binder();
-            l.u.intern_type(Type::Method { binder, params, result, implicit: false, contextual: false })
-        }
-    }
 }
 
 /// Makes the references in `t`, outside the classes defined in it, to values `free` refer to

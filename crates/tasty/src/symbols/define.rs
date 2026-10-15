@@ -71,12 +71,6 @@ impl Universe {
         }
     }
 
-    /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
-    /// and `<empty>` are the root.
-    pub fn enter_package(&mut self, name: &str) -> SymbolId {
-        self.package_entered(name)
-    }
-
     /// Sets the declared type `info` returns for `sym`; replacing a different info drops the
     /// resolved references.
     pub fn set_info(&mut self, sym: SymbolId, info: TypeId) {
@@ -92,9 +86,28 @@ impl Universe {
         self.changed();
     }
 
+    /// Sets the given self type of class `c`; resolved references are dropped.
+    pub fn set_self_type(&mut self, c: SymbolId, self_type: TypeId) {
+        self.self_types.insert(c, self_type);
+        self.changed();
+    }
+
+    /// The given self type of class `c` (dotty's `givenSelfType`), if it declares one.
+    pub fn given_self_type(&self, c: SymbolId) -> Option<TypeId> {
+        self.self_types.get(&c).copied()
+    }
+
     /// Sets the flags of `sym`; changed flags drop the resolved references.
     pub fn set_flags(&mut self, sym: SymbolId, flags: Flags) {
         if std::mem::replace(&mut self.symbols[sym.0 as usize].flags, flags) != flags {
+            self.changed();
+        }
+    }
+
+    /// Makes the right-hand sides of opaque types defined outside TASTy seen through every
+    /// prefix if `elided`, else through their owner's `this` only.
+    pub fn elide_opaques(&mut self, elided: bool) {
+        if std::mem::replace(&mut self.opaques_elided, elided) != elided {
             self.changed();
         }
     }
@@ -168,10 +181,13 @@ impl Universe {
         }
     }
 
+    /// The file of the binders of `fresh_binder`.
+    pub const FRESH_BINDERS: FileId = FileId(u32::MAX - 1);
+
     /// A binder no other type uses, for a type lambda or method type made outside TASTy.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;
-        Binder(FileId(u32::MAX - 1), self.binders)
+        Binder(Self::FRESH_BINDERS, self.binders)
     }
 
     /// A skolem of type `info`, different from every other.

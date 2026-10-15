@@ -39,13 +39,16 @@ pub fn is_static_enum_value(l: &Lower, f: SymbolId) -> bool {
     l.u.symbol(f).kind == Kind::Val && has(l.u, f, STATIC) && has(l.u, f, ENUM)
 }
 
-/// Whether `t` is a path of static objects (dotty's `isStaticOwnerRef`).
+/// Whether `t` is a path of packages and static objects (dotty's `isStaticOwnerRef`).
 pub fn is_static_owner_ref(l: &mut Lower, t: TNodeId) -> bool {
     let prefix = match *l.tpd.tree(t) {
         Tree::Ident { .. } => true,
         Tree::Select { qualifier, .. } => is_static_owner_ref(l, qualifier),
         _ => false,
     };
-    let Some(s) = l.tpd.sym(t).filter(|&s| prefix && l.u.is_module(s)) else { return false };
-    l.u.module_class(s).is_some_and(|c| is_static(l.u, c))
+    let Some(s) = l.tpd.sym(t).filter(|_| prefix) else { return false };
+    if l.u.symbol(s).kind == Kind::Package {
+        return true;
+    }
+    l.u.is_module(s) && l.u.module_class(s).is_some_and(|c| is_static(l.u, c))
 }

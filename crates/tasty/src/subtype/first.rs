@@ -110,7 +110,7 @@ impl Cmp<'_> {
     /// `a <: b` for a named type `b` that is not an alias of a supertype of `a`.
     pub fn third_try_named(&mut self, a: TypeId, b: TypeId, n2: Named) -> bool {
         match n2.meaning {
-            Meaning::Abstract(lo, _) => self.recur(a, lo) || self.fourth_try(a, b),
+            Meaning::Abstract(lo, _) => self.recur(a, lo) || self.lifted_right(a, b) || self.fourth_try(a, b),
             Meaning::Class(c) if self.u.type_params(c).is_empty() => {
                 let builtins = self.u.builtins();
                 if c == builtins.any_kind || self.is_bottom(a) {

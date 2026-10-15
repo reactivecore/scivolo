@@ -1,11 +1,11 @@
 //! The methods lifted from lambdas and local methods: named `<owner>$$anonfun$N` and `f$N` from
 //! the outermost function in, taking proxies `x$N` of the captured values first; static unless
-//! they need `this`. Calls of local methods pass the captured values.
+//! they need an instance. Calls of local methods pass the captured values.
 
 use super::closures::{Plan, plan, rewrite};
 use super::lambda_lift::Function;
 use super::lift_names::prefix;
-use super::local_free::top_level;
+use super::narrowed::home;
 use super::walk::children;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result};
@@ -28,22 +28,17 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
         let name = l.u.symbol(f.sym).name.clone();
         let params: Vec<(String, TypeId)> =
             params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
-        let method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.this);
+        let method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.instance());
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
         }
         if let Some(owner) = l.u.symbol(f.sym).owner {
             l.lifted_from.insert(method.sym, owner);
         }
+        l.lifted_to.insert(f.sym, method.sym);
         methods.push(method);
     }
     Ok(methods)
-}
-
-/// The class function `f` of `class` becomes a method of: `class` if it needs `this`, else its
-/// top-level class (dotty's `logicOwner`).
-pub fn home(l: &Lower, class: SymbolId, f: &Function) -> SymbolId {
-    if f.this { class } else { top_level(l, class) }
 }
 
 /// The indices of `functions`, each after the functions in it.
@@ -79,14 +74,13 @@ pub fn value_info(l: &mut Lower, m: SymbolId) -> TypeId {
     }
 }
 
-/// Lifts named `methods` of `functions` of `class`, inner functions first, each lambda's followed
-/// by its `$adapted` method, and the proxies of the `$adapted` methods, to name last in the unit;
-/// the lambdas' blocks become closures, the local methods leave their blocks and calls of them in
-/// `template` call the lifted methods.
+/// Lifts named `methods` of `functions` of `class` of definition `td`, inner functions first,
+/// each lambda's followed by its `$adapted` method, and the proxies of the `$adapted` methods, to
+/// name last in the unit; the lambdas' blocks become closures, the local methods leave their
+/// blocks and calls of them in `td` call the lifted methods.
 pub fn lift(
     l: &mut Lower,
-    class: SymbolId,
-    template: TNodeId,
+    (td, class): (TNodeId, SymbolId),
     functions: &[Function],
     methods: &[Method],
 ) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
@@ -98,7 +92,7 @@ pub fn lift(
         let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
         plans.push(closure.transpose()?);
     }
-    super::lifted_calls::calls(l, class, template, functions, methods);
+    super::lifted_calls::calls(l, (td, class), functions, methods)?;
     for ((f, method), plan) in functions.iter().zip(methods).zip(&plans) {
         match plan {
             Some(plan) => rewrite(l, f, method, plan),
@@ -171,11 +165,14 @@ fn params(l: &Lower, def: TNodeId) -> Vec<SymbolId> {
     params.filter(|&&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })).filter_map(|&p| l.tpd.sym(p)).collect()
 }
 
-/// Makes the references to the keys of `map` under `t` refer to their values.
+/// Makes the references to the keys of `map` under `t`, outside class definitions, refer to their
+/// values.
 pub fn substitute(l: &mut Lower, t: TNodeId, map: &FxHashMap<SymbolId, SymbolId>) {
     let mut todo = vec![t];
     while let Some(t) = todo.pop() {
-        todo.extend(children(l.tpd, t));
+        if !matches!(l.tpd.tree(t), Tree::TypeDef { .. }) {
+            todo.extend(children(l.tpd, t));
+        }
         if let (Tree::Ident { .. }, Some(&proxy)) = (l.tpd.tree(t), l.tpd.sym(t).and_then(|s| map.get(&s))) {
             let name = l.u.symbol(proxy).name.clone();
             let name = l.term_name(&name);

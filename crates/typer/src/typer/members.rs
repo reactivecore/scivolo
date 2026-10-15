@@ -26,7 +26,19 @@ impl Typer<'_> {
         let within = (depth, ctx);
         match self.u.types().get(t).clone() {
             Type::Package(p) => self.package_members(p, name),
-            Type::This(c) => self.members_within(c, name, within),
+            Type::This(c) => {
+                let class = self.u.class_symbol(c);
+                if let Some(k) = class {
+                    self.ensure_self(k);
+                }
+                match class.filter(|&k| self.u.given_self_type(k).is_some()) {
+                    Some(k) => {
+                        let self_type = self.u.self_type(k);
+                        self.members_within(self_type, name, within)
+                    }
+                    None => self.members_within(c, name, within),
+                }
+            }
             Type::Super(this, p) if matches!(self.u.types().get(p), Type::And(..)) => {
                 let class = match *self.u.types().get(this) {
                     Type::This(c) => self.u.class_symbol(c),
@@ -53,7 +65,7 @@ impl Typer<'_> {
                             let info = self.resolve_class_params(info);
                             self.instantiated_selected(info)
                         }
-                        _ => self.u.info(s),
+                        _ => self.u.opaque_underlying(s, prefix).unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = match *self.u.types().get(info) {
                         Type::ByName(r) => r,

@@ -94,7 +94,6 @@ fn function_erasure(l: &mut Lower, f: TNodeId) -> Option<Erased> {
     let info = l.u.info(s);
     let tpe = l.u.widen(info);
     let class = l.u.class_symbol(tpe)?;
-    let name = l.u.full_name(class);
-    let arity = name.strip_prefix("scala.Function").or_else(|| name.strip_prefix("scala.ContextFunction"));
-    arity.is_some_and(|n| n.parse::<u8>().is_ok()).then(|| l.u.erase(tpe))
+    super::casts::function_class_arity(l, class)?;
+    Some(l.u.erase(tpe))
 }

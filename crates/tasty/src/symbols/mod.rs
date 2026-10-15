@@ -6,6 +6,7 @@ mod bodies;
 mod builtin;
 mod classes;
 mod companions;
+mod context_functions;
 mod define;
 mod enter;
 mod entries;
@@ -17,6 +18,7 @@ mod jdk;
 mod loaded;
 mod lookup;
 mod members;
+mod opaques;
 mod open;
 mod overrides;
 mod packages;
@@ -69,8 +71,18 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The given self types of the classes defined outside TASTy that declare one.
+    self_types: FxHashMap<SymbolId, TypeId>,
     /// The annotation classes of the symbols defined outside TASTy.
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The right-hand sides of the opaque types defined outside TASTy.
+    opaque_aliases: FxHashMap<SymbolId, TypeId>,
+    /// Whether those aliases are seen through every prefix (after dotty's `ElimOpaque`).
+    opaques_elided: bool,
+    /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
+    comparison_owner: Option<SymbolId>,
+    /// How many comparisons succeeded through a reference lifted to an object's `this`.
+    opaque_lifts: u64,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,
@@ -107,6 +119,11 @@ impl Universe {
 
     pub fn symbol(&self, id: SymbolId) -> &Symbol {
         &self.symbols[id.0 as usize]
+    }
+
+    /// The id of the next symbol defined.
+    pub fn next_symbol(&self) -> SymbolId {
+        SymbolId(self.symbols.len() as u32)
     }
 
     /// The package of qualified name `name`, e.g. `scala.collection`, if the library has it.
@@ -161,29 +178,5 @@ impl Universe {
     /// The unions built so far and the atoms of unions.
     pub fn unions(&mut self) -> &mut Unions {
         &mut self.unions
-    }
-
-    /// The package of qualified name `name`, entered with its enclosing packages if new;
-    /// `<empty>`, the package of files at the root of a jar, is the root.
-    fn package_entered(&mut self, name: &str) -> SymbolId {
-        let name = if name == "<empty>" { "" } else { name };
-        if let Some(&p) = self.packages.get(name) {
-            return p;
-        }
-        let (outer, simple) = name.rsplit_once('.').unwrap_or(("", name));
-        let owner = self.package_entered(outer);
-        let id = self.define(Symbol {
-            name: simple.to_owned(),
-            kind: Kind::Package,
-            owner: Some(owner),
-            flags: Flags::default(),
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        self.packages.insert(name.to_owned(), id);
-        id
     }
 }

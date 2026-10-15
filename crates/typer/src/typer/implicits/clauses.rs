@@ -40,13 +40,27 @@ impl Typer<'_> {
         };
         let mut args = Vec::new();
         for &(_, p) in &params {
-            args.push(self.implicit_arg(p, at, ctx, depth)?);
+            args.push(self.searched_arg(p, at, ctx, depth)?);
         }
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);
         Ok(Some(self.build().apply(tree, &args, result, span)))
+    }
+
+    /// `implicit_arg`, no type variables unified meanwhile.
+    pub fn searched_arg(
+        &mut self,
+        pt: TypeId,
+        at: Span,
+        ctx: Ctx,
+        depth: u32,
+    ) -> Result<TNodeId, &'static str> {
+        self.constraint.enter_search();
+        let arg = self.implicit_arg(pt, at, ctx, depth);
+        self.constraint.leave_search();
+        arg
     }
 
     /// `tree`, a method reference whose first clause is implicit, applied to that clause's

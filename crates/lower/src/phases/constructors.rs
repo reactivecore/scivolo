@@ -1,6 +1,6 @@
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
-//! `Constructors`: the class parameters stored in their fields, that call, then the field
-//! initializers and statements of the class body in order.
+//! `Constructors`: the class parameters stored in their fields, that call, the fields of eager
+//! objects, then the other field initializers and statements of the class body in order.
 
 use super::first_transform::literal_of;
 use super::getters::{is_const_final, is_param_accessor, is_setter};
@@ -22,7 +22,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     };
     let mut class_stats = Vec::new();
     let span = l.tpd.span(td);
-    let mut inits = Vec::new();
+    let (mut inits, mut eager) = (Vec::new(), Vec::new());
     let mut accessors = Vec::new();
     let stats = l.tpd.items(body).to_vec();
     for &stat in &stats {
@@ -73,7 +73,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                     (false, _) => l.tpd.span(stat),
                 };
                 let lhs = l.field_ref(field, at);
-                inits.push(assign(l, lhs, rhs, at));
+                let init = assign(l, lhs, rhs, at);
+                if super::lazy_vals::is_eager_field(l, field) { &mut eager } else { &mut inits }.push(init);
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
             }
             _ => inits.push(stat),
@@ -106,7 +107,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         return unsupported(span, "a class without a superclass");
     };
     stats.push(super_call(l, class, first)?);
-    stats.extend(inits);
+    stats.extend(eager.into_iter().chain(inits));
     let dropped_outer = matches!(outer, Some((None, _))).then_some(template_span);
     let spans = stats.iter().map(|&s| l.tpd.span(s)).chain(dropped_outer);
     let block_span = spans.filter(|s| s.exists()).reduce(|a, b| a.union(b));

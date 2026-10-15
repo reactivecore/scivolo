@@ -45,7 +45,7 @@ impl Universe {
             Type::Str(_) => self.constant_type(STRINGconst),
             Type::This(c) => {
                 let c = self.class_symbol(c)?;
-                self.this_type(c)
+                self.self_type(c)
             }
             Type::Super(_, p) | Type::Skolem(_, p) => p,
             _ => return None,
@@ -89,7 +89,10 @@ impl Universe {
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(t)?),
             _ => return None,
         };
-        let alias = self.alias_of(s)?;
+        let alias = match self.visible_opaque_alias(s, prefix) {
+            Some(a) => a,
+            None => self.alias_of(s)?,
+        };
         let owner = self.symbol(s).owner?;
         Some(match prefix {
             Some(p) if self.symbol(owner).kind == Kind::Class => self.as_seen_from(alias, p, owner),
@@ -133,6 +136,15 @@ impl Universe {
         match params.is_empty() {
             true => class,
             false => self.intern_type(Type::Applied(class, params)),
+        }
+    }
+
+    /// The type of `this` in class `c` with its given self type (dotty's `ClassInfo.selfType`).
+    pub fn self_type(&mut self, c: SymbolId) -> TypeId {
+        let applied = self.this_type(c);
+        match self.given_self_type(c) {
+            Some(s) => self.intern_type(Type::And(s, applied)),
+            None => applied,
         }
     }
 

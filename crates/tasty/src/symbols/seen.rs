@@ -1,7 +1,7 @@
 //! Base types and member types as seen from a prefix (dotty's `baseType` and `asSeenFrom`).
 
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{OBJECT, OPAQUE};
+use crate::tags::OPAQUE;
 use crate::types::{Type, TypeId};
 
 /// How many aliases and parents `base_type` follows.
@@ -65,15 +65,16 @@ impl Universe {
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(tycon)?),
             _ => return None,
         };
-        if self.symbol(s).flags.has(OPAQUE) {
-            return None;
+        if self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE) {
+            let underlying = self.opaque_underlying(s, prefix).filter(|_| args.is_empty())?;
+            return self.base_type_within(underlying, base, depth);
         }
         if self.symbol(s).kind != Kind::Class {
             let term = self.symbol(s).kind.is_term();
             let dealiased = match (args.is_empty(), prefix) {
                 (true, Some(p)) if term => self.member_info(p, s),
                 (true, _) => self.info(s),
-                (false, _) => self.expand(tycon, &args)?,
+                (false, _) => self.expand_upper(tycon, &args)?,
             };
             let dealiased = match *self.types().get(dealiased) {
                 Type::ByName(r) if term => r,
@@ -130,7 +131,7 @@ impl Universe {
             _ => prefix,
         };
         self.map_type(t, &mut |u, x| match u.types().get(x).clone() {
-            Type::Sym(Some(_), s) if u.is_static_symbol(s) => Some(x),
+            Type::Sym(Some(_), s) if u.is_static_symbol(s) && !u.sees_opaques(s) => Some(x),
             Type::This(c) => {
                 let c = u.class_symbol(c)?;
                 u.this_seen_from(prefix, owner, c, MAX_DEPTH)
@@ -147,19 +148,6 @@ impl Universe {
                 }
             }
         })
-    }
-
-    /// Whether `s` is reached through static paths only: its owner is a package or an object
-    /// that is itself static.
-    pub fn is_static_symbol(&self, s: SymbolId) -> bool {
-        match self.symbol(s).owner {
-            None => true,
-            Some(o) => {
-                let owner = self.symbol(o);
-                owner.kind == Kind::Package
-                    || (owner.kind == Kind::Class && owner.flags.has(OBJECT) && self.is_static_symbol(o))
-            }
-        }
     }
 
     /// What `this_cls.this` in class `cls` is as seen from `pre`: `pre` if it is an instance of

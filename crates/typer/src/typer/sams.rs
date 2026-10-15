@@ -15,32 +15,21 @@ pub struct Sam {
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
     /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
-    /// single abstract method type outside the subset: of an abstract class, a trait with a class
-    /// parent, with type variables or method type parameters.
+    /// single abstract method type outside the subset: with type variables.
     pub fn sam_parts(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
+        self.ensure_self(class);
+        if self.u.given_self_type(class).is_some() {
+            return Ok(None);
+        }
         let Some(method) = self.sam_method(class) else { return Ok(None) };
-        if !self.u.symbol(class).flags.has(TRAIT) || !self.is_fully_defined(t) {
+        if !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");
         }
-        let b = self.u.builtins();
-        let class_parent =
-            self.u.linearization(class).into_iter().any(|p| {
-                !self.u.symbol(p).flags.has(TRAIT) && p != b.object && p != b.any && p != b.matchable
-            });
-        let mut method_tparam = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
-                let owner = u.symbol(s).owner;
-                method_tparam |= u.symbol(s).kind == Kind::TypeParam
-                    && owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
-            }
-            None
-        });
-        if class_parent || method_tparam {
-            return Err("single abstract method type outside the subset");
+        if !self.no_args_needed(class)? {
+            return Ok(None);
         }
         let parent = self.u.base_type(t, class).ok_or("single abstract method type outside the subset")?;
         let parent = self
@@ -102,14 +91,62 @@ impl Typer<'_> {
     }
 
     /// The single abstract method of class `c`, a trait or abstract class neither final nor
-    /// sealed.
+    /// sealed; `apply` of `PartialFunction`.
     pub fn sam_method(&mut self, c: SymbolId) -> Option<SymbolId> {
         let flags = self.u.symbol(c).flags;
         if !(flags.has(TRAIT) || flags.has(ABSTRACT)) || flags.has(FINAL) || flags.has(SEALED) {
             return None;
         }
+        if self.is_partial_function_class(c) {
+            return self.class_members(c, "apply").first().copied();
+        }
         let [method] = self.abstract_methods(c)[..] else { return None };
         Some(method)
+    }
+
+    /// Whether class `c`, and the first parent of a trait, have exactly one constructor applicable
+    /// to no arguments, or none (dotty's `samClass`); `Err` for a repeated parameter's.
+    fn no_args_needed(&mut self, c: SymbolId) -> Result<bool, &'static str> {
+        if !self.takes_no_args(c)? {
+            return Ok(false);
+        }
+        if !self.u.symbol(c).flags.has(TRAIT) {
+            return Ok(true);
+        }
+        let first = self.u.parents(c).first().and_then(|&p| self.u.class_symbol(p));
+        first.map_or(Ok(true), |p| self.takes_no_args(p))
+    }
+
+    fn takes_no_args(&mut self, c: SymbolId) -> Result<bool, &'static str> {
+        self.complete(c);
+        let ctors = self.u.decl(c, "<init>").unwrap_or_default();
+        let mut applicable = 0;
+        for ctor in &ctors {
+            let mut info = self.u.info(*ctor);
+            if let Type::Poly { result, .. } = *self.u.types().get(info) {
+                info = result;
+            }
+            let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
+            if let [(_, p)] = params[..]
+                && self.repeated_elem(p).is_some()
+            {
+                return Err("single abstract method type of a class with a repeated constructor parameter");
+            }
+            applicable +=
+                usize::from(params.is_empty() && !matches!(self.u.types().get(result), Type::Method { .. }));
+        }
+        Ok(ctors.is_empty() || applicable == 1)
+    }
+
+    /// Whether `t` is a `PartialFunction` type.
+    pub fn is_partial_function(&mut self, t: TypeId) -> bool {
+        let t = self.zonk(t);
+        let t = self.u.dealias(t);
+        self.u.class_symbol(t).is_some_and(|c| self.is_partial_function_class(c))
+    }
+
+    fn is_partial_function_class(&self, c: SymbolId) -> bool {
+        self.u.full_name(c) == "scala.PartialFunction"
     }
 
     /// The abstract term members of class `c` that do not match members of `Object` (dotty's

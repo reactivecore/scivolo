@@ -3,13 +3,18 @@
 
 mod alt_types;
 mod as_good;
+mod attempts;
 mod can_equal;
 mod candidates;
 mod class_tags;
 mod clauses;
 mod contextual;
 pub(super) mod conversions;
+mod dictionary;
+mod divergence;
 mod extension_views;
+mod history;
+mod measures;
 mod not_given;
 mod parts;
 mod prefilter;
@@ -21,4 +26,5 @@ mod too_late;
 mod unsettled;
 mod view_kinds;
 
+pub use history::History;
 pub use search::is_misfit;

@@ -33,6 +33,14 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new of a parameterized type alias");
         }
+        if let Some(c) = self.u.class_symbol(tpe)
+            && !self.is_parent_call(c, ctx)
+        {
+            self.ensure_self(c);
+            if self.u.given_self_type(c).is_some() {
+                return self.unsupported(id, "new of a class not conforming to its self type");
+            }
+        }
         let erased = self.resolve_full_name("scala.compiletime.Erased", true);
         if let (Some(c), Some(erased)) = (self.u.class_symbol(tpe), erased)
             && self.u.derives_from(c, erased)
@@ -55,7 +63,7 @@ impl Typer<'_> {
     }
 
     /// `[Ps] =>> C[Ps]` for the type parameters `Ps` of class `c`, referenced by `class`.
-    fn eta_expanded(&mut self, c: SymbolId, class: TypeId) -> Result<TypeId, &'static str> {
+    pub fn eta_expanded(&mut self, c: SymbolId, class: TypeId) -> Result<TypeId, &'static str> {
         let tparams = self.u.type_params(c);
         let prefix = match *self.u.types().get(class) {
             Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::Package(_)) => Some(p),

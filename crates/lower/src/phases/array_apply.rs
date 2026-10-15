@@ -68,7 +68,7 @@ fn walk(
             }
             Tree::New { tpt } => {
                 if let Type::Sym(_, c) = *l.u.types().get(l.tpd.tpe(tpt))
-                    && l.local_classes.contains(&c)
+                    && l.local_classes.contains_key(&c)
                 {
                     budgets.insert(c, budget);
                 }

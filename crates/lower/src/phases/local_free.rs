@@ -34,13 +34,19 @@ pub fn lifted_into(l: &Lower, outer: SymbolId) -> SymbolId {
     if is_static(l.u, outer) { outer } else { top_level(l, outer) }
 }
 
-/// The outermost class enclosing `s`, or `s` (dotty's `topLevelClass`).
+/// The outermost class enclosing `s` before local classes were lifted, or `s` (dotty's
+/// `topLevelClass`).
 pub fn top_level(l: &Lower, s: SymbolId) -> SymbolId {
     let mut c = s;
-    while let Some(o) = l.u.symbol(c).owner.filter(|&o| l.u.symbol(o).kind != Kind::Package) {
+    while let Some(o) = original_owner(l, c).filter(|&o| l.u.symbol(o).kind != Kind::Package) {
         c = o;
     }
     c
+}
+
+/// The owner of `s`, of a lifted local class the one before lifting.
+pub fn original_owner(l: &Lower, s: SymbolId) -> Option<SymbolId> {
+    l.local_classes.get(&s).copied().or(l.u.symbol(s).owner)
 }
 
 pub fn is_term(l: &Lower, s: SymbolId) -> bool {
@@ -157,22 +163,16 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     Ok(free)
 }
 
-/// What local class definition `td` defines that the lowering does not lift with it: lambdas and
-/// local methods, lazy values of an object.
+/// What local class definition `td` defines that the lowering does not lift with it: lazy values
+/// of an object.
 fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
     super::explicit_outer::terms(l, td, true).into_iter().find_map(|t| match *l.tpd.tree(t) {
-        Tree::Closure { .. } => Some("lambdas and local methods in local classes"),
         Tree::ValDef { .. } | Tree::DefDef { .. }
             if l.tpd.sym(t).is_some_and(|s| {
                 has(l.u, s, LAZY) && !l.u.is_module(s) && l.u.symbol(s).owner == l.tpd.sym(td)
             }) && l.tpd.sym(td).is_some_and(|c| l.u.is_module_class(c)) =>
         {
             Some("lazy values in local objects")
-        }
-        Tree::DefDef { .. }
-            if l.tpd.sym(t).is_some_and(|s| is_term(l, l.u.symbol(s).owner.expect("an owner"))) =>
-        {
-            Some("lambdas and local methods in local classes")
         }
         _ => None,
     })

@@ -24,7 +24,9 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let open = std::mem::take(&mut self.history.open);
         let vars = self.constraint.count();
+        let outer = self.u.set_comparison_owner(Some(ctx.owner));
         self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
@@ -42,14 +44,16 @@ impl Typer<'_> {
                 self.complete_class(sym, rhs, ctx)
             }
             Tree::TypeDef { rhs, .. } => {
-                let info = self.type_def_info(rhs, ctx);
+                let info = self.type_member_info(sym, rhs, ctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
             }
             _ => {}
         }
+        self.u.set_comparison_owner(outer);
         self.syms.completions.insert(sym, Completion::Done);
         self.constraint.keep_from(vars);
+        self.history.open = open;
     }
 
     fn is_class_def(&self, tree: NodeId) -> bool {
@@ -68,6 +72,7 @@ impl Typer<'_> {
         }
         let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
+        self.check_context_default(rhs, raw_default.filter(|_| default.is_none()));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
         let approx = raw_default.filter(|_| lambda && default.is_none()).and_then(|d| {
             let a = self.own_type_params_approximated(d, sym);
@@ -162,18 +167,6 @@ impl Typer<'_> {
         })
     }
 
-    /// `t` with references to type parameters `tparams` made references to the parameters of
-    /// polymorphic type `binder`.
-    fn param_refs(&mut self, t: TypeId, tparams: &[SymbolId], binder: tasty::Binder) -> TypeId {
-        self.u.map_type(t, &mut |u, x| match *u.types().get(x) {
-            Type::Sym(None, s) => {
-                let i = tparams.iter().position(|&p| p == s)?;
-                Some(u.intern_type(Type::Param(binder, i as u32)))
-            }
-            _ => None,
-        })
-    }
-
     /// The type inferred for definition `sym` from its right-hand side's type `t` (dotty's
     /// `widenRhs`): a constant for a final value, a singleton for an object, else `t` widened.
     fn widen_rhs(&mut self, sym: SymbolId, t: TypeId) -> TypeId {
@@ -188,14 +181,7 @@ impl Typer<'_> {
                 self.widen_rhs(sym, info)
             }
             Type::ByName(r) | Type::Skolem(_, r) => self.widen_rhs(sym, r),
-            Type::This(c)
-                if !self
-                    .u
-                    .class_symbol(c)
-                    .is_some_and(|k| self.u.symbol(k).flags.has(tasty::tags::OBJECT)) =>
-            {
-                c
-            }
+            Type::This(c) => self.widened_this(t, c),
             _ => t,
         }
     }

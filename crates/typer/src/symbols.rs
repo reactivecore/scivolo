@@ -8,6 +8,9 @@ use syntax::ast::{NodeId, Span};
 use tasty::tags as t;
 use tasty::{Binder, FileId, Flags, Kind, Symbol, SymbolId, Universe};
 
+/// The file of the binders of `Symbols::fresh_binder`.
+pub const SCRIPT_BINDERS: FileId = FileId(u32::MAX);
+
 /// How far the info of a script symbol is known (dotty's completers).
 #[derive(Clone, Copy, Debug)]
 pub enum Completion {
@@ -56,6 +59,10 @@ pub struct Syms {
     pub param_clauses: FxHashMap<SymbolId, Vec<Vec<SymbolId>>>,
     /// The primary constructor of each script class.
     pub primary_ctors: FxHashMap<SymbolId, SymbolId>,
+    /// The self symbol of each script class that names or types its self.
+    pub selves: FxHashMap<SymbolId, SymbolId>,
+    /// The self definitions whose types are still to be typed, by class, each with its context.
+    pub pending_selves: FxHashMap<SymbolId, (NodeId, Ctx)>,
     /// The result type of each script method as its definition states it, before its type
     /// parameters become parameter references of its info.
     pub def_results: FxHashMap<SymbolId, tasty::TypeId>,
@@ -112,15 +119,21 @@ impl Syms {
             }
         }
         self.by_tree.clear();
+        self.pending_selves.clear();
         self.def_trees.clear();
         self.closure_syms.clear();
         self.annotation_trees.clear();
     }
 
-    /// A binder no other method or type lambda has.
+    /// Whether `s` is defined by the script.
+    pub fn is_script(&self, s: SymbolId) -> bool {
+        self.flags.contains_key(&s)
+    }
+
+    /// A binder no other method or type lambda has, of file `SCRIPT_BINDERS`.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;
-        Binder(FileId(u32::MAX), self.binders)
+        Binder(SCRIPT_BINDERS, self.binders)
     }
 }
 

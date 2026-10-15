@@ -97,9 +97,10 @@ pub fn lift(l: &mut Lower, root: TNodeId, td: TNodeId, class: SymbolId) -> Optio
     while l.u.symbol(package).kind != Kind::Package {
         package = l.u.symbol(package).owner.expect("a class's owner");
     }
+    let owner = l.u.symbol(class).owner.expect("a class's owner");
     l.u.set_owner(class, package);
     l.u.enter(class);
-    l.local_classes.insert(class);
+    l.local_classes.insert(class, owner);
     let mut from = None;
     for t in super::walk::subtrees(l.tpd, root) {
         match *l.tpd.tree(t) {

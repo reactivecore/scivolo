@@ -18,22 +18,13 @@ impl Typer<'_> {
         if let Some(untupled) = self.untupled_function(id, args, body, pt, ctx) {
             return untupled;
         }
-        let (expected, sam) = match pt {
-            Pt::Type(p) => match self.function_parts(p, n) {
-                Some(parts) => (Some(parts), None),
-                None if self.has_proto_wildcard(p) => {
-                    return self
-                        .unsupported(id, "function against an underspecified single abstract method type");
-                }
-                None => match self.sam_parts(p, n) {
-                    Ok(Some(s)) => (Some((s.params, s.result)), Some(s.parent)),
-                    Ok(None) => (None, None),
-                    Err(what) => return self.unsupported(id, what),
-                },
-            },
-            _ => (None, None),
+        let contextual = params.first().is_some_and(|&p| self.is_given_param(p));
+        let (expected, sam) = match self.expected_function_parts(id, pt, n, contextual) {
+            Ok(parts) => parts,
+            Err(refused) => return refused,
         };
-        let Some(class) = self.function_class(n) else {
+        let class = if contextual { self.context_function_class(n) } else { self.function_class(n) };
+        let Some(class) = class else {
             return self.unsupported(id, "function of that many parameters");
         };
         let anonfun = self.syms.define(
@@ -54,6 +45,9 @@ impl Typer<'_> {
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
             } else if let Some((formals, _)) = &expected {
+                if contextual && !self.is_fully_defined(formals[i]) {
+                    return self.unsupported(p, "context closure parameter of an open type");
+                }
                 let formal = match self.fully_defined(formals[i]) {
                     Ok(t) if !self.has_wildcard(t) => t,
                     Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
@@ -119,25 +113,19 @@ impl Typer<'_> {
             binder,
             params: method_params,
             result,
-            implicit: false,
-            contextual: false,
+            implicit: contextual,
+            contextual,
         });
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
+        let sam = match sam.map(|p| self.closure_parent(p, &param_types, result)).transpose() {
+            Ok(sam) => sam,
+            Err(what) => return self.unsupported(id, what),
+        };
         let mut fun_args = param_types;
         fun_args.push(result);
         let fun_tpe = self.u.intern_type(Type::Applied(class, fun_args));
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
-    }
-
-    /// Whether `t` has a part left open by an expected type (dotty's `WildcardType`).
-    fn has_proto_wildcard(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Wildcard(_));
-            None
-        });
-        found
     }
 
     /// Whether `t` has a wildcard type argument or is one.
@@ -148,24 +136,6 @@ impl Typer<'_> {
             None
         });
         found
-    }
-
-    /// Function value `tree` typed as single abstract method type `pt` if it does not conform but
-    /// fits the method (dotty's `toSAM`).
-    pub fn to_sam(&mut self, tree: TNodeId, pt: TypeId) -> Option<TNodeId> {
-        let T::Block { stats, expr } = *self.tpd.tree(tree) else { return None };
-        let T::Closure { env, meth, tpt: None } = *self.tpd.tree(expr) else { return None };
-        let tpe = self.tpd.tpe(tree);
-        if self.u.is_subtype(tpe, pt) {
-            return None;
-        }
-        let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
-        let parent = self.sam_parts(pt, n).ok()??.parent;
-        let span = self.tpd.span(expr);
-        let tpt = Some(self.type_tree(parent, span.start_pos(), false));
-        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);
-        let span = self.tpd.span(tree);
-        Some(self.build().block(stats, closure, span))
     }
 
     /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span

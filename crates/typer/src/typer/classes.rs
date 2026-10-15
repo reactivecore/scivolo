@@ -45,12 +45,12 @@ impl Typer<'_> {
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }
+        self.u.set_parents(cls, parents);
         if let Some(s) = t.self_
             && !self.is_module_self(s)
         {
-            self.unsupported(s, "self type");
+            self.complete_self(cls, s, cctx);
         }
-        self.u.set_parents(cls, parents);
         self.finalize_value_class(cls);
         self.check_member_classes(cls, rhs);
         self.check_enum_case_refs(&t.body);
@@ -84,6 +84,10 @@ impl Typer<'_> {
         };
         let cls = self.syms.by_tree[&id];
         self.complete(cls);
+        self.ensure_self(cls);
+        if let Err(what) = self.check_parent_selves(cls) {
+            return self.unsupported(id, what);
+        }
         if self.defines_enum_ordinal(cls) {
             return self.unsupported(id, "enum class with its own ordinal");
         }
@@ -96,12 +100,25 @@ impl Typer<'_> {
         if self.u.is_trait(cls) && params {
             return self.unsupported(id, "trait parameters");
         }
+        if self.u.symbol(cls).flags.has(tasty::tags::CASE)
+            && let Some(c) = ctor
+        {
+            let info = self.u.info(c);
+            let first = self.u.param_clauses(info).into_iter().next();
+            let elems = first.map(|(_, ps)| ps).unwrap_or_default();
+            if elems.iter().any(|&t| self.is_context_function_type(t)) {
+                return self.unsupported(id, "case class element of a context function type");
+            }
+        }
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
-        let self_ = t.self_.map(|s| self.typed(s, Pt::Any, ctx));
+        let self_ = t.self_.map(|s| match self.is_module_self(s) {
+            true => self.typed(s, Pt::Any, ctx),
+            false => self.typed_self(s, cctx),
+        });
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));

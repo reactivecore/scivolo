@@ -97,3 +97,10 @@ subpatterns
 implicitviews
 evidence
 classtags
+locallifts
+lowerfixes
+contextfunctions
+partialfuns
+selftypes
+opaques
+samclasses

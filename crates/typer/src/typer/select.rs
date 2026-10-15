@@ -2,7 +2,7 @@
 
 use super::implicits::conversions::{Goal, Viewed};
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
 use tasty::{Kind, SymbolId, Type, TypeId};
@@ -13,7 +13,9 @@ impl Typer<'_> {
             self.ast.tree(qualifier),
             syntax::ast::Tree::Ident { .. } | syntax::ast::Tree::Select { .. }
         );
-        let mode = if path { crate::ctx::Mode::QUALIFIER } else { crate::ctx::Mode::NONE };
+        let text = self.text(name.name).to_owned();
+        let mode = if path { Mode::QUALIFIER } else { Mode::NONE };
+        let mode = if text == "apply" && !name.is_type { mode.with(Mode::APPLY_QUALIFIER) } else { mode };
         let mut qual = self.typed(qualifier, Pt::Any, ctx.with_mode(mode));
         if self.is_probe_target(id) {
             return self.probe_selection(id, qual, ctx);
@@ -21,7 +23,6 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
-        let text = self.text(name.name).to_owned();
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }

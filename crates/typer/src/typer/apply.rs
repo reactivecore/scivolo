@@ -112,9 +112,9 @@ impl Typer<'_> {
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let formal = formals[i.min(formals.len() - 1)];
-            typed_args.push(match &pretyped {
+            typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
                 Some(typed) => {
-                    let arg = self.to_sam(typed[i], formal).unwrap_or(typed[i]);
+                    let arg = self.to_sam(typed, formal).unwrap_or(typed);
                     self.adapt(arg, Pt::Type(formal), ctx)
                 }
                 None => self.typed(a, Pt::Type(formal), ctx),

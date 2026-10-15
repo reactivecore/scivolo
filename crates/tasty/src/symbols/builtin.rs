@@ -63,7 +63,7 @@ pub fn synthetic(u: &mut Universe, owner: SymbolId, name: &str, kind: Kind, flag
 /// Enters the classes without TASTy into `u`, whose libraries' packages are known and which has
 /// interned no type yet.
 pub fn enter(u: &mut Universe) -> Builtins {
-    let scala = u.package_entered("scala");
+    let scala = u.enter_package("scala");
     let nothing = synthetic(u, scala, "Nothing", Kind::Class, &[ABSTRACT, FINAL]);
     let any = synthetic(u, scala, "Any", Kind::Class, &[ABSTRACT]);
     assert_eq!(u.types.intern(Type::Sym(None, nothing)), NOTHING);
@@ -74,7 +74,7 @@ pub fn enter(u: &mut Universe) -> Builtins {
     let singleton = synthetic(u, scala, "Singleton", Kind::Class, &[TRAIT]);
     u.parents.insert(matchable, vec![ANY]);
     u.parents.insert(singleton, vec![ANY]);
-    let java_lang = u.package_entered("java.lang");
+    let java_lang = u.enter_package("java.lang");
     let defined = u.pending.get(&java_lang).is_some_and(|f| f.iter().any(|(stem, _)| stem == "Object"));
     let object = match defined {
         true => u
@@ -103,6 +103,7 @@ pub fn enter(u: &mut Universe) -> Builtins {
         u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
     super::any_members::enter(u, any, object);
     super::impure_functions::enter(u, scala);
+    super::context_functions::enter(u, scala, object_ref);
     super::java_stubs::enter(u, object);
     Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object, any_val }
 }

@@ -140,16 +140,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scalai FILE.scala` with `SCALAI_FRONTEND=strict` (`crates/scalai/tests/lowered.rs`).
 
-Results (2026-10-14):
+Results (2026-10-15):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 809 |
+| passed | 855 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 25 |
-| typer refused | 598 |
+| lowering refused | 29 |
+| typer refused | 548 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -157,12 +157,13 @@ Results (2026-10-14):
 | skipped | 175 |
 | **total** | **1711** |
 
-Before the 2026-10-14 batch: 684 passed, 39 refused by the lowering, 709 by the typer.
+Before the 2026-10-15 batch: 809 passed, 25 refused by the lowering, 598 by the typer; before
+the 2026-10-14 batch: 684 passed.
 
 - **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
-- **Typer refused:** mostly missing implicit arguments (34), members not found (32), function
-  parameters without a type (29) and adaptations (27); 8 tests set a source version other than
-  3.9, which the typer refuses.
+- **Typer refused:** mostly members not found (43), adaptations (30), missing implicit
+  arguments (28) and refined type trees (19); 8 tests set a source version other than 3.9, which
+  the typer refuses.
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`

@@ -1,7 +1,34 @@
-//! The package table: each TASTy file of a library with the package and name it is entered
-//! under, kept in the library image so that opening a universe reads no other file name.
+//! Package symbols, and the package table: each TASTy file of a library with the package and
+//! name it is entered under, kept in the library image so that opening a universe reads no other
+//! file name.
 
-use super::jdk;
+use super::{Flags, Kind, Symbol, SymbolId, Universe, jdk};
+
+impl Universe {
+    /// The package of qualified name `name`, entered with its enclosing packages if new; `""`
+    /// and `<empty>`, the package of files at the root of a jar, are the root.
+    pub fn enter_package(&mut self, name: &str) -> SymbolId {
+        let name = if name == "<empty>" { "" } else { name };
+        if let Some(&p) = self.packages.get(name) {
+            return p;
+        }
+        let (outer, simple) = name.rsplit_once('.').unwrap_or(("", name));
+        let owner = self.enter_package(outer);
+        let id = self.define(Symbol {
+            name: simple.to_owned(),
+            kind: Kind::Package,
+            owner: Some(owner),
+            flags: Flags::default(),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        self.packages.insert(name.to_owned(), id);
+        id
+    }
+}
 
 /// The name of the package table in a library image.
 pub const PACKAGE_TABLE: &str = "scalai/tasty-packages";

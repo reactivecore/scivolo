@@ -34,9 +34,14 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if let Some(what) = self.type_args_problem(arity, &arg_types) {
+                if let Some(what) = self.type_args_problem(tycon, arity, &arg_types) {
                     return self.unsupported(id, what);
                 }
+                let arg_types: Vec<TypeId> =
+                    match typed_args.iter().map(|&a| self.adapted_type_arg(a)).collect() {
+                        Ok(types) => types,
+                        Err(what) => return self.unsupported(id, what),
+                    };
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
                     (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
                     _ => None,
@@ -76,7 +81,7 @@ impl Typer<'_> {
                 let tpe = self.tpd.tpe(reference);
                 self.tpd.node(T::SingletonTypeTree { reference }, span, Some(tpe), None)
             }
-            Tree::Function { args, body, mods: None, .. } => self.typed_function_type(id, args, body, ctx),
+            Tree::Function { args, body, mods, .. } => self.typed_function_type(id, (args, body), mods, ctx),
             Tree::ByNameTypeTree { result } => {
                 let result = self.typed_type(result, ctx);
                 let tpe = self.u.intern_type(Type::ByName(self.tpd.tpe(result)));

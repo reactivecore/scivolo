@@ -46,8 +46,10 @@ impl Typer<'_> {
             "illegal combination of modifiers"
         } else if let Some(problem) = self.inline_problem(kind, owner, flags) {
             problem
-        } else if flags.is(f::OPAQUE) {
-            "opaque type"
+        } else if flags.is(f::OPAQUE) && !self.u.symbol(owner).flags.has(tasty::tags::OBJECT) {
+            "opaque type outside an object"
+        } else if flags.is(f::OPAQUE) && self.is_named_package_object(owner) {
+            "top-level opaque type"
         } else if flags.is(f::TRAIT) && flags.is_one_of(f::FINAL.or(f::OPEN)) {
             "final or open trait"
         } else if kind != Kind::Class && flags.is(f::ABSTRACT) {

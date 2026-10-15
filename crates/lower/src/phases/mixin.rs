@@ -74,7 +74,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         if !library || !l.u.no_inits(mixin) {
             forwarders.extend(mixed_in(l, class, mixin, span)?);
         }
-        let methods = match l.local_classes.contains(&mixin) {
+        let methods = match l.local_classes.contains_key(&mixin) {
             true => {
                 let decided = l.trait_forwards.get(&class).cloned().unwrap_or_default();
                 decided.into_iter().filter(|&m| l.u.symbol(m).owner == Some(mixin)).collect()

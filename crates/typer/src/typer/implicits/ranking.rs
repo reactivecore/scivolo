@@ -5,7 +5,6 @@
 use super::super::Typer;
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
-use syntax::config::SourceVersion;
 use tasty::tags::{IMPLICIT, MUTABLE};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
@@ -21,30 +20,21 @@ impl Typer<'_> {
         if let [only] = alts[..] {
             return Some(only);
         }
-        let v = self.source_version;
-        let old_schemes: &[bool] = match v.is_at_least(SourceVersion::V3_7) {
-            true if v != SourceVersion::V3_7.migrating_variant() => &[false],
-            _ if v.is_at_least(SourceVersion::V3_6) => &[false, true],
-            _ => &[true],
-        };
-        alts.iter().copied().find(|&c| {
-            alts.iter()
-                .filter(|&&d| d != c)
-                .all(|&d| old_schemes.iter().all(|&old| self.compare(c, d, ctx, old) == Some(1)))
-        })
+        alts.iter()
+            .copied()
+            .find(|&c| alts.iter().filter(|&&d| d != c).all(|&d| self.compare(c, d, ctx) == Some(1)))
     }
 
-    /// 1 if `a` ranks above `b`, -1 if below, 0 if neither, by the rules before Scala 3.6 if
-    /// `old`; `None` if undecided.
-    fn compare(&mut self, a: Candidate, b: Candidate, ctx: Ctx, old: bool) -> Option<i32> {
+    /// 1 if `a` ranks above `b`, -1 if below, 0 if neither; `None` if undecided.
+    fn compare(&mut self, a: Candidate, b: Candidate, ctx: Ctx) -> Option<i32> {
         let (full_a, full_b) = (self.alt_type(a), self.alt_type(b));
         let (sa, sb) = (self.without_implicits(full_a)?, self.without_implicits(full_b)?);
-        let result = self.compare_with_types((a, sa), (b, sb), ctx, old)?;
+        let result = self.compare_with_types((a, sa), (b, sb), ctx)?;
         Some(match (result, sa == full_a, sb == full_b) {
             (0, true, true) => 0,
             (0, true, false) => 1,
             (0, false, true) => -1,
-            (0, false, false) => self.compare_with_types((a, full_a), (b, full_b), ctx, old)?,
+            (0, false, false) => self.compare_with_types((a, full_a), (b, full_b), ctx)?,
             _ => result,
         })
     }
@@ -54,11 +44,10 @@ impl Typer<'_> {
         (a, ta): (Candidate, TypeId),
         (b, tb): (Candidate, TypeId),
         ctx: Ctx,
-        old: bool,
     ) -> Option<i32> {
         let owner = self.compare_owner(self.u.symbol(a.sym).owner, self.u.symbol(b.sym).owner);
-        let wins_a = self.is_as_good((a, ta), (b, tb), ctx, old)?;
-        let wins_b = self.is_as_good((b, tb), (a, ta), ctx, old)?;
+        let wins_a = self.is_as_good((a, ta), (b, tb), ctx)?;
+        let wins_b = self.is_as_good((b, tb), (a, ta), ctx)?;
         let same = |t: &mut Self| {
             let (ra, rb) = (t.ref_type(a.prefix, a.sym), t.ref_type(b.prefix, b.sym));
             a.sym == b.sym && t.u.is_subtype(ra, rb) && t.u.is_subtype(rb, ra)
@@ -71,7 +60,7 @@ impl Typer<'_> {
             return None;
         }
         let implicit = |t: &Self, c: Candidate| t.u.symbol(c.sym).flags.has(IMPLICIT);
-        let new_scheme = !(old || implicit(self, a) && implicit(self, b));
+        let new_scheme = !(implicit(self, a) && implicit(self, b));
         Some(match owner {
             1 if wins_a || !wins_b || new_scheme => 1,
             -1 if wins_b || !wins_a || new_scheme => -1,

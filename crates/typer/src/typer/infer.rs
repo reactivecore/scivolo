@@ -3,8 +3,16 @@
 
 use super::{Typer, Widen};
 use crate::constraint::Constraint;
+use crate::symbols::SCRIPT_BINDERS;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+
+/// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
+/// the universe).
+fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
+    matches!(u.types().get(t), Type::Lambda { binder, .. }
+        if binder.0 == SCRIPT_BINDERS || binder.0 == Universe::FRESH_BINDERS)
+}
 
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
 /// skolem keeping its identity.
@@ -23,6 +31,16 @@ impl Typer<'_> {
     /// Whether `a` conforms to `b`, constraining type variables.
     pub fn conforms(&mut self, a: TypeId, b: TypeId) -> bool {
         self.u.is_subtype_in(a, b, &mut self.constraint)
+    }
+
+    /// Whether `a` conforms to `b` frozen, no reference lifted to the `this` of an enclosing
+    /// object with opaque types (dotty's test under the root owner).
+    pub fn conforms_unlifted(&mut self, a: TypeId, b: TypeId) -> bool {
+        let (a, b) = (self.zonk(a), self.zonk(b));
+        let owner = self.u.set_comparison_owner(None);
+        let ok = self.u.is_subtype(a, b);
+        self.u.set_comparison_owner(owner);
+        ok
     }
 
     /// `t` with instantiated type variables replaced by their instances, normalized.
@@ -56,13 +74,21 @@ impl Typer<'_> {
                 return Err("singleton instance below another type variable");
             }
         }
-        let mut cyclic = false;
+        let (mut cyclic, mut lambda) = (false, false);
         self.u.map_type(inst, &mut |u, part| {
             cyclic |= *u.types().get(part) == Type::Var(v);
+            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
             None
         });
         if cyclic {
             return Err("type variable instantiated to a type containing it");
+        }
+        let script_hk = is_script_lambda(self.u, hi);
+        if script_hk && lambda {
+            return Err("type variable instantiated to a type lambda");
+        }
+        if script_hk && !from_below && self.type_arity(inst) > 0 {
+            return Err("higher-kinded type variable instantiated to its upper bound");
         }
         self.constraint.instantiate(v, inst);
         Ok(())
@@ -122,7 +148,8 @@ impl Typer<'_> {
         Err("type variables")
     }
 
-    /// Makes the types of all trees, and of closures' symbols, fully defined.
+    /// Makes the types of all trees, and of closures' symbols, fully defined; `Err` if a local
+    /// symbol escaped into the bound of a type variable.
     pub fn zonk_trees(&mut self) -> Result<(), &'static str> {
         for s in self.syms.closure_syms.clone() {
             let info = self.u.info(s);
@@ -135,6 +162,12 @@ impl Typer<'_> {
                 let t = self.fully_defined(t)?;
                 self.tpd.get_mut(id).tpe = Some(t);
             }
+            if let T::TypeApply { fun, args } = *self.tpd.tree(id)
+                && self.tpd.sym(fun).is_some_and(|s| self.syms.is_script(s))
+                && self.tpd.items(args).to_vec().into_iter().any(|a| self.has_lambda(a))
+            {
+                return Err("type lambda inferred for a type parameter of a script method");
+            }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
             if let Some(s) = self.tpd.sym(id).filter(|_| defines)
                 && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
@@ -145,6 +178,21 @@ impl Typer<'_> {
                 }
             }
         }
+        if self.constraint.escaped() {
+            return Err("local type escaping through a type variable");
+        }
         Ok(())
+    }
+
+    /// Whether the type of tree `id`, fully defined, has a type lambda in it.
+    fn has_lambda(&mut self, id: TNodeId) -> bool {
+        let Some(t) = self.tpd.get(id).tpe else { return false };
+        let t = self.zonk(t);
+        let mut lambda = false;
+        self.u.map_type(t, &mut |u, part| {
+            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
+            None
+        });
+        lambda
     }
 }

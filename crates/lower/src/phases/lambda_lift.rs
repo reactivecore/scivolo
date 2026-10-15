@@ -1,10 +1,11 @@
 //! Lambdas and local methods (dotty's `LambdaLift`): each `{ def $anonfun(ps) = body; closure }`
 //! and each `def f(ps) = body` in a block of a class's methods, field initializers or statements
-//! becomes a private method taking the captured values first, of the class if it needs `this`,
-//! else static in the top-level class; closures and calls pass them.
+//! becomes a private method taking the captured values first, of the enclosing class it is
+//! narrowed into, of the class if it needs `this`, else static in the top-level class; closures
+//! and calls pass them.
 
 use super::captures::dependencies;
-use super::lift_names::{Named, Pending, name_all};
+use super::lift_names::{Named, Pending, name_all, name_each};
 use super::lifted::{Method, lift, methods};
 use super::walk::children;
 use crate::symbols::{has, is_static};
@@ -14,8 +15,8 @@ use tasty::{Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A function to lift: its definition, the block it is in, its closure if a lambda, the function
-/// it is in, the values it captures, whether it needs `this`, whether it is in the constructor
-/// (a field initializer or statement).
+/// it is in, the values it captures, whether it needs `this`, the enclosing class it is lifted
+/// into instead, whether it is in the constructor (a field initializer or statement).
 pub struct Function {
     pub def: TNodeId,
     pub block: TNodeId,
@@ -24,13 +25,26 @@ pub struct Function {
     pub parent: Option<usize>,
     pub captured: Vec<SymbolId>,
     pub this: bool,
+    pub into: Option<SymbolId>,
     pub ctor: bool,
+}
+
+impl Function {
+    /// Whether its method is an instance method.
+    pub fn instance(&self) -> bool {
+        self.this || self.into.is_some()
+    }
+
+    /// Whether this is a lambda's method, kept as a closure or not (dotty's `isAnonymousFunction`).
+    pub fn is_anonymous(&self, l: &Lower) -> bool {
+        self.closure.is_some() || l.u.symbol(self.sym).name == "$anonfun"
+    }
 }
 
 /// The functions of a class to lift and their methods.
 struct Lifting {
+    td: TNodeId,
     class: SymbolId,
-    template: TNodeId,
     functions: Vec<Function>,
     methods: Vec<Method>,
 }
@@ -54,7 +68,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
     }
     let mut deferred = Vec::new();
     for c in liftings {
-        let (lifted, adapted) = lift(l, c.class, c.template, &c.functions, &c.methods)?;
+        let (lifted, adapted) = lift(l, (c.td, c.class), &c.functions, &c.methods)?;
         deferred.extend(adapted);
         for def in lifted {
             let owner = l.tpd.sym(def).and_then(|s| l.u.symbol(s).owner);
@@ -64,23 +78,8 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
             super::outer_traits::append(l, td, &[def]);
         }
     }
-    name_proxies(l, &deferred);
+    name_each(l, &deferred);
     Ok(())
-}
-
-/// Names proxies `proxies`, each `x$N` for the value `x` it stands for.
-pub fn name_proxies(l: &mut Lower, proxies: &[SymbolId]) {
-    for &p in proxies {
-        let base = l.u.symbol(p).name.clone();
-        let name = fresh(l, &base);
-        l.u.rename(p, &name);
-    }
-}
-
-/// `base$N`, `N` counting the names made from `base` in the unit (dotty's `freshened`).
-pub fn fresh(l: &mut Lower, base: &str) -> String {
-    let name = l.fresh.next(l.names, &format!("{base}$"));
-    l.names.text(name).to_owned()
 }
 
 /// The functions of class definition `td` with their dependencies and methods, if any.
@@ -120,14 +119,16 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     let in_class =
         is_static(l.u, class) && (l.u.is_module_class(class) || l.u.symbol(owner).kind != Kind::Package);
     for f in &mut functions {
-        f.this = (f.closure.is_none() || f.ctor) && in_class;
+        f.this = (!f.is_anonymous(l) || f.ctor) && in_class;
     }
+    super::narrowed::narrow(l, class, &mut functions);
     dependencies(l, &mut functions, class, &roots, (in_class, pending))?;
     for (i, f) in functions.iter_mut().enumerate() {
         f.this &= !in_static.contains(&i);
     }
+    super::narrowed::check(l, class, &mut functions)?;
     let methods = methods(l, class, &functions)?;
-    Ok(Some(Lifting { class, template, functions, methods }))
+    Ok(Some(Lifting { td, class, functions, methods }))
 }
 
 /// The lambdas and local methods under `t` in pre-order, `parent` the one they are in.
@@ -141,6 +142,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
             parent,
             captured: Vec::new(),
             this: false,
+            into: None,
             ctor: false,
         });
         let index = out.len() - 1;
@@ -164,6 +166,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
                             parent,
                             captured: Vec::new(),
                             this: false,
+                            into: None,
                             ctor: false,
                         });
                         let index = out.len() - 1;
@@ -183,7 +186,7 @@ fn collect(l: &Lower, t: TNodeId, parent: Option<usize>, out: &mut Vec<Function>
 }
 
 /// The `$anonfun` definition, closure and method symbol of lambda block `t`.
-fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
+pub fn lambda(l: &Lower, t: TNodeId) -> Option<(TNodeId, TNodeId, SymbolId)> {
     let Tree::Block { stats, expr } = *l.tpd.tree(t) else { return None };
     let &[def] = l.tpd.items(stats) else { return None };
     let Tree::Closure { meth, .. } = *l.tpd.tree(expr) else { return None };

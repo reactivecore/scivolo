@@ -33,14 +33,16 @@ Apache-2.0. Rust translations of:
   `crates/tasty/src/positions.rs`: `core/tasty/PositionUnpickler`; `Implicits.comesTooLate`;
   `crates/typer/src/typer/implicits`: `Implicits` (`candidateKind`, `typedImplicit`,
   `isCoherent`, `negateIfNot`, `ContextualImplicits.level`, `combineEligibles`,
-  `collectCompanions`, `hasExtMethod`, `filterMatching`), `ProtoTypes` (`isCompatible`,
+  `collectCompanions`, `hasExtMethod`, `filterMatching`, `checkDivergence`, `recursiveRef`,
+  `SearchHistory`, `SearchRoot.emitDictionary`), `Types` (`TypeSizeAccumulator`,
+  `CoveringSetAccumulator`) in `measures.rs`, `ProtoTypes` (`isCompatible`,
   `wildApprox`) in `prefilter.rs`, `Synthesizer` (`synthesizedClassTag`,
   `synthesizedValueOf`), `TypeErasure.hasStableErasure`, `Typer.adaptNoArgsImplicitMethod`,
   `Applications.extMethodApply`; `Applications` (`compare`, `isAsGood`, `isAsGoodValueType`,
   `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`, `as_good.rs`,
   `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
   `named_args.rs`, `default_args.rs`; `crates/typer/src/constraint`:
-  `core/ConstraintHandling.addOneBound`.
+  `core/ConstraintHandling` (`addOneBound`, `unify`, `LevelAvoidMap`).
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
@@ -50,13 +52,34 @@ Apache-2.0. Rust translations of:
   `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
   (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
+- Context functions: `Typer` (`makeContextualFunction`, `typedFunctionType`, the context
+  closure check of `typedUnadapted`, `adaptNoArgsOther`, `isApplyProto`), `Desugar.makeContextualFunction`,
+  `TreeInfo.isContextualClosure`, `Definitions` (`newFunctionNType`, `asContextFunctionType`),
+  `ProtoTypes.normalize` (`followIFT`) in `crates/typer/src/typer/{context_functions,adapt_by_result}.rs`
+  and `crates/tasty/src/symbols/context_functions.rs`; `Erasure.Typer.mapOwner` and
+  `ContextFunctionResults.annotateContextResults` in `crates/lower/src/phases`.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
+- `crates/typer/src/typer/type_lambdas.rs`: `HKTypeLambda.boundsFromParams`;
+  `crates/typer/src/typer/type_args.rs`: `Typer.adaptType` (eta-expanded constructor
+  arguments); `crates/tasty/src/erasure/applied.rs`: `AppliedType.superType`.
 - `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,
   `UnapplyArgs`, `unapplySeqTypeElemTp`, `isProductSeqMatch`, `Desugar.adaptPatternArgs`.
+- `crates/typer/src/typer/{arg_shapes,pretyped_args}.rs`: `Applications` (`typeShape`, `normArg`,
+  `narrowByShapes`, `pretypeArgs`, `ptIsCorrectProduct`), `FunProto.typedArgs` without forcing,
+  `TreeInfo.functionWithUnknownParamType`.
+- `crates/typer/src/typer/{sams,sam_closures}.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
+  `SAMType.samClass`, `Typer.typedClosure` (the closure's target type).
+- `crates/typer/src/typer/selves.rs`, `crates/tasty/src/types/widen.rs` (`self_type`):
+  `Namer.completeConstructor` (`selfInfo`), `ContextOps.inClassContext`, `denotNamed`,
+  `ClassInfo.selfType`, `ThisType.underlying`, `SAMType.samClass` (self type rule).
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
+  - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
+    `config/JavaPlatform.isSam` (without `samExpansionNotNeeded`'s bridges: refused), `ast/tpd` (`AnonClass`,
+    `ClassDef`), `ast/TreeTypeMap`
+    (`subst`, `changeOwner`)
   - `SyntheticMembers` (`serializableObjectMethod`, case class members, mirror support),
     `FirstTransform` (constant folding, `classOf`, `TreeInfo.constToLiteral` of `getClass`)
   - `Getters`, `Memoize` (`erasedBottomTree`), `Mixin` (superclass call, trait constructors,
@@ -72,11 +95,13 @@ Apache-2.0. Rust translations of:
     `tpd.wrapArrayMethodName`
   - `LambdaLift`, `Dependencies` (closures, local methods, local classes calling local methods
     and creating local classes, the naming order of proxies, `setLogicOwner` of classes and
-    functions, local traits and their members, intermediate classes of `markFree`, returns of
+    functions, `narrowLogicOwner` and `computeLogicOwners`, local traits and their members,
+    intermediate classes of `markFree`, `topLevelClass`, returns of
     blocks), `ExpandPrivate` (expanded names of lifted methods), `CapturedVars`, `ElimByName` (calls),
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
     classes and traits, `fixThis`), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
+  - `ExplicitSelf`
   - `PatternMatcher` (literal, binding, alternative, type, extractor, sequence and
     product-sequence patterns, guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, singletons through
@@ -98,6 +123,9 @@ Apache-2.0. Rust translations of:
   - `LazyVals` (`transformMemberDefThreadSafeNew`, `mkThreadSafeDef`, `transformLocalDef`,
     `transformStats`), `TypeErasure.isPolymorphicAfterErasure` (`synchronized`)
   - `TailRec` (`TailRecElimination`)
+  - `ElimOpaque` (`crates/lower/src/phases/elim_opaque.rs`); `TypeComparer.liftToThis`,
+    `SymDenotations.opaqueToBounds`/`opaqueAlias`, `TypeOps.asSeenFrom` (`seesOpaques`)
+    (`crates/tasty/src/subtype/lift.rs`, `crates/tasty/src/symbols/opaques.rs`)
 - `crates/tasty/src/erasure/scala2.rs`: `core/unpickleScala2/Scala2Erasure`
   (`intersectionDominator`), `SourceLanguage`.
 - `crates/tasty/src/types/show_user`: `printing/{ReplPrinter,RefinedPrinter,PlainPrinter}`

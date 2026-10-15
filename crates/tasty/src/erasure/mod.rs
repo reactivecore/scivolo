@@ -114,7 +114,7 @@ impl Universe {
                 None => object(),
             },
             Kind::Type | Kind::TypeParam | Kind::Val | Kind::Param => {
-                let info = self.info(s);
+                let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
                 self.erase(info)
             }
             Kind::Def => {
