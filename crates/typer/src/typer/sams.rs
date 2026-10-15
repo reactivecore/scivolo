@@ -16,8 +16,7 @@ pub struct Sam {
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
     /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
-    /// single abstract method type outside the subset: with type variables or method type
-    /// parameters.
+    /// single abstract method type outside the subset: with type variables.
     pub fn sam_parts(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
@@ -28,18 +27,6 @@ impl Typer<'_> {
         }
         if !self.no_args_needed(class)? {
             return Ok(None);
-        }
-        let mut method_tparam = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
-                let owner = u.symbol(s).owner;
-                method_tparam |= u.symbol(s).kind == Kind::TypeParam
-                    && owner.is_some_and(|o| u.symbol(o).kind == Kind::Def);
-            }
-            None
-        });
-        if method_tparam {
-            return Err("single abstract method type outside the subset");
         }
         let parent = self.u.base_type(t, class).ok_or("single abstract method type outside the subset")?;
         let parent = self
