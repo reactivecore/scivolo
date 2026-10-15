@@ -42,8 +42,7 @@ impl Typer<'_> {
     /// `tree` converted to fit `goal` by the implicit conversion the search selects, or the
     /// implicit value with the extension method a member goal names; `None` if neither applies.
     pub fn viewed(&mut self, tree: TNodeId, goal: Goal, ctx: Ctx) -> Result<Option<Viewed>, &'static str> {
-        let from = self.tpd.tpe(tree);
-        let from = self.zonk(from);
+        let from = self.zonk(self.tpd.tpe(tree));
         if let Goal::Conform(pt) = goal
             && (self.is_top_like(pt) || self.is_underspecified_arg(from))
         {
@@ -160,7 +159,7 @@ impl Typer<'_> {
         let from = self.constraint.count();
         let mut fun = self.with_type_vars(fun)?;
         if kind == ViewKind::Value {
-            fun = self.conversion_apply(fun, tree, goal, ctx)?;
+            fun = self.viewing(c, |t| t.conversion_apply(fun, tree, goal, ctx))?;
         }
         let fun_tpe = self.tpd.tpe(fun);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
@@ -180,7 +179,8 @@ impl Typer<'_> {
             return Err("conversion of another type");
         };
         let converted = self.build().apply(fun, &[arg], result, span.to_synthetic());
-        let converted = self.with_implicit_args(converted, (span.end_pos(), span.to_synthetic()), ctx, 1)?;
+        let spans = (span.end_pos(), span.to_synthetic());
+        let converted = self.viewing(c, |t| t.with_implicit_args(converted, spans, ctx, 1))?;
         let result = self.tpd.tpe(converted);
         let pt = match goal {
             Goal::Conform(pt) if self.conforms(result, pt) => Pt::Type(pt),

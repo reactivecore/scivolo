@@ -24,6 +24,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        let open = std::mem::take(&mut self.history.open);
         let vars = self.constraint.count();
         self.add_annotations(sym, tree, ctx);
         match self.ast.tree(tree).clone() {
@@ -50,6 +51,7 @@ impl Typer<'_> {
         }
         self.syms.completions.insert(sym, Completion::Done);
         self.constraint.keep_from(vars);
+        self.history.open = open;
     }
 
     fn is_class_def(&self, tree: NodeId) -> bool {

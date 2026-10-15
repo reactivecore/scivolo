@@ -163,8 +163,8 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     Ok(free)
 }
 
-/// What local class definition `td` defines that the lowering does not lift with it: lambdas and
-/// local methods, lazy values of an object.
+/// What local class definition `td` defines that the lowering does not lift with it: lazy values
+/// of an object.
 fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
     super::explicit_outer::terms(l, td, true).into_iter().find_map(|t| match *l.tpd.tree(t) {
         Tree::ValDef { .. } | Tree::DefDef { .. }
