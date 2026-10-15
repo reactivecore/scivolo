@@ -6,6 +6,7 @@ mod as_good;
 mod attempts;
 mod can_equal;
 mod candidates;
+mod capture;
 mod class_tags;
 mod clauses;
 mod contextual;
