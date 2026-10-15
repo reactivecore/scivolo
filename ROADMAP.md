@@ -177,8 +177,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    synthesis, the search history with by-name implicits and divergence checks, context
    functions); unification of type variables that bound each other (ADR 0026) and sound
    avoidance of local types (#104); group D in part (research 19: overloads narrowed by
-   function argument shapes, partial functions from closures) and E in part (self types).
-   `just typer-report`: tests/pos 1291 typed as dotty, 32 differ, 1686 refused (source versions other than 3.9 among them);
+   function argument shapes, partial functions from closures) and E in part (self types, opaque
+   types, ADR 0027). `just typer-report`: tests/pos 1300 typed as dotty, 32 differ, 1677 refused (source versions other than 3.9 among them);
    tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
@@ -190,7 +190,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    `UninitializedDefs`, generic array operations, tuple and singleton type tests (#34, #92,
    research 15), the `f` interpolator (#82), lambdas and local methods in local classes,
    context functions erased to `FunctionN`, and ExpandSAMs' partial functions. Of dotty's
-   `tests/run`, 849 pass through typer, lowering and VM on 2026-10-15 (809 before the
+   `tests/run`, 850 pass through typer, lowering and VM on 2026-10-15 (809 before the
    2026-10-15 batch, 399 on 2026-10-11), 28 are refused by the lowering, none crashes in the
    VM; see
    [docs/conformance.md](docs/conformance.md).
@@ -249,24 +249,24 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-15,
-849 of 1711 pass (809 before the batch below, 399 on 2026-10-11), 555 stop at the typer, 28 at
+850 of 1711 pass (809 before the batch below, 399 on 2026-10-11), 554 stop at the typer, 28 at
 the lowering, and 1 crashes in the frontend (t8199).
 
 Merged in the 2026-10-15 batch (one integration MR): typer group A further (#83: search
 history with by-name implicits, divergence checks and their dictionary; context functions,
 erased to `FunctionN` in the lowering) and group D in part (#83, research 19: overloads narrowed
 by function argument shapes, partial functions from closures with ExpandSAMs) and group E in
-part (#83: self types); unification of
+part (#83: self types; opaque types, elided by the lowering's ElimOpaque); unification of
 type variables that bound each other and sound avoidance of local types (#104); the lowering's
 lambdas and local methods in local classes, boxed captured variables and static package owners
 (#34, #95, #96, #98, #101). `moderate.scala` runs through the own frontend in 48 ms
 edit-then-run, within the exit criterion.
 
 Next, in order of the tests they unblock:
-1. **Typer groups** (research 14, 18, 19): members not found (33); the rest of A (no implicit
+1. **Typer groups** (research 14, 18, 19): members not found (42); the rest of A (no implicit
    argument, 28, among them lazy-implicit-nums and -lists, which need unification inside
-   implicit searches); adaptations (27); the rest of E, opaque types (24); G, higher-kinded
-   abstract types (21); the rest of D, refined type trees (18).
+   implicit searches); adaptations (27); G, higher-kinded abstract types (21); the rest of D,
+   refined type trees (18); the rest of E, opaque aliases other than classes (8).
 2. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 3. **Lowering gaps** (research 15): patterns of classes in classes, calls with several argument
    lists, `Unit`/`Null`/`Nothing` parameters and private fields, sub matches, reflective calls,
