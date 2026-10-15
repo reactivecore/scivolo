@@ -91,7 +91,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         let param = params.iter().copied().find(|&p| &l.u.symbol(p).name == name);
         let param = param.expect("a class parameter's constructor parameter");
         let field = l.fields.iter().find(|&(_, &g)| g == accessor).map(|(&f, _)| f);
-        let field = field.expect("a class parameter's field");
+        let Some(field) = field else {
+            assert!(super::memoize::bottom(l, accessor).is_some(), "a class parameter's field");
+            continue;
+        };
         let lhs = l.field_ref(field, template_span);
         let value = l.ident(param, template_span);
         stats.push(assign(l, lhs, value, template_span));

@@ -54,7 +54,7 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(c: Boolean): Any = if c then Array(1) else \"s\" }",
         "branches of arrays and other erased classes",
     ),
-    ("class A(val u: Unit)", "parameters and private local fields of type Unit"),
+    ("class A(u: Unit) { def f = u }", "private local fields of type Unit"),
     (
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",

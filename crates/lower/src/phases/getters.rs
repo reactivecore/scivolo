@@ -9,7 +9,7 @@ use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{FIELDaccessor, FINAL, LAZY, LOCAL, MUTABLE, PARAMsetter, PRIVATE, STATIC, SYNTHETIC};
-use tasty::{Erased, Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
 /// Makes the values of class definition `td` getters, an object's lazy ones in a class; drops the
@@ -75,14 +75,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             l.u.set_owner(sym, constructor);
             continue;
         }
-        let info = l.u.info(sym);
-        let erased = l.u.erase(info);
-        if (private_local || is_param_accessor(l, sym))
-            && matches!(erased, Erased::Unit | Erased::Null | Erased::Nothing)
-        {
-            return unsupported(span, "parameters and private local fields of type Unit, Null or Nothing");
-        }
         if private_local {
+            if super::memoize::bottom(l, sym).is_some() {
+                return unsupported(span, "private local fields of type Unit, Null or Nothing");
+            }
             l.fields.insert(sym, sym);
             continue;
         }

@@ -144,6 +144,10 @@ fn setter(
         *fence = true;
     }
     let rhs = match (bottom(l, getter), field) {
+        (Some(_), _) if rhs.is_none() => {
+            let s = l.tpd.span(stat);
+            l.unit_literal(if s.exists() { s.with_point(s.start()) } else { s })
+        }
         (Some(_), _) | (None, None) => unit_body(l),
         (None, Some(field)) => {
             let param_tree = l.tpd.items(l.tpd.clause_items(paramss)[0])[0];
