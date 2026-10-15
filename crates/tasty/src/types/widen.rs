@@ -115,7 +115,11 @@ impl Universe {
         let mut t = self.widen(prefix);
         for _ in 0..MAX_STEPS {
             match self.types().get(t).clone() {
-                Type::Refined(_, n, info) if n == name => return Some(info),
+                Type::Refined(_, n, info)
+                    if n == name && matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
+                {
+                    return Some(info);
+                }
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
