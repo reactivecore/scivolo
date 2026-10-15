@@ -41,10 +41,12 @@ impl FnBuilder<'_, '_> {
         Ok(arr)
     }
 
-    /// The address of element `idx` of array `arr` of `elem`s.
-    // Temporary until #113 aot 4 (slow paths): an index out of bounds throws.
+    /// The address of element `idx` of array `arr` of `elem`s, checked against null and bounds.
     pub fn element(&mut self, elem: TypeId, arr: ValId, idx: ValId) -> R<Value> {
         let (a, i) = (self.val(arr)?, self.val(idx)?);
+        self.null_check(a)?;
+        let len = self.b.ins().load(types::I32, MemFlagsData::new(), a, ARRAY_LENGTH as i32);
+        self.bounds_check(i, len)?;
         let i = self.b.ins().sextend(self.decls.ptr, i);
         let offset = self.b.ins().imul_imm_s(i, size_of(&self.reach.world.pool, elem) as i64);
         let base = self.b.ins().iadd(a, offset);
@@ -53,6 +55,7 @@ impl FnBuilder<'_, '_> {
 
     pub fn array_length(&mut self, arr: ValId) -> R<Value> {
         let a = self.val(arr)?;
+        self.null_check(a)?;
         Ok(self.b.ins().load(types::I32, MemFlagsData::new(), a, ARRAY_LENGTH as i32))
     }
 

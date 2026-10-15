@@ -78,17 +78,20 @@ impl FnBuilder<'_, '_> {
         })
     }
 
-    /// `v` where a value of type `t` is expected: `unit` and `null` become zero of type `t`.
+    /// `v` where a value of type `t` is expected: `null` becomes zero of type `t`, `unit` the
+    /// `BoxedUnit` instance where an object is expected and zero elsewhere.
     pub fn arg(&mut self, v: ValId, t: types::Type) -> R<Value> {
         let pool = &self.reach.world.pool;
-        let zero = match pool.val(v) {
-            Val::Unit | Val::Null => true,
-            Val::Local(_, ty) => matches!(pool.ty(*ty), Type::Unit),
-            _ => false,
+        let (null, unit) = match pool.val(v) {
+            Val::Null => (true, false),
+            Val::Unit => (false, true),
+            Val::Local(_, ty) => (false, matches!(pool.ty(*ty), Type::Unit)),
+            _ => (false, false),
         };
-        match zero {
-            true => Ok(self.b.ins().iconst(t, 0)),
-            false => self.val(v),
+        match (null, unit) {
+            (false, true) if t == self.decls.ptr => self.boxed_unit(),
+            (true, _) | (_, true) => Ok(self.b.ins().iconst(t, 0)),
+            _ => self.val(v),
         }
     }
 }

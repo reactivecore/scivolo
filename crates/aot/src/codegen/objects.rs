@@ -8,6 +8,8 @@ use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
 use nir::{GlobalId, Op, StrId, TypeId, ValId};
 
+const BOXED_UNIT: &str = "scala.scalanative.runtime.BoxedUnit$";
+
 impl FnBuilder<'_, '_> {
     pub fn object_op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
         Ok(Some(match op {
@@ -30,12 +32,12 @@ impl FnBuilder<'_, '_> {
                 self.b.ins().iconst(types::I8, 0)
             }
             Op::Fieldload { ty, obj, name } => {
-                let (o, offset) = (self.val(*obj)?, self.field_offset(*name)?);
+                let (o, offset) = self.field(*obj, *name)?;
                 let t = self.ty(*ty)?;
                 self.b.ins().load(t, MemFlagsData::new(), o, offset)
             }
             Op::Fieldstore { ty, obj, name, value } => {
-                let (o, offset) = (self.val(*obj)?, self.field_offset(*name)?);
+                let (o, offset) = self.field(*obj, *name)?;
                 let unit = matches!(self.reach.world.pool.ty(*ty), nir::Type::Unit);
                 let t = if unit { self.decls.ptr } else { self.ty(*ty)? };
                 let v = self.arg(*value, t)?;
@@ -43,7 +45,7 @@ impl FnBuilder<'_, '_> {
                 return Ok(None);
             }
             Op::Field { obj, name } => {
-                let (o, offset) = (self.val(*obj)?, self.field_offset(*name)?);
+                let (o, offset) = self.field(*obj, *name)?;
                 self.b.ins().iadd_imm_s(o, offset as i64)
             }
             Op::Method { obj, sig } => self.method(id, *obj, *sig)?,
@@ -67,8 +69,7 @@ impl FnBuilder<'_, '_> {
             Op::Arraylength(arr) => self.array_length(*arr)?,
             Op::Box { ty, obj } => self.boxing(*ty, *obj, true)?,
             Op::Unbox { ty, obj } => self.boxing(*ty, *obj, false)?,
-            // Temporary until #113 aot 4 (slow paths): a failing cast throws ClassCastException.
-            Op::As { obj, .. } => self.val(*obj)?,
+            Op::As { ty, obj } => self.cast(*obj, *ty)?,
             // Temporary until #115 (`dynmethod`, aggregates).
             op => return Err(format!("operation not supported yet: {op:?}")),
         }))
@@ -92,6 +93,50 @@ impl FnBuilder<'_, '_> {
         Ok(self.b.ins().symbol_value(self.decls.ptr, gv))
     }
 
+    /// The static class of value `v`, if it is an object.
+    fn class_of_val(&mut self, v: ValId) -> R<Option<ClassId>> {
+        Ok(Some(match self.reach.world.pool.val(v) {
+            nir::Val::String(_) => self.reach.link_top("java.lang.String")?,
+            nir::Val::ClassOf(_) => self.reach.link_top(crate::codegen::CLASS)?,
+            nir::Val::Unit => self.reach.link_top(BOXED_UNIT)?,
+            nir::Val::Null => return Ok(None),
+            _ => {
+                let ty = self.type_of(v)?;
+                return self.reach.class_of_type(ty);
+            }
+        }))
+    }
+
+    /// The `BoxedUnit` instance, the value of `unit` where an object is expected.
+    pub fn boxed_unit(&mut self) -> R<Value> {
+        let cls = self.reach.link_top(BOXED_UNIT)?;
+        let load = self.decls.module_load(self.module, self.reach, cls)?;
+        let fref = self.module.declare_func_in_func(load, self.b.func);
+        let call = self.b.ins().call(fref, &[]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// Object `obj`, checked not to be null, and the offset of its field `name`.
+    fn field(&mut self, obj: ValId, name: GlobalId) -> R<(Value, i32)> {
+        let o = self.val(obj)?;
+        self.null_check(o)?;
+        Ok((o, self.field_offset(name)?))
+    }
+
+    /// `obj as ty`: `obj` if it is null or an instance of `ty`, else a thrown ClassCastException.
+    fn cast(&mut self, obj: ValId, ty: TypeId) -> R<Value> {
+        let o = self.val(obj)?;
+        let Some(cls) = self.reach.class_of_type(ty)? else { return Ok(o) };
+        let is = self.is_instance(o, ty)?;
+        let null = self.b.ins().icmp_imm_s(IntCC::Equal, o, 0);
+        let ok = self.b.ins().bor(is, null);
+        let target = self.rtti_addr(cls)?;
+        let readable = self.b.ins().select(null, target, o);
+        let from = self.load(self.decls.ptr, readable, 0);
+        self.check(ok, super::checks::CLASS_CAST, &[from, target])?;
+        Ok(o)
+    }
+
     fn field_offset(&mut self, name: GlobalId) -> R<i32> {
         let owner = self.reach.link(self.reach.world.owner(name))?;
         match self.reach.classes.get(owner).fields.get(&name) {
@@ -107,13 +152,7 @@ impl FnBuilder<'_, '_> {
     /// The address of method `sig` of `obj`: resolved here for modules and non-virtual methods,
     /// else from the vtable of its class or, if its static class has no slot, from the itable.
     fn method(&mut self, id: u64, obj: ValId, sig: StrId) -> R<Value> {
-        let cls = match self.reach.world.pool.val(obj) {
-            nir::Val::String(_) => self.reach.link_top("java.lang.String")?,
-            _ => {
-                let ty = self.type_of(obj)?;
-                self.reach.class_of_type(ty)?.ok_or("a method of a value that is no object")?
-            }
-        };
+        let cls = self.class_of_val(obj)?.ok_or("a method of a value that is no object")?;
         let kind = self.reach.classes.get(cls).kind;
         let ptr = self.decls.ptr;
         if kind == Kind::Module || !is_virtual(self.reach.world.pool.str(sig)) {
@@ -125,7 +164,7 @@ impl FnBuilder<'_, '_> {
             return Ok(self.b.ins().func_addr(ptr, fref));
         }
         let o = self.val(obj)?;
-        // Temporary until #113 aot 4 (slow paths): a null receiver throws NullPointerException.
+        self.null_check(o)?;
         let rtti = self.load(ptr, o, 0);
         let slot = self.reach.classes.get(cls).slot_of.get(&sig).copied();
         if let (Some(slot), false) = (slot, kind == Kind::Trait) {

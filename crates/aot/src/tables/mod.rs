@@ -18,6 +18,7 @@ const RUNTIME: &str = "scala.scalanative.runtime.";
 // object of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let fixed = link_runtime(reach)?;
+    reach.link_top("java.lang.String")?;
     let meta = reach.link_top(CLASS)?;
     let ids = ids(&reach.classes, &reach.world.pool);
     for &(expected, cls) in &fixed {

@@ -3,7 +3,7 @@
 use super::body::FnBuilder;
 use crate::R;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
-use cranelift_codegen::ir::{InstBuilder, MemFlagsData, TrapCode, Value, types};
+use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
 use nir::{Bin, Comp, Conv, Op, Val};
 
@@ -87,14 +87,24 @@ impl FnBuilder<'_, '_> {
             Bin::Or => ins.bor(l, r),
             Bin::Xor => ins.bxor(l, r),
             Bin::Sdiv | Bin::Srem | Bin::Udiv | Bin::Urem => return self.div(bin, l, r),
-            Bin::Frem => return Err("frem not supported yet".into()),
+            Bin::Frem => return self.frem(l, r),
         })
     }
 
-    /// Division and remainder; division by zero traps, `MIN / -1` wraps.
+    /// The floating-point remainder of `l / r`, through C's `fmod`.
+    fn frem(&mut self, l: Value, r: Value) -> R<Value> {
+        let t = self.b.func.dfg.value_type(l);
+        let name = if t == types::F32 { "scalai_aot_frem_f32" } else { "scalai_aot_frem_f64" };
+        let f = self.decls.import(self.module, name, &[t, t], Some(t))?;
+        let fref = self.module.declare_func_in_func(f, self.b.func);
+        let call = self.b.ins().call(fref, &[l, r]);
+        Ok(self.b.inst_results(call)[0])
+    }
+
+    /// Division and remainder; division by zero throws, `MIN / -1` wraps.
     fn div(&mut self, bin: Bin, l: Value, r: Value) -> R<Value> {
-        // Temporary until #113 aot 4 (slow paths): division by zero calls throwDivisionByZero.
-        self.b.ins().trapz(r, TrapCode::INTEGER_DIVISION_BY_ZERO);
+        let ok = self.b.ins().icmp_imm_s(IntCC::NotEqual, r, 0);
+        self.check(ok, super::checks::DIVISION_BY_ZERO, &[])?;
         Ok(match bin {
             Bin::Udiv => self.b.ins().udiv(l, r),
             Bin::Urem => self.b.ins().urem(l, r),

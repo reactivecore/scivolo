@@ -24,6 +24,8 @@ pub struct FnBuilder<'a, 'w> {
     pub propagate: Option<Block>,
     /// The type of each `var`.
     pub var_types: HashMap<u64, nir::TypeId>,
+    /// The unwind edge of the instruction being translated.
+    pub unwind: Next,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -43,6 +45,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             methods: HashMap::new(),
             propagate: None,
             var_types: HashMap::new(),
+            unwind: Next::None,
         }
     }
 
@@ -100,6 +103,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
     fn inst(&mut self, inst: &Inst) -> R<bool> {
         match inst {
             Inst::Let { id, op, unwind, .. } => {
+                self.unwind = unwind.clone();
                 if let Some(v) = self.op(id.0, op)? {
                     self.vals.insert(id.0, v);
                 }

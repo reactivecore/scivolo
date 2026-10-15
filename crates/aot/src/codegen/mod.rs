@@ -4,6 +4,7 @@
 mod arrays;
 mod blocks;
 mod body;
+mod checks;
 mod consts;
 mod decls;
 mod intrinsics;
