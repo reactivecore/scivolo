@@ -45,12 +45,12 @@ impl Typer<'_> {
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }
+        self.u.set_parents(cls, parents);
         if let Some(s) = t.self_
             && !self.is_module_self(s)
         {
-            self.unsupported(s, "self type");
+            self.complete_self(cls, s, cctx);
         }
-        self.u.set_parents(cls, parents);
         self.finalize_value_class(cls);
         self.check_member_classes(cls, rhs);
         self.check_enum_case_refs(&t.body);
@@ -101,7 +101,10 @@ impl Typer<'_> {
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
-        let self_ = t.self_.map(|s| self.typed(s, Pt::Any, ctx));
+        let self_ = t.self_.map(|s| match self.is_module_self(s) {
+            true => self.typed(s, Pt::Any, ctx),
+            false => self.typed_self(s, cctx),
+        });
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));

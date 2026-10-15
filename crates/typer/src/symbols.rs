@@ -56,6 +56,8 @@ pub struct Syms {
     pub param_clauses: FxHashMap<SymbolId, Vec<Vec<SymbolId>>>,
     /// The primary constructor of each script class.
     pub primary_ctors: FxHashMap<SymbolId, SymbolId>,
+    /// The self symbol of each script class that names or types its self.
+    pub selves: FxHashMap<SymbolId, SymbolId>,
     /// The result type of each script method as its definition states it, before its type
     /// parameters become parameter references of its info.
     pub def_results: FxHashMap<SymbolId, tasty::TypeId>,

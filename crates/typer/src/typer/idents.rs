@@ -65,6 +65,11 @@ impl Typer<'_> {
             }
             Err(what) => return self.unsupported(id, what),
         };
+        if let [s] = found.syms[..]
+            && self.u.symbol(s).owner.is_some_and(|c| self.self_named(c, &text) == Some(s))
+        {
+            return self.self_ref(id, name, s);
+        }
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
             Err(what) => return self.unchosen(id, what, pt),

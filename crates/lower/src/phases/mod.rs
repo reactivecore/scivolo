@@ -30,6 +30,7 @@ mod erasure;
 mod eta_reduce;
 mod expand_private;
 mod explicit_outer;
+mod explicit_self;
 mod extension_methods;
 mod first_transform;
 mod fold_condition;
@@ -146,6 +147,9 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let dropped = pure_stats::transform(l, root);
     retain_outside(l.tpd, &mut classes, dropped);
     local_lazy::transform(l, root)?;
+    for &td in &classes {
+        explicit_self::transform(l, td);
+    }
     explicit_outer::transform(l, &classes)?;
     let erased = erasure::erased_defs::drop(l, root);
     retain_outside(l.tpd, &mut classes, erased);

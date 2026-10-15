@@ -69,6 +69,8 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
+    /// The given self types of the classes defined outside TASTy that declare one.
+    self_types: FxHashMap<SymbolId, TypeId>,
     /// The annotation classes of the symbols defined outside TASTy.
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// How many `resolve` calls are in progress.
