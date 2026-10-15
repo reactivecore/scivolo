@@ -20,6 +20,8 @@ pub struct RttiLayout {
     pub interfaces_count: i32,
     pub ref_offsets: i32,
     pub super_class: i32,
+    /// Scala Native's itable size; negative makes `Class.is` search the interfaces.
+    pub itables_count: i32,
     pub itable: i32,
     pub itable_len: i32,
     pub vtable: i32,
@@ -36,6 +38,11 @@ impl RttiLayout {
             let f = classes.get(meta).fields.get(&g).ok_or_else(|| format!("no field {CLASS}::{sig}"))?;
             Ok::<_, String>(f.offset as i32)
         };
+        for (sig, offset) in GC_RTTI_FIELDS {
+            if field(sig)? != offset {
+                return Err(format!("{CLASS}::{sig} is not where Immix reads it"));
+            }
+        }
         let header = classes.get(meta).size.next_multiple_of(8) as i32;
         Ok(RttiLayout {
             id: field("F2idO")?,
@@ -45,12 +52,17 @@ impl RttiLayout {
             interfaces_count: field("F15interfacesCountO")?,
             ref_offsets: field("F15refFieldOffsetsO")?,
             super_class: field("F10superClassO")?,
+            itables_count: field("F12itablesCountO")?,
             itable: header,
             itable_len: header + 8,
             vtable: header + 16,
         })
     }
 }
+
+/// The `java.lang.Class` fields the collector reads, at their offsets in its C `Rtti` struct.
+const GC_RTTI_FIELDS: [(&str, i32); 5] =
+    [("F2idO", 8), ("F4nameO", 24), ("F4sizeO", 32), ("F15refFieldOffsetsO", 40), ("F10superClassO", 64)];
 
 pub struct Decls {
     pub call_conv: CallConv,

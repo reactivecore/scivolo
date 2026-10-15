@@ -1,4 +1,5 @@
 //! Finds the entry method among the program's own NIR files.
+// Temporary until #113 aot 3 (generated main) runs every test program: then dropped.
 
 use crate::R;
 use nir::{DefnKind, GlobalId, Pool, Type, TypeId};

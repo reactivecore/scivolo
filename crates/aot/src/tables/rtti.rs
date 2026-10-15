@@ -98,6 +98,7 @@ fn class_part(
     let c = reach.classes.get(cls);
     blob.i32_at(size, c.size as i32);
     blob.i32_at(range, ids[cls as usize].1);
+    blob.i32_at(l.itables_count, -1);
     let pool = &reach.world.pool;
     let mut offsets: Vec<i32> = c
         .fields
@@ -117,23 +118,36 @@ fn class_part(
         return Ok(());
     }
     for (i, sig) in slots.into_iter().enumerate() {
-        if let Some(f) = target(module, reach, decls, cls, sig, true)? {
-            blob.funcs.push((vtable as usize + 8 * i, f));
+        let called = reach.vcalls.contains(&sig);
+        match target(module, reach, decls, cls, sig, true)? {
+            Some(f) => blob.funcs.push((vtable as usize + 8 * i, f)),
+            // Temporary until #113 aot 4 (bridges, ADR 0008): the VM generates the missing bridge.
+            None if called => {
+                let (class, method) =
+                    (reach.world.name(reach.classes.get(cls).name), reach.world.pool.str(sig));
+                return Err(format!("{class} has no implementation of {method}"));
+            }
+            None => {}
         }
     }
     let mut entries = Vec::new();
     for sig in reach.icalls.iter().copied().collect::<Vec<StrId>>() {
         if let Some(f) = target(module, reach, decls, cls, sig, false)? {
-            entries.push((method_key(reach.world.pool.str(sig)), f));
+            entries.push((method_key(reach.world.pool.str(sig)), sig, f));
         }
     }
     entries.sort_by_key(|e| e.0);
+    if let Some(w) = entries.windows(2).find(|w| w[0].0 == w[1].0) {
+        let pool = &reach.world.pool;
+        return Err(format!("itable keys of {} and {} collide", pool.str(w[0].1), pool.str(w[1].1)));
+    }
     let mut table = Blob { bytes: vec![0; 16 * entries.len().max(1)], ..Blob::default() };
-    for (i, (key, f)) in entries.iter().enumerate() {
+    for (i, (key, _, f)) in entries.iter().enumerate() {
         table.bytes[16 * i..16 * i + 8].copy_from_slice(&key.to_le_bytes());
         table.funcs.push((16 * i + 8, *f));
     }
-    blob.i32_at(itable_len, entries.len() as i32);
+    let at = itable_len as usize;
+    blob.bytes[at..at + 8].copy_from_slice(&(entries.len() as u64).to_le_bytes());
     blob.data.push((itable as usize, side_table(module, reach, cls, "itable", table)?));
     Ok(())
 }

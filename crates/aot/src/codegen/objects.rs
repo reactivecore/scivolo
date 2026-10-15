@@ -18,9 +18,12 @@ impl FnBuilder<'_, '_> {
                 let call = self.b.ins().call(fref, &[]);
                 self.b.inst_results(call)[0]
             }
-            Op::Classalloc { name, .. } => {
+            Op::Classalloc { name, zone } => {
+                if zone.is_some() {
+                    // Temporary until #113 aot 5 (zones).
+                    return Err("allocation in a zone is not supported yet".into());
+                }
                 let cls = self.reach.link(*name)?;
-                self.reach.allocate(cls);
                 self.alloc(cls)?
             }
             Op::Fieldload { ty, obj, name } => {
@@ -53,6 +56,7 @@ impl FnBuilder<'_, '_> {
 
     /// A new instance of `cls` from the collector, with its header set.
     pub fn alloc(&mut self, cls: ClassId) -> R<Value> {
+        self.reach.allocate(cls);
         let ptr = self.decls.ptr;
         let alloc = self.decls.import(self.module, "scalanative_GC_alloc", &[ptr, ptr], Some(ptr))?;
         let rtti = self.rtti_addr(cls)?;
@@ -104,6 +108,8 @@ impl FnBuilder<'_, '_> {
             return Ok(self.load(ptr, rtti, self.decls.rtti.vtable + 8 * slot as i32));
         }
         self.reach.icalls.insert(sig);
+        // Temporary until #113 aot 3 (slow paths): an itable miss throws AbstractMethodError
+        // instead of returning null.
         let table = self.load(ptr, rtti, self.decls.rtti.itable);
         let len = self.load(types::I64, rtti, self.decls.rtti.itable_len);
         let key = self.b.ins().iconst(types::I64, method_key(self.reach.world.pool.str(sig)) as i64);

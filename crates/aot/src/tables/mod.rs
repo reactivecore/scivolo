@@ -32,13 +32,26 @@ const PRIMITIVES: [&str; 11] = [
 // Temporary until #113 aot 6 (library cache): the tables go into the program's object, not an
 // object of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
-    reach.link_top("java.lang.Object")?;
-    reach.link_top(&format!("{RUNTIME}Array"))?;
+    let mut fixed = Vec::new();
+    for name in PRIMITIVES {
+        fixed.push(reach.link_top(&format!("{RUNTIME}{name}"))?);
+    }
+    fixed.push(reach.link_top("java.lang.Object")?);
+    fixed.push(reach.link_top(&format!("{RUNTIME}Array"))?);
     for name in array_names() {
-        reach.link_top(&format!("{RUNTIME}{name}"))?;
+        fixed.push(reach.link_top(&format!("{RUNTIME}{name}"))?);
     }
     let meta = reach.link_top(CLASS)?;
     let ids = ids(&reach.classes, &reach.world.pool);
+    for (expected, &cls) in fixed.iter().enumerate() {
+        if ids[cls as usize].0 != expected as i32 {
+            let name = reach.world.name(reach.classes.get(cls).name);
+            return Err(format!(
+                "{name} has class id {}, the runtime expects {expected}",
+                ids[cls as usize].0
+            ));
+        }
+    }
     for cls in 0..reach.classes.all.len() as ClassId {
         rtti::define(module, reach, decls, &ids, meta, cls)?;
     }
@@ -60,8 +73,12 @@ fn ids(classes: &Classes, pool: &Pool) -> Vec<(i32, i32)> {
         }
     }
     roots.sort_by_key(|&c| PRIMITIVES.iter().position(|p| *p == name(c)).unwrap_or(PRIMITIVES.len()));
+    let rank = |c: ClassId| match name(c) {
+        "Array" => 0,
+        n => 1 + array_names().position(|a| a == n).unwrap_or(array_names().count()),
+    };
     for list in &mut children {
-        list.sort_by_key(|&c| name(c) != "Array");
+        list.sort_by_key(|&c| rank(c));
     }
     let mut out = vec![(0, 0); classes.all.len()];
     let mut next = 0;
