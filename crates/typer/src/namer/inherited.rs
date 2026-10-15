@@ -34,6 +34,7 @@ impl Typer<'_> {
                     continue;
                 }
                 let Some(res) = self.matching_result(site, m, &tparams, &own_params) else { continue };
+                let res = self.rebound(res, site, cls);
                 result = Some(match result {
                     Some(r) => self.u.glb(r, res),
                     None => res,
@@ -41,6 +42,26 @@ impl Typer<'_> {
             }
         }
         result
+    }
+
+    /// `t` with each type member of a base class of `cls` selected from `site`, `cls`'s `this`,
+    /// replaced by the member of that name `cls` sees.
+    fn rebound(&mut self, t: TypeId, site: TypeId, cls: SymbolId) -> TypeId {
+        let bases = self.u.linearization(cls);
+        self.u.map_type(t, &mut |u, x| {
+            let &Type::Sym(p, s) = u.types().get(x) else { return None };
+            let owner = u.symbol(s).owner?;
+            if p.is_some_and(|p| p != site) || u.symbol(s).kind != Kind::Type || !bases.contains(&owner) {
+                return None;
+            }
+            let name = u.symbol(s).name.clone();
+            let visible = |d: &SymbolId| {
+                let d = u.symbol(*d);
+                d.kind == Kind::Type && d.name == name && !d.flags.has(tasty::tags::PRIVATE)
+            };
+            let m = bases.iter().find_map(|&b| u.symbol(b).decls.iter().copied().find(visible))?;
+            (m != s).then(|| u.intern_type(Type::Sym(Some(site), m)))
+        })
     }
 
     /// The parameter types of each value clause of script method `sym`, or none for a value.
