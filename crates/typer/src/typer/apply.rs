@@ -119,7 +119,7 @@ impl Typer<'_> {
         let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
-            let formal = formals[i.min(formals.len() - 1)];
+            let formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
             typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
                 Some(typed) => {
                     let arg = self.to_sam(typed, formal).unwrap_or(typed);
@@ -134,7 +134,10 @@ impl Typer<'_> {
         });
         if let Some(elem) = repeated {
             let arg = match seq_arg {
-                Some(a) => self.sequence_arg(a, elem, ctx),
+                Some(a) => {
+                    let elem = self.from_java_object(meth, elem);
+                    self.sequence_arg(a, elem, ctx)
+                }
                 None => {
                     let elems = typed_args.split_off(params.len());
                     let types: Vec<TypeId> = elems.iter().map(|&e| self.tpd.tpe(e)).collect();
