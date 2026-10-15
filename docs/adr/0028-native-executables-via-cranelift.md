@@ -4,7 +4,7 @@ Status: accepted · Date: 2026-10-15
 
 ## Context
 Scripts should also build as native executables (#113). Scala Native's own toolchain
-(Reach, Interflow, LLVM, clang) takes 3.4–5.6 s for hello world. Research 21 compares
+(Reach, Interflow, LLVM, clang) takes 3.4–5.6 s for hello world. Research 22 compares
 Cranelift, LLVM and smaller backends and measures a spike (`spikes/aot-cranelift`).
 
 ## Decision
