@@ -108,6 +108,7 @@ impl Typer<'_> {
         if let [s] = methods[..] {
             return Ok(s);
         }
+        self.untuple_unless_unary(proto, &methods)?;
         let n = self.protos[proto].args.len();
         let mut fitting = Vec::new();
         for s in methods {

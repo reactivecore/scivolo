@@ -173,7 +173,7 @@ impl Universe {
         }
     }
 
-    /// Renames `sym`, a symbol defined outside TASTy.
+    /// Renames `sym`.
     pub fn rename(&mut self, sym: SymbolId, name: &str) {
         self.symbols[sym.0 as usize].name = name.to_owned();
         if let Some(owner) = self.symbol(sym).owner {

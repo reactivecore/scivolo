@@ -3,8 +3,11 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::symbols::Completion;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, TName, Tree};
+use tasty::tags::EXTENSION;
+use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// Whether an extension method named `name` is visible in `ctx`.
@@ -65,6 +68,59 @@ impl Typer<'_> {
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
         self.tpd.get_mut(typed).span = span;
         typed
+    }
+
+    /// Identifier `id` naming a sibling of the enclosing extension method, typed as a selection
+    /// from their shared receiver (dotty's `localExtensionSelection`).
+    pub fn local_extension_selection(
+        &mut self,
+        id: NodeId,
+        name: TName,
+        found: &[SymbolId],
+        pt: Pt,
+        ctx: Ctx,
+    ) -> Option<TNodeId> {
+        if let Pt::Fun(i) = pt
+            && let [a] = self.protos[i].args[..]
+            && self.splices.contains_key(&a)
+        {
+            return None;
+        }
+        let mut owner = Some(ctx.owner);
+        let xmethod = loop {
+            let sym = self.u.symbol(owner?);
+            if sym.kind == Kind::Def && sym.flags.has(EXTENSION) {
+                break owner?;
+            }
+            owner = sym.owner;
+        };
+        let xparam = self.lead_param(xmethod)?;
+        let sibling = found
+            .iter()
+            .any(|&s| self.u.symbol(s).flags.has(EXTENSION) && self.lead_param(s) == Some(xparam));
+        if !sibling {
+            return None;
+        }
+        let span = self.ast.span(id);
+        let xname = self.build().term_name(xparam);
+        let tpe = self.ref_type(None, xparam);
+        let at = Span::synthetic(span.start(), span.start());
+        let receiver = self.tpd.node(T::Ident { name: xname }, at, Some(tpe), Some(xparam));
+        let qualifier = self.spliced(receiver);
+        let select = self.ast.node(Tree::Select { qualifier, name });
+        self.ast.with_span(select, span);
+        Some(self.typed(select, pt, ctx))
+    }
+
+    /// The receiver parameter of script extension method `m` (dotty's `leadParamOf`).
+    fn lead_param(&mut self, m: SymbolId) -> Option<SymbolId> {
+        if matches!(self.syms.completions.get(&m), Some(Completion::Pending { .. })) {
+            self.complete(m);
+        }
+        let clauses = self.syms.param_clauses.get(&m)?;
+        let right = self.u.symbol(m).name.ends_with(':');
+        let [p] = clauses.get(usize::from(right))?[..] else { return None };
+        Some(p)
     }
 
     /// An untyped node standing for typed tree `t`, at its span.

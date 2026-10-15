@@ -66,7 +66,7 @@ impl Typer<'_> {
 
     /// The result of `f` run with the constraint, the recorded fallback and the dictionary
     /// restored afterwards; whether it recorded no fallback, and whether it changed the dictionary.
-    fn speculatively<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> (T, bool, bool) {
+    pub fn speculatively<T>(&mut self, f: impl FnOnce(&mut Self) -> T) -> (T, bool, bool) {
         let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
         let dictionary = self.history.snapshot();
         let result = f(self);
