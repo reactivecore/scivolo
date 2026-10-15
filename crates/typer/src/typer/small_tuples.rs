@@ -3,13 +3,13 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::{Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 /// The largest arity of a `TupleN` class.
 const MAX_TUPLE_ARITY: usize = 22;
 
 impl Typer<'_> {
-    /// `qual.asInstanceOf[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at
+    /// `qual.$asInstanceOf$[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at
     /// most 22 elements, none otherwise.
     pub fn small_generic_tuple(&mut self, qual: TNodeId) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(qual);
@@ -22,12 +22,12 @@ impl Typer<'_> {
         let class = self.u.intern_type(Type::Sym(None, class));
         let to = self.u.intern_type(Type::Applied(class, elems));
         let any = self.u.builtins().any;
-        let m = self.u.decl(any, "asInstanceOf").ok()?.first().copied()?;
+        let m = self.u.decl(any, "$asInstanceOf$").ok()?.first().copied()?;
         let span = self.tpd.span(qual).to_synthetic();
         let select_tpe = self.u.intern_type(Type::Sym(Some(tpe), m));
-        let name = TName { name: self.names.intern("asInstanceOf"), is_type: false };
+        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
         let fun = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(select_tpe), Some(m));
-        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(to), None);
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
         let args = self.tpd.list(&[tpt]);
         Some(self.tpd.node(T::TypeApply { fun, args }, span, Some(to), None))
     }
@@ -49,7 +49,7 @@ impl Typer<'_> {
         true
     }
 
-    /// The element types of `t` if it is a chain `A *: B *: … *: EmptyTuple`.
+    /// The element types of `t` if it is a chain `A *: B *: … *: T`, `T` `EmptyTuple` or a `TupleN`.
     fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let pair = self.resolve_full_name("scala.*:", true)?;
         let mut elems = Vec::new();
@@ -64,9 +64,21 @@ impl Typer<'_> {
                 t = tail;
                 continue;
             }
+            if let Type::Applied(f, args) = self.u.types().get(d).clone()
+                && !elems.is_empty()
+                && self.u.class_symbol(f).is_some_and(|c| self.is_tuple_class(c, args.len()))
+            {
+                elems.extend(args);
+                return Some(elems);
+            }
             return self.is_empty_tuple(d).then_some(elems);
         }
         None
+    }
+
+    /// Whether `c` is class `scala.TupleN` of arity `n`.
+    fn is_tuple_class(&self, c: SymbolId, n: usize) -> bool {
+        self.u.full_name(c) == format!("scala.Tuple{n}")
     }
 
     /// Whether `t` is `EmptyTuple`, the alias or the object's type.

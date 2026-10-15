@@ -29,7 +29,7 @@ impl Typer<'_> {
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
-        let (mut converted, mut widened) = (false, false);
+        let (mut converted, mut widened, mut tupled) = (false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -58,8 +58,8 @@ impl Typer<'_> {
             {
                 return proxy;
             }
-            if let Some(q) = self.small_generic_tuple(qual) {
-                (qual, converted) = (q, true);
+            if !tupled && let Some(q) = self.small_generic_tuple(qual) {
+                (qual, tupled) = (q, true);
                 continue;
             }
             if let Some(case) = self.widened_enum_case(qual) {
