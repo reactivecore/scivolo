@@ -107,7 +107,7 @@ impl Typer<'_> {
         if !(flags.has(TRAIT) || flags.has(ABSTRACT)) || flags.has(FINAL) || flags.has(SEALED) {
             return None;
         }
-        if self.u.full_name(c) == "scala.PartialFunction" {
+        if self.is_partial_function_class(c) {
             return self.class_members(c, "apply").first().copied();
         }
         let [method] = self.abstract_methods(c)[..] else { return None };
@@ -152,7 +152,11 @@ impl Typer<'_> {
     pub fn is_partial_function(&mut self, t: TypeId) -> bool {
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c) == "scala.PartialFunction")
+        self.u.class_symbol(t).is_some_and(|c| self.is_partial_function_class(c))
+    }
+
+    fn is_partial_function_class(&self, c: SymbolId) -> bool {
+        self.u.full_name(c) == "scala.PartialFunction"
     }
 
     /// The type a closure of parameter types `params` and result `result` implementing single

@@ -99,10 +99,12 @@ impl Typer<'_> {
 
     /// The argument type `A` of `t` if it is a `PartialFunction[A, B]`.
     fn partial_function_arg(&mut self, t: TypeId) -> Option<TypeId> {
+        if !self.is_partial_function(t) {
+            return None;
+        }
         let t = self.zonk(t);
         let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
-        (self.u.full_name(class) == "scala.PartialFunction" && args.len() == 2).then(|| args[0])
+        let Type::Applied(_, args) = self.u.types().get(t).clone() else { return None };
+        (args.len() == 2).then(|| args[0])
     }
 }

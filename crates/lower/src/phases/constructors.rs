@@ -74,7 +74,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
                 };
                 let lhs = l.field_ref(field, at);
                 let init = assign(l, lhs, rhs, at);
-                if l.u.symbol(field).name.contains("$lzy") { &mut eager } else { &mut inits }.push(init);
+                if super::lazy_vals::is_eager_field(l, field) { &mut eager } else { &mut inits }.push(init);
                 l.tpd.get_mut(stat).tree = Tree::ValDef { name, tpt, rhs: None };
             }
             _ => inits.push(stat),

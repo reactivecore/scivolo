@@ -16,7 +16,7 @@ impl Typer<'_> {
         if self.conforms(arg, param) {
             return Some(true);
         }
-        match self.sam_arg_ok(arg, param) {
+        match self.sam_arg_ok(arg, param, views) {
             Ok(Some(fits)) => return Some(fits),
             Ok(None) => {}
             Err(_) => return None,
@@ -49,11 +49,11 @@ impl Typer<'_> {
 
     /// Whether an argument of function type `arg` fits single abstract method type `param`: `arg`
     /// conforms to the function type of the method (dotty's `SAMargOK`); `None` if `arg` is no
-    /// function type or `param` no such type.
-    fn sam_arg_ok(&mut self, arg: TypeId, param: TypeId) -> Result<Option<bool>, &'static str> {
+    /// function type or `param` no such type, or a `PartialFunction` unless `views`.
+    fn sam_arg_ok(&mut self, arg: TypeId, param: TypeId, views: bool) -> Result<Option<bool>, &'static str> {
         let arg = self.u.widen(arg);
         let Some(n) = (0..=22).find(|&n| self.function_parts(arg, n).is_some()) else { return Ok(None) };
-        if self.function_parts(param, n).is_some() {
+        if self.function_parts(param, n).is_some() || !views && self.is_partial_function(param) {
             return Ok(None);
         }
         let Some(sam) = self.sam_parts(param, n)? else { return Ok(None) };

@@ -4,7 +4,7 @@
 use crate::Lower;
 use crate::definitions::{symbol, type_ref};
 use syntax::ast::{Span, TName};
-use tasty::tags::{FINAL, SYNTHETIC};
+use tasty::tags::{FINAL, OVERRIDE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -50,6 +50,37 @@ pub fn instance(
     l.positioned(block)
 }
 
+/// The member of class `cls` overriding `m` as a member of `site`, and its type parameters,
+/// which its type refers to as `m`'s type refers to `m`'s.
+pub fn override_sym(l: &mut Lower, cls: SymbolId, m: SymbolId, site: TypeId) -> (SymbolId, Vec<SymbolId>) {
+    let name = l.u.symbol(m).name.clone();
+    let flags = Flags::default().with(SYNTHETIC).with(FINAL).with(OVERRIDE);
+    let s = l.u.define(symbol(&name, Kind::Def, cls, flags));
+    let mut info = l.u.member_info(site, m);
+    let mut tparams = Vec::new();
+    if let Type::Poly { binder, params, .. } = l.u.types().get(info).clone() {
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        tparams = names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, s, Flags::default()))).collect();
+        let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
+        info = l.u.subst(info, binder, &names, &args);
+        info = l.u.map_type(info, &mut |u, t| match *u.types().get(t) {
+            Type::Sym(_, p) if u.symbol(p).owner == Some(m) => {
+                names.iter().position(|n| *n == u.symbol(p).name).map(|i| args[i])
+            }
+            _ => None,
+        });
+        let Type::Poly { params, .. } = l.u.types().get(info).clone() else {
+            unreachable!("a polymorphic type")
+        };
+        for (&t, (_, bounds)) in tparams.iter().zip(params) {
+            l.u.set_info(t, bounds);
+        }
+    }
+    l.u.set_info(s, info);
+    (s, tparams)
+}
+
+/// Parameter `name` of type `info` of `method`.
 pub fn param(l: &mut Lower, method: SymbolId, name: &str, info: TypeId) -> SymbolId {
     let p = l.u.define(symbol(name, Kind::Param, method, Flags::default()));
     l.u.set_info(p, info);
@@ -78,6 +109,16 @@ pub fn def(
     let clauses: Vec<&[TNodeId]> = if tdefs.is_empty() { vec![&vdefs] } else { vec![&tdefs, &vdefs] };
     let d = l.build().def_def(method, &clauses, tpt, Some(rhs), Span::NONE);
     l.positioned(d)
+}
+
+/// The pattern `_` of type `tpe`.
+pub fn wildcard(l: &mut Lower, tpe: TypeId) -> TNodeId {
+    let name = l.term_name("_");
+    let class = match *l.u.types().get(tpe) {
+        Type::Sym(_, s) => Some(s),
+        _ => None,
+    };
+    l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), class)
 }
 
 /// `new parent()` through constructor `ctor`, its type arguments those of `parent`, at `span` if

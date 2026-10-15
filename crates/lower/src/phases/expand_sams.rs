@@ -3,7 +3,7 @@
 //! other single abstract method types that are not functional interfaces as anonymous classes
 //! too, those of functional interfaces stay closures.
 
-use super::anon_class::{class_symbol, def, instance, param};
+use super::anon_class::{class_symbol, def, instance, override_sym, param, wildcard};
 use super::lambda_lift::lambda;
 use super::sam::is_platform_sam;
 use super::sam_classes::to_anon_class;
@@ -14,7 +14,7 @@ use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
 use syntax::ast::tree::MatchKind;
-use tasty::tags::{CASE, FINAL, OVERRIDE, SYNTHETIC};
+use tasty::tags::{CASE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -47,7 +47,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
         let sam = l.tpd.tpe(tpt);
         let dealiased = l.u.dealias(sam);
         let Some(class) = l.u.class_symbol(dealiased) else { continue };
-        if l.u.full_name(class) == "scala.PartialFunction" {
+        if class == l.partial_functions()?.class {
             found.push(Closure { block: t, def, anon, sam });
         } else if !is_platform_sam(l, class, l.tpd.span(t))? {
             to_anon_class(l, t, def, anon, dealiased)?;
@@ -229,44 +229,4 @@ fn default_case(l: &mut Lower, method: SymbolId, tpe: TypeId, value: TNodeId) ->
     let case = Tree::CaseDef { pat: bind, guard: None, body: value };
     let case = l.tpd.node(case, Span::NONE, Some(value_tpe), None);
     l.positioned(case)
-}
-
-/// The pattern `_` of type `tpe`.
-fn wildcard(l: &mut Lower, tpe: TypeId) -> TNodeId {
-    let name = l.term_name("_");
-    let class = match *l.u.types().get(tpe) {
-        Type::Sym(_, s) => Some(s),
-        _ => None,
-    };
-    l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), class)
-}
-
-/// The member of class `cls` overriding `m` of `PartialFunction` type `sam`, and its type
-/// parameters, which its type refers to as `m`'s type refers to `m`'s.
-fn override_sym(l: &mut Lower, cls: SymbolId, m: SymbolId, sam: TypeId) -> (SymbolId, Vec<SymbolId>) {
-    let name = l.u.symbol(m).name.clone();
-    let flags = Flags::default().with(SYNTHETIC).with(FINAL).with(OVERRIDE);
-    let s = l.u.define(symbol(&name, Kind::Def, cls, flags));
-    let mut info = l.u.member_info(sam, m);
-    let mut tparams = Vec::new();
-    if let Type::Poly { binder, params, .. } = l.u.types().get(info).clone() {
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        tparams = names.iter().map(|n| l.u.define(symbol(n, Kind::TypeParam, s, Flags::default()))).collect();
-        let args: Vec<TypeId> = tparams.iter().map(|&t| l.u.intern_type(Type::Sym(None, t))).collect();
-        info = l.u.subst(info, binder, &names, &args);
-        info = l.u.map_type(info, &mut |u, t| match *u.types().get(t) {
-            Type::Sym(_, p) if u.symbol(p).owner == Some(m) => {
-                names.iter().position(|n| *n == u.symbol(p).name).map(|i| args[i])
-            }
-            _ => None,
-        });
-        let Type::Poly { params, .. } = l.u.types().get(info).clone() else {
-            unreachable!("a polymorphic type")
-        };
-        for (&t, (_, bounds)) in tparams.iter().zip(params) {
-            l.u.set_info(t, bounds);
-        }
-    }
-    l.u.set_info(s, info);
-    (s, tparams)
 }
