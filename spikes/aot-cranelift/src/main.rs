@@ -107,6 +107,7 @@ fn main() {
         t_decode.as_secs_f64() * 1e3
     );
 
+    std::panic::set_hook(Box::new(|_| {}));
     let t2 = Instant::now();
     let mut tr = translate::Translator::new(&pool, &args.opt, args.eh_flag, args.verify);
     tr.disasm = args.disasm;

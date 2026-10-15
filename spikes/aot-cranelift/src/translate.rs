@@ -14,7 +14,10 @@ use cranelift_codegen::{isa, isa::CallConv};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use nir::{Bin, Body, Comp, Cond, Conv, Defn, DefnKind, GlobalId, Inst, Next, Op, Pool, StrId, Type, TypeId, Val, ValId};
+use nir::{
+    Bin, Body, Comp, Cond, Conv, Defn, DefnKind, GlobalId, Inst, Next, Op, Pool, StrId, Type, TypeId, Val,
+    ValId,
+};
 use std::collections::HashMap;
 
 type R<T> = Result<T, String>;
@@ -23,6 +26,7 @@ type R<T> = Result<T, String>;
 pub struct Stats {
     pub functions: usize,
     pub bailed: usize,
+    pub panics: usize,
     pub insts: usize,
     pub bail_reasons: HashMap<String, usize>,
 }
@@ -116,7 +120,8 @@ impl<'p> Translator<'p> {
         flags.set("is_pic", "true").unwrap();
         flags.set("preserve_frame_pointers", "true").unwrap();
         flags.set("enable_verifier", if verify { "true" } else { "false" }).unwrap();
-        let isa = isa::lookup(target_lexicon::Triple::host()).unwrap().finish(settings::Flags::new(flags)).unwrap();
+        let isa =
+            isa::lookup(target_lexicon::Triple::host()).unwrap().finish(settings::Flags::new(flags)).unwrap();
         let call_conv = isa.default_call_conv();
         let builder = ObjectBuilder::new(isa, "aot", default_libcall_names()).unwrap();
         let mut module = ObjectModule::new(builder);
@@ -131,7 +136,14 @@ impl<'p> Translator<'p> {
             exc,
             anon: 0,
         };
-        Self { module, ctx: Context::new(), fb: FunctionBuilderContext::new(), shared, eh_flag, disasm: false }
+        Self {
+            module,
+            ctx: Context::new(),
+            fb: FunctionBuilderContext::new(),
+            shared,
+            eh_flag,
+            disasm: false,
+        }
     }
 
     pub fn declare_all(&mut self, defns: &[Defn]) {
@@ -176,12 +188,24 @@ impl<'p> Translator<'p> {
             if self.disasm {
                 eprintln!("== {}", self.shared.func_name(d.name));
             }
-            let result = self.define(fid, *ty, body);
-            self.module.clear_context(&mut self.ctx);
+            let result =
+                std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| self.define(fid, *ty, body)))
+                    .unwrap_or_else(|p| {
+                        let msg = p
+                            .downcast_ref::<String>()
+                            .cloned()
+                            .or_else(|| p.downcast_ref::<&str>().map(|s| s.to_string()))
+                            .unwrap_or_default();
+                        Err(format!("panic: {msg}"))
+                    });
+            self.ctx = Context::new();
             if let Err(e) = result {
                 self.fb = FunctionBuilderContext::new();
-                if stats.bailed < 5 {
+                if stats.bailed < 12 || e.starts_with("panic") && stats.panics < 12 {
                     eprintln!("bail {}: {e}", self.shared.pool.mangle(d.name));
+                }
+                if e.starts_with("panic") {
+                    stats.panics += 1;
                 }
                 stats.bailed += 1;
                 let key = e.split(':').next().unwrap_or("").to_string();
@@ -219,7 +243,12 @@ impl<'p> Translator<'p> {
         f.b.seal_all_blocks();
         f.b.finalize(cfg);
         self.ctx.want_disasm = self.disasm;
-        self.module.define_function(fid, &mut self.ctx).map_err(|e| format!("define: {e}"))?;
+        self.module.define_function(fid, &mut self.ctx).map_err(|e| match e {
+            cranelift_module::ModuleError::Compilation(cranelift_codegen::CodegenError::Verifier(errs)) => {
+                format!("define: verifier: {}", errs.0.first().map(|e| e.to_string()).unwrap_or_default())
+            }
+            e => format!("define: {e}"),
+        })?;
         if self.disasm {
             let code = self.ctx.compiled_code().unwrap();
             eprintln!("{}\n{}", self.ctx.func.display(), code.vcode.as_deref().unwrap_or(""));
@@ -271,7 +300,13 @@ impl<'p> Shared<'p> {
         Ok(sig)
     }
 
-    fn stub(&mut self, module: &mut ObjectModule, name: &'static str, params: &[types::Type], ret: Option<types::Type>) -> FuncId {
+    fn stub(
+        &mut self,
+        module: &mut ObjectModule,
+        name: &'static str,
+        params: &[types::Type],
+        ret: Option<types::Type>,
+    ) -> FuncId {
         if let Some(&id) = self.stubs.get(name) {
             return id;
         }
@@ -288,7 +323,9 @@ impl<'p> Shared<'p> {
             return Ok(id);
         }
         let sig = self.signature(ty)?;
-        let id = module.declare_function(&self.func_name(g), Linkage::Import, &sig).map_err(|e| format!("declare: {e}"))?;
+        let id = module
+            .declare_function(&self.func_name(g), Linkage::Import, &sig)
+            .map_err(|e| format!("declare: {e}"))?;
         self.funcs.insert(g, id);
         Ok(id)
     }
@@ -304,7 +341,8 @@ impl<'p> Shared<'p> {
 
     fn bytes(&mut self, module: &mut ObjectModule, bytes: Vec<u8>) -> DataId {
         self.anon += 1;
-        let id = module.declare_data(&format!("rt_const_{}", self.anon), Linkage::Local, false, false).unwrap();
+        let id =
+            module.declare_data(&format!("rt_const_{}", self.anon), Linkage::Local, false, false).unwrap();
         let mut desc = DataDescription::new();
         desc.define(bytes.into_boxed_slice());
         module.define_data(id, &desc).unwrap();
@@ -360,6 +398,9 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                     let bp = self.b.block_params(block).to_vec();
                     for (p, v) in params.iter().zip(bp) {
                         self.vals.insert(p.id.0, v);
+                    }
+                    if self.eh_flag && self.exc_addr.is_none() {
+                        self.exc_addr();
                     }
                     open = true;
                 }
@@ -419,7 +460,8 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                 let did = match self.sh.strings.get(s) {
                     Some(&id) => id,
                     None => {
-                        let bytes: Vec<u8> = pool.str(*s).encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
+                        let bytes: Vec<u8> =
+                            pool.str(*s).encode_utf16().flat_map(|u| u.to_le_bytes()).collect();
                         let id = self.sh.bytes(self.module, bytes);
                         self.sh.strings.insert(*s, id);
                         id
@@ -452,11 +494,36 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
         vs.iter().map(|&v| self.val(v)).collect()
     }
 
-    fn block_args(&mut self, vs: &[ValId]) -> R<Vec<BlockArg>> {
-        Ok(self.vals(vs)?.into_iter().map(BlockArg::from).collect())
+    /// `v` as type `t`: NIR passes `unit` and `null` where references are expected.
+    fn coerce(&mut self, v: Value, t: types::Type) -> Value {
+        let from = self.b.func.dfg.value_type(v);
+        if from == t {
+            v
+        } else if from.is_int() && t.is_int() {
+            if t.bits() > from.bits() { self.b.ins().uextend(t, v) } else { self.b.ins().ireduce(t, v) }
+        } else if from.is_int() && t.is_float() {
+            let bits = if t == types::F32 { types::I32 } else { types::I64 };
+            let i = self.coerce(v, bits);
+            let flags = self.flags;
+            self.b.ins().bitcast(t, flags, i)
+        } else {
+            v
+        }
     }
 
-    fn call_stub(&mut self, name: &'static str, params: &[types::Type], ret: Option<types::Type>, args: &[Value]) -> Option<Value> {
+    fn block_args(&mut self, block: Block, vs: &[ValId]) -> R<Vec<BlockArg>> {
+        let types: Vec<types::Type> = self.b.func.dfg.block_param_types(block).collect();
+        let vals = self.vals(vs)?;
+        Ok(vals.into_iter().zip(types).map(|(v, t)| BlockArg::from(self.coerce(v, t))).collect())
+    }
+
+    fn call_stub(
+        &mut self,
+        name: &'static str,
+        params: &[types::Type],
+        ret: Option<types::Type>,
+        args: &[Value],
+    ) -> Option<Value> {
         let fid = self.sh.stub(self.module, name, params, ret);
         let fref = self.module.declare_func_in_func(fid, self.b.func);
         let call = self.b.ins().call(fref, args);
@@ -584,16 +651,18 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
     fn jump(&mut self, next: &Next) -> R<()> {
         let Next::Label(l, args) = next else { return Err(format!("jump to {next:?}")) };
         let block = *self.blocks.get(&l.0).ok_or("unknown label")?;
-        let args = self.block_args(args)?;
+        let args = self.block_args(block, args)?;
         self.b.ins().jump(block, &args);
         Ok(())
     }
 
     fn branch(&mut self, cond: Value, then: &Next, els: &Next) -> R<()> {
-        let (Next::Label(tl, ta), Next::Label(el, ea)) = (then, els) else { return Err("branch targets".into()) };
+        let (Next::Label(tl, ta), Next::Label(el, ea)) = (then, els) else {
+            return Err("branch targets".into());
+        };
         let (tb, eb) = (self.blocks[&tl.0], self.blocks[&el.0]);
-        let ta = self.block_args(ta)?;
-        let ea = self.block_args(ea)?;
+        let ta = self.block_args(tb, ta)?;
+        let ea = self.block_args(eb, ea)?;
         self.b.ins().brif(cond, tb, &ta, eb, &ea);
         Ok(())
     }
@@ -641,7 +710,9 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                 if self.sig.returns.is_empty() {
                     self.b.ins().return_(&[]);
                 } else {
+                    let t = self.sig.returns[0].value_type;
                     let v = self.val(*v)?;
+                    let v = self.coerce(v, t);
                     self.b.ins().return_(&[v]);
                 }
                 Ok(true)
@@ -660,7 +731,7 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                     let next = self.b.create_block();
                     let Next::Label(l, args) = &**to else { return Err("case target".into()) };
                     let block = self.blocks[&l.0];
-                    let args = self.block_args(args)?;
+                    let args = self.block_args(block, args)?;
                     self.b.ins().brif(eq, block, &args, next, &[]);
                     self.b.switch_to_block(next);
                 }
@@ -751,6 +822,8 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                 if args.len() != sig.params.len() {
                     return Err("call arity".into());
                 }
+                let params: Vec<types::Type> = sig.params.iter().map(|p| p.value_type).collect();
+                let args: Vec<Value> = args.into_iter().zip(params).map(|(v, t)| self.coerce(v, t)).collect();
                 let direct = match pool.val(*ptr) {
                     Val::Global(g, _) => Some(self.sh.func(self.module, *g, *ty)?),
                     Val::Local(l, _) => self.local_func.get(&l.0).copied(),
@@ -898,7 +971,11 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                 let to = cl_type(pool, *ty)?;
                 match conv {
                     Conv::Trunc => {
-                        if to.bits() < from.bits() { self.b.ins().ireduce(to, v) } else { v }
+                        if to.bits() < from.bits() {
+                            self.b.ins().ireduce(to, v)
+                        } else {
+                            v
+                        }
                     }
                     Conv::Zext | Conv::ZSizeCast => {
                         if to.bits() > from.bits() {
@@ -928,7 +1005,11 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                         if from == to {
                             v
                         } else if from.is_int() && to.is_int() {
-                            if to.bits() > from.bits() { self.b.ins().uextend(to, v) } else { self.b.ins().ireduce(to, v) }
+                            if to.bits() > from.bits() {
+                                self.b.ins().uextend(to, v)
+                            } else {
+                                self.b.ins().ireduce(to, v)
+                            }
                         } else if from.bits() == to.bits() {
                             self.b.ins().bitcast(to, flags, v)
                         } else {
@@ -968,7 +1049,8 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                 if let Val::Local(l, _) = pool.val(*obj) {
                     if let Some(&m) = self.local_module.get(&l.0) {
                         let member = nir::Global::Member(m, *sig);
-                        let target = self.sh.funcs.iter().find(|(g, _)| pool.global(**g) == &member).map(|(_, f)| *f);
+                        let target =
+                            self.sh.funcs.iter().find(|(g, _)| pool.global(**g) == &member).map(|(_, f)| *f);
                         if let Some(fid) = target {
                             self.local_func.insert(id, fid);
                             let fref = self.module.declare_func_in_func(fid, self.b.func);
@@ -1018,7 +1100,8 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
             Op::Unbox { ty, obj } => {
                 let o = self.val(*obj)?;
                 let t = self.b.ins().iconst(types::I64, ty.0 as i64);
-                let bits = self.call_stub("rt_unbox", &[types::I64, types::I64], Some(types::I64), &[t, o]).unwrap();
+                let bits =
+                    self.call_stub("rt_unbox", &[types::I64, types::I64], Some(types::I64), &[t, o]).unwrap();
                 let target = self.unboxed_type(*ty);
                 self.from_i64(bits, target)
             }
@@ -1053,7 +1136,8 @@ impl<'a, 'p> FnTranslator<'a, 'p> {
                     }
                 };
                 let t = self.b.ins().iconst(types::I64, ty.0 as i64);
-                self.call_stub("rt_arrayalloc", &[types::I64, types::I64], Some(types::I64), &[t, len]).unwrap()
+                self.call_stub("rt_arrayalloc", &[types::I64, types::I64], Some(types::I64), &[t, len])
+                    .unwrap()
             }
             Op::Arrayload { ty, arr, idx } => {
                 let (a, i) = (self.val(*arr)?, self.val(*idx)?);
