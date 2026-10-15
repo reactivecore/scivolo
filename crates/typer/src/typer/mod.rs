@@ -105,6 +105,7 @@ mod transparent;
 mod transparent_traits;
 mod tries;
 pub(crate) mod type_apply;
+mod type_args;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;

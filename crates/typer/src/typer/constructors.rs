@@ -55,7 +55,7 @@ impl Typer<'_> {
     }
 
     /// `[Ps] =>> C[Ps]` for the type parameters `Ps` of class `c`, referenced by `class`.
-    fn eta_expanded(&mut self, c: SymbolId, class: TypeId) -> Result<TypeId, &'static str> {
+    pub fn eta_expanded(&mut self, c: SymbolId, class: TypeId) -> Result<TypeId, &'static str> {
         let tparams = self.u.type_params(c);
         let prefix = match *self.u.types().get(class) {
             Type::Sym(Some(p), _) if !matches!(self.u.types().get(p), Type::Package(_)) => Some(p),

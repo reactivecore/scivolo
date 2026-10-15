@@ -34,9 +34,14 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if let Some(what) = self.type_args_problem(arity, &arg_types) {
+                if let Some(what) = self.type_args_problem(tycon, arity, &arg_types) {
                     return self.unsupported(id, what);
                 }
+                let arg_types: Vec<TypeId> =
+                    match typed_args.iter().map(|&a| self.adapted_type_arg(a)).collect() {
+                        Ok(types) => types,
+                        Err(what) => return self.unsupported(id, what),
+                    };
                 let and_or = match (self.u.types().get(tycon).clone(), &arg_types[..]) {
                     (Type::Sym(_, s), &[a, b]) => self.and_or_applied(s, a, b),
                     _ => None,

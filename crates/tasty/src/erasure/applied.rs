@@ -84,16 +84,31 @@ impl Universe {
     /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of
     /// `tycon`, arguments substituted.
     pub fn expand(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        self.applied_info(tycon, args, false)
+    }
+
+    /// `expand`, or for `tycon` an abstract type bounded by a type lambda, that lambda's body
+    /// (dotty's `superType` of an applied type).
+    pub fn expand_upper(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        self.applied_info(tycon, args, true)
+    }
+
+    fn applied_info(&mut self, tycon: TypeId, args: &[TypeId], upper: bool) -> Option<TypeId> {
         let (prefix, alias) = match self.types().get(tycon).clone() {
             Type::Sym(p, s) => (p, Some(s)),
             Type::TypeRef(p, n) => (Some(p), self.resolve(p, &n, true)),
             _ => (None, None),
         };
         let alias = alias?;
-        if self.symbol(alias).kind != Kind::Type {
+        let kind = self.symbol(alias).kind;
+        if kind != Kind::Type && !(upper && kind == Kind::TypeParam) {
             return None;
         }
         let info = self.info(alias);
+        let info = match *self.types().get(info) {
+            Type::Bounds(_, hi) if upper => hi,
+            _ => info,
+        };
         let owner = self.symbol(alias).owner;
         let info = match (prefix, owner) {
             (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(info, p, o),

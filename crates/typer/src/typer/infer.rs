@@ -6,6 +6,12 @@ use crate::constraint::Constraint;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
+/// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
+/// the universe).
+fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
+    matches!(u.types().get(t), Type::Lambda { binder, .. } if binder.0.0 >= u32::MAX - 1)
+}
+
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
 /// skolem keeping its identity.
 fn substituted(u: &mut Universe, constraint: &Constraint, t: TypeId, changed: &mut bool) -> TypeId {
@@ -56,13 +62,21 @@ impl Typer<'_> {
                 return Err("singleton instance below another type variable");
             }
         }
-        let mut cyclic = false;
+        let (mut cyclic, mut lambda) = (false, false);
         self.u.map_type(inst, &mut |u, part| {
             cyclic |= *u.types().get(part) == Type::Var(v);
+            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
             None
         });
         if cyclic {
             return Err("type variable instantiated to a type containing it");
+        }
+        let script_hk = is_script_lambda(self.u, hi);
+        if script_hk && lambda {
+            return Err("type variable instantiated to a type lambda");
+        }
+        if script_hk && !from_below && self.type_arity(inst) > 0 {
+            return Err("higher-kinded type variable instantiated to its upper bound");
         }
         self.constraint.instantiate(v, inst);
         Ok(())
@@ -135,6 +149,12 @@ impl Typer<'_> {
                 let t = self.fully_defined(t)?;
                 self.tpd.get_mut(id).tpe = Some(t);
             }
+            if let T::TypeApply { fun, args } = *self.tpd.tree(id)
+                && self.tpd.sym(fun).is_some_and(|s| self.syms.flags.contains_key(&s))
+                && self.tpd.items(args).to_vec().into_iter().any(|a| self.has_lambda(a))
+            {
+                return Err("type lambda inferred for a type parameter of a script method");
+            }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
             if let Some(s) = self.tpd.sym(id).filter(|_| defines)
                 && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
@@ -146,5 +166,17 @@ impl Typer<'_> {
             }
         }
         Ok(())
+    }
+
+    /// Whether the type of tree `id`, fully defined, has a type lambda in it.
+    fn has_lambda(&mut self, id: TNodeId) -> bool {
+        let Some(t) = self.tpd.get(id).tpe else { return false };
+        let t = self.zonk(t);
+        let mut lambda = false;
+        self.u.map_type(t, &mut |u, part| {
+            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
+            None
+        });
+        lambda
     }
 }
