@@ -3,9 +3,10 @@
 //! comparisons and abandoned attempts.
 
 mod attempt;
+mod unify;
 
 use attempt::Fate;
-use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 #[derive(Clone, Copy, PartialEq)]
 struct Entry {
@@ -14,6 +15,8 @@ struct Entry {
     instance: Option<TypeId>,
     /// Whether a hard union was added as a lower bound (dotty's hard variable).
     hard: bool,
+    /// The first symbol defined after the variable was made; the later, the deeper its level.
+    born: SymbolId,
 }
 
 #[derive(Default)]
@@ -27,6 +30,8 @@ pub struct Constraint {
     checks: u32,
     /// Whether a bound is being propagated from another variable.
     propagating: bool,
+    /// How many implicit argument searches are in progress, in which variables are not unified.
+    pub searches: u32,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
@@ -35,7 +40,7 @@ const MAX_CHECKS: u32 = 8;
 impl Constraint {
     /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
-        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false });
+        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false, born: u.next_symbol() });
         self.fates.push(Fate::Open);
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
@@ -135,6 +140,7 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
+        let lo = unify::avoided(u, lo, e.born).unwrap_or(lo);
         let incoming_union = matches!(u.types().get(lo), Type::Or(_, _, false));
         let (lo, unchecked) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
             (joined, lo)
@@ -159,6 +165,12 @@ impl TypeVars for Constraint {
         let e = self.vars[v.0 as usize];
         if let Some(t) = e.instance {
             return self.satisfiable(u, t, hi);
+        }
+        if let Type::Var(w) = *u.types().get(hi)
+            && self.searches == 0
+            && self.unify(u, v, w)
+        {
+            return true;
         }
         let hi = if e.hi == ANY {
             hi
