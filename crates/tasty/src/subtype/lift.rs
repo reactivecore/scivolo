@@ -8,13 +8,19 @@ impl Cmp<'_> {
     /// `lift(a) <: b` if lifting changes `a`.
     pub fn lifted_left(&mut self, a: TypeId, b: TypeId) -> bool {
         let lifted = self.lift_to_this(a);
-        lifted != a && self.recur(lifted, b)
+        lifted != a && self.recur(lifted, b) && self.used()
     }
 
     /// `a <: lift(b)` if lifting changes `b`.
     pub fn lifted_right(&mut self, a: TypeId, b: TypeId) -> bool {
         let lifted = self.lift_to_this(b);
-        lifted != b && self.recur(a, lifted)
+        lifted != b && self.recur(a, lifted) && self.used()
+    }
+
+    /// Counts a success through a lifted reference; true.
+    fn used(&mut self) -> bool {
+        self.u.count_opaque_lift();
+        true
     }
 
     /// `t` with a reference to an enclosing object with opaque types, as a path or a prefix,

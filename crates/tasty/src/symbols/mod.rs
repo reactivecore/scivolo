@@ -78,6 +78,8 @@ pub struct Universe {
     opaques_elided: bool,
     /// The symbol whose definition comparisons are made in (dotty's `ctx.owner`), if known.
     comparison_owner: Option<SymbolId>,
+    /// How many comparisons succeeded through a reference lifted to an object's `this`.
+    opaque_lifts: u64,
     /// How many `resolve` calls are in progress.
     resolving: u32,
     builtins: Builtins,

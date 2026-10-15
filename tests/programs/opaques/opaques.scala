@@ -8,7 +8,7 @@ object Meters {
 }
 
 object Ids {
-  opaque type Id <: AnyRef = String
+  opaque type Id <: AnyRef = java.lang.String
   def of(s: String): Id = s
   def all(ids: List[Id]): List[String] = ids
 }

@@ -11,6 +11,16 @@ impl Universe {
         std::mem::replace(&mut self.comparison_owner, owner)
     }
 
+    /// How many comparisons succeeded through a lifted reference (dotty's `opaquesUsed`).
+    pub fn opaque_lifts(&self) -> u64 {
+        self.opaque_lifts
+    }
+
+    /// Counts a comparison that succeeded through a lifted reference.
+    pub fn count_opaque_lift(&mut self) {
+        self.opaque_lifts += 1;
+    }
+
     /// The object class with opaque types that encloses the comparisons and whose object
     /// `module` is (dotty's `findEnclosingThis`).
     pub fn enclosing_opaque_module(&mut self, module: SymbolId) -> Option<SymbolId> {
@@ -58,6 +68,18 @@ impl Universe {
     /// `seesOpaques`).
     pub fn sees_opaques(&self, s: SymbolId) -> bool {
         self.symbol(s).owner.is_some_and(|o| self.has_opaques(o))
+    }
+
+    /// Whether a class enclosing `s` declares opaque types defined outside TASTy.
+    pub fn within_opaques(&self, s: SymbolId) -> bool {
+        let mut owner = self.symbol(s).owner;
+        while let Some(o) = owner {
+            if self.has_opaques(o) {
+                return true;
+            }
+            owner = self.symbol(o).owner;
+        }
+        false
     }
 
     /// Whether class `c` declares opaque types defined outside TASTy.

@@ -25,6 +25,16 @@ impl Typer<'_> {
         self.u.is_subtype_in(a, b, &mut self.constraint)
     }
 
+    /// Whether `a` conforms to `b` frozen, no reference lifted to the `this` of an enclosing
+    /// object with opaque types (dotty's test under the root owner).
+    pub fn conforms_unlifted(&mut self, a: TypeId, b: TypeId) -> bool {
+        let (a, b) = (self.zonk(a), self.zonk(b));
+        let owner = self.u.set_comparison_owner(None);
+        let ok = self.u.is_subtype(a, b);
+        self.u.set_comparison_owner(owner);
+        ok
+    }
+
     /// `t` with instantiated type variables replaced by their instances, normalized.
     pub fn zonk(&mut self, t: TypeId) -> TypeId {
         let mut changed = true;

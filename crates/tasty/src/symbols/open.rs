@@ -47,6 +47,7 @@ impl Universe {
             opaque_aliases: Default::default(),
             opaques_elided: false,
             comparison_owner: None,
+            opaque_lifts: 0,
             resolving: 0,
             builtins: Builtins::PENDING,
             binders: 0,

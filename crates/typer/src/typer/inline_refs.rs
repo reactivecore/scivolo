@@ -19,6 +19,9 @@ impl Typer<'_> {
         if flags.has(INLINE) && flags.has(MACRO) {
             return Err("macro call");
         }
+        if flags.has(INLINE) && self.u.within_opaques(sym) {
+            return Err("inline method of an object with opaque types");
+        }
         let full = self.u.full_name(sym);
         if flags.has(INLINE)
             && full.starts_with("scala.compiletime.")
