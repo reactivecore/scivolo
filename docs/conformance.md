@@ -144,12 +144,12 @@ Results (2026-10-15):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 850 |
+| passed | 855 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 28 |
-| typer refused | 554 |
+| lowering refused | 29 |
+| typer refused | 548 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -161,8 +161,8 @@ Before the 2026-10-15 batch: 809 passed, 25 refused by the lowering, 598 by the 
 the 2026-10-14 batch: 684 passed.
 
 - **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
-- **Typer refused:** mostly members not found (42), missing implicit arguments (28),
-  adaptations (27) and higher-kinded abstract types (21); 8 tests set a source version other than 3.9, which
+- **Typer refused:** mostly members not found (43), adaptations (30), missing implicit
+  arguments (28) and refined type trees (19); 8 tests set a source version other than 3.9, which
   the typer refuses.
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 
