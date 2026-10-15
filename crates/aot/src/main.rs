@@ -1,10 +1,18 @@
 //! `scalai-aot`: compiles NIR into a native executable with Cranelift.
 
+mod classes;
 mod codegen;
+mod entry;
+#[path = "../../scalai/src/libs.rs"]
+mod libs;
 mod link;
+mod reach;
+mod tables;
 
 use clap::Parser;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+
+pub type R<T> = Result<T, String>;
 
 /// Compile NIR into a native executable.
 #[derive(Parser)]
@@ -22,33 +30,13 @@ struct Args {
     output: PathBuf,
 }
 
-fn nir_files(dir: &Path) -> Result<Vec<PathBuf>, String> {
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    let mut files: Vec<PathBuf> =
-        entries.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|x| x == "nir")).collect();
-    files.sort();
-    Ok(files)
-}
-
-fn load(dirs: &[PathBuf], pool: &mut nir::Pool) -> Result<Vec<nir::Defn>, String> {
-    let mut caches = nir::Caches::default();
-    let mut defns = Vec::new();
-    for dir in dirs {
-        for file in nir_files(dir)? {
-            let bytes = std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-            let mut reader = nir::Reader::new(&bytes, &mut caches, pool)
-                .map_err(|e| format!("{}: {e}", file.display()))?;
-            reader.debug_info = false;
-            defns.extend(reader.all().map_err(|e| format!("{}: {e}", file.display()))?);
-        }
-    }
-    Ok(defns)
-}
-
-fn run(args: &Args) -> Result<(), String> {
-    let mut pool = nir::Pool::default();
-    let defns = load(&args.classpath, &mut pool)?;
-    let object = codegen::compile(&pool, &defns, &args.entry)?;
+fn run(args: &Args) -> R<()> {
+    let jars = libs::jars()?;
+    let image = libs::image(&jars).map_err(|e| format!("library image: {e}"))?;
+    let classpath = vm::Classpath::with_image(&args.classpath, image).map_err(|e| e.to_string())?;
+    let mut world = vm::World::new(classpath);
+    let entry = entry::find(&args.classpath, &args.entry, &mut world)?;
+    let object = codegen::compile(&mut world, entry)?;
     link::executable(&object, &args.output)
 }
 

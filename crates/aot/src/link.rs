@@ -1,4 +1,5 @@
-//! Links the object with the entry stub and Scala Native's C runtime through `cc`.
+//! Links the object with the entry stub, the lookup helpers and Scala Native's C runtime
+//! through `cc`.
 
 use std::path::Path;
 use std::process::Command;
@@ -11,9 +12,10 @@ pub fn executable(object: &[u8], output: &Path) -> Result<(), String> {
     obj.push(".scalai-aot.o");
     let obj = std::path::PathBuf::from(obj);
     std::fs::write(&obj, object).map_err(|e| format!("{}: {e}", obj.display()))?;
-    let entry = Path::new(env!("CARGO_MANIFEST_DIR")).join("c/entry.c");
+    let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");
     let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
-    cmd.arg("-o").arg(output).arg(&obj).arg(entry).arg(snrt::ARCHIVE).arg("-lz");
+    cmd.arg("-o").arg(output).arg(&obj).arg(c.join("entry.c")).arg(c.join("rt.c"));
+    cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);
     }

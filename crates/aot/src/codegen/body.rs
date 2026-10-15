@@ -1,36 +1,41 @@
 //! Blocks, values and control flow of one function body.
 
-use super::{R, Symbols, value_type};
+use super::Decls;
+use crate::R;
+use crate::reach::Reach;
 use cranelift_codegen::ir::condcodes::IntCC;
-use cranelift_codegen::ir::immediates::{Ieee32, Ieee64};
 use cranelift_codegen::ir::{Block, BlockArg, InstBuilder, TrapCode, Value, types};
 use cranelift_frontend::FunctionBuilder;
 use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
-use nir::{Body, GlobalId, Inst, Next, Type, Val, ValId};
+use nir::{Body, Inst, Next, TypeId};
 use std::collections::HashMap;
 
-pub struct FnBuilder<'a, 'p> {
+pub struct FnBuilder<'a, 'w> {
     pub b: FunctionBuilder<'a>,
     pub module: &'a mut ObjectModule,
-    pub sym: &'a mut Symbols<'p>,
+    pub reach: &'a mut Reach<'w>,
+    pub decls: &'a mut Decls,
     blocks: HashMap<u64, Block>,
-    vals: HashMap<u64, Value>,
-    /// Locals holding a module instance, by module.
-    pub module_vals: HashMap<u64, GlobalId>,
+    pub vals: HashMap<u64, Value>,
     /// Locals holding a statically resolved method.
     pub methods: HashMap<u64, FuncId>,
 }
 
-impl<'a, 'p> FnBuilder<'a, 'p> {
-    pub fn new(b: FunctionBuilder<'a>, module: &'a mut ObjectModule, sym: &'a mut Symbols<'p>) -> Self {
+impl<'a, 'w> FnBuilder<'a, 'w> {
+    pub fn new(
+        b: FunctionBuilder<'a>,
+        module: &'a mut ObjectModule,
+        reach: &'a mut Reach<'w>,
+        decls: &'a mut Decls,
+    ) -> Self {
         Self {
             b,
             module,
-            sym,
+            reach,
+            decls,
             blocks: HashMap::new(),
             vals: HashMap::new(),
-            module_vals: HashMap::new(),
             methods: HashMap::new(),
         }
     }
@@ -43,7 +48,8 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
                 self.b.append_block_params_for_function_params(block);
             } else {
                 for p in params {
-                    self.b.append_block_param(block, value_type(self.sym.pool, p.ty)?);
+                    let t = self.ty(p.ty)?;
+                    self.b.append_block_param(block, t);
                 }
             }
             self.blocks.insert(l.0, block);
@@ -71,6 +77,11 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
     pub fn finish(mut self) {
         self.b.seal_all_blocks();
         self.b.finalize(self.module.target_config());
+    }
+
+    /// The Cranelift type of NIR type `t`.
+    pub fn ty(&self, t: TypeId) -> R<types::Type> {
+        self.decls.value_type(&self.reach.world.pool, t)
     }
 
     /// Translates one instruction; `true` when it ends the block.
@@ -147,44 +158,5 @@ impl<'a, 'p> FnBuilder<'a, 'p> {
         let (block, args) = self.target(next)?;
         self.b.ins().jump(block, &args);
         Ok(())
-    }
-
-    pub fn val(&mut self, v: ValId) -> R<Value> {
-        let pool = self.sym.pool;
-        let int = |b: &mut FunctionBuilder, t, x: i64| b.ins().iconst(t, x);
-        Ok(match pool.val(v) {
-            Val::Local(l, ty) => match self.vals.get(&l.0) {
-                Some(&v) => v,
-                None if matches!(pool.ty(*ty), Type::Unit) => int(&mut self.b, types::I8, 0),
-                None => return Err(format!("undefined local %{}", l.0)),
-            },
-            Val::True => int(&mut self.b, types::I8, 1),
-            Val::False | Val::Unit => int(&mut self.b, types::I8, 0),
-            Val::Null => int(&mut self.b, types::I64, 0),
-            Val::Zero(ty) => match value_type(pool, *ty)? {
-                types::F32 => self.b.ins().f32const(0.0),
-                types::F64 => self.b.ins().f64const(0.0),
-                t => int(&mut self.b, t, 0),
-            },
-            Val::Char(c) => int(&mut self.b, types::I16, *c as i64),
-            Val::Byte(x) => int(&mut self.b, types::I8, *x as u8 as i64),
-            Val::Short(x) => int(&mut self.b, types::I16, *x as u16 as i64),
-            Val::Int(x) => int(&mut self.b, types::I32, *x as u32 as i64),
-            Val::Long(x) => int(&mut self.b, types::I64, *x),
-            Val::Size(x) => int(&mut self.b, types::I64, *x as i64),
-            Val::Float(bits) => self.b.ins().f32const(Ieee32::with_bits(*bits)),
-            Val::Double(bits) => self.b.ins().f64const(Ieee64::with_bits(*bits)),
-            v => return Err(format!("value not supported yet: {v:?}")),
-        })
-    }
-
-    /// `v` where a value of type `t` is expected: `unit` and `null` become zero of type `t`.
-    pub fn arg(&mut self, v: ValId, t: types::Type) -> R<Value> {
-        let pool = self.sym.pool;
-        match pool.val(v) {
-            Val::Unit | Val::Null => Ok(self.b.ins().iconst(t, 0)),
-            Val::Local(_, ty) if matches!(pool.ty(*ty), Type::Unit) => Ok(self.b.ins().iconst(t, 0)),
-            _ => self.val(v),
-        }
     }
 }

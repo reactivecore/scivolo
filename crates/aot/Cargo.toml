@@ -3,6 +3,7 @@ name = "aot"
 version.workspace = true
 edition.workspace = true
 publish = false
+build = "../scalai/build.rs"
 
 [[bin]]
 name = "scalai-aot"
@@ -14,9 +15,13 @@ cranelift-codegen = "0.135"
 cranelift-frontend = "0.135"
 cranelift-module = "0.135"
 cranelift-object = "0.135"
+libimage.workspace = true
 nir.workspace = true
+rustc-hash.workspace = true
 snrt = { path = "../snrt" }
 target-lexicon = "0.13"
+tasty = { path = "../tasty" }
+vm = { path = "../vm" }
 
 [lints]
 workspace = true

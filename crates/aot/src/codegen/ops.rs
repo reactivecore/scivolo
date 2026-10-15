@@ -1,7 +1,7 @@
-//! Operations: integer arithmetic, comparisons, conversions, calls and module methods.
+//! Operations: arithmetic, comparisons, conversions and calls; objects are in `objects`.
 
 use super::body::FnBuilder;
-use super::{R, value_type};
+use crate::R;
 use cranelift_codegen::ir::condcodes::{FloatCC, IntCC};
 use cranelift_codegen::ir::{InstBuilder, TrapCode, Value, types};
 use cranelift_module::Module;
@@ -10,7 +10,6 @@ use nir::{Bin, Comp, Conv, Op, Val};
 impl FnBuilder<'_, '_> {
     /// Translates `op`, the operation of local `id`; its value, if any.
     pub fn op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
-        let pool = self.sym.pool;
         Ok(Some(match op {
             Op::Call { ty, ptr, args } => return self.call(*ty, *ptr, args),
             Op::Bin { bin, l, r, .. } => {
@@ -26,33 +25,16 @@ impl FnBuilder<'_, '_> {
             }
             Op::Conv { conv, ty, value } => {
                 let v = self.val(*value)?;
-                let to = value_type(pool, *ty)?;
+                let to = self.ty(*ty)?;
                 self.conv(*conv, v, to)?
             }
-            Op::Module(g) => {
-                self.module_vals.insert(id, *g);
-                let data = self.sym.module(self.module, *g)?;
-                let gv = self.module.declare_data_in_func(data, self.b.func);
-                self.b.ins().symbol_value(types::I64, gv)
-            }
-            Op::Method { obj, sig } => {
-                let Val::Local(l, _) = pool.val(*obj) else { return Err("method of a non-local".into()) };
-                let owner = self.module_vals.get(&l.0).ok_or("virtual calls are not supported yet")?;
-                let key = (pool.top_name(*owner), pool.str(*sig));
-                let &i = self.sym.by_member.get(&key).ok_or("method not found")?;
-                let f = self.sym.func(self.module, i)?;
-                self.methods.insert(id, f);
-                let fref = self.module.declare_func_in_func(f, self.b.func);
-                self.b.ins().func_addr(types::I64, fref)
-            }
             Op::Copy(v) => self.val(*v)?,
-            op => return Err(format!("operation not supported yet: {op:?}")),
+            op => return self.object_op(id, op),
         }))
     }
 
     fn call(&mut self, ty: nir::TypeId, ptr: nir::ValId, args: &[nir::ValId]) -> R<Option<Value>> {
-        let pool = self.sym.pool;
-        let sig = self.sym.signature(ty)?;
+        let sig = self.decls.signature(&self.reach.world.pool, ty)?;
         if args.len() != sig.params.len() {
             return Err("call arity".into());
         }
@@ -60,17 +42,22 @@ impl FnBuilder<'_, '_> {
         for (&a, p) in args.iter().zip(&sig.params) {
             values.push(self.arg(a, p.value_type)?);
         }
-        let callee = match pool.val(ptr) {
-            Val::Global(g, _) => {
-                let &i =
-                    self.sym.by_name.get(g).ok_or_else(|| format!("unknown function {}", pool.mangle(*g)))?;
-                self.sym.func(self.module, i)?
-            }
-            Val::Local(l, _) => *self.methods.get(&l.0).ok_or("indirect calls are not supported yet")?,
-            v => return Err(format!("callee {v:?}")),
+        let direct = match *self.reach.world.pool.val(ptr) {
+            Val::Global(g, _) => Some(self.decls.func(self.module, self.reach, g)?),
+            Val::Local(l, _) => self.methods.get(&l.0).copied(),
+            _ => None,
         };
-        let fref = self.module.declare_func_in_func(callee, self.b.func);
-        let call = self.b.ins().call(fref, &values);
+        let call = match direct {
+            Some(f) => {
+                let fref = self.module.declare_func_in_func(f, self.b.func);
+                self.b.ins().call(fref, &values)
+            }
+            None => {
+                let callee = self.val(ptr)?;
+                let sigref = self.b.import_signature(sig);
+                self.b.ins().call_indirect(sigref, callee, &values)
+            }
+        };
         Ok(self.b.inst_results(call).first().copied())
     }
 

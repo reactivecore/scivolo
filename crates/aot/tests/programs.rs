@@ -1,13 +1,16 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+
+fn program(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/programs").join(name)
+}
 
 /// What the executable built from method `entry` of test program `name` prints for `arg`.
 fn run(name: &str, entry: &str, arg: &str) -> String {
-    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let bin = Path::new(env!("CARGO_TARGET_TMPDIR")).join("aot").join(name);
     let out = Command::new(env!("CARGO_BIN_EXE_scalai-aot"))
         .arg("--cp")
-        .arg(root.join("tests/programs").join(name))
+        .arg(program(name))
         .args(["--entry", entry, "-o"])
         .arg(&bin)
         .output()
@@ -17,6 +20,10 @@ fn run(name: &str, entry: &str, arg: &str) -> String {
     String::from_utf8_lossy(&out.stdout).into_owned()
 }
 
+fn check(name: &str) -> String {
+    std::fs::read_to_string(program(name).join(format!("{name}.check"))).expect("the .check file")
+}
+
 #[test]
 fn fib_runs_as_executable() {
     assert_eq!(run("fib", "fibo", "25"), "75025\n");
@@ -24,8 +31,10 @@ fn fib_runs_as_executable() {
 
 #[test]
 fn negative_literals_and_overflowing_division() {
-    let check = std::fs::read_to_string(
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/programs/intops/intops.check"),
-    );
-    assert_eq!(run("intops", "calc", "20"), check.expect("intops.check"));
+    assert_eq!(run("intops", "calc", "20"), check("intops"));
+}
+
+#[test]
+fn virtual_and_trait_dispatch_type_tests_and_modules() {
+    assert_eq!(run("dispatch", "run", "20"), check("dispatch"));
 }

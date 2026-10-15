@@ -6,7 +6,7 @@ mod error;
 mod gcinfo;
 mod heap;
 mod interp;
-mod layout;
+pub mod layout;
 mod linktime;
 mod member_table;
 mod natives;
@@ -22,7 +22,7 @@ pub use classpath::{Classpath, nir_table};
 pub use error::VmError;
 pub use natives::exit_immediately;
 pub use throwable::{Frame, Thrown};
-pub use world::World;
+pub use world::{LoadError, World};
 
 use class::Classes;
 use heap::Heap;
