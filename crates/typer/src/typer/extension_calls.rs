@@ -81,18 +81,18 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<TNodeId> {
         if let Pt::Fun(i) = pt
-            && self.protos[i].args.first().is_some_and(|a| self.splices.contains_key(a))
+            && let [a] = self.protos[i].args[..]
+            && self.splices.contains_key(&a)
         {
             return None;
         }
         let mut owner = Some(ctx.owner);
         let xmethod = loop {
             let sym = self.u.symbol(owner?);
-            match sym.kind {
-                Kind::Def if sym.flags.has(EXTENSION) => break owner?,
-                Kind::Class | Kind::Package => return None,
-                _ => owner = sym.owner,
+            if sym.kind == Kind::Def && sym.flags.has(EXTENSION) {
+                break owner?;
             }
+            owner = sym.owner;
         };
         let xparam = self.lead_param(xmethod)?;
         let sibling = found
