@@ -55,6 +55,7 @@ mod local_classes;
 mod local_free;
 mod local_lazy;
 mod local_lift;
+mod local_nested;
 mod local_outer;
 mod local_proxies;
 mod local_traits;

@@ -77,7 +77,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
     let span = l.tpd.span(td);
     let refused = match () {
         _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
-        _ => nested_definition(l, td),
+        _ => super::local_nested::nested_definition(l, td),
     };
     if let Some(what) = refused {
         return unsupported(span, what);
@@ -155,27 +155,6 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
         }
     }
     Ok(free)
-}
-
-/// What local class definition `td` defines that the lowering does not lift with it: lambdas and
-/// local methods, lazy values of an object.
-fn nested_definition(l: &Lower, td: TNodeId) -> Option<&'static str> {
-    super::explicit_outer::terms(l, td, true).into_iter().find_map(|t| match *l.tpd.tree(t) {
-        Tree::Closure { .. } => Some("lambdas and local methods in local classes"),
-        Tree::ValDef { .. } | Tree::DefDef { .. }
-            if l.tpd.sym(t).is_some_and(|s| {
-                has(l.u, s, LAZY) && !l.u.is_module(s) && l.u.symbol(s).owner == l.tpd.sym(td)
-            }) && l.tpd.sym(td).is_some_and(|c| l.u.is_module_class(c)) =>
-        {
-            Some("lazy values in local objects")
-        }
-        Tree::DefDef { .. }
-            if l.tpd.sym(t).is_some_and(|s| is_term(l, l.u.symbol(s).owner.expect("an owner"))) =>
-        {
-            Some("lambdas and local methods in local classes")
-        }
-        _ => None,
-    })
 }
 
 /// Whether `s` is a method whose body runs outside the constructor: not a constructor, nor a
