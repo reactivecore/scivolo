@@ -65,7 +65,7 @@ impl Typer<'_> {
                             let info = self.resolve_class_params(info);
                             self.instantiated_selected(info)
                         }
-                        _ => self.u.info(s),
+                        _ => self.u.opaque_underlying(s, prefix).unwrap_or_else(|| self.u.info(s)),
                     };
                     let info = match *self.u.types().get(info) {
                         Type::ByName(r) => r,

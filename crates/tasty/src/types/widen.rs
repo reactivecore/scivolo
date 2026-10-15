@@ -89,7 +89,10 @@ impl Universe {
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(t)?),
             _ => return None,
         };
-        let alias = self.alias_of(s)?;
+        let alias = match self.visible_opaque_alias(s, prefix) {
+            Some(a) => a,
+            None => self.alias_of(s)?,
+        };
         let owner = self.symbol(s).owner?;
         Some(match prefix {
             Some(p) if self.symbol(owner).kind == Kind::Class => self.as_seen_from(alias, p, owner),

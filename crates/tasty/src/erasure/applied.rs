@@ -125,7 +125,7 @@ impl Universe {
             Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
             Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
                 Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
-                    let info = self.info(s);
+                    let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
                     match self.types().get(info).clone() {
                         Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
                         Type::Lambda { .. } => false,
@@ -163,7 +163,7 @@ impl Universe {
                     };
                 }
                 let Some(s) = self.referenced(t) else { return Holder::None };
-                let info = self.info(s);
+                let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
                 if matches!(self.types().get(info), Type::Lambda { .. }) {
                     Holder::None
                 } else {

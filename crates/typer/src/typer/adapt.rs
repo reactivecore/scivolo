@@ -79,7 +79,11 @@ impl Typer<'_> {
             }
             return tree;
         }
+        let lifts = self.u.opaque_lifts();
         if self.conforms(tpe, pt) {
+            if self.u.opaque_lifts() != lifts && !self.conforms_unlifted(tpe, pt) {
+                self.unsupported_at(span, "conformance through an opaque alias");
+            }
             return tree;
         }
         if let Some(converted) = self.converted_constant(tree, pt) {

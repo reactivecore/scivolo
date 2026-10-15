@@ -162,7 +162,8 @@ fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning {
     match u.symbol(s).kind {
         Kind::Class => Meaning::Class(s),
         Kind::Type | Kind::TypeParam => {
-            if let Some(alias) = u.alias_of(s) {
+            let opaque = u.visible_opaque_alias(s, prefix);
+            if let Some(alias) = opaque.or_else(|| u.alias_of(s)) {
                 return Meaning::Alias(seen(u, alias));
             }
             if let Some((lo, hi)) = u.opaque_bounds(s) {

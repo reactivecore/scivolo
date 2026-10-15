@@ -39,4 +39,17 @@ impl Universe {
     pub fn is_package_object(&self, s: SymbolId) -> bool {
         self.is_module_class(s) && is_package_object_name(&self.symbol(s).name)
     }
+
+    /// Whether `s` is reached through static paths only: its owner is a package or an object
+    /// that is itself static.
+    pub fn is_static_symbol(&self, s: SymbolId) -> bool {
+        match self.symbol(s).owner {
+            None => true,
+            Some(o) => {
+                let owner = self.symbol(o);
+                owner.kind == Kind::Package
+                    || (owner.kind == Kind::Class && owner.flags.has(OBJECT) && self.is_static_symbol(o))
+            }
+        }
+    }
 }

@@ -11,7 +11,7 @@ impl Cmp<'_> {
     pub fn fourth_try(&mut self, a: TypeId, b: TypeId) -> bool {
         match self.u.types().get(a).clone() {
             Type::TypeRef(..) | Type::TermRef(..) | Type::Sym(..) => match self.named(a).map(|n| n.meaning) {
-                Some(Meaning::Abstract(_, hi)) => self.recur(hi, b),
+                Some(Meaning::Abstract(_, hi)) => self.recur(hi, b) || self.lifted_left(a, b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().nothing => self.is_value_type(b),
                 Some(Meaning::Class(c)) if c == self.u.builtins().null => self.nullable(b),
                 Some(Meaning::Term(_)) => self.below_singleton(a, b),

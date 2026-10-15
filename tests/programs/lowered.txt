@@ -102,3 +102,4 @@ lowerfixes
 contextfunctions
 partialfuns
 selftypes
+opaques

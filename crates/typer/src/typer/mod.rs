@@ -242,6 +242,7 @@ impl<'a> Typer<'a> {
             depth: 0,
         };
         typer.enter_and_or();
+        typer.u.set_comparison_owner(None);
         Ok(typer)
     }
 
@@ -250,6 +251,7 @@ impl<'a> Typer<'a> {
             return self.unsupported(id, "nesting too deep");
         }
         self.depth += 1;
+        let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
         let inner = ctx.with_mode(ctx.mode.without(crate::ctx::Mode::APPLY_QUALIFIER));
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
@@ -261,6 +263,7 @@ impl<'a> Typer<'a> {
         }
         self.settle_type(tree, inner);
         let tree = self.adapt(tree, pt, ctx);
+        self.u.set_comparison_owner(outer);
         self.depth -= 1;
         tree
     }
