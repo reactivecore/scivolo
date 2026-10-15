@@ -1,0 +1,22 @@
+[package]
+name = "aot"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[[bin]]
+name = "scalai-aot"
+path = "src/main.rs"
+
+[dependencies]
+clap.workspace = true
+cranelift-codegen = "0.135"
+cranelift-frontend = "0.135"
+cranelift-module = "0.135"
+cranelift-object = "0.135"
+nir.workspace = true
+snrt = { path = "../snrt" }
+target-lexicon = "0.13"
+
+[lints]
+workspace = true

@@ -218,6 +218,11 @@ the VM (fetched, not vendored).
   bridges it adds for methods implementing a trait's abstract method; `NirGenName`, the JDK
   classes it renames and the `__` of `_Object`'s methods (the table in `crates/tasty`'s `jdk.rs`).
 
+- **Cranelift** ([cranelift.dev](https://cranelift.dev/)), Apache-2.0 with LLVM exception: the
+  code generator of `scalai-aot` (`crates/aot`), used as a library
+  ([ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)); Scala Native's `Lower.scala`
+  and `Generate.scala` give the semantics it lowers NIR to.
+
 - **Go's scheduler** hands a goroutine's blocking system call to another OS thread; our green
   threads do the same for `blocking` externs (ADR 0003). **corosensei**
   ([crate](https://docs.rs/corosensei)) provides the stackful coroutines.

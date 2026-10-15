@@ -29,6 +29,16 @@ run name *args: release
 script file *args: release
     {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}
 
+# Build method `entry` (an `(Int) => Int`) of test program `name` as the native executable
+# tmp/aot/<name>, which prints the method's result for its first argument.
+aot-build name entry:
+    cargo build -q --release -p aot
+    target/release/scalai-aot --cp tests/programs/{{ name }} --entry {{ entry }} -o tmp/aot/{{ name }}
+
+# Build as aot-build does and run the executable with `args`.
+aot-run name entry *args: (aot-build name entry)
+    tmp/aot/{{ name }} {{ args }}
+
 # Start the REPL in the release build.
 [no-cd]
 repl *args: release
