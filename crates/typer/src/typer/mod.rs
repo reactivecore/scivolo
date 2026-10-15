@@ -104,6 +104,7 @@ mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+mod small_tuples;
 pub(crate) mod stability;
 mod stats;
 mod summon_from;

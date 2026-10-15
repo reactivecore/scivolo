@@ -23,6 +23,9 @@ impl Typer<'_> {
         if self.is_error(qual) {
             return self.error_tree(self.ast.span(id));
         }
+        if text == "*:" && self.is_large_generic_tuple(qual) {
+            return self.unsupported(id, "generic tuple of more than 22 elements");
+        }
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
@@ -54,6 +57,10 @@ impl Typer<'_> {
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;
+            }
+            if let Some(q) = self.small_generic_tuple(qual) {
+                (qual, converted) = (q, true);
+                continue;
             }
             if let Some(case) = self.widened_enum_case(qual) {
                 qual = case;
