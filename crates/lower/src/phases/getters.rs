@@ -173,10 +173,10 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
 }
 
-/// Whether `s` is a `final` value of a constant type.
+/// Whether `s` is a `final` value, not a variable, of a constant type.
 pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
     let value = l.u.symbol(s).kind == Kind::Val || has(l.u, s, FIELDaccessor);
-    if !has(l.u, s, FINAL) || !value {
+    if !has(l.u, s, FINAL) || has(l.u, s, MUTABLE) || !value {
         return false;
     }
     let info = l.u.info(s);
