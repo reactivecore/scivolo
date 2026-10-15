@@ -60,8 +60,9 @@ fn the_frontend_mode_chooses_the_compiler() {
     let _ = std::fs::remove_file(dir.join("log"));
     std::fs::create_dir_all(&dir).unwrap();
     let fatal = format!("//> using options -Werror\n{WARN}");
+    let unused = "def one(): Int = 1\n@main def unused(): Unit =\n  one()\n  println(1)\n";
     let files = [("good.scala", GOOD), ("bad.scala", BAD), ("good.sc", "println(1)\n"), ("warn.scala", WARN)];
-    for (file, text) in files.into_iter().chain([("fatal.scala", fatal.as_str())]) {
+    for (file, text) in files.into_iter().chain([("fatal.scala", fatal.as_str()), ("unused.scala", unused)]) {
         std::fs::write(dir.join(file), text).unwrap();
     }
     let nir = root.join("tests/programs/hello").canonicalize().unwrap();
@@ -105,6 +106,10 @@ fn the_frontend_mode_chooses_the_compiler() {
     assert!(!r.out.status.success());
     assert!(r.stderr.contains("No warnings can be incurred under -Werror"), "{}", r.stderr);
     assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("", 3));
+
+    let r = scalai_with(&dir, &["-Wnonunit-statement"], "unused.scala", "");
+    assert!(r.stderr.contains("unused value of type Int"), "{}", r.stderr);
+    assert_eq!((r.stdout.as_str(), cli_calls(&dir)), ("1\n", 3));
 
     let r = scalai(&dir, "fatal.scala", "");
     assert!(r.stderr.ends_with("fatal.scala: warnings under -Werror\n"), "{}", r.stderr);

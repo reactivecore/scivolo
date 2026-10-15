@@ -75,6 +75,8 @@ Apache-2.0. Rust translations of:
   `ClassInfo.selfType`, `ThisType.underlying`, `SAMType.samClass` (self type rule).
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
+- `crates/typer/src/typer/linter.rs`: `Linter.warnOnInterestingResultInStatement`,
+  `TreeInfo.isThisTypeResult`.
 - `crates/lower/src/phases`, from `transform/`:
   - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
     `config/JavaPlatform.isSam` (without `samExpansionNotNeeded`'s bridges: refused), `ast/tpd` (`AnonClass`,

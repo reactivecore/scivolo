@@ -124,7 +124,8 @@ Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] [-O OPT]... FIL
 as a `#!/usr/bin/env scalai` shebang. `-O`/`--scala-opt` passes a Scala compiler option, as
 `//> using options` in the script does. The first run compiles a `.scala` file through the own
 frontend (parser, typer, lowering), printing its warnings on stderr; `-Werror` or
-`-Xfatal-warnings` turns any warning into a failed run, `-nowarn` silences them. Where the own
+`-Xfatal-warnings` turns any warning into a failed run, `-nowarn` silences them; of the lints it
+implements `-Wnonunit-statement`. Where the own
 frontend refuses a script, and for `.sc` files, `//> using` directives before the code other than
 `scala 3.9.0` and options, and compiler options it does not implement, it compiles through
 scala-cli (`SCALAI_SCALA_CLI`

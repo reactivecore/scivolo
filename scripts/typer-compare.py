@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Types Scala files with dotty's oracle and with the Rust typer, and prints per file whether the
-typed trees are the same, why the Rust typer fell back, or where they first differ. Both trees
+typed trees are the same, why the Rust typer fell back, or where they first differ, and the
+warnings that differ. Both trees
 are written to tmp/typer/compare/NAME.dotty and NAME.ours, one node per line.
 
 Usage: scripts/typer-compare.py [--inlined] FILE...
@@ -24,7 +25,8 @@ def records(text):
         path, _, body = chunk.partition("\n")
         lines = body.split("\n")
         errors = [l for l in lines[1:] if l.startswith("== E ")]
-        out[path.strip()] = (lines[0], errors)
+        warnings = [l for l in lines[1:] if l.startswith("== W ")]
+        out[path.strip()] = (lines[0], errors, warnings)
     return out
 
 
@@ -45,8 +47,8 @@ def main(files, inlined):
         ours_out = ""
     expected, actual = records(oracle.stdout), records(ours_out)
     for p in paths:
-        e, errors = expected.get(p, ("== no oracle output", []))
-        r, our_errors = actual.get(p, ("== no output (crash or timeout)", []))
+        e, errors, warnings = expected.get(p, ("== no oracle output", [], []))
+        r, our_errors, our_warnings = actual.get(p, ("== no output (crash or timeout)", [], []))
         name = Path(p).name
         (WORK / f"{name}.dotty").write_text(e.replace(" (", "\n("))
         (WORK / f"{name}.ours").write_text(r.replace(" (", "\n("))
@@ -63,6 +65,9 @@ def main(files, inlined):
         else:
             i = next((k for k in range(min(len(e), len(r))) if e[k] != r[k]), min(len(e), len(r)))
             print(f"{name}: differs at {i}\n  dotty: {e[max(0, i - 200):i + 150]}\n  ours:  {r[max(0, i - 200):i + 150]}")
+        if our_warnings != warnings and not r.startswith("=="):
+            print(f"{name}: warnings differ" + "".join(f"\n  ours:  {l[3:]}" for l in our_warnings if l not in warnings)
+                  + "".join(f"\n  dotty: {l[3:]}" for l in warnings if l not in our_warnings))
 
 
 if __name__ == "__main__":

@@ -64,6 +64,7 @@ mod java_classes;
 mod java_members;
 mod lift;
 mod lift_app;
+mod linter;
 mod literals;
 mod matches;
 mod member_views;
@@ -133,7 +134,7 @@ use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
-use syntax::config::{Config, Features, SourceVersion};
+use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
@@ -158,6 +159,8 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// The `-W` lints the options enable.
+    pub lints: Lints,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -225,6 +228,7 @@ impl<'a> Typer<'a> {
             syms,
             diags: Diagnostics::default(),
             features: cfg.features,
+            lints: cfg.warnings.lints,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),

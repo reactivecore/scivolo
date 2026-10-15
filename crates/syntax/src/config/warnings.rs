@@ -13,9 +13,14 @@ pub struct Warnings {
 pub struct Lints(u8);
 
 impl Lints {
+    pub const NONUNIT_STATEMENT: Lints = Lints(1);
+
     /// The lint a `-W<name>` option names.
-    pub fn named(_name: &str) -> Option<Lints> {
-        None
+    pub fn named(name: &str) -> Option<Lints> {
+        match name {
+            "nonunit-statement" => Some(Lints::NONUNIT_STATEMENT),
+            _ => None,
+        }
     }
 
     pub fn contains(self, l: Lints) -> bool {
