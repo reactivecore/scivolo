@@ -22,6 +22,10 @@ impl Typer<'_> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
+        self.ensure_self(class);
+        if self.u.given_self_type(class).is_some() {
+            return Ok(None);
+        }
         let Some(method) = self.sam_method(class) else { return Ok(None) };
         let open = !self.is_fully_defined(t) && !self.is_partial_function(t);
         if !self.u.symbol(class).flags.has(TRAIT) || open {

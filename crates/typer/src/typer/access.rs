@@ -20,6 +20,7 @@ impl Typer<'_> {
             return Err("inaccessible member");
         }
         self.check_inline_reference(sym, ctx)?;
+        self.check_self_members(sym, prefix)?;
         self.unset_local(sym, prefix)
     }
 

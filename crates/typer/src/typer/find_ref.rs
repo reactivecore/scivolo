@@ -183,6 +183,9 @@ impl Typer<'_> {
                 Some(Found { prefix, syms: vec![sym] })
             }
             &Level::Members(owner) => {
+                if let Some(s) = self.self_named(owner, name.text).filter(|_| !name.is_type) {
+                    return Some(Found { prefix: None, syms: vec![s] });
+                }
                 let prefix = crate::defn::owner_prefix(self.u, owner);
                 self.members_found(prefix, name.text, name.is_type)
             }

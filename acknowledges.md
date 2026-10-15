@@ -67,6 +67,9 @@ Apache-2.0. Rust translations of:
   `TreeInfo.functionWithUnknownParamType`.
 - `crates/typer/src/typer/sams.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
   `Typer.typedClosure` (the closure's target type).
+- `crates/typer/src/typer/selves.rs`, `crates/tasty/src/types/widen.rs` (`self_type`):
+  `Namer.completeConstructor` (`selfInfo`), `ContextOps.inClassContext`, `denotNamed`,
+  `ClassInfo.selfType`, `ThisType.underlying`, `SAMType.samClass` (self type rule).
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/lower/src/phases`, from `transform/`:
@@ -93,6 +96,7 @@ Apache-2.0. Rust translations of:
     `HoistSuperArgs`, `PureStats` (anonymous instances)
   - `ExplicitOuter` (`needsOuterIfReferenced`, `needsOuterAlways`, `referencesOuter` of local
     classes and traits, `fixThis`), `DropOuterAccessors` (anonymous local classes), `SymDenotations.fullNameSeparated`
+  - `ExplicitSelf`
   - `PatternMatcher` (literal, binding, alternative, type, extractor, sequence and
     product-sequence patterns, guards, switches),
     `TryCatchPatterns`, `TypeTestsCasts` (type tests of primitives, singletons through

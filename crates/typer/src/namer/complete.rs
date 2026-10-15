@@ -191,7 +191,7 @@ impl Typer<'_> {
                 self.widen_rhs(sym, info)
             }
             Type::ByName(r) | Type::Skolem(_, r) => self.widen_rhs(sym, r),
-            Type::This(c) if !self.u.class_symbol(c).is_some_and(|k| self.u.is_module_class(k)) => c,
+            Type::This(c) => self.widened_this(t, c),
             _ => t,
         }
     }

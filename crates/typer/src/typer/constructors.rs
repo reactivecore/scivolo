@@ -33,6 +33,14 @@ impl Typer<'_> {
         {
             return self.unsupported(id, "new of a parameterized type alias");
         }
+        if let Some(c) = self.u.class_symbol(tpe)
+            && !self.is_parent_call(c, ctx)
+        {
+            self.ensure_self(c);
+            if self.u.given_self_type(c).is_some() {
+                return self.unsupported(id, "new of a class not conforming to its self type");
+            }
+        }
         let erased = self.resolve_full_name("scala.compiletime.Erased", true);
         if let (Some(c), Some(erased)) = (self.u.class_symbol(tpe), erased)
             && self.u.derives_from(c, erased)

@@ -98,6 +98,7 @@ mod right_assoc;
 mod sams;
 pub(crate) mod seen_from;
 mod select;
+mod selves;
 pub(crate) mod stability;
 mod stats;
 mod summon_from;

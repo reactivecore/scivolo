@@ -45,7 +45,7 @@ impl Universe {
             Type::Str(_) => self.constant_type(STRINGconst),
             Type::This(c) => {
                 let c = self.class_symbol(c)?;
-                self.this_type(c)
+                self.self_type(c)
             }
             Type::Super(_, p) | Type::Skolem(_, p) => p,
             _ => return None,
@@ -133,6 +133,15 @@ impl Universe {
         match params.is_empty() {
             true => class,
             false => self.intern_type(Type::Applied(class, params)),
+        }
+    }
+
+    /// The type of `this` in class `c` with its given self type (dotty's `ClassInfo.selfType`).
+    pub fn self_type(&mut self, c: SymbolId) -> TypeId {
+        let applied = self.this_type(c);
+        match self.given_self_type(c) {
+            Some(s) => self.intern_type(Type::And(s, applied)),
+            None => applied,
         }
     }
 
