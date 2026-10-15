@@ -66,6 +66,12 @@ pub fn dependencies(
             (&Tree::New { tpt }, _) if matches!(l.u.types().get(l.tpd.tpe(tpt)), Type::Sym(_, c) if l.local_classes.contains_key(c)) => {
                 functions[i].this |= in_class
             }
+            (&Tree::New { tpt }, _) => {
+                let tpe = l.tpd.tpe(tpt);
+                let tycon = if let Type::Applied(t, _) = l.u.types().get(tpe) { *t } else { tpe };
+                let created = if let Type::Sym(_, c) = *l.u.types().get(tycon) { Some(c) } else { None };
+                functions[i].this |= created.is_some_and(|c| l.u.symbol(c).owner == Some(class));
+            }
             (Tree::Ident { .. }, Some(s)) if pending.passed.contains(&t) => {
                 add_call(&mut called, i, Callee::Value(s))
             }
