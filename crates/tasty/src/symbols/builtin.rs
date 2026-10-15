@@ -103,6 +103,7 @@ pub fn enter(u: &mut Universe) -> Builtins {
         u.decl(scala, "AnyVal").ok().and_then(|d| d.into_iter().find(|&s| u.symbol(s).kind == Kind::Class));
     super::any_members::enter(u, any, object);
     super::impure_functions::enter(u, scala);
+    super::context_functions::enter(u, scala, object_ref);
     super::java_stubs::enter(u, object);
     Builtins { any, any_kind, matchable, nothing, null, singleton, any_ref, object, any_val }
 }

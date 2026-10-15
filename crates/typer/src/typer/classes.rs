@@ -96,6 +96,16 @@ impl Typer<'_> {
         if self.u.is_trait(cls) && params {
             return self.unsupported(id, "trait parameters");
         }
+        if self.u.symbol(cls).flags.has(tasty::tags::CASE)
+            && let Some(c) = ctor
+        {
+            let info = self.u.info(c);
+            let first = self.u.param_clauses(info).into_iter().next();
+            let elems = first.map(|(_, ps)| ps).unwrap_or_default();
+            if elems.iter().any(|&t| self.is_context_function_type(t)) {
+                return self.unsupported(id, "case class element of a context function type");
+            }
+        }
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
         let constr = self.typed(t.constr, Pt::Any, cctx);

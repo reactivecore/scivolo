@@ -52,6 +52,12 @@ Apache-2.0. Rust translations of:
   `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
   (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
+- Context functions: `Typer` (`makeContextualFunction`, `typedFunctionType`, the context
+  closure check of `typedUnadapted`, `adaptNoArgsOther`, `isApplyProto`), `Desugar.makeContextualFunction`,
+  `TreeInfo.isContextualClosure`, `Definitions` (`newFunctionNType`, `asContextFunctionType`),
+  `ProtoTypes.normalize` (`followIFT`) in `crates/typer/src/typer/{context_functions,adapt_by_result}.rs`
+  and `crates/tasty/src/symbols/context_functions.rs`; `Erasure.Typer.mapOwner` and
+  `ContextFunctionResults.annotateContextResults` in `crates/lower/src/phases`.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/typer/src/typer/{unapply*,pattern_args}.rs`: `Applications.typedUnApply`,

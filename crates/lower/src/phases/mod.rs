@@ -18,6 +18,7 @@ mod case_members;
 pub(crate) mod casts;
 mod closures;
 mod constructors;
+mod context_results;
 mod dependencies;
 mod drop_for_map;
 mod drop_inlined;
@@ -106,6 +107,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
     drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
+    context_results::refuse(l, root)?;
     trait_fields::find_inits(l, &class_defs(l.tpd, root));
     module_purity::record(l, root);
     beta_reduce::transform(l, root, unit_owner)?;

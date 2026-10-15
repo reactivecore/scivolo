@@ -6,6 +6,7 @@ mod bodies;
 mod builtin;
 mod classes;
 mod companions;
+mod context_functions;
 mod define;
 mod enter;
 mod entries;

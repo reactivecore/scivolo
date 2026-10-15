@@ -70,6 +70,7 @@ impl Typer<'_> {
         }
         let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
+        self.check_context_default(rhs, raw_default.filter(|_| default.is_none()));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
         let approx = raw_default.filter(|_| lambda && default.is_none()).and_then(|d| {
             let a = self.own_type_params_approximated(d, sym);
@@ -190,14 +191,7 @@ impl Typer<'_> {
                 self.widen_rhs(sym, info)
             }
             Type::ByName(r) | Type::Skolem(_, r) => self.widen_rhs(sym, r),
-            Type::This(c)
-                if !self
-                    .u
-                    .class_symbol(c)
-                    .is_some_and(|k| self.u.symbol(k).flags.has(tasty::tags::OBJECT)) =>
-            {
-                c
-            }
+            Type::This(c) if !self.u.class_symbol(c).is_some_and(|k| self.u.is_module_class(k)) => c,
             _ => t,
         }
     }

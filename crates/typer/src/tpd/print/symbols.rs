@@ -6,15 +6,15 @@ use tasty::{Kind, SymbolId, Universe};
 
 /// dotty's `fullName`: owners joined by `.`, each term owner between `s` and its enclosing class
 /// as a `_$` before the name, the root and the empty package left out; the module class of `<:<`
-/// as dotty gives it, `$:$$`.
+/// as dotty gives it, `$:$$`; a context function parameter `contextual$N` as an empty name.
 pub fn full_name(u: &Universe, s: SymbolId) -> String {
     let name = &u.symbol(s).name;
-    let unique = name.len() > 2
-        && name.starts_with('$')
-        && name.ends_with('$')
-        && name[1..name.len() - 1].bytes().all(|b| b.is_ascii_digit());
+    let digits = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
+    let unique =
+        name.len() > 2 && name.starts_with('$') && name.ends_with('$') && digits(&name[1..name.len() - 1]);
     let name = match name.as_str() {
         "<:<$" if u.symbol(s).kind == Kind::Class => "$:$$",
+        n if n.strip_prefix("contextual$").is_some_and(digits) => "",
         _ if unique => &name[..name.len() - 1],
         _ => name.as_str(),
     };

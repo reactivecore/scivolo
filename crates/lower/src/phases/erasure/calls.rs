@@ -4,7 +4,7 @@
 use super::generic_arrays::runtime_op;
 use super::{typed, typed_qualifier};
 use crate::phases::adapt::{array_op, from_start, is_synchronized, qualify_synchronized, synchronized_type};
-use crate::phases::casts::is_cast;
+use crate::phases::casts::{erased_function_class, is_cast};
 use crate::{Lower, Result};
 use tasty::SymbolId;
 use typer::tpd::{List, TNodeId, Tree};
@@ -78,6 +78,15 @@ pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     }
     let name = s.name.clone();
     l.u.decl(l.defs.any, &name).unwrap_or_default().first().copied()
+}
+
+/// The member of `FunctionN` that member `m` of `ContextFunctionN` becomes (dotty's
+/// `Erasure.Typer.mapOwner`).
+pub fn function_member(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
+    let owner = l.u.symbol(m).owner?;
+    let erased = erased_function_class(l, owner).filter(|&c| c != owner)?;
+    let name = l.u.symbol(m).name.clone();
+    l.u.decl(erased, &name).unwrap_or_default().first().copied()
 }
 
 /// Whether `t` selects `Any.hashCode` without applying it, as `inherited_by_class` leaves

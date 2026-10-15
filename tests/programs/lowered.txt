@@ -99,3 +99,4 @@ evidence
 classtags
 locallifts
 lowerfixes
+contextfunctions
