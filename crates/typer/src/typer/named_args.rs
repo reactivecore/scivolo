@@ -151,7 +151,7 @@ impl Typer<'_> {
                 None => {
                     let method = method.ok_or("default argument")?;
                     if contextual && !self.may_default(f, method, i) {
-                        typed.push(self.implicit_arg(formal, at, ctx, 0)?);
+                        typed.push(self.searched_arg(formal, at, ctx, 0)?);
                         continue;
                     }
                     let getter = self.default_arg(f, method, i, ctx)?;

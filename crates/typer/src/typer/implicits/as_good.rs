@@ -8,17 +8,16 @@ use tasty::tags::{CONTRAVARIANT, COVARIANT, EXTENSION, IMPLICIT};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, by the rules before
-    /// Scala 3.6 if `old`, the constraint unchanged; `None` if undecided.
+    /// Whether `a` of type `t1` is as good as `b` of type `t2` in `ctx`, the constraint
+    /// unchanged; `None` if undecided.
     pub fn is_as_good(
         &mut self,
         (a, t1): (Candidate, TypeId),
         (b, t2): (Candidate, TypeId),
         ctx: Ctx,
-        old: bool,
     ) -> Option<bool> {
         let before = self.constraint.attempt();
-        let result = self.as_good_in((a, t1), (b, t2), ctx, old);
+        let result = self.as_good_in((a, t1), (b, t2), ctx);
         self.constraint.abandon(before);
         result
     }
@@ -28,7 +27,6 @@ impl Typer<'_> {
         (a, t1): (Candidate, TypeId),
         (b, t2): (Candidate, TypeId),
         ctx: Ctx,
-        old: bool,
     ) -> Option<bool> {
         match self.u.types().get(t1).clone() {
             Type::Method { params, .. } => {
@@ -57,7 +55,7 @@ impl Typer<'_> {
             }
             Type::Poly { .. } => {
                 let t1 = self.poly_instance(t1, a.sym, true);
-                self.as_good_in((a, t1), (b, t2), ctx, old)
+                self.as_good_in((a, t1), (b, t2), ctx)
             }
             _ => match self.u.types().get(t2).clone() {
                 Type::Method { .. } => Some(true),
@@ -66,18 +64,18 @@ impl Typer<'_> {
                 }
                 Type::Poly { .. } => {
                     let t2 = self.poly_instance(t2, b.sym, false);
-                    self.as_good_value(t1, t2, a, old)
+                    self.as_good_value(t1, t2, a)
                 }
-                _ => self.as_good_value(t1, t2, a, old),
+                _ => self.as_good_value(t1, t2, a),
             },
         }
     }
 
-    /// dotty's `isAsGoodValueType`: an old-style implicit `a`, or any under the rules before 3.6,
-    /// by subtyping with contravariant arguments flipped, a given by the other way round.
-    fn as_good_value(&mut self, t1: TypeId, t2: TypeId, a: Candidate, old: bool) -> Option<bool> {
+    /// dotty's `isAsGoodValueType`: an old-style implicit `a` by subtyping with contravariant
+    /// arguments flipped, a given by the other way round.
+    fn as_good_value(&mut self, t1: TypeId, t2: TypeId, a: Candidate) -> Option<bool> {
         let (p1, p2) = (self.prepared(t1), self.prepared(t2));
-        if !old && !self.u.symbol(a.sym).flags.has(IMPLICIT) {
+        if !self.u.symbol(a.sym).flags.has(IMPLICIT) {
             return Some(self.relaxed_conforms(p2, p1));
         }
         let (f1, f2) = (self.flipped(p1, 1)?, self.flipped(p2, 1)?);

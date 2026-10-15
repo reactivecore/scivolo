@@ -3,9 +3,11 @@
 //! comparisons and abandoned attempts.
 
 mod attempt;
+mod avoid;
+mod unify;
 
 use attempt::Fate;
-use tasty::{ANY, Changes, Mark, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
+use tasty::{ANY, Changes, Mark, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 #[derive(Clone, Copy, PartialEq)]
 struct Entry {
@@ -14,6 +16,8 @@ struct Entry {
     instance: Option<TypeId>,
     /// Whether a hard union was added as a lower bound (dotty's hard variable).
     hard: bool,
+    /// The first symbol defined after the variable was made; the later, the deeper its level.
+    born: SymbolId,
 }
 
 #[derive(Default)]
@@ -27,6 +31,11 @@ pub struct Constraint {
     checks: u32,
     /// Whether a bound is being propagated from another variable.
     propagating: bool,
+    /// How many implicit argument searches are in progress, in which variables are not unified.
+    searches: u32,
+    /// Whether a lower bound referred to a local symbol defined after its variable and could not
+    /// do without it, also in an abandoned attempt.
+    escaped: bool,
 }
 
 /// How many satisfiability checks may be in progress at once; deeper ones fail.
@@ -35,7 +44,13 @@ const MAX_CHECKS: u32 = 8;
 impl Constraint {
     /// A fresh variable without bounds, of any kind until it gets an upper bound other than `Any`.
     pub fn fresh(&mut self, u: &mut Universe) -> TypeId {
-        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false });
+        let born = u.next_symbol();
+        self.fresh_at(u, born)
+    }
+
+    /// `fresh` at the level of the variables made when symbol `born` was the next one.
+    fn fresh_at(&mut self, u: &mut Universe, born: SymbolId) -> TypeId {
+        self.vars.push(Entry { lo: NOTHING, hi: ANY, instance: None, hard: false, born });
         self.fates.push(Fate::Open);
         u.intern_type(Type::Var(VarId(self.vars.len() as u32 - 1)))
     }
@@ -57,6 +72,20 @@ impl Constraint {
         self.log.push((i, self.vars[i]));
         self.vars[i].lo = lo;
         self.vars[i].hi = hi;
+    }
+
+    /// Starts an implicit argument search, in which variables are not unified.
+    pub fn enter_search(&mut self) {
+        self.searches += 1;
+    }
+
+    pub fn leave_search(&mut self) {
+        self.searches -= 1;
+    }
+
+    /// Whether a local symbol escaped into the bound of a variable made before it.
+    pub fn escaped(&self) -> bool {
+        self.escaped
     }
 
     /// Whether `v` keeps the unions of its lower bound when instantiated (dotty's `isHard`).
@@ -135,6 +164,13 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
+        let lo = match self.avoided(u, lo, e.born, 1) {
+            Some(avoided) => avoided,
+            None => {
+                self.escaped = true;
+                lo
+            }
+        };
         let incoming_union = matches!(u.types().get(lo), Type::Or(_, _, false));
         let (lo, unchecked) = if let Some(joined) = u.atoms_lub(e.lo, lo) {
             (joined, lo)
@@ -159,6 +195,12 @@ impl TypeVars for Constraint {
         let e = self.vars[v.0 as usize];
         if let Some(t) = e.instance {
             return self.satisfiable(u, t, hi);
+        }
+        if let Type::Var(w) = *u.types().get(hi)
+            && self.searches == 0
+            && self.unify(u, v, w)
+        {
+            return true;
         }
         let hi = if e.hi == ANY {
             hi

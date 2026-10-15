@@ -109,6 +109,11 @@ impl Universe {
         &self.symbols[id.0 as usize]
     }
 
+    /// The id of the next symbol defined.
+    pub fn next_symbol(&self) -> SymbolId {
+        SymbolId(self.symbols.len() as u32)
+    }
+
     /// The package of qualified name `name`, e.g. `scala.collection`, if the library has it.
     pub fn package(&self, name: &str) -> Option<SymbolId> {
         self.packages.get(name).copied()

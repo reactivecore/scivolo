@@ -40,7 +40,7 @@ Apache-2.0. Rust translations of:
   `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`, `as_good.rs`,
   `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
   `named_args.rs`, `default_args.rs`; `crates/typer/src/constraint`:
-  `core/ConstraintHandling.addOneBound`.
+  `core/ConstraintHandling` (`addOneBound`, `unify`, `LevelAvoidMap`).
 - `crates/typer/src/inlining`: `transform/Inlining`, `inlines/{Inlines,Inliner}` (`inlined`,
   parameter and `this` proxies, `dropUnusedDefs`, `isElideableExpr`), `ast/TreeTypeMap`,
   `ast/TreeInfo` (`exprPurity`, `isPureApply`, `constToLiteral`, `ConstantValue`),
