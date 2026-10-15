@@ -70,7 +70,7 @@ impl Typer<'_> {
                 self.unsupported(id, "function against an underspecified single abstract method type")
             );
         }
-        match self.sam_parts(p, n) {
+        match self.sam_parts(p, n, true) {
             Ok(Some(s)) if self.context_function_parts(s.result).is_some() => {
                 Err(self.unsupported(id, "single abstract method with a context function result"))
             }
