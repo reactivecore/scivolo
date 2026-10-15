@@ -8,9 +8,9 @@ use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The intersection of the result types of the members `sym` overrides, as seen from its class;
-    /// `None` if it overrides none or one whose result depends on its parameters. A polymorphic
-    /// method overriding anything is outside the subset.
+    /// The intersection of the result types of the members `sym` overrides, as seen from its class,
+    /// a polymorphic member's instantiated to the type parameters of `sym`; `None` if it overrides
+    /// none or one whose result depends on its parameters.
     pub fn inherited_result(&mut self, sym: SymbolId) -> Option<TypeId> {
         let cls = self.u.symbol(sym).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class)?;
         let name = self.u.symbol(sym).name.clone();
@@ -73,6 +73,7 @@ impl Typer<'_> {
             let names: Vec<String> = ps.into_iter().map(|(n, _)| n).collect();
             t = self.u.subst(result, binder, &names, &args);
         }
+        t = self.u.map_type(t, &mut |u, x| Some(u.beta_reduced(x)).filter(|&r| r != x));
         for clause in params {
             let Type::Method { params: ps, result, .. } = self.u.types().get(t).clone() else { return None };
             if ps.len() != clause.len() {

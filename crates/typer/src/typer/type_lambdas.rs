@@ -1,5 +1,5 @@
-//! Type lambdas `[T] =>> body`, the right-hand sides of parameterized type aliases (dotty's
-//! `typedLambdaTypeTree`).
+//! Type lambdas `[T] =>> body`, the right-hand sides of parameterized type aliases, abstract
+//! types and type parameters (dotty's `typedLambdaTypeTree`, `HKTypeLambda.boundsFromParams`).
 
 use super::Typer;
 use crate::ctx::{Ctx, Level};
@@ -10,10 +10,10 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Type lambda `id` of type parameters `tparams` and `body`, typed in `ctx`: its parameters
-    /// entered in a scope of their own, its type a lambda over them.
+    /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
         let Some(owner) = self.type_def_with_rhs(id) else {
-            return self.unsupported(id, "type lambda other than an alias's right-hand side");
+            return self.unsupported(id, "type lambda other than the right-hand side of a type definition");
         };
         if matches!(self.ast.tree(body), Tree::TypeBoundsTree { alias: Some(_), .. }) {
             return self.unsupported(id, "opaque type");

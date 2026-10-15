@@ -168,10 +168,13 @@ impl Universe {
         }
     }
 
+    /// The file of the binders of `fresh_binder`.
+    pub const FRESH_BINDERS: FileId = FileId(u32::MAX - 1);
+
     /// A binder no other type uses, for a type lambda or method type made outside TASTy.
     pub fn fresh_binder(&mut self) -> Binder {
         self.binders += 1;
-        Binder(FileId(u32::MAX - 1), self.binders)
+        Binder(Self::FRESH_BINDERS, self.binders)
     }
 
     /// A skolem of type `info`, different from every other.

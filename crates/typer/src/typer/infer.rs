@@ -3,13 +3,15 @@
 
 use super::{Typer, Widen};
 use crate::constraint::Constraint;
+use crate::symbols::SCRIPT_BINDERS;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, Universe, VarId};
 
 /// Whether `t` is a type lambda the script made (bound by a `fresh_binder` of the typer or of
 /// the universe).
 fn is_script_lambda(u: &Universe, t: TypeId) -> bool {
-    matches!(u.types().get(t), Type::Lambda { binder, .. } if binder.0.0 >= u32::MAX - 1)
+    matches!(u.types().get(t), Type::Lambda { binder, .. }
+        if binder.0 == SCRIPT_BINDERS || binder.0 == Universe::FRESH_BINDERS)
 }
 
 /// `t` with the type variables that have instances in `constraint` replaced by them once, a
@@ -150,7 +152,7 @@ impl Typer<'_> {
                 self.tpd.get_mut(id).tpe = Some(t);
             }
             if let T::TypeApply { fun, args } = *self.tpd.tree(id)
-                && self.tpd.sym(fun).is_some_and(|s| self.syms.flags.contains_key(&s))
+                && self.tpd.sym(fun).is_some_and(|s| self.syms.is_script(s))
                 && self.tpd.items(args).to_vec().into_iter().any(|a| self.has_lambda(a))
             {
                 return Err("type lambda inferred for a type parameter of a script method");

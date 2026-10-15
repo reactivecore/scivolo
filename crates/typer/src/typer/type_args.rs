@@ -21,22 +21,16 @@ impl Typer<'_> {
         }
         for (i, &a) in args.iter().enumerate() {
             let n = self.type_arity(a);
-            if matches!(self.u.types().get(a), Type::Bounds(..))
-                && self.param_arity(tycon, i).is_some_and(|m| m > 0)
-            {
-                return Some("wildcard argument of a higher-kinded type parameter");
-            }
-            if n == 0 {
-                continue;
-            }
+            let wildcard = matches!(self.u.types().get(a), Type::Bounds(..));
+            let class =
+                matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
             match self.param_arity(tycon, i) {
-                Some(m) if m == n => {}
-                Some(_) => return Some("type argument of another kind"),
-                None if matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class) =>
-                {
-                    return Some("class type constructor argument");
+                Some(m) if m > 0 && wildcard => {
+                    return Some("wildcard argument of a higher-kinded type parameter");
                 }
-                None => {}
+                Some(m) if m != n => return Some("type argument of another kind"),
+                None if n > 0 && class => return Some("class type constructor argument"),
+                _ => {}
             }
         }
         None
