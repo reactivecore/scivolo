@@ -22,10 +22,13 @@ object Maker {
 class Counter {
   { var i = 0; List(1, 2, 3).foreach(x => i += x); println(i) }
   val total = { var k = 10; List(1).foreach(x => k += x); k }
+  val (inc, get) = { var c = 0; (() => c += 1, () => c) }
 }
 
 object lowerfixes {
   def refs[T <: AnyRef](xs: Array[T]): Int = xs.length
+  def inVal = { val a = { var x = 0; List(1, 2).foreach(i => x += i); x }; a }
+  def pair = { val (inc, get) = { var c = 0; (() => c += 1, () => c) }; inc(); inc(); get() }
 
   def main(args: Array[String]): Unit = {
     val s = Array("a", "b")
@@ -33,6 +36,8 @@ object lowerfixes {
     println(Maker.first().v + Maker.make().v)
     println(Maker.many(3))
     println(pkg.Outer.In.f)
-    println(new Counter().total)
+    val counter = new Counter
+    counter.inc()
+    println(counter.total + counter.get() + inVal + pair)
   }
 }

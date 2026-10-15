@@ -39,8 +39,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// The local variables referred to under `t`, in class `class`, from inside a function, class or
-/// lazy value other than their own function; the class body and its field initializers count as
-/// the constructor.
+/// lazy value other than their own function, a value's being that of the function it is in; the
+/// class body and its field initializers count as the constructor.
 fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<SymbolId>) {
     let body = match *l.tpd.tree(t) {
         Tree::TypeDef { rhs, .. } => l.tpd.sym(rhs),
@@ -52,10 +52,16 @@ fn collect(l: &mut Lower, t: TNodeId, class: SymbolId, out: &mut FxHashSet<Symbo
             || Some(f) == body
             || field && (has(l.u, f, FIELDaccessor) || l.u.symbol(f).kind == Kind::Val)
     };
+    let enclosing = |l: &Lower, mut o: SymbolId| {
+        while l.u.symbol(o).kind == Kind::Val && !has(l.u, o, LAZY) && !initializer(l, o) {
+            o = l.u.symbol(o).owner?;
+        }
+        Some(o)
+    };
     traverse(l, t, class, &mut |l, t, function| {
         if let (Tree::Ident { .. }, Some(s)) = (l.tpd.tree(t), l.tpd.sym(t))
             && has(l.u, s, MUTABLE)
-            && let Some(owner) = l.u.symbol(s).owner
+            && let Some(owner) = l.u.symbol(s).owner.and_then(|o| enclosing(l, o))
             && (l.u.symbol(owner).kind == Kind::Def || has(l.u, owner, LAZY) || initializer(l, owner))
             && !l.u.is_class(owner)
             && owner != function

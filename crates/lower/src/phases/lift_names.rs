@@ -5,10 +5,12 @@
 use super::dependencies::Dependencies;
 use super::lambda_lift::Function;
 use super::lifted::Method;
+use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::source::Offset;
+use tasty::tags::LAZY;
 use tasty::{Kind, SymbolId};
 use typer::tpd::TNodeId;
 
@@ -117,9 +119,17 @@ pub fn prefix(
             Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
             None => format!("{}$", l.u.symbol(o).name),
         },
-        Some(o) if f.ctor && l.u.symbol(o).owner == Some(class) => "$init$$".to_owned(),
+        Some(o) if f.ctor && in_field(l, o, class) => "$init$$".to_owned(),
         _ => String::new(),
     }
+}
+
+/// Whether `o` is a member of `class` or a value of its constructor.
+fn in_field(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
+    let owner = l.u.symbol(o).owner;
+    let value = l.u.symbol(o).kind == Kind::Val && !has(l.u, o, LAZY);
+    owner == Some(class)
+        || value && owner.is_some_and(|c| l.u.is_constructor(c) && l.u.symbol(c).owner == Some(class))
 }
 
 /// Names `proxies` in the order of the dependencies of `pending`: by owner, then by value (dotty's
