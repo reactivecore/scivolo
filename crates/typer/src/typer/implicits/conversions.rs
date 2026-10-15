@@ -114,8 +114,7 @@ impl Typer<'_> {
         Ok((scope, containers))
     }
 
-    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, which no conversion
-    /// targets.
+    /// Whether `pt` is `Any`, `AnyVal`, `AnyRef`, `Matchable` or `Unit`, no conversion's target.
     fn is_top_like(&mut self, pt: TypeId) -> bool {
         let pt = self.zonk(pt);
         let b = self.u.builtins();
@@ -129,8 +128,7 @@ impl Typer<'_> {
         })
     }
 
-    /// Whether a value of type `from` is `null` or has no values, so no conversion takes it
-    /// (dotty's `isUnderSpecifiedArgument`).
+    /// Whether `from` is `Null` or `Nothing`, which no conversion takes (`isUnderSpecifiedArgument`).
     fn is_underspecified_arg(&mut self, from: TypeId) -> bool {
         let widened = self.u.widen(from);
         let b = self.u.builtins();
@@ -138,7 +136,7 @@ impl Typer<'_> {
     }
 
     /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`, constant `tree` converted to
-    /// the parameter type if `widen`.
+    /// the parameter type if `widen`, wildcards in its type captured if that fits.
     fn try_conversion(
         &mut self,
         c: Candidate,
@@ -155,8 +153,7 @@ impl Typer<'_> {
         }
         self.implicit_budget -= 1;
         let span = self.tpd.span(tree);
-        let fun = self.candidate_ref(c, span.start_pos(), ctx)?;
-        let from = self.constraint.count();
+        let (fun, from) = (self.candidate_ref(c, span.start_pos(), ctx)?, self.constraint.count());
         let mut fun = self.with_type_vars(fun)?;
         if kind == ViewKind::Value {
             fun = self.viewing(c, |t| t.conversion_apply(fun, tree, goal, ctx))?;
@@ -173,6 +170,8 @@ impl Typer<'_> {
         let arg_tpe = self.tpd.tpe(tree);
         let arg = if self.conforms(arg_tpe, param) {
             tree
+        } else if let Some(c) = self.captured_wildcards(arg_tpe).filter(|&c| self.conforms(c, param)) {
+            self.cast_to_captured(tree, c)?
         } else if widen && self.widens_to(arg_tpe, param) {
             self.converted_constant(tree, param).ok_or("conversion of another type")?
         } else {
