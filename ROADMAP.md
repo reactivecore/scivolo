@@ -179,8 +179,8 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    avoidance of local types (#104); group D in part (research 19: overloads narrowed by
    function argument shapes, partial functions from closures, SAMs of abstract classes), E in
    part (self types, opaque types, ADR 0027) and G in part (higher-kinded abstract types).
-   `just typer-report`: tests/pos 1349 typed as dotty, 34 differ, 1626 refused (source versions other than 3.9 among them);
-   tests run with warnings as errors are skipped.
+   `just typer-report`: tests/pos 1349 typed as dotty, 32 differ, 1628 refused (source
+   versions other than 3.9 among them); tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
    nscplugin does (ADR 0001). Status (2026-10-15): `crates/lower` ports dotty's phases
@@ -220,7 +220,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved. Status (2026-10-12, #89): `scalai FILE.scala` compiles through the own
 frontend. On 2026-10-15 (`just bench-edit FILE 15`, strict frontend, median) `moderate.scala`
-compiles and edit-then-run takes 46 ms (21 ms cached), hello 16 ms, caseclasses 32 ms, after
+compiles and edit-then-run takes 46 ms (21 ms cached), hello 16 ms, caseclasses 33 ms, after
 the MRs of [research 17](docs/research/17-frontend-speed.md) §5 (#100: discarded type
 variables, name index, memos, cache path, lazy definitions and package table, lazy TASTy,
 implicit candidate prefilter, cheaper lowering walks): the criterion is met.
