@@ -56,7 +56,7 @@ impl Typer<'_> {
     }
 
     /// The non-module term singleton `t` refers to.
-    fn term_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
+    pub fn term_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
         let s = match self.u.types().get(t).clone() {
             Type::Sym(_, s) => s,
             Type::TermRef(p, n) => self.u.resolve(p, &n, false)?,

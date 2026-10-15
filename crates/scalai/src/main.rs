@@ -30,6 +30,9 @@ struct Cli {
     /// The main class of FILE.scala, when it has several.
     #[arg(long, value_name = "CLASS")]
     main: Option<String>,
+    /// A Scala compiler option for FILE.scala, such as -Werror; repeatable.
+    #[arg(short = 'O', long = "scala-opt", value_name = "OPT", allow_hyphen_values = true)]
+    scala_opt: Vec<String>,
     /// MAIN_CLASS, FILE.scala or FILE.sc, then the program's arguments.
     #[arg(value_name = "TARGET", trailing_var_arg = true, allow_hyphen_values = true)]
     command: Vec<String>,
@@ -39,10 +42,14 @@ struct Cli {
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
-    let Cli { cp, main: chosen, command: mut rest } = Cli::parse();
+    let Cli { cp, main: chosen, scala_opt, command: mut rest } = Cli::parse();
     let target = (!rest.is_empty()).then(|| rest.remove(0));
-    if chosen.is_some() && !target.as_deref().is_some_and(script::is_source) {
+    let source = target.as_deref().is_some_and(script::is_source);
+    if chosen.is_some() && !source {
         Cli::command().error(ErrorKind::ArgumentConflict, "--main needs FILE.scala").exit()
+    }
+    if !scala_opt.is_empty() && !source {
+        Cli::command().error(ErrorKind::ArgumentConflict, "--scala-opt needs FILE.scala").exit()
     }
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| match std::env::var_os("RUST_BACKTRACE") {
@@ -50,7 +57,7 @@ fn main() -> ExitCode {
         None => eprintln!("scalai: panic at {}", info.location().map_or("?".into(), |l| l.to_string())),
     }));
     let thread = std::thread::Builder::new().stack_size(STACK).spawn(move || match target {
-        Some(target) => run(cp, target, chosen, &rest),
+        Some(target) => run(cp, target, (chosen, &scala_opt), &rest),
         None => {
             watch_timeout();
             repl::run(&cp)
@@ -83,14 +90,20 @@ fn watch_timeout() {
     }
 }
 
-/// Runs main class `target`, or the main class of source file `target` (`chosen` if given).
-fn run(mut cp: Vec<PathBuf>, target: String, chosen: Option<String>, args: &[String]) -> Result<i32, String> {
+/// Runs main class `target`, or the main class of source file `target` (`chosen` if given)
+/// compiled with compiler options `options`.
+fn run(
+    mut cp: Vec<PathBuf>,
+    target: String,
+    (chosen, options): (Option<String>, &[String]),
+    args: &[String],
+) -> Result<i32, String> {
     watch_timeout();
     let jars = libs::jars()?;
     let image = libs::image(&jars);
     let main_class = match script::is_source(&target) {
         true => {
-            let (classes, main) = script::main_of(&target, chosen, image.as_ref().ok().copied())?;
+            let (classes, main) = script::main_of(&target, chosen, image.as_ref().ok().copied(), options)?;
             cp.push(classes);
             main
         }

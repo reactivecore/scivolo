@@ -104,7 +104,7 @@ impl Typer<'_> {
         if !definition && !matches!(self.ast.tree(s), Tree::Function { .. }) && self.is_eta_closure(typed) {
             return self.unsupported(s, "method reference in statement position");
         }
-        if !definition {
+        if !definition && !self.warn_on_interesting_result(typed) {
             self.check_statement_purity(typed);
         }
         typed
