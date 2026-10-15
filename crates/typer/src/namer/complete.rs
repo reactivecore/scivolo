@@ -68,6 +68,7 @@ impl Typer<'_> {
         }
         let (raw_default, by_name) = self.default_param_proto(sym);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
+        self.check_context_default(rhs, raw_default.filter(|_| default.is_none()));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
         let approx = raw_default.filter(|_| lambda && default.is_none()).and_then(|d| {
             let a = self.own_type_params_approximated(d, sym);

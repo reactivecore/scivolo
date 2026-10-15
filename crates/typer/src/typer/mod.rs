@@ -27,6 +27,7 @@ mod constrain_pattern;
 mod constructor_proxies;
 mod constructors;
 mod context_bounds;
+mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
@@ -245,14 +246,15 @@ impl<'a> Typer<'a> {
         }
         self.depth += 1;
         let vars = self.constraint.count();
-        let tree = match self.ready(id, ctx) {
+        let inner = ctx.with_mode(ctx.mode.without(crate::ctx::Mode::APPLY_QUALIFIER));
+        let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
-            None => self.typed_unadapted(id, pt, ctx),
+            None => self.typed_unadapted(id, pt, inner),
         };
         if let Err(what) = self.interpolate(tree, pt, vars) {
             self.unsupported(id, what);
         }
-        self.settle_type(tree, ctx);
+        self.settle_type(tree, inner);
         let tree = self.adapt(tree, pt, ctx);
         self.depth -= 1;
         tree

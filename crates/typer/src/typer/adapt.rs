@@ -13,6 +13,8 @@ impl Typer<'_> {
     /// `tree` fitted to `pt`: unchanged if it conforms; a tree that needs more of dotty's `adapt`
     /// than the subset has is outside it.
     pub fn adapt(&mut self, tree: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let apply_selected = ctx.mode.is(Mode::APPLY_QUALIFIER);
+        let ctx = ctx.with_mode(ctx.mode.without(Mode::APPLY_QUALIFIER));
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
         if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun) {
             return tree;
@@ -59,6 +61,12 @@ impl Typer<'_> {
         if matches!(method, Some(Type::Method { .. } | Type::Poly { .. })) {
             self.unsupported_at(span, "method value");
             return tree;
+        }
+        if !apply_selected && let Some(applied) = self.context_function_applied(tree, pt, ctx) {
+            return applied.unwrap_or_else(|what| {
+                self.unsupported_at(span, what);
+                tree
+            });
         }
         if let Some(inlined) = self.inlined_transparent(tree, pt, ctx) {
             return self.adapt(inlined, pt, ctx);

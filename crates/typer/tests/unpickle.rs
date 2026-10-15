@@ -66,7 +66,7 @@ fn bodies_outside_the_subset_are_refused() {
         ("scala", "Predef$", "valueOf", "summonFrom in a library inline body"),
         ("scala", "Tuple", "size", "match type in a library inline body"),
         ("scala", "Tuple", "map", "undecoded type in a library inline body"),
-        ("scala.util", "boundary$", "apply", "selection in an unknown class in a library inline body"),
+        ("scala.util", "boundary$", "apply", "type tree of another kind in a library inline body"),
     ];
     for (pkg, class, name, why) in cases {
         let defs = inline_defs(&mut u, pkg, class, name);
