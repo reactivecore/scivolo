@@ -4,6 +4,7 @@
 mod arrays;
 mod blocks;
 mod body;
+mod branches;
 mod checks;
 mod consts;
 mod decls;
@@ -17,6 +18,7 @@ mod overflow;
 mod rtti_layout;
 mod start;
 mod strings;
+mod stubs;
 mod type_tests;
 mod unwind;
 mod values;
@@ -30,11 +32,10 @@ pub const RUNTIME: &str = "scala.scalanative.runtime.package$";
 
 use crate::R;
 use crate::reach::Reach;
-use cranelift_codegen::ir::{AbiParam, InstBuilder, Signature, types};
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_codegen::{Context, isa};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
-use cranelift_module::{FuncId, Linkage, Module, default_libcall_names};
+use cranelift_module::{Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use nir::{DefnKind, GlobalId};
 use vm::World;
@@ -76,7 +77,7 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     match root {
         Root::Entry(entry) => {
             let target = decls.func(&mut module, &mut reach, entry)?;
-            entry_wrapper(&mut module, &decls, target)?;
+            stubs::entry_wrapper(&mut module, &decls, target)?;
         }
         Root::Main(top) => start::reach_main(&mut module, &mut reach, &mut decls, top)?,
     }
@@ -86,7 +87,7 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
         while let Some(g) = reach.queue.pop() {
             define(&mut module, &mut reach, &mut decls, (&mut ctx, &mut fb), g)?;
         }
-        for g in reach.dispatch_targets() {
+        for g in reach.dispatch_targets()? {
             decls.func(&mut module, &mut reach, g)?;
         }
         if matches!(root, Root::Main(_)) {
@@ -118,56 +119,31 @@ fn define(
     ctx.func.signature = decls.signature(&reach.world.pool, *ty)?;
     let id = decls.func(module, reach, g)?;
     let name = reach.world.name(g);
-    let ret = match reach.world.pool.ty(*ty) {
-        nir::Type::Function(_, ret) => Some(*ret),
-        _ => None,
+    let pool = &reach.world.pool;
+    let owner = reach.world.owner(g);
+    let (ret, this) = match pool.ty(*ty) {
+        nir::Type::Function(params, ret) => {
+            let this = params
+                .first()
+                .is_some_and(|&p| matches!(pool.ty(p), nir::Type::Ref { name, .. } if *name == owner));
+            (Some(*ret), this)
+        }
+        _ => (None, false),
     };
     let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
     f.ret_ty = ret;
+    f.has_this = this;
     match f.body(body) {
         Ok(()) => f.finish(),
-        // Temporary until #113 aot 6 (precise reachability): code reached only through the
-        // over-approximated dispatch may name classes the classpath lacks; it traps.
+        // Temporary until #115 (precise reachability): code reached only through the
+        // over-approximated dispatch may name classes the classpath lacks; it stops the program.
         Err(e) if e.starts_with("no definition of") => {
             drop(f);
-            let sig = ctx.func.signature.clone();
-            ctx.clear();
-            *fb = FunctionBuilderContext::new();
-            ctx.func.signature = sig;
-            let mut b = FunctionBuilder::new(&mut ctx.func, fb);
-            let block = b.create_block();
-            b.append_block_params_for_function_params(block);
-            b.switch_to_block(block);
-            b.ins().trap(cranelift_codegen::ir::TrapCode::unwrap_user(3));
-            b.seal_all_blocks();
-            b.finalize(module.target_config());
+            stubs::missing(module, decls, (ctx, fb), &format!("{name}: {e}"))?;
         }
         Err(e) => return Err(format!("{name}: {e}")),
     }
     module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
     module.clear_context(ctx);
     Ok(())
-}
-
-/// `scalai_entry(n: i32) -> i32`, which calls `target`.
-fn entry_wrapper(module: &mut ObjectModule, decls: &Decls, target: FuncId) -> R<()> {
-    let mut sig = Signature::new(decls.call_conv);
-    sig.params.push(AbiParam::new(types::I32));
-    sig.returns.push(AbiParam::new(types::I32));
-    let id = module.declare_function("scalai_entry", Linkage::Export, &sig).map_err(|e| e.to_string())?;
-    let mut ctx = Context::new();
-    ctx.func.signature = sig;
-    let mut fb = FunctionBuilderContext::new();
-    let mut b = FunctionBuilder::new(&mut ctx.func, &mut fb);
-    let block = b.create_block();
-    b.append_block_params_for_function_params(block);
-    b.switch_to_block(block);
-    let callee = module.declare_func_in_func(target, b.func);
-    let n = b.block_params(block)[0];
-    let call = b.ins().call(callee, &[n]);
-    let r = b.inst_results(call)[0];
-    b.ins().return_(&[r]);
-    b.seal_all_blocks();
-    b.finalize(module.target_config());
-    module.define_function(id, &mut ctx).map_err(|e| format!("{e:?}"))
 }

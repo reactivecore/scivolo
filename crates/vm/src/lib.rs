@@ -26,7 +26,7 @@ pub use interp::{box_method, bridge, lookup_order};
 pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
 pub use linktime::{Prop, accessor_property, method_name, parse_member, property};
 pub use natives::exit_immediately;
-pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, java_name};
+pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, interfaces, java_name};
 pub use throwable::{Frame, Thrown};
 pub use world::{LoadError, World};
 

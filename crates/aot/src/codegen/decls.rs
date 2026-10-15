@@ -12,6 +12,15 @@ use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId, Pool, Type, TypeId};
 use rustc_hash::FxHashMap;
 
+/// The C function that replaces library method `g`, as the VM replaces it natively.
+fn replacement(pool: &Pool, g: GlobalId) -> Option<&'static str> {
+    const CLASS_IS: &str = "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class";
+    match (pool.top_name(g), pool.member_sig(g)?) {
+        ("java.lang.Class", CLASS_IS) => Some("scalai_aot_class_is"),
+        _ => None,
+    }
+}
+
 /// The C name of extern member `g`; an `llvm.` intrinsic's is its C implementation's.
 pub fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
     let name = nir::demangle::extern_name(pool.member_sig(g)?)?;
@@ -78,7 +87,12 @@ impl Decls {
             return Ok(id);
         }
         let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
-        if let (DefnKind::Declare { ty }, Some(name)) = (&defn.kind, extern_name(&reach.world.pool, g)) {
+        let replaced = replacement(&reach.world.pool, g).map(str::to_owned);
+        let c_name = match &defn.kind {
+            DefnKind::Declare { .. } => extern_name(&reach.world.pool, g),
+            _ => replaced,
+        };
+        if let (DefnKind::Declare { ty } | DefnKind::Define { ty, .. }, Some(name)) = (&defn.kind, c_name) {
             let sig = self.signature(&reach.world.pool, *ty)?;
             let id = module.declare_function(&name, Linkage::Import, &sig).map_err(|e| e.to_string())?;
             self.funcs.insert(g, id);

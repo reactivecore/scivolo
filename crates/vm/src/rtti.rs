@@ -24,6 +24,24 @@ pub const PRIMITIVES: [(&str, &str); 11] = [
 pub const GC_RTTI_FIELDS: [(&str, usize); 5] =
     [("F2idO", 8), ("F4nameO", 24), ("F4sizeO", 32), ("F15refFieldOffsetsO", 40), ("F10superClassO", 64)];
 
+/// The interfaces `Class.getInterfaces` reports for a class with `parent` and direct `traits`:
+/// the traits neither the parent nor another direct trait extends; for an array class, the
+/// traits of `runtime.Array` (`array_traits`) in reverse. `extends(a, b)`: whether `a` is or
+/// extends `b`.
+pub fn interfaces(
+    parent: Option<u32>,
+    traits: &[u32],
+    array_traits: Option<&[u32]>,
+    extends: impl Fn(u32, u32) -> bool,
+) -> Vec<u32> {
+    if let Some(array_traits) = array_traits {
+        return array_traits.iter().rev().copied().collect();
+    }
+    let implied =
+        |t: u32| parent.is_some_and(|p| extends(p, t)) || traits.iter().any(|&u| u != t && extends(u, t));
+    traits.iter().copied().filter(|&t| !implied(t)).collect()
+}
+
 /// The name `Class.getName` reports for class `name`.
 pub fn java_name(name: &str) -> &str {
     let short = name.strip_prefix("scala.scalanative.runtime.").unwrap_or("");
@@ -112,14 +130,11 @@ impl Vm {
         let c = self.class(id);
         let parent = c.parent.map_or(0, |p| self.class(p).rtti);
         let array = c.parent.filter(|&p| self.class(p).name == array_class);
-        let implied = |t: ClassId| {
-            c.parent.is_some_and(|p| self.is_subclass(p, t))
-                || c.traits.iter().any(|&u| u != t && self.is_subclass(u, t))
-        };
-        let traits: Vec<usize> = match array {
-            Some(p) => self.class(p).traits.iter().rev().map(|&t| self.class(t).rtti).collect(),
-            None => c.traits.iter().filter(|&&t| !implied(t)).map(|&t| self.class(t).rtti).collect(),
-        };
+        let array_traits = array.map(|p| &self.class(p).traits[..]);
+        let traits: Vec<usize> = interfaces(c.parent, &c.traits, array_traits, |a, b| self.is_subclass(a, b))
+            .into_iter()
+            .map(|t| self.class(t).rtti)
+            .collect();
         let rtti = c.rtti;
         let interfaces = self.heap.permanent(8 * traits.len());
         for (i, t) in traits.iter().enumerate() {

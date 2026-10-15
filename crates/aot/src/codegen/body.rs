@@ -3,7 +3,6 @@
 use super::Decls;
 use crate::R;
 use crate::reach::Reach;
-use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::{Block, BlockArg, InstBuilder, TrapCode, Value, types};
 use cranelift_frontend::FunctionBuilder;
 use cranelift_module::{FuncId, Module};
@@ -38,6 +37,8 @@ pub struct FnBuilder<'a, 'w> {
     param_types: HashMap<u64, Vec<nir::TypeId>>,
     /// The NIR result type of the function.
     pub ret_ty: Option<nir::TypeId>,
+    /// Whether the first parameter is `this`, which is never null.
+    pub has_this: bool,
 }
 
 impl<'a, 'w> FnBuilder<'a, 'w> {
@@ -64,6 +65,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             non_null: Default::default(),
             param_types: HashMap::new(),
             ret_ty: None,
+            has_this: false,
         }
     }
 
@@ -73,6 +75,9 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             let block = self.b.create_block();
             if n == 0 {
                 self.b.append_block_params_for_function_params(block);
+                if let Some(this) = params.first().filter(|_| self.has_this) {
+                    self.non_null.insert(this.id.0);
+                }
             } else {
                 for p in params {
                     let t = self.ty(p.ty)?;
@@ -142,32 +147,8 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 self.b.ins().return_(&args);
             }
             Inst::Jump(next) => self.jump(next)?,
-            Inst::If(c, then, els) => {
-                let c = self.val(*c)?;
-                let (then, then_args) = self.target(then)?;
-                let (els, els_args) = self.target(els)?;
-                if then == els {
-                    let via = self.b.create_block();
-                    self.b.ins().brif(c, then, &then_args, via, &[]);
-                    self.b.switch_to_block(via);
-                    self.b.ins().jump(els, &els_args);
-                } else {
-                    self.b.ins().brif(c, then, &then_args, els, &els_args);
-                }
-            }
-            Inst::Switch(scrut, default, cases) => {
-                let s = self.val(*scrut)?;
-                for case in cases {
-                    let Next::Case(v, to) = case else { return Err("switch case".into()) };
-                    let v = self.val(*v)?;
-                    let eq = self.b.ins().icmp(IntCC::Equal, s, v);
-                    let (block, args) = self.target(to)?;
-                    let next = self.b.create_block();
-                    self.b.ins().brif(eq, block, &args, next, &[]);
-                    self.b.switch_to_block(next);
-                }
-                self.jump(default)?;
-            }
+            Inst::If(c, then, els) => self.branch(*c, then, els)?,
+            Inst::Switch(scrut, default, cases) => self.switch(*scrut, default, cases)?,
             Inst::Unreachable(_) => {
                 self.b.ins().trap(TrapCode::unwrap_user(1));
             }
@@ -182,7 +163,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
         Ok(true)
     }
 
-    fn target(&mut self, next: &Next) -> R<(Block, Vec<BlockArg>)> {
+    pub fn target(&mut self, next: &Next) -> R<(Block, Vec<BlockArg>)> {
         let Next::Label(l, args) = next else { return Err(format!("jump to {next:?}")) };
         let block = *self.blocks.get(&l.0).ok_or("unknown label")?;
         let types = self.param_types.get(&l.0).cloned().unwrap_or_default();

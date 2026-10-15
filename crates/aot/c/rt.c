@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #include <pthread.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 
 extern const int32_t scalai_aot_gc_ids[8];
@@ -72,7 +73,8 @@ typedef struct {
     void *method;
 } ItableEntry;
 
-// The method with `key` in an itable sorted by key, or NULL.
+// The method with `key` in an itable sorted by key.
+// Temporary until #115 (AbstractMethodError): a missing method stops the program.
 void *scalai_aot_itable(const ItableEntry *table, int64_t len, uint64_t key) {
     int64_t lo = 0, hi = len;
     while (lo < hi) {
@@ -82,7 +84,38 @@ void *scalai_aot_itable(const ItableEntry *table, int64_t len, uint64_t key) {
         else
             hi = mid;
     }
-    return lo < len && table[lo].key == key ? table[lo].method : 0;
+    if (lo < len && table[lo].key == key)
+        return table[lo].method;
+    fprintf(stderr, "scalai-aot: no method for interface call %llx\n", (unsigned long long)key);
+    abort();
+}
+
+// Reports code that names a class the classpath lacks, reached at run time, and stops.
+void scalai_aot_missing(const char *what) {
+    fprintf(stderr, "scalai-aot: reached code that needs %s\n", what);
+    abort();
+}
+
+// Offsets in class metadata: id, last subclass id, all traits, their number.
+extern const int32_t scalai_aot_rtti_offsets[4];
+
+// `Class.is(left, right)`: whether instances of class `left` are instances of `right`.
+int8_t scalai_aot_class_is(void *self, const char *left, const char *right) {
+    if (left == right)
+        return 1;
+    const int32_t *at = scalai_aot_rtti_offsets;
+    int32_t left_id = *(const int32_t *)(left + at[0]), right_id = *(const int32_t *)(right + at[0]);
+    if (right_id >= 0)
+        return left_id >= right_id && left_id <= *(const int32_t *)(right + at[1]);
+    // Temporary until #115 (trait metadata): a trait is no subtype of another trait here.
+    if (left_id < 0)
+        return 0;
+    void *const *traits = *(void *const *const *)(left + at[2]);
+    int64_t count = *(const int64_t *)(left + at[3]);
+    for (int64_t i = 0; i < count; i++)
+        if (traits[i] == right)
+            return 1;
+    return 0;
 }
 
 // Whether `trait` is among the `count` traits at `interfaces`.

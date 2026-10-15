@@ -11,7 +11,7 @@ const BOXED_UNIT: &str = "scala.scalanative.runtime.BoxedUnit$";
 
 impl FnBuilder<'_, '_> {
     pub fn object_op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
-        if matches!(op, Op::Module(_) | Op::Classalloc { .. } | Op::Arrayalloc { .. } | Op::Box { .. }) {
+        if matches!(op, Op::Classalloc { .. } | Op::Arrayalloc { .. } | Op::Box { .. }) {
             self.non_null.insert(id);
         }
         Ok(Some(match op {
@@ -145,7 +145,7 @@ impl FnBuilder<'_, '_> {
         let ptr = self.decls.ptr;
         if kind == Kind::Module || !is_virtual(self.reach.world.pool.str(sig)) {
             let target = self.reach.classes.resolve(self.reach.world, cls, sig);
-            let g = target.ok_or_else(|| format!("no method {}", self.reach.world.pool.str(sig)))?;
+            let g = target?.ok_or_else(|| format!("no method {}", self.reach.world.pool.str(sig)))?;
             if self.is_linktime_resolved(g) {
                 self.linktime_methods.insert(id, g);
             } else if kind != Kind::Module {
@@ -166,7 +166,7 @@ impl FnBuilder<'_, '_> {
             return Ok(self.load(ptr, rtti, self.decls.rtti.vtable + 8 * slot as i32));
         }
         self.reach.icalls.insert(sig);
-        // Temporary until #115 (AbstractMethodError): an itable miss returns null.
+        // Temporary until #115 (AbstractMethodError): an itable miss stops the program.
         let table = self.load(ptr, rtti, self.decls.rtti.itable);
         let len = self.load(types::I64, rtti, self.decls.rtti.itable_len);
         let key = self.b.ins().iconst(types::I64, method_key(self.reach.world.pool.str(sig)) as i64);

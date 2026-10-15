@@ -22,7 +22,7 @@ void scalanative_StackOverflowGuards_close(void) {}
 int64_t scalanative_StackOverflowGuards_size(void) { return 0; }
 int64_t scalanative_Throwable_sizeOfExceptionWrapper(void) { return 0; }
 
-// Temporary until #113 aot 5 (resources): no classpath resources are embedded.
+// Temporary until #115 (resources): no classpath resources are embedded.
 int32_t scalanative_resource_get_embedded_size(void) { return 0; }
 int32_t scalanative_resource_get_path_length(int32_t id) { return 0; }
 void *scalanative_resource_get_path_ptr(int32_t id) { return 0; }

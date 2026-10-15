@@ -93,7 +93,7 @@ impl Classes {
 
     /// The first concrete definition of `sig` in `cls`'s lookup order, else for a virtual
     /// method the bridge the VM would generate (ADR 0008).
-    pub fn resolve(&self, world: &mut World, cls: ClassId, sig: StrId) -> Option<GlobalId> {
+    pub fn resolve(&self, world: &mut World, cls: ClassId, sig: StrId) -> R<Option<GlobalId>> {
         let order: Vec<GlobalId> = self.lookup_order(cls).into_iter().map(|id| self.get(id).name).collect();
         let found = order.iter().find_map(|&owner| {
             let g = GlobalId(world.pool.globals.intern(Global::Member(owner, sig)));
@@ -107,9 +107,9 @@ impl Classes {
         };
         match found {
             None if is_virtual(world.pool.str(sig)) && declared(world) => {
-                vm::bridge(world, &order, sig).ok().flatten()
+                vm::bridge(world, &order, sig).map_err(|e| e.to_string())
             }
-            found => found,
+            found => Ok(found),
         }
     }
 }

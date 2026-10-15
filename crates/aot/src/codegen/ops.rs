@@ -12,12 +12,9 @@ impl FnBuilder<'_, '_> {
     pub fn op(&mut self, id: u64, op: &Op) -> R<Option<Value>> {
         Ok(Some(match op {
             Op::Call { ptr, args, .. } if self.with_overflow(id, *ptr, args)? => return Ok(None),
-            Op::Call { ty, ptr, args } => match self.overflow_accessor(*ptr, args)? {
+            Op::Call { ty, ptr, args } => match self.special_call(*ptr, args)? {
                 Some(v) => v,
-                None => match self.intrinsic(*ptr, args)? {
-                    Some(v) => v,
-                    None => return self.call(*ty, *ptr, args),
-                },
+                None => return self.call(*ty, *ptr, args),
             },
             Op::Extract { aggr, indexes } => self.extract(*aggr, indexes)?,
             Op::Bin { bin, l, r, .. } => {
@@ -53,17 +50,6 @@ impl FnBuilder<'_, '_> {
             };
             return self.variadic_call(g, ty, args);
         }
-        let target = match *self.reach.world.pool.val(ptr) {
-            Val::Global(g, _) => Some(g),
-            Val::Local(l, _) => self.linktime_methods.get(&l.0).copied(),
-            _ => None,
-        };
-        let linktime = target.filter(|&g| self.is_linktime_resolved(g));
-        if let Some(g) = linktime
-            && let Ok(v) = self.linktime_value(g)
-        {
-            return Ok(Some(v));
-        }
         let pool = &self.reach.world.pool;
         let callee = match pool.val(ptr) {
             Val::Global(g, _) => pool.mangle(*g),
@@ -88,9 +74,6 @@ impl FnBuilder<'_, '_> {
         let call = match direct {
             Some(f) => {
                 let decl = self.module.declarations().get_function_decl(f);
-                if linktime.is_some() && decl.signature.params.len() + 1 == values.len() {
-                    values.remove(0);
-                }
                 if decl.signature.params.len() != values.len() {
                     let name = decl.linkage_name(f).into_owned();
                     return Err(format!(

@@ -116,19 +116,19 @@ impl<'w> Reach<'w> {
     }
 
     /// The implementations of called methods in allocated classes not reached before.
-    pub fn dispatch_targets(&mut self) -> Vec<GlobalId> {
+    pub fn dispatch_targets(&mut self) -> R<Vec<GlobalId>> {
         let mut out = Vec::new();
         let sigs: Vec<StrId> = self.vcalls.union(&self.icalls).copied().collect();
         for i in 0..self.allocated.len() {
             let cls = self.allocated[i];
             for &sig in &sigs {
                 if self.dispatched.insert((cls, sig))
-                    && let Some(g) = self.classes.resolve(self.world, cls, sig)
+                    && let Some(g) = self.classes.resolve(self.world, cls, sig)?
                 {
                     out.push(g);
                 }
             }
         }
-        out
+        Ok(out)
     }
 }

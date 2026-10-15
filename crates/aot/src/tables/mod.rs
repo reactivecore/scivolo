@@ -37,22 +37,29 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
         return Err("a function was reached after compilation".into());
     }
     gc_ids(module, reach, &ids)?;
-    string_fields(module, reach)
+    layout(module, reach, decls)
 }
 
-/// `scalai_aot_string_fields`: the offsets of `java.lang.String`'s `value` and `count`, for the
-/// C stub to print a class name.
-fn string_fields(module: &mut ObjectModule, reach: &mut Reach) -> R<()> {
+/// `scalai_aot_rtti_offsets` (a class's id, last subclass id, traits, number of traits) for
+/// `Class.is`, and `scalai_aot_layout` (the class name, `String`'s `value` and `count`, the array
+/// header size) for the C stub to print a class name.
+fn layout(module: &mut ObjectModule, reach: &mut Reach, decls: &Decls) -> R<()> {
+    let l = &decls.rtti;
+    define_i32s(module, "scalai_aot_rtti_offsets", &[l.id, l.range, l.traits, l.traits_len])?;
     let string = reach.link_top("java.lang.String")?;
-    let mut bytes = Vec::new();
+    let mut values = vec![l.name];
     for sig in ["F5valueO", "F5countO"] {
         let g = reach.world.member(reach.classes.get(string).name, sig);
         let f = reach.classes.get(string).fields.get(&g).ok_or_else(|| format!("no field String::{sig}"))?;
-        bytes.extend((f.offset as i32).to_le_bytes());
+        values.push(f.offset as i32);
     }
-    let data = module
-        .declare_data("scalai_aot_string_fields", Linkage::Export, false, false)
-        .map_err(|e| e.to_string())?;
+    values.push(vm::ARRAY_HEADER as i32);
+    define_i32s(module, "scalai_aot_layout", &values)
+}
+
+fn define_i32s(module: &mut ObjectModule, name: &str, values: &[i32]) -> R<()> {
+    let bytes: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
+    let data = module.declare_data(name, Linkage::Export, false, false).map_err(|e| e.to_string())?;
     let mut desc = DataDescription::new();
     desc.define(bytes.into_boxed_slice());
     module.define_data(data, &desc).map_err(|e| e.to_string())

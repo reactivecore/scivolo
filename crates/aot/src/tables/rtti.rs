@@ -18,23 +18,15 @@ fn side_table(module: &mut ObjectModule, reach: &Reach, cls: ClassId, suffix: &s
     Ok(id)
 }
 
-/// The interfaces `Class.getInterfaces` reports, as the VM links them: the direct traits not
-/// implied by the superclass or another direct trait; for an array class, `runtime.Array`'s
-/// traits in reverse.
+/// The interfaces `Class.getInterfaces` reports, as the VM links them.
 fn direct_traits(reach: &Reach, cls: ClassId) -> Vec<ClassId> {
     let classes = &reach.classes;
     let c = classes.get(cls);
     let array = c
         .parent
         .filter(|&p| reach.world.pool.top_name(classes.get(p).name) == "scala.scalanative.runtime.Array");
-    if let Some(p) = array {
-        return classes.get(p).traits.iter().rev().copied().collect();
-    }
-    let implied = |t: ClassId| {
-        c.parent.is_some_and(|p| classes.get(p).ancestors.contains(&t))
-            || c.traits.iter().any(|&u| u != t && classes.get(u).ancestors.contains(&t))
-    };
-    c.traits.iter().copied().filter(|&t| !implied(t)).collect()
+    let array_traits = array.map(|p| &classes.get(p).traits[..]);
+    vm::interfaces(c.parent, &c.traits, array_traits, |a, b| classes.get(a).ancestors.contains(&b))
 }
 
 /// A table of the metadata addresses of `classes`.
@@ -169,7 +161,7 @@ fn target(
     if !called {
         return Ok(None);
     }
-    match reach.classes.resolve(reach.world, cls, sig) {
+    match reach.classes.resolve(reach.world, cls, sig)? {
         Some(g) => decls.func(module, reach, g).map(Some),
         None => Ok(None),
     }
