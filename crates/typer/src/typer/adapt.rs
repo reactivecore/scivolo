@@ -125,9 +125,15 @@ impl Typer<'_> {
     ) -> Option<Result<TNodeId, &'static str>> {
         let T::Ident { name } = *self.tpd.tree(tree) else { return None };
         let module = self.tpd.sym(tree).filter(|&m| self.u.is_module(m))?;
-        let class = self.u.module_class(module).and_then(|c| self.u.companion_class(c))?;
+        let module_class = self.u.module_class(module)?;
+        let class = self.u.companion_class(module_class)?;
+        let is_function = |c: &str| {
+            let arity = c.strip_prefix("scala.Function").or_else(|| c.strip_prefix("scala.ContextFunction"));
+            arity.is_some_and(|n| n.parse::<u8>().is_ok())
+        };
         if !self.u.symbol(class).flags.has(tasty::tags::CASE)
             || !(0..=22).any(|n| self.function_parts(pt, n).is_some())
+            || self.u.linearization(module_class).into_iter().any(|c| is_function(&self.u.full_name(c)))
         {
             return None;
         }

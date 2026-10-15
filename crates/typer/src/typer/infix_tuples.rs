@@ -20,10 +20,7 @@ impl Typer<'_> {
 
     /// Replaces the arguments of `proto` by its tupled dual when not every one of `alts` is unary.
     pub fn untuple_unless_unary(&mut self, proto: usize, alts: &[SymbolId]) -> Result<(), &'static str> {
-        let Some(elems) = self.protos[proto].dual.clone() else { return Ok(()) };
-        if alts.iter().all(|&s| self.is_unary(s)) {
-            return Ok(());
-        }
+        let Some(elems) = self.untupled_args(proto, alts) else { return Ok(()) };
         if self.protos[proto].typed.is_some() {
             return Err("infix tuple argument typed before untupling");
         }
@@ -31,6 +28,12 @@ impl Typer<'_> {
         p.args = elems;
         p.dual = None;
         Ok(())
+    }
+
+    /// The tupled dual of the arguments of `proto` if not every one of `alts` is unary.
+    pub fn untupled_args(&mut self, proto: usize, alts: &[SymbolId]) -> Option<Vec<NodeId>> {
+        let elems = self.protos[proto].dual.clone()?;
+        Some(elems).filter(|_| !alts.iter().all(|&s| self.is_unary(s)))
     }
 
     /// Whether the first parameter clause of `s` has exactly one parameter, not repeated

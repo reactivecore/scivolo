@@ -20,7 +20,8 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<TNodeId> {
         let Pt::Fun(proto) = pt else { return None };
-        let (args, arg_ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
+        let args = self.untupled_args(proto, syms).unwrap_or_else(|| self.protos[proto].args.clone());
+        let arg_ctx = self.protos[proto].ctx;
         if name == "<init>"
             || self.protos[proto].typed.is_some()
             || !args.iter().all(|&a| self.is_plain_arg(a))
