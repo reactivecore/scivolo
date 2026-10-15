@@ -144,12 +144,12 @@ Results (2026-10-15):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 869 |
+| passed | 875 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 28 |
-| typer refused | 535 |
+| lowering refused | 25 |
+| typer refused | 532 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -157,14 +157,15 @@ Results (2026-10-15):
 | skipped | 175 |
 | **total** | **1711** |
 
-Before the 2026-10-15 evening batch: 861 passed, 543 refused by the typer; before the
+Before the 2026-10-15 evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before the
 2026-10-15 afternoon batch: 855 passed; before the 2026-10-15 batch: 809 passed; before the
 2026-10-14 batch: 684 passed.
 
-- **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
-- **Typer refused:** mostly members not found (33), missing implicit arguments (29), refined
-  type trees (21), adaptations (17) and generic tuples (15); 8 tests set a source version other
-  than 3.9, which the typer refuses.
+- **Lowering refused:** companions of sealed classes other than enums (3) and Unit, Null or
+  Nothing fields (3); other reasons below 3.
+- **Typer refused:** mostly missing implicit arguments (29), members not found (27), adaptations
+  (18), deferred or overriding inline definitions (18), block types with local symbols (15) and
+  generic tuples (15); 8 tests set a source version other than 3.9, which the typer refuses.
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
