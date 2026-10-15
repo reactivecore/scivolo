@@ -2,7 +2,7 @@
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test, set_on_success};
-use crate::phases::explicit_outer::{OuterTest, outer_test};
+use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::is_singleton;
 use crate::phases::walk::{same, subtrees};
 use tasty::{SymbolId, Type, TypeId};

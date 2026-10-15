@@ -2,8 +2,9 @@
 //! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches.
 
 use super::Translator;
-use crate::phases::explicit_outer::{OuterTest, outer_accessor, outer_test};
+use crate::phases::explicit_outer::outer_accessor;
 use crate::phases::lazy_trees::dup;
+use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::{is_instance, singleton};
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
