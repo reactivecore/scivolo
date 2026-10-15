@@ -18,6 +18,32 @@ fn side_table(module: &mut ObjectModule, reach: &Reach, cls: ClassId, suffix: &s
     Ok(id)
 }
 
+/// The interfaces `Class.getInterfaces` reports, as the VM links them: the direct traits not
+/// implied by the superclass or another direct trait; for an array class, `runtime.Array`'s
+/// traits in reverse.
+fn direct_traits(reach: &Reach, cls: ClassId) -> Vec<ClassId> {
+    let classes = &reach.classes;
+    let c = classes.get(cls);
+    let array = c.parent.filter(|&p| reach.world.pool.top_name(classes.get(p).name) == "scala.scalanative.runtime.Array");
+    if let Some(p) = array {
+        return classes.get(p).traits.iter().rev().copied().collect();
+    }
+    let implied = |t: ClassId| {
+        c.parent.is_some_and(|p| classes.get(p).ancestors.contains(&t))
+            || c.traits.iter().any(|&u| u != t && classes.get(u).ancestors.contains(&t))
+    };
+    c.traits.iter().copied().filter(|&t| !implied(t)).collect()
+}
+
+/// A table of the metadata addresses of `classes`.
+fn rtti_list(module: &mut ObjectModule, reach: &Reach, decls: &mut Decls, classes: &[ClassId]) -> R<Blob> {
+    let mut list = Blob::zeroed(8 * classes.len().max(1));
+    for (i, &t) in classes.iter().enumerate() {
+        list.data.push((8 * i, decls.rtti(module, reach, t)?));
+    }
+    Ok(list)
+}
+
 pub fn define(
     module: &mut ObjectModule,
     reach: &mut Reach,
@@ -37,20 +63,22 @@ pub fn define(
     let name: Vec<u16> = vm::java_name(reach.world.pool.top_name(c.name)).encode_utf16().collect();
     blob.data.push((name_at, decls.string(module, reach, &name)?));
     let c = reach.classes.get(cls);
-    let mut traits: Vec<ClassId> = c
+    let mut all: Vec<ClassId> = c
         .ancestors
         .iter()
         .copied()
         .filter(|&a| a != cls && reach.classes.get(a).kind == Kind::Trait)
         .collect();
-    traits.sort_by_key(|&t| ids[t as usize].0);
-    blob.i32_at(count, traits.len() as i32);
-    let mut list = Blob { bytes: vec![0; 8 * traits.len().max(1)], ..Blob::default() };
-    for (i, &t) in traits.iter().enumerate() {
-        list.data.push((8 * i, decls.rtti(module, reach, t)?));
-    }
+    all.sort_by_key(|&t| ids[t as usize].0);
+    let direct = direct_traits(reach, cls);
+    blob.i32_at(count, direct.len() as i32);
+    let list = rtti_list(module, reach, decls, &direct)?;
     blob.data.push((interfaces as usize, side_table(module, reach, cls, "interfaces", list)?));
     if !is_trait {
+        let (at, len_at) = (decls.rtti.traits as usize, decls.rtti.traits_len as usize);
+        let list = rtti_list(module, reach, decls, &all)?;
+        blob.data.push((at, side_table(module, reach, cls, "traits", list)?));
+        blob.bytes[len_at..len_at + 8].copy_from_slice(&(all.len() as u64).to_le_bytes());
         class_part(module, reach, decls, ids, cls, &mut blob)?;
     }
     let data = decls.rtti(module, reach, cls)?;

@@ -123,8 +123,26 @@ fn define(
     };
     let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
     f.ret_ty = ret;
-    f.body(body).map_err(|e| format!("{name}: {e}"))?;
-    f.finish();
+    match f.body(body) {
+        Ok(()) => f.finish(),
+        // Temporary until #113 aot 6 (precise reachability): code reached only through the
+        // over-approximated dispatch may name classes the classpath lacks; it traps.
+        Err(e) if e.starts_with("no definition of") => {
+            drop(f);
+            let sig = ctx.func.signature.clone();
+            ctx.clear();
+            *fb = FunctionBuilderContext::new();
+            ctx.func.signature = sig;
+            let mut b = FunctionBuilder::new(&mut ctx.func, fb);
+            let block = b.create_block();
+            b.append_block_params_for_function_params(block);
+            b.switch_to_block(block);
+            b.ins().trap(cranelift_codegen::ir::TrapCode::unwrap_user(3));
+            b.seal_all_blocks();
+            b.finalize(module.target_config());
+        }
+        Err(e) => return Err(format!("{name}: {e}")),
+    }
     module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
     module.clear_context(ctx);
     Ok(())

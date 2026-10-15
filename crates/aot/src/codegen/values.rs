@@ -35,7 +35,9 @@ impl FnBuilder<'_, '_> {
         Ok(match val {
             Val::Local(l, ty) => match self.vals.get(&l.0) {
                 Some(&v) => v,
-                None if matches!(self.reach.world.pool.ty(ty), Type::Unit) => int(&mut self.b, types::I8, 0),
+                None if matches!(self.reach.world.pool.ty(ty), Type::Unit | Type::Nothing) => {
+                    int(&mut self.b, types::I8, 0)
+                }
                 None => return Err(format!("undefined local %{}", l.0)),
             },
             Val::True => int(&mut self.b, types::I8, 1),

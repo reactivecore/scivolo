@@ -42,7 +42,7 @@ impl FnBuilder<'_, '_> {
         let target = self.rtti_addr(cls)?;
         let rtti = self.load(ptr, obj, 0);
         let l = &self.decls.rtti;
-        let (id, range, interfaces, count) = (l.id, l.range, l.interfaces, l.interfaces_count);
+        let (id, range, interfaces, count) = (l.id, l.range, l.traits, l.traits_len);
         let result = if self.reach.classes.get(cls).kind == Kind::Trait {
             let list = self.load(ptr, rtti, interfaces);
             let n = self.load(types::I32, rtti, count);

@@ -18,6 +18,9 @@ pub struct RttiLayout {
     pub itables_count: i32,
     pub itable: i32,
     pub itable_len: i32,
+    /// All traits of a class, which type tests search, and their number.
+    pub traits: i32,
+    pub traits_len: i32,
     pub vtable: i32,
 }
 
@@ -50,7 +53,9 @@ impl RttiLayout {
             itables_count: field("F12itablesCountO")?,
             itable: header,
             itable_len: header + 8,
-            vtable: header + 16,
+            traits: header + 16,
+            traits_len: header + 24,
+            vtable: header + 32,
         })
     }
 }

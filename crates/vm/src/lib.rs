@@ -22,7 +22,7 @@ pub use class::{FieldSlot, array_names, instance_fields};
 pub use classpath::{Classpath, nir_table};
 pub use error::VmError;
 pub use gcinfo::FIRST_ARRAY;
-pub use interp::{box_method, lookup_order};
+pub use interp::{box_method, bridge, lookup_order};
 pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
 pub use linktime::{Prop, accessor_property, method_name, parse_member, property};
 pub use natives::exit_immediately;
