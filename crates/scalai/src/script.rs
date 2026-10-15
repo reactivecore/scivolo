@@ -7,7 +7,7 @@ use crate::mains;
 use libimage::{Image, cache};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
 const FALLBACK: &str = "fallback";
@@ -17,14 +17,15 @@ pub fn is_source(arg: &str) -> bool {
     arg.ends_with(".scala") || arg.ends_with(".sc")
 }
 
-/// The NIR directory of `source` and its main class: `chosen`, else the only one. The own
-/// frontend reads the library's TASTy from `image`.
+/// The NIR directory of `source`, compiled with compiler options `options`, and its main class:
+/// `chosen`, else the only one. The own frontend reads the library's TASTy from `image`.
 pub fn main_of(
     source: &str,
     chosen: Option<String>,
     image: Option<&'static Image>,
+    options: &[String],
 ) -> Result<(PathBuf, String), String> {
-    let (classes, mains) = compile(source, Mode::from_env()?, image)?;
+    let (classes, mains) = compile(source, Mode::from_env()?, image, options)?;
     Ok((classes, pick(source, &mains, chosen)?))
 }
 
@@ -40,11 +41,16 @@ fn pick(source: &str, mains: &[String], chosen: Option<String>) -> Result<String
 
 /// The NIR directory and main classes of `source`, compiled first unless cached. A compile
 /// goes to a directory of its own, renamed into place when complete.
-fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(PathBuf, Vec<String>), String> {
+fn compile(
+    file: &str,
+    mode: Mode,
+    image: Option<&'static Image>,
+    options: &[String],
+) -> Result<(PathBuf, Vec<String>), String> {
     let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
-    (&source, &text, mode, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
+    (&source, &text, mode, options, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);
@@ -59,7 +65,7 @@ fn compile(file: &str, mode: Mode, image: Option<&'static Image>) -> Result<(Pat
         cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
     }
     let staging = dir.with_extension(std::process::id().to_string());
-    let built = build(file, &source, &text, mode, image, &staging);
+    let built = build(file, (&source, &text, options), mode, image, &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
         return cached(&dir).ok_or_else(|| format!("{}: unreadable", dir.display()));
     }
@@ -74,12 +80,12 @@ fn cached(dir: &Path) -> Option<(PathBuf, Vec<String>)> {
     Some((dir.join("classes"), mains.lines().map(str::to_owned).collect()))
 }
 
-/// Compiles `source`, named `file` on the command line and holding `text`, into `out`/`classes`
-/// as `mode` chooses, and lists its main classes in `out`/`main`.
+/// Compiles `source`, named `file` on the command line and holding `text`, with compiler
+/// options `options` into `out`/`classes` as `mode` chooses, and lists its main classes in
+/// `out`/`main`.
 fn build(
     file: &str,
-    source: &Path,
-    text: &[u8],
+    (source, text, options): (&Path, &[u8], &[String]),
     mode: Mode,
     image: Option<&'static Image>,
     out: &Path,
@@ -87,17 +93,21 @@ fn build(
     let classes = out.join("classes");
     let mut mains = Vec::new();
     match mode {
-        Mode::Jvm => scala_cli(source, out, &mut mains)?,
-        _ => match frontend::compile(source, text, image, &classes) {
+        Mode::Jvm => scala_cli(source, options, out, &mut mains)?,
+        _ => match frontend::compile(source, text, image, &classes, options) {
             Ok(own) => mains = own,
-            Err(Refused { why, errors }) if mode == Mode::Strict => {
+            Err(Refused { why, errors, fatal: true }) => {
+                errors.iter().for_each(|line| eprintln!("{line}"));
+                return Err(format!("{file}: {why}"));
+            }
+            Err(Refused { why, errors, .. }) if mode == Mode::Strict => {
                 errors.iter().for_each(|line| eprintln!("{line}"));
                 return Err(format!("{file}: the own frontend refuses it ({why})"));
             }
             Err(Refused { why, .. }) => {
                 eprintln!("scalai: {file}: falling back to scala-cli ({why})");
                 let _ = std::fs::remove_dir_all(&classes);
-                scala_cli(source, out, &mut mains)?;
+                scala_cli(source, options, out, &mut mains)?;
                 std::fs::write(out.join(FALLBACK), why).map_err(|e| format!("{}: {e}", out.display()))?;
             }
         },
@@ -109,21 +119,27 @@ fn build(
     std::fs::write(out.join("main"), mains.join("\n")).map_err(|e| format!("{}: {e}", out.display()))
 }
 
-/// Compiles `source` into `out`/`classes` through scala-cli and adds its main classes to `mains`.
-fn scala_cli(source: &Path, out: &Path, mains: &mut Vec<String>) -> Result<(), String> {
+/// Compiles `source` with compiler options `options` into `out`/`classes` through scala-cli and
+/// adds its main classes to `mains`; reported errors fail it also when scala-cli exits with 0.
+fn scala_cli(source: &Path, options: &[String], out: &Path, mains: &mut Vec<String>) -> Result<(), String> {
     let cli = std::env::var_os("SCALAI_SCALA_CLI").unwrap_or_else(|| "scala-cli".into());
     let classes = out.join("classes");
-    let status = Command::new(&cli)
+    let run = Command::new(&cli)
         .args(["--power", "compile", "--quiet", "--native", "--native-version", NATIVE, "--scala", SCALA])
         .args(["--scalac-option", "-Wconf:msg=reserved for internal compiler use:s"])
+        .args(options.iter().flat_map(|o| ["--scalac-option", o.as_str()]))
         .arg("--workspace")
         .arg(out.join("work"))
         .arg("-d")
         .arg(&classes)
         .arg(source)
-        .status()
+        .stdout(Stdio::inherit())
+        .output()
         .map_err(|e| format!("{}: {e}", cli.to_string_lossy()))?;
-    if !status.success() {
+    let stderr = String::from_utf8_lossy(&run.stderr);
+    eprint!("{stderr}");
+    let errors = stderr.lines().any(|l| l.ends_with(" error found") || l.ends_with(" errors found"));
+    if !run.status.success() || errors {
         return Err(format!("compiling {} failed", source.display()));
     }
     let _ = std::fs::remove_dir_all(out.join("work"));

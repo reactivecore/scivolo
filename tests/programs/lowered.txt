@@ -104,3 +104,5 @@ partialfuns
 selftypes
 opaques
 samclasses
+lowerfixes2
+bynameimplicits

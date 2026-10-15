@@ -15,8 +15,9 @@ pub struct Sam {
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
     /// and `t`'s base type of the method's class (dotty's `SAMType`, `samParent`); `Err` for a
-    /// single abstract method type outside the subset: with type variables.
-    pub fn sam_parts(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
+    /// single abstract method type outside the subset: with type variables unless `open` and
+    /// not of a Java class.
+    pub fn sam_parts(&mut self, t: TypeId, n: usize, open: bool) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
@@ -25,7 +26,8 @@ impl Typer<'_> {
             return Ok(None);
         }
         let Some(method) = self.sam_method(class) else { return Ok(None) };
-        if !self.is_fully_defined(t) && !self.is_partial_function(t) {
+        let open = open && !self.is_java_class_name(class);
+        if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");
         }
         if !self.no_args_needed(class)? {

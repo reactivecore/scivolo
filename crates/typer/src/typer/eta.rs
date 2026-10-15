@@ -66,7 +66,7 @@ impl Typer<'_> {
         };
         let function = match pt {
             Pt::Type(p) if self.function_parts(p, params.len()).is_some() => true,
-            Pt::Type(p) if !matches!(self.sam_parts(p, params.len()), Ok(None)) => {
+            Pt::Type(p) if !matches!(self.sam_parts(p, params.len(), false), Ok(None)) => {
                 return Err("method value of a single abstract method type");
             }
             _ => false,

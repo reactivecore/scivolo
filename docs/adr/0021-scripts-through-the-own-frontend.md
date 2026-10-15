@@ -13,7 +13,10 @@ does not support falls back to the phase 1 path, never silently (research 09 §5
   errors and panics, goes to scala-cli with a notice on stderr, which a cached result repeats.
   scala-cli then reports real errors. The user-facing rules are in the README.
 - What the own frontend cannot honour falls back before it runs: `.sc` scripts (no wrapper
-  yet) and `//> using` directives other than the Scala version it compiles.
+  yet), `//> using` directives other than the Scala version it compiles and compiler options,
+  and compiler options (`-O`, `//> using options`) other than those `Config::checked` accepts.
+- `-Werror` and `-Xfatal-warnings` fall back while the typer lacks some of dotty's default
+  warnings.
 - `SCALAI_FRONTEND` forces one path: `strict` for testing the own frontend, `jvm` for the old
   behaviour.
 - The cache key holds the mode and a hash of the workspace's sources (`crates/scalai/build.rs`),

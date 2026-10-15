@@ -64,6 +64,7 @@ mod java_classes;
 mod java_members;
 mod lift;
 mod lift_app;
+mod linter;
 mod literals;
 mod matches;
 mod member_views;
@@ -133,7 +134,7 @@ use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
 use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
-use syntax::config::{Config, Features, SourceVersion};
+use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::{Kind, SymbolId, Universe};
@@ -158,6 +159,8 @@ pub struct Typer<'a> {
     pub diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
+    /// The `-W` lints the options enable.
+    pub lints: Lints,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -169,6 +172,8 @@ pub struct Typer<'a> {
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
     pub import_levels: FxHashMap<NodeId, LevelId>,
+    /// The level of each nested package clause, whose statements are indexed with the enclosing ones.
+    pub package_levels: FxHashMap<NodeId, LevelId>,
     /// The bounds and instances of the type variables.
     pub constraint: crate::constraint::Constraint,
     /// How many more candidates the implicit search in progress may try.
@@ -225,11 +230,13 @@ impl<'a> Typer<'a> {
             syms,
             diags: Diagnostics::default(),
             features: cfg.features,
+            lints: cfg.warnings.lints,
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
+            package_levels: FxHashMap::default(),
             constraint: Default::default(),
             implicit_budget: 0,
             history: Default::default(),

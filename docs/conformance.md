@@ -144,12 +144,12 @@ Results (2026-10-15):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 855 |
+| passed | 861 |
 | wrong output | 0 |
 | crashed | 0 |
 | timeout | 0 |
-| lowering refused | 29 |
-| typer refused | 548 |
+| lowering refused | 28 |
+| typer refused | 543 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -157,12 +157,12 @@ Results (2026-10-15):
 | skipped | 175 |
 | **total** | **1711** |
 
-Before the 2026-10-15 batch: 809 passed, 25 refused by the lowering, 598 by the typer; before
-the 2026-10-14 batch: 684 passed.
+Before the 2026-10-15 afternoon batch: 855 passed, 29 refused by the lowering, 548 by the
+typer; before the 2026-10-15 batch: 809 passed; before the 2026-10-14 batch: 684 passed.
 
 - **Lowering refused:** mostly patterns of classes in classes (4); other reasons below 4.
-- **Typer refused:** mostly members not found (43), adaptations (30), missing implicit
-  arguments (28) and refined type trees (19); 8 tests set a source version other than 3.9, which
+- **Typer refused:** mostly members not found (34), missing implicit arguments (28),
+  adaptations (26) and refined type trees (21); 8 tests set a source version other than 3.9, which
   the typer refuses.
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 

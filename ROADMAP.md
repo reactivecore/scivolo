@@ -177,9 +177,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    synthesis, the search history with by-name implicits and divergence checks, context
    functions); unification of type variables that bound each other (ADR 0026) and sound
    avoidance of local types (#104); group D in part (research 19: overloads narrowed by
-   function argument shapes, partial functions from closures, SAMs of abstract classes), E in
-   part (self types, opaque types, ADR 0027) and G in part (higher-kinded abstract types).
-   `just typer-report`: tests/pos 1349 typed as dotty, 32 differ, 1628 refused (source
+   function argument shapes, partial functions from closures, SAMs of abstract classes and with
+   open type variables), E in part (self types, opaque types, ADR 0027) and G in part
+   (higher-kinded abstract types, kind checks of forward references); `-Wnonunit-statement`.
+   `just typer-report`: tests/pos 1359 typed as dotty, 32 differ, 1618 refused (source
    versions other than 3.9 among them); tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
    erasure, into the VM IR. The result must mangle names exactly as
@@ -190,9 +191,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    outer instances of local and inner classes, ProtectedAccessors, local traits,
    `UninitializedDefs`, generic array operations, tuple and singleton type tests (#34, #92,
    research 15), the `f` interpolator (#82), lambdas and local methods in local classes,
-   context functions erased to `FunctionN`, and ExpandSAMs' partial functions and SAM classes.
-   Of dotty's `tests/run`, 855 pass through typer, lowering and VM on 2026-10-15 (809 before the
-   2026-10-15 batch, 399 on 2026-10-11), 29 are refused by the lowering, none crashes in the
+   context functions erased to `FunctionN` and flattened in results of final methods, and
+   ExpandSAMs' partial functions and SAM classes.
+   Of dotty's `tests/run`, 861 pass through typer, lowering and VM on 2026-10-15 (809 before the
+   2026-10-15 batches, 399 on 2026-10-11), 28 are refused by the lowering, none crashes in the
    VM; see
    [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
@@ -220,7 +222,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
 with no JVM involved. Status (2026-10-12, #89): `scalai FILE.scala` compiles through the own
 frontend. On 2026-10-15 (`just bench-edit FILE 15`, strict frontend, median) `moderate.scala`
-compiles and edit-then-run takes 46 ms (21 ms cached), hello 16 ms, caseclasses 33 ms, after
+compiles and edit-then-run takes 48 ms (22 ms cached), hello 16 ms, caseclasses 33 ms, after
 the MRs of [research 17](docs/research/17-frontend-speed.md) §5 (#100: discarded type
 variables, name index, memos, cache path, lazy definitions and package table, lazy TASTy,
 implicit candidate prefilter, cheaper lowering walks): the criterion is met.
@@ -250,8 +252,8 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-15,
-855 of 1711 pass (809 before the batch below, 399 on 2026-10-11), 548 stop at the typer, 29 at
-the lowering, and 1 crashes in the frontend (t8199).
+861 of 1711 pass (855 before the afternoon batch, 809 before the batches below, 399 on
+2026-10-11), 543 stop at the typer, 28 at the lowering, and 1 crashes in the frontend (t8199).
 
 Merged in the 2026-10-15 batch (one integration MR): typer group A further (#83: search
 history with by-name implicits, divergence checks and their dictionary; context functions,
@@ -261,19 +263,26 @@ ExpandSAMs), group E in part (#83: self types; opaque types, elided by the lower
 ElimOpaque) and group G in part (#83: higher-kinded abstract types); unification of
 type variables that bound each other and sound avoidance of local types (#104); the lowering's
 lambdas and local methods in local classes, boxed captured variables and static package owners
-(#34, #95, #96, #98, #101). `moderate.scala` runs through the own frontend in 46 ms
-edit-then-run, within the exit criterion.
+(#34, #95, #96, #98, #101).
+
+Merged in the 2026-10-15 afternoon batch (one integration MR): context function results of
+final methods flattened by the lowering (#83); Scala SAM types with open type variables, kind
+checks of forward-referenced higher-kinded classes, nested package clauses and inherited result
+types seeing type members (#83, #111, research 20); NIR byte fixes of constructor lambdas
+(#107, #109); Scala options for scripts with `-Wnonunit-statement` and `-Werror` (#110).
+`moderate.scala` runs through the own frontend in 48 ms edit-then-run, within the exit
+criterion.
 
 Next, in order of the tests they unblock:
-1. **Typer groups** (research 14, 18, 19): members not found (43); adaptations (30); the rest
-   of A (no implicit argument, 28, among them lazy-implicit-nums and -lists, which need
-   unification inside implicit searches); the rest of D, refined type trees (19); the rest of E,
+1. **Typer groups** (research 14, 18, 19, 20): members not found (34); the rest of A (no
+   implicit argument, 28, among them lazy-implicit-nums and -lists, which need unification
+   inside implicit searches); adaptations (26); the rest of D, refined type trees (21); the rest of E,
    opaque aliases other than classes (8); the rest of G, type lambdas and higher-kinded type
    lambda parameters (4 each).
 2. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 3. **Lowering gaps** (research 15): patterns of classes in classes, calls with several argument
    lists, `Unit`/`Null`/`Nothing` parameters and private fields, sub matches, reflective calls,
-   methods with context function results.
+   overridable or overloaded methods with context function results.
 4. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
    inline methods, inline accessors, `constValueTuple`/`summonAll`, inline methods of
    earlier REPL inputs; the forward-reference check (#90).

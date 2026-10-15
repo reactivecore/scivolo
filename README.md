@@ -120,15 +120,21 @@ The launcher fetches transitive dependencies using Coursier's cache and adds the
 the REPL's runtime and type checker. It keeps the interpreter's Scala standard library and
 Scala Native runtime versions. Dependencies remain available after `:reset`.
 
-Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] FILE.scala`, also as a
-`#!/usr/bin/env scalai` shebang. The first run compiles a `.scala` file through the own
-frontend (parser, typer, lowering); where that refuses it, and for `.sc` files and `//> using`
-directives before the code other than `scala 3.9.0`, through scala-cli (`SCALAI_SCALA_CLI`
-names another binary), with the line `scalai: FILE: falling back to scala-cli (reason)` on
+Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] [-O OPT]... FILE.scala`, also
+as a `#!/usr/bin/env scalai` shebang. `-O`/`--scala-opt` passes a Scala compiler option, as
+`//> using options` in the script does. The first run compiles a `.scala` file through the own
+frontend (parser, typer, lowering), printing its warnings on stderr. Of the compiler options it
+takes `-source` (no migration versions), `-no-indent`, `-indent`, `-old-syntax`, `-new-syntax`,
+`-preview`, `-language:` with the features it implements or `implicitConversions`,
+`reflectiveCalls`, `higherKinds` and `existentials`, `-Xkind-projector`, `-nowarn` and
+`-Wnonunit-statement`. Where the own frontend refuses a script, and for `.sc` files, `//> using`
+directives before the code other than `scala 3.9.0` and options, and any other compiler option
+(also `-Werror`), it compiles through scala-cli (`SCALAI_SCALA_CLI` names another binary),
+failing when scala-cli reports errors, with the line `scalai: FILE: falling back to scala-cli (reason)` on
 stderr; later runs of that result print `scalai: FILE: compiled by scala-cli (reason)`.
 `SCALAI_FRONTEND=strict` makes a refusal an error, printed with the syntax or type errors;
 `SCALAI_FRONTEND=jvm` always uses scala-cli. The NIR is cached in `SCALAI_CACHE`/`scripts`,
-keyed by the file's path and content, the frontend mode and the `scalai` build; later runs
+keyed by the file's path and content, the `-O` options, the frontend mode and the `scalai` build; later runs
 compile nothing. Files it pulls in with `//> using file` and changed
 dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
 days are removed when the next one is built, compiled scripts at most hourly.

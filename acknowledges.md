@@ -57,7 +57,8 @@ Apache-2.0. Rust translations of:
   `TreeInfo.isContextualClosure`, `Definitions` (`newFunctionNType`, `asContextFunctionType`),
   `ProtoTypes.normalize` (`followIFT`) in `crates/typer/src/typer/{context_functions,adapt_by_result}.rs`
   and `crates/tasty/src/symbols/context_functions.rs`; `Erasure.Typer.mapOwner` and
-  `ContextFunctionResults.annotateContextResults` in `crates/lower/src/phases`.
+  `ContextFunctionResults` (`annotateContextResults`, `contextResultCount`,
+  `integrateContextResults`) in `crates/lower/src/phases`.
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/typer/src/typer/type_lambdas.rs`: `HKTypeLambda.boundsFromParams`;
@@ -75,6 +76,8 @@ Apache-2.0. Rust translations of:
   `ClassInfo.selfType`, `ThisType.underlying`, `SAMType.samClass` (self type rule).
 - `crates/typer/src/typer/{irrefutable,refutable_warnings}.rs`: `Checking.checkIrrefutable`,
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
+- `crates/typer/src/typer/linter.rs`: `Linter.warnOnInterestingResultInStatement`,
+  `TreeInfo.isThisTypeResult`.
 - `crates/lower/src/phases`, from `transform/`:
   - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
     `config/JavaPlatform.isSam` (without `samExpansionNotNeeded`'s bridges: refused), `ast/tpd` (`AnonClass`,

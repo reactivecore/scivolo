@@ -1,8 +1,11 @@
 //! What the compiler settings and language imports decide about syntax.
 
+mod options;
 mod version;
+mod warnings;
 
 pub use version::SourceVersion;
+pub use warnings::{Lints, Warnings};
 
 /// Language features that change scanning, parsing or typing.
 #[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
@@ -87,6 +90,7 @@ pub struct Config {
     pub preview: bool,
     pub features: Features,
     pub kind_projector: KindProjector,
+    pub warnings: Warnings,
 }
 
 impl Default for Config {
@@ -100,59 +104,12 @@ impl Default for Config {
             preview: false,
             features: Features::default(),
             kind_projector: KindProjector::Disabled,
+            warnings: Warnings::default(),
         }
     }
 }
 
 impl Config {
-    /// The settings given by scalac options such as `-source:future`, `-no-indent`,
-    /// `-Xkind-projector` and `-language:experimental.erasedDefinitions`; other options are
-    /// ignored.
-    pub fn from_options(options: &[&str]) -> Config {
-        let mut cfg = Config::default();
-        let mut args = options.iter().copied();
-        while let Some(arg) = args.next() {
-            let (key, colon_value) = match arg.split_once(':') {
-                Some((k, v)) => (k, Some(v)),
-                None => (arg, None),
-            };
-            let key = key.strip_prefix('-').filter(|k| k.starts_with('-')).unwrap_or(key);
-            let mut value = || colon_value.or_else(|| args.next()).unwrap_or("");
-            match key {
-                "-source" => {
-                    let v = value();
-                    if v != "3.1-migration"
-                        && let Some(v) = SourceVersion::parse(v)
-                    {
-                        cfg.source_version = v;
-                    }
-                }
-                "-no-indent" | "-noindent" => cfg.no_indent = true,
-                "-old-syntax" => {
-                    cfg.no_indent = true;
-                    cfg.old_syntax = true;
-                }
-                "-new-syntax" => cfg.new_syntax = true,
-                "-preview" => cfg.preview = true,
-                "-indent" => cfg.indent = true,
-                "-language" => {
-                    for feature in value().split(',').filter_map(Features::named) {
-                        cfg.features.insert(feature);
-                    }
-                }
-                "-Xkind-projector" => {
-                    cfg.kind_projector = match colon_value {
-                        None | Some("") => KindProjector::Asterisks,
-                        Some("underscores") => KindProjector::Underscores,
-                        Some(_) => KindProjector::Disabled,
-                    }
-                }
-                _ => {}
-            }
-        }
-        cfg
-    }
-
     /// Whether `for` comprehensions follow the rules of 3.8 (dotty's `enablesBetterFors`).
     pub fn enables_better_fors(&self) -> bool {
         let v = self.source_version;

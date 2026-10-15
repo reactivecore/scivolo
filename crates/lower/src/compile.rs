@@ -36,8 +36,18 @@ impl std::fmt::Debug for Refusal {
 
 /// The NIR files of `source`, or why it takes the JVM frontend.
 pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Result<Vec<NirFile>, Refusal> {
+    compile_with(u, source, Config::from_options(options)).map(|(files, _)| files)
+}
+
+/// The NIR files and warnings of `source` under settings `cfg`, or why it takes the JVM
+/// frontend.
+pub fn compile_with(
+    u: &mut Universe,
+    source: &SourceFile,
+    cfg: Config,
+) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
     let mut names = Names::default();
-    let mut p = Parser::new(source, &mut names, Config::from_options(options));
+    let mut p = Parser::new(source, &mut names, cfg);
     let root = p.parse();
     let cfg = p.s.cfg;
     let root = Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, cfg).unit(root);
@@ -51,13 +61,15 @@ pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Resul
         }
         Err(Fallback::Errors(diags)) => return Err(Refusal { what: "type errors".into(), diags }),
     };
-    crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source).map_err(|e| {
-        let at = if e.at.exists() {
-            let line = source.offset_to_line(e.at.point());
-            format!(" at {}:{}", line + 1, source.column(e.at.point()) + 1)
-        } else {
-            String::new()
-        };
-        Refusal::new(format!("the lowering does not support {}{at}", e.what))
-    })
+    let files =
+        crate::lower(u, &mut typed.tpd, typed.root, p.s.names, &mut p.fresh, source).map_err(|e| {
+            let at = if e.at.exists() {
+                let line = source.offset_to_line(e.at.point());
+                format!(" at {}:{}", line + 1, source.column(e.at.point()) + 1)
+            } else {
+                String::new()
+            };
+            Refusal::new(format!("the lowering does not support {}{at}", e.what))
+        })?;
+    Ok((files, typed.diags))
 }
