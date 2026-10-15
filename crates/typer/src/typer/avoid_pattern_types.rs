@@ -41,11 +41,9 @@ impl Typer<'_> {
         (locals.contains(&s) && matches!(self.u.types().get(info), Type::Bounds(..))).then_some(info)
     }
 
-    /// Whether an uninstantiated type variable in `t` has a bound that refers to a class or type
-    /// among `locals`, directly or through the bounds of the variables in it.
+    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`,
+    /// directly or through the bounds of the variables in it.
     pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
-        let locals: Vec<SymbolId> = locals.iter().copied().filter(|&s| self.u.is_type_symbol(s)).collect();
-        let locals = &locals[..];
         if locals.is_empty() {
             return false;
         }

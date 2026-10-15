@@ -3,6 +3,7 @@
 //! comparisons and abandoned attempts.
 
 mod attempt;
+mod avoid;
 mod unify;
 
 use attempt::Fate;
@@ -32,7 +33,7 @@ pub struct Constraint {
     propagating: bool,
     /// How many implicit argument searches are in progress, in which variables are not unified.
     searches: u32,
-    /// Whether a lower bound referred to a local type defined after its variable and could not
+    /// Whether a lower bound referred to a local symbol defined after its variable and could not
     /// do without it, also in an abandoned attempt.
     escaped: bool,
 }
@@ -166,7 +167,7 @@ impl TypeVars for Constraint {
         let lo = match self.avoided(u, lo, e.born, 1) {
             Some(avoided) => avoided,
             None => {
-                self.escaped |= self.refers_to_local(u, lo, e.born, 4, true);
+                self.escaped = true;
                 lo
             }
         };
