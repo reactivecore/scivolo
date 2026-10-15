@@ -1,6 +1,7 @@
 //! Methods whose results are context closures, whose parameters dotty's erasure makes the
 //! method's own (`ContextFunctionResults`): refused.
 
+use super::casts::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
 use tasty::{SymbolId, Type};
@@ -37,7 +38,8 @@ fn is_annotated(l: &Lower, s: SymbolId) -> bool {
 fn is_context_function(l: &mut Lower, t: tasty::TypeId) -> bool {
     let t = l.u.dealias(t);
     let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
-    l.u.class_symbol(tycon).is_some_and(|c| l.u.full_name(c).starts_with("scala.ContextFunction"))
+    let class = l.u.class_symbol(tycon);
+    class.and_then(|c| function_class_arity(l, c)).is_some_and(|(_, context)| context)
 }
 
 /// Whether `t` is a closure of the method it defines, in blocks without statements (dotty's

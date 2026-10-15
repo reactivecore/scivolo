@@ -27,6 +27,8 @@ def tests():
             reason = "defines package scala"
         elif re.search(r"-language:experimental|-Yexplicit-nulls|-Ycc|captureChecking", options + text):
             reason = "experimental feature"
+        elif re.search(r"-Werror\b|-Xfatal-warnings\b|-Wconf:\S*:(e|error)\b", options):
+            reason = "warnings as errors"
         yield f, options, reason
 
 

@@ -82,11 +82,20 @@ fn erased_trait_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
     parents.into_iter().any(|p| l.u.is_trait(p) && l.u.derives_from(p, t) && erased_trait_derives(l, p, t))
 }
 
+/// The arity of class `c` if it is `scala.FunctionN`, and whether it is `scala.ContextFunctionN`.
+pub fn function_class_arity(l: &Lower, c: SymbolId) -> Option<(u32, bool)> {
+    let full = l.u.full_name(c);
+    let (rest, context) = match full.strip_prefix("scala.Context") {
+        Some(rest) => (rest, true),
+        None => (full.strip_prefix("scala.")?, false),
+    };
+    Some((rest.strip_prefix("Function")?.parse().ok()?, context))
+}
+
 /// Class `c` as erasure leaves it: `scala.FunctionN` for `scala.ContextFunctionN`.
 pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    let full = l.u.full_name(c);
-    match full.strip_prefix("scala.Context") {
-        Some(rest) if rest.starts_with("Function") => class_named(l, &format!("scala.{rest}")),
+    match function_class_arity(l, c) {
+        Some((n, true)) => class_named(l, &format!("scala.Function{n}")),
         _ => Some(c),
     }
 }

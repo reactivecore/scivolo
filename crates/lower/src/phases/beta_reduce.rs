@@ -69,10 +69,7 @@ fn expanded_without_bindings(l: &Lower, t: TNodeId) -> bool {
 /// Whether the type of `t` is a `FunctionN` or `ContextFunctionN` type.
 fn is_function_type(l: &mut Lower, t: TNodeId) -> bool {
     let tpe = l.u.widen(l.tpd.tpe(t));
-    let Some(class) = l.u.class_symbol(tpe) else { return false };
-    let name = l.u.full_name(class);
-    let arity = name.strip_prefix("scala.Function").or_else(|| name.strip_prefix("scala.ContextFunction"));
-    arity.is_some_and(|n| n.parse::<u32>().is_ok())
+    l.u.class_symbol(tpe).and_then(|c| super::casts::function_class_arity(l, c)).is_some()
 }
 
 /// The reduction of the call of function `fun` to `args`, past ascriptions and blocks of pure
