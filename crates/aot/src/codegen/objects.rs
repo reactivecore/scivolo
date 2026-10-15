@@ -51,6 +51,22 @@ impl FnBuilder<'_, '_> {
                 let o = self.val(*obj)?;
                 self.is_instance(o, *ty)?
             }
+            Op::Arrayalloc { ty, init, .. } => self.array_alloc(*ty, *init)?,
+            Op::Arrayload { ty, arr, idx } => {
+                let t = self.ty(*ty)?;
+                let at = self.element(*ty, *arr, *idx)?;
+                self.load(t, at, 0)
+            }
+            Op::Arraystore { ty, arr, idx, value } => {
+                let t = self.ty(*ty)?;
+                let at = self.element(*ty, *arr, *idx)?;
+                let v = self.arg(*value, t)?;
+                self.b.ins().store(MemFlagsData::new(), v, at, 0);
+                return Ok(None);
+            }
+            Op::Arraylength(arr) => self.array_length(*arr)?,
+            Op::Box { ty, obj } => self.boxing(*ty, *obj, true)?,
+            Op::Unbox { ty, obj } => self.boxing(*ty, *obj, false)?,
             // Temporary until #113 aot 3 (slow paths): a failing cast throws ClassCastException.
             Op::As { obj, .. } => self.val(*obj)?,
             // Temporary until #113 aot 3 (heap) and aot 5 (stackalloc, externs).

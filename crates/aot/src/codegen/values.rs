@@ -51,7 +51,17 @@ impl FnBuilder<'_, '_> {
                 let fref = self.module.declare_func_in_func(f, self.b.func);
                 self.b.ins().func_addr(self.decls.ptr, fref)
             }
-            // Temporary until #113 aot 3 (strings, constants, static fields).
+            Val::String(s) => {
+                let pool = &self.reach.world.pool;
+                let units: Vec<u16> = match pool.utf16.get(&s) {
+                    Some(units) => units.to_vec(),
+                    None => pool.str(s).encode_utf16().collect(),
+                };
+                let data = self.decls.string(self.module, self.reach, &units)?;
+                let gv = self.module.declare_data_in_func(data, self.b.func);
+                self.b.ins().symbol_value(self.decls.ptr, gv)
+            }
+            // Temporary until #113 aot 3 (constants, static fields).
             v => return Err(format!("value not supported yet: {v:?}")),
         })
     }

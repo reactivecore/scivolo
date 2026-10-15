@@ -2,41 +2,13 @@
 //! it; for a class, followed by its itable (pointer, length) and vtable.
 
 use crate::R;
+use crate::blob::Blob;
 use crate::classes::{ClassId, Kind, method_key};
 use crate::codegen::Decls;
 use crate::reach::Reach;
-use cranelift_module::{DataDescription, DataId, FuncId, Linkage, Module};
+use cranelift_module::{DataId, FuncId, Linkage, Module};
 use cranelift_object::ObjectModule;
 use nir::{StrId, Type};
-
-/// Bytes with relocations to data and functions at their offsets.
-#[derive(Default)]
-struct Blob {
-    bytes: Vec<u8>,
-    data: Vec<(usize, DataId)>,
-    funcs: Vec<(usize, FuncId)>,
-}
-
-impl Blob {
-    fn i32_at(&mut self, at: i32, v: i32) {
-        self.bytes[at as usize..at as usize + 4].copy_from_slice(&v.to_le_bytes());
-    }
-
-    fn define(self, module: &mut ObjectModule, id: DataId) -> R<()> {
-        let mut desc = DataDescription::new();
-        desc.set_align(8);
-        desc.define(self.bytes.into_boxed_slice());
-        for (at, d) in self.data {
-            let gv = module.declare_data_in_data(d, &mut desc);
-            desc.write_data_addr(at as u32, gv, 0);
-        }
-        for (at, f) in self.funcs {
-            let fref = module.declare_func_in_data(f, &mut desc);
-            desc.write_function_addr(at as u32, fref);
-        }
-        module.define_data(id, &desc).map_err(|e| e.to_string())
-    }
-}
 
 /// A local data object named after `cls` and `suffix`, holding `blob`.
 fn side_table(module: &mut ObjectModule, reach: &Reach, cls: ClassId, suffix: &str, blob: Blob) -> R<DataId> {

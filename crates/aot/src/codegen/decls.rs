@@ -69,6 +69,7 @@ pub struct Decls {
     rttis: FxHashMap<ClassId, DataId>,
     loads: FxHashMap<ClassId, FuncId>,
     imports: FxHashMap<&'static str, FuncId>,
+    pub strings: FxHashMap<Vec<u16>, DataId>,
 }
 
 impl Decls {
@@ -85,6 +86,7 @@ impl Decls {
             rttis: FxHashMap::default(),
             loads: FxHashMap::default(),
             imports: FxHashMap::default(),
+            strings: FxHashMap::default(),
         })
     }
 

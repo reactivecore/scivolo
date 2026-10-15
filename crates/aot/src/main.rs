@@ -1,5 +1,6 @@
 //! `scalai-aot`: compiles NIR into a native executable with Cranelift.
 
+mod blob;
 mod classes;
 mod codegen;
 mod entry;

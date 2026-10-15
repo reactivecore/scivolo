@@ -1,11 +1,13 @@
 //! NIR → Cranelift IR → one object file: the functions reachable from the entry, the module
 //! load functions and the class metadata.
 
+mod arrays;
 mod body;
 mod decls;
 mod modules;
 mod objects;
 mod ops;
+mod strings;
 mod values;
 
 pub use decls::{CLASS, Decls, RttiLayout};
