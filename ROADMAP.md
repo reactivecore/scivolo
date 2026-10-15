@@ -199,9 +199,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    research 15), the `f` interpolator (#82), lambdas and local methods in local classes,
    context functions erased to `FunctionN` and flattened in results of final methods, and
    ExpandSAMs' partial functions and SAM classes, super accessors that library traits declare,
-   outer tests of path and projection prefixes in patterns, and curried local methods.
-   Of dotty's `tests/run`, 875 pass through typer, lowering and VM on 2026-10-15 (809 before the
-   2026-10-15 batches, 399 on 2026-10-11), 25 are refused by the lowering, none crashes in the
+   outer tests of path and projection prefixes in patterns, curried local methods, and class
+   parameters of type Unit, Null or Nothing.
+   Of dotty's `tests/run`, 878 pass through typer, lowering and VM on 2026-10-15 (809 before the
+   2026-10-15 batches, 399 on 2026-10-11), 23 are refused by the lowering, none crashes in the
    VM; see
    [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
@@ -259,8 +260,8 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-15,
-875 of 1711 pass (861 before the evening batch, 809 before the batches below, 399 on
-2026-10-11), 532 stop at the typer, 25 at the lowering, and 1 crashes in the frontend (t8199).
+878 of 1711 pass (861 before the evening batch, 809 before the batches below, 399 on
+2026-10-11), 531 stop at the typer, 23 at the lowering, and 1 crashes in the frontend (t8199).
 
 Merged in the 2026-10-15 batch (one integration MR): typer group A further (#83: search
 history with by-name implicits, divergence checks and their dictionary; context functions,
@@ -285,14 +286,14 @@ arguments, views on the qualifier of a failed application, case companions as fu
 (`Object` parameters of Java members), implicits through `given` imports and sibling calls in
 collective extensions (#83); super accessors of library traits in the lowering (#34; `super[Q]`
 ones, #114); research 21 on match-type reduction. In a second round: research 20 N4 (refined
-type trees) and N6 in part (generic tuples), research 21 M1 (match types decoded with their
-cases); the lowering's outer tests of path and projection prefixes and curried local methods
-(#34).
+type trees) and N6 (generic tuples, wildcard capture before views), research 21 M1 (match types
+decoded with their cases); the lowering's outer tests of path and projection prefixes, curried
+local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
 1. **Typer groups** (research 14, 18, 19, 20): the rest of A (no implicit argument, 29, among
    them lazy-implicit-nums and -lists, which need unification inside implicit searches); members
-   not found (27; wildcard capture before views, research 20 §2.4); adaptations (18); match-type
+   not found (25); adaptations (18); match-type
    reduction for generic tuples and `scala.compiletime` (research 21 M2–M4, #39, ~33 tests); the
    rest of D; structural refinements (reflective calls in the lowering); the rest of E, opaque
    aliases other than classes (8); the rest of G, type lambdas and higher-kinded type lambda
