@@ -162,6 +162,12 @@ fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning {
     match u.symbol(s).kind {
         Kind::Class => Meaning::Class(s),
         Kind::Type | Kind::TypeParam => {
+            let refined = prefix.and_then(|p| u.refinement_info(p, s)).map(|i| u.types().get(i).clone());
+            match refined {
+                Some(Type::Alias(a)) => return Meaning::Alias(a),
+                Some(Type::Bounds(lo, hi)) => return Meaning::Abstract(lo, hi),
+                _ => {}
+            }
             let opaque = u.visible_opaque_alias(s, prefix);
             if let Some(alias) = opaque.or_else(|| u.alias_of(s)) {
                 return Meaning::Alias(seen(u, alias));

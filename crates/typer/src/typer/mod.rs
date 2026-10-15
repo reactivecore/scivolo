@@ -95,6 +95,7 @@ mod pretyped_args;
 mod purity;
 mod qualifier_views;
 mod qualifies;
+mod refined_types;
 mod refutable_warnings;
 mod repeated;
 mod report;

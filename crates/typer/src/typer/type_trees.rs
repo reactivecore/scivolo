@@ -101,6 +101,7 @@ impl Typer<'_> {
             Tree::LambdaTypeTree { tparams, body } => self.typed_lambda_type(id, tparams, body, ctx),
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
+            Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
             t => {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
