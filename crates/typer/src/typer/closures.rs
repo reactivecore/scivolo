@@ -45,7 +45,8 @@ impl Typer<'_> {
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
             } else if let Some((formals, _)) = &expected {
-                let lower = match *self.u.types().get(formals[i]) {
+                let formal = self.zonk(formals[i]);
+                let lower = match *self.u.types().get(formal) {
                     Type::Bounds(lo, _) => Some(lo),
                     _ => None,
                 };
@@ -53,7 +54,7 @@ impl Typer<'_> {
                 if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
                     return self.unsupported(p, "parameter type inferred from the target of a wildcard");
                 }
-                let formal = lower.unwrap_or(formals[i]);
+                let formal = lower.unwrap_or(formal);
                 if contextual && !self.is_fully_defined(formal) {
                     return self.unsupported(p, "context closure parameter of an open type");
                 }

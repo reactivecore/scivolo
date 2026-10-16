@@ -72,7 +72,8 @@ impl Typer<'_> {
             if let Level::Members(p) = *self.levels.get(l)
                 && self.u.symbol(p).kind == Kind::Package
             {
-                for d in self.u.package_objects(p).unwrap_or_default() {
+                let Ok(objects) = self.u.package_objects(p) else { return true };
+                for d in objects {
                     if !self.implicit_members(d, false).is_empty() {
                         return true;
                     }
