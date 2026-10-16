@@ -2,7 +2,7 @@
 //! classpath instead of resources embedded at link time.
 
 use super::NativeFn;
-use crate::Vm;
+use crate::{Vm, World};
 
 /// The classpath's resources, listed on first use; each one's content is read on first use.
 #[derive(Default)]
@@ -37,12 +37,25 @@ pub fn extern_fn(name: &str) -> Option<NativeFn> {
     Some(f)
 }
 
+/// The classpath's resources as `EmbeddedResourceReader` names them: classpath root and
+/// `/`-rooted path.
+pub fn embedded_resources(world: &mut World) -> Vec<(usize, String)> {
+    world.resources().into_iter().map(|(root, rel)| (root, format!("/{rel}"))).collect()
+}
+
+/// The content of resource `path` in classpath root `root`; empty if unreadable or over 2 GiB,
+/// which a `CInt` length cannot hold.
+pub fn embedded_content(world: &mut World, root: usize, path: &str) -> Vec<u8> {
+    let rel = path.strip_prefix('/').unwrap_or(path);
+    world.resource(root, rel).filter(|d| d.len() <= i32::MAX as usize).unwrap_or_default()
+}
+
 fn list(vm: &mut Vm) -> &mut Vec<Resource> {
     if vm.resources.all.is_none() {
-        let found = vm.world.resources();
+        let found = embedded_resources(&mut vm.world);
         let all = found
             .into_iter()
-            .map(|(root, rel)| Resource { root, path: format!("/{rel}").into_bytes().into(), content: None })
+            .map(|(root, path)| Resource { root, path: path.into_bytes().into(), content: None })
             .collect();
         vm.resources.all = Some(all);
     }
@@ -53,14 +66,13 @@ fn path(vm: &mut Vm, id: u64) -> Option<&[u8]> {
     list(vm).get(id as u32 as usize).map(|r| &*r.path)
 }
 
-/// The content of resource `id`, read on first use; empty if unreadable or over 2 GiB, which a
-/// `CInt` length cannot hold.
+/// The content of resource `id`, read on first use.
 fn content(vm: &mut Vm, id: u64) -> Option<&[u8]> {
     let id = id as u32 as usize;
     let r = list(vm).get(id)?;
     if r.content.is_none() {
-        let (root, rel) = (r.root, std::str::from_utf8(&r.path[1..]).unwrap_or("").to_owned());
-        let data = vm.world.resource(root, &rel).filter(|d| d.len() <= i32::MAX as usize).unwrap_or_default();
+        let (root, path) = (r.root, std::str::from_utf8(&r.path).unwrap_or("").to_owned());
+        let data = embedded_content(&mut vm.world, root, &path);
         list(vm)[id].content = Some(data.into());
     }
     list(vm)[id].content.as_deref()

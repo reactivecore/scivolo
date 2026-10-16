@@ -3,7 +3,6 @@ name = "repl"
 version.workspace = true
 edition.workspace = true
 publish = false
-build = "../scalai/build.rs"
 
 [dependencies]
 libimage.workspace = true
@@ -15,6 +14,7 @@ vm = { path = "../vm" }
 
 [dev-dependencies]
 libc = "0.2"
+libs = { path = "../libs" }
 
 [lints]
 workspace = true
