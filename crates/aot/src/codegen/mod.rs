@@ -10,6 +10,7 @@ mod consts;
 mod decls;
 mod elements;
 mod frames;
+mod functions;
 mod intrinsics;
 mod linktime;
 mod memory;
@@ -38,12 +39,12 @@ pub const RUNTIME: &str = "scala.scalanative.runtime.package$";
 use crate::R;
 use crate::reach::Reach;
 use crate::timings::Timings;
+use cranelift_codegen::isa;
 use cranelift_codegen::settings::{self, Configurable};
-use cranelift_codegen::{Context, isa};
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
-use cranelift_module::{Module, default_libcall_names};
+use cranelift_frontend::FunctionBuilderContext;
+use cranelift_module::default_libcall_names;
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use nir::{DefnKind, GlobalId};
+use nir::GlobalId;
 use std::time::Instant;
 use vm::World;
 
@@ -89,12 +90,13 @@ pub fn compile(world: &mut World, root: Root, timings: &mut Timings) -> R<(Vec<u
         }
         Root::Main(top) => start::reach_main(&mut module, &mut reach, &mut decls, top)?,
     }
-    let mut ctx = Context::new();
     let mut fb = FunctionBuilderContext::new();
+    let mut batch = Vec::new();
     loop {
         while let Some(g) = reach.queue.pop() {
-            define(&mut module, &mut reach, &mut decls, (&mut ctx, &mut fb), g, timings)?;
+            batch.push(functions::translate(&mut module, &mut reach, &mut decls, &mut fb, g)?);
         }
+        functions::compile(&mut module, &reach, &mut decls, &mut batch, timings)?;
         let clock = Instant::now();
         for g in reach.dispatch_targets()? {
             decls.func(&mut module, &mut reach, g)?;
@@ -123,53 +125,4 @@ pub fn compile(world: &mut World, root: Root, timings: &mut Timings) -> R<(Vec<u
     let object = module.finish().emit().map_err(|e| e.to_string())?;
     timings.lap("emit");
     Ok((object, shims))
-}
-
-fn define(
-    module: &mut ObjectModule,
-    reach: &mut Reach,
-    decls: &mut Decls,
-    (ctx, fb): (&mut Context, &mut FunctionBuilderContext),
-    g: GlobalId,
-    timings: &mut Timings,
-) -> R<()> {
-    let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
-    let DefnKind::Define { ty, body } = &defn.kind else { unreachable!("reached a non-function") };
-    ctx.func.signature = decls.signature(&reach.world.pool, *ty)?;
-    let id = decls.func(module, reach, g)?;
-    let name = reach.world.name(g);
-    let pool = &reach.world.pool;
-    let owner = reach.world.owner(g);
-    let (ret, this) = match pool.ty(*ty) {
-        nir::Type::Function(params, ret) => {
-            let this = params
-                .first()
-                .is_some_and(|&p| matches!(pool.ty(p), nir::Type::Ref { name, .. } if *name == owner));
-            (Some(*ret), this)
-        }
-        _ => (None, false),
-    };
-    let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
-    f.ret_ty = ret;
-    f.has_this = this;
-    let built = match replaced::replaced(&f.reach.world.pool, g) {
-        Some(r) => f.replaced_body(r),
-        None => f.body(body),
-    };
-    match built {
-        Ok(()) => f.finish(),
-        // Temporary until #115 (precise reachability): code reached only through the
-        // over-approximated dispatch may name classes the classpath lacks; it stops the program.
-        Err(e) if e.starts_with("no definition of") => {
-            drop(f);
-            stubs::missing(module, decls, (ctx, fb), &format!("{name}: {e}"))?;
-        }
-        Err(e) => return Err(format!("{name}: {e}")),
-    }
-    let clock = Instant::now();
-    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
-    timings.add("  of which cranelift", clock.elapsed());
-    decls.frames.record(id, g, ctx);
-    module.clear_context(ctx);
-    Ok(())
 }
