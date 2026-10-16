@@ -77,8 +77,8 @@ impl Typer<'_> {
     }
 
     /// What about a definition of `kind` with `flags` in `owner` is outside the subset as far as
-    /// inlining goes: macros, erased definitions, case classes in an inline method, and deferred,
-    /// given, overriding or nested inline methods.
+    /// inlining goes: macros, erased definitions, case classes in an inline method, and nested
+    /// inline methods.
     fn inline_problem(&self, kind: Kind, owner: SymbolId, flags: FlagSet) -> Option<&'static str> {
         let mut outer = Some(owner);
         let mut nested = false;
@@ -101,8 +101,6 @@ impl Typer<'_> {
         }
         Some(if nested {
             "inline definition nested in an inline method"
-        } else if flags.is_one_of(f::DEFERRED.or(f::GIVEN).or(f::OVERRIDE)) {
-            "deferred, given or overriding inline definition"
         } else if flags.is_one_of(f::MUTABLE.or(f::PARAM_ACCESSOR).or(f::TERM_PARAM)) {
             "inline variable or class parameter"
         } else if kind != Kind::Def && kind != Kind::Val {

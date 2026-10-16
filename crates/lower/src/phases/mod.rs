@@ -84,6 +84,7 @@ mod pure_stats;
 mod references_outer;
 mod repeated;
 mod resolve_super;
+mod retained_bodies;
 mod returns;
 pub(crate) mod sam;
 mod sam_classes;

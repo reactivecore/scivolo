@@ -1,6 +1,7 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -57,6 +58,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inline_accessors;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
@@ -100,6 +102,7 @@ mod refined_types;
 mod refutable_warnings;
 mod repeated;
 mod report;
+mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sams;
@@ -200,6 +203,7 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    pub accessors: inline_accessors::Accessors,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -253,6 +257,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            accessors: Default::default(),
             depth: 0,
         };
         typer.enter_and_or();

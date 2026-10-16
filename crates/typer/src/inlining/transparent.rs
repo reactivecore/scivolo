@@ -26,6 +26,24 @@ impl Inlining<'_> {
         }
     }
 
+    /// The expansion of `call` in `ctx` of an inline method defined in `bodies`, transparent or
+    /// not, with the transparent calls in it expanded, as `inline_transparent`.
+    pub fn inline_forced(
+        &mut self,
+        parts: (FxHashMap<SymbolId, TNodeId>, FxHashSet<SymbolId>),
+        call: TNodeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, Unsupported> {
+        (self.bodies, self.with_inits, self.ctx) = (parts.0, parts.1, Some(ctx));
+        self.force_inline = true;
+        let def = self.inline_method(call);
+        self.force_inline = false;
+        match def? {
+            Some(def) => self.inline_call(call, def, ctx.owner),
+            None => Ok(call),
+        }
+    }
+
     /// The call of `Inlined` tree `t`, made a reference to the top-level class of the method it
     /// calls unless it is one already, the `this` qualifiers in its bindings then typed.
     pub fn traced_call(&mut self, t: TNodeId) -> Option<TNodeId> {

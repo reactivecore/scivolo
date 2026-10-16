@@ -35,7 +35,7 @@ impl Typer<'_> {
 
     /// The methods of base classes that method `s` overrides, not private, none for a constructor
     /// (dotty's `allOverriddenSymbols`).
-    fn overridden(&mut self, s: SymbolId) -> Vec<SymbolId> {
+    pub fn overridden(&mut self, s: SymbolId) -> Vec<SymbolId> {
         let name = self.u.symbol(s).name.clone();
         let Some(owner) = self.u.symbol(s).owner.filter(|&o| self.u.symbol(o).kind == Kind::Class) else {
             return Vec::new();

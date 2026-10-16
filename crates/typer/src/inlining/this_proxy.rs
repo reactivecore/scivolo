@@ -45,7 +45,7 @@ impl Expansion<'_, '_> {
         }
         let Some(q) = prefix else { return Ok(None) };
         if matches!(self.i.tpd.tree(q), T::Super { .. }) {
-            return Err(self.err("inline call through super"));
+            return if uses { Err(self.err("inline call through super")) } else { Ok(None) };
         }
         let qt = self.i.tpd.tpe(q);
         let qtv = self.i.u.types().get(qt).clone();
