@@ -468,7 +468,7 @@ lint *args:
 
 # Lint with the Rust release of the macOS pipeline runner.
 lint-msrv:
-    cargo +1.93.0 clippy --workspace --all-targets -- -D warnings
+    cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
 
 # Run the whole test suite.
 test *args:
