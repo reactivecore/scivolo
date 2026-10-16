@@ -24,16 +24,24 @@ fn header(text: &str) -> impl Iterator<Item = &str> {
 /// The compiler options of the `//> using` directives of `text`, or the first directive the own
 /// frontend does not honour: any but options and `scala` with version `scala` or 3.9.
 pub fn directive_options<'t>(text: &'t str, scala: &str) -> Result<Vec<&'t str>, String> {
-    match directives(text, scala)? {
-        (options, deps) if deps.is_empty() => Ok(options),
-        _ => Err("`//> using dep`".into()),
+    let Directives { options, deps } = directives(text, scala)?;
+    match deps.first() {
+        None => Ok(options),
+        Some(&(key, _)) => Err(format!("`//> using {key}`")),
     }
 }
 
-/// The compiler options and the dependencies of the `//> using` directives of `text`, or the
-/// first directive the own frontend does not honour: any but options, `dep` and `scala` with
-/// version `scala` or 3.9.
-pub fn directives<'t>(text: &'t str, scala: &str) -> Result<(Vec<&'t str>, Vec<&'t str>), String> {
+/// What the `//> using` directives of a source say.
+#[derive(Debug, PartialEq)]
+pub struct Directives<'t> {
+    pub options: Vec<&'t str>,
+    /// The dependencies, each with the key naming it.
+    pub deps: Vec<(&'t str, &'t str)>,
+}
+
+/// The `//> using` directives of `text`, or the first directive the own frontend does not
+/// honour: any but options, dependencies and `scala` with version `scala` or 3.9.
+pub fn directives<'t>(text: &'t str, scala: &str) -> Result<Directives<'t>, String> {
     let (mut options, mut deps) = (Vec::new(), Vec::new());
     for line in header(text) {
         let Some(rest) = line.trim_start().strip_prefix("//> using") else { continue };
@@ -43,11 +51,13 @@ pub fn directives<'t>(text: &'t str, scala: &str) -> Result<(Vec<&'t str>, Vec<&
         match key {
             "scala" if matches!(values[..], [v] if v == "3.9" || v == scala) => {}
             k if OPTIONS.contains(&k) => options.extend(values),
-            "dep" | "deps" | "dependency" | "dependencies" => deps.extend(values),
+            "dep" | "deps" | "dependency" | "dependencies" => {
+                deps.extend(values.into_iter().map(|v| (key, v)))
+            }
             _ => return Err(format!("`//> using {key}`")),
         }
     }
-    Ok((options, deps))
+    Ok(Directives { options, deps })
 }
 
 /// `text` with a first line starting with `#!` blanked, offsets kept.
@@ -85,7 +95,9 @@ mod tests {
         assert_eq!(directive_options("//> using scala 3.8.3", SCALA), Err("`//> using scala`".into()));
         let dep = "  //> using dep com.lihaoyi::os-lib:0.11.4";
         assert_eq!(directive_options(dep, SCALA), Err("`//> using dep`".into()));
-        assert_eq!(super::directives(dep, SCALA), Ok((vec![], vec!["com.lihaoyi::os-lib:0.11.4"])));
+        let deps = vec![("dep", "com.lihaoyi::os-lib:0.11.4")];
+        assert_eq!(super::directives(dep, SCALA), Ok(super::Directives { options: vec![], deps }));
+        assert_eq!(directive_options("//> using deps a::b:1", SCALA), Err("`//> using deps`".into()));
     }
 
     #[test]

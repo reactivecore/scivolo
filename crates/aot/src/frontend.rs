@@ -16,7 +16,14 @@ use syntax::source::{SourceFile, Sources};
 pub struct Unit {
     files: Vec<SourceFile>,
     options: Vec<String>,
-    pub deps: Vec<String>,
+    deps: Vec<String>,
+}
+
+impl Unit {
+    /// The dependencies the directives name.
+    pub fn deps(&self) -> &[String] {
+        &self.deps
+    }
 }
 
 /// Reads `paths`, each named by its path as given, with the shebang line blanked, or the first
@@ -26,10 +33,10 @@ pub fn read(paths: &[PathBuf]) -> R<Unit> {
     for path in paths {
         let name = path.to_string_lossy().into_owned();
         let text = std::fs::read_to_string(path).map_err(|e| format!("{name}: {e}"))?;
-        let (options, deps) =
+        let lower::directives::Directives { options, deps } =
             directives(&text, SCALA).map_err(|d| format!("{name}: {d} is not supported"))?;
         unit.options.extend(options.into_iter().map(str::to_owned));
-        unit.deps.extend(deps.into_iter().map(str::to_owned));
+        unit.deps.extend(deps.into_iter().map(|(_, d)| d.to_owned()));
         unit.files.push(SourceFile::new(name, without_header(&text)));
     }
     Ok(unit)

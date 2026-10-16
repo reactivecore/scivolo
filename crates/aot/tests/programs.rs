@@ -83,11 +83,15 @@ fn sources_referring_to_each_other_build_into_one_executable() {
 
 #[test]
 fn sources_use_a_dependency_from_the_coursier_cache() {
-    let offline = Command::new("coursier")
-        .args(["fetch", "--mode", "offline", "com.lihaoyi:geny_native0.5_3:1.1.0"])
-        .args(["--exclude", "org.scala-lang:*", "--exclude", "org.scala-native:*"])
-        .output();
-    if !offline.is_ok_and(|o| o.status.success()) {
+    let chosen = std::env::var_os("SCALAI_COURSIER").map(|c| vec![c]);
+    let offline = chosen.unwrap_or_else(|| vec!["coursier".into(), "cs".into()]).into_iter().any(|cs| {
+        Command::new(cs)
+            .args(["fetch", "--mode", "offline", "com.lihaoyi:geny_native0.5_3:1.1.0"])
+            .args(["--exclude", "org.scala-lang:*", "--exclude", "org.scala-native:*"])
+            .output()
+            .is_ok_and(|o| o.status.success())
+    });
+    if !offline {
         eprintln!("skipped: geny 1.1.0 is not in the Coursier cache");
         return;
     }

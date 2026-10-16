@@ -35,23 +35,39 @@ struct Args {
     /// The object or class whose `main` the executable runs; needed when several have one.
     #[arg(long)]
     main: Option<String>,
-    /// Maven dependency, `group::artifact::version` for a Scala Native library, fetched by
-    /// Coursier with what it depends on.
-    #[arg(long = "dep")]
+    /// A Scala Native library from Maven, with what it depends on, fetched by Coursier:
+    /// `group::artifact::version` or `group::artifact:version` (the `_native0.5_3` artifact),
+    /// or `group:artifact:version` as named; repeatable.
+    #[arg(long = "dep", value_name = "COORDINATE")]
     deps: Vec<String>,
     /// `.scala` files and directories of them; without any, a main class of the classpath.
     inputs: Vec<String>,
 }
 
-fn run(args: &Args) -> R<()> {
-    let (srcs, named): (Vec<String>, Vec<String>) =
-        args.inputs.iter().cloned().partition(|a| sources::is_source(a));
+/// Fails on inputs and options that do not go together: sources, main class names (`named`),
+/// `--main`, `--entry` and `-d`.
+fn check(args: &Args, srcs: &[String], named: &[String]) -> R<()> {
     if let Some(path) = named.iter().find(|n| n.contains('/')) {
         return Err(format!("{path}: no such directory"));
     }
     if args.out_dir.is_some() && (srcs.is_empty() || args.main.is_some() || args.entry.is_some()) {
         return Err("-d writes the NIR of sources; it takes sources and neither --main nor --entry".into());
     }
+    match (srcs.is_empty(), named, &args.main, &args.entry) {
+        (true, [_], Some(_), _) => Err("a main class both as an argument and with --main".into()),
+        (true, [], None, None) => Err("a main class or --entry is required".into()),
+        (true, [_, _, ..], _, _) => Err(format!("several main classes given: {}", named.join(" "))),
+        (false, [_, ..], _, _) => {
+            Err(format!("sources and a main class name mixed ({}); use --main", named.join(" ")))
+        }
+        _ => Ok(()),
+    }
+}
+
+fn run(args: &Args) -> R<()> {
+    let (srcs, named): (Vec<String>, Vec<String>) =
+        args.inputs.iter().cloned().partition(|a| sources::is_source(a));
+    check(args, &srcs, &named)?;
     let unit = match srcs.is_empty() {
         true => None,
         false => Some(frontend::read(&sources::collect(&srcs)?)?),
@@ -59,18 +75,18 @@ fn run(args: &Args) -> R<()> {
     let (jars, dirs): (Vec<PathBuf>, Vec<PathBuf>) =
         args.classpath.iter().cloned().partition(|p| p.extension().is_some_and(|e| e == "jar"));
     let mut deps = args.deps.clone();
-    deps.extend(unit.iter().flat_map(|u| u.deps.iter().cloned()));
+    deps.extend(unit.iter().flat_map(|u| u.deps().iter().cloned()));
     let mut lib_jars = libs::jars()?;
     lib_jars.extend(jars);
+    // Temporary until #115 (native code of dependencies): the C sources in dependency jars are
+    // not compiled into the executable.
     lib_jars.extend(libs::deps::fetch(&deps)?);
     let image = libs::image(&lib_jars).map_err(|e| format!("library image: {e}"))?;
     let mut classpath = dirs;
     let main = match (unit, &named[..], &args.main) {
-        (None, [_], Some(_)) => return Err("a main class both as an argument and with --main".into()),
-        (None, [main], None) | (None, [], Some(main)) => Some(main.clone()),
-        (None, [], None) => None,
-        (None, _, _) => return Err(format!("several main classes given: {}", named.join(" "))),
-        (Some(unit), [], _) => {
+        (None, [main], _) | (None, [], Some(main)) => Some(main.clone()),
+        (None, _, _) => None,
+        (Some(unit), _, _) => {
             if let Some(out) = &args.out_dir {
                 return frontend::compile_into(&unit, image, out);
             }
@@ -80,9 +96,6 @@ fn run(args: &Args) -> R<()> {
                 Some(_) => None,
                 None => Some(sources::pick(&mains, args.main.as_deref())?),
             }
-        }
-        (Some(_), _, _) => {
-            return Err(format!("sources and a main class name mixed ({}); use --main", named.join(" ")));
         }
     };
     let output = args.output.as_ref().ok_or("-o is required to link an executable")?;

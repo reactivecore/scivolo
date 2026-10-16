@@ -26,6 +26,11 @@ struct Cli {
     /// A directory or jar of NIR files and resources.
     #[arg(long, value_name = "DIR_OR_JAR")]
     cp: Vec<PathBuf>,
+    /// A Scala Native library from Maven, with what it depends on, fetched by Coursier onto the
+    /// classpath: `group::artifact::version`, `group::artifact:version` or
+    /// `group:artifact:version`; repeatable.
+    #[arg(long = "dep", value_name = "COORDINATE")]
+    deps: Vec<String>,
     /// The main class of FILE.scala, when it has several.
     #[arg(long, value_name = "CLASS")]
     main: Option<String>,
@@ -41,7 +46,7 @@ struct Cli {
 const STACK: usize = 1 << 30;
 
 fn main() -> ExitCode {
-    let Cli { cp, main: chosen, scala_opt, command: mut rest } = Cli::parse();
+    let Cli { mut cp, deps, main: chosen, scala_opt, command: mut rest } = Cli::parse();
     let target = (!rest.is_empty()).then(|| rest.remove(0));
     let source = target.as_deref().is_some_and(script::is_source);
     if chosen.is_some() && !source {
@@ -49,6 +54,13 @@ fn main() -> ExitCode {
     }
     if !scala_opt.is_empty() && !source {
         Cli::command().error(ErrorKind::ArgumentConflict, "--scala-opt needs FILE.scala").exit()
+    }
+    match libs::deps::fetch(&deps) {
+        Ok(jars) => cp.extend(jars),
+        Err(e) => {
+            eprintln!("scalai: {e}");
+            return ExitCode::FAILURE;
+        }
     }
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| match std::env::var_os("RUST_BACKTRACE") {

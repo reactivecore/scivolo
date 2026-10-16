@@ -60,6 +60,7 @@ pub fn compile(
     }
     let text = std::str::from_utf8(text).map_err(|_| "a file not in UTF-8")?;
     let mut options: Vec<&str> = given.iter().map(String::as_str).collect();
+    // Temporary until #118 (script dependencies): `//> using dep` makes a script take scala-cli.
     options.extend(directive_options(text, SCALA)?);
     let cfg = Config::checked(&options).map_err(|o| format!("option `{o}`"))?;
     let image = image.ok_or("no library image")?;

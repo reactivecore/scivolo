@@ -116,16 +116,10 @@ aot-src-all:
 aot-run name entry *args: (aot-build name entry)
     perl -e 'alarm 20; exec @ARGV' tmp/aot/{{ name }} {{ args }}
 
-# Start the REPL in the release build.
+# Start the REPL in the release build; `--dep COORDINATE` adds a library fetched by Coursier.
 [no-cd]
 repl *args: release
     {{ justfile_directory() }}/target/release/scalai {{ args }}
-
-# Start the REPL with Maven dependencies fetched by Coursier.
-[no-cd]
-[positional-arguments]
-repl-deps +deps: release
-    bash "{{ justfile_directory() }}/scripts/repl-deps.sh" "$@"
 
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
