@@ -74,6 +74,13 @@ aot-check-all:
     done
     echo "aot: $pass passed, $fail failed (tmp/aot/failures.txt)"
 
+# Build the dotty tests the VM passes (default: all; a number `n`: an evenly spaced sample of
+# `n`; else the comma-separated names `n`) as native executables and compare them with their
+# `.check`, 20 s per compile and run; results in tmp/aot/dotty/results.tsv.
+aot-dotty n="0":
+    cargo build -q --release -p aot
+    python3 scripts/aot-dotty.py {{ n }}
+
 # Build as aot-build does and run the executable with `args`, stopped after 20 s.
 aot-run name entry *args: (aot-build name entry)
     perl -e 'alarm 20; exec @ARGV' tmp/aot/{{ name }} {{ args }}
