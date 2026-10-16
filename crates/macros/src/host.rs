@@ -31,7 +31,7 @@ pub struct Host {
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     /// Why the frontend refused a quote, if it did.
-    pub refusal: Option<&'static str>,
+    pub refusal: Option<String>,
 }
 
 impl Host {
@@ -83,7 +83,7 @@ impl Host {
     }
 
     fn refuse<T>(&mut self, why: &'static str) -> Result<T, &'static str> {
-        self.refusal.get_or_insert(why);
+        self.refusal.get_or_insert_with(|| why.to_owned());
         Err(why)
     }
 
@@ -145,5 +145,9 @@ impl vm::QuoteHost for Host {
             return Ok(());
         }
         self.refuse("a quote hole filled with an unknown expression")
+    }
+
+    fn refuse(&mut self, what: &str) {
+        self.refusal.get_or_insert_with(|| what.to_owned());
     }
 }

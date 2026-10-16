@@ -25,6 +25,8 @@ pub trait QuoteHost: std::any::Any {
     fn hole_count(&self, quote: u32) -> u32;
     fn hole(&self, quote: u32, hole: u32) -> Option<Hole>;
     fn fill_hole(&mut self, quote: u32, hole: u32, expr: u32) -> Result<(), &'static str>;
+    /// Refuses the expansion for `what`, whatever the macro returns.
+    fn refuse(&mut self, what: &str);
 }
 
 /// A term hole of a quote: the index its pickle gives it and its arguments, an expression
@@ -39,6 +41,14 @@ pub enum MacroArg {
     Quotes,
 }
 
+/// The macro expansions of a VM: the one running, if one is, with its host and arguments, and
+/// how many there were.
+#[derive(Default)]
+pub struct Expansions {
+    running: Option<(Box<dyn QuoteHost>, Vec<MacroArg>)>,
+    count: u32,
+}
+
 impl Vm {
     /// Calls method `sig` of module `module` with `args`, `host` serving its quotes; the number
     /// of the expression it returns. `host` is handed back whatever the outcome.
@@ -48,36 +58,33 @@ impl Vm {
         (module, sig): (&str, &str),
         args: &[MacroArg],
     ) -> (Box<dyn QuoteHost>, Result<u32, VmError>) {
-        self.quotes = Some(host);
+        self.quotes.running = Some((host, args.to_vec()));
+        self.quotes.count += 1;
         let (module, quote_host) = (self.world.top(module), self.world.top(HOST));
         let sig = StrId(self.world.pool.strings.intern(sig.into()));
-        let [expr, tpe, quotes, id] = [
-            "D4expriL17scala.quoted.ExprEO",
-            "D3tpeiL17scala.quoted.TypeEO",
-            "D6quotesL19scala.quoted.QuotesEO",
-            "D6exprIdL17scala.quoted.ExpriEO",
-        ]
-        .map(|s| self.world.member(quote_host, s));
-        let (args, out) = (args.to_vec(), Rc::new(Cell::new(0)));
+        let [made_args, id] = ["D4argsLAL16java.lang.Object_EO", "D6exprIdL17scala.quoted.ExpriEO"]
+            .map(|s| self.world.member(quote_host, s));
+        let out = Rc::new(Cell::new(0));
         let result = out.clone();
         let run = self.run_main_thread(move |vm| {
             let host = vm.module(quote_host)? as u64;
             let target = vm.module(module)?;
-            let mut values = vec![target as u64];
-            for arg in args {
-                values.push(match arg {
-                    MacroArg::Expr(n) => vm.call_global(expr, &[host, n as u64])?,
-                    MacroArg::Type(n) => vm.call_global(tpe, &[host, n as u64])?,
-                    MacroArg::Quotes => vm.call_global(quotes, &[host])?,
-                });
-            }
             let f = vm.virtual_method(target, sig)?;
+            let arr = vm.call_global(made_args, &[host])? as usize;
+            let len: i32 = heap::read(arr + ARRAY_LENGTH);
+            let at = |i: usize| heap::read::<u64>(arr + ARRAY_HEADER as usize + 8 * i);
+            let values: Vec<u64> = std::iter::once(target as u64).chain((0..len as usize).map(at)).collect();
             let returned = vm.call(f, &values)?;
             result.set(vm.call_global(id, &[host, returned])? as u32);
             Ok(())
         });
-        let host = self.quotes.take().expect("the quote host of the macro expansion");
+        let (host, _) = self.quotes.running.take().expect("the quote host of the macro expansion");
         (host, run.map(|()| out.get()))
+    }
+
+    /// How many macro expansions ran.
+    pub fn macro_expansions(&self) -> u32 {
+        self.quotes.count
     }
 }
 
@@ -98,6 +105,23 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
         (HOST, "D8fillHoleiiiuEO") => |vm, args| {
             with_host(vm, |h| h.fill_hole(args[1] as u32, args[2] as u32, args[3] as u32).map(|()| 0))
         },
+        (HOST, "D9expansioniEO") => |vm, _| Ok(vm.quotes.count as u64),
+        (HOST, "D8argCountiEO") => |vm, _| Ok(vm.quotes.running.as_ref().map_or(0, |(_, a)| a.len() as u64)),
+        (HOST, "D3argiiEO") => |vm, args| {
+            let arg = vm.quotes.running.as_ref().and_then(|(_, a)| a.get(args[1] as usize).copied());
+            Ok(match arg {
+                Some(MacroArg::Expr(n)) => n as u64,
+                Some(MacroArg::Type(n)) => !n as u64,
+                Some(MacroArg::Quotes) | None => i32::MIN as u32 as u64,
+            })
+        },
+        (HOST, "D6refuseL16java.lang.StringuEO") => |vm, args| {
+            let what = if args[1] == 0 { String::new() } else { vm.read_string(args[1] as usize)? };
+            if let Some((host, _)) = vm.quotes.running.as_mut() {
+                host.refuse(&what);
+            }
+            Ok(0)
+        },
         (QUOTES, "D7reflectL33scala.quoted.Quotes$reflectModuleEO") => {
             |vm, _| vm.throw_new_with(UNSUPPORTED, "quotes.reflect")
         }
@@ -106,13 +130,12 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     Some(f)
 }
 
-/// What `f` answers of the quote host, an `Unsupported` thrown for a refusal or outside a
-/// macro expansion.
+/// What `f` answers of the quote host, an `Unsupported` thrown for a refusal, a panic or
+/// outside a macro expansion.
 fn with_host(vm: &mut Vm, f: impl FnOnce(&mut dyn QuoteHost) -> Result<u32, &'static str>) -> Flow {
-    let answer = match vm.quotes.as_deref_mut() {
-        Some(host) => {
-            catch_unwind(AssertUnwindSafe(|| f(host))).unwrap_or(Err("a quote the frontend fails on"))
-        }
+    let answer = match vm.quotes.running.as_mut() {
+        Some((host, _)) => catch_unwind(AssertUnwindSafe(|| f(host.as_mut())))
+            .unwrap_or(Err("a quote the frontend fails on")),
         None => Err("QuoteHost outside a macro expansion"),
     };
     match answer {

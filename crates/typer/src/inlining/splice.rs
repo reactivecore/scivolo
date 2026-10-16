@@ -21,7 +21,7 @@ impl Inlining<'_> {
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         let expanded = match self.host.expand_macro(lent, &call) {
             Ok(expanded) => expanded,
-            Err(MacroError::Unsupported(what)) => return Err((span, what)),
+            Err(MacroError::Unsupported(_)) => return Err((span, "a macro expansion the frontend refuses")),
             Err(MacroError::Failed(msg)) => {
                 self.error(self.outermost_span, msg);
                 return Ok(Some(t));

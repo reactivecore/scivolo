@@ -71,8 +71,8 @@ pub struct Vm {
     /// The message `dlerror` last returned to the program.
     dlerror: std::ffi::CString,
     scratch: Vec<usize>,
-    /// The frontend's side of the macro expansion running, if one is.
-    quotes: Option<Box<dyn QuoteHost>>,
+    /// The macro expansions run, and the frontend's side of the one running.
+    quotes: natives::Expansions,
 }
 
 impl Vm {
@@ -103,7 +103,7 @@ impl Vm {
             variadics: FxHashMap::default(),
             dlerror: std::ffi::CString::default(),
             scratch: Vec::new(),
-            quotes: None,
+            quotes: natives::Expansions::default(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.funcs.no_inline = std::env::var_os("SCALAI_NO_INLINE").is_some();

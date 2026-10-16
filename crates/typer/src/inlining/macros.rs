@@ -39,7 +39,7 @@ pub struct Expanded {
 
 pub enum MacroError {
     /// The macro needs what the frontend does not support.
-    Unsupported(&'static str),
+    Unsupported(String),
     /// The macro failed, with the message dotty reports.
     Failed(String),
 }
