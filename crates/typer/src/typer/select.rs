@@ -98,17 +98,13 @@ impl Typer<'_> {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
         };
-        if !converted
-            && !self.is_accessible_from(sym, Some(qual_tpe), ctx)
-            && self.extension_visible(&text, ctx)
-        {
-            return self.extension_select(id, qual, name, pt, ctx);
-        }
-        if !converted
-            && !self.is_accessible_from(sym, Some(qual_tpe), ctx)
-            && let Some(dynamic) = self.try_dynamic(id, qual, name, pt, ctx)
-        {
-            return dynamic;
+        if !converted && !self.is_accessible_from(sym, Some(qual_tpe), ctx) {
+            if self.extension_visible(&text, ctx) {
+                return self.extension_select(id, qual, name, pt, ctx);
+            }
+            if let Some(dynamic) = self.try_dynamic(id, qual, name, pt, ctx) {
+                return dynamic;
+            }
         }
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);

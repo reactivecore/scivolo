@@ -170,7 +170,7 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(qual);
         let tpe = self.widen_if_unstable(tpe);
         let members = self.type_members(tpe, name);
-        if members.iter().any(|&s| !self.u.is_type_symbol(s)) {
+        if members.iter().any(|&s| !self.u.is_type_symbol(s)) || self.derives_dynamic(qual) {
             return Ok(true);
         }
         if self.extension_visible(name, ctx) {

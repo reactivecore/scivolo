@@ -2,7 +2,7 @@
 //! `selectDynamic`, `applyDynamic`, `applyDynamicNamed` or `updateDynamic` with the name.
 
 use super::{Pt, Typer};
-use crate::ctx::Ctx;
+use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -36,6 +36,9 @@ impl Typer<'_> {
         if name.is_type || is_dynamic_method(&text) || !self.derives_dynamic(qual) {
             return None;
         }
+        if ctx.mode.is(Mode::PATTERN) {
+            return Some(self.unsupported(id, "Dynamic member in a pattern"));
+        }
         let call = DynamicCall { qual, name: text, span: self.ast.span(id), targs: Vec::new() };
         if matches!(pt, Pt::Fun(_) | Pt::PolyFun) || self.dynamic_lhs == Some(id) {
             return Some(self.pending_dynamic(call));
@@ -54,7 +57,19 @@ impl Typer<'_> {
         Some(self.pending_dynamic(call))
     }
 
-    fn derives_dynamic(&mut self, qual: TNodeId) -> bool {
+    /// Refuses class template `rhs` with `parents` extending `scala.Dynamic` where `ctx` does not
+    /// import `scala.language.dynamics`.
+    pub fn check_dynamics_enabled(&mut self, rhs: NodeId, parents: &[tasty::TypeId], ctx: Ctx) {
+        let dynamic = parents
+            .iter()
+            .any(|&p| self.u.class_symbol(p).is_some_and(|c| self.u.full_name(c) == "scala.Dynamic"));
+        if dynamic && !self.feature_imported("dynamics", ctx) {
+            self.unsupported(rhs, "extension of Dynamic without the dynamics feature");
+        }
+    }
+
+    /// Whether the type of `qual` derives from `scala.Dynamic`.
+    pub fn derives_dynamic(&mut self, qual: TNodeId) -> bool {
         let tpe = self.tpd.tpe(qual);
         let tpe = self.zonk(tpe);
         self.derives_from_named(tpe, "scala.Dynamic")
@@ -74,6 +89,14 @@ impl Typer<'_> {
         self.dynamic_calls.contains_key(&f)
     }
 
+    /// Refuses the pending dynamic calls no application or assignment took.
+    pub fn check_dynamic_calls(&mut self) {
+        if let Some(call) = self.dynamic_calls.values().next() {
+            let span = call.span;
+            self.unsupported_at(span, "Dynamic member applied through another tree");
+        }
+    }
+
     /// Pending call `f` applied to type arguments `targs`: still pending under an application,
     /// `qual.selectDynamic[targs]("name")` otherwise.
     pub fn dynamic_type_apply(&mut self, f: TNodeId, targs: Vec<NodeId>, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -90,22 +113,18 @@ impl Typer<'_> {
         let core = self.core_dynamic(&call, "selectDynamic");
         let Tree::Apply { fun, args } = *self.ast.tree(core) else { unreachable!() };
         let typed = self.typed_apply(core, fun, args, pt, ctx);
-        self.tpd.get_mut(typed).span = call.span;
+        if call.targs.is_empty() {
+            self.tpd.get_mut(typed).span = call.span;
+        }
         typed
     }
 
-    /// Application `id` of pending call `f` to `args` (dotty's `typedDynamicApply`):
-    /// `qual.applyDynamic("name")(args)`, or with named arguments
+    /// Application `id` of pending call `f` to the arguments of `proto` (dotty's
+    /// `typedDynamicApply`): `qual.applyDynamic("name")(args)`, or with named arguments
     /// `qual.applyDynamicNamed("name")(("x", a), ("", b))`.
-    pub fn typed_dynamic_apply(
-        &mut self,
-        id: NodeId,
-        f: TNodeId,
-        args: &[NodeId],
-        pt: Pt,
-        ctx: Ctx,
-    ) -> TNodeId {
+    pub fn dynamic_apply(&mut self, id: NodeId, f: TNodeId, proto: usize, pt: Pt, ctx: Ctx) -> TNodeId {
         let call = self.dynamic_calls.remove(&f).expect("pending dynamic call");
+        let args = &self.protos[proto].args.clone();
         let named = args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }));
         if !named {
             let fun = self.core_dynamic(&call, "applyDynamic");
