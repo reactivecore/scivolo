@@ -17,7 +17,22 @@ def nothingMatch(f: () => Nothing) =
       case _ => "any"
   catch case e: IllegalStateException => e.getMessage
 
+trait Animal
+trait Pet extends Animal
+class Dog extends Pet
+
+def reflection() =
+  val dog: Any = Dog()
+  println(classOf[Animal].isInstance(dog))
+  println(classOf[Pet].isInstance(dog))
+  println(classOf[Animal].isAssignableFrom(classOf[Dog]))
+  println(classOf[Animal].isAssignableFrom(classOf[Pet]))
+  println(classOf[Pet].isAssignableFrom(classOf[Animal]))
+  println(classOf[Pet].isAssignableFrom(classOf[Pet]))
+  println(classOf[Dog].isAssignableFrom(classOf[Pet]))
+
 @main def typetests =
+  reflection()
   println(isTuple((1, 2)))
   println(isTuple("a"))
   println(isPair((1, "b", 3.0)))

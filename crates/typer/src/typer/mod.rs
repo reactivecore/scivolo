@@ -208,6 +208,8 @@ pub struct Typer<'a> {
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
+    /// The offset each source file of the unit starts at, after the first, which starts at 0.
+    pub file_starts: Vec<syntax::source::Offset>,
 }
 
 /// How many `typed` calls may be in progress at once.
@@ -261,10 +263,16 @@ impl<'a> Typer<'a> {
             inline_ctxs: FxHashMap::default(),
             exports: FxHashMap::default(),
             depth: 0,
+            file_starts: Vec::new(),
         };
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
         Ok(typer)
+    }
+
+    /// The index of the source file of the unit that `span` is in.
+    pub fn file_of(&self, span: Span) -> usize {
+        self.file_starts.partition_point(|&s| s <= span.in_own_source().without_inlined_call().start())
     }
 
     pub fn typed(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
