@@ -68,6 +68,21 @@ impl Classpath {
     /// `META-INF/`, `scala-native/`, license and build files, classes, NIR, TASTy, sources.
     pub fn resources(&mut self) -> Vec<(usize, String)> {
         let mut seen = std::collections::HashSet::new();
+        self.file_names().into_iter().filter(|(_, n)| is_resource(n) && seen.insert(n.clone())).collect()
+    }
+
+    /// The services the directories' and jars' `META-INF/services` files name.
+    pub fn services(&mut self) -> Vec<String> {
+        let names = self.file_names().into_iter();
+        let mut out: Vec<String> =
+            names.filter_map(|(_, n)| n.strip_prefix("META-INF/services/").map(str::to_owned)).collect();
+        out.sort();
+        out.dedup();
+        out
+    }
+
+    /// The files of the directories and jars, as root index and path.
+    fn file_names(&mut self) -> Vec<(usize, String)> {
         let mut out = Vec::new();
         keep_errno(|| {
             for (i, root) in self.roots.iter_mut().enumerate() {
@@ -79,9 +94,7 @@ impl Classpath {
                     }
                     Root::Image(_) => continue,
                 }
-                out.extend(
-                    names.into_iter().filter(|n| is_resource(n) && seen.insert(n.clone())).map(|n| (i, n)),
-                );
+                out.extend(names.into_iter().map(|n| (i, n)));
             }
         });
         out

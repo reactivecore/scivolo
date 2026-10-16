@@ -39,10 +39,12 @@ pub struct Decls {
     pub exception: DataId,
     /// `scalai_aot_stack_limit`, below which a function throws StackOverflowError.
     pub stack_limit: DataId,
-    /// Whether functions check the stack limit on entry: not in executables of single methods.
+    /// Whether functions check the stack limit on entry and appear in stack traces: not in
+    /// executables of single methods.
     pub stack_checks: bool,
     pub overflow_defined: bool,
-    funcs: FxHashMap<GlobalId, FuncId>,
+    /// The code-address table of the functions compiled so far.
+    pub frames: super::frames::Frames,    funcs: FxHashMap<GlobalId, FuncId>,
     rttis: FxHashMap<ClassId, DataId>,
     loads: FxHashMap<ClassId, FuncId>,
     imports: FxHashMap<&'static str, FuncId>,
@@ -72,7 +74,7 @@ impl Decls {
             stack_limit,
             stack_checks: true,
             overflow_defined: false,
-            call_conv: module.isa().default_call_conv(),
+            frames: Default::default(),            call_conv: module.isa().default_call_conv(),
             ptr: module.target_config().pointer_type(),
             rtti,
             module_slots,

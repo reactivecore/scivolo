@@ -20,8 +20,9 @@ pub use ffi::{
     watch_sigint,
 };
 pub use resources::Resources;
+pub use services::{is_load, provider_names};
 pub use threads::interrupt_thread;
-pub use unwind::StackWalk;
+pub use unwind::{StackWalk, element_names, element_position, is_element_method, may_build_throwable};
 
 use crate::interp::Flow;
 use crate::interp::code::Num;

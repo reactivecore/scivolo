@@ -8,6 +8,8 @@ mod branches;
 mod checks;
 mod consts;
 mod decls;
+mod elements;
+mod frames;
 mod intrinsics;
 mod linktime;
 mod memory;
@@ -15,6 +17,7 @@ mod modules;
 mod objects;
 mod ops;
 mod overflow;
+mod replaced;
 mod rtti_layout;
 mod stack_check;
 mod start;
@@ -103,7 +106,8 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
         start::define_main(&mut module, &mut reach, &mut decls, top)?;
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
-    crate::tables::define(&mut module, &mut reach, &mut decls)?;    decls.define_roots(&mut module)?;
+    crate::tables::define(&mut module, &mut reach, &mut decls)?;
+    std::mem::take(&mut decls.frames).define(&mut module, &mut reach, &mut decls)?;    decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
     Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
 }
@@ -134,7 +138,11 @@ fn define(
     let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
     f.ret_ty = ret;
     f.has_this = this;
-    match f.body(body) {
+    let built = match replaced::replaced(&f.reach.world.pool, g) {
+        Some(r) => f.replaced_body(r),
+        None => f.body(body),
+    };
+    match built {
         Ok(()) => f.finish(),
         // Temporary until #115 (precise reachability): code reached only through the
         // over-approximated dispatch may name classes the classpath lacks; it stops the program.
@@ -144,6 +152,8 @@ fn define(
         }
         Err(e) => return Err(format!("{name}: {e}")),
     }
-    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;    module.clear_context(ctx);
+    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
+    decls.frames.record(id, g, ctx);
+    module.clear_context(ctx);
     Ok(())
 }

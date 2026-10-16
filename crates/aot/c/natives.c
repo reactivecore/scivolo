@@ -1,6 +1,5 @@
 // Natives the VM implements in Rust, for executables: the current thread, stack guards (no-ops:
-// stack.c guards the stack), the unwinder, and the LLVM intrinsics Scala Native's code calls.
-// Temporary until #115 (stack traces): the unwinder reports no frames.
+// stack.c guards the stack), and the LLVM intrinsics Scala Native's code calls.
 #include <math.h>
 #include <stdint.h>
 
@@ -27,15 +26,6 @@ int32_t scalanative_resource_get_path_length(int32_t id) { return 0; }
 void *scalanative_resource_get_path_ptr(int32_t id) { return 0; }
 int32_t scalanative_resource_get_content_length(int32_t id) { return 0; }
 void *scalanative_resource_get_content_ptr(int32_t id) { return 0; }
-
-int64_t scalanative_unwind_sizeof_context(void) { return 16; }
-int64_t scalanative_unwind_sizeof_cursor(void) { return 16; }
-int scalanative_unwind_get_context(void *context) { return 0; }
-int scalanative_unwind_init_local(void *cursor, void *context) { return 0; }
-int scalanative_unwind_step(void *cursor) { return 0; }
-int scalanative_unwind_get_reg(void *cursor, int reg, void *value) { return 0; }
-int scalanative_unw_reg_ip(void) { return 0; }
-int scalanative_unwind_get_proc_name_by_ip(void *ip, char *buf, int64_t len, void *offset) { return -1; }
 
 #define UNARY(name, fn)                                                                            \
     double scalai_aot_llvm_##name##_f64(double x) { return fn(x); }                                \
