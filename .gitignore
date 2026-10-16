@@ -17,5 +17,6 @@ spikes/*/corpus/
 !spikes/**/artifacts/*.tasty
 !crates/tasty/tests/fixtures/*.tasty
 ref/
+/ref
 tmp/
 __pycache__/

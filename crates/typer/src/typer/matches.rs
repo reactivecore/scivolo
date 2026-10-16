@@ -89,8 +89,8 @@ impl Typer<'_> {
         self.pattern_types(pat, &mut types);
         locals.extend(types.iter().filter(|t| !locals.contains(t)).copied().collect::<Vec<_>>());
         let unconstrained = self.is_top(selector);
-        let (bounded, opaque): (&[_], &[_]) = if unconstrained { (&types, &[]) } else { (&[], &types) };
-        let Some(body) = self.no_local_refs(typed_body, &locals, [bounded, opaque], pt) else {
+        let opaque: &[_] = if unconstrained { &[] } else { &types };
+        let Some(body) = self.no_local_refs(typed_body, &locals, opaque, pt) else {
             return self.unsupported(id, "case type with pattern variables");
         };
         let span = self.ast.span(id);

@@ -1,7 +1,7 @@
 //! References to local symbols escaping their scope (dotty's `escapingRefs`).
 
 use super::Typer;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
@@ -14,5 +14,37 @@ impl Typer<'_> {
             pre.filter(|_| u.is_static_symbol(s)).map(|_| part)
         });
         found
+    }
+
+    /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`,
+    /// directly or through the bounds of the variables in it.
+    pub fn var_bounds_refer_to(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
+        if locals.is_empty() {
+            return false;
+        }
+        let mut seen = Vec::new();
+        let mut todo = vec![t];
+        while let Some(t) = todo.pop() {
+            let mut vars = Vec::new();
+            self.u.map_type(t, &mut |u, part| {
+                if let Type::Var(v) = *u.types().get(part) {
+                    vars.push(v);
+                }
+                None
+            });
+            for v in vars {
+                if seen.contains(&v) || self.constraint.instance(v).is_some() {
+                    continue;
+                }
+                seen.push(v);
+                let (lo, hi) = self.constraint.bounds(v);
+                let (lo, hi) = (self.zonk(lo), self.zonk(hi));
+                if self.refers_to(lo, locals) || self.refers_to(hi, locals) {
+                    return true;
+                }
+                todo.extend([lo, hi]);
+            }
+        }
+        false
     }
 }
