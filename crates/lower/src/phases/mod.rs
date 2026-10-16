@@ -73,6 +73,7 @@ mod narrowed;
 mod nested_reads;
 mod non_local_returns;
 mod outer_args;
+mod outer_ctors;
 mod outer_fields;
 mod outer_tests;
 mod outer_traits;

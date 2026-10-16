@@ -110,3 +110,4 @@ subcases
 typetests3
 localgenerics
 outerpatterns
+innerctors

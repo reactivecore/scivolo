@@ -26,6 +26,7 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
     l.u.set_info(param, tpe);
     super::leading_params::add_params(l, constr, ctor, &[param]);
     l.outers.insert(class, (None, param));
+    super::outer_ctors::declare(l, td, class);
 }
 
 /// Makes the references of class definition `td` of `class` to enclosing instances read its
@@ -55,7 +56,9 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
                 all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect()
             });
             let span = parents.get(&t).and_then(|&p| l.after_siblings(p, t)).unwrap_or(l.tpd.span(t));
-            let start = if method {
+            let start = if let Some(p) = super::outer_ctors::param(l, stat) {
+                l.ident(p, Span::NONE)
+            } else if method {
                 let this = l.this(class, span);
                 let field = field(l, class);
                 l.select(this, field, span)
