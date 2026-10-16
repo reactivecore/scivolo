@@ -29,7 +29,9 @@ impl Typer<'_> {
             Type::Sym(_, s) if a.opaque.contains(&s) => None,
             Type::Sym(_, s) if a.locals.contains(&s) => self.avoid_local(s, v, a),
             Type::Sym(Some(pre), s) if !self.u.is_static_symbol(s) => {
-                let p = m(self, pre, v.max(0))?;
+                let Some(p) = m(self, pre, v.max(0)) else {
+                    return self.avoid_select_on_failed(t, pre, s, v, a);
+                };
                 self.avoid_select(t, pre, p, s, v, a)
             }
             Type::This(_) | Type::Sym(..) => exact(t),

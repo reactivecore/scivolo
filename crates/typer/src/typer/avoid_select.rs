@@ -25,14 +25,8 @@ impl Typer<'_> {
         if !singleton && let Some(r) = self.try_widen(t, pre, s, v, a) {
             return r;
         }
-        let kind = self.u.symbol(s).kind;
-        if kind.is_term() && v > 0 && !singleton {
-            let info = self.u.term_type(Some(pre), s);
-            let info = self.u.widen(info);
-            if matches!(self.u.types().get(info), Type::Bounds(..)) {
-                return self.avoid_info(info, v, a);
-            }
-            return self.avoid_at(info, v, a);
+        if self.u.symbol(s).kind.is_term() && v > 0 && !singleton {
+            return self.avoid_term_info(pre, s, v, a);
         }
         let name = self.u.symbol(s).name.clone();
         if self.type_members(p.hi(), &name).is_empty() {
@@ -44,6 +38,32 @@ impl Typer<'_> {
             lo => self.u.intern_type(Type::Sym(Some(lo), s)),
         };
         Some(approx::range(self.u, Approx::Exact(lo), Approx::Exact(hi), v))
+    }
+
+    /// `pre.s` whose prefix cannot be approximated: what it is equal to or bounded by, or a
+    /// term's widened type at a positive variance.
+    pub fn avoid_select_on_failed(
+        &mut self,
+        t: TypeId,
+        pre: TypeId,
+        s: SymbolId,
+        v: i8,
+        a: Avoided,
+    ) -> Option<Approx> {
+        if let Some(r) = self.try_widen(t, pre, s, v, a) {
+            return r;
+        }
+        (self.u.symbol(s).kind.is_term() && v > 0).then(|| self.avoid_term_info(pre, s, v, a))?
+    }
+
+    /// The widened type of term `s` selected on `pre`, approximated.
+    fn avoid_term_info(&mut self, pre: TypeId, s: SymbolId, v: i8, a: Avoided) -> Option<Approx> {
+        let info = self.u.term_type(Some(pre), s);
+        let info = self.u.widen(info);
+        if matches!(self.u.types().get(info), Type::Bounds(..)) {
+            return self.avoid_info(info, v, a);
+        }
+        self.avoid_at(info, v, a)
     }
 
     /// `pre.s` replaced by what it is equal to or bounded by (dotty's `tryWiden` and
