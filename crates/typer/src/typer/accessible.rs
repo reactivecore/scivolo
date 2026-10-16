@@ -78,9 +78,10 @@ impl Typer<'_> {
                 true => tasty::module_name(name)?.to_owned(),
                 false => tasty::module_class_name(name),
             };
-            let linked = self.levels.scope_mate(c, &name)?;
-            return (self.u.is_class(linked) && self.u.is_module_class(linked) != module_class)
-                .then_some(linked);
+            let u = &*self.u;
+            return self
+                .levels
+                .scope_mate(c, &name, |s| u.is_class(s) && u.is_module_class(s) != module_class);
         }
         if module_class {
             return self.u.companion_class(c);
