@@ -1,6 +1,8 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod accessible;
+mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -12,10 +14,13 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
+mod approx;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;
-mod avoid_pattern_types;
+mod avoid_captures;
+mod avoid_map;
+mod avoid_select;
 mod call_types;
 mod case_lambdas;
 mod class_bound;
@@ -32,18 +37,22 @@ mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
+mod define_further;
 mod defs;
 pub(crate) mod dependent_params;
+mod dependent_results;
 mod derived;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
+mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
 mod equality;
 mod errors;
 mod escaping;
 mod eta;
+mod export_trees;
 mod extension_calls;
 mod features;
 mod find_ref;
@@ -57,6 +66,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inline_accessors;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
@@ -68,6 +78,7 @@ mod lift;
 mod lift_app;
 mod linter;
 mod literals;
+mod match_type_trees;
 mod matches;
 mod member_views;
 mod members;
@@ -99,12 +110,15 @@ mod refined_types;
 mod refutable_warnings;
 mod repeated;
 mod report;
+mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+mod shown_prefix;
+pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
 mod stats;
@@ -112,6 +126,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
@@ -146,6 +161,7 @@ use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
+pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -199,6 +215,15 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    pub accessors: inline_accessors::Accessors,
+    /// The implicit members of the unit's package objects in each package, once asked for.
+    pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
+    /// The forwarders of each export clause in a class body.
+    pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The pending dynamic calls, by their placeholder trees.
+    pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The left-hand side of the assignment being typed.
+    pub dynamic_lhs: Option<NodeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -254,6 +279,11 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            accessors: Default::default(),
+            package_implicits: FxHashMap::default(),
+            exports: FxHashMap::default(),
+            dynamic_calls: FxHashMap::default(),
+            dynamic_lhs: None,
             depth: 0,
             file_starts: Vec::new(),
         };

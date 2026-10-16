@@ -1,5 +1,6 @@
 //! Types without references to local symbols (dotty's `ensureNoLocalRefs`, `TypeOps.avoid`).
 
+use super::avoid_map::Avoided;
 use super::{Pt, Typer};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::{SymbolId, Type, TypeId};
@@ -8,20 +9,21 @@ impl Typer<'_> {
     /// Whether type `t` refers to one of `syms`.
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
+        let mut classes = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = u.types().get(part)
-                && syms.contains(s)
-            {
-                found = true;
+            match *u.types().get(part) {
+                Type::Sym(_, s) => found |= syms.contains(&s),
+                Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
+                _ => {}
             }
             None
         });
-        found
+        found || classes.into_iter().any(|c| self.refers_to(c, syms))
     }
 
     /// `{ defs; tree }`, or `tree` if there are no definitions (dotty's `wrapDefs`), its type
-    /// widened if it refers to the definitions, and classes selected on them selected on their
-    /// widened types (dotty's `avoid`); outside the subset if it still refers to them.
+    /// avoiding the definitions (dotty's `avoidingType`); outside the subset if it still refers
+    /// to them or is not a supertype of the original.
     pub fn wrap_defs(&mut self, defs: Vec<TNodeId>, tree: TNodeId) -> TNodeId {
         if defs.is_empty() {
             return tree;
@@ -29,19 +31,16 @@ impl Typer<'_> {
         let span = defs.iter().fold(self.tpd.span(tree), |s, &d| s.union(self.tpd.span(d)));
         let span = syntax::ast::Span::synthetic(span.start(), span.end());
         let syms: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
-        let tpe = self.tpd.get(tree).tpe.map(|t| if self.refers_to(t, &syms) { self.u.widen(t) } else { t });
-        let tpe = tpe.map(|t| {
-            self.u.map_type(t, &mut |u, part| {
-                let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
-                let local = matches!(*u.types().get(pre), Type::Sym(_, p) if syms.contains(&p));
-                if !local || u.symbol(s).kind != tasty::Kind::Class {
-                    return None;
-                }
-                let widened = u.widen(pre);
-                Some(u.intern_type(Type::Sym(Some(widened), s)))
-            })
+        let original = self.tpd.get(tree).tpe;
+        let tpe = original.map(|t| match self.refers_to(t, &syms) {
+            true => match self.avoid_at(t, 1, Avoided::new(&syms, &[])) {
+                Some(a) => self.normalized(a.hi()),
+                None => t,
+            },
+            false => t,
         });
-        if tpe.is_some_and(|t| self.refers_to(t, &syms)) {
+        let widened = original.zip(tpe).is_some_and(|(t, a)| t != a && !self.u.is_subtype(t, a));
+        if widened || tpe.is_some_and(|t| self.refers_to(t, &syms)) {
             self.unsupported_at(span, "type of a lifted call referring to a lifted value");
         }
         let stats = self.tpd.list(&defs);
@@ -49,14 +48,14 @@ impl Typer<'_> {
     }
 
     /// Block result `expr`, ascribed a type without references to `locals` if its own has some
-    /// (dotty's `ensureNoLocalRefs`): its references to local terms widened, a `bounded` type to
-    /// its upper bound, or `pt` if that does not conform to `pt`; `None` if a reference remains
-    /// or one to an `opaque` type, whose bounds are unknown, is reached.
+    /// (dotty's `ensureNoLocalRefs`): the upper approximation of `TypeOps.avoid`, or `pt` if that
+    /// does not conform to `pt`; `None` if a reference remains, the approximation is out of the
+    /// subset, or a type of `opaque`, whose bounds are unknown, is reached.
     pub fn no_local_refs(
         &mut self,
         expr: TNodeId,
         locals: &[SymbolId],
-        [bounded, opaque]: [&[SymbolId]; 2],
+        opaque: &[SymbolId],
         pt: Pt,
     ) -> Option<TNodeId> {
         let tpe = self.tpd.tpe(expr);
@@ -64,78 +63,18 @@ impl Typer<'_> {
         if !self.escapes(tpe, locals) && !self.var_bounds_refer_to(tpe, locals) {
             return Some(expr);
         }
-        let mut avoided = self.u.map_type(tpe, &mut |u, part| {
-            let pre = match u.types().get(part) {
-                Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => *pre,
-                _ => return None,
-            };
-            let mut local = false;
-            u.map_type(pre, &mut |u, q| {
-                local |= matches!(*u.types().get(q), Type::Sym(_, l) if locals.contains(&l));
-                None
-            });
-            let dealiased = u.dealias(part);
-            (local && dealiased != part).then_some(dealiased)
-        });
-        avoided = self.avoid_pattern_types(avoided, bounded);
-        let mut checked = avoided != tpe;
-        for _ in 0..16 {
-            let Type::Sym(_, s) = *self.u.types().get(avoided) else { break };
-            if locals.contains(&s) && self.u.symbol(s).kind == tasty::Kind::Class {
-                let object = self.u.builtins().object;
-                let parents = self.u.parents(s);
-                let proper = parents.iter().filter(|&&p| self.u.class_symbol(p) != Some(object)).count();
-                avoided = parents.into_iter().fold(tasty::ANY, |acc, p| self.u.glb(acc, p));
-                if proper > 2 || self.needs_refinement(s, avoided) {
-                    return None;
-                }
-                checked = true;
-                break;
-            }
-            if self.u.is_type_symbol(s) {
-                if bounded.contains(&s) {
-                    let info = self.u.info(s);
-                    if let Type::Bounds(_, hi) = *self.u.types().get(info) {
-                        (avoided, checked) = (hi, true);
-                    }
-                }
-                break;
-            }
-            let pre = match *self.u.types().get(avoided) {
-                Type::Sym(pre, _) => pre,
-                _ => None,
-            };
-            let prefix = pre.filter(|&p| !locals.contains(&s) && self.refers_to(p, locals));
-            if !locals.contains(&s) && prefix.is_none() {
-                break;
-            }
-            let info = match prefix {
-                Some(pre) => self.u.member_info(pre, s),
-                None => self.u.info(s),
-            };
-            let info = match *self.u.types().get(info) {
-                Type::Bounds(_, hi) => hi,
-                _ => info,
-            };
-            let info = match *self.u.types().get(info) {
-                Type::ByName(r) => r,
-                _ => info,
-            };
-            avoided = if prefix.is_some() { self.resolve_class_params(info) } else { self.u.dealias(info) };
-        }
-        if self.refers_to(avoided, opaque) {
-            return None;
-        }
+        let avoided = self.avoid_at(tpe, 1, Avoided::new(locals, opaque))?.hi();
+        let mut avoided = self.normalized(avoided);
         if let Pt::Type(p) = pt
             && let p = self.zonk(p)
             && self.is_fully_defined(p)
             && !self.u.is_subtype(avoided, p)
         {
-            (avoided, checked) = (p, true);
+            avoided = p;
         }
         if self.refers_to(avoided, locals)
             || self.var_bounds_refer_to(avoided, locals)
-            || checked && !self.u.is_subtype(tpe, avoided)
+            || !self.u.is_subtype(tpe, avoided)
         {
             return None;
         }

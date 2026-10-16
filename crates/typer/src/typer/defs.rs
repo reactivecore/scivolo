@@ -64,6 +64,10 @@ impl Typer<'_> {
         let paramss = self.tpd.clauses(&typed_clauses);
         let result = self.def_result(sym);
         let tpt = self.typed_tpt(tpt, Some(result), mctx);
+        let owner = self.u.symbol(sym).owner;
+        if rhs.is_some() && self.u.symbol(sym).name == "<init>" && owner.is_some_and(|o| self.u.is_trait(o)) {
+            self.error_at(self.ast.span(id), "Traits cannot have secondary constructors");
+        }
         let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
         if let Some(r) = rhs
             && self.u.symbol(sym).name == "<init>"
@@ -81,6 +85,9 @@ impl Typer<'_> {
             }
             if !flags.has(tasty::tags::TRANSPARENT) {
                 rhs = rhs.map(|r| self.inline_body(r, tpt));
+            }
+            if let Some(r) = rhs {
+                self.make_inlineable(r, sym, mctx);
             }
         }
         let span = self.ast.span(id);

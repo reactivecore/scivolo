@@ -29,7 +29,7 @@ impl Typer<'_> {
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
-        let (mut converted, mut widened, mut tupled) = (false, false, false);
+        let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -53,7 +53,11 @@ impl Typer<'_> {
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
-            if matches!(pt, Pt::Fun(_))
+            if !defined && self.defined_fail_bottom(qual_tpe).is_some() {
+                defined = true;
+                continue;
+            }
+            if matches!(pt, Pt::Fun(_) | Pt::PolyFun)
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;
@@ -75,7 +79,10 @@ impl Typer<'_> {
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
                 }
-                Ok(None) if !widened => return self.member_not_found(id, qual, name, ctx),
+                Ok(None) if !widened => {
+                    let dynamic = self.try_dynamic(id, qual, name, pt, ctx);
+                    return dynamic.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
+                }
                 Ok(None) => return self.unsupported(id, "member not found"),
                 Err(what) => return self.unsupported(id, what),
             }
@@ -91,6 +98,14 @@ impl Typer<'_> {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
         };
+        if !converted && !self.is_accessible_from(sym, Some(qual_tpe), ctx) {
+            if self.extension_visible(&text, ctx) {
+                return self.extension_select(id, qual, name, pt, ctx);
+            }
+            if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
+                return dynamic;
+            }
+        }
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);
         }
@@ -100,19 +115,9 @@ impl Typer<'_> {
         if let Err(what) = self.check_value(sym, name, matches!(pt, Pt::Fun(_)), ctx) {
             return self.unsupported(id, what);
         }
-        let flags = self.u.symbol(sym).flags;
-        let protected = flags.has(tasty::tags::PROTECTED) || flags.has(tasty::tags::PROTECTEDqualified);
-        let super_call = matches!(self.tpd.tree(qual), T::New { .. })
-            && self.u.symbol(sym).name == "<init>"
-            && self.u.symbol(ctx.owner).owner.is_some_and(|c| {
-                self.syms.primary_ctors.get(&c) == Some(&ctx.owner)
-                    && self.u.symbol(sym).owner.is_some_and(|p| self.u.derives_from(c, p))
-            });
-        if protected
-            && !super_call
-            && !matches!(self.u.types().get(qual_tpe), Type::This(_) | Type::Super(..))
-        {
-            return self.unsupported(id, "protected member through a path");
+        let new = matches!(self.tpd.tree(qual), T::New { .. });
+        if let Err(what) = self.check_protected_path(sym, qual_tpe, new, ctx) {
+            return self.unsupported(id, what);
         }
         let projection = self.tpd.sym(qual).is_some_and(|q| self.u.is_type_symbol(q))
             || matches!(self.tpd.tree(qual), T::AppliedTypeTree { .. });

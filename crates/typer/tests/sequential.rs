@@ -112,10 +112,10 @@ fn unit_after_a_failed_one() {
 fn definition_left_incomplete_by_a_failed_unit() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();
-    let first = "object rs$line$1 { trait T(x: Int) { def g = 1 } }";
+    let first = "object rs$line$1 { case class T(f: Int ?=> Int) { def g = 1 } }";
     assert_eq!(
         type_unit(&mut u, &mut units, "line.scala", first),
-        Err("unsupported trait parameters".into())
+        Err("unsupported case class element of a context function type".into())
     );
     let second = "object rs$line$2 { import rs$line$1.*; def h(t: T) = t.g }";
     assert_eq!(
@@ -201,14 +201,52 @@ fn transparent_inline_refusals() {
             "transparent inline extractor",
         ),
         (
-            "object D { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K): k.T = k.t
-             val r = d(new K) }",
+            "object D { abstract class K { type T; val t: T }; class L extends K { type T = Int; val t = 1 }
+             transparent inline def d(k: K, n: Int): k.T = k.t
+             val r = d(n = 1, k = new L) }",
             "dependent result type",
+        ),
+        (
+            "object E { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K, n: Int): k.T = k.t
+             val r = d(n = 1, k = new K) }",
+            "",
         ),
         ("object rs$line$1 { transparent inline def e: Any = 1 }", ""),
         ("object rs$line$2 { import rs$line$1.*; val x = e }", "transparent inline method call"),
     ];
     for (text, what) in refusals {
+        let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };
+        assert_eq!(type_unit(&mut u, &mut units, "t.scala", text), expected, "{text}");
+    }
+}
+
+#[test]
+fn match_types_reduce_in_conformance() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let cases = [
+        (
+            "object M { type E[X] = X match { case String => Char; case Array[t] => t }
+             def c[X](x: X): E[X] = ???; val s: Char = c(\"a\"); val i: Int = c(Array(1)) }",
+            "",
+        ),
+        ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
+        ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that may reduce"),
+        (
+            "object S { class C[-T]; type G[X] = X match { case C[List[t]] => t } }",
+            "match type pattern outside the subset",
+        ),
+        (
+            "object P { type M[X] = X match { case Array[t] => t => Unit }; def f[X](m: M[X]): Any => Unit = m }",
+            "adaptation",
+        ),
+        (
+            "object Q { type M[X] <: Int = X match { case Int => String } }",
+            "match type case body outside the bound",
+        ),
+        ("object R { val b: scala.compiletime.ops.any.==[1, 1L] = false }", "adaptation"),
+    ];
+    for (text, what) in cases {
         let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };
         assert_eq!(type_unit(&mut u, &mut units, "t.scala", text), expected, "{text}");
     }
@@ -247,7 +285,7 @@ fn no_false_errors_behind_unsupported_constructs() {
     let cases = [
         (
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
-            "Export",
+            "export of a class without a companion object",
         ),
         ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
         (

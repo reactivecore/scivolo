@@ -115,6 +115,8 @@ pub struct Lower<'a> {
     impure_modules: FxHashSet<SymbolId>,
     /// The method or constructor whose trees `Erasure` types, owning the values it defines.
     erasure_owner: Option<SymbolId>,
+    /// The values type tests of unions and intersections evaluate once, with their spans.
+    tested_values: Vec<(SymbolId, Span)>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -177,6 +179,7 @@ pub fn lower_sources(
         inlined_blocks: FxHashSet::default(),
         impure_modules: FxHashSet::default(),
         erasure_owner: None,
+        tested_values: Vec::new(),
     };
     let files = phases::run(&mut l, root).and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);

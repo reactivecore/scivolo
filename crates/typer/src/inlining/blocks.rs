@@ -40,8 +40,18 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None))
     }
 
-    /// Gives inlined tree `t` the type of its expansion, widened to avoid its bindings.
+    /// Gives inlined tree `t` the type of its expansion, widened to avoid its bindings, and a
+    /// selection `t` from an inlined tree its member as seen from that tree's type.
     pub fn retype_inlined(&mut self, t: TNodeId) {
+        if let T::Select { qualifier, .. } = *self.tpd.tree(t)
+            && matches!(self.tpd.tree(qualifier), T::Inlined { .. })
+            && let Some(tpe) = self.tpd.get(t).tpe
+            && let Type::Sym(Some(_), m) = *self.u.types().get(tpe)
+        {
+            let prefix = self.tpd.tpe(qualifier);
+            self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), m)));
+            return;
+        }
         let T::Inlined { bindings, expansion, .. } = *self.tpd.tree(t) else { return };
         let locals: Vec<SymbolId> =
             self.tpd.items(bindings).iter().filter_map(|&b| self.tpd.sym(b)).collect();
@@ -58,6 +68,7 @@ impl Inlining<'_> {
                 _ => widened,
             };
             let widened = self.u.dealias(widened);
+            let widened = crate::typer::simplify::normalize_all(self.u, widened);
             if widened == tpe {
                 return None;
             }

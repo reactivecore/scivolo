@@ -185,7 +185,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    type; `given` imports of implicits and sibling calls in collective extensions; N4 refined type
    trees with type-member refinements and member lookup through `Refined`, N6 members of the
    `EmptyTuple` alias and small generic tuples as `TupleN`; match types decoded with their cases
-   (research 21 M1).
+   and reduced (research 21, #39), `constValueTuple`/`summonAll`. Research 22 (2026-10-16):
+   exports, qualified private/protected with dotty's `isAccessibleFrom`, dotty's `AvoidMap`,
+   trait parameters, `scala.Dynamic` (#42), dependent result types; implicits from the expected
+   type and tuple mirrors (#83); retained inline methods and inline accessors (#82).
    `just typer-report`: tests/pos 1359 typed as dotty, 32 differ, 1618 refused (source
    versions other than 3.9 among them); tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
@@ -200,10 +203,12 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    context functions erased to `FunctionN` and flattened in results of final methods, and
    ExpandSAMs' partial functions and SAM classes, super accessors that library traits declare,
    outer tests of path and projection prefixes in patterns, curried local methods, and class
-   parameters of type Unit, Null or Nothing.
-   Of dotty's `tests/run`, 878 pass through typer, lowering and VM on 2026-10-15 (809 before the
-   2026-10-15 batches, 399 on 2026-10-11), 23 are refused by the lowering, none crashes in the
-   VM; see
+   parameters of type Unit, Null or Nothing; sub matches, type tests of unions and generic
+   arrays, generic local classes, inner classes' secondary constructors, sum mirrors, SAM
+   bridges and trait parameters (2026-10-16).
+   Of dotty's `tests/run`, 964 pass through typer, lowering and VM on 2026-10-16 (878 on
+   2026-10-15, 399 on 2026-10-11), 9 are refused by the lowering, 1 crashes in the VM (i15618,
+   a match type erased unreduced, #120); see
    [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
@@ -256,12 +261,19 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Where we are and what's next (2026-10-15)
+## Where we are and what's next (2026-10-16)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-15,
-878 of 1711 pass (861 before the evening batch, 809 before the batches below, 399 on
-2026-10-11), 531 stop at the typer, 23 at the lowering, and 1 crashes in the frontend (t8199).
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-16,
+964 of 1711 pass at `scala.Dynamic` (!313; 878 on 2026-10-15, 399 on 2026-10-11), 458 stop at
+the typer, 9 at the lowering, 1 crashes in the frontend (t8199) and 1 in the VM (i15618).
+Dependent result types (!314) add 7 more, measured on their branch.
+
+Stacked on 2026-10-16 (one MR each, reviewed by a subagent, !298–!313): research 22; the
+lowering gaps of #34; exports; match-type reduction (research 21 M2–M4); access; avoidance of
+local symbols; trait parameters; the rest of typer group A (implicits from the expected type,
+tuple mirrors, package givens); retained inline methods and inline accessors (#82);
+`scala.Dynamic` (#42); dependent result types; research 23 for what follows.
 
 Merged in the 2026-10-15 batch (one integration MR): typer group A further (#83: search
 history with by-name implicits, divergence checks and their dictionary; context functions,
@@ -291,20 +303,16 @@ decoded with their cases); the lowering's outer tests of path and projection pre
 local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
-1. **Typer groups** (research 14, 18, 19, 20): the rest of A (no implicit argument, 29, among
-   them lazy-implicit-nums and -lists, which need unification inside implicit searches); members
-   not found (25); adaptations (18); match-type
-   reduction for generic tuples and `scala.compiletime` (research 21 M2–M4, #39, ~33 tests); the
-   rest of D; structural refinements (reflective calls in the lowering); the rest of E, opaque
-   aliases other than classes (8); the rest of G, type lambdas and higher-kinded type lambda
-   parameters (4 each).
+1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): type patterns
+   (P, ~24 tests, in progress), overloads (O), mirrors and `derives` (#43), opaque aliases,
+   tuples over 22, small groups, structural types; match-type leftovers (#120); typed-tree
+   printing gaps (#122); implicit candidate interpolation (#123).
 2. **Startup** (#9): the VM's `run_main` from a heap snapshot.
-3. **Lowering gaps** (research 15): patterns of classes in classes, calls with several argument
-   lists, `Unit`/`Null`/`Nothing` parameters and private fields, sub matches, reflective calls,
-   overridable or overloaded methods with context function results.
-4. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
-   inline methods, inline accessors, `constValueTuple`/`summonAll`, inline methods of
-   earlier REPL inputs; the forward-reference check (#90).
+3. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
+   overridable methods with context function results, traits nested in local traits.
+4. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
+   polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
+   inputs; the forward-reference check (#90).
 5. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
 6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).

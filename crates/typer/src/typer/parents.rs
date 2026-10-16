@@ -22,12 +22,24 @@ impl Typer<'_> {
 
     /// The parent types of a class from parent trees `parents`, typed in `ctx` and dealiased,
     /// with a class first.
-    pub fn parent_types(&mut self, parents: &[NodeId], ctx: Ctx) -> Vec<TypeId> {
+    pub fn parent_types(&mut self, cls: SymbolId, parents: &[NodeId], ctx: Ctx) -> Vec<TypeId> {
         let mut types = Vec::new();
         for &p in parents {
             let tpt = self.parent_tpt(p);
             let typed = self.typed_type(tpt, ctx);
-            let tpe = self.tpd.tpe(typed);
+            let mut tpe = self.tpd.tpe(typed);
+            if matches!(self.ast.tree(p), Tree::Apply { .. }) && self.type_arity(tpe) > 0 {
+                let call = self.typed(p, super::Pt::Any, ctx);
+                self.typed_ahead(p, call, ctx);
+                tpe = self.tpd.tpe(call);
+                tpe = match self.fully_defined_as(tpe, true) {
+                    Ok(t) => t,
+                    Err(what) => {
+                        self.unsupported(p, what);
+                        tpe
+                    }
+                };
+            }
             let tpe = self.u.dealias(tpe);
             self.check_simple_kinded(tpe, tpt);
             if let Some(c) = self.u.class_symbol(tpe) {
@@ -40,10 +52,19 @@ impl Typer<'_> {
                 if !types.is_empty() && !self.u.is_trait(c) {
                     self.unsupported(p, "class used as a mixin");
                 }
+                let ctors = if self.u.is_trait(c) {
+                    self.u.decl(c, "<init>").unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                if ctors.into_iter().any(|k| !self.is_accessible(k, ctx)) {
+                    self.unsupported(p, "inaccessible trait constructor");
+                }
             }
             types.push(tpe);
         }
-        self.ensure_first_is_class(types)
+        let types = self.ensure_first_is_class(types);
+        self.add_using_traits(cls, types)
     }
 
     /// `parents` with the class parent their class parents agree on first, if they do not start

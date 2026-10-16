@@ -49,7 +49,15 @@ impl Typer<'_> {
             Widen::Singletons => self.harden_unions(single),
         };
         let wide = self.without_transparent_traits(wide, bound);
-        let wide = self.module_ref(wide);
+        let wide = match (self.module_ref(wide), self.u.types().get(inst).clone()) {
+            (m, Type::Sym(Some(p), s))
+                if matches!(*self.u.types().get(m), Type::Sym(_, n) if n == s)
+                    && self.in_package_object(p) =>
+            {
+                inst
+            }
+            (m, _) => m,
+        };
         Ok(self.without_repeated_annot(wide))
     }
 
@@ -128,6 +136,12 @@ impl Typer<'_> {
             Type::Sym(_, c) => self.u.full_name(c) == "scala.Singleton",
             _ => false,
         }
+    }
+
+    /// Whether `prefix` is the `this` of a package object.
+    fn in_package_object(&mut self, prefix: TypeId) -> bool {
+        let Type::This(c) = *self.u.types().get(prefix) else { return false };
+        self.u.class_symbol(c).is_some_and(|c| self.is_named_package_object(c))
     }
 
     /// The object whose module class `t` is, as a reference, or `t`.

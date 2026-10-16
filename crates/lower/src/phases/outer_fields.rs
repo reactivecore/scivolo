@@ -3,7 +3,7 @@
 //! constructor code, else the field. An anonymous local class has the field only where its
 //! methods read it and the accessor only where called (dotty's `DropOuterAccessors`).
 
-use super::explicit_outer::{outer_accessor, outer_this, terms};
+use super::explicit_outer::{outer_accessor, outer_prefix, outer_this, terms};
 use super::local_free::is_local;
 use super::local_outer::is_anonymous;
 use super::walk::children;
@@ -26,6 +26,7 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) {
     l.u.set_info(param, tpe);
     super::leading_params::add_params(l, constr, ctor, &[param]);
     l.outers.insert(class, (None, param));
+    super::outer_ctors::declare(l, td, class);
 }
 
 /// Makes the references of class definition `td` of `class` to enclosing instances read its
@@ -49,12 +50,15 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
         let all = terms(l, stat, false);
         let mut parents: Option<FxHashMap<TNodeId, TNodeId>> = None;
         for &t in &all {
+            let t = outer_prefix(l, t, class).unwrap_or(t);
             let Some(chain) = outer_this(l, t, class) else { continue };
             let parents = parents.get_or_insert_with(|| {
                 all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect()
             });
             let span = parents.get(&t).and_then(|&p| l.after_siblings(p, t)).unwrap_or(l.tpd.span(t));
-            let start = if method {
+            let start = if let Some(p) = super::outer_ctors::param(l, stat) {
+                l.ident(p, Span::NONE)
+            } else if method {
                 let this = l.this(class, span);
                 let field = field(l, class);
                 l.select(this, field, span)

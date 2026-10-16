@@ -2,7 +2,7 @@
 //! with literal parts, `StringContext(p0, p1, …).s(a1, …)`, become `p0 + a1 + p1 + …`, empty
 //! parts dropped and the parts of `s` with their escapes processed.
 
-use super::walk::walk_class_up;
+use super::walk::{walk_class_up, without_type_args};
 use super::{format_interpolator, standard_interpolator};
 use crate::{Lower, Result, unsupported};
 use std::ops::ControlFlow;
@@ -54,7 +54,7 @@ fn rewrite(l: &mut Lower, t: TNodeId, owner: SymbolId) -> Result<()> {
 /// The name of the interpolator of `StringContext` that `t` calls, `s`, `raw` or `f`.
 fn interpolator(l: &Lower, t: TNodeId) -> Option<&'static str> {
     let Tree::Apply { fun, .. } = *l.tpd.tree(t) else { return None };
-    let method = l.u.symbol(l.tpd.sym(untyped(l, fun))?);
+    let method = l.u.symbol(l.tpd.sym(without_type_args(l.tpd, fun))?);
     if method.owner.map(|o| l.u.full_name(o)).as_deref() != Some("scala.StringContext") {
         return None;
     }
@@ -65,7 +65,7 @@ fn interpolator(l: &Lower, t: TNodeId) -> Option<&'static str> {
 /// argument `args*`.
 pub fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId>, TNodeId)> {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return None };
-    let Tree::Select { qualifier, .. } = *l.tpd.tree(untyped(l, fun)) else { return None };
+    let Tree::Select { qualifier, .. } = *l.tpd.tree(without_type_args(l.tpd, fun)) else { return None };
     let Tree::Apply { fun: apply, args: parts } = *l.tpd.tree(qualifier) else { return None };
     let Tree::Select { qualifier: module, .. } = *l.tpd.tree(apply) else { return None };
     let module = l.tpd.sym(module).map(|m| l.u.full_name(m));
@@ -79,14 +79,6 @@ pub fn interpolation(l: &Lower, t: TNodeId) -> Option<(Vec<TNodeId>, Vec<TNodeId
     let &[arg] = l.tpd.items(args) else { return None };
     let (parts, args) = (sequence(l, parts)?, sequence(l, args)?);
     (parts.len() == args.len() + 1).then_some((parts, args, arg))
-}
-
-/// `fun` without its type arguments.
-fn untyped(l: &Lower, fun: TNodeId) -> TNodeId {
-    match *l.tpd.tree(fun) {
-        Tree::TypeApply { fun, .. } => fun,
-        _ => fun,
-    }
 }
 
 /// The elements of the single `seq: _*` argument in `args`.

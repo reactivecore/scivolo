@@ -40,8 +40,9 @@ impl Typer<'_> {
             self.syms.primary_ctors.insert(cls, ctor);
         }
         let super_ctx = self.super_call_ctx(t.constr, ctx);
-        let parents = self.parent_types(&t.parents, super_ctx);
+        let parents = self.parent_types(cls, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
+        self.check_dynamics_enabled(rhs, &parents, ctx);
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }
@@ -61,6 +62,7 @@ impl Typer<'_> {
             self.u.set_inits(cls);
         }
         self.set_stable_constructor(cls, t.constr);
+        self.process_exports(cls, &t.body, cctx);
     }
 
     /// Whether enum class `c` declares or inherits a concrete `ordinal` other than `Enum`'s.
@@ -92,17 +94,10 @@ impl Typer<'_> {
             return self.unsupported(id, "enum class with its own ordinal");
         }
         let ctor = self.syms.primary_ctors.get(&cls).copied();
-        let params = ctor.is_some_and(|c| {
-            self.complete(c);
-            let info = self.u.info(c);
-            self.u.param_clauses(info).iter().any(|(_, ps)| !ps.is_empty())
-        });
-        if self.u.is_trait(cls) && params {
-            return self.unsupported(id, "trait parameters");
-        }
         if self.u.symbol(cls).flags.has(tasty::tags::CASE)
             && let Some(c) = ctor
         {
+            self.complete(c);
             let info = self.u.info(c);
             let first = self.u.param_clauses(info).into_iter().next();
             let elems = first.map(|(_, ps)| ps).unwrap_or_default();
@@ -115,14 +110,18 @@ impl Typer<'_> {
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
+        self.check_trait_inits(cls, &parents, name_span);
+        self.check_parent_prefixes(cls, &parents);
         let self_ = t.self_.map(|s| match self.is_module_self(s) {
             true => self.typed(s, Pt::Any, ctx),
             false => self.typed_self(s, cctx),
         });
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
+        let body = self.with_inline_members(cls, body, cctx);
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);
+        self.check_parameterized_traits(cls, name_span);
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };
@@ -145,6 +144,10 @@ impl Typer<'_> {
             let stat_ctx = match self.ast.tree(s) {
                 Tree::Empty => continue,
                 Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => ctx,
+                Tree::Export { .. } => {
+                    out.extend(self.typed_export(s, ctx));
+                    continue;
+                }
                 _ => {
                     let name = format!("<local {}>", self.u.symbol(cls).name);
                     let d = *dummy.get_or_insert_with(|| {
@@ -159,8 +162,8 @@ impl Typer<'_> {
         (out, dummy)
     }
 
-    /// Whether script class `c` has members its declarations lack: one its self type declares or an
-    /// export clause in it defines.
+    /// Whether script class `c` may have members its declarations lack: one its self type
+    /// declares, or one an export clause in it defines, or would if it were not refused.
     pub fn has_undeclared_members(&self, c: SymbolId) -> bool {
         let Some((&tree, _)) = self.syms.by_tree.iter().find(|&(_, &s)| s == c) else { return false };
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return false };

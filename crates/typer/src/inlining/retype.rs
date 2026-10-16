@@ -125,6 +125,7 @@ impl Inlining<'_> {
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }
+            T::Super { .. } => Err((span, "super in an inline body")),
             _ => Err((span, "inline body with a return or label")),
         }
     }

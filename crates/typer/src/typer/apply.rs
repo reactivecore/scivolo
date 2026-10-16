@@ -27,6 +27,7 @@ impl Typer<'_> {
         });
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
+            Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
@@ -39,17 +40,7 @@ impl Typer<'_> {
         let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
-            return match arg_ids[..] {
-                [arg] => match *self.ast.tree(arg) {
-                    syntax::ast::Tree::Match { selector: None, cases, .. } => {
-                        self.typed_summon_from(id, cases, pt, ctx)
-                    }
-                    _ => {
-                        self.unsupported(id, "argument to summonFrom that is not a pattern matching closure")
-                    }
-                },
-                _ => self.unsupported(id, "summonFrom"),
-            };
+            return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, id, fun_ctx)) {
             Ok(f) => f,
@@ -67,10 +58,10 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
-        if self.mentions_params(result, binder, meth) {
-            return self.unsupported(id, "dependent result type");
-        }
-        if let Err(what) = self.constrain_applied_result(meth, result, pt) {
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let result = self.without_false_deps(result, binder, meth);
+        let dependent = self.mentions_clause_params(result, (binder, &names), meth);
+        if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
@@ -90,13 +81,12 @@ impl Typer<'_> {
                 _ => p,
             })
             .collect();
-        if formals.iter().any(|&p| {
-            self.is_special_param(p)
-                || self.mentions_params(p, binder, meth)
-                || self.mentions_foreign_private_type(p, ctx)
-        }) {
-            return self.unsupported(id, "dependent parameter or private type");
-        }
+        let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
+        let clause = ((binder, &names[..]), meth);
+        let param_dependent = match self.param_dependent(&formals, clause, in_order, ctx) {
+            Ok(dependent) => dependent,
+            Err(what) => return self.unsupported(id, what),
+        };
         let seq_arg = arg_ids
             .last()
             .copied()
@@ -116,10 +106,20 @@ impl Typer<'_> {
             Some(Ok(parts)) => parts,
             None => (f, Vec::new(), Vec::new()),
         };
-        let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
+        let plain = lifted.is_empty() && aligned.is_none() && repeated.is_none();
+        let result = match lifted.is_empty() {
+            true => result,
+            false => match self.lifted_result(f, meth) {
+                Some(r) => r,
+                None => return self.unsupported(id, "dependent result type"),
+            },
+        };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
-            let formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
+            let mut formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
+            if param_dependent {
+                formal = self.dependent_formal(formal, clause, &typed_args);
+            }
             typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
                 Some(typed) => {
                     let arg = self.to_sam(typed, formal).unwrap_or(typed);
@@ -128,6 +128,11 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
+        let result = match dependent {
+            true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
+            false => Some(result),
+        };
+        let Some(result) = result else { return self.unsupported(id, "dependent result type") };
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.types().get(tpe) == Type::Error
@@ -187,7 +192,7 @@ impl Typer<'_> {
     }
 
     /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.
-    fn is_sequence_arg(&self, a: NodeId) -> bool {
+    pub fn is_sequence_arg(&self, a: NodeId) -> bool {
         let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
     }

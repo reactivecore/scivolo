@@ -7,7 +7,7 @@ use tasty::tags::{CASE, ENUM, FINAL, LAZY, OBJECT, SEALED, TRAIT};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Checks the parent types of class `cls` with template `rhs`: no `Dynamic`, no final class, no
+    /// Checks the parent types of class `cls` with template `rhs`: no final class, no
     /// sealed class of the library, no case class extending a case class, no cycle.
     pub fn check_parents(&mut self, cls: SymbolId, rhs: NodeId, parents: &[tasty::TypeId]) {
         let case = self.syms.flags.get(&cls).is_some_and(|fl| fl.is(f::CASE));
@@ -49,8 +49,6 @@ impl Typer<'_> {
                 "parent with an unstable prefix"
             } else if case && case_base(self) {
                 "case class extending a case class"
-            } else if self.u.full_name(c) == "scala.Dynamic" {
-                "Dynamic"
             } else if (flags.has(FINAL) && !(flags.has(ENUM) && self.is_derived_value_class(c)))
                 || flags.has(OBJECT)
             {

@@ -72,21 +72,27 @@ impl Typer<'_> {
         Ctx { owner: ctor, level, ..ctx }
     }
 
-    /// A parent: a constructor call, or a type made one if it is a class's parent class.
+    /// A parent: a constructor call, or a type made one if it is a class's parent class or a
+    /// trait taking parameters.
     fn typed_parent(&mut self, cls: SymbolId, parent: NodeId, ctx: Ctx) -> TNodeId {
         if matches!(self.ast.tree(parent), Tree::Apply { .. }) {
-            return self.typed(parent, Pt::Any, ctx);
+            let call = self.typed(parent, Pt::Any, ctx);
+            let called = self.called_class(call);
+            self.check_parent_call(cls, call, called);
+            return call;
         }
         let tpt = self.typed_type(parent, ctx);
         self.ensure_constr_call(cls, tpt, ctx)
     }
 
-    /// `new P()` for parent type tree `parent` of class `cls`, typed in `ctx`, if `P` is a class
-    /// and `cls` is not a trait (dotty's `ensureConstrCall`).
+    /// `new P()` for parent type tree `parent` of class `cls`, typed in `ctx`, if `cls` is not a
+    /// trait and `P` is a class, or a trait taking parameters that the superclass of `cls` does
+    /// not extend (dotty's `ensureConstrCall`).
     fn ensure_constr_call(&mut self, cls: SymbolId, parent: TNodeId, ctx: Ctx) -> TNodeId {
         let tpe = self.tpd.tpe(parent);
         let Some(psym) = self.u.class_symbol(tpe) else { return parent };
-        if self.u.is_trait(cls) || self.u.is_trait(psym) {
+        let called_trait = |t: &mut Self| t.trait_takes_params(psym) && !t.super_derives_from(cls, psym);
+        if self.u.is_trait(cls) || self.u.is_trait(psym) && !called_trait(self) {
             return parent;
         }
         let span = self.tpd.span(parent);

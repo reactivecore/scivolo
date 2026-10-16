@@ -15,7 +15,7 @@ pub fn imports(u: &Universe, typed: &Typed, template: TNodeId, source: &SourceFi
 }
 
 fn import(u: &Universe, typed: &Typed, t: TNodeId, source: &SourceFile) -> Option<String> {
-    let Tree::Import { expr, .. } = *typed.tpd.tree(t) else { return None };
+    let Tree::Import { expr, export: false, .. } = *typed.tpd.tree(t) else { return None };
     let span = typed.tpd.span(t);
     let (start, end) = (span.start() as usize, span.end() as usize);
     let mut text = source.text.get(start..end)?.to_owned();

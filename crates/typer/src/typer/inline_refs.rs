@@ -7,8 +7,17 @@ use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 /// The inline operations of `scala.compiletime` that inlining expands.
-const EXPANDED: [&str; 7] =
-    ["error", "codeOf", "requireConst", "constValue", "constValueOpt", "summonInline", "summonFrom"];
+const EXPANDED: [&str; 9] = [
+    "error",
+    "codeOf",
+    "requireConst",
+    "constValue",
+    "constValueOpt",
+    "constValueTuple",
+    "summonInline",
+    "summonAll",
+    "summonFrom",
+];
 
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`
@@ -18,6 +27,9 @@ impl Typer<'_> {
         let flags = self.u.symbol(sym).flags;
         if flags.has(INLINE) && flags.has(MACRO) {
             return Err("macro call");
+        }
+        if flags.has(INLINE) && self.u.is_deferred(sym) && self.enclosing_inline(ctx.owner).is_none() {
+            return Err("call of a deferred inline method");
         }
         if flags.has(INLINE) && self.u.within_opaques(sym) {
             return Err("inline method of an object with opaque types");
@@ -34,23 +46,41 @@ impl Typer<'_> {
         if crate::inlining::is_erased_value(self.u, sym) && self.enclosing_inline(ctx.owner).is_none() {
             return Err("reference to an erased definition");
         }
-        if self.needs_inline_accessor(sym, ctx) {
-            return Err("non-public member in an inline method");
-        }
         Ok(())
     }
 
-    /// Whether a reference to `sym` from `ctx` is in the body of an inline method, outside which
-    /// `sym` is not public, and `sym` is not defined in that method (dotty's `needsAccessor`).
-    pub fn needs_inline_accessor(&self, sym: SymbolId, ctx: Ctx) -> bool {
-        let flags = self.u.symbol(sym).flags;
+    /// Whether a reference to `sym` from `ctx` needs an inline accessor.
+    pub fn needs_inline_accessor(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
+        self.needs_inline_accessor_from(sym, ctx.owner)
+    }
+
+    /// Whether a reference to `sym` from `owner` is in the body of an inline member method,
+    /// outside which `sym` is not public, and `sym` is not defined in that method, nor an inline
+    /// method, nor a constant value, nor `@publicInBinary` (dotty's `needsAccessor`).
+    pub fn needs_inline_accessor_from(&mut self, sym: SymbolId, owner: SymbolId) -> bool {
+        let s = self.u.symbol(sym);
+        let flags = s.flags;
         let restricted =
             [PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified].iter().any(|&t| flags.has(t))
                 || self.syms.private_within.contains_key(&sym);
-        if !restricted || self.u.is_type_symbol(sym) {
+        if !restricted
+            || self.u.is_type_symbol(sym)
+            || s.kind == tasty::Kind::Def && flags.has(INLINE)
+            || self.u.is_annotated(sym, "publicInBinary")
+        {
             return false;
         }
-        let Some(inline) = self.enclosing_inline(ctx.owner) else { return false };
+        let Some(inline) = self.enclosing_inline(owner) else { return false };
+        if s.kind == tasty::Kind::Val && !flags.has(tasty::tags::MUTABLE) {
+            self.complete(sym);
+            let info = self.u.info(sym);
+            if matches!(self.u.types().get(info), tasty::Type::Constant(..) | tasty::Type::Str(_)) {
+                return false;
+            }
+        }
+        if self.u.symbol(inline).owner.is_some_and(|o| self.u.symbol(o).kind.is_term()) {
+            return false;
+        }
         let mut d = self.u.symbol(sym).owner;
         while let Some(x) = d {
             if x == inline {
