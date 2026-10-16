@@ -64,6 +64,7 @@ impl Inlining<'_> {
         for b in self.tpd.items(bindings).to_vec() {
             self.type_this_qualifiers(b);
         }
+        self.type_this_qualifiers(expansion);
         Some(trace)
     }
 }

@@ -13,6 +13,7 @@ mod expand;
 mod host;
 mod inline_call;
 mod no_inits;
+mod outer_this;
 mod proxies;
 mod purity;
 mod reduce;

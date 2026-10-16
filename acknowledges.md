@@ -52,6 +52,11 @@ Apache-2.0. Rust translations of:
   `InlineCall.expand` intrinsics, `Inliner.issueError`, `core/TypeEval`
   (`tryCompiletimeConstantFold`) and `TreeMapWithImplicits` (the call's context);
   `Typer.typedMatch` and `Applications` for `summonFrom`, `Typer.typedBind` for given patterns.
+- Retained inline methods and inline accessors: `Inlines.bodyRetainer`, `Typer.inlineExpansion`,
+  `SymDenotations.isRetainedInline` in `crates/typer/src/typer/retained.rs`,
+  `Erasure.addRetainedInlineBodies` in `crates/lower/src/phases/retained_bodies.rs`;
+  `PrepareInlineable` (`needsAccessor`, `MakeInlineableDirect`) and `AccessProxies` in
+  `crates/typer/src/typer/{inline_accessors,accessor_defs}.rs`.
 - Context functions: `Typer` (`makeContextualFunction`, `typedFunctionType`, the context
   closure check of `typedUnadapted`, `adaptNoArgsOther`, `isApplyProto`), `Desugar.makeContextualFunction`,
   `TreeInfo.isContextualClosure`, `Definitions` (`newFunctionNType`, `asContextFunctionType`),

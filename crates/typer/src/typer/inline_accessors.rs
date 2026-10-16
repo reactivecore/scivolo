@@ -7,7 +7,7 @@ use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{NodeId, Span};
-use tasty::SymbolId;
+use tasty::{SymbolId, Type};
 
 #[derive(Default)]
 pub struct Accessors {
@@ -53,8 +53,31 @@ impl Typer<'_> {
             }
             return;
         }
+        let before = self.tpd.get(t).tpe;
+        let block_expr = match *self.tpd.tree(t) {
+            T::Block { expr, .. } => Some((expr, self.tpd.get(expr).tpe)),
+            _ => None,
+        };
         for c in self.tpd.children(t) {
             self.make_inlineable(c, meth, ctx);
+        }
+        if let Some((expr, old)) = block_expr
+            && old == before
+        {
+            self.tpd.get_mut(t).tpe = self.tpd.get(expr).tpe;
+        }
+        if let T::Select { qualifier, .. } = *self.tpd.tree(t)
+            && let Some(tpe) = before
+            && let Type::Sym(Some(_), m) = *self.u.types().get(tpe)
+            && self.rewired(qualifier)
+        {
+            let accessor = self.tpd.sym(qualifier).expect("an accessor");
+            self.complete(accessor);
+            let mut prefix = self.u.info(accessor);
+            if let Type::ByName(r) = *self.u.types().get(prefix) {
+                prefix = r;
+            }
+            self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), m)));
         }
         if matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. })
             && let Some(sym) = self.tpd.sym(t)
@@ -62,6 +85,11 @@ impl Typer<'_> {
         {
             self.rewire(t, sym, ctx);
         }
+    }
+
+    /// Whether `t` refers to an inline accessor.
+    fn rewired(&self, t: TNodeId) -> bool {
+        self.tpd.sym(t).is_some_and(|s| self.accessors.made.values().any(|&a| a == s))
     }
 
     /// Makes reference `t` to `sym` refer to its accessor; the accessor.

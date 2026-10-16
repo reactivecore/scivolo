@@ -7,18 +7,18 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use tasty::tags::INLINEPROXY;
-use tasty::{Flags, Kind, Symbol, SymbolId, Type};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
-    /// The class and proxy of the `this` the call needs, its binding put first: none if the
-    /// method is a static object's or the call is inside its class, or if the body does not
-    /// refer to `this` and the prefix is idempotent.
+    /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
+    /// put first: none if the method is a static object's or the call is inside its class, nor
+    /// for its class if the body does not refer to its `this` and the prefix is idempotent.
     pub fn bind_this(
         &mut self,
         fun: TNodeId,
         meth: SymbolId,
         body: TNodeId,
-    ) -> Result<Option<(SymbolId, SymbolId)>, Unsupported> {
+    ) -> Result<Vec<(SymbolId, SymbolId)>, Unsupported> {
         let cls = self.i.u.symbol(meth).owner.ok_or(self.err("inline method"))?;
         let prefix = match *self.i.tpd.tree(fun) {
             T::Select { qualifier, .. } => Some(qualifier),
@@ -26,7 +26,7 @@ impl Expansion<'_, '_> {
         };
         let impure = prefix.is_some_and(|q| !self.i.is_idempotent_expr(q));
         if self.i.is_static_owner(cls) {
-            return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(None) };
+            return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(Vec::new()) };
         }
         if self.i.u.symbol(cls).kind != Kind::Class {
             return Err(self.err("local inline method"));
@@ -38,40 +38,41 @@ impl Expansion<'_, '_> {
             return Err(self.err("inline method of a generic class"));
         }
         let mut uses = false;
-        let mut outer = false;
-        self.i.this_refs(body, cls, &mut uses, &mut outer);
-        if outer {
-            return Err(self.err("inline body referring to an outer this"));
-        }
-        let Some(q) = prefix else { return Ok(None) };
+        let mut outers = Vec::new();
+        self.i.this_refs(body, cls, &mut uses, &mut outers);
+        let outer_err = self.err("inline body referring to an outer this");
+        let Some(q) = prefix else { return if outers.is_empty() { Ok(Vec::new()) } else { Err(outer_err) } };
         if matches!(self.i.tpd.tree(q), T::Super { .. }) {
-            return if uses { Err(self.err("inline call through super")) } else { Ok(None) };
+            return match (uses, outers.is_empty()) {
+                (false, true) => Ok(Vec::new()),
+                (true, _) => Err(self.err("inline call through super")),
+                (false, false) => Err(outer_err),
+            };
         }
         let qt = self.i.tpd.tpe(q);
         let qtv = self.i.u.types().get(qt).clone();
-        let inside = matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls));
-        if inside || !uses && !impure {
-            return Ok(None);
+        if matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls)) {
+            return Ok(Vec::new());
         }
+        let mut proxies = Vec::new();
+        if uses || impure {
+            proxies.push((cls, self.bind_class_this(cls, q, qt)?));
+        }
+        let pure = !proxies.is_empty() || self.i.is_pure_expr(q);
+        let at = proxies.len();
+        proxies.extend(self.bind_outer_this(cls, qt, &outers, (pure, at))?);
+        Ok(proxies)
+    }
+
+    /// The proxy of the `this` of class `cls` for call prefix `q` of type `qt`, bound first.
+    fn bind_class_this(&mut self, cls: SymbolId, q: TNodeId, qt: TypeId) -> Result<SymbolId, Unsupported> {
         let stable = match *self.i.u.types().get(qt) {
             Type::Sym(_, s) => self.i.u.symbol(s).kind.is_term() && self.i.is_stable_member(s),
             Type::This(_) => true,
             _ => false,
         };
         let info = if stable { qt } else { self.i.u.widen(qt) };
-        let name = format!("{}_this", self.i.u.symbol(cls).name);
-        let proxy = self.i.u.define(Symbol {
-            name: name.clone(),
-            kind: Kind::Val,
-            owner: Some(self.owner),
-            flags: Flags::default().with(INLINEPROXY),
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        self.i.u.set_info(proxy, info);
+        let proxy = self.this_proxy_symbol(cls, info);
         let call_span = self.i.tpd.span(self.call);
         let point = Span::at(call_span.point());
         let widened = self.i.u.widen(info);
@@ -99,11 +100,36 @@ impl Expansion<'_, '_> {
                 (rhs, Span::at(self.i.tpd.span(rhs).start()))
             }
         };
+        self.bind_proxy(proxy, rhs, tpt_span, 0);
+        Ok(proxy)
+    }
+
+    /// A proxy of the `this` of class `cls`, of type `info`, owned by the call's owner.
+    pub fn this_proxy_symbol(&mut self, cls: SymbolId, info: TypeId) -> SymbolId {
+        let proxy = self.i.u.define(Symbol {
+            name: format!("{}_this", self.i.u.symbol(cls).name),
+            kind: Kind::Val,
+            owner: Some(self.owner),
+            flags: Flags::default().with(INLINEPROXY),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        self.i.u.set_info(proxy, info);
+        proxy
+    }
+
+    /// Puts the definition of `proxy` as `rhs`, its type tree at `tpt_span`, at index `at` of the
+    /// bindings.
+    pub fn bind_proxy(&mut self, proxy: SymbolId, rhs: TNodeId, tpt_span: Span, at: usize) {
+        let info = self.i.u.info(proxy);
         let tpt = self.i.tpd.node(T::TypeTree { inferred: true }, tpt_span, Some(info), None);
-        let name = TName { name: self.i.names.intern(&name), is_type: false };
+        let name = TName { name: self.i.names.intern(&self.i.u.symbol(proxy).name.clone()), is_type: false };
+        let call_span = self.i.tpd.span(self.call);
         let def = self.i.tpd.node(T::ValDef { name, tpt, rhs: Some(rhs) }, call_span, None, Some(proxy));
-        self.bindings.insert(0, def);
-        Ok(Some((cls, proxy)))
+        self.bindings.insert(at, def);
     }
 }
 
@@ -122,9 +148,9 @@ impl Inlining<'_> {
         Ok(self.tpd.node(T::Select { qualifier: this, name }, span, Some(tpe), Some(s)))
     }
 
-    /// Notes in `uses` whether the leaves of `t` refer to the `this` of class `cls`, and in `outer`
-    /// whether they refer to the `this` of another class that is no static owner.
-    fn this_refs(&mut self, t: TNodeId, cls: SymbolId, uses: &mut bool, outer: &mut bool) {
+    /// Notes in `uses` whether the leaves of `t` refer to the `this` of class `cls`, and adds to
+    /// `outer` the other classes that are no static owners whose `this` they refer to.
+    fn this_refs(&mut self, t: TNodeId, cls: SymbolId, uses: &mut bool, outer: &mut Vec<SymbolId>) {
         let leaf = matches!(self.tpd.tree(t), T::This { .. } | T::Ident { .. } | T::TypeTree { .. });
         if leaf && let Some(tpe) = self.tpd.get(t).tpe {
             let mut classes = Vec::new();
@@ -137,8 +163,8 @@ impl Inlining<'_> {
             for c in classes {
                 if c == cls {
                     *uses = true;
-                } else if !self.is_static_owner(c) {
-                    *outer = true;
+                } else if !self.is_static_owner(c) && !outer.contains(&c) {
+                    outer.push(c);
                 }
             }
         }

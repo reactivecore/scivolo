@@ -111,8 +111,12 @@ impl Typer<'_> {
             for &b in &bases {
                 for m in self.overridable(b, &name) {
                     let inline = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::INLINE);
-                    if inline(self, m) && !inline(self, d) && self.same_member(site, d, m) {
-                        return self.unsupported_at(span, "non-inline member implementing an inline method");
+                    let inline_value = inline(self, d) && kind != Kind::Def;
+                    if (inline(self, m) && !inline(self, d) || inline_value) && self.same_member(site, d, m) {
+                        return self.unsupported_at(
+                            span,
+                            "override involving an inline value or a non-inline member",
+                        );
                     }
                     self.complete(m);
                     if self.run_name(d) != self.run_name(m) && self.same_member(site, d, m) {
