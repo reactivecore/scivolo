@@ -78,8 +78,7 @@ impl Gen<'_, '_> {
                         self.defns.push(defn);
                     }
                 }
-                Tree::TypeDef { .. } => {}
-                Tree::ValDef { .. } => {}
+                Tree::TypeDef { .. } | Tree::ValDef { .. } | Tree::Import { .. } => {}
                 _ => return unsupported(self.l.tpd.span(stat), "statements in a class body"),
             }
         }

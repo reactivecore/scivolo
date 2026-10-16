@@ -80,7 +80,11 @@ impl Universe {
             Type::This(c) | Type::Alias(c) | Type::Bounds(_, c) | Type::Annotated(c, _) | Type::Rec(_, c) => {
                 self.erase(c)
             }
-            Type::Refined(p, _, _) | Type::Match { bound: p, .. } | Type::Skolem(_, p) => self.erase(p),
+            Type::Match { bound, .. } => match self.try_normalize(t) {
+                Some(r) => self.erase(r),
+                None => self.erase(bound),
+            },
+            Type::Refined(p, _, _) | Type::Skolem(_, p) => self.erase(p),
             Type::Lambda { result, .. } => self.erase(result),
             Type::ByName(_) => Erased::Class("scala.Function0".into()),
             Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),

@@ -30,11 +30,24 @@ impl Typer<'_> {
                     return Some("wildcard argument of a higher-kinded type parameter");
                 }
                 Some(m) if m != n => return Some("type argument of another kind"),
+                None if n > 0 && self.has_bounded_params(a) => {
+                    return Some("type lambda argument with bounded parameters");
+                }
                 None if n > 0 && class => return Some("class type constructor argument"),
                 _ => {}
             }
         }
         None
+    }
+
+    /// Whether type constructor `t` is a type lambda with a parameter bounded by more than `Any`.
+    fn has_bounded_params(&mut self, t: TypeId) -> bool {
+        let lambda = self.u.dealias(t);
+        let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return false };
+        params.iter().any(|&(_, b)| match *self.u.types().get(b) {
+            Type::Bounds(_, hi) => hi != tasty::ANY && self.u.class_symbol(hi) != Some(self.u.builtins().any),
+            _ => false,
+        })
     }
 
     /// Type argument `arg` as dotty's `adaptType` leaves it: a class constructor eta-expanded.

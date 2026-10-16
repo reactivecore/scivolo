@@ -94,6 +94,15 @@ impl Levels {
         }
     }
 
+    /// The symbol entered as `name` that `keep` accepts in the scope level `sym` is entered in.
+    pub fn scope_mate(&self, sym: SymbolId, name: &str, keep: impl Fn(SymbolId) -> bool) -> Option<SymbolId> {
+        let entries = self.all.iter().find_map(|e| match &e.level {
+            Level::Scope(entries) if entries.iter().any(|&(_, s)| s == sym) => Some(entries),
+            _ => None,
+        })?;
+        entries.iter().find(|&&(ref n, s)| n == name && s != sym && keep(s)).map(|&(_, s)| s)
+    }
+
     /// Enters `sym` as `name` in scope level `id`.
     pub fn enter(&mut self, id: LevelId, name: &str, sym: SymbolId) {
         if let Level::Scope(entries) = &mut self.all[id.0 as usize].level {

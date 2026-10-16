@@ -3,16 +3,20 @@
 //! (`TypeErasure.additionalAdaptationNeeded`).
 
 use super::local_outer::needs_outer_if_referenced;
-use crate::{Lower, Result, unsupported};
-use syntax::ast::Span;
-use tasty::{Erased, Kind, SymbolId};
+use crate::Lower;
+use crate::definitions::type_ref;
+use tasty::{Erased, Kind, SymbolId, Type};
 
 /// The abstract methods of `class`, inherited ones too, but those of `Object`: of each name and
-/// erased parameters, the one of the first base declaring it.
+/// erased parameters, the one of the first base declaring it, but those a method of an earlier
+/// base overrides as members of `class`.
 pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let mut seen: Vec<(String, Vec<Erased>)> = Vec::new();
+    let mut earlier: Vec<(SymbolId, SymbolId)> = Vec::new();
     let mut out = Vec::new();
     let object = l.defs.object;
+    let site = type_ref(l.u, class);
+    let site = l.u.intern_type(Type::This(site));
     for base in l.u.linearization(class) {
         let function = l.u.full_name(base).starts_with("scala.Function");
         for d in l.u.decls(base).unwrap_or_default() {
@@ -25,9 +29,16 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
                 false => l.u.is_deferred(d),
             };
             let key = (s.name.clone(), l.u.erased_method(d).0);
-            if seen.contains(&key) {
+            let same_name: Vec<SymbolId> = earlier
+                .iter()
+                .filter(|&&(m, b)| b != base && l.u.symbol(m).name == key.0)
+                .map(|&(m, _)| m)
+                .collect();
+            let overridden = same_name.into_iter().any(|m| l.u.matches(site, m, d));
+            if seen.contains(&key) || overridden {
                 continue;
             }
+            earlier.push((d, base));
             let object_decls = l.u.decl(object, &key.0).unwrap_or_default();
             let in_object = object_decls.into_iter().any(|o| l.u.erased_method(o).0 == key.1);
             seen.push(key);
@@ -42,22 +53,22 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
 /// Whether closures of single abstract method class `c` stay closures (dotty's
 /// `JavaPlatform.isSam`): a trait without initialization nor fields, of superclass `Object`,
 /// needing no outer instance, whose directly inherited traits have no initialization and no
-/// abstract methods but its method; refused where that method's erasure differs from that of a
-/// method it overrides, as then dotty's expansion would need bridges (`samExpansionNotNeeded`).
-pub fn is_platform_sam(l: &mut Lower, c: SymbolId, span: Span) -> Result<bool> {
+/// abstract methods but its method, whose erasure needs no adapting to that of a method it
+/// overrides (`samExpansionNotNeeded`).
+pub fn is_platform_sam(l: &mut Lower, c: SymbolId) -> bool {
     if !l.u.is_trait(c) || !l.u.no_inits(c) || needs_outer_if_referenced(l, c) {
-        return Ok(false);
+        return false;
     }
     let bases = l.u.linearization(c);
     let (object, any) = (l.defs.object, l.u.builtins().any);
     let superclass = bases[1..].iter().copied().find(|&b| !l.u.is_trait(b)).unwrap_or(object);
     if superclass != object && superclass != any {
-        return Ok(false);
+        return false;
     }
     let parents: Vec<SymbolId> = l.u.parents(c).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
     let traits: Vec<SymbolId> = parents.into_iter().filter(|&p| l.u.is_trait(p)).collect();
     if !traits.iter().all(|&t| l.u.no_inits(t)) {
-        return Ok(false);
+        return false;
     }
     let decls: Vec<SymbolId> = bases
         .iter()
@@ -65,13 +76,13 @@ pub fn is_platform_sam(l: &mut Lower, c: SymbolId, span: Span) -> Result<bool> {
         .flat_map(|&b| l.u.decls(b).unwrap_or_default())
         .collect();
     if decls.into_iter().any(|d| matches!(l.u.symbol(d).kind, Kind::Val | Kind::Param)) {
-        return Ok(false);
+        return false;
     }
-    let [sam] = abstract_methods(l, c)[..] else { return Ok(false) };
+    let [sam] = abstract_methods(l, c)[..] else { return false };
     let name = l.u.symbol(sam).name.clone();
     for t in traits {
         if abstract_methods(l, t).into_iter().any(|m| l.u.symbol(m).name != name) {
-            return Ok(false);
+            return false;
         }
     }
     let (params, result) = l.u.erased_method(sam);
@@ -79,11 +90,11 @@ pub fn is_platform_sam(l: &mut Lower, c: SymbolId, span: Span) -> Result<bool> {
         for m in l.u.decl(b, &name).unwrap_or_default() {
             let (p, r) = l.u.erased_method(m);
             if p.len() == params.len() && adaptation_needed(&params, &result, &p, &r) != (false, false) {
-                return unsupported(span, "single abstract method types whose expansion needs bridges");
+                return false;
             }
         }
     }
-    Ok(true)
+    true
 }
 
 /// Whether the semi-erased parameters `impl_params` and result `impl_result` of a closure's

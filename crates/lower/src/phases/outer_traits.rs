@@ -3,7 +3,9 @@
 //! trait it mixes in that may use its enclosing instance, an implementation of that trait's
 //! accessor returning the prefix of the trait in its type.
 
-use super::explicit_outer::{enclosing_instance, outer_accessor, outer_accessor_name, outer_this, terms};
+use super::explicit_outer::{
+    enclosing_instance, outer_accessor, outer_accessor_name, outer_prefix, outer_this, terms,
+};
 use super::local_free::{enclosing_class, is_term};
 use super::local_outer::needs_outer_if_referenced;
 use crate::definitions::{symbol, type_ref};
@@ -90,6 +92,7 @@ pub fn add_outer(l: &mut Lower, td: TNodeId, trait_: SymbolId) {
         stats.into_iter().filter(|&s| !matches!(l.tpd.tree(s), Tree::TypeDef { .. })).collect();
     for stat in stats {
         for t in terms(l, stat, false) {
+            let t = outer_prefix(l, t, trait_).unwrap_or(t);
             let Some(chain) = outer_this(l, t, trait_) else { continue };
             let span = l.tpd.span(t);
             let mut read = l.this(trait_, span);

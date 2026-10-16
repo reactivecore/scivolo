@@ -27,6 +27,83 @@ fn match_alias(u: &mut Universe, pkg: &str, obj: &str, name: &str) -> TypeId {
     }
 }
 
+/// A reference to the type member `name` of `object pkg.obj`.
+fn member_ref(u: &mut Universe, pkg: &str, obj: &str, name: &str) -> TypeId {
+    let p = u.package(pkg).unwrap();
+    let module = u.decl(p, obj).unwrap().into_iter().find(|&s| u.symbol(s).kind == Kind::Val).unwrap();
+    let class = u.module_class(module).unwrap();
+    let alias = u.decl(class, name).unwrap()[0];
+    u.intern_type(Type::Sym(None, alias))
+}
+
+fn class(u: &mut Universe, full: &str) -> TypeId {
+    u.class_ref(full)
+}
+
+fn applied(u: &mut Universe, tycon: TypeId, args: &[TypeId]) -> TypeId {
+    u.intern_type(Type::Applied(tycon, args.to_vec()))
+}
+
+fn int(u: &mut Universe, n: i64) -> TypeId {
+    u.intern_type(Type::Constant(tasty::tags::INTconst, n))
+}
+
+#[test]
+fn tuple_match_types_reduce() {
+    let Some(mut u) = stdlib() else { return };
+    let u = &mut u;
+    let (int_t, string, boolean) =
+        (class(u, "scala.Int"), class(u, "java.lang.String"), class(u, "scala.Boolean"));
+    let tuple2 = class(u, "scala.Tuple2");
+    let pair = applied(u, tuple2, &[int_t, string]);
+    let head = member_ref(u, "scala", "Tuple", "Head");
+    let t = applied(u, head, &[pair]);
+    let n = u.normalized(t);
+    assert_eq!(n, int_t, "{}", u.show(n));
+    assert!(u.is_subtype(int_t, t) && u.is_subtype(t, int_t));
+    assert!(!u.is_subtype(string, t));
+
+    let tail = member_ref(u, "scala", "Tuple", "Tail");
+    let t = applied(u, tail, &[pair]);
+    let tail_t = u.normalized(t);
+    let shown = u.show(tail_t);
+    assert!(shown.contains("String") && shown.contains("EmptyTuple"), "{shown}");
+
+    let size = member_ref(u, "scala", "Tuple", "Size");
+    let t = applied(u, size, &[pair]);
+    let two = int(u, 2);
+    let n = u.normalized(t);
+    assert_eq!(n, two, "{}", u.show(n));
+
+    let elem = member_ref(u, "scala", "Tuple", "Elem");
+    let one = int(u, 1);
+    let t = applied(u, elem, &[pair, one]);
+    let n = u.normalized(t);
+    assert_eq!(n, string, "{}", u.show(n));
+
+    let triple = class(u, "scala.Tuple3");
+    let triple = applied(u, triple, &[int_t, boolean, int_t]);
+    let union = member_ref(u, "scala", "Tuple", "Union");
+    let t = applied(u, union, &[triple]);
+    let union_t = u.normalized(t);
+    let or = u.intern_type(Type::Or(int_t, boolean, false));
+    assert!(u.is_subtype(union_t, or) && u.is_subtype(or, union_t), "{}", u.show(union_t));
+    assert!(u.is_subtype(int_t, t));
+}
+
+#[test]
+fn stuck_and_disjoint_match_types() {
+    let Some(mut u) = stdlib() else { return };
+    let u = &mut u;
+    let head = member_ref(u, "scala", "Tuple", "Head");
+    let tuple = class(u, "scala.Tuple");
+    let t = applied(u, head, &[tuple]);
+    assert_eq!(u.try_normalize(t), None, "{}", u.show(t));
+    let int_t = class(u, "scala.Int");
+    let t = applied(u, head, &[int_t]);
+    assert_eq!(u.try_normalize(t), None);
+}
+
 fn has_undecoded(u: &mut Universe, t: TypeId) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {

@@ -24,7 +24,7 @@ impl Typer<'_> {
         let typed: Vec<TNodeId> = items.into_iter().map(|s| self.untyped_selector(s)).collect();
         let selectors = self.tpd.list(&typed);
         let span = self.ast.span(id);
-        self.tpd.node(T::Import { expr, selectors }, span, None, None)
+        self.tpd.node(T::Import { expr, selectors, export: false }, span, None, None)
     }
 
     /// Checks that the named selectors of import `i` name members of its path, that no name is
@@ -55,7 +55,7 @@ impl Typer<'_> {
     }
 
     /// An import selector as dotty keeps it: untyped identifiers.
-    fn untyped_selector(&mut self, s: NodeId) -> TNodeId {
+    pub fn untyped_selector(&mut self, s: NodeId) -> TNodeId {
         let Tree::ImportSelector { imported, renamed, bound } = *self.ast.tree(s) else {
             return self.unsupported(s, "import selector");
         };

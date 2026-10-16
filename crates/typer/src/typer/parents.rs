@@ -40,6 +40,14 @@ impl Typer<'_> {
                 if !types.is_empty() && !self.u.is_trait(c) {
                     self.unsupported(p, "class used as a mixin");
                 }
+                let ctors = if self.u.is_trait(c) {
+                    self.u.decl(c, "<init>").unwrap_or_default()
+                } else {
+                    Vec::new()
+                };
+                if ctors.into_iter().any(|k| !self.is_accessible(k, ctx)) {
+                    self.unsupported(p, "inaccessible trait constructor");
+                }
             }
             types.push(tpe);
         }
