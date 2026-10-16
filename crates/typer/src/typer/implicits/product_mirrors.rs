@@ -91,7 +91,15 @@ impl Typer<'_> {
         let mirror = match self.product_companion(cls) {
             Some(module) => {
                 let path = self.u.intern_type(Type::Sym(pre, module));
-                self.path_tree(path, at, 8).ok_or("Mirror companion outside the subset")?
+                let tree = self.path_tree(path, at, 8).ok_or("Mirror companion outside the subset")?;
+                let class = self.u.module_class(module).filter(|&c| self.encloses(c, ctx.owner));
+                match class {
+                    Some(class) if matches!(self.tpd.tree(tree), crate::tpd::Tree::Select { .. }) => {
+                        let class_type = crate::defn::type_ref(self.u, class);
+                        self.build().this(class_type, at)
+                    }
+                    _ => tree,
+                }
             }
             None => self.anonymous_mirror(mono, false, at, ctx)?,
         };
@@ -162,6 +170,11 @@ impl Typer<'_> {
     /// Whether `s` is annotated `@unroll`.
     fn is_unrolled(&self, s: SymbolId) -> bool {
         self.u.annotations(s).iter().any(|&a| self.u.full_name(a) == "scala.annotation.unroll")
+    }
+
+    /// Whether `owner` is `class` or owned by it, transitively.
+    fn encloses(&self, class: SymbolId, owner: SymbolId) -> bool {
+        std::iter::successors(Some(owner), |&o| self.u.symbol(o).owner).any(|o| o == class)
     }
 
     /// The companion of class `c` if it is its mirror (dotty's `useCompanionAsProductMirror`).
