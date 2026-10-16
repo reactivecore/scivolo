@@ -5,7 +5,7 @@
 use crate::definitions::symbol;
 use crate::phases::literals::is_wildcard;
 use crate::symbols::is_static;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{CASE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type};
@@ -94,13 +94,13 @@ fn is_simple_throwable(l: &mut Lower, tpt: TNodeId) -> Result<bool> {
         },
         _ => return Ok(false),
     };
-    if l.u.symbol(c).kind != Kind::Class {
-        return unsupported(l.tpd.span(tpt), "a catch case testing an abstract type");
-    }
-    let throwable = l.u.class_ref("java.lang.Throwable");
-    let throwable = l.u.class_symbol(throwable).expect("`Throwable`");
-    let owner = l.u.symbol(c).owner.expect("a class's owner");
+    let throwable_tpe = l.u.class_ref("java.lang.Throwable");
+    let throwable = l.u.class_symbol(throwable_tpe).expect("`Throwable`");
+    let owner = l.u.symbol(c).owner.expect("a symbol's owner");
     let static_prefix =
         l.u.symbol(owner).kind.is_term() || l.u.symbol(owner).kind == Kind::Package || is_static(l.u, owner);
+    if l.u.symbol(c).kind != Kind::Class {
+        return Ok(static_prefix && l.u.is_subtype(tpe, throwable_tpe));
+    }
     Ok(static_prefix && !l.u.is_trait(c) && l.u.derives_from(c, throwable))
 }
