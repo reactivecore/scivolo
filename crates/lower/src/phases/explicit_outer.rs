@@ -8,8 +8,9 @@ use super::references_outer::references_outer;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::{has, is_static};
 use crate::{Lower, Result};
+use syntax::ast::Span;
 use tasty::tags::{FINAL, PRIVATE};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
@@ -105,23 +106,39 @@ pub fn outer_this(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<Vec<Symb
 }
 
 /// For a reference `t` by name to a member of a class enclosing `class` through enclosing
-/// instances, `t` made a selection on that class's `this`, returned (dotty's `desugarIdent`); of
-/// an object `class` is in, its `this`.
+/// instances, or of objects in it, `t` made a selection on that path, whose `this` is returned
+/// (dotty's `desugarIdent`); of an object `class` is in, its `this`.
 pub fn outer_prefix(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<TNodeId> {
     let Tree::Ident { name } = *l.tpd.tree(t) else { return None };
     let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(t).tpe?) else { return None };
-    let Type::This(c) = *l.u.types().get(prefix) else { return None };
-    let c = l.u.class_symbol(c).filter(|&c| c != class)?;
-    outer_chain(l, class, c)?;
+    let at = l.tpd.span(t).start_pos();
+    let (qualifier, this) = prefix_path(l, prefix, class, at)?;
     let module = l.tpd.sym(t).and_then(|s| l.u.module_class(s).filter(|_| l.u.is_module(s)));
-    if let Some(m) = module.filter(|&m| super::local_free::within(l, class, m)) {
+    if let Some(m) = module.filter(|&m| qualifier == this && super::local_free::within(l, class, m)) {
         let this = l.this(m, l.tpd.span(t));
         l.copy_node(t, this);
         return Some(t);
     }
-    let this = l.this(c, l.tpd.span(t).start_pos());
-    l.tpd.get_mut(t).tree = Tree::Select { qualifier: this, name };
+    l.tpd.get_mut(t).tree = Tree::Select { qualifier, name };
     Some(this)
+}
+
+/// Prefix `p` as a tree at `at` and its `this`, if `this` of a class enclosing `class` through
+/// enclosing instances or objects selected on it.
+fn prefix_path(l: &mut Lower, p: TypeId, class: SymbolId, at: Span) -> Option<(TNodeId, TNodeId)> {
+    match *l.u.types().get(p) {
+        Type::This(c) => {
+            let c = l.u.class_symbol(c).filter(|&c| c != class)?;
+            outer_chain(l, class, c)?;
+            let this = l.this(c, at);
+            Some((this, this))
+        }
+        Type::Sym(Some(q), s) if l.u.is_module(s) => {
+            let (qualifier, this) = prefix_path(l, q, class, at)?;
+            Some((l.select(qualifier, s, at), this))
+        }
+        _ => None,
+    }
 }
 
 /// The classes from the enclosing instance of `class` out to `target`, if it is reached through

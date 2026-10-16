@@ -111,3 +111,4 @@ typetests3
 localgenerics
 outerpatterns
 innerctors
+sealedsums

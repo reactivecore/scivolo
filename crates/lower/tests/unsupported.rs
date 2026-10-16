@@ -82,7 +82,10 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("trait T { var x: Int }", "abstract variables"),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
-    ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
+    (
+        "sealed trait S[A]; object S { case class X[A](a: A) extends S[A] }",
+        "companions of generic sealed classes",
+    ),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (
         "object O { def f(k: Int) = { object L { object M { val v = k } }; L.M.v } }",

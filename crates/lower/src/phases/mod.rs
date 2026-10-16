@@ -93,6 +93,7 @@ mod sensical;
 mod specialize;
 mod specialize_tuples;
 mod standard_interpolator;
+mod sum_mirrors;
 mod super_accessors;
 mod synthetic;
 mod tail_calls;
