@@ -138,16 +138,15 @@ impl FnBuilder<'_, '_> {
     }
 
     /// The address of method `sig` of `obj`: resolved here for modules and non-virtual methods,
-    /// else from the vtable of its class or, if its static class has no slot, from the itable.
+    /// else from the vtable of its class or, if its static class has no slot, from the itable; a
+    /// method of `null` throws NullPointerException.
     fn method(&mut self, id: u64, obj: ValId, sig: StrId) -> R<Value> {
         let ptr = self.decls.ptr;
         let Some(cls) = self.class_of_val(obj)? else {
+            let ty = self.type_of(obj)?;
             let pool = &self.reach.world.pool;
-            let null = match pool.val(obj) {
-                nir::Val::Null => true,
-                nir::Val::Local(_, ty) => matches!(pool.ty(*ty), nir::Type::Null),
-                _ => false,
-            };
+            let null = matches!(pool.val(obj), nir::Val::Null)
+                || matches!(pool.ty(ty), nir::Type::Null | nir::Type::Nothing);
             if !null {
                 return Err("a method of a value that is no object".into());
             }

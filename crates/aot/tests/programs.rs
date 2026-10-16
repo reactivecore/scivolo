@@ -74,6 +74,11 @@ fn hello_and_fib_run_through_their_main() {
 }
 
 #[test]
+fn unit_compared_as_object_and_methods_of_null() {
+    assert_eq!(run_main("nullrecv"), check("nullrecv"));
+}
+
+#[test]
 fn fib_runs_as_executable() {
     assert_eq!(run("fib", "fibo", "25"), "75025\n");
 }

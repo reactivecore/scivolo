@@ -79,7 +79,7 @@ aot-check-all:
 # `.check`, 20 s per compile and run; results in tmp/aot/dotty/results.tsv.
 aot-dotty n="0":
     cargo build -q --release -p aot
-    python3 scripts/aot-dotty.py {{ n }}
+    python3 scripts/aot-dotty.py '{{ n }}'
 
 # Build as aot-build does and run the executable with `args`, stopped after 20 s.
 aot-run name entry *args: (aot-build name entry)
