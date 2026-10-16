@@ -17,6 +17,7 @@ mod arg_shapes;
 mod auto_apply;
 mod avoid;
 mod avoid_map;
+mod avoid_select;
 mod call_types;
 mod case_lambdas;
 mod class_bound;

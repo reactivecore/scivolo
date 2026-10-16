@@ -1,6 +1,6 @@
 //! Approximations of mapped types by ranges (dotty's `ApproximatingTypeMap`).
 
-use tasty::{NOTHING, Type, TypeId, Universe};
+use tasty::{ANY, NOTHING, Type, TypeId, Universe};
 
 /// A mapped type, or the range of types between a lower and an upper bound.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -30,7 +30,17 @@ impl Approx {
     pub fn to_bounds(self, u: &mut Universe) -> TypeId {
         match self {
             Approx::Exact(t) => t,
-            Approx::Range(lo, hi) => u.intern_type(Type::Bounds(lo, hi)),
+            Approx::Range(lo, hi) => {
+                let lo = match *u.types().get(lo) {
+                    Type::Bounds(l, _) => l,
+                    _ => lo,
+                };
+                let hi = match *u.types().get(hi) {
+                    Type::Bounds(_, h) => h,
+                    _ => hi,
+                };
+                u.intern_type(Type::Bounds(lo, hi))
+            }
         }
     }
 }
@@ -84,17 +94,40 @@ pub fn applied(u: &mut Universe, tycon: Approx, args: &[Approx], variances: &[i8
         let args = args.iter().map(|a| a.hi()).collect();
         return Approx::Exact(u.intern_type(Type::Applied(tycon, args)));
     }
-    let wild: Vec<TypeId> = args.iter().map(|a| a.to_bounds(u)).collect();
-    let wild = u.intern_type(Type::Applied(tycon, wild));
+    let wild = |u: &mut Universe| {
+        let wild: Vec<TypeId> = args.iter().map(|a| a.to_bounds(u)).collect();
+        u.intern_type(Type::Applied(tycon, wild))
+    };
     if v > 0 {
-        return Approx::Exact(wild);
+        return Approx::Exact(wild(u));
     }
     let variance = |i: usize| variances.get(i).copied().unwrap_or(0);
     if args.iter().enumerate().all(|(i, a)| !a.is_range() || variance(i) != 0) {
         let flip: Vec<bool> = (0..args.len()).map(|i| variance(i) < 0).collect();
         return derived(u, args, &flip, v, &mut |u, args| u.intern_type(Type::Applied(tycon, args.to_vec())));
     }
-    range(u, Approx::Exact(NOTHING), Approx::Exact(wild), v)
+    let hi = match args.iter().any(|&a| is_range_of_bounds(u, a)) {
+        true => ANY,
+        false => wild(u),
+    };
+    range(u, Approx::Exact(NOTHING), Approx::Exact(hi), v)
+}
+
+/// The variances of the `n` parameters of type constructor `tycon`, invariant where unknown.
+pub fn tycon_variances(u: &mut Universe, tycon: TypeId, n: usize) -> Vec<i8> {
+    let s = match *u.types().get(tycon) {
+        Type::Sym(_, s) => Some(s),
+        Type::TypeRef(..) => u.resolve_ref(tycon),
+        _ => None,
+    };
+    s.map(|s| u.variances(s)).filter(|vs| vs.len() == n).unwrap_or_else(|| vec![0; n])
+}
+
+/// Whether `a` is a range with bounds or an alias as one of its ends (dotty's
+/// `isRangeOfNonTermTypes`).
+fn is_range_of_bounds(u: &Universe, a: Approx) -> bool {
+    let bounds = |t| matches!(u.types().get(t), Type::Bounds(..) | Type::Alias(_) | Type::Wildcard(_));
+    a.is_range() && (bounds(a.lo()) || bounds(a.hi()))
 }
 
 /// Type bounds `lo .. hi` (dotty's `derivedTypeBounds`).

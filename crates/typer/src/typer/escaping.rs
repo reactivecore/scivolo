@@ -5,15 +5,22 @@ use tasty::{SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// Whether type `t` refers to one of `locals` as dotty's `namedPartsWith` finds them: the
-    /// prefix of a static member not traversed.
+    /// prefix of a static member not traversed, the class of a class constant traversed.
     pub fn escapes(&mut self, t: TypeId, locals: &[SymbolId]) -> bool {
         let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Sym(pre, s) = *u.types().get(part) else { return None };
-            found |= locals.contains(&s);
-            pre.filter(|_| u.is_static_symbol(s)).map(|_| part)
+        let mut classes = Vec::new();
+        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(pre, s) => {
+                found |= locals.contains(&s);
+                pre.filter(|_| u.is_static_symbol(s)).map(|_| part)
+            }
+            Type::Constant(tasty::tags::CLASSconst, bits) => {
+                classes.push(TypeId(bits as u32));
+                None
+            }
+            _ => None,
         });
-        found
+        found || classes.into_iter().any(|c| self.escapes(c, locals))
     }
 
     /// Whether an uninstantiated type variable in `t` has a bound that refers to one of `locals`,

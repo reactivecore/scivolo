@@ -7,8 +7,9 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// The intersection of local class `c`'s parents refined by each type member narrowing an
     /// inherited one, or by any member if a parent is a `Selectable`; `None` for a polymorphic
-    /// class, a term member that needs a refinement, or a refinement referring to `c`.
-    pub fn local_class_bound(&mut self, c: SymbolId) -> Option<TypeId> {
+    /// class, a term member that needs a refinement, or a refinement referring to `c` or to one
+    /// of the local symbols being expanded, `visiting`.
+    pub fn local_class_bound(&mut self, c: SymbolId, visiting: &[SymbolId]) -> Option<TypeId> {
         if !self.u.type_params(c).is_empty() {
             return None;
         }
@@ -30,7 +31,7 @@ impl Typer<'_> {
                 return None;
             }
             let info = self.type_info(d);
-            let avoided = Avoided { locals: &missing, opaque: &[] };
+            let avoided = Avoided { locals: &missing, opaque: &[], visiting };
             let info = self.avoid_at(info, 1, avoided)?.hi();
             if self.refers_to(info, &[c]) {
                 return None;
@@ -66,12 +67,34 @@ impl Typer<'_> {
         let info = self.u.info(d);
         let own = self.final_result(info);
         let poly = matches!(self.u.types().get(info), Type::Poly { .. });
+        let class = self.u.intern_type(Type::Sym(None, c));
+        let this = self.u.intern_type(Type::This(class));
         inherited.into_iter().any(|m| {
-            let info = self.u.member_info(parent, m);
+            let info = self.u.member_info(this, m);
             let theirs = self.final_result(info);
-            let narrower = self.u.is_subtype(own, theirs);
-            let wider = self.u.is_subtype(theirs, own);
-            (poly || narrower) && !(narrower && wider)
+            let theirs = self.own_type_members(c, this, theirs);
+            let narrower = own == theirs || self.u.is_subtype(own, theirs);
+            let wider = own == theirs || self.u.is_subtype(theirs, own);
+            let unsure = self.refers_to(own, &[c]) || self.refers_to(theirs, &[c]);
+            !(narrower && wider) && (poly || narrower || unsure)
+        })
+    }
+
+    /// `t` with each type member selected on `this` of class `c` replaced by the member of `c`
+    /// of that name that overrides it.
+    fn own_type_members(&mut self, c: SymbolId, this: TypeId, t: TypeId) -> TypeId {
+        self.u.map_type(t, &mut |u, part| {
+            let Type::Sym(Some(pre), m) = *u.types().get(part) else { return None };
+            if pre != this || u.symbol(m).kind != Kind::Type {
+                return None;
+            }
+            let name = u.symbol(m).name.clone();
+            let decls = &u.symbol(c).decls;
+            let own = decls
+                .iter()
+                .copied()
+                .find(|&d| u.symbol(d).kind == Kind::Type && u.symbol(d).name == name)?;
+            Some(u.intern_type(Type::Sym(Some(pre), own)))
         })
     }
 

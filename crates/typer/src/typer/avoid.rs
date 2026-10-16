@@ -9,20 +9,21 @@ impl Typer<'_> {
     /// Whether type `t` refers to one of `syms`.
     pub fn refers_to(&mut self, t: TypeId, syms: &[SymbolId]) -> bool {
         let mut found = false;
+        let mut classes = Vec::new();
         self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = u.types().get(part)
-                && syms.contains(s)
-            {
-                found = true;
+            match *u.types().get(part) {
+                Type::Sym(_, s) => found |= syms.contains(&s),
+                Type::Constant(tasty::tags::CLASSconst, bits) => classes.push(TypeId(bits as u32)),
+                _ => {}
             }
             None
         });
-        found
+        found || classes.into_iter().any(|c| self.refers_to(c, syms))
     }
 
     /// `{ defs; tree }`, or `tree` if there are no definitions (dotty's `wrapDefs`), its type
     /// avoiding the definitions (dotty's `avoidingType`); outside the subset if it still refers
-    /// to them.
+    /// to them or is not a supertype of the original.
     pub fn wrap_defs(&mut self, defs: Vec<TNodeId>, tree: TNodeId) -> TNodeId {
         if defs.is_empty() {
             return tree;
@@ -30,12 +31,16 @@ impl Typer<'_> {
         let span = defs.iter().fold(self.tpd.span(tree), |s, &d| s.union(self.tpd.span(d)));
         let span = syntax::ast::Span::synthetic(span.start(), span.end());
         let syms: Vec<SymbolId> = defs.iter().filter_map(|&d| self.tpd.sym(d)).collect();
-        let avoided = Avoided { locals: &syms, opaque: &[] };
-        let tpe = self.tpd.get(tree).tpe.map(|t| match self.refers_to(t, &syms) {
-            true => self.avoid_at(t, 1, avoided).map_or(t, |a| a.hi()),
+        let original = self.tpd.get(tree).tpe;
+        let tpe = original.map(|t| match self.refers_to(t, &syms) {
+            true => match self.avoid_at(t, 1, Avoided::new(&syms, &[])) {
+                Some(a) => self.normalized(a.hi()),
+                None => t,
+            },
             false => t,
         });
-        if tpe.is_some_and(|t| self.refers_to(t, &syms)) {
+        let widened = original.zip(tpe).is_some_and(|(t, a)| t != a && !self.u.is_subtype(t, a));
+        if widened || tpe.is_some_and(|t| self.refers_to(t, &syms)) {
             self.unsupported_at(span, "type of a lifted call referring to a lifted value");
         }
         let stats = self.tpd.list(&defs);
@@ -58,7 +63,8 @@ impl Typer<'_> {
         if !self.escapes(tpe, locals) && !self.var_bounds_refer_to(tpe, locals) {
             return Some(expr);
         }
-        let mut avoided = self.avoid_at(tpe, 1, Avoided { locals, opaque })?.hi();
+        let avoided = self.avoid_at(tpe, 1, Avoided::new(locals, opaque))?.hi();
+        let mut avoided = self.normalized(avoided);
         if let Pt::Type(p) = pt
             && let p = self.zonk(p)
             && self.is_fully_defined(p)

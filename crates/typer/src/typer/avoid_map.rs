@@ -4,11 +4,19 @@ use super::Typer;
 use super::approx::{self, Approx};
 use tasty::{Kind, NOTHING, SymbolId, Type, TypeId, TypeVars};
 
-/// The symbols to avoid, and those whose bounds are unknown: reaching one fails.
+/// The symbols to avoid, those whose bounds are unknown, and the local symbols being expanded:
+/// reaching one of the last two fails.
 #[derive(Clone, Copy)]
 pub struct Avoided<'a> {
     pub locals: &'a [SymbolId],
     pub opaque: &'a [SymbolId],
+    pub visiting: &'a [SymbolId],
+}
+
+impl<'a> Avoided<'a> {
+    pub fn new(locals: &'a [SymbolId], opaque: &'a [SymbolId]) -> Self {
+        Avoided { locals, opaque, visiting: &[] }
+    }
 }
 
 impl Typer<'_> {
@@ -27,13 +35,11 @@ impl Typer<'_> {
             Type::This(_) | Type::Sym(..) => exact(t),
             Type::Applied(tycon, args) => {
                 let c = m(self, tycon, v)?;
-                let variances = match *self.u.types().get(tycon) {
-                    Type::Sym(_, s) => self.u.variances(s),
-                    _ => Vec::new(),
-                };
+                let variances = approx::tycon_variances(self.u, tycon, args.len());
                 let mut mapped = Vec::with_capacity(args.len());
-                for (i, &arg) in args.iter().enumerate() {
-                    mapped.push(m(self, arg, v * variances.get(i).copied().unwrap_or(0))?);
+                for (&arg, &pv) in args.iter().zip(&variances) {
+                    let wildcard = matches!(self.u.types().get(arg), Type::Bounds(..) | Type::Wildcard(_));
+                    mapped.push(m(self, arg, if wildcard { v } else { v * pv })?);
                 }
                 Some(approx::applied(self.u, c, &mapped, &variances, v))
             }
@@ -72,20 +78,24 @@ impl Typer<'_> {
             },
             Type::Var(var) => self.avoid_var(t, var, v, a),
             Type::Method { .. } | Type::Poly { .. } | Type::Lambda { .. } => self.avoid_lambda(t, v, a),
-            Type::Match { bound, .. } => {
-                if self.refers_to(t, a.locals) {
-                    let hi = m(self, bound, v)?;
-                    return Some(approx::range(self.u, Approx::Exact(NOTHING), hi, v));
-                }
-                exact(t)
+            Type::Match { .. } if self.refers_to(t, a.locals) => None,
+            Type::Constant(tasty::tags::CLASSconst, _) if self.refers_to(t, a.locals) => {
+                let class = self.u.widen(t);
+                m(self, class, v)
             }
             _ => exact(t),
         }
     }
 
     /// A reference to local symbol `s` approximated: a term by its widened type, an alias by its
-    /// right-hand side, an abstract type by its bounds, a class by its `class_bound`.
+    /// right-hand side, an abstract type by its bounds, a class by its `class_bound`; `None` if
+    /// `s` is reached again while expanding it.
     fn avoid_local(&mut self, s: SymbolId, v: i8, a: Avoided) -> Option<Approx> {
+        if a.visiting.contains(&s) {
+            return None;
+        }
+        let visiting = [a.visiting, &[s]].concat();
+        let a = Avoided { visiting: &visiting, ..a };
         let info = self.u.info(s);
         let info = match *self.u.types().get(info) {
             Type::ByName(r) => r,
@@ -93,7 +103,7 @@ impl Typer<'_> {
         };
         match self.u.symbol(s).kind {
             Kind::Class => {
-                let bound = self.local_class_bound(s)?;
+                let bound = self.local_class_bound(s, a.visiting)?;
                 let hi = self.avoid_at(bound, v, a)?;
                 Some(approx::range(self.u, Approx::Exact(NOTHING), hi, v))
             }
@@ -110,84 +120,13 @@ impl Typer<'_> {
     }
 
     /// The approximation of a type whose info is `info`: its alias, or its bounds.
-    fn avoid_info(&mut self, info: TypeId, v: i8, a: Avoided) -> Option<Approx> {
+    pub fn avoid_info(&mut self, info: TypeId, v: i8, a: Avoided) -> Option<Approx> {
         match *self.u.types().get(info) {
             Type::Alias(x) => self.avoid_at(x, v, a),
             Type::Bounds(lo, hi) => {
                 let lo = self.avoid_at(lo, -v, a)?;
                 let hi = self.avoid_at(hi, v, a)?;
                 Some(approx::range(self.u, lo, hi, v))
-            }
-            _ => None,
-        }
-    }
-
-    /// `pre.s` with prefix `pre` approximated as `p` (dotty's `AvoidMap.derivedSelect`): the
-    /// member's alias, bounds or singleton type when it has one, a term's widened type at a
-    /// positive variance, the member of the upper prefix otherwise.
-    fn avoid_select(
-        &mut self,
-        t: TypeId,
-        pre: TypeId,
-        p: Approx,
-        s: SymbolId,
-        v: i8,
-        a: Avoided,
-    ) -> Option<Approx> {
-        if p == Approx::Exact(pre) {
-            return Some(Approx::Exact(t));
-        }
-        let singleton = matches!(p, Approx::Exact(q) if self.is_path(q));
-        if !singleton && let Some(r) = self.try_widen(t, pre, s, v, a) {
-            return r;
-        }
-        let kind = self.u.symbol(s).kind;
-        if kind.is_term() && v > 0 && !singleton {
-            let info = self.u.term_type(Some(pre), s);
-            let info = self.u.widen(info);
-            return self.avoid_at(info, v, a);
-        }
-        let hi = self.u.intern_type(Type::Sym(Some(p.hi()), s));
-        let lo = match p.lo() {
-            NOTHING => NOTHING,
-            lo => self.u.intern_type(Type::Sym(Some(lo), s)),
-        };
-        Some(approx::range(self.u, Approx::Exact(lo), Approx::Exact(hi), v))
-    }
-
-    /// `pre.s` replaced by what it is equal to or bounded by (dotty's `tryWiden` and
-    /// `expandParam`); `None` if it has no such type, `Some(None)` if avoiding that fails.
-    fn try_widen(
-        &mut self,
-        t: TypeId,
-        pre: TypeId,
-        s: SymbolId,
-        v: i8,
-        a: Avoided,
-    ) -> Option<Option<Approx>> {
-        match self.u.symbol(s).kind {
-            Kind::TypeParam => {
-                let arg = self.resolve_class_params(t);
-                (arg != t).then(|| match *self.u.types().get(arg) {
-                    Type::Bounds(..) => self.avoid_info(arg, v, a),
-                    _ => self.avoid_at(arg, v, a),
-                })
-            }
-            Kind::Type => {
-                let alias = self.u.dealias(t);
-                if alias != t {
-                    return Some(self.avoid_at(alias, v, a));
-                }
-                let info = self.u.member_info(pre, s);
-                matches!(self.u.types().get(info), Type::Bounds(..)).then(|| self.avoid_info(info, v, a))
-            }
-            k if k.is_term() => {
-                let info = self.u.term_type(Some(pre), s);
-                let info = match *self.u.types().get(info) {
-                    Type::ByName(r) => r,
-                    _ => info,
-                };
-                self.is_path(info).then(|| self.avoid_at(info, v, a))
             }
             _ => None,
         }
@@ -250,14 +189,5 @@ impl Typer<'_> {
                 other => other,
             })
         }))
-    }
-
-    /// Whether `t` is a singleton type: a path, `this`, a constant or a skolem.
-    fn is_path(&mut self, t: TypeId) -> bool {
-        match *self.u.types().get(t) {
-            Type::TermRef(..) | Type::This(_) | Type::Constant(..) | Type::Str(_) | Type::Skolem(..) => true,
-            Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
-            _ => false,
-        }
     }
 }
