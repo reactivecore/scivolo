@@ -235,9 +235,11 @@ pub enum Tree {
         self_: Option<TNodeId>,
         body: List,
     },
+    /// `export` for dotty's `Export`.
     Import {
         expr: TNodeId,
         selectors: List,
+        export: bool,
     },
     /// Its identifiers are untyped, as in dotty.
     ImportSelector {
@@ -386,7 +388,7 @@ impl Tree {
                 f(O(self_));
                 f(L(body));
             }
-            Tree::Import { expr, selectors } => {
+            Tree::Import { expr, selectors, .. } => {
                 f(N(expr));
                 f(L(selectors));
             }

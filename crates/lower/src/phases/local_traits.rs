@@ -100,10 +100,7 @@ fn pass_values(l: &mut Lower, root: TNodeId, methods: &FxHashMap<SymbolId, &[Sym
             Tree::Select { .. } | Tree::Ident { .. } if !funs.contains(&t) => (t, Vec::new()),
             _ => continue,
         };
-        let target = match *l.tpd.tree(reference) {
-            Tree::TypeApply { fun, .. } => fun,
-            _ => reference,
-        };
+        let target = super::walk::without_type_args(l.tpd, reference);
         let called = l
             .tpd
             .sym(target)

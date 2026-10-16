@@ -41,7 +41,8 @@ impl Lower<'_> {
             };
             let primitive = symbol.is_some_and(|s| {
                 let name = self.u.full_name(s);
-                "zcbsijfd".chars().any(|p| primitive_class_name(p).as_deref() == Some(name.as_str()))
+                name == "scala.Unit"
+                    || "zcbsijfd".chars().any(|p| primitive_class_name(p).as_deref() == Some(name.as_str()))
             });
             !primitive
         });

@@ -8,8 +8,8 @@ use tasty::Universe;
 /// Each source and what the refusal names.
 const CASES: &[(&str, &str)] = &[
     (
-        "object O { def g(): Any = 1; def f(): Boolean = g().isInstanceOf[String | Int] }",
-        "type tests of unions or intersections of values other than names",
+        "object O { val v: Any = 1; def f(): Boolean = O.v.isInstanceOf[String | Int] }",
+        "type tests of unions or intersections of paths other than names",
     ),
     (
         "object W\nclass V(val n: Int) extends AnyVal { def f(x: Any) = x match { case _: (this.type | W.type) => 1; case _ => 0 } }",
@@ -23,7 +23,10 @@ const CASES: &[(&str, &str)] = &[
         "class V(val n: Int) extends AnyVal { type S = this.type; def f(x: Any) = x match { case _: S => 1; case _ => 0 } }",
         "type tests of this.type of value classes",
     ),
-    ("object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[T]] }", "type tests of generic arrays"),
+    (
+        "object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[Array[T]]] }",
+        "type tests of generic arrays of arrays",
+    ),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
         "object O { def f(x: Boolean): Int = x.asInstanceOf[Int] }",
@@ -60,8 +63,7 @@ const CASES: &[(&str, &str)] = &[
         "type tests of objects nested in classes",
     ),
     ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
-    ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
-    ("object O { def f = Tuple1(1).size }", "match type in a library inline body"),
+    ("object O { def f: Tuple.Head[EmptyTuple] = ??? }", "ground match types in type trees"),
     (
         "object O { def f(k: Int) = { trait T { val v = k }; new T {}.v } }",
         "local traits initializing with captured values",
@@ -80,7 +82,10 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("trait T { var x: Int }", "abstract variables"),
     ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
-    ("sealed trait S; object S { val x = 1 }", "companions of sealed classes"),
+    (
+        "sealed trait S[A]; object S { case class X[A](a: A) extends S[A] }",
+        "companions of generic sealed classes",
+    ),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (
         "object O { def f(k: Int) = { object L { object M { val v = k } }; L.M.v } }",

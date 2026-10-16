@@ -9,7 +9,7 @@ impl Cmp<'_> {
     /// `a <: tycon[args]`.
     pub fn compare_applied2(&mut self, a: TypeId, b: TypeId, tycon: TypeId, args: &[TypeId]) -> bool {
         let variances = self.variances(tycon, args.len());
-        if self.matching_apply(a, tycon, args, &variances) {
+        if self.matching_apply(a, tycon, args, &variances) || self.compare_compiletime(b, a, true) {
             return true;
         }
         match self.u.types().get(tycon).clone() {
@@ -91,6 +91,9 @@ impl Cmp<'_> {
 
     /// `tycon[args] <: b`.
     pub fn compare_applied1(&mut self, a: TypeId, b: TypeId, tycon: TypeId, args: &[TypeId]) -> bool {
+        if self.compare_compiletime(a, b, false) {
+            return true;
+        }
         match self.u.types().get(tycon).clone() {
             Type::Var(v) => {
                 let upper = match self.vars.instance(v) {

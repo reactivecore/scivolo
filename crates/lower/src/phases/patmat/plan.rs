@@ -82,12 +82,9 @@ impl Translator<'_, '_> {
 
     /// The plan of match `m`: its cases in turn, a `MatchError` if none matches.
     pub fn match_plan(&mut self, m: TNodeId) -> Result<PlanId> {
-        let Tree::Match { selector: Some(selector), cases, kind } = *self.l.tpd.tree(m) else {
+        let Tree::Match { selector: Some(selector), cases, .. } = *self.l.tpd.tree(m) else {
             unreachable!("a match with a selector")
         };
-        if kind == MatchKind::Sub {
-            return crate::unsupported(self.l.tpd.span(m), "sub match");
-        }
         let cases = self.l.tpd.items(cases).to_vec();
         self.let_abstract(selector, None, |t, scrutinee| {
             let error = t.match_error(scrutinee);
@@ -127,12 +124,31 @@ impl Translator<'_, '_> {
 
     fn case_def_plan(&mut self, scrutinee: SymbolId, c: TNodeId) -> Result<PlanId> {
         let Tree::CaseDef { pat, guard, body } = *self.l.tpd.tree(c) else { unreachable!("a case") };
-        let mut on_success = self.add(Plan::Result { tree: body });
+        let mut on_success = match *self.l.tpd.tree(body) {
+            Tree::Match { selector: Some(selector), cases, kind: MatchKind::Sub } => {
+                self.sub_match_plan(selector, cases)?
+            }
+            _ => self.add(Plan::Result { tree: body }),
+        };
         if let Some(guard) = guard {
             let span = self.l.tpd.span(guard);
             on_success = self.add(Plan::Test { test: Test::Guard, scrutinee: guard, span, on_success });
         }
         self.pattern_plan(scrutinee, pat, on_success)
+    }
+
+    /// The plan of the cases of a sub match in turn, falling through when none matches.
+    fn sub_match_plan(&mut self, selector: TNodeId, cases: typer::tpd::List) -> Result<PlanId> {
+        let cases = self.l.tpd.items(cases).to_vec();
+        self.let_abstract(selector, None, |t, scrutinee| {
+            let (&last, init) = cases.split_last().expect("a sub match with cases");
+            let mut next = t.case_def_plan(scrutinee, last)?;
+            for &c in init.iter().rev() {
+                let head = t.case_def_plan(scrutinee, c)?;
+                next = t.add(Plan::Seq { head, tail: next });
+            }
+            Ok(next)
+        })
     }
 
     /// The plan matching the value of `scrutinee` against `pat`, then `on_success`.
