@@ -44,6 +44,10 @@ impl Typer<'_> {
             self.unsupported_at(span, "inline accessor of a context function result");
             return None;
         }
+        if matches!(self.u.types().get(info), Type::Constant(..) | Type::Str(_)) {
+            self.unsupported_at(span, "inline accessor of a constant type");
+            return None;
+        }
         let result = if setter {
             clauses.push(vec![("x$0".to_owned(), info)]);
             crate::defn::type_ref(self.u, self.defn.unit)
