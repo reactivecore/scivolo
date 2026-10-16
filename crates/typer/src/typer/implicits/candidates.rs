@@ -106,6 +106,9 @@ impl Typer<'_> {
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
     /// selection from `this`.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
+        if self.syms.is_script(c.sym) && !self.is_accessible_from(c.sym, c.prefix, ctx) {
+            return Err("inaccessible implicit");
+        }
         if self.needs_inline_accessor(c.sym, ctx) {
             return Err("non-public implicit in an inline method");
         }

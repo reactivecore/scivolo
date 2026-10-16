@@ -95,8 +95,10 @@ impl Typer<'_> {
             None => text,
         };
         self.check_definition(tree, &text, kind, ctx, written);
-        if self.ast.modifiers(mods).private_within.is_some() {
-            self.unsupported(tree, "qualified private or protected");
+        let within = self.ast.modifiers(mods).private_within.map(|q| self.text(q).to_owned());
+        let within = within.map(|q| self.enclosing_class_named(ctx.owner, &q));
+        if within == Some(None) {
+            self.unsupported(tree, "qualifier of private or protected not an enclosing class");
         }
         let mut flags = if kind.is_term() { written.to_term_flags() } else { written.to_type_flags() };
         if flags.is(f::PRIVATE) && text != "<init>" && !flags.is(f::PARAM) && !flags.is(f::PARAM_ACCESSOR) {
@@ -125,6 +127,7 @@ impl Typer<'_> {
             };
             self.syms.private_within.extend(package.map(|p| (sym, p)));
         }
+        self.syms.private_within.extend(within.flatten().map(|c| (sym, c)));
         let completion_ctx = match self.levels.outer(ctx.level) {
             Some(outer) if text == "<init>" => Ctx { level: outer, ..ctx },
             _ => ctx,

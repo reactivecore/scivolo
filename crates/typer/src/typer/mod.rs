@@ -1,6 +1,7 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod accessible;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -111,6 +112,7 @@ mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;

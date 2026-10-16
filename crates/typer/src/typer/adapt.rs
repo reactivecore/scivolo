@@ -138,8 +138,12 @@ impl Typer<'_> {
         {
             return None;
         }
+        let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
+            Type::Sym(Some(p), _) => self.shown_prefix(p),
+            _ => String::new(),
+        };
         let msg = format!(
-            "The method `apply` is inserted. The auto insertion will be deprecated, please write `{}.apply` explicitly.",
+            "The method `apply` is inserted. The auto insertion will be deprecated, please write `{prefix}{}.apply` explicitly.",
             self.text(name.name)
         );
         self.diags.warning(self.tpd.span(tree).point(), msg);
