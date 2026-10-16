@@ -119,6 +119,12 @@ impl<'w> Reach<'w> {
         self.world.defn(ctor).ok().filter(|d| matches!(d.kind, DefnKind::Define { .. })).map(|_| ctor)
     }
 
+    /// Whether classes were allocated or methods called since the last `dispatch_targets`.
+    pub fn undispatched(&self) -> bool {
+        let mut called = self.vcalls.iter().chain(&self.icalls);
+        self.dispatched_classes < self.allocated.len() || called.any(|s| !self.dispatched_set.contains(s))
+    }
+
     /// The implementations of called methods in allocated classes not reached before: of the
     /// methods called since the last time in all classes, and of all in the classes allocated
     /// since then.

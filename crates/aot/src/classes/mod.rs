@@ -40,7 +40,8 @@ pub struct Class {
 pub struct Classes {
     pub all: Vec<Class>,
     by_name: FxHashMap<GlobalId, ClassId>,
-    /// Whether an owner defines (`Some(true)`) or declares a method, by owner and signature.
+    /// Whether an owner defines (`Some(true)`) or declares (`Some(false)`) a method, by owner
+    /// and signature.
     members: FxHashMap<(GlobalId, StrId), Option<bool>>,
 }
 
@@ -97,17 +98,24 @@ impl Classes {
     /// method the bridge the VM would generate (ADR 0008).
     pub fn resolve(&mut self, world: &mut World, cls: ClassId, sig: StrId) -> R<Option<GlobalId>> {
         let order: Vec<GlobalId> = self.lookup_order(cls).into_iter().map(|id| self.get(id).name).collect();
-        let kinds: Vec<Option<bool>> = order.iter().map(|&owner| self.member(world, owner, sig)).collect();
-        if let Some(i) = kinds.iter().position(|k| *k == Some(true)) {
-            return Ok(Some(member_id(world, order[i], sig)));
+        let mut declared = false;
+        for &owner in &order {
+            match self.member(world, owner, sig) {
+                Some(true) => return Ok(Some(member_id(world, owner, sig))),
+                Some(false) => declared = true,
+                None => {}
+            }
         }
-        match kinds.contains(&Some(false)) && is_virtual(world.pool.str(sig)) {
-            true => vm::bridge(world, &order, sig).map_err(|e| e.to_string()),
-            false => Ok(None),
+        if !(declared && is_virtual(world.pool.str(sig))) {
+            return Ok(None);
         }
+        let bridge = vm::bridge(world, &order, sig).map_err(|e| e.to_string())?;
+        if let Some(g) = bridge {
+            self.members.insert((world.owner(g), sig), Some(true));
+        }
+        Ok(bridge)
     }
 
-    /// Whether `owner` defines (`Some(true)`) or declares method `sig`.
     fn member(&mut self, world: &mut World, owner: GlobalId, sig: StrId) -> Option<bool> {
         *self.members.entry((owner, sig)).or_insert_with(|| {
             let g = member_id(world, owner, sig);
