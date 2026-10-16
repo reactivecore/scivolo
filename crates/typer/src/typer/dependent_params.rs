@@ -28,38 +28,6 @@ impl Typer<'_> {
     pub fn mentions_params(&mut self, t: TypeId, binder: Binder, method: Option<SymbolId>) -> bool {
         mentions_params(self.u, t, binder, method)
     }
-
-    /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter and every one is stable.
-    pub fn dependent_result(
-        &mut self,
-        t: TypeId,
-        (binder, params): (Binder, &[(String, TypeId)]),
-        method: Option<SymbolId>,
-        args: &[crate::tpd::TNodeId],
-    ) -> Option<TypeId> {
-        let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        if types.len() != params.len() || !types.iter().all(|&a| is_stable_path(self.u, a)) {
-            return None;
-        }
-        let mut inner_class = false;
-        self.u.map_type(t, &mut |u, part| {
-            let (pre, s) = match u.types().get(part).clone() {
-                Type::Sym(Some(pre), s) => (pre, Some(s)),
-                Type::TypeRef(pre, _) => (pre, u.resolve_ref(part)),
-                _ => return None,
-            };
-            if mentions_params(u, pre, binder, method) {
-                inner_class |= s.is_some_and(|s| u.symbol(s).kind == Kind::Class);
-            }
-            None
-        });
-        if inner_class {
-            return None;
-        }
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        Some(applied_result(self.u, t, (binder, &names), method, &types))
-    }
 }
 
 /// Result `t` of the method type of binder `binder` and parameters `names`, of method `method`,
@@ -73,16 +41,10 @@ pub fn applied_result(
     method: Option<SymbolId>,
     args: &[TypeId],
 ) -> TypeId {
-    if !mentions_params(u, t, binder, method) {
+    if !mentions_clause_params(u, t, (binder, names), method) {
         return t;
     }
-    let param = |u: &Universe, part: TypeId| match *u.types().get(part) {
-        Type::Param(b, i) if b == binder => Some(i as usize),
-        Type::Sym(None, p) if u.symbol(p).kind == Kind::Param && u.symbol(p).owner == method => {
-            names.iter().position(|n| *n == u.symbol(p).name)
-        }
-        _ => None,
-    };
+    let param = |u: &Universe, part: TypeId| clause_param(u, part, (binder, names), method);
     let mut used = vec![false; args.len()];
     u.map_type(t, &mut |u, part| {
         if let Some(i) = param(u, part).filter(|&i| i < args.len()) {
@@ -97,7 +59,89 @@ pub fn applied_result(
             *r = u.fresh_skolem(widened);
         }
     }
-    u.map_type(t, &mut |u, part| replacements.get(param(u, part)?).copied())
+    substituted(u, t, &param, &replacements)
+}
+
+/// The number of the parameter of the clause of binder `binder` and parameter names `names` of
+/// method `method` that `part` refers to.
+fn clause_param(
+    u: &Universe,
+    part: TypeId,
+    (binder, names): (Binder, &[String]),
+    method: Option<SymbolId>,
+) -> Option<usize> {
+    match *u.types().get(part) {
+        Type::Param(b, i) if b == binder => Some(i as usize),
+        Type::Sym(None, p) if u.symbol(p).kind == Kind::Param && u.symbol(p).owner == method => {
+            names.iter().position(|n| *n == u.symbol(p).name)
+        }
+        _ => None,
+    }
+}
+
+/// Whether `t` refers to a parameter of the clause of binder `binder` and parameter names `names`
+/// of method `method`.
+pub fn mentions_clause_params(
+    u: &mut Universe,
+    t: TypeId,
+    clause: (Binder, &[String]),
+    method: Option<SymbolId>,
+) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= clause_param(u, part, clause, method).is_some();
+        None
+    });
+    found
+}
+
+/// `t` with each parameter `param` numbers replaced by its replacement, a type member of a
+/// replaced prefix selected again as a member of the new prefix.
+fn substituted(
+    u: &mut Universe,
+    t: TypeId,
+    param: &dyn Fn(&Universe, TypeId) -> Option<usize>,
+    replacements: &[TypeId],
+) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        if let Some(i) = param(u, part) {
+            return replacements.get(i).copied();
+        }
+        let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+        if u.symbol(s).kind != Kind::Type {
+            return None;
+        }
+        let new_pre = substituted(u, pre, param, replacements);
+        if new_pre == pre {
+            return None;
+        }
+        let name = u.symbol(s).name.clone();
+        if let Some(alias) = refined_alias(u, new_pre, &name) {
+            return Some(alias);
+        }
+        let members = u.member_of_type(new_pre, &name);
+        let member = members.into_iter().find(|&m| u.symbol(m).kind == Kind::Type).unwrap_or(s);
+        Some(u.intern_type(Type::Sym(Some(new_pre), member)))
+    })
+}
+
+/// The alias a refinement of `pre` gives type member `name` (dotty's `lookupRefined`).
+fn refined_alias(u: &mut Universe, mut pre: TypeId, name: &str) -> Option<TypeId> {
+    for _ in 0..64 {
+        pre = match u.types().get(pre).clone() {
+            Type::Refined(_, n, info) if n == name => {
+                return match *u.types().get(info) {
+                    Type::Alias(a) => Some(a),
+                    Type::Bounds(..) | Type::Wildcard(_) => None,
+                    _ => Some(info),
+                };
+            }
+            Type::Refined(p, ..) | Type::Skolem(_, p) | Type::Annotated(p, _) => p,
+            Type::Sym(_, s) if u.symbol(s).kind == Kind::Type => u.alias_of(s)?,
+            _ => return None,
+        };
+    }
+    None
 }
 
 /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of

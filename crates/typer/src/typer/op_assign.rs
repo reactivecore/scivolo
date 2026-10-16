@@ -41,7 +41,7 @@ impl Typer<'_> {
             let target = self.spliced(lhs);
             let assign = self.ast.node(Tree::Assign { lhs: target, rhs });
             self.ast.with_span(assign, span);
-            return self.typed_assign(assign, target, rhs, ctx);
+            return self.typed_assign(assign, (target, rhs), Pt::Any, ctx);
         };
         let receiver = match *self.tpd.tree(fun) {
             T::Select { qualifier, name } if self.text(name.name) == "apply" => qualifier,
@@ -104,7 +104,7 @@ impl Typer<'_> {
         self.ast.with_span(rhs, span);
         let assign = self.ast.node(Tree::Assign { lhs, rhs });
         self.ast.with_span(assign, span);
-        Some(self.typed_assign(assign, lhs, rhs, ctx))
+        Some(self.typed_assign(assign, (lhs, rhs), Pt::Any, ctx))
     }
 
     /// Assignment target `lhs` with the prefix of its selection and the arguments of its call
@@ -170,7 +170,7 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(qual);
         let tpe = self.widen_if_unstable(tpe);
         let members = self.type_members(tpe, name);
-        if members.iter().any(|&s| !self.u.is_type_symbol(s)) {
+        if members.iter().any(|&s| !self.u.is_type_symbol(s)) || self.derives_dynamic(qual) {
             return Ok(true);
         }
         if self.extension_visible(name, ctx) {

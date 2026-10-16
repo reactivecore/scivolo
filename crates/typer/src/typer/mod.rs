@@ -40,10 +40,12 @@ mod default_params;
 mod define_further;
 mod defs;
 pub(crate) mod dependent_params;
+mod dependent_results;
 mod derived;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
+mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
 mod equality;
@@ -221,6 +223,10 @@ pub struct Typer<'a> {
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The pending dynamic calls, by their placeholder trees.
+    pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The left-hand side of the assignment being typed.
+    pub dynamic_lhs: Option<NodeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -278,6 +284,8 @@ impl<'a> Typer<'a> {
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
+            dynamic_calls: FxHashMap::default(),
+            dynamic_lhs: None,
             depth: 0,
         };
         typer.enter_and_or();

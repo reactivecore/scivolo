@@ -79,8 +79,9 @@ impl Typer<'_> {
         self.tpd.node(T::WhileDo { cond, body }, span, Some(unit), None)
     }
 
-    /// `x = v` for a variable `x` (dotty's `typedAssign`, without setters and `update`).
-    pub fn typed_assign(&mut self, id: NodeId, lhs: NodeId, rhs: NodeId, ctx: Ctx) -> TNodeId {
+    /// `x = v` for a variable `x`, or a dynamic `updateDynamic` call typed for `pt` (dotty's
+    /// `typedAssign`, without setters).
+    pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let syntax::ast::Tree::Apply { fun, args } = *self.ast.tree(lhs) {
             let name = TName { name: self.name("update"), is_type: false };
             let select = self.ast.node(syntax::ast::Tree::Select { qualifier: fun, name });
@@ -94,7 +95,12 @@ impl Typer<'_> {
             self.ast.with_span(update, span);
             return self.typed_apply(update, select, args, Pt::Any, ctx);
         }
+        let outer = self.dynamic_lhs.replace(lhs);
         let lhs = self.typed(lhs, Pt::Any, ctx);
+        self.dynamic_lhs = outer;
+        if self.is_pending_dynamic(lhs) {
+            return self.typed_dynamic_assign(lhs, rhs, pt, ctx);
+        }
         let var = self.tpd.sym(lhs).filter(|&s| {
             let s = self.u.symbol(s);
             s.kind == Kind::Val && s.flags.has(tasty::tags::MUTABLE)
