@@ -1,5 +1,6 @@
 //! dotty's `Constructors` for a trait with initialization: its constructor `$init$` calls the
-//! setter of each value with its initializer and runs the statements of the body, in order.
+//! setter of each value with its initializer and runs the statements of the body, in order; and
+//! which traits of the unit have initialization.
 
 use super::accessor_names::trait_setter_name;
 use super::first_transform::literal_of;
@@ -8,8 +9,31 @@ use super::literals::is_wildcard;
 use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::tags::{FIELDaccessor, LAZY};
+use tasty::tags::{EXTENSION, FIELDaccessor, LAZY, SYNTHETIC};
 use typer::tpd::{TNodeId, Tree};
+
+/// Records the unit's traits among `classes` whose bodies have values, statements or extension
+/// methods.
+pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
+    for &td in classes {
+        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
+        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { continue };
+        let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
+        let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
+            Tree::DefDef { .. } => l.tpd.sym(s).is_some_and(|d| has(l.u, d, EXTENSION)),
+            Tree::TypeDef { .. } | Tree::Import { .. } => false,
+            Tree::ValDef { rhs, .. } => {
+                let synthetic_module =
+                    l.tpd.sym(s).is_some_and(|v| l.u.is_module(v) && has(l.u, v, SYNTHETIC));
+                rhs.is_some() && !synthetic_module
+            }
+            _ => true,
+        });
+        if inits {
+            l.u.set_inits(class);
+        }
+    }
+}
 
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let class = l.tpd.sym(td).expect("a trait definition's symbol");

@@ -101,6 +101,7 @@ mod tailrec;
 mod trait_fields;
 mod trait_init;
 mod trait_lazies;
+mod trait_params;
 mod tree_copy;
 mod type_tests;
 mod uninitialized_defs;
