@@ -1,6 +1,6 @@
 //! Class metadata: class ids in hierarchy preorder with the range of their subclasses, each
-//! class's `java.lang.Class` instance with its itable and vtable, and the class ids the
-//! collector reads (`scalai_aot_gc_ids`, for `scalai_GC_set_ids`).
+//! class's `java.lang.Class` instance with its itable and vtable, the class ids the collector
+//! reads (`scalai_aot_gc_ids`, for `scalai_GC_set_ids`), and the array of all classes.
 
 mod rtti;
 
