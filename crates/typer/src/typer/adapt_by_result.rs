@@ -83,7 +83,18 @@ impl Typer<'_> {
                 let result = self.instantiate_poly(result, binder, &names, &vars, None);
                 self.proto_normalized(result, pt, true, depth)
             }
-            Type::Method { result, implicit: true, .. } => self.proto_normalized(result, pt, true, depth),
+            Type::Method { binder, params, result, implicit: true, .. } => {
+                let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+                let infos: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+                let result = self.u.subst(result, binder, &names, &infos);
+                let result = self.u.map_type(result, &mut |u, t| match *u.types().get(t) {
+                    Type::Sym(None, s) if u.symbol(s).kind == tasty::Kind::Param => {
+                        names.iter().position(|n| *n == u.symbol(s).name).map(|i| infos[i])
+                    }
+                    _ => None,
+                });
+                self.proto_normalized(result, pt, true, depth)
+            }
             Type::Method { binder, params, result, .. } => {
                 let mut dependent = false;
                 self.u.map_type(result, &mut |u, p| {

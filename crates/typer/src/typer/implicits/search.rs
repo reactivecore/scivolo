@@ -44,7 +44,13 @@ impl Typer<'_> {
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
         let outermost = self.history.open.is_empty();
-        let found = self.arg_search(pt, at, ctx, depth);
+        let found = match self.var_upper_bound(pt) {
+            Some(hi) => self.arg_search(hi, at, ctx, depth).and_then(|t| {
+                let tpe = self.tpd.tpe(t);
+                if self.conforms(tpe, pt) { Ok(t) } else { Err("implicit of another type") }
+            }),
+            None => self.arg_search(pt, at, ctx, depth),
+        };
         if outermost { self.emitted(found, at, ctx) } else { found }
     }
 

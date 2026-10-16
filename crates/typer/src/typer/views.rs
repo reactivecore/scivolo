@@ -89,7 +89,7 @@ impl Typer<'_> {
     }
 
     /// The classes of the package objects of `pkg`.
-    fn package_objects(&mut self, pkg: SymbolId) -> Vec<SymbolId> {
+    pub fn package_objects(&mut self, pkg: SymbolId) -> Vec<SymbolId> {
         let decls = self.u.decls(pkg).unwrap_or_default();
         decls
             .into_iter()

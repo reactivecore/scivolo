@@ -53,7 +53,7 @@ impl Typer<'_> {
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
             }
-            if matches!(pt, Pt::Fun(_))
+            if matches!(pt, Pt::Fun(_) | Pt::PolyFun)
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;
