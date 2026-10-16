@@ -47,7 +47,15 @@ impl Cmp<'_> {
         Some(match u.resolve_ref(t) {
             Some(s) => Named { sym: Some(s), prefix: Some(prefix), meaning: meaning(u, s, Some(prefix)) },
             None => {
-                let meaning = u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved);
+                let refined = matches!(u.types().get(t), Type::TypeRef(..))
+                    .then(|| u.refinement_named(prefix, &name))
+                    .flatten()
+                    .map(|i| u.types().get(i).clone());
+                let meaning = match refined {
+                    Some(Type::Alias(a)) => Meaning::Alias(a),
+                    Some(Type::Bounds(lo, hi)) => Meaning::Abstract(lo, hi),
+                    _ => u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved),
+                };
                 Named { sym: None, prefix: Some(prefix), meaning }
             }
         })

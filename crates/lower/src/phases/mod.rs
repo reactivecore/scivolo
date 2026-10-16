@@ -4,6 +4,7 @@ mod accessor_names;
 pub(crate) mod adapt;
 mod adapted;
 mod anon_class;
+mod anon_mirrors;
 mod array_apply;
 mod array_literals;
 mod beta_reduce;

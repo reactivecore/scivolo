@@ -2,6 +2,7 @@
 //! companion of a case class extends `Mirror.Product` with `fromProduct`, a case object extends
 //! `Mirror.Singleton`.
 
+use super::anon_mirrors::anon_mirror_support;
 use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
 use super::lift_names::fresh;
@@ -21,6 +22,9 @@ pub fn mirror_support(
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
+    if let Some(kind) = l.tpd.anon_mirror(class) {
+        return anon_mirror_support(l, root, class, kind, span).map(Some);
+    }
     if is_enum_value(l, class) {
         return Ok(Some((l.case_classes()?.mirror_singleton, Vec::new())));
     }
@@ -50,7 +54,8 @@ pub fn mirror_support(
         return unsupported(span, "companions of generic sealed classes");
     }
     mono_type(l, class, linked);
-    let ordinal = super::sum_mirrors::ordinal(l, root, class, linked, focus)?;
+    let param = type_ref(l.u, linked);
+    let ordinal = super::sum_mirrors::ordinal(l, root, (class, linked), param, focus)?;
     Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])))
 }
 
@@ -85,7 +90,7 @@ fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
 
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
 /// (dotty's `fromProductBody`).
-fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Span) -> Result<TNodeId> {
+pub fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Span) -> Result<TNodeId> {
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let result = type_ref(l.u, case_class);
@@ -142,7 +147,7 @@ fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Spa
 }
 
 /// `def ordinal(x$0: E): Int = x$0.ordinal` for enum `enum_class` (dotty's `ordinalBody`).
-fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
+pub fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span) -> Result<TNodeId> {
     let cc = l.case_classes()?;
     let param = type_ref(l.u, enum_class);
     let int = l.u.class_ref("scala.Int");

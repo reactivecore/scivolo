@@ -66,13 +66,22 @@ impl Inlining<'_> {
     }
 
     /// The skolem of argument `arg`: none if it applies a method to inferred type arguments and
-    /// then to more arguments, refused if it has inferred types elsewhere.
+    /// then to more arguments, refused if it has inferred types elsewhere outside class
+    /// definitions and ascriptions.
     pub fn arg_skolem(&self, arg: TNodeId, skolem: Option<TypeId>) -> Result<Option<TypeId>, Unsupported> {
         let Some(skolem) = skolem else { return Ok(None) };
         let is_inferred = |c: &TNodeId| matches!(self.tpd.tree(*c), T::TypeTree { inferred: true });
         let (mut dropped, mut other) = (false, false);
         let mut stack = vec![arg];
         while let Some(t) = stack.pop() {
+            match *self.tpd.tree(t) {
+                T::TypeDef { .. } => continue,
+                T::Typed { expr, .. } => {
+                    stack.push(expr);
+                    continue;
+                }
+                _ => {}
+            }
             let children = self.tpd.children(t);
             if let T::TypeApply { args, .. } = *self.tpd.tree(t) {
                 let targs = self.tpd.items(args);

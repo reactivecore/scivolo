@@ -89,7 +89,8 @@ impl Typer<'_> {
             converted = true;
         };
         if syms.is_empty() && name.is_type && !widened {
-            return self.member_not_found(id, qual, name, ctx);
+            let refined = self.refined_select(id, qual, qual_tpe, name);
+            return refined.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
         }
         if syms.is_empty() {
             return self.unsupported(id, "member not found");

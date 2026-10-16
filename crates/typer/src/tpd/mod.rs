@@ -15,7 +15,7 @@ pub use info::lub_of;
 pub use tree::{Clauses, Field, List, MatchKind, TNodeId, Tree};
 pub use walk::{Leave, Visit, Walk, traverse, traverse_up};
 
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::{SymbolId, TypeId};
 
@@ -33,6 +33,15 @@ pub struct Tpd {
     lists: Vec<TNodeId>,
     clauses: Vec<List>,
     trailing_maps: FxHashSet<TNodeId>,
+    anon_mirrors: FxHashMap<SymbolId, AnonMirror>,
+}
+
+/// What an anonymous class the typer made for a mirror becomes (dotty's
+/// `ExtendsSumOrProductMirror` attachment).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum AnonMirror {
+    Product,
+    Sum,
 }
 
 impl Tpd {
@@ -107,5 +116,14 @@ impl Tpd {
 
     pub fn is_trailing_map(&self, id: TNodeId) -> bool {
         self.trailing_maps.contains(&id)
+    }
+
+    /// Marks anonymous class `class` as a mirror of kind `kind`.
+    pub fn mark_anon_mirror(&mut self, class: SymbolId, kind: AnonMirror) {
+        self.anon_mirrors.insert(class, kind);
+    }
+
+    pub fn anon_mirror(&self, class: SymbolId) -> Option<AnonMirror> {
+        self.anon_mirrors.get(&class).copied()
     }
 }

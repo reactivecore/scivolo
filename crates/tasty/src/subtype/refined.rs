@@ -24,7 +24,8 @@ impl Cmp<'_> {
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within
-    /// bounds, a method type below a method type, a value's type below a value type.
+    /// bounds, a method type below a method type, a value's type below a value type; a type
+    /// member against a bare type, an alias as TASTy gives it.
     fn info_conforms(&mut self, have: TypeId, want: TypeId) -> bool {
         let bounds = |s: &mut Self, t: TypeId| match s.u.types().get(t).clone() {
             Type::Bounds(lo, hi) => (lo, hi),
@@ -38,6 +39,10 @@ impl Cmp<'_> {
             }
             Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => self.recur(have, want),
             _ => match self.u.types().get(have).clone() {
+                Type::Bounds(..) | Type::Alias(_) => {
+                    let (lo, hi) = bounds(self, have);
+                    self.recur(want, lo) && self.recur(hi, want)
+                }
                 Type::Method { params, result, .. } if params.is_empty() => self.recur(result, want),
                 Type::ByName(result) => self.recur(result, want),
                 Type::Method { .. } | Type::Poly { .. } => false,

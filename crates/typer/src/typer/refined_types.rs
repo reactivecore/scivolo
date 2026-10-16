@@ -1,9 +1,10 @@
-//! Refined type trees with type-member refinements (dotty's `typedRefinedTypeTree`).
+//! Refined type trees with type-member refinements (dotty's `typedRefinedTypeTree`), and
+//! selections of members only a refinement has.
 
 use super::Typer;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
-use syntax::ast::{List, NodeId, Tree};
+use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
@@ -70,6 +71,23 @@ impl Typer<'_> {
             );
             sibling || !self.type_members(parent, &text).is_empty()
         })
+    }
+
+    /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
+    /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
+    pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
+        let stable = match self.u.types().get(pre).clone() {
+            Type::Sym(_, s) => !self.u.is_type_symbol(s),
+            Type::This(_) | Type::TermRef(..) => true,
+            _ => false,
+        };
+        let text = self.text(name.name).to_owned();
+        if !stable || self.u.refinement_named(pre, &text).is_none() {
+            return None;
+        }
+        let tpe = self.u.intern_type(Type::TypeRef(pre, text));
+        let span = self.ast.span(id);
+        Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
     }
 
     /// Whether `t` has a type member named `name` that is not a class.

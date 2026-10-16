@@ -10,7 +10,7 @@ use crate::{Lower, Result};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
 use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
@@ -64,17 +64,17 @@ fn visible_to_parent(l: &Lower, s: SymbolId, owner: SymbolId) -> bool {
         || l.u.is_module_class(owner) && l.u.symbol(owner).owner.is_some_and(|o| visible_to_parent(l, s, o))
 }
 
-/// `def ordinal(x$0: S): Int` of object class `class` for its companion `sealed` of unit `root`.
+/// `def ordinal(x$0: P): Int` of class `class` for sealed class `sealed` of unit `root`, `P` the
+/// type `param`.
 pub fn ordinal(
     l: &mut Lower,
     root: TNodeId,
-    class: SymbolId,
-    sealed: SymbolId,
+    (class, sealed): (SymbolId, SymbolId),
+    param: TypeId,
     focus: Span,
 ) -> Result<TNodeId> {
     let cc = l.case_classes()?;
     let children = children(l, root, sealed);
-    let param = type_ref(l.u, sealed);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
     let params = vec![("x$0".into(), param)];

@@ -67,33 +67,32 @@ impl Inlining<'_> {
         empty.then(Vec::new)
     }
 
-    /// `new TupleN[T1, …, Tn](elems)` with the types of `elems`, for 1 to 22 elements.
+    /// `TupleN.apply[T1, …, Tn](elems)` with the types of `elems`, for 1 to 22 elements
+    /// (dotty's `tupleTree`).
     fn tuple_tree(&mut self, elems: &[TNodeId], span: Span) -> Result<TNodeId, Unsupported> {
         if elems.is_empty() || elems.len() > MAX_TUPLE_ARITY {
             return Err((span, "tuple intrinsic of no or more than 22 elements"));
         }
-        let class =
-            self.scala_member(&format!("Tuple{}", elems.len()), Kind::Class).ok_or((span, "TupleN"))?;
-        let ctor =
-            self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or((span, "TupleN"))?;
+        let missing = (span, "TupleN");
+        let module = self.scala_member(&format!("Tuple{}", elems.len()), Kind::Val).ok_or(missing)?;
+        let module_class = self.u.module_class(module).ok_or(missing)?;
+        let apply =
+            self.u.decl(module_class, "apply").ok().and_then(|d| d.first().copied()).ok_or(missing)?;
         let types: Vec<TypeId> = elems.iter().map(|&e| self.tpd.tpe(e)).collect();
         let at = span.start_pos();
-        let tycon = crate::defn::type_ref(self.u, class);
-        let tpt = self.tpd.node(T::TypeTree { inferred: false }, at, Some(tycon), None);
-        let new = self.tpd.node(T::New { tpt }, at, Some(tycon), None);
-        let ctor_ref = self.u.intern_type(Type::Sym(Some(tycon), ctor));
-        let name = self.term_name(ctor);
-        let select = self.tpd.node(T::Select { qualifier: new, name }, at, Some(ctor_ref), Some(ctor));
-        let applied = crate::defn::applied(self.u, class, types.clone());
-        let binder = self.u.fresh_binder();
-        let params = types.iter().enumerate().map(|(i, &t)| (format!("_{}", i + 1), t)).collect();
-        let method = self.u.intern_type(Type::Method {
-            binder,
-            params,
-            result: applied,
-            implicit: false,
-            contextual: false,
-        });
+        let module_ref = crate::defn::type_ref(self.u, module);
+        let qualifier = self.singleton(module_ref, at).ok_or(missing)?;
+        let apply_ref = self.u.intern_type(Type::Sym(Some(module_ref), apply));
+        let name = self.term_name(apply);
+        let select = self.tpd.node(T::Select { qualifier, name }, at, Some(apply_ref), Some(apply));
+        let info = self.u.info(apply);
+        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
+            return Err(missing);
+        };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let method =
+            crate::typer::type_apply::instantiate_poly(self.u, result, (binder, &names), &types, Some(apply));
+        let Type::Method { result: applied, .. } = *self.u.types().get(method) else { return Err(missing) };
         let targs: Vec<TNodeId> = types
             .iter()
             .map(|&t| self.tpd.node(T::TypeTree { inferred: false }, at, Some(t), None))

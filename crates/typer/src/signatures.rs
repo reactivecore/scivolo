@@ -53,7 +53,7 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
         Erased::Value(_, underlying) => sig_name(u, t, underlying),
         Erased::Class(binary) => match u.erased_class(t).or_else(|| {
             let widened = u.widen(t);
-            u.erased_class(widened).or_else(|| {
+            u.erased_class(widened).or_else(|| alias_class(u, widened)).or_else(|| {
                 let r = u.class_ref(binary);
                 u.class_symbol(r)
             })
@@ -62,6 +62,17 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
             _ => binary.clone(),
         },
     }
+}
+
+/// The class of the right-hand side of the type alias `t` applies, through its type lambda.
+fn alias_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
+    let Type::Applied(tycon, _) = *u.types().get(t) else { return None };
+    let d = u.dealias(tycon);
+    let Type::Lambda { mut result, .. } = *u.types().get(d) else { return None };
+    while let Type::Refined(parent, ..) = *u.types().get(result) {
+        result = parent;
+    }
+    u.class_symbol(result)
 }
 
 fn prim_name(c: char) -> &'static str {

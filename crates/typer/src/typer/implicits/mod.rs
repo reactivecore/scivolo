@@ -2,6 +2,7 @@
 //! implicit conversions.
 
 mod alt_types;
+mod anon_mirrors;
 mod as_good;
 mod attempts;
 mod can_equal;
@@ -16,12 +17,17 @@ mod divergence;
 mod extension_views;
 mod history;
 mod measures;
+mod mirror_sources;
+mod mirror_types;
 mod not_given;
 mod parts;
 mod prefilter;
+mod product_mirrors;
 mod ranking;
 mod scope;
 mod search;
+mod sum_children;
+mod sum_mirrors;
 mod synthesis;
 mod too_late;
 mod tuple_mirrors;
