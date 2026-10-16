@@ -1,5 +1,5 @@
-//! Functions the codegen writes without NIR: the test entry wrapper and the body of a function
-//! that cannot be compiled.
+//! Functions the codegen writes without NIR: generated helpers, the test entry wrapper and the
+//! body of a function that cannot be compiled.
 
 use super::Decls;
 use crate::R;
@@ -9,6 +9,35 @@ use cranelift_codegen::ir::{AbiParam, InstBuilder, Signature, TrapCode, types};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{FuncId, Linkage, Module};
 use cranelift_object::ObjectModule;
+
+impl Decls {
+    /// Local function `name` with signature `sig`, whose body `body` writes into its entry block
+    /// on first use.
+    pub fn define_generated(
+        &mut self,
+        module: &mut ObjectModule,
+        name: &str,
+        sig: Signature,
+        body: impl FnOnce(&mut FunctionBuilder, &mut ObjectModule) -> R<()>,
+    ) -> R<FuncId> {
+        let id = module.declare_function(name, Linkage::Local, &sig).map_err(|e| e.to_string())?;
+        if !self.generated.insert(name.to_owned()) {
+            return Ok(id);
+        }
+        let mut ctx = Context::new();
+        ctx.func.signature = sig;
+        let mut fb = FunctionBuilderContext::new();
+        let mut b = FunctionBuilder::new(&mut ctx.func, &mut fb);
+        let block = b.create_block();
+        b.append_block_params_for_function_params(block);
+        b.switch_to_block(block);
+        body(&mut b, module)?;
+        b.seal_all_blocks();
+        b.finalize(module.target_config());
+        module.define_function(id, &mut ctx).map_err(|e| format!("{name}: {e:?}"))?;
+        Ok(id)
+    }
+}
 
 /// A body for the function in `ctx` that reports `message` and stops the program.
 pub fn missing(

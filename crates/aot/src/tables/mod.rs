@@ -42,6 +42,8 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
 }
 
 /// `scalai_aot_classes`: an `Array[Class]` of every class, which `Class.forName` searches.
+// Temporary until #115 (closed world): only classes the program reaches are found, unlike in the
+// VM, which links any class of the classpath.
 fn all_classes(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let n = reach.classes.all.len();
     let array = reach.link_top(&format!("{RUNTIME}ObjectArray"))?;
@@ -81,9 +83,12 @@ fn define_i32s(module: &mut ObjectModule, name: &str, values: &[i32]) -> R<()> {
     module.define_data(data, &desc).map_err(|e| e.to_string())
 }
 
-/// Links the classes with ids fixed by the runtime, the primitives, `Object` and the arrays:
-/// each with the id the VM gives it.
+/// Links the classes with ids fixed by the runtime, the primitives, `Object` and the arrays, each
+/// with the id the VM gives it; and the classes the stack trace table names.
 pub fn link_runtime(reach: &mut Reach) -> R<Vec<(i32, ClassId)>> {
+    for name in ["java.lang.Throwable", "java.lang.String"] {
+        reach.link_top(name)?;
+    }
     let mut fixed = Vec::new();
     for (i, (name, _)) in vm::PRIMITIVES.iter().enumerate() {
         fixed.push((i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));

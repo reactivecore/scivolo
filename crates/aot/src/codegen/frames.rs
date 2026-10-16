@@ -70,18 +70,19 @@ impl Frames {
         if !decls.stack_checks {
             self.0.clear();
         }
-        let throwable = reach.link_top("java.lang.Throwable")?;
+        let throwable = linked(reach, "java.lang.Throwable")?;
         let (mut table, mut lines) = (Blob::zeroed(ENTRY * self.0.len().max(1)), Vec::new());
         let mut names = Names::default();
         for (i, c) in self.0.iter().enumerate() {
             let at = ENTRY * i;
             let (class, method) = vm::element_names(&reach.world.pool, c.method);
             let sig = reach.world.pool.member_sig(c.method).unwrap_or("");
-            let builds = vm::may_build_throwable(sig) && {
-                let owner = reach.link(reach.world.owner(c.method))?;
-                let ancestors = |a, b| reach.classes.get(a).ancestors.contains(&b);
-                ancestors(owner, throwable) || ancestors(throwable, owner)
-            };
+            let owner = reach.classes.find(reach.world.owner(c.method));
+            let builds = vm::may_build_throwable(sig)
+                && owner.is_some_and(|owner| {
+                    let ancestors = |a, b| reach.classes.get(a).ancestors.contains(&b);
+                    ancestors(owner, throwable) || ancestors(throwable, owner)
+                });
             let first = lines.len() / LINE;
             line_runs(reach, c, &mut names, &mut lines);
             table.funcs.push((at, c.func));
@@ -101,8 +102,7 @@ impl Frames {
         let unknown = names.of("<unknown>");
         let bytes = names.units.iter().flat_map(|u| u.to_le_bytes()).collect();
         export(module, "scalai_aot_names", Blob { bytes, ..Blob::default() })?;
-        let (string, chars) =
-            (reach.link_top("java.lang.String")?, reach.link_top("scala.scalanative.runtime.CharArray")?);
+        let (string, chars) = (linked(reach, "java.lang.String")?, linked(reach, CHAR_ARRAY)?);
         let mut info = Blob::zeroed(40);
         put(&mut info, 0, self.0.len() as u64);
         info.data.push((8, decls.rtti(module, reach, string)?));
@@ -111,6 +111,14 @@ impl Frames {
         put(&mut info, 32, unknown);
         export(module, "scalai_aot_trace_info", info)
     }
+}
+
+const CHAR_ARRAY: &str = "scala.scalanative.runtime.CharArray";
+
+/// Class `name`, which `tables::link_runtime` linked before the tables were defined.
+fn linked(reach: &mut Reach, name: &str) -> R<crate::classes::ClassId> {
+    let g = reach.world.top(name);
+    reach.classes.find(g).ok_or_else(|| format!("{name} is not linked"))
 }
 
 fn put(blob: &mut Blob, at: usize, v: u64) {

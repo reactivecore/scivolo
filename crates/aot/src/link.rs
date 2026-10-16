@@ -11,8 +11,11 @@ fn beside(output: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
+/// The C compiler, keeping frame pointers for the stack walk of `c/trace.c`.
 fn cc() -> Command {
-    Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()))
+    let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
+    cmd.arg("-fno-omit-frame-pointer");
+    cmd
 }
 
 fn run(cmd: &mut Command, what: &str) -> Result<(), String> {
