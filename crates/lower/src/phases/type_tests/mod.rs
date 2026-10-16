@@ -69,6 +69,9 @@ fn type_test(
         let or = matches!(l.u.types().get(dealiased), Type::Or(..));
         return combined::test(l, expr, (a, b), or, in_match, span);
     }
+    if let Some(test) = runtime_tests::array_test(l, expr, dealiased, span)? {
+        return Ok(test);
+    }
     if let Some(test) = runtime_tests::tuple_test(l, expr, dealiased, span) {
         return Ok(test);
     }
@@ -82,9 +85,6 @@ fn type_test(
     let dealiased = l.u.dealias(widened);
     if matches!(l.u.types().get(dealiased), Type::Or(..) | Type::And(..)) {
         return unsupported(span, "type tests of unions or intersections of singletons");
-    }
-    if runtime_tests::is_generic_array(l, dealiased) {
-        return unsupported(span, "type tests of generic arrays");
     }
     let test = match l.u.erase_boxed(target) {
         Erased::Unit => Erased::Class("scala.runtime.BoxedUnit".into()),
@@ -180,7 +180,7 @@ fn constant(l: &mut Lower, expr: TNodeId, value: bool) -> TNodeId {
     let lit = l.boolean_literal(value);
     let literal = matches!(l.tpd.tree(expr), Tree::Literal { .. } | Tree::ClassLiteral { .. });
     if literal || super::first_transform::is_pure(l, expr) {
-        return lit;
+        return l.with_span(lit, span);
     }
     let block = l.block(&[expr], lit, Span::NONE);
     let block = l.positioned(block);

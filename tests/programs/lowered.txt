@@ -107,3 +107,4 @@ samclasses
 lowerfixes2
 bynameimplicits
 subcases
+typetests3
