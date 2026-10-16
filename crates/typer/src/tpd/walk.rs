@@ -212,7 +212,7 @@ mod tests {
         let v = node(&mut tpd, Tree::ValDef { name, tpt: tpt2, rhs: None }, Some(7));
         let expr = node(&mut tpd, Tree::Ident { name }, None);
         let selectors = tpd.list(&[]);
-        let import = node(&mut tpd, Tree::Import { expr, selectors }, None);
+        let import = node(&mut tpd, Tree::Import { expr, selectors, export: false }, None);
         let e = node(&mut tpd, Tree::Ident { name }, None);
         let (parents, body) = (tpd.list(&[parent]), tpd.list(&[v, import, e]));
         let template = Tree::Template { constr, parents, self_: None, body };

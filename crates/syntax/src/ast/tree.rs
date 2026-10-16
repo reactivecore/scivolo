@@ -268,9 +268,11 @@ pub enum Tree {
         expr: NodeId,
         selectors: List,
     },
+    /// `ext_clauses` counts the parameter clauses of the extension the export is in, 0 outside one.
     Export {
         expr: NodeId,
         selectors: List,
+        ext_clauses: u32,
     },
     PackageDef {
         pid: NodeId,

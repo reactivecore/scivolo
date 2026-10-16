@@ -61,6 +61,7 @@ impl Typer<'_> {
             self.u.set_inits(cls);
         }
         self.set_stable_constructor(cls, t.constr);
+        self.process_exports(cls, &t.body, cctx);
     }
 
     /// Whether enum class `c` declares or inherits a concrete `ordinal` other than `Enum`'s.
@@ -145,6 +146,10 @@ impl Typer<'_> {
             let stat_ctx = match self.ast.tree(s) {
                 Tree::Empty => continue,
                 Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => ctx,
+                Tree::Export { .. } => {
+                    out.extend(self.typed_export(s, ctx));
+                    continue;
+                }
                 _ => {
                     let name = format!("<local {}>", self.u.symbol(cls).name);
                     let d = *dummy.get_or_insert_with(|| {
@@ -159,14 +164,12 @@ impl Typer<'_> {
         (out, dummy)
     }
 
-    /// Whether script class `c` has members its declarations lack: one its self type declares or an
-    /// export clause in it defines.
+    /// Whether script class `c` has members its declarations lack: one its self type declares.
     pub fn has_undeclared_members(&self, c: SymbolId) -> bool {
         let Some((&tree, _)) = self.syms.by_tree.iter().find(|&(_, &s)| s == c) else { return false };
         let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return false };
         let Tree::Template { self_, .. } = *self.ast.tree(rhs) else { return false };
         self_.is_some_and(|s| !self.is_module_self(s))
-            || self.ast.exists_subtree(rhs, &|ast, n| matches!(ast.tree(n), Tree::Export { .. }))
     }
 
     /// Whether self definition `s` is the `_: O.type` desugaring gives an object's class.

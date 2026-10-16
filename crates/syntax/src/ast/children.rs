@@ -138,7 +138,7 @@ impl Ast {
             Tree::Template { constr, parents_or_derived, self_, body, .. } => {
                 c(&[N(*constr), L(*parents_or_derived), o(self_), L(*body)])
             }
-            Tree::Import { expr, selectors } | Tree::Export { expr, selectors } => {
+            Tree::Import { expr, selectors } | Tree::Export { expr, selectors, .. } => {
                 c(&[N(*expr), L(*selectors)])
             }
             Tree::PackageDef { pid, stats } => c(&[N(*pid), L(*stats)]),

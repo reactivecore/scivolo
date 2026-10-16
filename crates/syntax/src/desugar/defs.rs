@@ -56,7 +56,8 @@ impl Desugar<'_> {
 
     /// The import or export `id` with its selectors' bounds transformed as types.
     pub fn transform_import(&mut self, id: NodeId) -> NodeId {
-        let (Tree::Import { expr, selectors } | Tree::Export { expr, selectors }) = *self.ast.tree(id) else {
+        let (Tree::Import { expr, selectors } | Tree::Export { expr, selectors, .. }) = *self.ast.tree(id)
+        else {
             unreachable!("an import")
         };
         let expr = self.transform(expr);
@@ -70,9 +71,9 @@ impl Desugar<'_> {
             })
             .collect();
         let selectors = if mapped == items { selectors } else { self.list(&mapped) };
-        let tree = match self.ast.tree(id) {
-            Tree::Import { .. } => Tree::Import { expr, selectors },
-            _ => Tree::Export { expr, selectors },
+        let tree = match *self.ast.tree(id) {
+            Tree::Export { ext_clauses, .. } => Tree::Export { expr, selectors, ext_clauses },
+            _ => Tree::Import { expr, selectors },
         };
         self.ast.derived(id, tree)
     }

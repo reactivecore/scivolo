@@ -247,7 +247,7 @@ fn no_false_errors_behind_unsupported_constructs() {
     let cases = [
         (
             "class C:\n  class D\nclass Baz:\n  val c = new C\n  export c.*\nobject M:\n  val d = Baz().D()\n",
-            "Export",
+            "member not found",
         ),
         ("trait T\nobject S extends T { self =>\n  def f() = self.hashCode\n}\n", "named self of an object"),
         (

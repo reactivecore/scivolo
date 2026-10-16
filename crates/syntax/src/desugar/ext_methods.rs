@@ -6,15 +6,18 @@ use crate::ast::flags;
 use crate::ast::{List, NodeId, Tree};
 
 impl Desugar<'_> {
-    /// The methods of extension `ext`, exports kept.
+    /// The methods of extension `ext`, exports kept with the number of its clauses.
     pub fn ext_methods(&mut self, ext: NodeId) -> NodeId {
         let Tree::ExtMethods { paramss, methods } = *self.ast.tree(ext) else { return ext };
         let ext_paramss = self.ast.clause_items(paramss).to_vec();
         let methods = self.ast.items(methods).to_vec();
         let expanded: Vec<NodeId> = methods
             .into_iter()
-            .map(|m| match self.ast.tree(m) {
-                Tree::Export { .. } => m,
+            .map(|m| match *self.ast.tree(m) {
+                Tree::Export { expr, selectors, .. } => {
+                    let ext_clauses = ext_paramss.len() as u32;
+                    self.ast.derived(m, Tree::Export { expr, selectors, ext_clauses })
+                }
                 Tree::DefDef { .. } => {
                     let m = self.ext_method(m, &ext_paramss);
                     self.def_def(m, false)

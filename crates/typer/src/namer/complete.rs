@@ -149,6 +149,12 @@ impl Typer<'_> {
         self.syms.def_results.insert(sym, result);
         let clauses =
             if self.u.symbol(sym).name == "<init>" { self.normalized_constructor(clauses) } else { clauses };
+        self.clauses_info(clauses, result)
+    }
+
+    /// The info of a method with parameter clauses `clauses` and result type `result`, both
+    /// referring to the parameters by their symbols.
+    pub fn clauses_info(&mut self, clauses: Vec<Vec<SymbolId>>, result: TypeId) -> TypeId {
         clauses.into_iter().rev().fold(result, |result, clause| {
             let binder = self.syms.fresh_binder();
             let params: Vec<(String, TypeId)> =
