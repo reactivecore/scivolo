@@ -94,6 +94,7 @@ mod not_found;
 mod op_assign;
 mod overloads;
 mod overrides;
+mod package_members;
 mod param_vars;
 mod parent_trees;
 mod parents;
@@ -317,9 +318,12 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
-        let tree = self.adapt(tree, pt, ctx);
+        let adapted = self.adapt(tree, pt, ctx);
+        if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
+            self.unsupported(id, what);
+        }
         self.u.set_comparison_owner(outer);
         self.depth -= 1;
-        tree
+        adapted
     }
 }

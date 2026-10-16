@@ -19,7 +19,7 @@ impl Typer<'_> {
             return Ok(tree);
         }
         let tpe = self.tpd.tpe(tree);
-        self.fully_defined(tpe)?;
+        self.fully_defined_as(tpe, true)?;
         let elem = self.zonk(self.tpd.tpe(targ));
         if !self.is_generic_array_arg(elem, array) {
             return Ok(tree);

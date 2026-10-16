@@ -135,6 +135,12 @@ impl Typer<'_> {
             _ => false,
         };
         let prefix = c.prefix.map(|p| self.u.types().get(p).clone());
+        let owner = self.u.symbol(c.sym).owner.filter(|&o| self.u.is_class(o));
+        if let (Some(Type::Package(p)), Some(owner)) = (&prefix, owner)
+            && crate::defn::inheriting_package_object(self.u, *p, owner).is_some()
+        {
+            return Err("implicit a package object inherits, through its package");
+        }
         let tpe = match (prefix.clone(), package_object) {
             (_, Some(o)) if through_object(self, prefix, o) => {
                 let class = crate::defn::type_ref(self.u, o);

@@ -32,17 +32,14 @@ impl Typer<'_> {
         }
     }
 
-    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`.
+    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`, `t` made fully defined.
     fn synthesized_value_of(
         &mut self,
         class: SymbolId,
         t: TypeId,
         at: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
-        if !self.is_fully_defined(t) {
-            return Err("ValueOf of an undetermined type");
-        }
-        let t = self.zonk(t);
+        let t = self.fully_defined_as(t, true)?;
         let dealiased = self.u.dealias(t);
         let value = match self.u.types().get(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| self.build().literal(c, at)),

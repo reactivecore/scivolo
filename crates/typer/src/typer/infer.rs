@@ -107,12 +107,12 @@ impl Typer<'_> {
     }
 
     /// `t` with every type variable in it instantiated, from below unless its lower bound is
-    /// `Nothing` (dotty's `fullyDefinedType` with `flipBottom`).
+    /// `Nothing` (dotty's `isFullyDefined` with `ForceDegree.flipBottom`).
     pub fn fully_defined(&mut self, t: TypeId) -> Result<TypeId, &'static str> {
         self.fully_defined_as(t, false)
     }
 
-    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok`, the variables of each pass
+    /// `fully_defined` with dotty's `ForceDegree.all` if `bottom_ok` (`fullyDefinedType`), the variables of each pass
     /// by their variances at its start: a variable with a lower
     /// bound maximized where it occurs contravariantly, one without minimized where it occurs
     /// covariantly, or invariantly without upper bound.

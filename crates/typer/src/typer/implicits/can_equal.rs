@@ -37,7 +37,7 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let (l, r) = (self.fully_defined(l)?, self.fully_defined(r)?);
+        let (l, r) = (self.fully_defined_as(l, true)?, self.fully_defined_as(r, true)?);
         let strict = self.is_strict_equality(ctx);
         let assumed = self.can_compare_predefined(l, r)
             || !strict
