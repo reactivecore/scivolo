@@ -107,9 +107,51 @@ impl SourceFile {
     }
 }
 
+/// The source files of one unit of several, whose offsets follow one another in the order given,
+/// one byte apart.
+pub struct Sources<'a> {
+    files: Vec<(Offset, &'a SourceFile)>,
+}
+
+impl<'a> Sources<'a> {
+    pub fn new(files: impl IntoIterator<Item = &'a SourceFile>) -> Self {
+        let mut next = 0;
+        let files = files
+            .into_iter()
+            .map(|f| {
+                let base = next;
+                next += f.len() + 1;
+                (base, f)
+            })
+            .collect();
+        assert!((next as usize) < crate::ast::span::MAX_SOURCE_LEN, "sources of at most 1 GiB");
+        Sources { files }
+    }
+
+    /// Each file with the offset its text starts at.
+    pub fn files(&self) -> &[(Offset, &'a SourceFile)] {
+        &self.files
+    }
+
+    /// The file `offset` is in and the offset in it.
+    pub fn locate(&self, offset: Offset) -> (&'a SourceFile, Offset) {
+        let i = self.files.partition_point(|&(base, _)| base <= offset).saturating_sub(1);
+        let (base, file) = self.files[i];
+        (file, offset - base)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::SourceFile;
+    use super::{SourceFile, Sources};
+
+    #[test]
+    fn sources_locate_offsets() {
+        let (a, b) = (SourceFile::new("a", "ab"), SourceFile::new("b", "c"));
+        let s = Sources::new([&a, &b]);
+        assert_eq!(s.locate(1).0.name, "a");
+        assert_eq!((s.locate(3).0.name.as_str(), s.locate(3).1), ("b", 0));
+    }
 
     #[test]
     fn lines_follow_dotty() {

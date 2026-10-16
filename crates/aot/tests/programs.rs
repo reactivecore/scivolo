@@ -74,6 +74,14 @@ fn hello_and_fib_run_through_their_main() {
 }
 
 #[test]
+fn sources_referring_to_each_other_build_into_one_executable() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/aot/mutual");
+    let bin = Path::new(env!("CARGO_TARGET_TMPDIR")).join("aot-src").join("mutual");
+    let out = build_and_run(&["--main", "mutual", &dir.to_string_lossy()], &bin, &[]);
+    assert_eq!(out, std::fs::read_to_string(dir.join("mutual.check")).expect("the .check file"));
+}
+
+#[test]
 fn fib_runs_as_executable() {
     assert_eq!(run("fib", "fibo", "25"), "75025\n");
 }

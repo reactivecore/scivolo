@@ -50,7 +50,6 @@ pub struct Gen<'l, 'a> {
     mirrors: Vec<Vec<Defn>>,
     class: Option<SymbolId>,
     m: Method,
-    file: StrId,
     /// The position of what has none.
     no_pos: PosId,
     /// The spans of the unit's classes and methods.
@@ -66,7 +65,9 @@ pub struct Gen<'l, 'a> {
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
 pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
     let mut pool = Pool::default();
-    let file = StrId(pool.strings.intern_str(&l.source.name));
+    for (_, source) in l.sources.files() {
+        pool.strings.intern_str(&source.name);
+    }
     let virtual_file = StrId(pool.strings.intern_str(""));
     let no_pos = PosId(pool.positions.intern(Pos { file: virtual_file, line: 0, column: 0 }));
     let m = Method::new(None, 0, no_pos);
@@ -81,7 +82,6 @@ pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
         mirrors: Vec::new(),
         class: None,
         m,
-        file,
         no_pos,
         spans,
         deferred,

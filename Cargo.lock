@@ -79,11 +79,15 @@ dependencies = [
  "cranelift-frontend",
  "cranelift-module",
  "cranelift-object",
+ "libimage",
  "libs",
+ "lower",
  "nir",
  "rustc-hash",
  "snrt",
+ "syntax",
  "target-lexicon",
+ "tasty",
  "vm",
 ]
 

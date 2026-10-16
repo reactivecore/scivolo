@@ -74,6 +74,44 @@ aot-check-all:
     done
     echo "aot: $pass passed, $fail failed (tmp/aot/failures.txt)"
 
+# Build the `.scala` files of directory `dir` (main class `main`) from source as the native
+# executable tmp/aot/src/<main> through the own frontend, and run it with `args`; compile and run
+# stop after 20 s each.
+aot-src dir main *args:
+    cargo build -q --release -p aot
+    mkdir -p tmp/aot/src
+    perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot -o tmp/aot/src/{{ main }} --main {{ main }} {{ dir }}
+    perl -e 'alarm 20; exec @ARGV' tmp/aot/src/{{ main }} {{ args }}
+
+# Build every test program from its `.scala` sources as a native executable and compare each
+# output with its `.check` file, like aot-check-all; failures go to tmp/aot/src/failures.txt,
+# the frontend's refusals grouped by reason to tmp/aot/src/refusals.txt.
+aot-src-all:
+    #!/usr/bin/env bash
+    cargo build -q --release -p aot
+    mkdir -p tmp/aot/src
+    : > tmp/aot/src/failures.txt
+    pass=0; fail=0
+    failed() { fail=$((fail + 1)); echo "$1: $2" >> tmp/aot/src/failures.txt; }
+    for dir in tests/programs/*/; do
+      name=$(basename "$dir")
+      [ -f "$dir$name.check" ] || continue
+      perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot -o "tmp/aot/src/$name" --main "$name" "$dir" 2> "tmp/aot/src/$name.err"
+      status=$?
+      if [ $status -eq 142 ]; then failed "$name" "timeout (compile)"; continue; fi
+      if [ $status -ne 0 ]; then failed "$name" "$(grep -m1 '^scalai-aot:' "tmp/aot/src/$name.err" || head -n 1 "tmp/aot/src/$name.err")"; continue; fi
+      perl -e 'alarm 20; exec @ARGV' "tmp/aot/src/$name" > "tmp/aot/src/$name.out" 2>> "tmp/aot/src/$name.err"
+      status=$?
+      if [ $status -eq 142 ]; then failed "$name" "timeout (run)"; continue; fi
+      if [ $status -ne 0 ] || ! diff -q "tmp/aot/src/$name.out" "$dir$name.check" > /dev/null; then
+        failed "$name" "run: exit $status: $(head -c 300 "tmp/aot/src/$name.err" | head -n 1)"
+        continue
+      fi
+      pass=$((pass + 1))
+    done
+    cut -d: -f2- tmp/aot/src/failures.txt | sed -E 's/ at [^ ]+:[0-9]+:[0-9]+//' | sort | uniq -c | sort -rn > tmp/aot/src/refusals.txt
+    echo "aot from source: $pass passed, $fail failed (tmp/aot/src/failures.txt, refusals.txt)"
+
 # Build as aot-build does and run the executable with `args`, stopped after 20 s.
 aot-run name entry *args: (aot-build name entry)
     perl -e 'alarm 20; exec @ARGV' tmp/aot/{{ name }} {{ args }}

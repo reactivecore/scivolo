@@ -6,15 +6,17 @@ mod compile;
 mod definitions;
 mod phases;
 mod symbols;
+mod units;
 
 pub use compile::{Refusal, compile, compile_with};
 use definitions::Definitions;
 use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
-use syntax::source::SourceFile;
+use syntax::source::{SourceFile, Sources};
 use tasty::{SymbolId, Universe};
 use typer::tpd::{TNodeId, Tpd};
+pub use units::{compile_sources, position};
 
 /// A construct the lowering does not support yet.
 #[derive(Debug)]
@@ -41,7 +43,7 @@ pub struct Lower<'a> {
     pub tpd: &'a mut Tpd,
     pub names: &'a mut Names,
     pub fresh: &'a mut FreshNames,
-    pub source: &'a SourceFile,
+    pub sources: Sources<'a>,
     defs: Definitions,
     /// The fields `Memoize` made, each with its getter.
     fields: FxHashMap<SymbolId, SymbolId>,
@@ -122,13 +124,25 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
+    lower_sources(u, tpd, root, (names, fresh), Sources::new([source]))
+}
+
+/// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into
+/// `sources`.
+pub fn lower_sources(
+    u: &mut Universe,
+    tpd: &mut Tpd,
+    root: TNodeId,
+    (names, fresh): (&mut Names, &mut FreshNames),
+    sources: Sources,
+) -> Result<Vec<NirFile>> {
     let defs = Definitions::new(u).map_err(|what| Unsupported { at: Span::NONE, what })?;
     let mut l = Lower {
         u,
         tpd,
         names,
         fresh,
-        source,
+        sources,
         defs,
         fields: FxHashMap::default(),
         bridges: FxHashSet::default(),

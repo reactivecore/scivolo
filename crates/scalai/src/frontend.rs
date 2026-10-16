@@ -1,6 +1,5 @@
 //! The own frontend for scripts: parser, typer and lowering into NIR files.
 
-use crate::mains;
 use libimage::Image;
 use libs::SCALA;
 use std::collections::HashSet;
@@ -101,7 +100,8 @@ pub fn compile(
         if dirs.insert(dir.to_owned()) {
             std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         }
-        mains.extend(mains::defined(&f.bytes).map_err(|e| format!("{}: undecodable NIR ({e})", f.name))?);
+        mains
+            .extend(nir::mains::defined(&f.bytes).map_err(|e| format!("{}: undecodable NIR ({e})", f.name))?);
         std::fs::write(&path, f.bytes).map_err(|e| format!("{}: {e}", path.display()))?;
     }
     Ok(mains)
