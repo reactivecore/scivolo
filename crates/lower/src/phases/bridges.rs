@@ -4,7 +4,7 @@
 
 use super::adapt::adapt;
 use super::mixin::{is_jdk, javalib_only_bases, with_java_param_names};
-use crate::symbols::{has, is_static};
+use crate::symbols::{has, is_static_module};
 use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
@@ -153,7 +153,7 @@ fn bridge(l: &mut Lower, class: SymbolId, m: SymbolId, other: SymbolId, span: Sp
             .zip(params.iter().zip(&other_params).zip(&value_params))
             .map(|(&a, ((p, o), v))| if p == o { a } else { adapt(l, a, v) })
             .collect();
-        let call = if l.u.is_module(m) && is_static(l.u, class) {
+        let call = if l.u.is_module(m) && is_static_module(l.u, class) {
             l.ident(m, span)
         } else {
             let this = l.this(class, span);
