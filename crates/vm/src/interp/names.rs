@@ -15,8 +15,12 @@ impl Vm {
     /// The source file and zero-based line of instruction `pc` of the code of tier `tier` of
     /// method `g`, once lowered.
     pub fn source_position(&self, g: GlobalId, pc: usize, tier: u8) -> Option<(&str, u32)> {
-        let (_, _, pos) = self.instruction(g, pc, tier)?;
-        Some(self.source_of(pos))
+        Some(self.source_of(self.position_at(g, pc, tier)?))
+    }
+
+    /// The position of instruction `pc` of the code of tier `tier` of method `g`.
+    pub fn position_at(&self, g: GlobalId, pc: usize, tier: u8) -> Option<PosId> {
+        self.instruction(g, pc, tier).map(|(_, _, pos)| pos)
     }
 
     /// The methods executing instruction `pc` of the code of tier `tier` of method `g` with

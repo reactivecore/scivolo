@@ -18,7 +18,7 @@ pub struct RttiLayout {
     pub itables_count: i32,
     pub itable: i32,
     pub itable_len: i32,
-    /// All traits of a class, which type tests search, and their number.
+    /// All traits of a class or trait, which type tests search, and their number.
     pub traits: i32,
     pub traits_len: i32,
     pub vtable: i32,

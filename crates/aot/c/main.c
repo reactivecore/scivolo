@@ -21,8 +21,8 @@ int main(int argc, char **argv) {
     scalai_aot_start_gc();
     int code = scalai_aot_main(argc, argv);
     if (scalai_aot_exception != 0) {
-        // Temporary until #115 (stack traces): an exception the handler could not report is
-        // reported by its class only.
+        // Temporary until #115 (uncaught exceptions): an exception the handler could not report
+        // is reported by its class only, without message and stack trace.
         const char *rtti = *(const char *const *)scalai_aot_exception;
         fprintf(stderr, "Exception in thread \"main\" ");
         print_string(*(const char *const *)(rtti + scalai_aot_layout[0]));

@@ -40,6 +40,9 @@ pub struct Class {
 pub struct Classes {
     pub all: Vec<Class>,
     by_name: FxHashMap<GlobalId, ClassId>,
+    /// Whether an owner defines (`Some(true)`) or declares (`Some(false)`) a method, by owner
+    /// and signature.
+    members: FxHashMap<(GlobalId, StrId), Option<bool>>,
 }
 
 impl Classes {
@@ -93,25 +96,40 @@ impl Classes {
 
     /// The first concrete definition of `sig` in `cls`'s lookup order, else for a virtual
     /// method the bridge the VM would generate (ADR 0008).
-    pub fn resolve(&self, world: &mut World, cls: ClassId, sig: StrId) -> R<Option<GlobalId>> {
+    pub fn resolve(&mut self, world: &mut World, cls: ClassId, sig: StrId) -> R<Option<GlobalId>> {
         let order: Vec<GlobalId> = self.lookup_order(cls).into_iter().map(|id| self.get(id).name).collect();
-        let found = order.iter().find_map(|&owner| {
-            let g = GlobalId(world.pool.globals.intern(Global::Member(owner, sig)));
-            world.defn(g).ok().filter(|d| matches!(d.kind, DefnKind::Define { .. })).map(|_| g)
-        });
-        let declared = |world: &mut World| {
-            order.iter().any(|&owner| {
-                let g = GlobalId(world.pool.globals.intern(Global::Member(owner, sig)));
-                world.defn(g).is_ok_and(|d| matches!(d.kind, DefnKind::Declare { .. }))
-            })
-        };
-        match found {
-            None if is_virtual(world.pool.str(sig)) && declared(world) => {
-                vm::bridge(world, &order, sig).map_err(|e| e.to_string())
+        let mut declared = false;
+        for &owner in &order {
+            match self.member(world, owner, sig) {
+                Some(true) => return Ok(Some(member_id(world, owner, sig))),
+                Some(false) => declared = true,
+                None => {}
             }
-            found => Ok(found),
         }
+        if !(declared && is_virtual(world.pool.str(sig))) {
+            return Ok(None);
+        }
+        let bridge = vm::bridge(world, &order, sig).map_err(|e| e.to_string())?;
+        if let Some(g) = bridge {
+            self.members.insert((world.owner(g), sig), Some(true));
+        }
+        Ok(bridge)
     }
+
+    fn member(&mut self, world: &mut World, owner: GlobalId, sig: StrId) -> Option<bool> {
+        *self.members.entry((owner, sig)).or_insert_with(|| {
+            let g = member_id(world, owner, sig);
+            world.defn(g).ok().and_then(|d| match d.kind {
+                DefnKind::Define { .. } => Some(true),
+                DefnKind::Declare { .. } => Some(false),
+                _ => None,
+            })
+        })
+    }
+}
+
+fn member_id(world: &mut World, owner: GlobalId, sig: StrId) -> GlobalId {
+    GlobalId(world.pool.globals.intern(Global::Member(owner, sig)))
 }
 
 /// Whether `sig` names a public instance method, the methods vtables and itables hold.

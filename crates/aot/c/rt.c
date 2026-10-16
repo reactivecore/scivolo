@@ -28,8 +28,10 @@ void *scalai_aot_exception = 0;
 // Throws `exc` from C: the calling Scala code finds it after the call returns.
 void scalanative_throw(void *exc) { scalai_aot_exception = exc; }
 
+void scalai_aot_stack_init(char *low, char *high);
+
 // Starts the collector on the calling thread's whole stack, with the module slots and the
-// exception slot as roots.
+// exception slot as roots, and sets the stack limit.
 void scalai_aot_start_gc(void) {
     char *low, *high;
 #ifdef __APPLE__
@@ -54,6 +56,7 @@ void scalai_aot_start_gc(void) {
         char *start = scalai_aot_globals[i].start;
         scalanative_GC_add_roots(start, start + scalai_aot_globals[i].size);
     }
+    scalai_aot_stack_init(low, high);
 }
 
 // `bytes` zeroed bytes for a stackalloc of a dynamic count.
@@ -107,9 +110,6 @@ int8_t scalai_aot_class_is(void *self, const char *left, const char *right) {
     int32_t left_id = *(const int32_t *)(left + at[0]), right_id = *(const int32_t *)(right + at[0]);
     if (right_id >= 0)
         return left_id >= right_id && left_id <= *(const int32_t *)(right + at[1]);
-    // Temporary until #115 (trait metadata): a trait is no subtype of another trait here.
-    if (left_id < 0)
-        return 0;
     void *const *traits = *(void *const *const *)(left + at[2]);
     int64_t count = *(const int64_t *)(left + at[3]);
     for (int64_t i = 0; i < count; i++)

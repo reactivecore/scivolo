@@ -7,8 +7,10 @@ mod entry;
 mod frontend;
 mod link;
 mod reach;
+mod resources;
 mod sources;
 mod tables;
+mod timings;
 
 use clap::Parser;
 use std::path::PathBuf;
@@ -40,6 +42,9 @@ struct Args {
     /// or `group:artifact:version` as named; repeatable.
     #[arg(long = "dep", value_name = "COORDINATE")]
     deps: Vec<String>,
+    /// Print the wall time of each phase to stderr.
+    #[arg(long)]
+    timings: bool,
     /// `.scala` files and directories of them; without any, a main class of the classpath.
     inputs: Vec<String>,
 }
@@ -65,6 +70,7 @@ fn check(args: &Args, srcs: &[String], named: &[String]) -> R<()> {
 }
 
 fn run(args: &Args) -> R<()> {
+    let mut timings = timings::Timings::new();
     let (srcs, named): (Vec<String>, Vec<String>) =
         args.inputs.iter().cloned().partition(|a| sources::is_source(a));
     check(args, &srcs, &named)?;
@@ -91,6 +97,7 @@ fn run(args: &Args) -> R<()> {
                 return frontend::compile_into(&unit, image, out);
             }
             let (nir, mains) = frontend::compile(&unit, &lib_jars, image)?;
+            timings.lap("frontend");
             classpath.insert(0, nir);
             match &args.entry {
                 Some(_) => None,
@@ -109,8 +116,14 @@ fn run(args: &Args) -> R<()> {
         (None, Some(main)) => (codegen::Root::Main(world.top(&main)), "main.c"),
         (None, None) => return Err("a main class or --entry is required".into()),
     };
-    let (object, shims) = codegen::compile(&mut world, root)?;
-    link::executable(&object, &shims, stub, output)
+    timings.lap("load");
+    let (object, shims) = codegen::compile(&mut world, root, &mut timings)?;
+    link::executable(&object, &shims, stub, output)?;
+    timings.lap("link");
+    if args.timings {
+        timings.print();
+    }
+    Ok(())
 }
 
 fn main() {
