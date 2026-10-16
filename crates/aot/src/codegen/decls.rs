@@ -10,16 +10,7 @@ use cranelift_codegen::isa::CallConv;
 use cranelift_module::{DataId, FuncId, Linkage, Module};
 use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId, Pool, Type, TypeId};
-use rustc_hash::FxHashMap;
-
-/// The C function that replaces library method `g`, as the VM replaces it natively.
-fn replacement(pool: &Pool, g: GlobalId) -> Option<&'static str> {
-    const CLASS_IS: &str = "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class";
-    match (pool.top_name(g), pool.member_sig(g)?) {
-        ("java.lang.Class", CLASS_IS) => Some("scalai_aot_class_is"),
-        _ => None,
-    }
-}
+use rustc_hash::{FxHashMap, FxHashSet};
 
 /// The C name of extern member `g`; an `llvm.` intrinsic's is its C implementation's.
 pub fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
@@ -39,12 +30,13 @@ pub struct Decls {
     pub exception: DataId,
     /// `scalai_aot_stack_limit`, below which a function throws StackOverflowError.
     pub stack_limit: DataId,
-    /// Whether functions check the stack limit on entry and appear in stack traces: not in
-    /// executables of single methods.
+    /// Whether functions check the stack and appear in stack traces (not with `--entry`).
     pub stack_checks: bool,
-    pub overflow_defined: bool,
-    /// The code-address table of the functions compiled so far.
-    pub frames: super::frames::Frames,    funcs: FxHashMap<GlobalId, FuncId>,
+    /// Functions written without NIR so far.
+    pub generated: FxHashSet<String>,
+    pub frames: super::frames::Frames,
+    pub all_classes: DataId,
+    funcs: FxHashMap<GlobalId, FuncId>,
     rttis: FxHashMap<ClassId, DataId>,
     loads: FxHashMap<ClassId, FuncId>,
     imports: FxHashMap<&'static str, FuncId>,
@@ -60,21 +52,21 @@ pub struct Decls {
 
 impl Decls {
     pub fn new(module: &mut ObjectModule, rtti: RttiLayout) -> R<Self> {
-        let module_slots = module
-            .declare_data("scalai_aot_modules", Linkage::Export, true, false)
-            .map_err(|e| e.to_string())?;
-        let exception = module
-            .declare_data("scalai_aot_exception", Linkage::Import, true, false)
-            .map_err(|e| e.to_string())?;
-        let stack_limit = module
-            .declare_data("scalai_aot_stack_limit", Linkage::Import, true, false)
-            .map_err(|e| e.to_string())?;
+        let mut declare = |name: &str, linkage, writable| {
+            module.declare_data(name, linkage, writable, false).map_err(|e| e.to_string())
+        };
+        let module_slots = declare("scalai_aot_modules", Linkage::Export, true)?;
+        let exception = declare("scalai_aot_exception", Linkage::Import, true)?;
+        let stack_limit = declare("scalai_aot_stack_limit", Linkage::Import, true)?;
+        let all_classes = declare("scalai_aot_classes", Linkage::Local, false)?;
         Ok(Decls {
             exception,
             stack_limit,
             stack_checks: true,
-            overflow_defined: false,
-            frames: Default::default(),            call_conv: module.isa().default_call_conv(),
+            generated: FxHashSet::default(),
+            frames: Default::default(),
+            all_classes,
+            call_conv: module.isa().default_call_conv(),
             ptr: module.target_config().pointer_type(),
             rtti,
             module_slots,
@@ -100,7 +92,7 @@ impl Decls {
             return Ok(id);
         }
         let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
-        let replaced = replacement(&reach.world.pool, g).map(str::to_owned);
+        let replaced = super::replaced::c_replacement(&reach.world.pool, g).map(str::to_owned);
         let c_name = match &defn.kind {
             DefnKind::Declare { .. } => extern_name(&reach.world.pool, g),
             _ => replaced,

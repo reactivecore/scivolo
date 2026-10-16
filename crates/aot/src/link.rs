@@ -37,7 +37,7 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
     let shimmed = run(cc().args(["-w", "-c", "-o"]).arg(&shim_obj).arg(&src), "cc (shims)");
     let mut cmd = cc();
     cmd.arg("-o").arg(output).arg(&obj).arg(&shim_obj);
-    for file in [stub, "rt.c", "natives.c", "stack.c", "trace.c"] {
+    for file in [stub, "rt.c", "natives.c", "stack.c", "trace.c", "resources.c"] {
         cmd.arg(c.join(file));
     }
     cmd.arg(snrt::ARCHIVE).arg("-lz");

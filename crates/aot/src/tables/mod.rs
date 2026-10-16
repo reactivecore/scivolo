@@ -37,7 +37,23 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
         return Err("a function was reached after compilation".into());
     }
     gc_ids(module, reach, &ids)?;
+    all_classes(module, reach, decls)?;
     layout(module, reach, decls)
+}
+
+/// `scalai_aot_classes`: an `Array[Class]` of every class, which `Class.forName` searches.
+fn all_classes(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
+    let n = reach.classes.all.len();
+    let array = reach.link_top(&format!("{RUNTIME}ObjectArray"))?;
+    let header = vm::ARRAY_HEADER as usize;
+    let mut blob = crate::blob::Blob::zeroed(header + 8 * n);
+    blob.data.push((0, decls.rtti(module, reach, array)?));
+    blob.i32_at(vm::ARRAY_LENGTH as i32, n as i32);
+    blob.i32_at(vm::ARRAY_STRIDE as i32, 8);
+    for cls in 0..n {
+        blob.data.push((header + 8 * cls, decls.rtti(module, reach, cls as ClassId)?));
+    }
+    blob.define(module, decls.all_classes)
 }
 
 /// `scalai_aot_rtti_offsets` (a class's id, last subclass id, traits, number of traits) for

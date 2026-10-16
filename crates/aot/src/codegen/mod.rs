@@ -19,6 +19,7 @@ mod ops;
 mod overflow;
 mod replaced;
 mod rtti_layout;
+mod services;
 mod stack_check;
 mod start;
 mod strings;
@@ -107,7 +108,9 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;
-    std::mem::take(&mut decls.frames).define(&mut module, &mut reach, &mut decls)?;    decls.define_roots(&mut module)?;
+    std::mem::take(&mut decls.frames).define(&mut module, &mut reach, &mut decls)?;
+    crate::resources::define(&mut module, reach.world)?;
+    decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
     Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
 }

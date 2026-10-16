@@ -6,6 +6,7 @@ mod codegen;
 mod entry;
 mod link;
 mod reach;
+mod resources;
 mod tables;
 
 use clap::Parser;

@@ -48,7 +48,7 @@ impl FnBuilder<'_, '_> {
             .module
             .declare_function("scalai_aot_overflow", Linkage::Local, &sig)
             .map_err(|e| e.to_string())?;
-        if std::mem::replace(&mut self.decls.overflow_defined, true) {
+        if !self.decls.generated.insert("scalai_aot_overflow".into()) {
             return Ok(id);
         }
         let reserve = self.decls.import(self.module, "scalai_aot_stack_reserve", &[types::I8], None)?;
