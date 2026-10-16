@@ -223,7 +223,8 @@ Each stacked on the previous, each < 1500 lines of diff, gates as in `CLAUDE.md`
    (`typer/retained.rs`, the retainer expanded as the typer expands transparent calls) and the
    lowering moves the retainer's body into the method (`L/phases/retained_bodies.rs`); inline
    accessors are made the direct way (`typer/inline_accessors.rs`, `accessor_defs.rs`). Refused:
-   retained methods with type or implicit parameters, transparent inline givens, accessors of
+   retained methods with type or implicit parameters or in value classes, overrides of concrete
+   inline methods, transparent inline givens and those with a class body, accessors of
    polymorphic or implicit methods, of members of generic base classes and without a host class
    (dotty's `MakeInlineablePassing`), and an outer `this` the call's prefix does not make a
    stable path (`outerSelect`, `I/outer_this.rs`) [V].

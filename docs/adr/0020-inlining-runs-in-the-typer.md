@@ -20,6 +20,9 @@ which the lowering cannot report (research 12 §2 e).
 - `Inlining` keeps its borrowed fields and gets the typer as a `Host`: `Typer::with_inlining`
   moves the universe, trees and names out of the typer (an empty universe in their place) and
   lends them to the expansion; `Host::summon` swaps them back for the search's duration.
+- Besides transparent calls, the typer expands the call in the body retainer of a retained
+  inline method when it makes the retainer, as dotty's `inlineExpansion` does
+  (`Inlines.bodyRetainer` calls `inlineCall`).
 - A search inside an inline body that defines givens or implicits, or for a call without a
   recorded context, is refused rather than searched in a context that lacks them.
 

@@ -64,6 +64,11 @@ impl Typer<'_> {
             .iter()
             .filter_map(|&p| self.tpd.sym(p))
             .any(|p| self.syms.flags.get(&p).is_some_and(|fl| fl.is_one_of(f::GIVEN_OR_IMPLICIT)));
+        let cls = self.u.symbol(f).owner.expect("a member");
+        if self.is_derived_value_class(cls) {
+            self.unsupported_at(self.tpd.span(def), "retained inline method in a value class");
+            return None;
+        }
         if implicit || flags.is(f::GIVEN_OR_IMPLICIT) {
             self.unsupported_at(self.tpd.span(def), "retained inline method with implicit parameters");
             return None;
@@ -125,7 +130,7 @@ impl Typer<'_> {
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(f, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
-        self.with_inlining(true, |i| i.inline_forced((bodies, with_inits), call, ctx))
+        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), (call, true), ctx))
     }
 
     /// A reference to member `m` from inside its class: an identifier if the class is a static

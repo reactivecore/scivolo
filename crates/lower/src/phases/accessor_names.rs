@@ -3,8 +3,8 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
-use tasty::{Kind, SymbolId};
 
 /// The separator in the names of trait setters.
 const TRAIT_SETTER: &str = "$_setter_$";
@@ -12,7 +12,7 @@ const TRAIT_SETTER: &str = "$_setter_$";
 /// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
 /// trait and its owners joined by `$`.
 pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
-    format!("{}{TRAIT_SETTER}{x}_=", expanded_prefix(l, trait_))
+    format!("{}{TRAIT_SETTER}{x}_=", l.u.expanded_prefix(trait_))
 }
 
 /// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.
@@ -26,7 +26,7 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
         Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
-            format!("{}$${}", expanded_prefix(l, o), run_name(l, s))
+            format!("{}$${}", l.u.expanded_prefix(o), run_name(l, s))
         }
         _ => run_name(l, s).to_owned(),
     }
@@ -67,23 +67,9 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
             Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => format!("$lessinit$greater${rest}"),
             _ => own.clone(),
         };
-        let name = format!("{}{module}$${filler}{own}", expanded_prefix(l, base));
+        let name = format!("{}{module}$${filler}{own}", l.u.expanded_prefix(base));
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
     l.u.set_flags(s, flags);
-}
-
-/// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
-pub fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
-    let sym = l.u.symbol(s);
-    let name = tasty::module_name(&sym.name).unwrap_or(&sym.name);
-    match sym.owner {
-        Some(o) if l.u.symbol(o).kind == Kind::Package => match l.u.full_name(o).as_str() {
-            "" | "<empty>" => name.to_owned(),
-            package => format!("{}${name}", package.replace('.', "$")),
-        },
-        Some(o) => format!("{}${name}", expanded_prefix(l, o)),
-        None => name.to_owned(),
-    }
 }

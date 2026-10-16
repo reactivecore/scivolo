@@ -6,10 +6,8 @@ use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
 use tasty::tags::{INLINE, TRANSPARENT};
+use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
-
-/// The suffix of the name of a body retainer (dotty's `BodyRetainerName`).
-const RETAINED_BODY: &str = "$retainedBody";
 
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, root) {

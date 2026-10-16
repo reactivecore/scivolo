@@ -154,6 +154,7 @@ use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
+pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 

@@ -140,8 +140,12 @@ impl Typer<'_> {
         }
         let owner = self.u.symbol(accessed).owner.expect("a member");
         let generic_base = owner != host && !self.u.type_params(owner).is_empty();
-        if self.accessors.closed.contains(&host) || generic_base {
-            self.unsupported_at(span, "inline accessor in a class typed or generic");
+        if self.accessors.closed.contains(&host) {
+            self.unsupported_at(span, "inline accessor in a class whose body is typed already");
+            return None;
+        }
+        if generic_base {
+            self.unsupported_at(span, "inline accessor of a member of a generic base class");
             return None;
         }
         let Some(name) = self.accessor_name(accessed, host, setter) else {

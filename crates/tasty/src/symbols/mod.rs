@@ -140,6 +140,21 @@ impl Universe {
         }
     }
 
+    /// The names of `s` and its owners up to its package, joined by `$`, an object's without its
+    /// `$` (dotty's `fullNameSeparated(ExpandPrefixName)`).
+    pub fn expanded_prefix(&self, s: SymbolId) -> String {
+        let sym = self.symbol(s);
+        let name = module_name(&sym.name).unwrap_or(&sym.name);
+        match sym.owner {
+            Some(o) if self.symbol(o).kind == Kind::Package => match self.full_name(o).as_str() {
+                "" | "<empty>" => name.to_owned(),
+                package => format!("{}${name}", package.replace('.', "$")),
+            },
+            Some(o) => format!("{}${name}", self.expanded_prefix(o)),
+            None => name.to_owned(),
+        }
+    }
+
     /// How many files are loaded.
     pub fn loaded_files(&self) -> usize {
         self.files.len()

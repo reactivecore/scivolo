@@ -191,6 +191,9 @@ impl Inlining<'_> {
         if let Some(&def) = self.bodies.get(&meth) {
             return Ok(Some(def));
         }
+        if self.u.is_deferred(meth) {
+            return Err((self.tpd.span(t), "call of a deferred inline method"));
+        }
         if self.u.symbol(meth).tree.is_none() {
             return Err((self.tpd.span(t), "call of an inline method defined elsewhere"));
         }

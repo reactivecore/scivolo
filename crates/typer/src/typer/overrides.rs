@@ -113,12 +113,14 @@ impl Typer<'_> {
                     let inline = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::INLINE);
                     let inline_value = inline(self, d) && kind != Kind::Def;
                     let changed = inline(self, d) && self.inline_params(d) != self.inline_params(m);
-                    if (inline(self, m) && !inline(self, d) || inline_value || changed)
+                    let final_inline = inline(self, m) && self.is_concrete(m);
+                    if (inline(self, m) && !inline(self, d) || inline_value || changed || final_inline)
                         && self.same_member(site, d, m)
                     {
                         return self.unsupported_at(
                             span,
-                            "override involving an inline value, inline parameters or a non-inline member",
+                            "override of a concrete inline method, by an inline value or a non-inline \
+                             member, or changing inline parameters",
                         );
                     }
                     self.complete(m);

@@ -80,7 +80,7 @@ impl Typer<'_> {
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
-        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), call, ctx))
+        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), (call, false), ctx))
     }
 
     /// Whether `t` applies a type operation of `scala.compiletime.ops`.

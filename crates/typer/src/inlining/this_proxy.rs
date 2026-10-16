@@ -5,9 +5,8 @@
 use super::expand::Expansion;
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Span, TName};
-use tasty::tags::INLINEPROXY;
-use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+use syntax::ast::Span;
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
@@ -102,34 +101,6 @@ impl Expansion<'_, '_> {
         };
         self.bind_proxy(proxy, rhs, tpt_span, 0);
         Ok(proxy)
-    }
-
-    /// A proxy of the `this` of class `cls`, of type `info`, owned by the call's owner.
-    pub fn this_proxy_symbol(&mut self, cls: SymbolId, info: TypeId) -> SymbolId {
-        let proxy = self.i.u.define(Symbol {
-            name: format!("{}_this", self.i.u.symbol(cls).name),
-            kind: Kind::Val,
-            owner: Some(self.owner),
-            flags: Flags::default().with(INLINEPROXY),
-            target: None,
-            is_extern: false,
-            derived: false,
-            decls: Vec::new(),
-            tree: None,
-        });
-        self.i.u.set_info(proxy, info);
-        proxy
-    }
-
-    /// Puts the definition of `proxy` as `rhs`, its type tree at `tpt_span`, at index `at` of the
-    /// bindings.
-    pub fn bind_proxy(&mut self, proxy: SymbolId, rhs: TNodeId, tpt_span: Span, at: usize) {
-        let info = self.i.u.info(proxy);
-        let tpt = self.i.tpd.node(T::TypeTree { inferred: true }, tpt_span, Some(info), None);
-        let name = TName { name: self.i.names.intern(&self.i.u.symbol(proxy).name.clone()), is_type: false };
-        let call_span = self.i.tpd.span(self.call);
-        let def = self.i.tpd.node(T::ValDef { name, tpt, rhs: Some(rhs) }, call_span, None, Some(proxy));
-        self.bindings.insert(at, def);
     }
 }
 
