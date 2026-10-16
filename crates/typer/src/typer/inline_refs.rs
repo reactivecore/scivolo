@@ -7,8 +7,17 @@ use tasty::SymbolId;
 use tasty::tags::{INLINE, MACRO, PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
 
 /// The inline operations of `scala.compiletime` that inlining expands.
-const EXPANDED: [&str; 7] =
-    ["error", "codeOf", "requireConst", "constValue", "constValueOpt", "summonInline", "summonFrom"];
+const EXPANDED: [&str; 9] = [
+    "error",
+    "codeOf",
+    "requireConst",
+    "constValue",
+    "constValueOpt",
+    "constValueTuple",
+    "summonInline",
+    "summonAll",
+    "summonFrom",
+];
 
 impl Typer<'_> {
     /// Checks a reference to `sym` from `ctx`: not to a macro or an inline `scala.compiletime`

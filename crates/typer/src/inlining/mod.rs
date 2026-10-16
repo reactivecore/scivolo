@@ -21,6 +21,7 @@ mod retype;
 mod skolems;
 mod this_proxy;
 mod transparent;
+mod tuple_intrinsics;
 mod type_eval;
 mod unused;
 
