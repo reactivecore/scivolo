@@ -122,6 +122,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
@@ -209,6 +210,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The implicit members of the unit's package objects in each package, once asked for.
+    pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// The pending dynamic calls, by their placeholder trees.
@@ -268,6 +271,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,

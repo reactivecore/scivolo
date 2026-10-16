@@ -101,6 +101,14 @@ impl Typer<'_> {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
+                let mut wildcard = false;
+                self.u.map_type(tpe, &mut |u, part| {
+                    wildcard |= matches!(u.types().get(part), Type::Wildcard(_));
+                    None
+                });
+                if wildcard && raw_default.is_some() {
+                    self.unsupported(rhs, "wildcard in the inferred type of a default");
+                }
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified_inferred(widened);
                 if self.keeps_rhs_type(sym)

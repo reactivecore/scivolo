@@ -31,8 +31,8 @@ pub struct Constraint {
     checks: u32,
     /// Whether a bound is being propagated from another variable.
     propagating: bool,
-    /// How many implicit argument searches are in progress, in which variables are not unified.
-    searches: u32,
+    /// The number of variables when each implicit argument search in progress started.
+    searches: Vec<usize>,
     /// Whether a lower bound referred to a local symbol defined after its variable and could not
     /// do without it, also in an abandoned attempt.
     escaped: bool,
@@ -74,13 +74,23 @@ impl Constraint {
         self.vars[i].hi = hi;
     }
 
-    /// Starts an implicit argument search, in which variables are not unified.
+    /// Starts an implicit argument search, also one nested in another.
     pub fn enter_search(&mut self) {
-        self.searches += 1;
+        self.searches.push(self.vars.len());
     }
 
     pub fn leave_search(&mut self) {
-        self.searches -= 1;
+        self.searches.pop();
+    }
+
+    /// Whether `v` and `w` may be unified: outside searches, or in an outermost search one made
+    /// by it and one made before it.
+    fn unifiable(&self, v: VarId, w: VarId) -> bool {
+        match self.searches[..] {
+            [] => true,
+            [m] => (v.0 as usize >= m) != (w.0 as usize >= m),
+            _ => false,
+        }
     }
 
     /// Whether a local symbol escaped into the bound of a variable made before it.
@@ -164,6 +174,9 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, lo, t);
         }
+        if *u.types().get(lo) == Type::Var(v) {
+            return true;
+        }
         let lo = match self.avoided(u, lo, e.born, 1) {
             Some(avoided) => avoided,
             None => {
@@ -196,8 +209,11 @@ impl TypeVars for Constraint {
         if let Some(t) = e.instance {
             return self.satisfiable(u, t, hi);
         }
+        if *u.types().get(hi) == Type::Var(v) {
+            return true;
+        }
         if let Type::Var(w) = *u.types().get(hi)
-            && self.searches == 0
+            && self.unifiable(v, w)
             && self.unify(u, v, w)
         {
             return true;

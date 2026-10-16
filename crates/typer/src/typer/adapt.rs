@@ -31,6 +31,9 @@ impl Typer<'_> {
             };
         }
         if let Some(Type::Method { implicit: true, .. }) = &method {
+            let info = self.method_info(tpe).unwrap_or(tpe);
+            let meth = self.tpd.sym(self.tpd.meth_part(tree));
+            let _ = self.constrain_applied_result(meth, info, pt);
             return match self.implicit_clause_applied(tree, ctx) {
                 Ok(apply) => self.adapt(apply, pt, ctx),
                 Err(what) => {

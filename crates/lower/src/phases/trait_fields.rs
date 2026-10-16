@@ -4,40 +4,18 @@
 //! `Memoize` makes store fields.
 
 use super::accessor_names::{accessor_name, trait_setter_name};
-use super::getters::{is_const_final, is_setter};
+use super::getters::{is_const_final, is_param_accessor, is_setter};
 use super::library_traits::define_setter;
 use super::mixin::has_body;
 use super::trait_lazies::{lazy_forwarder, module_forwarder};
+use super::trait_params::TraitCall;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{EXTENSION, FIELDaccessor, LAZY, MUTABLE, PRIVATE, SYNTHETIC};
+use tasty::tags::{FIELDaccessor, LAZY, MUTABLE, PARAMsetter, PRIVATE, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
-
-/// Records the unit's traits among `classes` whose bodies have values, statements or extension
-/// methods.
-pub fn find_inits(l: &mut Lower, classes: &[TNodeId]) {
-    for &td in classes {
-        let Some(class) = l.tpd.sym(td).filter(|&c| l.u.is_trait(c)) else { continue };
-        let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { continue };
-        let Tree::Template { body, .. } = *l.tpd.tree(template) else { continue };
-        let inits = l.tpd.items(body).iter().any(|&s| match *l.tpd.tree(s) {
-            Tree::DefDef { .. } => l.tpd.sym(s).is_some_and(|d| has(l.u, d, EXTENSION)),
-            Tree::TypeDef { .. } | Tree::Import { .. } => false,
-            Tree::ValDef { rhs, .. } => {
-                let synthetic_module =
-                    l.tpd.sym(s).is_some_and(|v| l.u.is_module(v) && has(l.u, v, SYNTHETIC));
-                rhs.is_some() && !synthetic_module
-            }
-            _ => true,
-        });
-        if inits {
-            l.u.set_inits(class);
-        }
-    }
-}
 
 /// Whether `s` is a getter of a concrete value of a trait: a variable's or one with a trait setter.
 fn is_trait_getter(l: &mut Lower, s: SymbolId) -> bool {
@@ -65,6 +43,10 @@ pub fn trait_defs(l: &mut Lower, td: TNodeId) -> Vec<TNodeId> {
         else {
             continue;
         };
+        if is_param_accessor(l, s) && !is_setter(l, s) {
+            l.u.set_deferred(s, true);
+            continue;
+        }
         let abstract_getter = rhs.is_none() && !is_setter(l, s);
         let skip = !has(l.u, s, FIELDaccessor) || has(l.u, s, LAZY) || l.u.is_module(s);
         if skip || is_const_final(l, s) || abstract_getter {
@@ -100,19 +82,29 @@ fn trait_setter(l: &mut Lower, trait_: SymbolId, getter: SymbolId, span: Span) -
 
 /// The members class `class` gets from trait `mixin` it mixes in (dotty's `traitInits`,
 /// `superCallOpt` and `setters`): a getter without a body for each value it does not override,
-/// a lazy value for each lazy value it does not override and each object (`trait_lazies.rs`),
-/// the call `super[M].$init$()`, a setter with a `()` body for each setter; the call and the
-/// bodies at the point of the class's `span`, the members without spans, which copying the
-/// template gives them.
-pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
+/// one returning the next argument of `call` for each parameter (`trait_params.rs`), a lazy
+/// value for each lazy value it does not override and each object (`trait_lazies.rs`), the call
+/// `super[M].$init$()`, a setter with a `()` body for each setter; the call at the start of
+/// `call`, else with the bodies at the point of the class's `span`, the members without spans.
+pub fn mixed_in(
+    l: &mut Lower,
+    class: SymbolId,
+    mixin: SymbolId,
+    call: Option<TraitCall>,
+    span: Span,
+) -> Result<Vec<TNodeId>> {
     let mut out = Vec::new();
+    let (call_span, args) = call.unwrap_or((Span::NONE, Vec::new()));
+    let mut args = args.into_iter();
     let decls = l.u.decls(mixin).unwrap_or_default();
     for &getter in &decls {
         let library = l.u.symbol(getter).tree.is_some();
         if l.u.is_module(getter) && library {
             return unsupported(span, "objects in library traits");
         }
-        if l.u.is_module(getter) {
+        if is_param_accessor(l, getter) && !is_setter(l, getter) {
+            out.push(super::trait_params::param_init(l, class, getter, args.next(), span)?);
+        } else if l.u.is_module(getter) {
             out.push(module_forwarder(l, class, getter, span)?);
         } else if has(l.u, getter, LAZY) && has_body(l, getter) && implemented_by(l, class, getter) {
             if library {
@@ -129,6 +121,7 @@ pub fn mixed_in(l: &mut Lower, class: SymbolId, mixin: SymbolId, span: Span) -> 
     if !l.u.no_inits(mixin) {
         let init = l.u.decl(mixin, "<init>").unwrap_or_default();
         let init = init.into_iter().next().expect("a trait constructor");
+        let at = if call_span.exists() { Span::at(call_span.start()) } else { at };
         let sup = l.super_mix(class, mixin, at);
         let fun = l.select(sup, init, at);
         let unit = l.u.class_ref("scala.Unit");
@@ -156,7 +149,8 @@ pub fn implemented_by(l: &mut Lower, class: SymbolId, getter: SymbolId) -> bool 
             let member = matches!(l.u.symbol(m).kind, Kind::Val | Kind::Def)
                 && !has(l.u, m, PRIVATE)
                 && !l.bridges.contains(&m);
-            if member && (has_body(l, m) || is_trait_getter(l, m)) {
+            let param = is_param_accessor(l, m) && !is_setter(l, m);
+            if member && (has_body(l, m) || is_trait_getter(l, m) || param) {
                 return m == getter;
             }
         }
@@ -170,7 +164,7 @@ pub fn forwarder(l: &mut Lower, class: SymbolId, member: SymbolId, rhs: Option<T
     let span = Span::NONE;
     let name = accessor_name(l, member);
     let m = l.u.symbol(member);
-    let (kind, flags) = (m.kind, m.flags.with(SYNTHETIC).without(PRIVATE));
+    let (kind, flags) = (m.kind, m.flags.with(SYNTHETIC).without(PRIVATE).without(PARAMsetter));
     let target = m.target.clone();
     let sym = l.u.define(symbol(&name, kind, class, flags));
     if let Some(target) = target {

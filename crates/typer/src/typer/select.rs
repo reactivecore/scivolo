@@ -57,7 +57,7 @@ impl Typer<'_> {
                 defined = true;
                 continue;
             }
-            if matches!(pt, Pt::Fun(_))
+            if matches!(pt, Pt::Fun(_) | Pt::PolyFun)
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;

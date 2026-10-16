@@ -125,6 +125,9 @@ pub fn prefix(
     f: &Function,
 ) -> String {
     match l.u.symbol(f.sym).owner {
+        Some(o) if f.ctor && l.u.is_constructor(o) && l.u.symbol(o).owner == Some(class) => {
+            "$init$$".to_owned()
+        }
         Some(o) if l.u.symbol(o).kind == Kind::Def => match functions.iter().position(|x| x.sym == o) {
             Some(p) => format!("{}$", l.u.symbol(methods[p].sym).name),
             None => format!("{}$", l.u.symbol(o).name),

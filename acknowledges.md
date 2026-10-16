@@ -37,7 +37,8 @@ Apache-2.0. Rust translations of:
   `SearchHistory`, `SearchRoot.emitDictionary`), `Types` (`TypeSizeAccumulator`,
   `CoveringSetAccumulator`) in `measures.rs`, `ProtoTypes` (`isCompatible`,
   `wildApprox`) in `prefilter.rs`, `Synthesizer` (`synthesizedClassTag`,
-  `synthesizedValueOf`), `TypeErasure.hasStableErasure`, `Typer.adaptNoArgsImplicitMethod`,
+  `synthesizedValueOf`, `productMirror` of tuples, `mirrorCore`), `TypeErasure.hasStableErasure`,
+  `Typer.adaptNoArgsImplicitMethod`, `ProtoTypes.resultTypeApprox`,
   `Applications.extMethodApply`; `Applications` (`compare`, `isAsGood`, `isAsGoodValueType`,
   `widenGiven`, `compareOwner`, `comparePrefixes`) in `ranking.rs`, `as_good.rs`,
   `alt_types.rs`; `Applications` (`tryDefault`, `findDefaultGetter`, `spliceMeth`) in
