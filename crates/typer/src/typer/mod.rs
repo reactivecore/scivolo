@@ -2,6 +2,7 @@
 
 mod access;
 mod accessible;
+mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -43,6 +44,7 @@ mod derived;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
+mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
 mod equality;
@@ -63,6 +65,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inline_accessors;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
@@ -106,6 +109,7 @@ mod refined_types;
 mod refutable_warnings;
 mod repeated;
 mod report;
+mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sams;
@@ -156,6 +160,7 @@ use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
+pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -209,10 +214,15 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    pub accessors: inline_accessors::Accessors,
     /// The implicit members of the unit's package objects in each package, once asked for.
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The pending dynamic calls, by their placeholder trees.
+    pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The left-hand side of the assignment being typed.
+    pub dynamic_lhs: Option<NodeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -266,8 +276,11 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
+            dynamic_calls: FxHashMap::default(),
+            dynamic_lhs: None,
             depth: 0,
         };
         typer.enter_and_or();

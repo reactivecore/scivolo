@@ -42,6 +42,7 @@ impl Typer<'_> {
         let super_ctx = self.super_call_ctx(t.constr, ctx);
         let parents = self.parent_types(cls, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
+        self.check_dynamics_enabled(rhs, &parents, ctx);
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }
@@ -116,6 +117,7 @@ impl Typer<'_> {
             false => self.typed_self(s, cctx),
         });
         let (body, dummy) = self.typed_template_stats(cls, &t.body, cctx);
+        let body = self.with_inline_members(cls, body, cctx);
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);

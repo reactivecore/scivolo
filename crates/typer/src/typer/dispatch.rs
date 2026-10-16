@@ -29,7 +29,7 @@ impl Typer<'_> {
             }
             Tree::Match { selector, cases, kind } => self.typed_match(id, selector, cases, kind, pt, ctx),
             Tree::Alternative { trees } => self.typed_alternative(id, trees, pt, ctx),
-            Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, ctx),
+            Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, pt, ctx),
             Tree::Literal { value } => self.typed_literal(id, value),
             Tree::Number { digits, kind } => self.typed_number(id, (&digits, kind), pt, ctx),
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym),
@@ -53,7 +53,7 @@ impl Typer<'_> {
                 self.typed_if(id, (cond, thenp, elsep, inline), pt, ctx)
             }
             Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
-            Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
+            Tree::Assign { lhs, rhs } => self.typed_assign(id, (lhs, rhs), pt, ctx),
             Tree::Return { expr } => self.typed_return(id, expr, ctx),
             Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),

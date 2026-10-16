@@ -12,15 +12,18 @@ impl Inlining<'_> {
     /// The expansion of `call` in `ctx` of a transparent inline method defined in `bodies`, with
     /// the transparent calls in it expanded too; `bodies` holds the definition of every
     /// transparent inline method it may reach, `with_inits` the classes of the unit that may run
-    /// code when an instance is made.
+    /// code when an instance is made; the method may be one that is not transparent if `force`.
     pub fn inline_transparent(
         &mut self,
         (bodies, with_inits): (FxHashMap<SymbolId, TNodeId>, FxHashSet<SymbolId>),
-        call: TNodeId,
+        (call, force): (TNodeId, bool),
         ctx: Ctx,
     ) -> Result<TNodeId, Unsupported> {
         (self.bodies, self.with_inits, self.ctx) = (bodies, with_inits, Some(ctx));
-        match self.inline_method(call)? {
+        self.force_inline = force;
+        let def = self.inline_method(call);
+        self.force_inline = false;
+        match def? {
             Some(def) => self.inline_call(call, def, ctx.owner),
             None => Ok(call),
         }
@@ -46,6 +49,7 @@ impl Inlining<'_> {
         for b in self.tpd.items(bindings).to_vec() {
             self.type_this_qualifiers(b);
         }
+        self.type_this_qualifiers(expansion);
         Some(trace)
     }
 }

@@ -159,7 +159,7 @@ fn accessor(l: &mut Lower, s: &SuperSelect, span: Span, defs: &mut Vec<TNodeId>)
     };
     let trait_ = l.u.is_trait(s.clazz);
     let name = match trait_ {
-        true => format!("{}$${unexpanded}", super::accessor_names::expanded_prefix(l, s.clazz)),
+        true => format!("{}$${unexpanded}", l.u.expanded_prefix(s.clazz)),
         false => unexpanded,
     };
     let info = l.u.widen(l.tpd.tpe(s.sel));

@@ -86,6 +86,9 @@ impl Typer<'_> {
             if !flags.has(tasty::tags::TRANSPARENT) {
                 rhs = rhs.map(|r| self.inline_body(r, tpt));
             }
+            if let Some(r) = rhs {
+                self.make_inlineable(r, sym, mctx);
+            }
         }
         let span = self.ast.span(id);
         let def = self.tpd.node(T::DefDef { name, paramss, tpt, rhs }, span, None, Some(sym));

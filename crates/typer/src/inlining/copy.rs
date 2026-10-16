@@ -15,8 +15,8 @@ pub struct TreeTypeMap {
     /// The owner whose definitions get `new_owner` as owner when copied.
     pub old_owner: Option<SymbolId>,
     pub new_owner: Option<SymbolId>,
-    /// The class whose `this` is replaced, with the type replacing it.
-    pub this: Option<(SymbolId, TypeId)>,
+    /// The classes whose `this` is replaced, with the types replacing them.
+    pub this: Vec<(SymbolId, TypeId)>,
 }
 
 /// What replaces a tree instead of its copy, if anything (dotty's `treeMap`).
@@ -30,7 +30,10 @@ impl<'a> Inlining<'a> {
                 Some(&r) => Some(r),
                 None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
             },
-            Type::This(c) => m.this.filter(|&(cls, _)| u.class_symbol(c) == Some(cls)).map(|(_, to)| to),
+            Type::This(c) => {
+                let c = u.class_symbol(c);
+                m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
+            }
             _ => None,
         })
     }
