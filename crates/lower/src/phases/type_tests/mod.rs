@@ -26,6 +26,11 @@ pub fn is_test_or_cast(l: &Lower, t: TNodeId) -> bool {
         .is_some_and(|s| [d.is_instance_of, d.type_test, d.as_instance_of, d.type_cast].contains(&s))
 }
 
+/// Numbers the values type tests evaluate once in the order of the unit's trees.
+pub fn renumber_tested_values(l: &mut Lower) {
+    combined::renumber(l);
+}
+
 /// Makes type test or cast `t` its erased form, at `t`'s span; `$asInstanceOf$` as
 /// `asInstanceOf`.
 pub fn intercept(l: &mut Lower, t: TNodeId) -> Result<()> {

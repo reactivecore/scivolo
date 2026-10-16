@@ -9,17 +9,30 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
-use tasty::tags::{ABSTRACT, SEALED, SYNTHETIC};
-use tasty::{Flags, SymbolId, Type};
+use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
+use tasty::{Flags, Kind, SymbolId, Type};
 use typer::tpd::{TNodeId, Tree};
 
-/// The children of sealed class `sealed_` in unit `root` in the order of their definitions:
-/// classes, and objects by their values.
-fn children(l: &mut Lower, root: TNodeId, sealed_: SymbolId) -> Vec<SymbolId> {
+/// The children of sealed class `sealed` in unit `root` in the order of their definitions:
+/// classes, and objects by their values; of an enum, its cases.
+fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
+    if has(l.u, sealed, ENUM) {
+        let companion = l.u.companion_module(sealed).and_then(|m| l.u.module_class(m));
+        let decls = companion.map(|c| l.u.symbol(c).decls.clone()).unwrap_or_default();
+        return decls
+            .into_iter()
+            .filter(|&d| {
+                let kind = l.u.symbol(d).kind;
+                let class_or_value =
+                    kind == Kind::Class && !l.u.is_module_class(d) || kind == Kind::Val && !l.u.is_module(d);
+                class_or_value && has(l.u, d, CASE) && has(l.u, d, ENUM)
+            })
+            .collect();
+    }
     let mut out = Vec::new();
     for td in class_defs(l.tpd, root) {
         let Some(c) = l.tpd.sym(td) else { continue };
-        if !l.u.parents(c).into_iter().any(|p| l.u.class_symbol(p) == Some(sealed_)) {
+        if !l.u.parents(c).into_iter().any(|p| l.u.class_symbol(p) == Some(sealed)) {
             continue;
         }
         let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
@@ -51,17 +64,17 @@ fn visible_to_parent(l: &Lower, s: SymbolId, owner: SymbolId) -> bool {
         || l.u.is_module_class(owner) && l.u.symbol(owner).owner.is_some_and(|o| visible_to_parent(l, s, o))
 }
 
-/// `def ordinal(x$0: S): Int` of object class `class` for its companion `sealed_` of unit `root`.
+/// `def ordinal(x$0: S): Int` of object class `class` for its companion `sealed` of unit `root`.
 pub fn ordinal(
     l: &mut Lower,
     root: TNodeId,
     class: SymbolId,
-    sealed_: SymbolId,
+    sealed: SymbolId,
     focus: Span,
 ) -> Result<TNodeId> {
     let cc = l.case_classes()?;
-    let children = children(l, root, sealed_);
-    let param = type_ref(l.u, sealed_);
+    let children = children(l, root, sealed);
+    let param = type_ref(l.u, sealed);
     let int = l.u.class_ref("scala.Int");
     let binder = l.u.fresh_binder();
     let params = vec![("x$0".into(), param)];

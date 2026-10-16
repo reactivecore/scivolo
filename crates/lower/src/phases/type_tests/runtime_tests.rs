@@ -4,7 +4,7 @@
 use crate::phases::adapt::from_start;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Type, TypeId};
 use typer::tpd::TNodeId;
 
 /// `Tuples.isInstanceOfTuple(expr)`, `isInstanceOfNonEmptyTuple` or `isInstanceOfEmptyTuple` at
@@ -39,7 +39,7 @@ pub fn tuple_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Opti
 }
 
 /// `ScalaRunTime.isArray(expr, 1)` at `span` if dealiased type `tpe` is an array of elements that
-/// are not of a class (dotty's `isGenericArrayElement`).
+/// no JVM array holds all of (dotty's `isGenericArrayElement`).
 pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Result<Option<TNodeId>> {
     let mut elem = tpe;
     let mut dims = 0;
@@ -51,13 +51,7 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
         }
         (elem, dims) = (args[0], dims + 1);
     }
-    let dealiased = l.u.dealias(elem);
-    let class = match *l.u.types().get(dealiased) {
-        Type::Sym(_, s) => Some(s),
-        Type::Applied(..) | Type::TypeRef(..) => l.u.class_symbol(dealiased),
-        _ => None,
-    };
-    if dims == 0 || class.is_some_and(|c| l.u.symbol(c).kind == Kind::Class) {
+    if dims == 0 || !l.u.is_generic(elem) {
         return Ok(None);
     }
     if dims > 1 {
