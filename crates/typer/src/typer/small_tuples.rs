@@ -50,7 +50,7 @@ impl Typer<'_> {
     }
 
     /// The element types of `t` if it is a chain `A *: B *: … *: T`, `T` `EmptyTuple` or a `TupleN`.
-    fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
+    pub fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let pair = self.resolve_full_name("scala.*:", true)?;
         let mut elems = Vec::new();
         let mut t = t;

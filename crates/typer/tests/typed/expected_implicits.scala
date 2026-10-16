@@ -24,3 +24,8 @@ object Test:
   def b = summon[Box]
   def p[Y]: Plus[Int, Y] = new { def add(x: Int): Y = ??? }
   def i = O.Inst[Int]()
+  val m = summon[scala.deriving.Mirror.Of[(Int, String)]]
+  def seconds =
+    import scala.concurrent.duration.*
+    List((60.seconds, 1.minute))
+  def n: (Int, String) = m.fromProduct((1, "a"))

@@ -70,28 +70,36 @@ impl Typer<'_> {
             let widened = t.u.widen(qual);
             t.u.class_symbol(widened).filter(|&c| t.u.symbol(c).flags.has(tasty::tags::OBJECT))
         };
-        let Some(class) = self
+        let classes = match self
             .u
             .module_class(site)
             .or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
             .or_else(|| aliased_object(self))
-        else {
-            if self.u.symbol(site).kind.is_term() {
+        {
+            Some(class) => vec![class],
+            None if self.u.symbol(site).kind == Kind::Package => self.package_objects(site),
+            None if self.u.symbol(site).kind.is_term() => {
                 return Err("implicit import from a value other than an object");
             }
-            return Ok(Vec::new());
+            None => return Ok(Vec::new()),
         };
-        for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != "_") {
-            for m in self.class_members(class, name) {
-                if matches!(self.syms.completions.get(&m), Some(crate::symbols::Completion::Completing(_))) {
-                    return Err("implicit search through a definition being completed");
+        for &class in &classes {
+            for (name, _) in names.iter().filter(|(n, _)| !n.is_empty() && n != "_") {
+                for m in self.class_members(class, name) {
+                    if matches!(
+                        self.syms.completions.get(&m),
+                        Some(crate::symbols::Completion::Completing(_))
+                    ) {
+                        return Err("implicit search through a definition being completed");
+                    }
                 }
             }
         }
         let wildcard = names.iter().any(|(n, _)| n == "_");
         let givens = names.iter().any(|(n, _)| n.is_empty());
         let mut out = Vec::new();
-        for sym in self.implicit_members(class, false) {
+        let members: Vec<_> = classes.into_iter().flat_map(|c| self.implicit_members(c, false)).collect();
+        for sym in members {
             let name = self.u.symbol(sym).name.clone();
             let given = self.u.symbol(sym).flags.has(GIVEN);
             let excluded = (wildcard || givens) && names.iter().any(|(n, r)| *n == name && *r != name);
