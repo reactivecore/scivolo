@@ -214,6 +214,25 @@ fn transparent_inline_refusals() {
     }
 }
 
+#[test]
+fn match_types_reduce_in_conformance() {
+    let Some(mut u) = universe() else { return };
+    let mut units = Units::default();
+    let cases = [
+        (
+            "object M { type E[X] = X match { case String => Char; case Array[t] => t }
+             val c: E[String] = 'a'; val i: E[Array[Int]] = 1 }",
+            "",
+        ),
+        ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
+        ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that does not reduce"),
+    ];
+    for (text, what) in cases {
+        let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };
+        assert_eq!(type_unit(&mut u, &mut units, "t.scala", text), expected, "{text}");
+    }
+}
+
 /// Whether typing `text` as a unit after `before` types it or leaves the unresolved `c` to the
 /// fallback.
 fn finds_toplevel(before: &[&str], text: &str) -> bool {

@@ -68,6 +68,7 @@ mod lift;
 mod lift_app;
 mod linter;
 mod literals;
+mod match_type_trees;
 mod matches;
 mod member_views;
 mod members;

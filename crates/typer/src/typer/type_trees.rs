@@ -106,6 +106,9 @@ impl Typer<'_> {
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
+            Tree::MatchTypeTree { bound, selector, cases } => {
+                self.typed_match_type_tree(id, (bound, selector, cases), ctx)
+            }
             t => {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
