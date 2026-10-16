@@ -35,7 +35,7 @@ impl Lowerer<'_> {
             },
             Op::Copy(v) => Instr::Copy { dst, v: self.arg(*v) },
             Op::Call { ty, ptr, args } => match *self.pool.val(*ptr) {
-                Val::Global(name, _) if self.is_variadic(*ty) => {
+                Val::Global(name, _) if self.pool.is_variadic(*ty) => {
                     let args = args.iter().map(|&a| (self.arg(a), self.val_num(a))).collect();
                     let ret = match self.pool.ty(*ty) {
                         Type::Function(_, ret) => self.num_of(*ret),
@@ -124,13 +124,6 @@ impl Lowerer<'_> {
                 Instr::Box { dst, ty: *ty, boxing, v: self.arg(*obj), site, unwind }
             }
             _ => Instr::Op { dst, op: Box::new(op.clone()), unwind },
-        }
-    }
-
-    fn is_variadic(&self, ty: TypeId) -> bool {
-        match self.pool.ty(ty) {
-            Type::Function(args, _) => args.iter().any(|t| matches!(self.pool.ty(*t), Type::Vararg)),
-            _ => false,
         }
     }
 
