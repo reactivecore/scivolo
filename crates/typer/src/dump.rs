@@ -37,6 +37,18 @@ pub fn dump(
     errors_first: bool,
     inlined: bool,
 ) -> String {
+    dump_with(u, source, options, (errors_first, inlined), None)
+}
+
+/// The dump of `source` compiled with `options` like `dump`, its macro calls expanded through
+/// `macros`.
+pub fn dump_with(
+    u: &mut Universe,
+    source: &SourceFile,
+    options: &[&str],
+    (errors_first, inlined): (bool, bool),
+    macros: Option<&mut dyn crate::inlining::Macros>,
+) -> String {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, Config::from_options(options));
     let root = p.parse();
@@ -48,7 +60,7 @@ pub fn dump(
     let mut b = String::new();
     let mut units = if errors_first { crate::Units::errors_first() } else { crate::Units::default() };
     units.set_typer_only(!inlined);
-    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg) {
+    match units.type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
         Ok(typed) => {
             let trees = if inlined { outermost_inlined(&typed.tpd, typed.root) } else { vec![typed.root] };
             let source_len = source.len();

@@ -81,7 +81,12 @@ impl Unpickler<'_> {
 
     /// The one symbol among `found` of the kind and signature of the name at `id` (dotty's
     /// `atSignature`).
-    fn at_signature(&mut self, found: Vec<SymbolId>, id: NodeId, is_type: bool) -> Result<SymbolId, Refusal> {
+    pub fn at_signature(
+        &mut self,
+        found: Vec<SymbolId>,
+        id: NodeId,
+        is_type: bool,
+    ) -> Result<SymbolId, Refusal> {
         let sig = self.signature(id);
         let found: Vec<SymbolId> =
             found.into_iter().filter(|&s| self.u.is_type_symbol(s) == is_type).collect();

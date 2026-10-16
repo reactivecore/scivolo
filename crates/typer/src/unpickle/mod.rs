@@ -8,7 +8,9 @@ mod cases;
 mod defs;
 mod locals;
 mod paths;
+mod quotes;
 mod selections;
+mod splices;
 mod terms;
 mod tpts;
 
@@ -16,6 +18,8 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::{Span, TName};
 use syntax::names::Names;
 use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
+
+pub use quotes::{Quote, QuoteHole, quote, quoted_type};
 
 /// Why a body is outside the subset read.
 pub type Refusal = &'static str;
@@ -29,6 +33,8 @@ pub struct Unpickler<'a> {
     meth: SymbolId,
     /// The owner of the local definitions read.
     owner: SymbolId,
+    /// The term holes of the quote read, if a quote is read.
+    holes: Option<Vec<quotes::QuoteHole>>,
 }
 
 /// The definition of inline method `meth` of the library, with its body read from its TASTy.
@@ -42,11 +48,17 @@ pub fn inline_def(
     if u.body_info(file).is_err() {
         return Err("inline method of an unreadable TASTy file");
     }
-    let mut unpickler = Unpickler { u, tpd, names, file, meth, owner: meth };
-    let scala = unpickler.u.package("scala").ok_or("a library without package scala")?;
-    let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
-    crate::defn::special(unpickler.u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    define_repeated(u)?;
+    let mut unpickler = Unpickler { u, tpd, names, file, meth, owner: meth, holes: None };
     unpickler.inline_def(id)
+}
+
+/// Defines the class `scala.<repeated>` of repeated parameter types, which pickled trees name.
+fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
+    let scala = u.package("scala").ok_or("a library without package scala")?;
+    let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
+    crate::defn::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    Ok(())
 }
 
 impl Unpickler<'_> {

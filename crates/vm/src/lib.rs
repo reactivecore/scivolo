@@ -26,8 +26,9 @@ pub use interp::{box_method, bridge, lookup_order};
 pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
 pub use linktime::{Prop, accessor_property, method_name, parse_member, property};
 pub use natives::{
-    constructible, element_names, element_position, embedded_content, embedded_resources, exit_immediately,
-    is_element_method, is_load, may_build_throwable, provider_error, provider_names,
+    Hole, MacroArg, QuoteHost, constructible, element_names, element_position, embedded_content,
+    embedded_resources, exit_immediately, is_element_method, is_load, may_build_throwable, provider_error,
+    provider_names,
 };
 pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, interfaces, java_name};
 pub use throwable::{Frame, Thrown};
@@ -70,6 +71,8 @@ pub struct Vm {
     /// The message `dlerror` last returned to the program.
     dlerror: std::ffi::CString,
     scratch: Vec<usize>,
+    /// The macro expansions run, and the frontend's side of the one running.
+    quotes: natives::Expansions,
 }
 
 impl Vm {
@@ -100,6 +103,7 @@ impl Vm {
             variadics: FxHashMap::default(),
             dlerror: std::ffi::CString::default(),
             scratch: Vec::new(),
+            quotes: natives::Expansions::default(),
         };
         vm.funcs.trace = std::env::var_os("SCALAI_TRACE").is_some();
         vm.funcs.no_inline = std::env::var_os("SCALAI_NO_INLINE").is_some();

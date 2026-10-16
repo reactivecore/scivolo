@@ -49,7 +49,8 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
             return super::services::method(owner, sig)
                 .or_else(|| super::unwind::method(owner, sig))
                 .or_else(|| super::threads::method(owner, sig))
-                .or_else(|| super::repl::method(owner, sig));
+                .or_else(|| super::repl::method(owner, sig))
+                .or_else(|| super::quotes::method(owner, sig));
         }
     };
     Some(f)

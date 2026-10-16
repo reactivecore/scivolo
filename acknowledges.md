@@ -147,6 +147,12 @@ Apache-2.0. Rust translations of:
   numbers and `MessageKind`s of `reporting/messages` (`crates/syntax/src/diag.rs`);
   `printing/SyntaxHighlighting` and the `nameSpan`/`endSpan` of `ast/Trees`
   (`crates/repl/src/highlight.rs`), with `JLineTerminal`'s magenta prompt.
+- Macros (`crates/typer/src/inlining/{splice,quoted}.rs`, `crates/typer/src/unpickle/{quotes,splices}.rs`,
+  the `crates/macros` crate and `overlay/src/scala/quoted/runtime/impl`): `transform/Splicer`
+  and its `SpliceInterpreter`, `quoted/PickledQuotes` (unpickling with type and term holes),
+  `quoted/QuotesImpl` and `QuoteUnpickler`/`QuoteMatching` (the shape of `QuotesImpl`, `ExprImpl`
+  and `TypeImpl`), and `core/tasty/TastyString` (Base64 of pickled quotes,
+  `crates/macros/src/tasty_string.rs`).
 - Completion: `interactive/Completion` (`completionPrefix`, `accessibleMembers`,
   `isValidCompletionSymbol`, `needsBacktick`) in `crates/typer/src/completion` and
   `crates/repl/src/completion`; `ast/NavigateAST.pathTo` (`crates/syntax/src/ast/path.rs`);

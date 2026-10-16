@@ -20,6 +20,9 @@ impl Inlining<'_> {
         owner: SymbolId,
     ) -> Result<TNodeId, Unsupported> {
         let t = self.retype_node(t, args, owner)?;
+        if let Some(expanded) = self.expand_splice(t, owner)? {
+            return Ok(expanded);
+        }
         let Some(def) = self.inline_method(t)? else { return Ok(t) };
         self.inline_call(t, def, owner)
     }
