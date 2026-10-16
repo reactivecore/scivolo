@@ -107,9 +107,6 @@ int8_t scalai_aot_class_is(void *self, const char *left, const char *right) {
     int32_t left_id = *(const int32_t *)(left + at[0]), right_id = *(const int32_t *)(right + at[0]);
     if (right_id >= 0)
         return left_id >= right_id && left_id <= *(const int32_t *)(right + at[1]);
-    // Temporary until #115 (trait metadata): a trait is no subtype of another trait here.
-    if (left_id < 0)
-        return 0;
     void *const *traits = *(void *const *const *)(left + at[2]);
     int64_t count = *(const int64_t *)(left + at[3]);
     for (int64_t i = 0; i < count; i++)

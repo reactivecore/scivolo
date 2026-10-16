@@ -1,5 +1,6 @@
 //! One class's metadata: a `java.lang.Class` instance laid out as Scala Native's runtime reads
-//! it; for a class, followed by its itable (pointer, length) and vtable.
+//! it, followed by its itable (pointer, length), all its traits (pointer, length) and, for a
+//! class, its vtable.
 
 use crate::R;
 use crate::blob::Blob;
@@ -50,7 +51,7 @@ pub fn define(
     let (id, interfaces, count, name_at) = (l.id, l.interfaces, l.interfaces_count, l.name as usize);
     let c = reach.classes.get(cls);
     let is_trait = c.kind == Kind::Trait;
-    let size = if is_trait { l.itable } else { l.vtable + 8 * c.slots.len() as i32 };
+    let size = if is_trait { l.vtable } else { l.vtable + 8 * c.slots.len() as i32 };
     let mut blob = Blob { bytes: vec![0; size as usize], ..Blob::default() };
     blob.data.push((0, decls.rtti(module, reach, meta)?));
     blob.i32_at(id, ids[cls as usize].0);
@@ -68,11 +69,11 @@ pub fn define(
     blob.i32_at(count, direct.len() as i32);
     let list = rtti_list(module, reach, decls, &direct)?;
     blob.data.push((interfaces as usize, side_table(module, reach, cls, "interfaces", list)?));
+    let (at, len_at) = (decls.rtti.traits as usize, decls.rtti.traits_len as usize);
+    let list = rtti_list(module, reach, decls, &all)?;
+    blob.data.push((at, side_table(module, reach, cls, "traits", list)?));
+    blob.bytes[len_at..len_at + 8].copy_from_slice(&(all.len() as u64).to_le_bytes());
     if !is_trait {
-        let (at, len_at) = (decls.rtti.traits as usize, decls.rtti.traits_len as usize);
-        let list = rtti_list(module, reach, decls, &all)?;
-        blob.data.push((at, side_table(module, reach, cls, "traits", list)?));
-        blob.bytes[len_at..len_at + 8].copy_from_slice(&(all.len() as u64).to_le_bytes());
         class_part(module, reach, decls, ids, cls, &mut blob)?;
     }
     let data = decls.rtti(module, reach, cls)?;
