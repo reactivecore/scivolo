@@ -90,24 +90,29 @@ pub fn compile(world: &mut World, root: Root, timings: &mut Timings) -> R<(Vec<u
         }
         Root::Main(top) => start::reach_main(&mut module, &mut reach, &mut decls, top)?,
     }
+    // Temporary until #115 (library cache): library functions are compiled again for every
+    // program.
     let mut fb = FunctionBuilderContext::new();
     let mut batch = Vec::new();
     loop {
         while let Some(g) = reach.queue.pop() {
             batch.push(functions::translate(&mut module, &mut reach, &mut decls, &mut fb, g)?);
+            if batch.len() >= functions::BATCH {
+                functions::compile(&mut module, &reach, &mut decls, &mut batch, timings)?;
+            }
         }
         functions::compile(&mut module, &reach, &mut decls, &mut batch, timings)?;
         let clock = Instant::now();
         for g in reach.dispatch_targets()? {
             decls.func(&mut module, &mut reach, g)?;
         }
-        timings.add("  of which dispatch", clock.elapsed());
-        let clock = Instant::now();
+        timings.part("reach+codegen", "dispatch", clock.elapsed());
         if matches!(root, Root::Main(_)) {
+            let clock = Instant::now();
             start::reach_initializers(&mut module, &mut reach, &mut decls)?;
+            timings.part("reach+codegen", "initializers", clock.elapsed());
         }
-        timings.add("  of which initializers", clock.elapsed());
-        if reach.queue.is_empty() {
+        if reach.queue.is_empty() && !reach.undispatched() {
             break;
         }
     }

@@ -11,7 +11,14 @@ use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{FuncId, Module, ModuleReloc};
 use cranelift_object::ObjectModule;
 use nir::{DefnKind, GlobalId};
+use std::sync::Mutex;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
+
+/// Functions compiled per thread at least; smaller batches use fewer threads.
+const PER_THREAD: usize = 16;
+/// Translated functions held at most before they are compiled.
+pub const BATCH: usize = 1024;
 
 /// A function translated to Cranelift IR, not compiled yet.
 pub struct Translated {
@@ -76,27 +83,31 @@ pub fn compile(
 ) -> R<()> {
     let clock = Instant::now();
     let isa = module.isa();
-    let threads = std::thread::available_parallelism().map_or(1, |n| n.get());
-    let chunk = batch.len().div_ceil(threads).max(1);
-    let failed: Vec<(GlobalId, String)> = std::thread::scope(|s| {
-        let workers: Vec<_> = batch
-            .chunks_mut(chunk)
-            .map(|part| {
-                s.spawn(move || {
-                    let compile = |t: &mut Translated| {
-                        t.ctx
-                            .compile(isa, &mut ControlPlane::default())
-                            .err()
-                            .map(|e| format!("{:?}", e.inner))
-                    };
-                    part.iter_mut().filter_map(|t| compile(t).map(|e| (t.g, e))).collect::<Vec<_>>()
-                })
-            })
-            .collect();
-        workers.into_iter().flat_map(|w| w.join().unwrap_or_default()).collect()
-    });
-    if let Some((g, e)) = failed.first() {
-        return Err(format!("{}: {e}", reach.world.name(*g)));
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get());
+    let threads = cores.min(batch.len().div_ceil(PER_THREAD));
+    let (todo, next) = (batch.iter_mut().map(Mutex::new).collect::<Vec<_>>(), AtomicUsize::new(0));
+    let work = || -> Option<(GlobalId, String)> {
+        while let Some(cell) = todo.get(next.fetch_add(1, Ordering::Relaxed)) {
+            let mut t = cell.lock().unwrap_or_else(|e| e.into_inner());
+            if let Err(e) = t.ctx.compile(isa, &mut ControlPlane::default()) {
+                let message = format!("{:?}", e.inner);
+                return Some((t.g, message));
+            }
+        }
+        None
+    };
+    let failed = match threads {
+        0 | 1 => work(),
+        _ => std::thread::scope(|s| {
+            let workers: Vec<_> = (0..threads).map(|_| s.spawn(work)).collect();
+            let results =
+                workers.into_iter().map(|w| w.join().unwrap_or_else(|p| std::panic::resume_unwind(p)));
+            results.collect::<Vec<_>>().into_iter().flatten().next()
+        }),
+    };
+    drop(todo);
+    if let Some((g, e)) = failed {
+        return Err(format!("{}: {e}", reach.world.name(g)));
     }
     for t in batch.drain(..) {
         let code = t.ctx.compiled_code().ok_or("a function was not compiled")?;
@@ -107,6 +118,6 @@ pub fn compile(
             .map_err(|e| format!("{}: {e:?}", reach.world.name(t.g)))?;
         decls.frames.record(t.id, t.g, &t.ctx);
     }
-    timings.add("  of which cranelift", clock.elapsed());
+    timings.part("reach+codegen", "cranelift", clock.elapsed());
     Ok(())
 }

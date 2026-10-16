@@ -14,8 +14,8 @@ use nir::Pool;
 
 const RUNTIME: &str = "scala.scalanative.runtime.";
 
-// Temporary until #115 (library cache): library functions are compiled again for every program,
-// and the tables go into the program's object, not an object of their own.
+// Temporary until #115 (library cache): the tables go into the program's object, not an object
+// of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let fixed = link_runtime(reach)?;
     reach.link_top("java.lang.String")?;
