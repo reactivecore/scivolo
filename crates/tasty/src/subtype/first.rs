@@ -90,6 +90,10 @@ impl Cmp<'_> {
                 None => self.recur(x, b) && self.recur(y, b),
             },
             Type::Annotated(p, _) => self.recur(p, b),
+            Type::Match { .. } => match self.reduced(a) {
+                Some(r) => self.recur(r, b),
+                None => self.third_try(a, b),
+            },
             _ => self.third_try(a, b),
         }
     }

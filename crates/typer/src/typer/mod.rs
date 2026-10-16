@@ -1,6 +1,7 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod accessible;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -12,10 +13,13 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
+mod approx;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;
-mod avoid_pattern_types;
+mod avoid_captures;
+mod avoid_map;
+mod avoid_select;
 mod call_types;
 mod case_lambdas;
 mod class_bound;
@@ -32,6 +36,7 @@ mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
+mod define_further;
 mod defs;
 pub(crate) mod dependent_params;
 mod derived;
@@ -44,6 +49,7 @@ mod equality;
 mod errors;
 mod escaping;
 mod eta;
+mod export_trees;
 mod extension_calls;
 mod features;
 mod find_ref;
@@ -68,6 +74,7 @@ mod lift;
 mod lift_app;
 mod linter;
 mod literals;
+mod match_type_trees;
 mod matches;
 mod member_views;
 mod members;
@@ -105,6 +112,8 @@ mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+mod shown_prefix;
+pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
 mod stats;
@@ -200,6 +209,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The forwarders of each export clause in a class body.
+    pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -253,6 +264,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            exports: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();
