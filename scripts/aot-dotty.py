@@ -15,9 +15,10 @@ import os
 import re
 import sys
 
-from dotty_sources import ROOT, WORK, lines, load, run, save, tests
+from dotty_sources import NATIVE, ROOT, SCALA, WORK, lines, load, run, save, shared, tests
 
 AOT = ROOT / "target/release/scalai-aot"
+NIR = shared(f"tmp/dotty/{SCALA}-{NATIVE}/nir")
 OUT = ROOT / "tmp/aot/dotty"
 JOBS, TIMEOUT = 4, int(os.environ.get("AOT_TIMEOUT", "20"))
 
@@ -31,7 +32,7 @@ def compile_one(name):
     binary, out = OUT / "bin" / name, OUT / "logs" / f"{name}.out"
     binary.unlink(missing_ok=True)
     out.unlink(missing_ok=True)
-    code, stdout, stderr = run([str(AOT), "--cp", str(WORK / "nir" / name), "-o", str(binary), "Test"], TIMEOUT)
+    code, stdout, stderr = run([str(AOT), "--cp", str(NIR / name), "-o", str(binary), "Test"], TIMEOUT)
     (OUT / "logs" / f"{name}.compile").write_text(stdout + "\n--- stderr ---\n" + stderr)
     if code is None:
         return "compile timeout", ""
