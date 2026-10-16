@@ -26,9 +26,9 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
         return Ok(FxHashSet::default());
     }
     let stats = l.tpd.items(body).to_vec();
-    let values = droppable(l, class, &stats);
+    let values = droppable(l, &stats);
     let trait_args = super::trait_params::trait_args(l, parents);
-    let retained = retained(l, class, (&stats, &trait_args), &values);
+    let retained = retained(l, class, &stats, &trait_args, &values);
     let dropped: Vec<SymbolId> = values.iter().map(|&(v, _)| v).filter(|v| !retained.contains(v)).collect();
     let params = constructor_params(l, constr);
     for stat in stats {
@@ -97,9 +97,9 @@ fn field_ref(l: &Lower, class: SymbolId, t: TNodeId) -> Option<SymbolId> {
     field.filter(|&s| l.u.symbol(s).owner == Some(class) && is_param_accessor(l, s))
 }
 
-/// The private local values of class `class` among `stats` that dotty's `Constructors` may make
-/// values of the constructor, each with the index of its definition.
-fn droppable(l: &Lower, class: SymbolId, stats: &[TNodeId]) -> Vec<(SymbolId, usize)> {
+/// The private local values of a class among `stats` that dotty's `Constructors` may make values
+/// of the constructor, each with the index of its definition.
+fn droppable(l: &Lower, stats: &[TNodeId]) -> Vec<(SymbolId, usize)> {
     let mut out = Vec::new();
     for (i, &stat) in stats.iter().enumerate() {
         let (Tree::ValDef { rhs: Some(_), .. }, Some(s)) = (l.tpd.tree(stat), l.tpd.sym(stat)) else {
@@ -108,7 +108,7 @@ fn droppable(l: &Lower, class: SymbolId, stats: &[TNodeId]) -> Vec<(SymbolId, us
         let private_local = has(l.u, s, PRIVATE) && has(l.u, s, LOCAL);
         let excluded =
             has(l.u, s, LAZY) || has(l.u, s, STATIC) || l.u.is_module(s) || is_param_accessor(l, s);
-        if private_local && !excluded && !l.u.is_trait(class) {
+        if private_local && !excluded {
             out.push((s, i));
         }
     }
@@ -122,7 +122,8 @@ fn droppable(l: &Lower, class: SymbolId, stats: &[TNodeId]) -> Vec<(SymbolId, us
 fn retained(
     l: &Lower,
     class: SymbolId,
-    (stats, trait_args): (&[TNodeId], &[TNodeId]),
+    stats: &[TNodeId],
+    trait_args: &[TNodeId],
     values: &[(SymbolId, usize)],
 ) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();

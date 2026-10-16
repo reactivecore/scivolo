@@ -42,7 +42,6 @@ impl Typer<'_> {
         let super_ctx = self.super_call_ctx(t.constr, ctx);
         let parents = self.parent_types(cls, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
-        self.check_parent_prefixes(cls, &parents, self.ast.span(rhs));
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
         }
@@ -110,6 +109,7 @@ impl Typer<'_> {
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
         self.check_trait_inits(cls, &parents, name_span);
+        self.check_parent_prefixes(cls, &parents);
         let self_ = t.self_.map(|s| match self.is_module_self(s) {
             true => self.typed(s, Pt::Any, ctx),
             false => self.typed_self(s, cctx),

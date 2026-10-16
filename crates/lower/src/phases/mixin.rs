@@ -82,8 +82,12 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
         return Ok(());
     }
-    let mut stats = forwarders;
-    stats.extend_from_slice(l.tpd.items(body));
+    let items = l.tpd.items(body).to_vec();
+    let proxy = |t: &TNodeId| l.tpd.sym(*t).is_some_and(|s| l.proxies.iter().any(|&(f, _)| f == s));
+    let proxies = items.iter().take_while(|t| proxy(t)).count();
+    let mut stats = items[..proxies].to_vec();
+    stats.extend(forwarders);
+    stats.extend_from_slice(&items[proxies..]);
     let body = l.tpd.list(&stats);
     l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
     l.recopy(template);

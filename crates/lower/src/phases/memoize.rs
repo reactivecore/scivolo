@@ -25,7 +25,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let mut fence = false;
     for mixed in [false, true] {
         for &stat in &items {
-            let param_setter = |l: &Lower, s| is_param_accessor(l, s) && is_setter(l, s);
+            let param_setter =
+                |l: &Lower, s| is_param_accessor(l, s) && is_setter(l, s) && !l.u.is_trait(class);
             let accessor = l
                 .tpd
                 .sym(stat)

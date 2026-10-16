@@ -88,6 +88,13 @@ fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifti
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { parents, body, .. } = *l.tpd.tree(template) else { return Ok(None) };
     let mut stats = super::trait_params::trait_args(l, parents);
+    let mut in_args = Vec::new();
+    for &a in &stats {
+        collect(l, a, None, &mut in_args);
+    }
+    if !in_args.is_empty() && l.local_classes.contains_key(&class) {
+        return unsupported(l.tpd.span(td), "lambdas in trait arguments of local classes");
+    }
     stats.extend_from_slice(l.tpd.items(body));
     let (mut functions, mut roots, mut in_static) = (Vec::new(), Vec::new(), Vec::new());
     for &stat in &stats {

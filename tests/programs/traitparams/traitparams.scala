@@ -51,6 +51,18 @@ trait Clauses(a: Int)(val b: String):
 
 class Cl extends Clauses(21)("two")
 
+trait VarParam(var v: Int):
+  def bump() = v += 1
+
+class Vp extends VarParam(4)
+
+def local(k: Int) =
+  trait LT(x: Int):
+    private val z = 3
+    def y = x + z + k
+  class LC extends LT(k * 2)
+  LC().y
+
 @main def traitparams(): Unit =
   val s = Sub()
   println(s.hello)
@@ -66,3 +78,7 @@ class Cl extends Clauses(21)("two")
   println(Outer.C().n)
   val cl = Cl()
   println(s"${cl.a2} ${cl.b}")
+  val vp = Vp()
+  vp.bump()
+  println(vp.v)
+  println(local(5))

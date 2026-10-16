@@ -89,18 +89,18 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             tpe
         });
-        let mut wildcard = false;
-        self.u.map_type(tpe, &mut |u, part| {
-            wildcard |= matches!(u.types().get(part), Type::Wildcard(_));
-            None
-        });
-        if wildcard {
-            self.unsupported(rhs, "wildcard in the inferred type of a default");
-        }
         match (inherited, default.filter(|_| !by_name)) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
+                let mut wildcard = false;
+                self.u.map_type(tpe, &mut |u, part| {
+                    wildcard |= matches!(u.types().get(part), Type::Wildcard(_));
+                    None
+                });
+                if wildcard && raw_default.is_some() {
+                    self.unsupported(rhs, "wildcard in the inferred type of a default");
+                }
                 let widened = self.widen_rhs(sym, tpe);
                 let widened = self.simplified(widened);
                 if self.keeps_rhs_type(sym)

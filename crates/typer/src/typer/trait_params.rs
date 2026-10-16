@@ -4,7 +4,7 @@
 use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The primary constructor of class `c`.
@@ -85,30 +85,32 @@ impl Typer<'_> {
         out
     }
 
-    /// Checks that no parent of trait `cls` among `parents` is selected on a member of `cls`
-    /// (dotty's `checkParentPrefix`), at `span`.
-    pub fn check_parent_prefixes(&mut self, cls: SymbolId, parents: &[TypeId], span: Span) {
+    /// Checks that no parent tree among `parents` of trait `cls` is selected on a member of `cls`
+    /// (dotty's `checkParentPrefix`).
+    pub fn check_parent_prefixes(&mut self, cls: SymbolId, parents: &[TNodeId]) {
         if !self.u.is_trait(cls) {
             return;
         }
-        for &p in parents {
+        for &tree in parents {
+            let p = self.tpd.tpe(tree);
             let tycon = match *self.u.types().get(p) {
-                tasty::Type::Applied(t, _) => t,
+                Type::Applied(t, _) => t,
                 _ => p,
             };
             let prefix = match *self.u.types().get(tycon) {
-                tasty::Type::Sym(Some(pre), _) | tasty::Type::TypeRef(pre, _) => pre,
+                Type::Sym(Some(pre), _) | Type::TypeRef(pre, _) => pre,
                 _ => continue,
             };
             let mut own = false;
             self.u.map_type(prefix, &mut |u, part| {
-                if let tasty::Type::Sym(_, s) = *u.types().get(part) {
+                if let Type::Sym(_, s) = *u.types().get(part) {
                     own |= u.symbol(s).kind.is_term() && u.symbol(s).owner == Some(cls);
                 }
                 None
             });
             if own {
                 let name = self.u.symbol(cls).name.clone();
+                let span = self.tpd.span(tree);
                 self.error_at(span, format!("trait parameters of {name} cannot be used as parent prefixes"));
             }
         }

@@ -42,7 +42,7 @@ pub fn strip_params(l: &mut Lower, constr: TNodeId) {
 pub fn split_parents(l: &mut Lower, parents: List) -> Result<(List, FxHashMap<SymbolId, TraitCall>)> {
     let mut args = FxHashMap::default();
     let mut out = Vec::new();
-    for &p in l.tpd.items(parents).to_vec().iter() {
+    for p in l.tpd.items(parents).to_vec() {
         let span = l.tpd.span(p);
         let Some((owner, call_args)) = trait_call(l, p) else {
             out.push(p);
@@ -50,6 +50,9 @@ pub fn split_parents(l: &mut Lower, parents: List) -> Result<(List, FxHashMap<Sy
         };
         if matches!(l.tpd.tree(p), Tree::Block { .. }) {
             return unsupported(span, "a trait parent call with reordered arguments");
+        }
+        if l.u.symbol(owner).tree.is_some() && !call_args.is_empty() {
+            return unsupported(span, "parameters of library traits");
         }
         let tpe = l.tpd.tpe(p);
         out.push(l.type_tree(tpe, span));
