@@ -49,7 +49,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
         let Some(class) = l.u.class_symbol(dealiased) else { continue };
         if class == l.partial_functions()?.class {
             found.push(Closure { block: t, def, anon, sam });
-        } else if !is_platform_sam(l, class, l.tpd.span(t))? {
+        } else if !is_platform_sam(l, class) {
             to_anon_class(l, t, def, anon, dealiased)?;
             classes = true;
         }
