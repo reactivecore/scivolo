@@ -26,11 +26,24 @@ pub fn test(
         return unsupported(span, "type tests of unions or intersections of paths other than names");
     };
     let (ev, def) = eval_once(l, expr, owner);
+    l.tested_values.push((ev, l.tpd.span(expr)));
     let def = l.positioned(def);
     let value = l.ident(ev, Span::NONE);
     let test = both(l, value, parts, or, in_match, span)?;
     let block = l.block(&[def], test, Span::NONE);
     Ok(l.positioned(block))
+}
+
+/// Gives the values `test` evaluated once their `ev$N` numbers in the order of the unit's trees,
+/// in which dotty's erasure makes them.
+pub fn renumber(l: &mut Lower) {
+    let mut values = std::mem::take(&mut l.tested_values);
+    let mut numbers: Vec<String> = values.iter().map(|&(v, _)| l.u.symbol(v).name.clone()).collect();
+    numbers.sort_by_key(|n| n.trim_start_matches("ev$").parse::<u32>().unwrap_or(0));
+    values.sort_by_key(|&(_, span)| span.start());
+    for ((v, _), name) in values.into_iter().zip(numbers) {
+        l.u.rename(v, &name);
+    }
 }
 
 /// Name `expr` tested for both `parts`.

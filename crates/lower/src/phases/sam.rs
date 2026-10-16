@@ -4,16 +4,19 @@
 
 use super::local_outer::needs_outer_if_referenced;
 use crate::Lower;
-use tasty::{Erased, Kind, SymbolId};
+use crate::definitions::type_ref;
+use tasty::{Erased, Kind, SymbolId, Type};
 
 /// The abstract methods of `class`, inherited ones too, but those of `Object`: of each name and
-/// erased parameters, the one of the first base declaring it; one of a later base with the name
-/// and arity of a method of an earlier one counts as overridden by it.
+/// erased parameters, the one of the first base declaring it, but those a method of an earlier
+/// base overrides as members of `class`.
 pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
     let mut seen: Vec<(String, Vec<Erased>)> = Vec::new();
-    let mut overriders: Vec<(String, usize, SymbolId)> = Vec::new();
+    let mut earlier: Vec<(SymbolId, SymbolId)> = Vec::new();
     let mut out = Vec::new();
     let object = l.defs.object;
+    let site = type_ref(l.u, class);
+    let site = l.u.intern_type(Type::This(site));
     for base in l.u.linearization(class) {
         let function = l.u.full_name(base).starts_with("scala.Function");
         for d in l.u.decls(base).unwrap_or_default() {
@@ -26,12 +29,16 @@ pub fn abstract_methods(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
                 false => l.u.is_deferred(d),
             };
             let key = (s.name.clone(), l.u.erased_method(d).0);
-            let arity = key.1.len();
-            let overridden = overriders.iter().any(|(n, a, b)| *n == key.0 && *a == arity && *b != base);
+            let same_name: Vec<SymbolId> = earlier
+                .iter()
+                .filter(|&&(m, b)| b != base && l.u.symbol(m).name == key.0)
+                .map(|&(m, _)| m)
+                .collect();
+            let overridden = same_name.into_iter().any(|m| l.u.matches(site, m, d));
             if seen.contains(&key) || overridden {
                 continue;
             }
-            overriders.push((key.0.clone(), arity, base));
+            earlier.push((d, base));
             let object_decls = l.u.decl(object, &key.0).unwrap_or_default();
             let in_object = object_decls.into_iter().any(|o| l.u.erased_method(o).0 == key.1);
             seen.push(key);

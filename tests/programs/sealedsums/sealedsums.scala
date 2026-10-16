@@ -14,6 +14,11 @@ object T {
   case object E extends T
 }
 
+sealed trait V
+object V
+enum W extends V { case P, Q }
+case class X(i: Int) extends V
+
 sealed trait U
 object U { def make: U = new U {} }
 
@@ -41,5 +46,6 @@ object sealedsums {
     val b = new Box(3)
     println(b.size(b.Item.Small(2)) + b.size(b.Item.Big(2)))
     println(U.make.isInstanceOf[U])
+    println(X(1).i)
   }
 }

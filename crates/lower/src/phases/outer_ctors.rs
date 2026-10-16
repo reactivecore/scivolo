@@ -6,6 +6,7 @@ use super::explicit_outer::terms;
 use super::leading_params::add_params;
 use crate::Lower;
 use crate::definitions::symbol;
+use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -35,17 +36,14 @@ pub fn declare(l: &mut Lower, td: TNodeId, class: SymbolId) {
 /// Passes `param` first if `t` calls a constructor of `class` on `this`.
 fn pass(l: &mut Lower, t: TNodeId, class: SymbolId, param: SymbolId) {
     let Tree::Apply { fun, args } = *l.tpd.tree(t) else { return };
-    let callee = match *l.tpd.tree(fun) {
-        Tree::TypeApply { fun, .. } => fun,
-        _ => fun,
-    };
+    let callee = super::walk::without_type_args(l.tpd, fun);
     let Tree::Select { qualifier, .. } = *l.tpd.tree(callee) else { return };
     let on_this = matches!(l.tpd.tree(qualifier), Tree::This { .. }) && l.tpd.sym(qualifier) == Some(class);
     let ctor = l.tpd.sym(callee).filter(|&s| l.u.is_constructor(s) && l.u.symbol(s).owner == Some(class));
     if !on_this || ctor.is_none() {
         return;
     }
-    let value = l.ident(param, syntax::ast::Span::NONE);
+    let value = l.ident(param, Span::NONE);
     let all: Vec<TNodeId> = std::iter::once(value).chain(l.tpd.items(args).iter().copied()).collect();
     let args = l.tpd.list(&all);
     l.tpd.get_mut(t).tree = Tree::Apply { fun, args };

@@ -11,6 +11,9 @@ trait ConSR[+R] extends (String => R):
 trait ConII extends (Int => Int):
   def apply(t: Int): Int
 
+trait Len { def f(x: String): Int }
+trait LenOrSame extends Len { def f(x: Int): Int = x }
+
 object sambridges {
   def main(args: Array[String]): Unit = {
     val a: ConTU[Int] = (x: Int) => println(x)
@@ -21,5 +24,7 @@ object sambridges {
     println(c(21))
     val f: Int => Int = c
     println(f(4))
+    val l: LenOrSame = (s: String) => s.length
+    println(l.f("ab") + l.f(5))
   }
 }
