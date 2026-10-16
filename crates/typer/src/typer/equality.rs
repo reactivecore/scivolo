@@ -76,7 +76,7 @@ impl Typer<'_> {
             return Ok(());
         }
         let pt = self.can_equal_type(a, b).ok_or("CanEqual")?;
-        match self.searched_arg(pt, at, ctx, 0) {
+        match self.implicit_arg(pt, at, ctx, 0) {
             Ok(_) => Ok(()),
             Err(what) if !is_misfit(what) => Err(what),
             Err(_) => match (self.plain_text(a), self.plain_text(b)) {

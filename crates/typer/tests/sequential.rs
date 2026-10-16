@@ -112,10 +112,10 @@ fn unit_after_a_failed_one() {
 fn definition_left_incomplete_by_a_failed_unit() {
     let Some(mut u) = universe() else { return };
     let mut units = Units::default();
-    let first = "object rs$line$1 { trait T(x: Int) { def g = 1 } }";
+    let first = "object rs$line$1 { case class T(f: Int ?=> Int) { def g = 1 } }";
     assert_eq!(
         type_unit(&mut u, &mut units, "line.scala", first),
-        Err("unsupported trait parameters".into())
+        Err("unsupported case class element of a context function type".into())
     );
     let second = "object rs$line$2 { import rs$line$1.*; def h(t: T) = t.g }";
     assert_eq!(

@@ -12,7 +12,7 @@ const TRAIT_SETTER: &str = "$_setter_$";
 /// The name of trait `trait_`'s setter of value `x`: `T$_setter_$x_=`, `T` the names of the
 /// trait and its owners joined by `$`.
 pub fn trait_setter_name(l: &Lower, trait_: SymbolId, x: &str) -> String {
-    format!("{}{TRAIT_SETTER}{x}_=", l.u.expanded_prefix(trait_))
+    format!("{}{TRAIT_SETTER}{x}_=", trait_prefix(l, trait_))
 }
 
 /// The name of the getter of setter `x_=` or of trait setter `T$_setter_$x_=`.
@@ -26,7 +26,7 @@ pub fn accessor_name(l: &Lower, s: SymbolId) -> String {
     let sym = l.u.symbol(s);
     match sym.owner {
         Some(o) if has(l.u, s, PRIVATE) && l.u.is_trait(o) => {
-            format!("{}$${}", l.u.expanded_prefix(o), run_name(l, s))
+            format!("{}$${}", trait_prefix(l, o), run_name(l, s))
         }
         _ => run_name(l, s).to_owned(),
     }
@@ -42,9 +42,30 @@ pub fn run_name<'a>(l: &'a Lower, s: SymbolId) -> &'a str {
 pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
     for s in l.u.decls(trait_).unwrap_or_default() {
         if has(l.u, s, FIELDaccessor) && has(l.u, s, PRIVATE) {
-            ensure_not_private(l, s);
+            let name = format!("{}$${}", trait_prefix(l, trait_), l.u.symbol(s).name);
+            l.u.rename(s, &name);
+            let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
+            l.u.set_flags(s, flags);
         }
     }
+}
+
+/// `expanded_prefix` of trait `t` as `Mixin` sees it, before `LambdaLift`: for a lifted local
+/// trait, its own name without the lifting's prefix and suffix after a `_$` for each term it
+/// was in.
+fn trait_prefix(l: &Lower, t: SymbolId) -> String {
+    let Some(&term) = l.local_classes.get(&t) else { return l.u.expanded_prefix(t) };
+    let mut filler = String::new();
+    let mut owner = Some(term);
+    while let Some(o) = owner.filter(|&o| l.u.symbol(o).kind.is_term()) {
+        filler.push_str("_$");
+        owner = l.u.symbol(l.lifted_to.get(&o).copied().unwrap_or(o)).owner;
+    }
+    let name = l.u.symbol(t).name.trim_end_matches(|c: char| c.is_ascii_digit());
+    let name = name.strip_suffix('$').unwrap_or(name);
+    let name = name.rsplit('$').next().unwrap_or(name);
+    let enclosing = owner.map(|o| l.u.expanded_prefix(o)).unwrap_or_default();
+    format!("{enclosing}${filler}{name}")
 }
 
 /// Gives private member `s` other than a constructor its expanded name `p$C$$x` (`p$O$$$x` in

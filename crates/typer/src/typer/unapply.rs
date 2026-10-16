@@ -27,11 +27,23 @@ impl Typer<'_> {
         let mut arg_ids = self.ast.items(args).to_vec();
         let sel_type = self.zonk(sel);
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
-        if !matches!(self.ast.tree(fun), Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. })
+        let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
+        if !with_targs
+            && !matches!(
+                self.ast.tree(fun),
+                Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. }
+            )
         {
             return Err("extractor with type arguments");
         }
         let (unapp, seq) = self.unapply_fun(fun, ctx)?;
+        if with_targs && !self.is_new_instance(unapp) {
+            return Err("extractor with type arguments");
+        }
+        if with_targs && let crate::tpd::Tree::Select { qualifier, .. } = *self.tpd.tree(unapp) {
+            let span = self.tpd.span(qualifier);
+            self.tpd.get_mut(qualifier).span = span.to_synthetic();
+        }
         if self.tpd.sym(self.tpd.meth_part(unapp)).is_some_and(|s| self.is_transparent_inline(s)) {
             return Err("transparent inline extractor");
         }

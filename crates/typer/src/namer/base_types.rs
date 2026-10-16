@@ -43,6 +43,37 @@ impl Typer<'_> {
         }
     }
 
+    /// Checks that class `cls` sees each parameterized trait its superclass extends as the
+    /// superclass does: an error at `name_span` if not, a fallback if unknown (dotty's
+    /// `checkParameterizedTraitsOK`).
+    pub fn check_parameterized_traits(&mut self, cls: SymbolId, name_span: Span) {
+        let Some(&sup) = self.u.parents(cls).first().filter(|_| !self.u.is_trait(cls)) else { return };
+        let this = self.u.this_type(cls);
+        for base in self.u.linearization(cls) {
+            if self.u.type_params(base).is_empty()
+                || !self.trait_takes_params(base)
+                || !self.super_derives_from(cls, base)
+            {
+                continue;
+            }
+            let (Some(a), Some(b)) = (self.u.base_type(this, base), self.u.base_type(sup, base)) else {
+                continue;
+            };
+            match self.same_base_type(base, a, b) {
+                Some(true) => {}
+                Some(false) => {
+                    let (name, a, b) =
+                        (self.u.symbol(base).name.clone(), self.u.show_user(a), self.u.show_user(b));
+                    let msg = format!(
+                        "illegal inheritance: parameterized base trait {name} has type {a}, but super has {b}"
+                    );
+                    self.error_at(name_span, msg);
+                }
+                None => self.unsupported_at(name_span, "parameterized base trait seen differently"),
+            }
+        }
+    }
+
     /// Whether base types `a` and `b` of class `base` are the same, as their dealiased arguments
     /// are, `Some(false)` if an invariant argument is two different classes, `None` if unknown.
     fn same_base_type(&mut self, base: SymbolId, a: TypeId, b: TypeId) -> Option<bool> {

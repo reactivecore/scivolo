@@ -142,6 +142,14 @@ impl Typer<'_> {
         Some(self.proxy_new(tpt, pt, ctx))
     }
 
+    /// Whether selection `sel` selects from a new instance of a class (dotty's fallback of
+    /// `trySelectUnapply` for an extractor `C[T](...)`).
+    pub fn is_new_instance(&mut self, sel: TNodeId) -> bool {
+        let T::Select { qualifier, .. } = *self.tpd.tree(sel) else { return false };
+        let ctor = self.tpd.sym(self.tpd.meth_part(qualifier));
+        ctor.is_some_and(|c| self.u.symbol(c).name == "<init>")
+    }
+
     /// `new tpt` selecting its constructor (dotty's `newExpr`).
     fn proxy_new(&mut self, tpt: TNodeId, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.tpd.span(tpt);

@@ -26,6 +26,15 @@ impl Typer<'_> {
         constructor.then_some("implicit search for a type with a higher-kinded type variable")
     }
 
+    /// The upper bound of `t` if `t` is an uninstantiated type variable bounded from above only,
+    /// what the search looks for in its place (dotty's `wildApprox`).
+    pub fn var_upper_bound(&mut self, t: TypeId) -> Option<TypeId> {
+        let t = self.zonk(t);
+        let Type::Var(v) = *self.u.types().get(t) else { return None };
+        let (lo, hi) = self.constraint.bounds(v);
+        (lo == tasty::NOTHING && hi != tasty::ANY).then(|| self.zonk(hi))
+    }
+
     /// `t` with its type variables whose bounds are equal instantiated to them.
     pub fn determined(&mut self, t: TypeId) -> TypeId {
         let t = self.zonk(t);

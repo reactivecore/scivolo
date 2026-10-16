@@ -24,6 +24,7 @@ mod scope;
 mod search;
 mod synthesis;
 mod too_late;
+mod tuple_mirrors;
 mod unsettled;
 mod view_kinds;
 

@@ -31,6 +31,9 @@ impl Typer<'_> {
             };
         }
         if let Some(Type::Method { implicit: true, .. }) = &method {
+            let info = self.method_info(tpe).unwrap_or(tpe);
+            let meth = self.tpd.sym(self.tpd.meth_part(tree));
+            let _ = self.constrain_applied_result(meth, info, pt);
             return match self.implicit_clause_applied(tree, ctx) {
                 Ok(apply) => self.adapt(apply, pt, ctx),
                 Err(what) => {
@@ -138,8 +141,12 @@ impl Typer<'_> {
         {
             return None;
         }
+        let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
+            Type::Sym(Some(p), _) => self.shown_prefix(p),
+            _ => String::new(),
+        };
         let msg = format!(
-            "The method `apply` is inserted. The auto insertion will be deprecated, please write `{}.apply` explicitly.",
+            "The method `apply` is inserted. The auto insertion will be deprecated, please write `{prefix}{}.apply` explicitly.",
             self.text(name.name)
         );
         self.diags.warning(self.tpd.span(tree).point(), msg);

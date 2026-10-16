@@ -6,7 +6,7 @@ use syntax::ast::TName;
 use tasty::{SymbolId, Type, TypeId};
 
 /// The largest arity of a `TupleN` class.
-const MAX_TUPLE_ARITY: usize = 22;
+pub const MAX_TUPLE_ARITY: usize = 22;
 
 impl Typer<'_> {
     /// `qual.$asInstanceOf$[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at
@@ -50,7 +50,7 @@ impl Typer<'_> {
     }
 
     /// The element types of `t` if it is a chain `A *: B *: … *: T`, `T` `EmptyTuple` or a `TupleN`.
-    fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
+    pub fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
         let pair = self.resolve_full_name("scala.*:", true)?;
         let mut elems = Vec::new();
         let mut t = t;

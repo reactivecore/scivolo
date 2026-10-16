@@ -43,7 +43,7 @@ impl Typer<'_> {
     }
 
     /// Whether type `t` has a type variable without instance with a lower bound and another
-    /// upper bound.
+    /// upper bound, the lower one other than a reference to a term (an implicit argument).
     fn has_two_sided_var(&mut self, t: TypeId) -> bool {
         let t = self.zonk(t);
         let mut vars = Vec::new();
@@ -56,7 +56,9 @@ impl Typer<'_> {
         vars.into_iter().any(|v| {
             let (lo, hi) = self.constraint.bounds(v);
             let (lo, hi) = (self.zonk(lo), self.zonk(hi));
-            lo != tasty::NOTHING && lo != hi
+            let term_ref =
+                matches!(*self.u.types().get(lo), Type::Sym(_, s) if self.u.symbol(s).kind.is_term());
+            lo != tasty::NOTHING && lo != hi && !term_ref
         })
     }
 

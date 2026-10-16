@@ -1,6 +1,7 @@
 //! Typing untyped trees into `tpd` trees (dotty's `Typer`): the dispatch over tree classes.
 
 mod access;
+mod accessible;
 mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
@@ -13,11 +14,13 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
+mod approx;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
-mod avoid_pattern_types;
+mod avoid_map;
+mod avoid_select;
 mod call_types;
 mod case_lambdas;
 mod class_bound;
@@ -112,6 +115,7 @@ mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
@@ -120,6 +124,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
@@ -209,6 +214,8 @@ pub struct Typer<'a> {
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
     pub accessors: inline_accessors::Accessors,
+    /// The implicit members of the unit's package objects in each package, once asked for.
+    pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// How many `typed` calls are in progress, one inside another.
@@ -265,6 +272,7 @@ impl<'a> Typer<'a> {
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
             accessors: Default::default(),
+            package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             depth: 0,
         };
