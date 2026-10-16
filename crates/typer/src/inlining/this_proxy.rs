@@ -52,7 +52,7 @@ impl Expansion<'_, '_> {
         let qt = self.i.tpd.tpe(q);
         let qtv = self.i.u.types().get(qt).clone();
         if matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls)) {
-            return Ok(Vec::new());
+            return if outers.is_empty() { Ok(Vec::new()) } else { Err(outer_err) };
         }
         let mut proxies = Vec::new();
         if uses || impure {

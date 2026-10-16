@@ -40,6 +40,10 @@ impl Typer<'_> {
                 _ => break,
             }
         }
+        if self.is_context_function_type(info) {
+            self.unsupported_at(span, "inline accessor of a context function result");
+            return None;
+        }
         let result = if setter {
             clauses.push(vec![("x$0".to_owned(), info)]);
             crate::defn::type_ref(self.u, self.defn.unit)

@@ -99,8 +99,9 @@ impl Typer<'_> {
         self.ast.with_span(retainer, Span::at(span.start()));
         self.index(&[retainer], ctx);
         let sym = self.syms.by_tree[&retainer];
-        let flags = self.syms.flags.get(&sym).copied().unwrap_or_default();
-        self.syms.set_flags(self.u, sym, flags.and_not(f::LOCAL));
+        let own = self.syms.flags.get(&sym).copied().unwrap_or_default().and_not(f::LOCAL);
+        let own = if flags.is(f::TRANSPARENT) { own.or(f::TRANSPARENT) } else { own };
+        self.syms.set_flags(self.u, sym, own);
         let typed = self.typed_stat(retainer, ctx);
         if let T::DefDef { rhs: Some(call), .. } = *self.tpd.tree(typed)
             && let Some(&call_ctx) = self.inline_ctxs.get(&call)
@@ -139,6 +140,17 @@ impl Typer<'_> {
         let class_type = crate::defn::type_ref(self.u, cls);
         let this = self.build().this(class_type, span);
         self.build().select(this, m, span)
+    }
+
+    /// Per value parameter of method `m`, over all its clauses, whether it is inline.
+    pub fn inline_params(&mut self, m: SymbolId) -> Vec<bool> {
+        self.complete(m);
+        let params: Vec<SymbolId> = match self.syms.param_clauses.get(&m) {
+            Some(clauses) => clauses.iter().flatten().copied().collect(),
+            None => self.u.symbol(m).decls.clone(),
+        };
+        let params = params.into_iter().filter(|&p| self.u.symbol(p).kind == Kind::Param);
+        params.map(|p| self.u.symbol(p).flags.has(INLINE)).collect()
     }
 
     pub fn term_name_of(&mut self, s: SymbolId) -> TName {
