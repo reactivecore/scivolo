@@ -22,7 +22,11 @@ pub fn pass_values(
 ) -> Result<()> {
     for t in super::walk::subtrees(l.tpd, root) {
         let Tree::Apply { fun, args } = *l.tpd.tree(t) else { continue };
-        let Tree::Select { qualifier, .. } = *l.tpd.tree(fun) else { continue };
+        let ctor = match *l.tpd.tree(fun) {
+            Tree::TypeApply { fun, .. } => fun,
+            _ => fun,
+        };
+        let Tree::Select { qualifier, .. } = *l.tpd.tree(ctor) else { continue };
         let Tree::New { tpt } = *l.tpd.tree(qualifier) else { continue };
         if l.u.class_symbol(l.tpd.tpe(tpt)) != Some(class) {
             continue;

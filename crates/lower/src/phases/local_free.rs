@@ -81,11 +81,7 @@ pub fn within(l: &Lower, mut s: SymbolId, c: SymbolId) -> bool {
 /// where it needs an instance of the enclosing class `outer`.
 pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId) -> Result<Free> {
     let span = l.tpd.span(td);
-    let refused = match () {
-        _ if !l.u.type_params(class).is_empty() => Some("generic local classes"),
-        _ => nested_definition(l, td),
-    };
-    if let Some(what) = refused {
+    if let Some(what) = nested_definition(l, td) {
         return unsupported(span, what);
     }
     let mut created = Vec::new();
