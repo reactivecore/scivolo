@@ -206,6 +206,11 @@ fn transparent_inline_refusals() {
              val r = d(n = 1, k = new L) }",
             "dependent result type",
         ),
+        (
+            "object E { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K, n: Int): k.T = k.t
+             val r = d(n = 1, k = new K) }",
+            "",
+        ),
         ("object rs$line$1 { transparent inline def e: Any = 1 }", ""),
         ("object rs$line$2 { import rs$line$1.*; val x = e }", "transparent inline method call"),
     ];

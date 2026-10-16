@@ -40,17 +40,7 @@ impl Typer<'_> {
         let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
-            return match arg_ids[..] {
-                [arg] => match *self.ast.tree(arg) {
-                    syntax::ast::Tree::Match { selector: None, cases, .. } => {
-                        self.typed_summon_from(id, cases, pt, ctx)
-                    }
-                    _ => {
-                        self.unsupported(id, "argument to summonFrom that is not a pattern matching closure")
-                    }
-                },
-                _ => self.unsupported(id, "summonFrom"),
-            };
+            return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
         let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, id, fun_ctx)) {
             Ok(f) => f,
@@ -92,17 +82,11 @@ impl Typer<'_> {
             })
             .collect();
         let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
-        let mut param_dependent = false;
-        for &p in &formals {
-            let own = self.mentions_clause_params(p, (binder, &names), meth);
-            param_dependent |= own;
-            if own && !in_order
-                || !own && (self.is_special_param(p) || self.mentions_params(p, binder, meth))
-                || self.mentions_foreign_private_type(p, ctx)
-            {
-                return self.unsupported(id, "dependent parameter or private type");
-            }
-        }
+        let clause = ((binder, &names[..]), meth);
+        let param_dependent = match self.param_dependent(&formals, clause, in_order, ctx) {
+            Ok(dependent) => dependent,
+            Err(what) => return self.unsupported(id, what),
+        };
         let seq_arg = arg_ids
             .last()
             .copied()
@@ -123,14 +107,18 @@ impl Typer<'_> {
             None => (f, Vec::new(), Vec::new()),
         };
         let plain = lifted.is_empty() && aligned.is_none() && repeated.is_none();
-        let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
+        let result = match lifted.is_empty() {
+            true => result,
+            false => match self.lifted_result(f, meth) {
+                Some(r) => r,
+                None => return self.unsupported(id, "dependent result type"),
+            },
+        };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
             let mut formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
             if param_dependent {
-                let before: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
-                formal = self.applied_result(formal, (binder, &names), meth, &before);
-                self.complete_type_members(formal);
+                formal = self.dependent_formal(formal, clause, &typed_args);
             }
             typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
                 Some(typed) => {
