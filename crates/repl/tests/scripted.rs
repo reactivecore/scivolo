@@ -3,9 +3,6 @@
 //! output; blank lines do not count. All share one session, reset between files, run in the
 //! repository root.
 
-#[path = "../../scalai/src/libs.rs"]
-mod libs;
-
 use repl::Session;
 use std::path::{Path, PathBuf};
 use vm::{Classpath, Vm};

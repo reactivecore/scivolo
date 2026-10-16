@@ -4,9 +4,6 @@
 //! entry out of scope is skipped with its reason, and still lists no label dotty does not. The
 //! `scala>` lines of files in scope must compile and run.
 
-#[path = "../../scalai/src/libs.rs"]
-mod libs;
-
 use repl::{Group, Session};
 use std::collections::BTreeMap;
 use std::path::Path;

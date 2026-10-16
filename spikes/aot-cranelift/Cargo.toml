@@ -1,0 +1,19 @@
+[package]
+name = "aot-cranelift"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+nir = { path = "../../crates/nir" }
+cranelift-codegen = "0.135"
+cranelift-frontend = "0.135"
+cranelift-module = "0.135"
+cranelift-object = "0.135"
+target-lexicon = "0.13"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+
+[profile.release]
+debug = "line-tables-only"
+
+[workspace]

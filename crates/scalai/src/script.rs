@@ -2,9 +2,9 @@
 //! path, content, frontend mode and versions.
 
 use crate::frontend::{self, Mode, Refused};
-use crate::libs::{NATIVE, SCALA, cache_dir};
 use crate::mains;
 use libimage::{Image, cache};
+use libs::{BUILD, NATIVE, SCALA, cache_dir};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
@@ -50,7 +50,7 @@ fn compile(
     let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
-    (&source, &text, mode, options, env!("SCALAI_BUILD"), SCALA, NATIVE).hash(&mut h);
+    (&source, &text, mode, options, BUILD, SCALA, NATIVE).hash(&mut h);
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);
