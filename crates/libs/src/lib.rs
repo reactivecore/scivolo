@@ -1,12 +1,17 @@
 //! Locates the precompiled Scala Native libraries and the Scala standard library's TASTy: in
 //! `$SCALAI_LIBS` if set, else in the Coursier cache; and maps their library image.
 
+pub mod deps;
+
 use libimage::{Derived, Image, Source, Spec};
 use std::io;
 use std::path::PathBuf;
 
 pub const SCALA: &str = "3.9.0";
 pub const NATIVE: &str = "0.5.12";
+
+/// A hash of the workspace's sources, which keys what the build derives from them.
+pub const BUILD: &str = env!("SCALAI_BUILD");
 
 const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "scalalib"];
 
@@ -24,11 +29,8 @@ pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
         true => tasty::symbol_table(data),
         false => vm::nir_table(name, data),
     };
-    let tag = format!(
-        "nir member tables 1, tasty symbol tables {}, build {}",
-        tasty::SYMBOL_TABLE_VERSION,
-        env!("SCALAI_BUILD")
-    );
+    let tag =
+        format!("nir member tables 1, tasty symbol tables {}, build {}", tasty::SYMBOL_TABLE_VERSION, BUILD);
     let packages = |names: &[&str]| tasty::package_table(names).into_bytes();
     let version = tasty::package_table_version();
     let spec = Spec {

@@ -48,10 +48,13 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>) -> TNodeId {
     t
 }
 
-/// Gives `t`, if its span is in another source, the span `at` of the call, which the spans
-/// derived from it until erasure keep.
+/// Gives `t`, if its span is in another source than the call's, the span `at` of the call, which
+/// the spans derived from it until erasure keep.
 fn reposition(l: &mut Lower, t: TNodeId, at: Span) {
-    if l.tpd.span(t).is_in_other_source() {
+    let span = l.tpd.span(t);
+    let file = |s: Span| l.sources.index(s.without_inlined_call().start());
+    let other_file = span.exists() && !span.is_inlined_call() && file(span) != file(at);
+    if span.is_in_other_source() || other_file {
         l.tpd.get_mut(t).span = at.as_inlined_call();
     }
 }

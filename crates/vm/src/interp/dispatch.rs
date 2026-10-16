@@ -3,6 +3,34 @@ use crate::class::ClassId;
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, StrId, Type, TypeId};
 
+/// Where methods of class `cls` are looked up: its class chain, then the traits of each class
+/// in the chain, later-mixed traits first; `parent` and `traits` give a class's.
+pub fn lookup_order<'a>(
+    cls: u32,
+    parent: impl Fn(u32) -> Option<u32>,
+    traits: impl Fn(u32) -> &'a [u32],
+) -> Vec<u32> {
+    let mut order = Vec::new();
+    let mut c = Some(cls);
+    while let Some(id) = c {
+        order.push(id);
+        c = parent(id);
+    }
+    for id in order.clone() {
+        push_traits(id, &traits, &mut order);
+    }
+    order
+}
+
+fn push_traits<'a>(id: u32, traits: &impl Fn(u32) -> &'a [u32], order: &mut Vec<u32>) {
+    for &t in traits(id).iter().rev() {
+        if !order.contains(&t) {
+            order.push(t);
+            push_traits(t, traits, order);
+        }
+    }
+}
+
 impl Vm {
     /// The instance of module `name`, constructed on first access; other threads wait until the
     /// constructing thread is done.
@@ -90,29 +118,8 @@ impl Vm {
         Ok(None)
     }
 
-    /// Where methods of `cls` are looked up: its class chain, then the traits of each class in
-    /// the chain, later-mixed traits first.
     pub fn lookup_order(&self, cls: ClassId) -> Vec<ClassId> {
-        let mut order = Vec::new();
-        let mut c = Some(cls);
-        while let Some(id) = c {
-            order.push(id);
-            c = self.class(id).parent;
-        }
-        let chain = order.clone();
-        for id in chain {
-            self.push_traits(id, &mut order);
-        }
-        order
-    }
-
-    fn push_traits(&self, id: ClassId, order: &mut Vec<ClassId>) {
-        for &t in self.class(id).traits.iter().rev() {
-            if !order.contains(&t) {
-                order.push(t);
-                self.push_traits(t, order);
-            }
-        }
+        lookup_order(cls, |id| self.class(id).parent, |id| &self.class(id).traits)
     }
 
     fn defined(&mut self, id: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {

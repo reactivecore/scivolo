@@ -1,9 +1,6 @@
 //! A VM session: NIR added at run time instead of read from the classpath, modules evaluated,
 //! values shown. The collector serves one VM per process, so one test.
 
-#[path = "../src/libs.rs"]
-mod libs;
-
 use std::path::Path;
 use vm::{Classpath, Vm, VmError};
 

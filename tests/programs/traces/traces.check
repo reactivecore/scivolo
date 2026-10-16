@@ -12,3 +12,6 @@ Checker.check traces.scala:8
 traces$package$.both traces.scala:15
 traces$package$.traces traces.scala:34
 traces.main traces.scala:25
+traces$package$.here traces.scala:39
+traces$package$.traces traces.scala:36
+traces.main traces.scala:25

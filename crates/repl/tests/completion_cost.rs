@@ -2,9 +2,6 @@
 //! input, twice, then the evaluation again; `x.toString.` stops at its JDK class. Run with
 //! `cargo test --release -p repl --test completion_cost -- --ignored --nocapture`.
 
-#[path = "../../scalai/src/libs.rs"]
-mod libs;
-
 use repl::Session;
 use std::time::Instant;
 use vm::{Classpath, Vm};
