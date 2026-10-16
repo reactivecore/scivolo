@@ -94,7 +94,7 @@ impl Typer<'_> {
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
                 let widened = self.widen_rhs(sym, tpe);
-                let widened = self.simplified(widened);
+                let widened = self.simplified_inferred(widened);
                 if self.keeps_rhs_type(sym)
                     && matches!(self.u.types().get(widened), Type::Constant(..) | Type::Str(_))
                 {

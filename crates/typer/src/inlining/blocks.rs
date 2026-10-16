@@ -58,6 +58,7 @@ impl Inlining<'_> {
                 _ => widened,
             };
             let widened = self.u.dealias(widened);
+            let widened = crate::typer::seen_from::normalize_all(self.u, widened);
             if widened == tpe {
                 return None;
             }

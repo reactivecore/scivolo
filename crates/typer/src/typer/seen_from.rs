@@ -70,6 +70,12 @@ impl Typer<'_> {
         simplify(self.u, t)
     }
 
+    /// `simplified`, match types reduced and compile-time operations folded too.
+    pub fn simplified_inferred(&mut self, t: TypeId) -> TypeId {
+        let t = normalize_all(self.u, t);
+        simplify(self.u, t)
+    }
+
     /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
     /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
     /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
@@ -195,6 +201,15 @@ fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             Some(u.glb(a, b))
         }
         Type::Super(..) => Some(part),
+        _ => None,
+    })
+}
+
+/// `t` with match types reduced and compile-time operations folded, everywhere (dotty's
+/// `simplified` of an inferred type).
+pub fn normalize_all(u: &mut tasty::Universe, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        Type::Applied(..) | Type::Match { .. } => u.try_normalize(part).map(|n| normalize_all(u, n)),
         _ => None,
     })
 }

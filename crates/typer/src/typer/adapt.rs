@@ -7,7 +7,7 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::{Type, TypeId};
+use tasty::{Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     /// `tree` fitted to `pt`: unchanged if it conforms; a tree that needs more of dotty's `adapt`
@@ -104,6 +104,7 @@ impl Typer<'_> {
         }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
+            Ok(None) if self.defined_further(tpe, pt) => tree,
             Ok(None) => self.type_mismatch(tree, pt, ctx).unwrap_or_else(|| {
                 self.unsupported_at(span, "adaptation");
                 tree
@@ -113,6 +114,20 @@ impl Typer<'_> {
                 tree
             }
         }
+    }
+
+    /// Whether `tpe` conforms to `pt` once the type variables in `tpe` are instantiated (dotty's
+    /// `canDefineFurther` and readaptation); the constraint is kept only if it does.
+    fn defined_further(&mut self, tpe: TypeId, pt: TypeId) -> bool {
+        if self.is_fully_defined(tpe) {
+            return false;
+        }
+        let mark = self.constraint.mark();
+        let ok = self.fully_defined_as(tpe, true).is_ok_and(|t| self.conforms(t, pt));
+        if !ok {
+            self.constraint.rollback(mark);
+        }
+        ok
     }
 
     /// `tree.apply` fitted to function type `pt` for a reference `tree` to the companion of a case

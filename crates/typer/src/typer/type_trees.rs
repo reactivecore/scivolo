@@ -31,6 +31,7 @@ impl Typer<'_> {
                         .tpd
                         .sym(tpt)
                         .is_some_and(|s| self.u.full_name(s).starts_with("scala.compiletime.ops."))
+                    && !self.folds(tycon, &arg_types)
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
@@ -62,8 +63,11 @@ impl Typer<'_> {
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 let dealiased = self.u.dealias(tpe);
-                if matches!(self.u.types().get(dealiased), Type::Match { .. }) && self.is_ground(tpe) {
-                    return self.unsupported(id, "match type that may reduce");
+                if matches!(self.u.types().get(dealiased), Type::Match { .. })
+                    && self.is_ground(tpe)
+                    && self.u.try_normalize(tpe).is_none()
+                {
+                    return self.unsupported(id, "match type that does not reduce");
                 }
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
@@ -107,6 +111,12 @@ impl Typer<'_> {
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
         }
+    }
+
+    /// Whether `tycon[args]` normalizes, a compile-time operation on constants.
+    fn folds(&mut self, tycon: TypeId, args: &[TypeId]) -> bool {
+        let op = self.u.intern_type(Type::Applied(tycon, args.to_vec()));
+        self.u.try_normalize(op).is_some()
     }
 
     /// Whether `t` refers to no type parameter and no abstract type.
