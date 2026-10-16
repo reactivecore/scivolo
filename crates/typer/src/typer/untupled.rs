@@ -27,6 +27,9 @@ impl Typer<'_> {
         }
         let (formals, _) = self.function_parts(p, 1)?;
         let formal = self.zonk(formals[0]);
+        if matches!(self.u.types().get(formal), Type::Bounds(..)) {
+            return Some(self.unsupported(id, "untupled parameters of a wildcard formal"));
+        }
         let tuple = self.u.dealias(formal);
         let Type::Applied(tycon, elems) = self.u.types().get(tuple).clone() else { return None };
         let class = self.u.class_symbol(tycon)?;

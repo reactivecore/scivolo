@@ -357,6 +357,8 @@ fn constructs_diverging_from_dotty_are_refused() {
             "implicit search for a union with type variables",
         ),
         ("object J { def f(cs: CharSequence) = cs.toString }", "Object member a JDK interface redeclares"),
+        ("object W { val f: ? => Int = x => 1 }", "parameter type inferred from the target of a wildcard"),
+        ("object U { val f: (? >: (Int, Int)) => Int = (a, b) => a }", "untupled parameters of a wildcard formal"),
         (
             "class CS extends CharSequence { def length = 0; def charAt(i: Int) = 'a'
              def subSequence(a: Int, b: Int): CharSequence = this; def s = toString }",
