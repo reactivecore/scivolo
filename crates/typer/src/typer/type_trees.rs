@@ -31,6 +31,7 @@ impl Typer<'_> {
                         .tpd
                         .sym(tpt)
                         .is_some_and(|s| self.u.full_name(s).starts_with("scala.compiletime.ops."))
+                    && !self.folds(tycon, &arg_types)
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
@@ -61,8 +62,7 @@ impl Typer<'_> {
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
-                let dealiased = self.u.dealias(tpe);
-                if matches!(self.u.types().get(dealiased), Type::Match { .. }) && self.is_ground(tpe) {
+                if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }
                 let args = self.tpd.list(&typed_args);
@@ -102,30 +102,14 @@ impl Typer<'_> {
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
+            Tree::MatchTypeTree { bound, selector, cases } => {
+                self.typed_match_type_tree(id, (bound, selector, cases), ctx)
+            }
             t => {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
         }
-    }
-
-    /// Whether `t` refers to no type parameter and no abstract type.
-    fn is_ground(&mut self, t: TypeId) -> bool {
-        let mut abstract_part = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
-                abstract_part |= match u.symbol(s).kind {
-                    Kind::TypeParam => true,
-                    Kind::Type => {
-                        let info = u.info(s);
-                        matches!(u.types().get(info), Type::Bounds(..))
-                    }
-                    _ => false,
-                };
-            }
-            None
-        });
-        !abstract_part
     }
 
     /// How many type parameters type constructor `t` takes: a class's, a type lambda's.

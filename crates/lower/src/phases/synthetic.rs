@@ -26,7 +26,7 @@ pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Resul
     members.extend(enum_value_members(l, root, class, span)?);
     members.extend(case_members(l, class, span)?);
     members.extend(value_members(l, class, span)?);
-    let mirror = mirror_support(l, class, span)?;
+    let mirror = mirror_support(l, root, class, span)?;
     if members.is_empty() && mirror.is_none() {
         return Ok(());
     }

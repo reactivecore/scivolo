@@ -29,7 +29,7 @@ impl Typer<'_> {
         if text == "apply" && self.is_eta_closure(qual) {
             return self.unsupported(id, "apply of a method reference");
         }
-        let (mut converted, mut widened, mut tupled) = (false, false, false);
+        let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);
             let qual_tpe = self.instantiated_selected(qual_tpe);
@@ -52,6 +52,10 @@ impl Typer<'_> {
             }
             if !syms.is_empty() || converted || name.is_type {
                 break (qual_tpe, syms);
+            }
+            if !defined && self.defined_fail_bottom(qual_tpe).is_some() {
+                defined = true;
+                continue;
             }
             if matches!(pt, Pt::Fun(_))
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)

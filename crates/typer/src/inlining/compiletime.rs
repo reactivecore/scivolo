@@ -48,9 +48,8 @@ impl Inlining<'_> {
                 let (tpe, at) = (self.tpd.tpe(t), self.tpd.span(t).start_pos());
                 self.summon(tpe, at)?.ok_or((span, "no implicit argument"))?
             }
-            ("constValueTuple" | "summonAll", _, _) => {
-                return Err((span, "scala.compiletime tuple operation"));
-            }
+            ("constValueTuple", _, Some(t)) => self.tuple_intrinsic(t, false, span)?,
+            ("summonAll", _, Some(t)) => self.tuple_intrinsic(t, true, span)?,
             _ => return Ok(None),
         }))
     }
@@ -90,7 +89,7 @@ impl Inlining<'_> {
             .any(|&x| self.tpd.get(x).tpe.is_some_and(|tpe| self.constant_of_type(tpe).is_some()))
     }
 
-    fn literal(&mut self, value: C, span: Span) -> TNodeId {
+    pub fn literal(&mut self, value: C, span: Span) -> TNodeId {
         let tpe = constant_type_of(self.u, &value);
         self.tpd.node(T::Literal { value }, span, Some(tpe), None)
     }
@@ -130,12 +129,12 @@ impl Inlining<'_> {
     }
 
     /// The member `name` of kind `kind` of package `scala`.
-    fn scala_member(&mut self, name: &str, kind: Kind) -> Option<SymbolId> {
+    pub fn scala_member(&mut self, name: &str, kind: Kind) -> Option<SymbolId> {
         let scala = self.u.package("scala")?;
         self.u.decl(scala, name).ok()?.into_iter().find(|&s| self.u.symbol(s).kind == kind)
     }
 
-    fn term_name(&mut self, s: SymbolId) -> TName {
+    pub fn term_name(&mut self, s: SymbolId) -> TName {
         TName { name: self.names.intern(&self.u.symbol(s).name.clone()), is_type: false }
     }
 

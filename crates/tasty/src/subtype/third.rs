@@ -18,6 +18,10 @@ impl Cmp<'_> {
                 self.recur(a, parent) && self.has_matching_member(a, &name, info) || self.fourth_try(a, b)
             }
             Type::Rec(_, parent) => self.recur(a, parent) || self.fourth_try(a, b),
+            Type::Match { .. } => match self.reduced(b) {
+                Some(r) => self.recur(a, r),
+                None => self.fourth_try(a, b),
+            },
             Type::Lambda { binder: b2, params: p2, result: r2 } => match self.u.types().get(a).clone() {
                 Type::Lambda { binder: b1, params: p1, result: r1 } => {
                     self.compare_binders((b1, &p1, r1), (b2, &p2, r2)) || self.fourth_try(a, b)

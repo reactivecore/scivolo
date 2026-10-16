@@ -89,7 +89,7 @@ pub fn typed(l: &mut Lower, t: TNodeId, pt: Option<&Erased>) -> Result<TNodeId> 
             None
         }
         Tree::Return { expr, from } => {
-            if is_unit_member(l, expr) {
+            if is_unit_member(l, expr) && !l.tpd.span(t).is_synthetic() {
                 return unsupported(l.tpd.span(t), "returns of Unit values of class members");
             }
             let result = l.tpd.sym(from).map(|m| match l.u.symbol(m).kind {

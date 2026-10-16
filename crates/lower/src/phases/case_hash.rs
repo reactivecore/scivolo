@@ -26,7 +26,7 @@ impl Lower<'_> {
         }
         let primitive = accessors.iter().any(|&a| {
             let info = self.u.info(a);
-            matches!(self.u.erase(info), Erased::Prim(_))
+            matches!(self.u.erase(info), Erased::Prim(_) | Erased::Unit)
         });
         if !primitive {
             let module = self.ident(cc.murmur_hash3, Span::NONE);

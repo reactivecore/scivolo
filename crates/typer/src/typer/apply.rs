@@ -67,10 +67,8 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
-        if self.mentions_params(result, binder, meth) {
-            return self.unsupported(id, "dependent result type");
-        }
-        if let Err(what) = self.constrain_applied_result(meth, result, pt) {
+        let dependent = self.mentions_params(result, binder, meth);
+        if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
         let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
@@ -116,6 +114,7 @@ impl Typer<'_> {
             Some(Ok(parts)) => parts,
             None => (f, Vec::new(), Vec::new()),
         };
+        let plain = lifted.is_empty() && aligned.is_none() && repeated.is_none();
         let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
@@ -128,6 +127,11 @@ impl Typer<'_> {
                 None => self.typed(a, Pt::Type(formal), ctx),
             });
         }
+        let result = match dependent {
+            true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
+            false => Some(result),
+        };
+        let Some(result) = result else { return self.unsupported(id, "dependent result type") };
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.types().get(tpe) == Type::Error

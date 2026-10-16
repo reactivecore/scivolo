@@ -13,6 +13,8 @@ mod hk;
 mod join;
 mod lift;
 mod lub;
+mod match_types;
+mod no_vars;
 mod nothing;
 mod null;
 mod refined;
@@ -22,10 +24,11 @@ mod third;
 mod unions;
 mod walk;
 
+pub use no_vars::NoVars;
 pub use unions::Unions;
 
+use crate::Universe;
 use crate::types::{TypeId, VarId};
-use crate::{ANY, NOTHING, Universe};
 use rustc_hash::FxHashSet;
 
 /// A state of a constraint to roll back to.
@@ -56,35 +59,6 @@ pub trait TypeVars {
 pub struct Changes {
     pub vars: Vec<VarId>,
     pub redo: Box<dyn std::any::Any>,
-}
-
-/// No constraint: a type variable is a subtype and a supertype of itself only.
-pub struct NoVars;
-
-impl TypeVars for NoVars {
-    fn instance(&self, _: VarId) -> Option<TypeId> {
-        None
-    }
-    fn add_lower(&mut self, _: &mut Universe, _: VarId, _: TypeId) -> bool {
-        false
-    }
-    fn add_upper(&mut self, _: &mut Universe, _: VarId, _: TypeId) -> bool {
-        false
-    }
-    fn bounds(&self, _: VarId) -> (TypeId, TypeId) {
-        (NOTHING, ANY)
-    }
-    fn frozen(&self) -> bool {
-        true
-    }
-    fn mark(&self) -> Mark {
-        Mark(0)
-    }
-    fn rollback(&mut self, _: Mark) {}
-    fn changes_since(&self, _: Mark) -> Changes {
-        Changes { vars: Vec::new(), redo: Box::new(()) }
-    }
-    fn redo(&mut self, _: Changes) {}
 }
 
 impl Universe {
@@ -136,6 +110,8 @@ pub struct Cmp<'a> {
     steps: u32,
     /// What the current walk computing atoms or `Nothing`-ness has found.
     walk: walk::Walk,
+    /// How many match type reductions are in progress.
+    reductions: u32,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -144,7 +120,17 @@ const MAX_STEPS: u32 = 1_000_000;
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
         let (pending, walk) = (FxHashSet::default(), walk::Walk::default());
-        Cmp { u, vars, frozen: false, depth: 0, pending, provisional: false, steps: MAX_STEPS, walk }
+        Cmp {
+            u,
+            vars,
+            frozen: false,
+            depth: 0,
+            pending,
+            provisional: false,
+            steps: MAX_STEPS,
+            walk,
+            reductions: 0,
+        }
     }
 
     /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.
