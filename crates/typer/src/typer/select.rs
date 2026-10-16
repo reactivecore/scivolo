@@ -79,7 +79,10 @@ impl Typer<'_> {
                 Ok(Some(Viewed::Extension(c))) => {
                     return self.implicit_extension_select(id, qual, c, name, pt, ctx);
                 }
-                Ok(None) if !widened => return self.member_not_found(id, qual, name, ctx),
+                Ok(None) if !widened => {
+                    let dynamic = self.try_dynamic(id, qual, name, pt, ctx);
+                    return dynamic.unwrap_or_else(|| self.member_not_found(id, qual, name, ctx));
+                }
                 Ok(None) => return self.unsupported(id, "member not found"),
                 Err(what) => return self.unsupported(id, what),
             }
@@ -95,11 +98,13 @@ impl Typer<'_> {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
         };
-        if !converted
-            && !self.is_accessible_from(sym, Some(qual_tpe), ctx)
-            && self.extension_visible(&text, ctx)
-        {
-            return self.extension_select(id, qual, name, pt, ctx);
+        if !converted && !self.is_accessible_from(sym, Some(qual_tpe), ctx) {
+            if self.extension_visible(&text, ctx) {
+                return self.extension_select(id, qual, name, pt, ctx);
+            }
+            if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
+                return dynamic;
+            }
         }
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);

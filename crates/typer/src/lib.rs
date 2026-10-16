@@ -89,6 +89,7 @@ impl Units {
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
         typer.typed_annotations();
+        typer.check_dynamic_calls();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
         }
