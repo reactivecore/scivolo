@@ -303,7 +303,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "class not conforming to a parent's self type",
         ),
         (
-            "object M:\n  def f[T](x: Any) = x match\n    case y: T => y\n",
+            "object M:\n  type F[X]\n  def f(x: Any) = x match\n    case y: F[Int] => y\n",
             "type pattern needing a type test or type binding",
         ),
         (

@@ -29,6 +29,7 @@ impl Typer<'_> {
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs
+            && !self.splices.contains_key(&fun)
             && !matches!(
                 self.ast.tree(fun),
                 Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. }
