@@ -8,6 +8,7 @@ mod link;
 mod reach;
 mod resources;
 mod tables;
+mod timings;
 
 use clap::Parser;
 use std::path::PathBuf;
@@ -31,9 +32,13 @@ struct Args {
     /// The object or class whose `main` the executable runs.
     #[arg(required_unless_present = "entry")]
     main: Option<String>,
+    /// Print the wall time of each phase to stderr.
+    #[arg(long)]
+    timings: bool,
 }
 
 fn run(args: &Args) -> R<()> {
+    let mut timings = timings::Timings::new();
     let jars = libs::jars()?;
     let image = libs::image(&jars).map_err(|e| format!("library image: {e}"))?;
     let classpath = vm::Classpath::with_image(&args.classpath, image).map_err(|e| e.to_string())?;
@@ -45,8 +50,14 @@ fn run(args: &Args) -> R<()> {
         (None, Some(main)) => (codegen::Root::Main(world.top(main)), "main.c"),
         (None, None) => return Err("a main class or --entry is required".into()),
     };
-    let (object, shims) = codegen::compile(&mut world, root)?;
-    link::executable(&object, &shims, stub, &args.output)
+    timings.lap("load");
+    let (object, shims) = codegen::compile(&mut world, root, &mut timings)?;
+    link::executable(&object, &shims, stub, &args.output)?;
+    timings.lap("link");
+    if args.timings {
+        timings.print();
+    }
+    Ok(())
 }
 
 fn main() {

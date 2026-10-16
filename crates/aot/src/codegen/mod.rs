@@ -37,12 +37,14 @@ pub const RUNTIME: &str = "scala.scalanative.runtime.package$";
 
 use crate::R;
 use crate::reach::Reach;
+use crate::timings::Timings;
 use cranelift_codegen::settings::{self, Configurable};
 use cranelift_codegen::{Context, isa};
 use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{Module, default_libcall_names};
 use cranelift_object::{ObjectBuilder, ObjectModule};
 use nir::{DefnKind, GlobalId};
+use std::time::Instant;
 use vm::World;
 
 fn object_module() -> R<ObjectModule> {
@@ -69,7 +71,7 @@ pub enum Root {
 }
 
 /// The object file and the C source of the variadic call shims it calls.
-pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
+pub fn compile(world: &mut World, root: Root, timings: &mut Timings) -> R<(Vec<u8>, String)> {
     let mut module = object_module()?;
     let mut reach = Reach::new(world);
     let rtti = RttiLayout::new(&mut reach)?;
@@ -91,14 +93,18 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     let mut fb = FunctionBuilderContext::new();
     loop {
         while let Some(g) = reach.queue.pop() {
-            define(&mut module, &mut reach, &mut decls, (&mut ctx, &mut fb), g)?;
+            define(&mut module, &mut reach, &mut decls, (&mut ctx, &mut fb), g, timings)?;
         }
+        let clock = Instant::now();
         for g in reach.dispatch_targets()? {
             decls.func(&mut module, &mut reach, g)?;
         }
+        timings.add("  of which dispatch", clock.elapsed());
+        let clock = Instant::now();
         if matches!(root, Root::Main(_)) {
             start::reach_initializers(&mut module, &mut reach, &mut decls)?;
         }
+        timings.add("  of which initializers", clock.elapsed());
         if reach.queue.is_empty() {
             break;
         }
@@ -106,13 +112,17 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     if let Root::Main(top) = root {
         start::define_main(&mut module, &mut reach, &mut decls, top)?;
     }
+    timings.lap("reach+codegen");
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;
     std::mem::take(&mut decls.frames).define(&mut module, &mut reach, &mut decls)?;
     crate::resources::define(&mut module, reach.world)?;
     decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
-    Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
+    timings.lap("tables");
+    let object = module.finish().emit().map_err(|e| e.to_string())?;
+    timings.lap("emit");
+    Ok((object, shims))
 }
 
 fn define(
@@ -121,6 +131,7 @@ fn define(
     decls: &mut Decls,
     (ctx, fb): (&mut Context, &mut FunctionBuilderContext),
     g: GlobalId,
+    timings: &mut Timings,
 ) -> R<()> {
     let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
     let DefnKind::Define { ty, body } = &defn.kind else { unreachable!("reached a non-function") };
@@ -155,7 +166,9 @@ fn define(
         }
         Err(e) => return Err(format!("{name}: {e}")),
     }
+    let clock = Instant::now();
     module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
+    timings.add("  of which cranelift", clock.elapsed());
     decls.frames.record(id, g, ctx);
     module.clear_context(ctx);
     Ok(())

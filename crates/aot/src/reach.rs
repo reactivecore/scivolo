@@ -20,8 +20,10 @@ pub struct Reach<'w> {
     pub modules: Vec<ClassId>,
     pub vcalls: FxHashSet<StrId>,
     pub icalls: FxHashSet<StrId>,
-    /// The (class, method) pairs whose implementation was reached.
-    dispatched: FxHashSet<(ClassId, StrId)>,
+    /// The allocated classes and called methods `dispatch_targets` has paired.
+    dispatched_classes: usize,
+    dispatched_sigs: Vec<StrId>,
+    dispatched_set: FxHashSet<StrId>,
 }
 
 impl<'w> Reach<'w> {
@@ -36,7 +38,9 @@ impl<'w> Reach<'w> {
             modules: Vec::new(),
             vcalls: FxHashSet::default(),
             icalls: FxHashSet::default(),
-            dispatched: FxHashSet::default(),
+            dispatched_classes: 0,
+            dispatched_sigs: Vec::new(),
+            dispatched_set: FxHashSet::default(),
         }
     }
 
@@ -115,18 +119,21 @@ impl<'w> Reach<'w> {
         self.world.defn(ctor).ok().filter(|d| matches!(d.kind, DefnKind::Define { .. })).map(|_| ctor)
     }
 
-    /// The implementations of called methods in allocated classes not reached before.
+    /// The implementations of called methods in allocated classes not reached before: of the
+    /// methods called since the last time in all classes, and of all in the classes allocated
+    /// since then.
     pub fn dispatch_targets(&mut self) -> R<Vec<GlobalId>> {
+        let (old_classes, old_sigs) = (self.dispatched_classes, self.dispatched_sigs.len());
+        let called = self.vcalls.iter().chain(&self.icalls).copied();
+        let fresh: Vec<StrId> = called.filter(|s| self.dispatched_set.insert(*s)).collect();
+        self.dispatched_sigs.extend(fresh);
+        self.dispatched_classes = self.allocated.len();
         let mut out = Vec::new();
-        let sigs: Vec<StrId> = self.vcalls.union(&self.icalls).copied().collect();
         for i in 0..self.allocated.len() {
-            let cls = self.allocated[i];
-            for &sig in &sigs {
-                if self.dispatched.insert((cls, sig))
-                    && let Some(g) = self.classes.resolve(self.world, cls, sig)?
-                {
-                    out.push(g);
-                }
+            let first = if i < old_classes { old_sigs } else { 0 };
+            for k in first..self.dispatched_sigs.len() {
+                let (cls, sig) = (self.allocated[i], self.dispatched_sigs[k]);
+                out.extend(self.classes.resolve(self.world, cls, sig)?);
             }
         }
         Ok(out)
