@@ -26,6 +26,9 @@ impl Typer<'_> {
             return Ok(None);
         }
         let Some(method) = self.sam_method(class) else { return Ok(None) };
+        if self.u.symbol(method).flags.has(tasty::tags::INLINE) {
+            return Err("single abstract method type of an inline method");
+        }
         let open = open && !self.is_java_class_name(class);
         if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
             return Err("single abstract method type outside the subset");

@@ -7,6 +7,7 @@ use typer::tpd::TNodeId;
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    retained_bodies::transform(l, root)?;
     drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
     context_results::transform(l, root)?;

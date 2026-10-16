@@ -63,7 +63,7 @@ impl Typer<'_> {
         self.splice(T::Ident { name }, tpe, Some(sym))
     }
 
-    fn splice_type(&mut self, tpe: TypeId) -> NodeId {
+    pub fn splice_type(&mut self, tpe: TypeId) -> NodeId {
         self.splice(T::TypeTree { inferred: false }, tpe, None)
     }
 

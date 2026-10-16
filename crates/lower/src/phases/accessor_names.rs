@@ -3,8 +3,8 @@
 
 use crate::Lower;
 use crate::symbols::has;
+use tasty::SymbolId;
 use tasty::tags::{FIELDaccessor, LOCAL, PRIVATE};
-use tasty::{Kind, SymbolId};
 
 /// The separator in the names of trait setters.
 const TRAIT_SETTER: &str = "$_setter_$";
@@ -54,7 +54,7 @@ pub fn expand_private(l: &mut Lower, trait_: SymbolId) {
 /// trait, its own name without the lifting's prefix and suffix after a `_$` for each term it
 /// was in.
 fn trait_prefix(l: &Lower, t: SymbolId) -> String {
-    let Some(&term) = l.local_classes.get(&t) else { return expanded_prefix(l, t) };
+    let Some(&term) = l.local_classes.get(&t) else { return l.u.expanded_prefix(t) };
     let mut filler = String::new();
     let mut owner = Some(term);
     while let Some(o) = owner.filter(|&o| l.u.symbol(o).kind.is_term()) {
@@ -64,7 +64,7 @@ fn trait_prefix(l: &Lower, t: SymbolId) -> String {
     let name = l.u.symbol(t).name.trim_end_matches(|c: char| c.is_ascii_digit());
     let name = name.strip_suffix('$').unwrap_or(name);
     let name = name.rsplit('$').next().unwrap_or(name);
-    let enclosing = owner.map(|o| expanded_prefix(l, o)).unwrap_or_default();
+    let enclosing = owner.map(|o| l.u.expanded_prefix(o)).unwrap_or_default();
     format!("{enclosing}${filler}{name}")
 }
 
@@ -88,23 +88,9 @@ pub fn ensure_not_private(l: &mut Lower, s: SymbolId) {
             Some(rest) if !filler.is_empty() && !l.u.is_trait(base) => format!("$lessinit$greater${rest}"),
             _ => own.clone(),
         };
-        let name = format!("{}{module}$${filler}{own}", expanded_prefix(l, base));
+        let name = format!("{}{module}$${filler}{own}", l.u.expanded_prefix(base));
         l.u.rename(s, &name);
     }
     let flags = l.u.symbol(s).flags.without(PRIVATE).without(LOCAL);
     l.u.set_flags(s, flags);
-}
-
-/// The names of `s` and its owners up to its package, joined by `$`, an object's without its `$`.
-pub fn expanded_prefix(l: &Lower, s: SymbolId) -> String {
-    let sym = l.u.symbol(s);
-    let name = tasty::module_name(&sym.name).unwrap_or(&sym.name);
-    match sym.owner {
-        Some(o) if l.u.symbol(o).kind == Kind::Package => match l.u.full_name(o).as_str() {
-            "" | "<empty>" => name.to_owned(),
-            package => format!("{}${name}", package.replace('.', "$")),
-        },
-        Some(o) => format!("{}${name}", expanded_prefix(l, o)),
-        None => name.to_owned(),
-    }
 }
