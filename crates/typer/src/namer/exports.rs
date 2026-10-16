@@ -169,6 +169,10 @@ impl Typer<'_> {
             if self.refers_to_private(e.path) && self.mentions(info, e.path) {
                 self.unsupported_at(span, "export forwarder whose type refers to a private path");
             }
+            let result = self.u.result_type(info);
+            if self.is_context_function_type(result) {
+                self.unsupported_at(span, "export forwarder of a context function result");
+            }
         }
         e.out.push(Forwarder { sym, target: m, span });
         self.add_default_forwarders(e, m, alias, span);
