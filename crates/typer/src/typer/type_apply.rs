@@ -6,7 +6,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId};
-use tasty::{Binder, SymbolId, Type, TypeId};
+use tasty::{Binder, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -113,7 +113,17 @@ impl Typer<'_> {
             if !fresh && self.type_arity(arg) != arity {
                 return Err("type argument of another kind");
             }
-            if !self.conforms(arg, hi) || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
+            let var = match *self.u.types().get(arg) {
+                Type::Var(v) if fresh => Some(v),
+                _ => None,
+            };
+            let upper = match var {
+                Some(v) if self.u.dealias(hi) != hi && self.open_vars(hi).is_empty() => {
+                    self.constraint.add_upper(self.u, v, hi)
+                }
+                _ => self.conforms(arg, hi),
+            };
+            if !upper || lo.is_some_and(|lo| !self.conforms(lo, arg)) {
                 return Err("type argument outside its bounds");
             }
         }

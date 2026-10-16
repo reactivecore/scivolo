@@ -152,8 +152,8 @@ pub fn ref_type(u: &mut Universe, prefix: Option<TypeId>, sym: SymbolId) -> Type
     let in_package_object =
         |u: &mut Universe, c: TypeId| u.class_symbol(c).is_some_and(|c| is_named_package_object(u, c));
     let prefix = match prefix.map(|p| u.types().get(p).clone()) {
-        Some(Type::Package(_)) => package_object_prefix(u, sym).or(prefix),
-        Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, sym).or(prefix),
+        Some(Type::Package(p)) => package_object_prefix(u, Some(p), sym).or(prefix),
+        Some(Type::This(c)) if in_package_object(u, c) => package_object_prefix(u, None, sym).or(prefix),
         _ => prefix,
     };
     u.intern_type(Type::Sym(prefix, sym))
@@ -166,14 +166,24 @@ pub fn is_named_package_object(u: &Universe, c: SymbolId) -> bool {
     s.owner.is_some_and(|o| u.symbol(o).kind == Kind::Package) && tasty::is_package_object_name(&s.name)
 }
 
-/// The reference to the package object that declares `sym`, if one does.
-fn package_object_prefix(u: &mut Universe, sym: SymbolId) -> Option<TypeId> {
-    let obj_class = u.symbol(sym).owner?;
-    let pkg = u.symbol(obj_class).owner?;
-    if u.symbol(obj_class).kind != Kind::Class || u.symbol(pkg).kind != Kind::Package {
+/// The reference to the package object that declares `sym`, if one does, else to the object
+/// `package` of package `pkg` if it inherits `sym` (dotty's `packageObjFor`).
+fn package_object_prefix(u: &mut Universe, pkg: Option<SymbolId>, sym: SymbolId) -> Option<TypeId> {
+    let owner = u.symbol(sym).owner?;
+    if u.symbol(owner).kind != Kind::Class {
         return None;
     }
-    let module = u.source_module(obj_class)?;
+    let inheriting = match pkg.filter(|_| !is_named_package_object(u, owner)) {
+        Some(pkg) => u
+            .package_objects(pkg)
+            .ok()
+            .unwrap_or_default()
+            .into_iter()
+            .find(|&o| u.symbol(o).name == "package$" && u.linearization(o).contains(&owner)),
+        None => None,
+    };
+    let in_package = u.symbol(owner).owner.is_some_and(|o| u.symbol(o).kind == Kind::Package);
+    let module = u.source_module(inheriting.or(in_package.then_some(owner))?)?;
     Some(type_ref(u, module))
 }
 

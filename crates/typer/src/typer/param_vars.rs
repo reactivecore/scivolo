@@ -8,7 +8,7 @@ use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, VarId};
 impl Typer<'_> {
     /// Instantiates the type variables that type applications in `tree`'s prefixes bind and
     /// the parameters of its applications mention, where they occur in `params`: minimized if
-    /// they have a lower bound; `Err` if they would be maximized to an upper bound.
+    /// they have a lower bound, else maximized if they have an upper bound.
     pub fn instantiate_param_vars(&mut self, tree: TNodeId, params: &[TypeId]) -> Result<(), &'static str> {
         let mut bound = Vec::new();
         self.bound_vars(tree, &mut bound);
@@ -30,7 +30,7 @@ impl Typer<'_> {
                 } else if lo != NOTHING {
                     self.instantiate_var(v, true)?;
                 } else if hi != ANY {
-                    return Err("type variable maximized before an implicit search");
+                    self.instantiate_var(v, false)?;
                 }
             }
         }

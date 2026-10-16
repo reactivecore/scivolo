@@ -135,6 +135,11 @@ impl Typer<'_> {
             _ => false,
         };
         let prefix = c.prefix.map(|p| self.u.types().get(p).clone());
+        if let Some(Type::Package(p)) = prefix
+            && self.inherited_by_package_object(p, c.sym)
+        {
+            return Err("implicit a package object inherits, through its package");
+        }
         let tpe = match (prefix.clone(), package_object) {
             (_, Some(o)) if through_object(self, prefix, o) => {
                 let class = crate::defn::type_ref(self.u, o);
@@ -148,5 +153,12 @@ impl Typer<'_> {
             return Err("implicit through a path");
         }
         Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))
+    }
+
+    /// Whether a package object of package `p` inherits `sym` from a class other than itself.
+    fn inherited_by_package_object(&mut self, p: SymbolId, sym: SymbolId) -> bool {
+        let Some(owner) = self.u.symbol(sym).owner.filter(|&o| self.u.is_class(o)) else { return false };
+        let objects = self.u.package_objects(p).unwrap_or_default();
+        objects.into_iter().any(|o| o != owner && self.u.linearization(o).contains(&owner))
     }
 }

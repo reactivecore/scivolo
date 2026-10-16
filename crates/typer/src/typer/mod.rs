@@ -94,6 +94,7 @@ mod not_found;
 mod op_assign;
 mod overloads;
 mod overrides;
+mod package_members;
 mod param_vars;
 mod parent_trees;
 mod parents;
@@ -317,7 +318,15 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
-        let tree = self.adapt(tree, pt, ctx);
+        let adapted = self.adapt(tree, pt, ctx);
+        if adapted != tree
+            && let crate::tpd::Tree::Apply { fun, .. } = *self.tpd.tree(adapted)
+            && self.tpd.meth_part(fun) == self.tpd.meth_part(tree)
+            && let Err(what) = self.interpolate(adapted, pt, vars)
+        {
+            self.unsupported(id, what);
+        }
+        let tree = adapted;
         self.u.set_comparison_owner(outer);
         self.depth -= 1;
         tree

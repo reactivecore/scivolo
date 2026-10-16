@@ -365,8 +365,10 @@ fn constructs_diverging_from_dotty_are_refused() {
             "Object member a JDK interface redeclares",
         ),
         (
-            "class C { def foo[T <: String: reflect.ClassTag](f: T => Int) = 1; def bar(f: String => Int) = foo(f) }",
-            "type variable maximized before an implicit search",
+            "package lx { class X { class Foo; implicit val foo: Foo = new Foo } }
+             package ly { package object y extends lx.X }
+             object Ko { import ly.y.{Foo, foo}; implicitly[Foo] }",
+            "implicit a package object inherits, through its package",
         ),
         (
             "class B[T](val t: T) { def this() = this(null.asInstanceOf[T]) }",
