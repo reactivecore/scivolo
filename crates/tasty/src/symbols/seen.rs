@@ -8,26 +8,6 @@ use crate::types::{Type, TypeId};
 const MAX_DEPTH: u32 = 64;
 
 impl Universe {
-    /// The type parameters of class or method `c`, in order.
-    pub fn type_params(&self, c: SymbolId) -> Vec<SymbolId> {
-        let decls = &self.symbol(c).decls;
-        decls.iter().copied().filter(|&d| self.symbol(d).kind == Kind::TypeParam).collect()
-    }
-
-    /// The class type parameter reference `t` names: its class and index.
-    pub fn class_param(&mut self, t: TypeId) -> Option<(SymbolId, usize)> {
-        let s = match self.types().get(t).clone() {
-            Type::Sym(_, s) => s,
-            Type::TypeRef(..) => self.resolve_ref(t)?,
-            _ => return None,
-        };
-        let owner = self.symbol(s).owner?;
-        if self.symbol(s).kind != Kind::TypeParam || self.symbol(owner).kind != Kind::Class {
-            return None;
-        }
-        Some((owner, self.type_params(owner).iter().position(|&p| p == s)?))
-    }
-
     /// `t` seen as an instance of class `base`: `base` applied to the arguments `t` passes it
     /// through its parents; `None` if `t` does not derive from `base`.
     pub fn base_type(&mut self, t: TypeId, base: SymbolId) -> Option<TypeId> {

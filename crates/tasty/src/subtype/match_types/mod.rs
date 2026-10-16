@@ -1,6 +1,7 @@
 //! Normalization (dotty's `normalized`, `tryNormalize`, `underlyingNormalizable`): match types
 //! reduced, `scala.compiletime.ops` applications folded.
 
+mod concrete;
 mod disjoint;
 mod disjoint_args;
 mod ops;

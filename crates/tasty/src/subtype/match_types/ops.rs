@@ -31,6 +31,11 @@ impl Cmp<'_> {
         Some((module, self.u.symbol(s).name.clone()))
     }
 
+    /// Whether `tycon` is `scala.compiletime.ops.int.S`.
+    pub fn is_succ(&mut self, tycon: TypeId) -> bool {
+        self.compiletime_op(tycon).is_some_and(|(m, n)| m == "int" && n == "S")
+    }
+
     /// The constant type operation application `t` folds to.
     pub fn fold_compiletime(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
@@ -76,8 +81,7 @@ impl Cmp<'_> {
     /// `S[n]` as `n + 1`, `S[x]` against `n` as `x` against `n - 1`, others folded.
     pub fn compare_compiletime(&mut self, op: TypeId, other: TypeId, from_below: bool) -> bool {
         let Type::Applied(tycon, args) = self.u.types().get(op).clone() else { return false };
-        let is_s = self.compiletime_op(tycon).is_some_and(|(m, n)| m == "int" && n == "S");
-        let (x, y) = if is_s {
+        let (x, y) = if self.is_succ(tycon) {
             let [arg] = args[..] else { return false };
             match self.nat_value(arg) {
                 Some(n) if n < i32::MAX as i64 => {
@@ -101,8 +105,8 @@ impl Cmp<'_> {
 fn fold(module: &str, name: &str, args: &[C]) -> Option<C> {
     use C::*;
     Some(match (module, name, args) {
-        ("any", "==", [a, b]) => Bool(a == b),
-        ("any", "!=", [a, b]) => Bool(a != b),
+        ("any", "==", [a, b]) => Bool(equal(a, b)),
+        ("any", "!=", [a, b]) => Bool(!equal(a, b)),
         ("int", "S", [Int(n)]) if *n >= 0 && *n < i32::MAX => Int(n + 1),
         ("int", "Abs", [Int(n)]) => Int(n.wrapping_abs()),
         ("int", "Negate", [Int(n)]) => Int(n.wrapping_neg()),
@@ -121,6 +125,19 @@ fn fold(module: &str, name: &str, args: &[C]) -> Option<C> {
         ("boolean", "^", [Bool(a), Bool(b)]) => Bool(a ^ b),
         _ => return None,
     })
+}
+
+/// `a == b` as Scala compares boxed values: numbers by value, whatever their width.
+fn equal(a: &C, b: &C) -> bool {
+    let number = |c: &C| match *c {
+        C::Int(n) => Some(n as i64),
+        C::Long(n) => Some(n),
+        C::Bool(_) => None,
+    };
+    match (number(a), number(b)) {
+        (Some(x), Some(y)) => x == y,
+        _ => a == b,
+    }
 }
 
 /// Binary operation `name` on integers, wrapping as the JVM does for the width the caller

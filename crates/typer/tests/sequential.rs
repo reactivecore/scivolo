@@ -226,6 +226,15 @@ fn match_types_reduce_in_conformance() {
         ),
         ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
         ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that does not reduce"),
+        (
+            "object P { type M[X] = X match { case Array[t] => t => Unit }; def f[X](m: M[X]): Any => Unit = m }",
+            "adaptation",
+        ),
+        (
+            "object Q { type M[X] <: Int = X match { case Int => String } }",
+            "match type case body outside the bound",
+        ),
+        ("object R { val b: scala.compiletime.ops.any.==[1, 1L] = false }", "adaptation"),
     ];
     for (text, what) in cases {
         let expected = if what.is_empty() { Ok(()) } else { Err(format!("unsupported {what}")) };

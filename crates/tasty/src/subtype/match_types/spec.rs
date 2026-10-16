@@ -42,7 +42,7 @@ pub enum Spec {
 pub struct Specced {
     pub binder: Binder,
     pub names: Vec<String>,
-    /// The upper bound of each capture.
+    /// The bounds of each capture.
     pub bounds: Vec<TypeId>,
     pub pattern: Pattern,
     pub pat: TypeId,
@@ -68,13 +68,7 @@ impl Cmp<'_> {
                 if unaccounted.contains(&true) {
                     return Spec::Unsupported;
                 }
-                let bounds = params
-                    .iter()
-                    .map(|&(_, b)| match *self.u.types().get(b) {
-                        Type::Bounds(_, hi) => hi,
-                        _ => b,
-                    })
-                    .collect();
+                let bounds = params.iter().map(|&(_, b)| b).collect();
                 Spec::Specced(Specced { binder, names, bounds, pattern, pat, body })
             }
             _ => Spec::Unsupported,
@@ -139,8 +133,7 @@ impl Cmp<'_> {
                         .any(|(p, &v)| v != 0 && p.needs_concrete_in_variant_pos());
                     return Some(Pattern::BaseTypeTest { class: s, args: pats, needs_concrete });
                 }
-                if self.compiletime_op(tycon).is_some_and(|(m, n)| m == "int" && n == "S") && args.len() == 1
-                {
+                if self.is_succ(tycon) && args.len() == 1 {
                     return match self.spec_pattern(args[0], variance, captures, unaccounted)? {
                         Pattern::TypeTest => Some(Pattern::TypeTest),
                         p => Some(Pattern::CompileTimeS(Box::new(p))),

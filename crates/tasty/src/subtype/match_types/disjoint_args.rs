@@ -3,7 +3,7 @@
 
 use super::super::Cmp;
 use super::disjoint::Pending;
-use crate::tags::CASE;
+use crate::tags::{CASE, CASEaccessor};
 use crate::types::{Type, TypeId};
 use crate::{Kind, NOTHING, SymbolId};
 
@@ -96,7 +96,7 @@ impl Cmp<'_> {
             .decls
             .iter()
             .copied()
-            .filter(|&d| self.u.symbol(d).kind == Kind::Param)
+            .filter(|&d| self.u.symbol(d).kind.is_term() && self.u.symbol(d).flags.has(CASEaccessor))
             .collect();
         fields.into_iter().any(|f| {
             let info = self.u.info(f);

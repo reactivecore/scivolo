@@ -114,9 +114,7 @@ impl Typer<'_> {
             Some(Ok(parts)) => parts,
             None => (f, Vec::new(), Vec::new()),
         };
-        if dependent && (!lifted.is_empty() || aligned.is_some() || repeated.is_some()) {
-            return self.unsupported(id, "dependent result type");
-        }
+        let plain = lifted.is_empty() && aligned.is_none() && repeated.is_none();
         let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
@@ -130,12 +128,10 @@ impl Typer<'_> {
             });
         }
         let result = match dependent {
-            true => match self.dependent_result(result, (binder, &params), meth, &typed_args) {
-                Some(r) => r,
-                None => return self.unsupported(id, "dependent result type with missing arguments"),
-            },
-            false => result,
+            true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
+            false => Some(result),
         };
+        let Some(result) = result else { return self.unsupported(id, "dependent result type") };
         let erroneous = typed_args.iter().any(|&a| {
             let tpe = self.zonk(self.tpd.tpe(a));
             *self.u.types().get(tpe) == Type::Error
