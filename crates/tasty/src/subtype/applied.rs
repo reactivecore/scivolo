@@ -30,6 +30,11 @@ impl Cmp<'_> {
                     }
                 }
             },
+            Type::TypeRef(..) | Type::Sym(..)
+                if self.compiletime_op(tycon).is_some() && self.compare_compiletime(b, a, true) =>
+            {
+                true
+            }
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
                 Some(Meaning::Alias(_)) => match self.u.expand(tycon, args) {
                     Some(expanded) if expanded != b => self.recur(a, expanded),
@@ -102,6 +107,11 @@ impl Cmp<'_> {
                     }
                 };
                 self.recur(upper, b)
+            }
+            Type::TypeRef(..) | Type::Sym(..)
+                if self.compiletime_op(tycon).is_some() && self.compare_compiletime(a, b, false) =>
+            {
+                true
             }
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
                 Some(Meaning::Alias(_)) => match self.u.expand(tycon, args) {

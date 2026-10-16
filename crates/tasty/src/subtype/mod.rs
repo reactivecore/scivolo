@@ -13,6 +13,7 @@ mod hk;
 mod join;
 mod lift;
 mod lub;
+mod match_types;
 mod nothing;
 mod null;
 mod refined;
@@ -136,6 +137,8 @@ pub struct Cmp<'a> {
     steps: u32,
     /// What the current walk computing atoms or `Nothing`-ness has found.
     walk: walk::Walk,
+    /// How many match type reductions are in progress.
+    reductions: u32,
 }
 
 /// How many steps computing atoms and `Nothing`-ness may take in one comparison.
@@ -144,7 +147,17 @@ const MAX_STEPS: u32 = 1_000_000;
 impl<'a> Cmp<'a> {
     fn new(u: &'a mut Universe, vars: &'a mut dyn TypeVars) -> Self {
         let (pending, walk) = (FxHashSet::default(), walk::Walk::default());
-        Cmp { u, vars, frozen: false, depth: 0, pending, provisional: false, steps: MAX_STEPS, walk }
+        Cmp {
+            u,
+            vars,
+            frozen: false,
+            depth: 0,
+            pending,
+            provisional: false,
+            steps: MAX_STEPS,
+            walk,
+            reductions: 0,
+        }
     }
 
     /// Takes a step of computing atoms or `Nothing`-ness; false if none is left.
