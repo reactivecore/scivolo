@@ -29,8 +29,47 @@ impl Typer<'_> {
         mentions_params(self.u, t, binder, method)
     }
 
+    /// Result `t` of the method type of binder `binder` of method `method` with its references to
+    /// the parameters dealiased if each is the prefix of an alias, else `t` (dotty's
+    /// `TermLambda.resultType` for `FalseDeps`).
+    pub fn without_false_deps(&mut self, t: TypeId, binder: Binder, method: Option<SymbolId>) -> TypeId {
+        if !mentions_params(self.u, t, binder, method) {
+            return t;
+        }
+        let mut current = t;
+        for _ in 0..8 {
+            let mut members = Vec::new();
+            self.u.map_type(current, &mut |u, part| {
+                if let Type::Sym(Some(_), s) = *u.types().get(part)
+                    && u.symbol(s).kind == Kind::Type
+                {
+                    members.push(s);
+                }
+                None
+            });
+            members.into_iter().for_each(|s| self.complete(s));
+            let next = self.u.map_type(current, &mut |u, part| {
+                let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+                if u.symbol(s).kind != Kind::Type || !mentions_params(u, pre, binder, method) {
+                    return None;
+                }
+                let alias = u.alias_of(s)?;
+                let owner = u.symbol(s).owner?;
+                Some(u.as_seen_from(alias, pre, owner))
+            });
+            if !mentions_params(self.u, next, binder, method) {
+                return next;
+            }
+            if next == current {
+                return t;
+            }
+            current = next;
+        }
+        t
+    }
+
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter and every one is stable.
+    /// there is one argument per parameter.
     pub fn dependent_result(
         &mut self,
         t: TypeId,
@@ -39,7 +78,7 @@ impl Typer<'_> {
         args: &[crate::tpd::TNodeId],
     ) -> Option<TypeId> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        if types.len() != params.len() || !types.iter().all(|&a| is_stable_path(self.u, a)) {
+        if types.len() != params.len() {
             return None;
         }
         let mut inner_class = false;
@@ -57,8 +96,25 @@ impl Typer<'_> {
         if inner_class {
             return None;
         }
+        for &a in &types {
+            let widened = self.u.widen(a);
+            if let Some(c) = self.u.class_symbol(widened) {
+                self.complete(c);
+            }
+        }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        Some(applied_result(self.u, t, (binder, &names), method, &types))
+        let result = applied_result(self.u, t, (binder, &names), method, &types);
+        let mut members = Vec::new();
+        self.u.map_type(result, &mut |u, part| {
+            if let Type::Sym(Some(_), s) = *u.types().get(part)
+                && u.symbol(s).kind == Kind::Type
+            {
+                members.push(s);
+            }
+            None
+        });
+        members.into_iter().for_each(|s| self.complete(s));
+        Some(result)
     }
 }
 
@@ -97,7 +153,34 @@ pub fn applied_result(
             *r = u.fresh_skolem(widened);
         }
     }
-    u.map_type(t, &mut |u, part| replacements.get(param(u, part)?).copied())
+    substituted(u, t, &param, &replacements)
+}
+
+/// `t` with each parameter `param` numbers replaced by its replacement, a type member of a
+/// replaced prefix selected again as a member of the new prefix.
+fn substituted(
+    u: &mut Universe,
+    t: TypeId,
+    param: &dyn Fn(&Universe, TypeId) -> Option<usize>,
+    replacements: &[TypeId],
+) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        if let Some(i) = param(u, part) {
+            return replacements.get(i).copied();
+        }
+        let Type::Sym(Some(pre), s) = *u.types().get(part) else { return None };
+        if u.symbol(s).kind != Kind::Type {
+            return None;
+        }
+        let new_pre = substituted(u, pre, param, replacements);
+        if new_pre == pre {
+            return None;
+        }
+        let name = u.symbol(s).name.clone();
+        let members = u.member_of_type(new_pre, &name);
+        let member = members.into_iter().find(|&m| u.symbol(m).kind == Kind::Type).unwrap_or(s);
+        Some(u.intern_type(Type::Sym(Some(new_pre), member)))
+    })
 }
 
 /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of

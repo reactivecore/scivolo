@@ -34,7 +34,7 @@ fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
             let (a, b) = (simplify(u, a), simplify(u, b));
             Some(u.glb(a, b))
         }
-        Type::Super(..) => Some(part),
+        Type::Super(..) | Type::Skolem(..) => Some(part),
         _ => None,
     })
 }

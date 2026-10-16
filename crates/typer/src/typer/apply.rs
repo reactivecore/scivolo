@@ -67,6 +67,7 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
+        let result = self.without_false_deps(result, binder, meth);
         let dependent = self.mentions_params(result, binder, meth);
         if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
