@@ -141,14 +141,24 @@ impl Typer<'_> {
                 Refs { cands, prec: Prec::Definition, owner: Some(owner) }
             }
             &Level::Members(pkg) if self.u.symbol(pkg).kind == Kind::Package => {
+                let members = match self.package_implicits.get(&pkg) {
+                    Some(members) => members.clone(),
+                    None => {
+                        let mut members = Vec::new();
+                        for c in self.package_objects(pkg) {
+                            if self.syms.is_script(c) {
+                                members.extend(self.implicit_members(c, true).into_iter().map(|m| (c, m)));
+                            }
+                        }
+                        self.package_implicits.insert(pkg, members.clone());
+                        members
+                    }
+                };
                 let mut cands = Vec::new();
-                for c in self.package_objects(pkg) {
-                    let own = self.syms.is_script(c);
+                for (c, sym) in members {
                     let this = crate::defn::type_ref(self.u, c);
                     let prefix = Some(self.u.intern_type(Type::This(this)));
-                    for sym in self.implicit_members(c, own) {
-                        cands.push((Candidate { sym, prefix }, self.u.symbol(sym).name.clone()));
-                    }
+                    cands.push((Candidate { sym, prefix }, self.u.symbol(sym).name.clone()));
                 }
                 Refs { cands, prec: Prec::Definition, owner: Some(pkg) }
             }

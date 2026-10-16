@@ -199,6 +199,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The implicit members of the unit's package objects in each package, once asked for.
+    pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -252,6 +254,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            package_implicits: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();
