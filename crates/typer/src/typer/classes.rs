@@ -40,7 +40,7 @@ impl Typer<'_> {
             self.syms.primary_ctors.insert(cls, ctor);
         }
         let super_ctx = self.super_call_ctx(t.constr, ctx);
-        let parents = self.parent_types(&t.parents, super_ctx);
+        let parents = self.parent_types(cls, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
         if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
             self.unsupported(rhs, "derives clause");
@@ -92,17 +92,10 @@ impl Typer<'_> {
             return self.unsupported(id, "enum class with its own ordinal");
         }
         let ctor = self.syms.primary_ctors.get(&cls).copied();
-        let params = ctor.is_some_and(|c| {
-            self.complete(c);
-            let info = self.u.info(c);
-            self.u.param_clauses(info).iter().any(|(_, ps)| !ps.is_empty())
-        });
-        if self.u.is_trait(cls) && params {
-            return self.unsupported(id, "trait parameters");
-        }
         if self.u.symbol(cls).flags.has(tasty::tags::CASE)
             && let Some(c) = ctor
         {
+            self.complete(c);
             let info = self.u.info(c);
             let first = self.u.param_clauses(info).into_iter().next();
             let elems = first.map(|(_, ps)| ps).unwrap_or_default();
@@ -115,6 +108,7 @@ impl Typer<'_> {
         let constr = self.typed(t.constr, Pt::Any, cctx);
         let name_span = Span::at(self.ast.span(id).point());
         let parents = self.parent_trees(cls, &t, ctx, name_span);
+        self.check_trait_inits(cls, &parents, name_span);
         let self_ = t.self_.map(|s| match self.is_module_self(s) {
             true => self.typed(s, Pt::Any, ctx),
             false => self.typed_self(s, cctx),
@@ -123,6 +117,7 @@ impl Typer<'_> {
         self.check_derived_value_class(id, cls, &parents, &t.body);
         self.check_overrides(cls, self.ast.span(id));
         self.check_base_types(cls, name_span);
+        self.check_parameterized_traits(cls, name_span);
         let parents = self.tpd.list(&parents);
         let body = self.tpd.list(&body);
         let template = T::Template { constr, parents, self_, body };

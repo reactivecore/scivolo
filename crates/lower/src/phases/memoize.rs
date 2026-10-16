@@ -76,7 +76,7 @@ fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Op
         l.fields.insert(field, getter);
         let info = l.u.info(getter);
         l.u.set_info(field, info);
-        let field_span = if mixed_in { Span::NONE } else { span };
+        let field_span = if mixed_in && init.is_none() { Span::NONE } else { span };
         let field_tpt = l.type_tree(info, field_span);
         let def = Tree::ValDef { name, tpt: field_tpt, rhs: init };
         (field, l.tpd.node(def, field_span, None, Some(field)))

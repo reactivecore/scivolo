@@ -112,6 +112,7 @@ mod summon_from;
 mod supers;
 mod this;
 mod this_calls;
+mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;

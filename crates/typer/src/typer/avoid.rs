@@ -86,7 +86,8 @@ impl Typer<'_> {
                 let parents = self.u.parents(s);
                 let proper = parents.iter().filter(|&&p| self.u.class_symbol(p) != Some(object)).count();
                 avoided = parents.into_iter().fold(tasty::ANY, |acc, p| self.u.glb(acc, p));
-                if proper > 2 || self.needs_refinement(s, avoided) {
+                let intersection = matches!(self.u.types().get(avoided), Type::And(..));
+                if proper > 2 && intersection || self.needs_refinement(s, avoided) {
                     return None;
                 }
                 checked = true;

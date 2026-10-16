@@ -86,8 +86,9 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId], mut pending: Pending) -> Re
 fn prepare(l: &mut Lower, td: TNodeId, pending: &Pending) -> Result<Option<Lifting>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { body, .. } = *l.tpd.tree(template) else { return Ok(None) };
-    let stats = l.tpd.items(body).to_vec();
+    let Tree::Template { parents, body, .. } = *l.tpd.tree(template) else { return Ok(None) };
+    let mut stats = super::trait_params::trait_args(l, parents);
+    stats.extend_from_slice(l.tpd.items(body));
     let (mut functions, mut roots, mut in_static) = (Vec::new(), Vec::new(), Vec::new());
     for &stat in &stats {
         let method = matches!((l.tpd.tree(stat), l.tpd.sym(stat)),

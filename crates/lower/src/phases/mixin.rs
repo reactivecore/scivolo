@@ -44,15 +44,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
     let Tree::Template { constr, parents, self_, body } = *l.tpd.tree(template) else { return Ok(()) };
     if l.u.is_trait(class) {
-        let Tree::DefDef { paramss, .. } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
-        let clauses = l.tpd.clause_items(paramss).to_vec();
-        let value_params = clauses
-            .iter()
-            .flat_map(|&c| l.tpd.items(c))
-            .any(|&p| !matches!(l.tpd.tree(p), Tree::TypeDef { .. }));
-        if value_params {
-            return unsupported(span, "trait parameters");
-        }
+        super::trait_params::strip_params(l, constr);
         super::accessor_names::expand_private(l, class);
         let stats = trait_defs(l, td);
         let body = l.tpd.list(&stats);
@@ -61,6 +53,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
     }
     let at = if span.exists() { Span::at(span.point()) } else { span };
     let mut forwarders = Vec::new();
+    let (parents, mut args) = super::trait_params::split_parents(l, parents)?;
     for mixin in mixins(l, class) {
         let library = l.u.symbol(mixin).tree.is_some();
         if let Some(arity) = function_arity(l, mixin)
@@ -72,7 +65,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
             super::library_traits::prepare(l, mixin, span)?;
         }
         if !library || !l.u.no_inits(mixin) {
-            forwarders.extend(mixed_in(l, class, mixin, span)?);
+            forwarders.extend(mixed_in(l, class, mixin, args.remove(&mixin), span)?);
         }
         let methods = match l.local_classes.contains_key(&mixin) {
             true => {
@@ -86,6 +79,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
     }
     if forwarders.is_empty() {
+        l.tpd.get_mut(template).tree = Tree::Template { constr, parents, self_, body };
         return Ok(());
     }
     let mut stats = forwarders;

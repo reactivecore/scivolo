@@ -19,10 +19,16 @@ use typer::tpd::{TNodeId, Tree};
 pub fn transform(l: &mut Lower, td: TNodeId) -> Result<FxHashSet<SymbolId>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
     let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
-    let Tree::Template { constr, body, .. } = *l.tpd.tree(template) else { return Ok(FxHashSet::default()) };
+    let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
+        return Ok(FxHashSet::default());
+    };
+    if l.u.is_trait(class) {
+        return Ok(FxHashSet::default());
+    }
     let stats = l.tpd.items(body).to_vec();
     let values = droppable(l, class, &stats);
-    let retained = retained(l, class, &stats, &values);
+    let trait_args = super::trait_params::trait_args(l, parents);
+    let retained = retained(l, class, (&stats, &trait_args), &values);
     let dropped: Vec<SymbolId> = values.iter().map(|&(v, _)| v).filter(|v| !retained.contains(v)).collect();
     let params = constructor_params(l, constr);
     for stat in stats {
@@ -111,16 +117,18 @@ fn droppable(l: &Lower, class: SymbolId, stats: &[TNodeId]) -> Vec<(SymbolId, us
 
 /// The private parameter fields and local values of class `class` that `stats` refer to outside
 /// the constructor, on another object, from a function the constructor cannot pass its
-/// parameters, or, for a value, not after its definition (dotty's `markUsedPrivateSymbols`).
+/// parameters, or, for a value, not after its definition (dotty's `markUsedPrivateSymbols`);
+/// `trait_args` count as statements.
 fn retained(
     l: &Lower,
     class: SymbolId,
-    stats: &[TNodeId],
+    (stats, trait_args): (&[TNodeId], &[TNodeId]),
     values: &[(SymbolId, usize)],
 ) -> FxHashSet<SymbolId> {
     let mut out = FxHashSet::default();
     let mut todo: Vec<(TNodeId, Option<SymbolId>, usize)> =
         stats.iter().enumerate().map(|(i, &s)| (s, None, i)).collect();
+    todo.extend(trait_args.iter().map(|&a| (a, None, 0)));
     while let Some((t, method, at)) = todo.pop() {
         let inner = match l.tpd.tree(t) {
             Tree::DefDef { .. } | Tree::TypeDef { .. } => l.tpd.sym(t),
