@@ -1,10 +1,9 @@
-//! Access to private and protected members (dotty's `isAccessibleFrom`, as far as the subset
-//! goes: a restricted member is accessible from inside its class).
+//! Checks of references: access, values, `Local` members.
 
 use super::Typer;
 use crate::ctx::Ctx;
 use syntax::ast::flags as f;
-use tasty::tags::{PRIVATE, PRIVATEqualified, PROTECTED, PROTECTEDqualified};
+use tasty::tags::PRIVATE;
 use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -16,7 +15,7 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
         ctx: Ctx,
     ) -> Result<(), &'static str> {
-        if !self.is_accessible(sym, ctx) {
+        if !self.is_accessible_from(sym, prefix, ctx) {
             return Err("inaccessible member");
         }
         self.check_inline_reference(sym, ctx)?;
@@ -43,27 +42,6 @@ impl Typer<'_> {
             return Err("object of a Java class used as a value");
         }
         Ok(())
-    }
-
-    /// Whether `sym` may be referred to from `ctx`: it is unrestricted, or `ctx` is inside its
-    /// owner, or, if it is protected, inside a subclass of its owner.
-    pub fn is_accessible(&mut self, sym: SymbolId, ctx: Ctx) -> bool {
-        let flags = self.u.symbol(sym).flags;
-        let private = flags.has(PRIVATE) || flags.has(PRIVATEqualified);
-        let protected = flags.has(PROTECTED) || flags.has(PROTECTEDqualified);
-        let within = self.syms.private_within.get(&sym).copied();
-        if !private && !protected && within.is_none() {
-            return true;
-        }
-        let Some(owner) = within.or(self.u.symbol(sym).owner) else { return true };
-        let mut encl = Some(ctx.owner);
-        while let Some(e) = encl {
-            if e == owner || protected && self.u.derives_from(e, owner) {
-                return true;
-            }
-            encl = self.u.symbol(e).owner;
-        }
-        false
     }
 
     /// Drops `Local` from member `sym` accessed through `prefix`, not its owner's `this`, if it

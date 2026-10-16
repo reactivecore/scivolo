@@ -91,6 +91,12 @@ impl Typer<'_> {
             Ok(sym) => self.jdk_inherited(sym),
             Err(what) => return self.unchosen(id, what, pt),
         };
+        if !converted
+            && !self.is_accessible_from(sym, Some(qual_tpe), ctx)
+            && self.extension_visible(&text, ctx)
+        {
+            return self.extension_select(id, qual, name, pt, ctx);
+        }
         if let Err(what) = self.check_reference(sym, Some(qual_tpe), ctx) {
             return self.unsupported(id, what);
         }
@@ -110,6 +116,7 @@ impl Typer<'_> {
             });
         if protected
             && !super_call
+            && !self.is_within_boundary(sym, ctx)
             && !matches!(self.u.types().get(qual_tpe), Type::This(_) | Type::Super(..))
         {
             return self.unsupported(id, "protected member through a path");
