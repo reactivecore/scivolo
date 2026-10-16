@@ -104,6 +104,26 @@ pub fn outer_this(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<Vec<Symb
     outer_chain(l, class, target)
 }
 
+/// For a reference `t` by name to a member of a class enclosing `class` through enclosing
+/// instances, `t` made a selection on that class's `this`, returned (dotty's `desugarIdent`); of
+/// an object `class` is in, its `this`.
+pub fn outer_prefix(l: &mut Lower, t: TNodeId, class: SymbolId) -> Option<TNodeId> {
+    let Tree::Ident { name } = *l.tpd.tree(t) else { return None };
+    let Type::Sym(Some(prefix), _) = *l.u.types().get(l.tpd.get(t).tpe?) else { return None };
+    let Type::This(c) = *l.u.types().get(prefix) else { return None };
+    let c = l.u.class_symbol(c).filter(|&c| c != class)?;
+    outer_chain(l, class, c)?;
+    let module = l.tpd.sym(t).and_then(|s| l.u.module_class(s).filter(|_| l.u.is_module(s)));
+    if let Some(m) = module.filter(|&m| super::local_free::within(l, class, m)) {
+        let this = l.this(m, l.tpd.span(t));
+        l.copy_node(t, this);
+        return Some(t);
+    }
+    let this = l.this(c, l.tpd.span(t).start_pos());
+    l.tpd.get_mut(t).tree = Tree::Select { qualifier: this, name };
+    Some(this)
+}
+
 /// The classes from the enclosing instance of `class` out to `target`, if it is reached through
 /// enclosing instances.
 pub fn outer_chain(l: &mut Lower, class: SymbolId, target: SymbolId) -> Option<Vec<SymbolId>> {

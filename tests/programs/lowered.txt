@@ -109,3 +109,4 @@ bynameimplicits
 subcases
 typetests3
 localgenerics
+outerpatterns

@@ -3,7 +3,7 @@
 //! constructor code, else the field. An anonymous local class has the field only where its
 //! methods read it and the accessor only where called (dotty's `DropOuterAccessors`).
 
-use super::explicit_outer::{outer_accessor, outer_this, terms};
+use super::explicit_outer::{outer_accessor, outer_prefix, outer_this, terms};
 use super::local_free::is_local;
 use super::local_outer::is_anonymous;
 use super::walk::children;
@@ -49,6 +49,7 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
         let all = terms(l, stat, false);
         let mut parents: Option<FxHashMap<TNodeId, TNodeId>> = None;
         for &t in &all {
+            let t = outer_prefix(l, t, class).unwrap_or(t);
             let Some(chain) = outer_this(l, t, class) else { continue };
             let parents = parents.get_or_insert_with(|| {
                 all.iter().flat_map(|&p| children(l.tpd, p).into_iter().map(move |c| (c, p))).collect()
