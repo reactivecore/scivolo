@@ -38,13 +38,15 @@ impl Typer<'_> {
         else {
             return Ok(None);
         };
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let mut args = Vec::new();
         for &(_, p) in &params {
-            args.push(self.implicit_arg(p, at, ctx, depth)?);
+            let before: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+            let formal = self.applied_result(p, (binder, &names), meth, &before);
+            args.push(self.implicit_arg(formal, at, ctx, depth)?);
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);
         Ok(Some(self.build().apply(tree, &args, result, span)))
     }

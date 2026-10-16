@@ -87,7 +87,7 @@ impl Typer<'_> {
     /// value's singleton type, a class with its type parameters solved from `C[Xs] <: target`,
     /// contravariant ones minimized, the others maximized.
     pub fn child_type(&mut self, c: SymbolId, target: TypeId) -> Result<TypeId, &'static str> {
-        let raw = crate::defn::type_ref(self.u, c);
+        let raw = self.reachable_ref(c);
         let params = match self.u.is_class(c) {
             true => self.u.type_params(c),
             false => Vec::new(),
@@ -104,6 +104,22 @@ impl Typer<'_> {
         match solved && self.is_fully_defined(t) {
             true => Ok(t),
             false => Err("sum Mirror of a child whose type parameters are not solved"),
+        }
+    }
+
+    /// A reference to `s` reachable from outside its owners (dotty's `reachableTermRef`): through
+    /// the paths of the objects that are not static it is nested in.
+    fn reachable_ref(&mut self, s: SymbolId) -> TypeId {
+        let owner = self.u.symbol(s).owner;
+        match owner.filter(|&o| self.u.is_module_class(o) && !self.u.is_static_symbol(o)) {
+            Some(o) => match self.u.source_module(o) {
+                Some(module) => {
+                    let prefix = self.reachable_ref(module);
+                    self.u.intern_type(Type::Sym(Some(prefix), s))
+                }
+                None => crate::defn::type_ref(self.u, s),
+            },
+            None => crate::defn::type_ref(self.u, s),
         }
     }
 

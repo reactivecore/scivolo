@@ -38,7 +38,7 @@ impl Typer<'_> {
                 return self.unsupported(r, "refinement referring to the refined type's members");
             }
             let text = self.text(name.name).to_owned();
-            if !self.refines_type_member(tpe, &text) {
+            if !self.refines_type_member(tpe, &text) && !self.is_mirror_type(tpe) {
                 return self.unsupported(r, "refinement that refines no type member");
             }
             let info = self.type_def_info(rhs, ctx);
@@ -88,6 +88,15 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::TypeRef(pre, text));
         let span = self.ast.span(id);
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
+    }
+
+    /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
+    /// `MirroredType` and `MirroredElemTypes` exist only as refinements.
+    fn is_mirror_type(&mut self, mut t: TypeId) -> bool {
+        while let Type::Refined(parent, ..) = *self.u.types().get(t) {
+            t = parent;
+        }
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
     }
 
     /// Whether `t` has a type member named `name` that is not a class.

@@ -70,7 +70,7 @@ impl Typer<'_> {
     fn is_plain_prefix(&mut self, p: TypeId) -> bool {
         match self.u.types().get(p).clone() {
             Type::Package(_) | Type::PackageName(_) | Type::This(_) | Type::NoPrefix => true,
-            Type::Sym(_, s) => self.u.is_module(s) && self.u.is_static_symbol(s),
+            Type::Sym(p, s) => self.u.is_module(s) && p.is_none_or(|p| self.is_plain_prefix(p)),
             _ => false,
         }
     }
