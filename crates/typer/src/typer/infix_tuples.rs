@@ -33,7 +33,7 @@ impl Typer<'_> {
     /// The tupled dual of the arguments of `proto` if not every one of `alts` is unary.
     pub fn untupled_args(&mut self, proto: usize, alts: &[SymbolId]) -> Option<Vec<NodeId>> {
         let elems = self.protos[proto].dual.clone()?;
-        Some(elems).filter(|_| !alts.iter().all(|&s| self.is_unary(s)))
+        (!alts.iter().all(|&s| self.is_unary(s))).then_some(elems)
     }
 
     /// Whether the first parameter clause of `s` has exactly one parameter, not repeated
