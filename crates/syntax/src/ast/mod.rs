@@ -181,4 +181,16 @@ impl Ast {
     pub fn modifiers_mut(&mut self, id: ModsId) -> &mut Modifiers {
         &mut self.mods[id.index()]
     }
+
+    /// How many trees and modifiers there are, for `shift_spans`.
+    pub fn mark(&self) -> (usize, usize) {
+        (self.nodes.len(), self.mods.len())
+    }
+
+    /// Moves the spans of the trees and modifiers made since `mark` `by` bytes later.
+    pub fn shift_spans(&mut self, (nodes, mods): (usize, usize), by: crate::source::Offset) {
+        self.nodes[nodes..].iter_mut().for_each(|n| n.span = n.span.shifted(by));
+        let written = self.mods[mods..].iter_mut().flat_map(|m| m.mods.iter_mut());
+        written.for_each(|m| m.span = m.span.shifted(by));
+    }
 }
