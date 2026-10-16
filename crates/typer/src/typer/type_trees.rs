@@ -125,7 +125,7 @@ impl Typer<'_> {
         self.u.map_type(t, &mut |u, part| {
             if let Type::Sym(_, s) = *u.types().get(part) {
                 abstract_part |= match u.symbol(s).kind {
-                    Kind::TypeParam => true,
+                    Kind::TypeParam | Kind::Param => true,
                     Kind::Type => {
                         let info = u.info(s);
                         matches!(u.types().get(info), Type::Bounds(..))

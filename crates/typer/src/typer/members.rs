@@ -84,6 +84,10 @@ impl Typer<'_> {
                 let dealiased = self.u.dealias(t);
                 self.members_within(dealiased, name, within)
             }
+            Type::Match { bound, .. } => {
+                let sup = self.u.try_normalize(t).unwrap_or(bound);
+                self.members_within(sup, name, within)
+            }
             Type::And(a, b) => {
                 let (ma, mb) = (self.members_within(a, name, within), self.members_within(b, name, within));
                 self.and_members(t, (ma, mb), ctx)
@@ -111,6 +115,13 @@ impl Typer<'_> {
             && self.instantiate_var(v, true).is_ok()
         {
             return self.zonk(t);
+        }
+        let dealiased = self.u.dealias(t);
+        if matches!(self.u.types().get(dealiased), Type::Match { .. })
+            && !self.is_fully_defined(t)
+            && let Ok(defined) = self.fully_defined_as(t, true)
+        {
+            return defined;
         }
         t
     }

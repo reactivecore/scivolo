@@ -58,6 +58,10 @@ impl Universe {
             | Type::Skolem(_, u) => {
                 return self.base_type_within(u, base, depth);
             }
+            Type::Match { bound, .. } => {
+                let sup = self.try_normalize(t).unwrap_or(bound);
+                return self.base_type_within(sup, base, depth);
+            }
             _ => (t, Vec::new()),
         };
         let (prefix, s) = match self.types().get(tycon).clone() {

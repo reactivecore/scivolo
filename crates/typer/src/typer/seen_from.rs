@@ -209,6 +209,10 @@ fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 /// `simplified` of an inferred type).
 pub fn normalize_all(u: &mut tasty::Universe, t: TypeId) -> TypeId {
     u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        Type::Applied(tycon, _) if matches!(u.types().get(tycon), Type::Lambda { .. }) => {
+            let reduced = u.beta_reduced(part);
+            Some(normalize_all(u, reduced))
+        }
         Type::Applied(..) | Type::Match { .. } => u.try_normalize(part).map(|n| normalize_all(u, n)),
         _ => None,
     })

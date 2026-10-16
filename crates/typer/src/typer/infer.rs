@@ -62,7 +62,7 @@ impl Typer<'_> {
         let (lo, hi) = self.constraint.bounds(v);
         let (lo, hi) = (self.zonk(lo), self.zonk(hi));
         let mut inst = if from_below { lo } else { hi };
-        inst = self.simplified(inst);
+        inst = self.simplified_inferred(inst);
         if from_below {
             let widen = if self.constraint.is_hard(v) { Widen::Singletons } else { Widen::Unions };
             inst = self.widen_inferred(inst, hi, widen)?;

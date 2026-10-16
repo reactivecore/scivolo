@@ -201,8 +201,8 @@ fn transparent_inline_refusals() {
             "transparent inline extractor",
         ),
         (
-            "object D { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K): k.T = k.t
-             val r = d(new K) }",
+            "object D { class K { type T = Int; val t: T = 1 }; transparent inline def d(k: K, n: Int): k.T = k.t
+             val r = d(n = 1, k = new K) }",
             "dependent result type",
         ),
         ("object rs$line$1 { transparent inline def e: Any = 1 }", ""),
