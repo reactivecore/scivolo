@@ -51,5 +51,6 @@ int32_t scalai_aot_llvm_ctlz_i32(int32_t x, int8_t undef) { return x ? __builtin
 int64_t scalai_aot_llvm_ctlz_i64(int64_t x, int8_t undef) { return x ? __builtin_clzll(x) : 64; }
 int32_t scalai_aot_llvm_cttz_i32(int32_t x, int8_t undef) { return x ? __builtin_ctz(x) : 32; }
 int64_t scalai_aot_llvm_cttz_i64(int64_t x, int8_t undef) { return x ? __builtin_ctzll(x) : 64; }
+void scalai_aot_llvm_donothing(void) {}
 int32_t scalai_aot_llvm_ctpop_i32(int32_t x) { return __builtin_popcount(x); }
 int64_t scalai_aot_llvm_ctpop_i64(int64_t x) { return __builtin_popcountll(x); }

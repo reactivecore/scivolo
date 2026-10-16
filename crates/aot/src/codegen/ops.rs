@@ -26,8 +26,8 @@ impl FnBuilder<'_, '_> {
                 let (l, r) = (self.val(*l)?, self.val(*r)?);
                 self.bin(*bin, l, r, nonzero)?
             }
-            Op::Comp { comp, l, r, .. } => {
-                let (l, r) = (self.val(*l)?, self.val(*r)?);
+            Op::Comp { comp, ty, l, r } => {
+                let (l, r) = (self.arg_of(*l, *ty)?, self.arg_of(*r, *ty)?);
                 match comp_cc(*comp) {
                     Ok(cc) => self.b.ins().icmp(cc, l, r),
                     Err(cc) => self.b.ins().fcmp(cc, l, r),
