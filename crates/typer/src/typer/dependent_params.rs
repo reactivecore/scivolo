@@ -1,34 +1,7 @@
-//! Parameter and result types an application leaves to dotty: by-name, dependent.
+//! Substituting arguments for the parameters of a method type (dotty's `safeSubstParam`).
 
-use super::Typer;
 use super::stability::is_stable_path;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId, Universe};
-
-impl Typer<'_> {
-    /// Whether parameter type `p` is by-name or refers to a parameter.
-    pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = false;
-        self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
-            None
-        });
-        special
-    }
-
-    pub fn applied_result(
-        &mut self,
-        t: TypeId,
-        params: (Binder, &[String]),
-        method: Option<SymbolId>,
-        args: &[TypeId],
-    ) -> TypeId {
-        applied_result(self.u, t, params, method, args)
-    }
-
-    pub fn mentions_params(&mut self, t: TypeId, binder: Binder, method: Option<SymbolId>) -> bool {
-        mentions_params(self.u, t, binder, method)
-    }
-}
 
 /// Result `t` of the method type of binder `binder` and parameters `names`, of method `method`,
 /// applied to arguments of types `args`: its references to the parameters replaced by the
@@ -115,33 +88,17 @@ fn substituted(
         if new_pre == pre {
             return None;
         }
-        let name = u.symbol(s).name.clone();
-        if let Some(alias) = refined_alias(u, new_pre, &name) {
+        if matches!(u.types().get(new_pre), Type::Skolem(..) | Type::Refined(..))
+            && let Some(info) = u.refinement_info(new_pre, s)
+            && let Type::Alias(alias) = *u.types().get(info)
+        {
             return Some(alias);
         }
+        let name = u.symbol(s).name.clone();
         let members = u.member_of_type(new_pre, &name);
         let member = members.into_iter().find(|&m| u.symbol(m).kind == Kind::Type).unwrap_or(s);
         Some(u.intern_type(Type::Sym(Some(new_pre), member)))
     })
-}
-
-/// The alias a refinement of `pre` gives type member `name` (dotty's `lookupRefined`).
-fn refined_alias(u: &mut Universe, mut pre: TypeId, name: &str) -> Option<TypeId> {
-    for _ in 0..64 {
-        pre = match u.types().get(pre).clone() {
-            Type::Refined(_, n, info) if n == name => {
-                return match *u.types().get(info) {
-                    Type::Alias(a) => Some(a),
-                    Type::Bounds(..) | Type::Wildcard(_) => None,
-                    _ => Some(info),
-                };
-            }
-            Type::Refined(p, ..) | Type::Skolem(_, p) | Type::Annotated(p, _) => p,
-            Type::Sym(_, s) if u.symbol(s).kind == Kind::Type => u.alias_of(s)?,
-            _ => return None,
-        };
-    }
-    None
 }
 
 /// Whether type `t` refers to a value parameter of the method type of binder `binder`, or of

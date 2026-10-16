@@ -1,6 +1,7 @@
 //! Type patterns of abstract types (dotty's `tryWithTypeTest`, and the unchecked warning of
 //! `TypeTestsCasts.checkTypePattern`).
 
+use super::closures::has_wildcard;
 use super::implicits::is_misfit;
 use super::irrefutable::UNCHECKED;
 use super::{Pt, Typer};
@@ -31,7 +32,7 @@ impl Typer<'_> {
             _ => dealiased,
         };
         let same = self.u.is_subtype(dealiased, p) && self.u.is_subtype(p, dealiased);
-        if !self.is_abstract_type(tycon) || same || self.has_wildcard(dealiased) {
+        if !self.is_abstract_type(tycon) || same || has_wildcard(self.u, dealiased) {
             return Ok(None);
         }
         let at = Span::at(self.ast.span(tpt).start());
@@ -81,7 +82,7 @@ impl Typer<'_> {
                 let side = |s: &mut Self, x| s.is_erased_test_type(x) || s.is_testable_type(x);
                 side(self, a) && side(self, b)
             }
-            _ => self.is_abstract_type(t) && !self.has_wildcard(t),
+            _ => self.is_abstract_type(t) && !has_wildcard(self.u, t),
         }
     }
     /// dotty's unchecked warning at `span` about testing a value of type `pt` for `tpe` that
