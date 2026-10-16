@@ -21,9 +21,13 @@ pub fn to_anon_class(
 ) -> Result<()> {
     let span = coord(l, fn_def, anon);
     let class = l.u.class_symbol(sam).expect("a single abstract method class");
-    let [method] = abstract_methods(l, class)[..] else {
-        return unsupported(span, "single abstract method types whose expansion needs bridges");
+    let methods = abstract_methods(l, class);
+    let Some(&method) = methods.first() else {
+        return unsupported(span, "single abstract method classes without an abstract method");
     };
+    if methods.iter().any(|&m| l.u.symbol(m).name != l.u.symbol(method).name) {
+        return unsupported(span, "single abstract method types whose expansion needs bridges");
+    }
     let mut parents = vec![sam];
     if l.u.is_trait(class) {
         let (object, any) = (l.defs.object, l.u.builtins().any);

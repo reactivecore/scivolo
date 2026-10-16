@@ -107,3 +107,11 @@ samclasses
 lowerfixes2
 bynameimplicits
 inlinemembers
+subcases
+typetests3
+localgenerics
+outerpatterns
+innerctors
+sealedsums
+unitcases
+sambridges

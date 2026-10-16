@@ -268,9 +268,11 @@ pub enum Tree {
         expr: NodeId,
         selectors: List,
     },
+    /// `ext` is the `ExtMethods` tree, as parsed, of the extension the export is in.
     Export {
         expr: NodeId,
         selectors: List,
+        ext: Option<NodeId>,
     },
     PackageDef {
         pid: NodeId,

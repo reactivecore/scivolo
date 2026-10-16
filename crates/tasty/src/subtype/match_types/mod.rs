@@ -1,6 +1,7 @@
 //! Normalization (dotty's `normalized`, `tryNormalize`, `underlyingNormalizable`): match types
 //! reduced, `scala.compiletime.ops` applications folded.
 
+mod concrete;
 mod disjoint;
 mod disjoint_args;
 mod ops;
@@ -25,6 +26,11 @@ impl Universe {
     /// `t` normalized, if a normalization applies (dotty's `tryNormalize`).
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         Cmp::new(self, &mut NoVars).try_normalize(t)
+    }
+
+    /// Whether match type case `case` has a pattern that reduction handles.
+    pub fn is_reducible_case(&mut self, case: TypeId) -> bool {
+        !matches!(Cmp::new(self, &mut NoVars).analyze(case), spec::Spec::Unsupported)
     }
 }
 

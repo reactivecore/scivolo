@@ -86,7 +86,7 @@ impl Desugar<'_> {
             }
             DefDef { .. } | TypeDef { .. } => return self.transform(id),
             Import { expr, selectors } => Import { expr: self.transform(expr), selectors },
-            Export { expr, selectors } => Export { expr: self.transform(expr), selectors },
+            Export { expr, selectors, ext } => Export { expr: self.transform(expr), selectors, ext },
             Annotated { arg, annot } => Annotated { arg: self.transform(arg), annot: self.transform(annot) },
             ModuleDef { name, imp, mods } => ModuleDef { name, imp: self.transform(imp), mods },
             ParsedTry { expr, handler, finalizer } => ParsedTry {

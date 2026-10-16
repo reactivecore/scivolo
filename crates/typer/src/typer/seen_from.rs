@@ -64,18 +64,6 @@ impl Typer<'_> {
         resolve_class_params(self.u, t)
     }
 
-    /// `t` without `@uncheckedVariance` annotations, its unions and intersections the lubs and
-    /// glbs of their parts (dotty's `TypeOps.simplify` of a term's type).
-    pub fn simplified(&mut self, t: TypeId) -> TypeId {
-        simplify(self.u, t)
-    }
-
-    /// `simplified`, match types reduced and compile-time operations folded too.
-    pub fn simplified_inferred(&mut self, t: TypeId) -> TypeId {
-        let t = normalize_all(self.u, t);
-        simplify(self.u, t)
-    }
-
     /// `t` with applied type lambdas and applied aliases of type lambdas reduced (dotty's
     /// `appliedTo`: an alias only if it eta-expands its result), and capture-checking annotations
     /// (`retains`) dropped; an impure function alias only if its arguments have such annotations.
@@ -180,40 +168,6 @@ pub fn normalized(u: &mut tasty::Universe, t: TypeId) -> TypeId {
 }
 
 /// Whether `s` is a member of package `pkg` whose name `name` accepts.
-fn member_of(u: &tasty::Universe, s: SymbolId, pkg: &str, name: impl Fn(&str) -> bool) -> bool {
+pub fn member_of(u: &tasty::Universe, s: SymbolId, pkg: &str, name: impl Fn(&str) -> bool) -> bool {
     name(&u.symbol(s).name) && u.symbol(s).owner.is_some_and(|o| u.package(pkg) == Some(o))
-}
-
-fn simplify(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Annotated(inner, annot) => {
-            let class = u.class_symbol(annot);
-            class
-                .is_some_and(|c| member_of(u, c, "scala.annotation.unchecked", |n| n == "uncheckedVariance"))
-                .then(|| simplify(u, inner))
-        }
-        Type::Or(a, b, soft) => {
-            let (a, b) = (simplify(u, a), simplify(u, b));
-            Some(u.lub_as(a, b, soft))
-        }
-        Type::And(a, b) => {
-            let (a, b) = (simplify(u, a), simplify(u, b));
-            Some(u.glb(a, b))
-        }
-        Type::Super(..) => Some(part),
-        _ => None,
-    })
-}
-
-/// `t` with match types reduced and compile-time operations folded, everywhere (dotty's
-/// `simplified` of an inferred type).
-pub fn normalize_all(u: &mut tasty::Universe, t: TypeId) -> TypeId {
-    u.map_type(t, &mut |u, part| match *u.types().get(part) {
-        Type::Applied(tycon, _) if matches!(u.types().get(tycon), Type::Lambda { .. }) => {
-            let reduced = u.beta_reduced(part);
-            Some(normalize_all(u, reduced))
-        }
-        Type::Applied(..) | Type::Match { .. } => u.try_normalize(part).map(|n| normalize_all(u, n)),
-        _ => None,
-    })
 }

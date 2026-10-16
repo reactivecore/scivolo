@@ -116,13 +116,6 @@ impl Typer<'_> {
         {
             return self.zonk(t);
         }
-        let dealiased = self.u.dealias(t);
-        if matches!(self.u.types().get(dealiased), Type::Match { .. })
-            && !self.is_fully_defined(t)
-            && let Ok(defined) = self.fully_defined_as(t, true)
-        {
-            return defined;
-        }
         t
     }
 

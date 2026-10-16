@@ -62,12 +62,8 @@ impl Typer<'_> {
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
-                let dealiased = self.u.dealias(tpe);
-                if matches!(self.u.types().get(dealiased), Type::Match { .. })
-                    && self.is_ground(tpe)
-                    && self.u.try_normalize(tpe).is_none()
-                {
-                    return self.unsupported(id, "match type that does not reduce");
+                if self.is_ground_match(tpe) {
+                    return self.unsupported(id, "match type that may reduce");
                 }
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)
@@ -114,31 +110,6 @@ impl Typer<'_> {
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
         }
-    }
-
-    /// Whether `tycon[args]` normalizes, a compile-time operation on constants.
-    fn folds(&mut self, tycon: TypeId, args: &[TypeId]) -> bool {
-        let op = self.u.intern_type(Type::Applied(tycon, args.to_vec()));
-        self.u.try_normalize(op).is_some()
-    }
-
-    /// Whether `t` refers to no type parameter and no abstract type.
-    fn is_ground(&mut self, t: TypeId) -> bool {
-        let mut abstract_part = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
-                abstract_part |= match u.symbol(s).kind {
-                    Kind::TypeParam | Kind::Param => true,
-                    Kind::Type => {
-                        let info = u.info(s);
-                        matches!(u.types().get(info), Type::Bounds(..))
-                    }
-                    _ => false,
-                };
-            }
-            None
-        });
-        !abstract_part
     }
 
     /// How many type parameters type constructor `t` takes: a class's, a type lambda's.

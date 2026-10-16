@@ -1,5 +1,4 @@
-//! Whether two types have no value in common (dotty's `provablyDisjoint`, SIP-56's
-//! disjointness): the false answer stands for "not provably", so a match stays stuck.
+//! Whether two types provably have no value in common (dotty's `provablyDisjoint`).
 
 use super::super::Cmp;
 use super::super::refs::Meaning;
@@ -161,8 +160,8 @@ impl Cmp<'_> {
         }
     }
 
-    /// Whether classes `c1` and `c2` have no common instance (dotty's `provablyDisjointClasses`);
-    /// sealed classes are not decomposed, as the universe does not know their children.
+    /// Whether classes `c1` and `c2` have no common instance (dotty's `provablyDisjointClasses`
+    /// without the decomposition of sealed classes).
     fn disjoint_classes(&mut self, c1: SymbolId, c2: SymbolId) -> bool {
         if self.u.derives_from(c1, c2) || self.u.derives_from(c2, c1) {
             return false;

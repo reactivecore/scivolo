@@ -16,6 +16,7 @@ mod apply_insertion;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;
+mod avoid_captures;
 mod avoid_pattern_types;
 mod call_types;
 mod case_lambdas;
@@ -33,6 +34,7 @@ mod context_functions;
 mod control;
 mod default_args;
 mod default_params;
+mod define_further;
 mod defs;
 pub(crate) mod dependent_params;
 mod derived;
@@ -45,6 +47,7 @@ mod equality;
 mod errors;
 mod escaping;
 mod eta;
+mod export_trees;
 mod extension_calls;
 mod features;
 mod find_ref;
@@ -109,6 +112,7 @@ mod sams;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
+pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
 mod stats;
@@ -204,6 +208,8 @@ pub struct Typer<'a> {
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
     pub accessors: inline_accessors::Accessors,
+    /// The forwarders of each export clause in a class body.
+    pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -258,6 +264,7 @@ impl<'a> Typer<'a> {
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
             accessors: Default::default(),
+            exports: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();

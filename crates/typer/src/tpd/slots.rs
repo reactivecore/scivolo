@@ -69,7 +69,7 @@ impl Tree {
             Tree::Apply { fun: a, args: l }
             | Tree::TypeApply { fun: a, args: l }
             | Tree::AppliedTypeTree { tpt: a, args: l }
-            | Tree::Import { expr: a, selectors: l }
+            | Tree::Import { expr: a, selectors: l, export: _ }
             | Tree::PackageDef { pid: a, stats: l } => s(&[N(a), L(l)]),
             Tree::SeqLiteral { elems: l, elemtpt: a }
             | Tree::Block { stats: l, expr: a }
@@ -159,7 +159,7 @@ mod tests {
             Tree::ValDef { name, tpt: a, rhs: Some(b) },
             Tree::DefDef { name, paramss, tpt: a, rhs: Some(b) },
             Tree::Template { constr: a, parents: l, self_: Some(d), body: m },
-            Tree::Import { expr: a, selectors: k },
+            Tree::Import { expr: a, selectors: k, export: false },
             Tree::ImportSelector { imported: a, renamed: Some(b), bound: Some(c) },
             Tree::PackageDef { pid: a, stats: l },
             Tree::Inlined { call: Some(a), bindings: l, expansion: b },
