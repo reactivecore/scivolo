@@ -5,6 +5,7 @@
 use super::case_members::case_accessors;
 use super::enum_values::is_enum_value;
 use super::lift_names::fresh;
+use super::sum_mirrors::is_generic_sum;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
@@ -16,6 +17,7 @@ use typer::tpd::{TNodeId, Tree};
 /// The parent object class `class` gets and its members, at `span`'s point.
 pub fn mirror_support(
     l: &mut Lower,
+    root: TNodeId,
     class: SymbolId,
     span: Span,
 ) -> Result<Option<(SymbolId, Vec<TNodeId>)>> {
@@ -35,17 +37,27 @@ pub fn mirror_support(
         let ordinal = ordinal(l, class, linked, focus)?;
         return Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])));
     }
-    if has(l.u, linked, SEALED) {
-        return unsupported(span, "companions of sealed classes other than enums");
+    let focus = Span::new(span.point(), span.point(), span.point());
+    if is_generic_product(l, linked) {
+        mono_type(l, class, linked);
+        let from_product = from_product(l, class, linked, focus)?;
+        return Ok(Some((l.case_classes()?.mirror_product, vec![from_product])));
     }
-    let value_class = l.u.underlying(linked).is_some();
-    if !has(l.u, linked, CASE) || has(l.u, linked, ABSTRACT) || value_class || param_lists(l, linked) != 1 {
+    if !has(l.u, linked, SEALED) || !is_generic_sum(l, root, linked) {
         return Ok(None);
     }
+    if !l.u.type_params(linked).is_empty() {
+        return unsupported(span, "companions of generic sealed classes");
+    }
     mono_type(l, class, linked);
-    let focus = Span::new(span.point(), span.point(), span.point());
-    let from_product = from_product(l, class, linked, focus)?;
-    Ok(Some((l.case_classes()?.mirror_product, vec![from_product])))
+    let ordinal = super::sum_mirrors::ordinal(l, root, class, linked, focus)?;
+    Ok(Some((l.case_classes()?.mirror_sum, vec![ordinal])))
+}
+
+/// Whether `c` is a case class dotty gives a product mirror (`isGenericProduct`).
+pub fn is_generic_product(l: &mut Lower, c: SymbolId) -> bool {
+    let value_class = l.u.underlying(c).is_some();
+    has(l.u, c, CASE) && !has(l.u, c, ABSTRACT) && !value_class && param_lists(l, c) == 1
 }
 
 /// The number of parameter lists of the primary constructor of class `c`.
