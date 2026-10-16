@@ -1,7 +1,7 @@
 //! Type patterns of abstract types (dotty's `tryWithTypeTest`, and the unchecked warning of
 //! `TypeTestsCasts.checkTypePattern`).
 
-use super::closures::has_wildcard;
+use super::dependent_results::has_wildcard;
 use super::implicits::is_misfit;
 use super::irrefutable::UNCHECKED;
 use super::{Pt, Typer};
