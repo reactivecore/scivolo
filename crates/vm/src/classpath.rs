@@ -42,19 +42,15 @@ impl Classpath {
 
     /// `paths`, then the library jars `jars`.
     pub fn with_jars(paths: &[PathBuf], jars: &[PathBuf]) -> io::Result<Self> {
-        let mut classpath = Self::open(paths)?;
-        classpath.roots.extend(Self::open(jars)?.roots);
-        Ok(classpath)
+        Ok(Self { own: paths.len(), ..Self::open(&[paths, jars].concat())? })
     }
 
     /// Adds directory or jar `path` before the library.
     pub fn add(&mut self, path: &Path) -> io::Result<()> {
-        let root = match Self::open(&[path.to_owned()])?.roots.pop() {
-            Some(root) => root,
-            None => return Ok(()),
-        };
-        self.roots.insert(self.own, root);
-        self.own += 1;
+        for root in Self::open(&[path.to_owned()])?.roots {
+            self.roots.insert(self.own, root);
+            self.own += 1;
+        }
         Ok(())
     }
 

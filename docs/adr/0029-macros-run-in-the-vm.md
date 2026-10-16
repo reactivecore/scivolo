@@ -23,8 +23,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   earlier expansion refuses the expansion that uses it (dotty's scope extrusion check).
 - **No VM addresses in Rust.** The implementation's arguments are made in Scala
   (`QuoteHost.args()`, from the numbers a native hands out) and read from that array straight
-  into the call, so Rust holds no object across an allocation and the collector needs no new
-  roots.
+  into the call, the array kept live on the native stack until the call returns, so Rust holds
+  no object only in its heap across an allocation and the collector needs no new roots.
 - **Every refusal counts.** `Unsupported`'s constructor records its reason on the host
   (native `QuoteHost.refuse`), and natives that refuse or panic throw it; an expansion with a
   recorded refusal is refused whatever the macro returns, also when it caught the exception.
@@ -50,8 +50,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   exception the implementation throws is dotty's "Failed to evaluate macro" error.
 - Macro side effects happen in the VM that compiles the script. So that they do not reach
   the program, as they would not on the JVM, scalai runs itself again in place of its process
-  (`exec`, with `SCALAI_RERUN` set) after a compile that ran a macro, and the program runs from
-  the cache in a fresh VM. Output a macro buffered in the VM without flushing is lost.
+  (`exec`, the hidden option `--rerun-of` giving the first start, from which `SCALAI_TIMEOUT`
+  counts) after a compile that ran a macro, and the program runs from the cache in a fresh VM. Output a macro buffered in the VM without flushing is lost.
 - Scripts read the TASTy of `--cp` and `--dep` jars in the own frontend, with or without
   `SCALAI_MACROS`, as the REPL does (most of #128); the script cache key holds each classpath
   entry's path, size and time.

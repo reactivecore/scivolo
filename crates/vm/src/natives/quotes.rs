@@ -75,6 +75,7 @@ impl Vm {
             let at = |i: usize| heap::read::<u64>(arr + ARRAY_HEADER as usize + 8 * i);
             let values: Vec<u64> = std::iter::once(target as u64).chain((0..len as usize).map(at)).collect();
             let returned = vm.call(f, &values)?;
+            std::hint::black_box(arr);
             result.set(vm.call_global(id, &[host, returned])? as u32);
             Ok(())
         });
