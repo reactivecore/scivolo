@@ -83,7 +83,7 @@ impl Universe {
     }
 
     /// The right-hand side of the alias `t` refers to, seen from the reference's prefix.
-    fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
+    pub fn referenced_alias(&mut self, t: TypeId) -> Option<TypeId> {
         let (prefix, s) = match self.types().get(t).clone() {
             Type::Sym(p, s) => (p, s),
             Type::TypeRef(p, _) => (Some(p), self.resolve_ref(t)?),

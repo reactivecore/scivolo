@@ -11,6 +11,17 @@ use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Flags, Kind, NOTHING, Type, TypeId};
 
 impl Typer<'_> {
+    /// `summonFrom(args)`: its one argument a pattern matching closure.
+    pub fn summon_from_applied(&mut self, id: NodeId, args: &[NodeId], pt: Pt, ctx: Ctx) -> TNodeId {
+        match *args {
+            [arg] => match *self.ast.tree(arg) {
+                Tree::Match { selector: None, cases, .. } => self.typed_summon_from(id, cases, pt, ctx),
+                _ => self.unsupported(id, "argument to summonFrom that is not a pattern matching closure"),
+            },
+            _ => self.unsupported(id, "summonFrom"),
+        }
+    }
+
     pub fn typed_summon_from(&mut self, id: NodeId, cases: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
         self.check_in_inline_context("summonFrom", span, ctx);

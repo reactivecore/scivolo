@@ -40,6 +40,7 @@ mod default_params;
 mod define_further;
 mod defs;
 pub(crate) mod dependent_params;
+mod dependent_results;
 mod derived;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;

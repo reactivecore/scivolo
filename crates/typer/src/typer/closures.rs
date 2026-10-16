@@ -49,7 +49,7 @@ impl Typer<'_> {
                     return self.unsupported(p, "context closure parameter of an open type");
                 }
                 let formal = match self.fully_defined(formals[i]) {
-                    Ok(t) if !self.has_wildcard(t) => t,
+                    Ok(t) if !has_wildcard(self.u, t) => t,
                     Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
                     Err(what) => return self.unsupported(p, what),
                 };
@@ -128,16 +128,6 @@ impl Typer<'_> {
         self.closure_tree(id, anonfun, &param_trees, (result, body), sam.unwrap_or(fun_tpe), sam.is_some())
     }
 
-    /// Whether `t` has a wildcard type argument or is one.
-    fn has_wildcard(&mut self, t: TypeId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
-            None
-        });
-        found
-    }
-
     /// `{ def $anonfun(params): result = body; closure($anonfun) }` of type `fun_tpe` at the span
     /// of function `id`, the closure given that type if `sam`.
     fn closure_tree(
@@ -164,4 +154,14 @@ impl Typer<'_> {
         let stats = self.tpd.list(&[def]);
         self.build().block(stats, closure, span.to_synthetic())
     }
+}
+
+/// Whether `t` has a wildcard type argument or is one.
+pub fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
+        None
+    });
+    found
 }
