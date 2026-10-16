@@ -24,7 +24,17 @@ fn header(text: &str) -> impl Iterator<Item = &str> {
 /// The compiler options of the `//> using` directives of `text`, or the first directive the own
 /// frontend does not honour: any but options and `scala` with version `scala` or 3.9.
 pub fn directive_options<'t>(text: &'t str, scala: &str) -> Result<Vec<&'t str>, String> {
-    let mut options = Vec::new();
+    match directives(text, scala)? {
+        (options, deps) if deps.is_empty() => Ok(options),
+        _ => Err("`//> using dep`".into()),
+    }
+}
+
+/// The compiler options and the dependencies of the `//> using` directives of `text`, or the
+/// first directive the own frontend does not honour: any but options, `dep` and `scala` with
+/// version `scala` or 3.9.
+pub fn directives<'t>(text: &'t str, scala: &str) -> Result<(Vec<&'t str>, Vec<&'t str>), String> {
+    let (mut options, mut deps) = (Vec::new(), Vec::new());
     for line in header(text) {
         let Some(rest) = line.trim_start().strip_prefix("//> using") else { continue };
         let mut words = rest.split_whitespace().map(|w| w.trim_matches('"'));
@@ -33,10 +43,11 @@ pub fn directive_options<'t>(text: &'t str, scala: &str) -> Result<Vec<&'t str>,
         match key {
             "scala" if matches!(values[..], [v] if v == "3.9" || v == scala) => {}
             k if OPTIONS.contains(&k) => options.extend(values),
+            "dep" | "deps" | "dependency" | "dependencies" => deps.extend(values),
             _ => return Err(format!("`//> using {key}`")),
         }
     }
-    Ok(options)
+    Ok((options, deps))
 }
 
 /// `text` with a first line starting with `#!` blanked, offsets kept.
@@ -74,6 +85,7 @@ mod tests {
         assert_eq!(directive_options("//> using scala 3.8.3", SCALA), Err("`//> using scala`".into()));
         let dep = "  //> using dep com.lihaoyi::os-lib:0.11.4";
         assert_eq!(directive_options(dep, SCALA), Err("`//> using dep`".into()));
+        assert_eq!(super::directives(dep, SCALA), Ok((vec![], vec!["com.lihaoyi::os-lib:0.11.4"])));
     }
 
     #[test]

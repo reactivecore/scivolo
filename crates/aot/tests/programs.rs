@@ -82,6 +82,22 @@ fn sources_referring_to_each_other_build_into_one_executable() {
 }
 
 #[test]
+fn sources_use_a_dependency_from_the_coursier_cache() {
+    let offline = Command::new("coursier")
+        .args(["fetch", "--mode", "offline", "com.lihaoyi:geny_native0.5_3:1.1.0"])
+        .args(["--exclude", "org.scala-lang:*", "--exclude", "org.scala-native:*"])
+        .output();
+    if !offline.is_ok_and(|o| o.status.success()) {
+        eprintln!("skipped: geny 1.1.0 is not in the Coursier cache");
+        return;
+    }
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/aot/deps");
+    let bin = Path::new(env!("CARGO_TARGET_TMPDIR")).join("aot-src").join("deps");
+    let out = build_and_run(&[&dir.to_string_lossy()], &bin, &[]);
+    assert_eq!(out, std::fs::read_to_string(dir.join("deps.check")).expect("the .check file"));
+}
+
+#[test]
 fn fib_runs_as_executable() {
     assert_eq!(run("fib", "fibo", "25"), "75025\n");
 }

@@ -1,6 +1,8 @@
 //! Locates the precompiled Scala Native libraries and the Scala standard library's TASTy: in
 //! `$SCALAI_LIBS` if set, else in the Coursier cache; and maps their library image.
 
+pub mod deps;
+
 use libimage::{Derived, Image, Source, Spec};
 use std::io;
 use std::path::PathBuf;

@@ -4,29 +4,32 @@
 use crate::R;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
-use lower::directives::{directive_options, without_header};
+use lower::directives::{directives, without_header};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use syntax::config::Config;
 use syntax::source::{SourceFile, Sources};
 
-/// Source files read, with the compiler options of their `//> using` directives.
+/// Source files read, with the compiler options and dependencies of their `//> using`
+/// directives.
 pub struct Unit {
     files: Vec<SourceFile>,
     options: Vec<String>,
+    pub deps: Vec<String>,
 }
 
 /// Reads `paths`, each named by its path as given, with the shebang line blanked, or the first
 /// directive the own frontend does not honour.
 pub fn read(paths: &[PathBuf]) -> R<Unit> {
-    let mut unit = Unit { files: Vec::new(), options: Vec::new() };
+    let mut unit = Unit { files: Vec::new(), options: Vec::new(), deps: Vec::new() };
     for path in paths {
         let name = path.to_string_lossy().into_owned();
         let text = std::fs::read_to_string(path).map_err(|e| format!("{name}: {e}"))?;
-        // Temporary until #115 (--dep): `//> using dep` is refused like any other directive.
-        let options = directive_options(&text, SCALA).map_err(|d| format!("{name}: {d} is not supported"))?;
+        let (options, deps) =
+            directives(&text, SCALA).map_err(|d| format!("{name}: {d} is not supported"))?;
         unit.options.extend(options.into_iter().map(str::to_owned));
+        unit.deps.extend(deps.into_iter().map(str::to_owned));
         unit.files.push(SourceFile::new(name, without_header(&text)));
     }
     Ok(unit)

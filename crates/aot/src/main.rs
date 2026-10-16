@@ -35,16 +35,15 @@ struct Args {
     /// The object or class whose `main` the executable runs; needed when several have one.
     #[arg(long)]
     main: Option<String>,
+    /// Maven dependency, `group::artifact::version` for a Scala Native library, fetched by
+    /// Coursier with what it depends on.
+    #[arg(long = "dep")]
+    deps: Vec<String>,
     /// `.scala` files and directories of them; without any, a main class of the classpath.
     inputs: Vec<String>,
 }
 
 fn run(args: &Args) -> R<()> {
-    let (jars, dirs): (Vec<PathBuf>, Vec<PathBuf>) =
-        args.classpath.iter().cloned().partition(|p| p.extension().is_some_and(|e| e == "jar"));
-    let mut lib_jars = libs::jars()?;
-    lib_jars.extend(jars);
-    let image = libs::image(&lib_jars).map_err(|e| format!("library image: {e}"))?;
     let (srcs, named): (Vec<String>, Vec<String>) =
         args.inputs.iter().cloned().partition(|a| sources::is_source(a));
     if let Some(path) = named.iter().find(|n| n.contains('/')) {
@@ -53,14 +52,25 @@ fn run(args: &Args) -> R<()> {
     if args.out_dir.is_some() && (srcs.is_empty() || args.main.is_some() || args.entry.is_some()) {
         return Err("-d writes the NIR of sources; it takes sources and neither --main nor --entry".into());
     }
+    let unit = match srcs.is_empty() {
+        true => None,
+        false => Some(frontend::read(&sources::collect(&srcs)?)?),
+    };
+    let (jars, dirs): (Vec<PathBuf>, Vec<PathBuf>) =
+        args.classpath.iter().cloned().partition(|p| p.extension().is_some_and(|e| e == "jar"));
+    let mut deps = args.deps.clone();
+    deps.extend(unit.iter().flat_map(|u| u.deps.iter().cloned()));
+    let mut lib_jars = libs::jars()?;
+    lib_jars.extend(jars);
+    lib_jars.extend(libs::deps::fetch(&deps)?);
+    let image = libs::image(&lib_jars).map_err(|e| format!("library image: {e}"))?;
     let mut classpath = dirs;
-    let main = match (srcs.is_empty(), &named[..], &args.main) {
-        (true, [_], Some(_)) => return Err("a main class both as an argument and with --main".into()),
-        (true, [main], None) | (true, [], Some(main)) => Some(main.clone()),
-        (true, [], None) => None,
-        (true, _, _) => return Err(format!("several main classes given: {}", named.join(" "))),
-        (false, [], _) => {
-            let unit = frontend::read(&sources::collect(&srcs)?)?;
+    let main = match (unit, &named[..], &args.main) {
+        (None, [_], Some(_)) => return Err("a main class both as an argument and with --main".into()),
+        (None, [main], None) | (None, [], Some(main)) => Some(main.clone()),
+        (None, [], None) => None,
+        (None, _, _) => return Err(format!("several main classes given: {}", named.join(" "))),
+        (Some(unit), [], _) => {
             if let Some(out) = &args.out_dir {
                 return frontend::compile_into(&unit, image, out);
             }
@@ -71,7 +81,7 @@ fn run(args: &Args) -> R<()> {
                 None => Some(sources::pick(&mains, args.main.as_deref())?),
             }
         }
-        (false, _, _) => {
+        (Some(_), _, _) => {
             return Err(format!("sources and a main class name mixed ({}); use --main", named.join(" ")));
         }
     };
