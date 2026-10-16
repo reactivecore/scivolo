@@ -69,7 +69,7 @@ impl Typer<'_> {
     }
 
     /// The definition of a type parameter like class type parameter `p`.
-    pub fn param_def_of(&mut self, p: SymbolId, span: Span) -> Result<NodeId, String> {
+    pub fn param_def_of(&mut self, p: SymbolId, span: Span) -> Result<NodeId, &'static str> {
         let name = self.u.symbol(p).name.clone();
         let info = self.u.info(p);
         self.param_def(&name, info, span)
@@ -77,7 +77,7 @@ impl Typer<'_> {
 
     /// The definition of type parameter `name` with info `info`: bounds, or a type lambda over
     /// bounds for a higher-kinded one.
-    pub fn param_def(&mut self, name: &str, info: TypeId, span: Span) -> Result<NodeId, String> {
+    pub fn param_def(&mut self, name: &str, info: TypeId, span: Span) -> Result<NodeId, &'static str> {
         let mut dependent = false;
         self.u.map_type(info, &mut |u, t| {
             dependent |= match *u.types().get(t) {
@@ -88,7 +88,7 @@ impl Typer<'_> {
             None
         });
         if dependent {
-            return Err("derives clause of a class whose type parameter bounds are dependent".into());
+            return Err("derives clause of a class whose type parameter bounds are dependent");
         }
         let lambda = match self.u.types().get(info).clone() {
             Type::Bounds(_, hi) => match self.u.types().get(hi).clone() {

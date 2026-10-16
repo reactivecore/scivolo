@@ -75,8 +75,14 @@ impl Typer<'_> {
         let instance = match tc_params.len() {
             1 => self.derive_single_parameter(cls, tc_params[0], span),
             _ if self.u.full_name(tc) == "scala.CanEqual" => self.derive_can_equal(cls, &tc_params, span),
-            0 => Err(format!("type {tc_name} in derives clause of {cls_name} has no type parameters")),
-            _ => Err(cannot_be_unified.clone()),
+            0 => {
+                self.error(
+                    d,
+                    format!("type {tc_name} in derives clause of {cls_name} has no type parameters"),
+                );
+                return None;
+            }
+            _ => Ok(None),
         };
         let instance = match instance {
             Ok(Some(i)) => i,
@@ -84,8 +90,8 @@ impl Typer<'_> {
                 self.error(d, cannot_be_unified);
                 return None;
             }
-            Err(msg) => {
-                self.error(d, msg);
+            Err(what) => {
+                self.unsupported(d, what);
                 return None;
             }
         };
@@ -207,7 +213,7 @@ impl Typer<'_> {
         loop {
             match *self.u.types().get(info) {
                 Type::Poly { result, .. } => info = result,
-                Type::Method { implicit: false, .. } => return true,
+                Type::Method { implicit: false, ref params, .. } if !params.is_empty() => return true,
                 Type::Method { result, .. } => info = result,
                 _ => return false,
             }
