@@ -28,8 +28,10 @@ void *scalai_aot_exception = 0;
 // Throws `exc` from C: the calling Scala code finds it after the call returns.
 void scalanative_throw(void *exc) { scalai_aot_exception = exc; }
 
+void scalai_aot_stack_init(char *low);
+
 // Starts the collector on the calling thread's whole stack, with the module slots and the
-// exception slot as roots.
+// exception slot as roots, and sets the stack limit.
 void scalai_aot_start_gc(void) {
     char *low, *high;
 #ifdef __APPLE__
@@ -54,6 +56,7 @@ void scalai_aot_start_gc(void) {
         char *start = scalai_aot_globals[i].start;
         scalanative_GC_add_roots(start, start + scalai_aot_globals[i].size);
     }
+    scalai_aot_stack_init(low);
 }
 
 // `bytes` zeroed bytes for a stackalloc of a dynamic count.

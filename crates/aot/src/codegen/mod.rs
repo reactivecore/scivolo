@@ -16,6 +16,7 @@ mod objects;
 mod ops;
 mod overflow;
 mod rtti_layout;
+mod stack_check;
 mod start;
 mod strings;
 mod stubs;
@@ -76,6 +77,7 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     crate::tables::link_runtime(&mut reach)?;
     match root {
         Root::Entry(entry) => {
+            decls.stack_checks = false;
             let target = decls.func(&mut module, &mut reach, entry)?;
             stubs::entry_wrapper(&mut module, &decls, target)?;
         }
@@ -101,8 +103,7 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
         start::define_main(&mut module, &mut reach, &mut decls, top)?;
     }
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
-    crate::tables::define(&mut module, &mut reach, &mut decls)?;
-    decls.define_roots(&mut module)?;
+    crate::tables::define(&mut module, &mut reach, &mut decls)?;    decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
     Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
 }
@@ -143,7 +144,6 @@ fn define(
         }
         Err(e) => return Err(format!("{name}: {e}")),
     }
-    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
-    module.clear_context(ctx);
+    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;    module.clear_context(ctx);
     Ok(())
 }

@@ -88,7 +88,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             self.param_types.insert(l.0, params.iter().map(|p| p.ty).collect());
         }
         let reachable = super::blocks::reachable(&self.reach.world.pool, body)?;
-        let mut open = false;
+        let (mut open, mut check) = (false, self.decls.stack_checks && super::stack_check::calls(body));
         for inst in &body.insts {
             if let Inst::Label(l, params) = inst {
                 if !reachable.contains(&l.0) {
@@ -99,6 +99,9 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 self.b.switch_to_block(block);
                 let values = self.b.block_params(block).to_vec();
                 self.vals.extend(params.iter().map(|p| p.id.0).zip(values));
+                if std::mem::take(&mut check) {
+                    self.stack_check()?;
+                }
                 open = true;
                 continue;
             }

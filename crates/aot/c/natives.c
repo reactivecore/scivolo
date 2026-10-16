@@ -1,7 +1,6 @@
-// Natives the VM implements in Rust, for executables: the current thread, stack guards, the
-// unwinder, and the LLVM intrinsics Scala Native's code calls.
-// Temporary until #115 (stack traces, stack overflow guard): the unwinder reports no frames
-// and stack guards are absent.
+// Natives the VM implements in Rust, for executables: the current thread, stack guards (no-ops:
+// stack.c guards the stack), the unwinder, and the LLVM intrinsics Scala Native's code calls.
+// Temporary until #115 (stack traces): the unwinder reports no frames.
 #include <math.h>
 #include <stdint.h>
 

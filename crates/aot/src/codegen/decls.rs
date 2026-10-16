@@ -37,6 +37,11 @@ pub struct Decls {
     pub module_slots: DataId,
     /// `scalai_aot_exception`, the thrown object waiting for a handler.
     pub exception: DataId,
+    /// `scalai_aot_stack_limit`, below which a function throws StackOverflowError.
+    pub stack_limit: DataId,
+    /// Whether functions check the stack limit on entry: not in executables of single methods.
+    pub stack_checks: bool,
+    pub overflow_defined: bool,
     funcs: FxHashMap<GlobalId, FuncId>,
     rttis: FxHashMap<ClassId, DataId>,
     loads: FxHashMap<ClassId, FuncId>,
@@ -59,8 +64,14 @@ impl Decls {
         let exception = module
             .declare_data("scalai_aot_exception", Linkage::Import, true, false)
             .map_err(|e| e.to_string())?;
+        let stack_limit = module
+            .declare_data("scalai_aot_stack_limit", Linkage::Import, true, false)
+            .map_err(|e| e.to_string())?;
         Ok(Decls {
             exception,
+            stack_limit,
+            stack_checks: true,
+            overflow_defined: false,
             call_conv: module.isa().default_call_conv(),
             ptr: module.target_config().pointer_type(),
             rtti,

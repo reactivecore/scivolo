@@ -37,7 +37,7 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
     let shimmed = run(cc().args(["-w", "-c", "-o"]).arg(&shim_obj).arg(&src), "cc (shims)");
     let mut cmd = cc();
     cmd.arg("-o").arg(output).arg(&obj).arg(&shim_obj);
-    cmd.arg(c.join(stub)).arg(c.join("rt.c")).arg(c.join("natives.c"));
+    cmd.arg(c.join(stub)).arg(c.join("rt.c")).arg(c.join("natives.c")).arg(c.join("stack.c"));
     cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);
