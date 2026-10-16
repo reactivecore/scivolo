@@ -1,12 +1,13 @@
-//! Slow paths: a failed null, bounds, division or cast check calls the runtime's `throwX`, then
-//! leaves through the instruction's unwind edge like any call that threw.
+//! Slow paths: a failed null, bounds, division or cast check calls the runtime's `throwX` (or
+//! another method that throws), then leaves through the instruction's unwind edge like any call
+//! that threw.
 
 use super::RUNTIME;
 use super::body::FnBuilder;
 use crate::R;
 use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::{Block, InstBuilder, TrapCode, Value};
-use cranelift_module::Module;
+use cranelift_module::{FuncId, Module};
 use nir::{Next, Type, Val, ValId};
 
 pub const NULL_POINTER: &str = "D16throwNullPointernEO";
@@ -44,9 +45,24 @@ impl FnBuilder<'_, '_> {
         let load = self.module.declare_func_in_func(load, self.b.func);
         let call = self.b.ins().call(load, &[]);
         let instance = self.b.inst_results(call)[0];
-        let fref = self.module.declare_func_in_func(f, self.b.func);
         let all: Vec<Value> = std::iter::once(instance).chain(args.iter().copied()).collect();
-        self.b.ins().call(fref, &all);
+        self.throwing_call(f, &all)
+    }
+
+    /// Continues where `ok` is nonzero; else calls `f(args)`, which throws.
+    pub fn check_call(&mut self, ok: Value, f: FuncId, args: &[Value]) -> R<()> {
+        let (cont, fail) = (self.b.create_block(), self.b.create_block());
+        self.b.ins().brif(ok, cont, &[], fail, &[]);
+        self.b.switch_to_block(fail);
+        self.throwing_call(f, args)?;
+        self.b.switch_to_block(cont);
+        Ok(())
+    }
+
+    /// Calls `f(args)`, which throws, and leaves through the unwind edge.
+    fn throwing_call(&mut self, f: FuncId, args: &[Value]) -> R<()> {
+        let fref = self.module.declare_func_in_func(f, self.b.func);
+        self.b.ins().call(fref, args);
         let unwind = self.unwind.clone();
         self.after_call(&unwind)?;
         self.b.ins().trap(TrapCode::unwrap_user(2));

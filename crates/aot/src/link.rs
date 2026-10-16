@@ -11,8 +11,11 @@ fn beside(output: &Path, suffix: &str) -> PathBuf {
     PathBuf::from(path)
 }
 
+/// The C compiler, keeping frame pointers for the stack walk of `c/trace.c`.
 fn cc() -> Command {
-    Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()))
+    let mut cmd = Command::new(std::env::var("CC").unwrap_or_else(|_| "cc".into()));
+    cmd.arg("-fno-omit-frame-pointer");
+    cmd
 }
 
 fn run(cmd: &mut Command, what: &str) -> Result<(), String> {
@@ -37,7 +40,9 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
     let shimmed = run(cc().args(["-w", "-c", "-o"]).arg(&shim_obj).arg(&src), "cc (shims)");
     let mut cmd = cc();
     cmd.arg("-o").arg(output).arg(&obj).arg(&shim_obj);
-    cmd.arg(c.join(stub)).arg(c.join("rt.c")).arg(c.join("natives.c"));
+    for file in [stub, "rt.c", "natives.c", "stack.c", "trace.c", "resources.c"] {
+        cmd.arg(c.join(file));
+    }
     cmd.arg(snrt::ARCHIVE).arg("-lz");
     if !cfg!(target_os = "macos") {
         cmd.args(["-lpthread", "-lm"]);

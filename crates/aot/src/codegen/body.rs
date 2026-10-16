@@ -3,7 +3,7 @@
 use super::Decls;
 use crate::R;
 use crate::reach::Reach;
-use cranelift_codegen::ir::{Block, BlockArg, InstBuilder, TrapCode, Value, types};
+use cranelift_codegen::ir::{Block, BlockArg, InstBuilder, SourceLoc, TrapCode, Value, types};
 use cranelift_frontend::FunctionBuilder;
 use cranelift_module::{FuncId, Module};
 use cranelift_object::ObjectModule;
@@ -88,8 +88,10 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             self.param_types.insert(l.0, params.iter().map(|p| p.ty).collect());
         }
         let reachable = super::blocks::reachable(&self.reach.world.pool, body)?;
-        let mut open = false;
-        for inst in &body.insts {
+        let (mut open, mut check) = (false, self.decls.stack_checks && super::stack_check::calls(body));
+        for (n, inst) in body.insts.iter().enumerate() {
+            let pos = body.positions.get(n).map_or(SourceLoc::default(), |p| SourceLoc::new(p.0));
+            self.b.set_srcloc(pos);
             if let Inst::Label(l, params) = inst {
                 if !reachable.contains(&l.0) {
                     open = false;
@@ -99,6 +101,12 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 self.b.switch_to_block(block);
                 let values = self.b.block_params(block).to_vec();
                 self.vals.extend(params.iter().map(|p| p.id.0).zip(values));
+                if std::mem::take(&mut check) {
+                    let first =
+                        body.positions.get(n + 1).map_or(SourceLoc::default(), |p| SourceLoc::new(p.0));
+                    self.b.set_srcloc(first);
+                    self.stack_check()?;
+                }
                 open = true;
                 continue;
             }

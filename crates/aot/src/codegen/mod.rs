@@ -8,6 +8,9 @@ mod branches;
 mod checks;
 mod consts;
 mod decls;
+mod elements;
+mod frames;
+mod functions;
 mod intrinsics;
 mod linktime;
 mod memory;
@@ -15,7 +18,10 @@ mod modules;
 mod objects;
 mod ops;
 mod overflow;
+mod replaced;
 mod rtti_layout;
+mod services;
+mod stack_check;
 mod start;
 mod strings;
 mod stubs;
@@ -32,12 +38,14 @@ pub const RUNTIME: &str = "scala.scalanative.runtime.package$";
 
 use crate::R;
 use crate::reach::Reach;
+use crate::timings::Timings;
+use cranelift_codegen::isa;
 use cranelift_codegen::settings::{self, Configurable};
-use cranelift_codegen::{Context, isa};
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
-use cranelift_module::{Module, default_libcall_names};
+use cranelift_frontend::FunctionBuilderContext;
+use cranelift_module::default_libcall_names;
 use cranelift_object::{ObjectBuilder, ObjectModule};
-use nir::{DefnKind, GlobalId};
+use nir::GlobalId;
+use std::time::Instant;
 use vm::World;
 
 fn object_module() -> R<ObjectModule> {
@@ -64,7 +72,7 @@ pub enum Root {
 }
 
 /// The object file and the C source of the variadic call shims it calls.
-pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
+pub fn compile(world: &mut World, root: Root, timings: &mut Timings) -> R<(Vec<u8>, String)> {
     let mut module = object_module()?;
     let mut reach = Reach::new(world);
     let rtti = RttiLayout::new(&mut reach)?;
@@ -76,23 +84,29 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     crate::tables::link_runtime(&mut reach)?;
     match root {
         Root::Entry(entry) => {
+            decls.stack_checks = false;
             let target = decls.func(&mut module, &mut reach, entry)?;
             stubs::entry_wrapper(&mut module, &decls, target)?;
         }
         Root::Main(top) => start::reach_main(&mut module, &mut reach, &mut decls, top)?,
     }
-    let mut ctx = Context::new();
     let mut fb = FunctionBuilderContext::new();
+    let mut batch = Vec::new();
     loop {
         while let Some(g) = reach.queue.pop() {
-            define(&mut module, &mut reach, &mut decls, (&mut ctx, &mut fb), g)?;
+            batch.push(functions::translate(&mut module, &mut reach, &mut decls, &mut fb, g)?);
         }
+        functions::compile(&mut module, &reach, &mut decls, &mut batch, timings)?;
+        let clock = Instant::now();
         for g in reach.dispatch_targets()? {
             decls.func(&mut module, &mut reach, g)?;
         }
+        timings.add("  of which dispatch", clock.elapsed());
+        let clock = Instant::now();
         if matches!(root, Root::Main(_)) {
             start::reach_initializers(&mut module, &mut reach, &mut decls)?;
         }
+        timings.add("  of which initializers", clock.elapsed());
         if reach.queue.is_empty() {
             break;
         }
@@ -100,50 +114,15 @@ pub fn compile(world: &mut World, root: Root) -> R<(Vec<u8>, String)> {
     if let Root::Main(top) = root {
         start::define_main(&mut module, &mut reach, &mut decls, top)?;
     }
+    timings.lap("reach+codegen");
     modules::define_loads(&mut module, &mut reach, &mut decls)?;
     crate::tables::define(&mut module, &mut reach, &mut decls)?;
+    std::mem::take(&mut decls.frames).define(&mut module, &mut reach, &mut decls)?;
+    crate::resources::define(&mut module, reach.world)?;
     decls.define_roots(&mut module)?;
     let shims = format!("#include <stdint.h>\n{}", decls.shims.concat());
-    Ok((module.finish().emit().map_err(|e| e.to_string())?, shims))
-}
-
-fn define(
-    module: &mut ObjectModule,
-    reach: &mut Reach,
-    decls: &mut Decls,
-    (ctx, fb): (&mut Context, &mut FunctionBuilderContext),
-    g: GlobalId,
-) -> R<()> {
-    let defn = reach.world.defn(g).map_err(|e| e.to_string())?;
-    let DefnKind::Define { ty, body } = &defn.kind else { unreachable!("reached a non-function") };
-    ctx.func.signature = decls.signature(&reach.world.pool, *ty)?;
-    let id = decls.func(module, reach, g)?;
-    let name = reach.world.name(g);
-    let pool = &reach.world.pool;
-    let owner = reach.world.owner(g);
-    let (ret, this) = match pool.ty(*ty) {
-        nir::Type::Function(params, ret) => {
-            let this = params
-                .first()
-                .is_some_and(|&p| matches!(pool.ty(p), nir::Type::Ref { name, .. } if *name == owner));
-            (Some(*ret), this)
-        }
-        _ => (None, false),
-    };
-    let mut f = body::FnBuilder::new(FunctionBuilder::new(&mut ctx.func, fb), module, reach, decls);
-    f.ret_ty = ret;
-    f.has_this = this;
-    match f.body(body) {
-        Ok(()) => f.finish(),
-        // Temporary until #115 (precise reachability): code reached only through the
-        // over-approximated dispatch may name classes the classpath lacks; it stops the program.
-        Err(e) if e.starts_with("no definition of") => {
-            drop(f);
-            stubs::missing(module, decls, (ctx, fb), &format!("{name}: {e}"))?;
-        }
-        Err(e) => return Err(format!("{name}: {e}")),
-    }
-    module.define_function(id, ctx).map_err(|e| format!("{name}: {e:?}"))?;
-    module.clear_context(ctx);
-    Ok(())
+    timings.lap("tables");
+    let object = module.finish().emit().map_err(|e| e.to_string())?;
+    timings.lap("emit");
+    Ok((object, shims))
 }

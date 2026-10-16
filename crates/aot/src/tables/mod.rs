@@ -1,6 +1,6 @@
 //! Class metadata: class ids in hierarchy preorder with the range of their subclasses, each
-//! class's `java.lang.Class` instance with its itable and vtable, and the class ids the
-//! collector reads (`scalai_aot_gc_ids`, for `scalai_GC_set_ids`).
+//! class's `java.lang.Class` instance with its itable and vtable, the class ids the collector
+//! reads (`scalai_aot_gc_ids`, for `scalai_GC_set_ids`), and the array of all classes.
 
 mod rtti;
 
@@ -14,8 +14,8 @@ use nir::Pool;
 
 const RUNTIME: &str = "scala.scalanative.runtime.";
 
-// Temporary until #113 aot 6 (library cache): the tables go into the program's object, not an
-// object of their own.
+// Temporary until #115 (library cache): library functions are compiled again for every program,
+// and the tables go into the program's object, not an object of their own.
 pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let fixed = link_runtime(reach)?;
     reach.link_top("java.lang.String")?;
@@ -37,7 +37,25 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
         return Err("a function was reached after compilation".into());
     }
     gc_ids(module, reach, &ids)?;
+    all_classes(module, reach, decls)?;
     layout(module, reach, decls)
+}
+
+/// `scalai_aot_classes`: an `Array[Class]` of every class, which `Class.forName` searches.
+// Temporary until #115 (closed world): only classes the program reaches are found, unlike in the
+// VM, which links any class of the classpath.
+fn all_classes(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
+    let n = reach.classes.all.len();
+    let array = reach.link_top(&format!("{RUNTIME}ObjectArray"))?;
+    let header = vm::ARRAY_HEADER as usize;
+    let mut blob = crate::blob::Blob::zeroed(header + 8 * n);
+    blob.data.push((0, decls.rtti(module, reach, array)?));
+    blob.i32_at(vm::ARRAY_LENGTH as i32, n as i32);
+    blob.i32_at(vm::ARRAY_STRIDE as i32, 8);
+    for cls in 0..n {
+        blob.data.push((header + 8 * cls, decls.rtti(module, reach, cls as ClassId)?));
+    }
+    blob.define(module, decls.all_classes)
 }
 
 /// `scalai_aot_rtti_offsets` (a class's id, last subclass id, traits, number of traits) for
@@ -65,9 +83,12 @@ fn define_i32s(module: &mut ObjectModule, name: &str, values: &[i32]) -> R<()> {
     module.define_data(data, &desc).map_err(|e| e.to_string())
 }
 
-/// Links the classes with ids fixed by the runtime, the primitives, `Object` and the arrays:
-/// each with the id the VM gives it.
+/// Links the classes with ids fixed by the runtime, the primitives, `Object` and the arrays, each
+/// with the id the VM gives it; and the classes the stack trace table names.
 pub fn link_runtime(reach: &mut Reach) -> R<Vec<(i32, ClassId)>> {
+    for name in ["java.lang.Throwable", "java.lang.String"] {
+        reach.link_top(name)?;
+    }
     let mut fixed = Vec::new();
     for (i, (name, _)) in vm::PRIMITIVES.iter().enumerate() {
         fixed.push((i as i32, reach.link_top(&format!("{RUNTIME}{name}"))?));
