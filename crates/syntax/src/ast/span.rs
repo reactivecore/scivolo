@@ -159,6 +159,14 @@ impl Span {
         Span { start: self.start & !OTHER_SOURCE, end: self.end & !OTHER_SOURCE, ..self }
     }
 
+    /// This span `by` bytes later, as in a source placed after others.
+    pub fn shifted(self, by: Offset) -> Span {
+        if !self.exists() {
+            return self;
+        }
+        Span { start: self.start + by, end: self.end + by, ..self }
+    }
+
     pub fn contains(self, that: Span) -> bool {
         !that.exists() || self.exists() && self.start <= that.start && self.end >= that.end
     }

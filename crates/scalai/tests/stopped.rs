@@ -1,8 +1,5 @@
 //! A main thread stopped by SIGINT inside `synchronized` releases the monitor when it ends.
 
-#[path = "../src/libs.rs"]
-mod libs;
-
 use std::path::Path;
 use std::time::Duration;
 use vm::{Classpath, Vm};

@@ -8,15 +8,10 @@ import concurrent.futures
 import os
 import re
 import shutil
-import subprocess
 import sys
-from pathlib import Path
 
-from dotty_sources import tests
+from dotty_sources import NATIVE, ROOT, SCALA, WORK, lines, load, run as run_cmd, save as save_rows, tests
 
-SCALA, NATIVE = "3.9.0", "0.5.12"
-ROOT = Path(__file__).resolve().parent.parent
-WORK = ROOT / "tmp/dotty" / f"{SCALA}-{NATIVE}"
 SCALAI = ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
@@ -30,22 +25,10 @@ def scala_cli(command, name, sources, *extra):
             "--scala", SCALA, "--workspace", str(WORK / "ws" / name), *extra, *map(str, sources)]
 
 
-def lines(text):
-    return text.rstrip("\n").splitlines()
-
-
-def text(out):
-    return out.decode(errors="replace") if isinstance(out, bytes) else out or ""
-
-
 def run(cmd, check, log):
     """The outcome of `cmd` and a detail, with its output written to `log`."""
     env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
-    try:
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env, timeout=TIMEOUT + 10)
-        out, err, code = r.stdout, r.stderr, r.returncode
-    except subprocess.TimeoutExpired as e:
-        out, err, code = text(e.stdout), text(e.stderr), None
+    code, out, err = run_cmd(cmd, TIMEOUT + 10, env=env)
     log.write_text(out + "\n--- stderr ---\n" + err)
     if code is None or "scalai: timed out" in err:
         return "timeout", ""
@@ -82,12 +65,12 @@ def compile_one(name, groups):
     log = ""
     for i, sources in enumerate(groups):
         extra = ["--extra-jars", str(out)] if i else []
-        r = subprocess.run(scala_cli("compile", name, sources, *extra, "-d", str(out)), capture_output=True, text=True)
-        log += r.stdout + r.stderr
-        if r.returncode != 0:
+        code, stdout, stderr = run_cmd(scala_cli("compile", name, sources, *extra, "-d", str(out)), None)
+        log += stdout + stderr
+        if code != 0:
             break
     (WORK / "logs" / (name + ".compile")).write_text(log)
-    if r.returncode != 0:
+    if code != 0:
         return "compile failed"
     (out / ".done").touch()
     return "compiled"
@@ -99,23 +82,17 @@ def native_one(name, groups, check):
         earlier = ["--extra-jars", str(WORK / "nir" / name)] if len(groups) > 1 else []
         extra = [*earlier, "-f", "-o", str(binary), "--main-class", "Test"]
         cmd = scala_cli("package", name, groups[-1], *extra)
-        r = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
-        (WORK / "logs" / (name + ".link")).write_text(r.stdout + r.stderr)
-        if r.returncode != 0:
-            if "Unreachable symbols" not in r.stdout + r.stderr:
+        code, stdout, stderr = run_cmd(cmd, None)
+        (WORK / "logs" / (name + ".link")).write_text(stdout + stderr)
+        if code != 0:
+            if "Unreachable symbols" not in stdout + stderr:
                 return "link error", ""
-            return "link failed", next((l for l in r.stdout.splitlines() if "Unknown " in l), "")[:160]
+            return "link failed", next((l for l in stdout.splitlines() if "Unknown " in l), "")[:160]
     return run([str(binary)], check, WORK / "logs" / (name + ".native"))
 
 
-def load(file):
-    path = WORK / file
-    rows = [l.split("\t") + [""] for l in path.read_text().splitlines()] if path.exists() else []
-    return {r[0]: (r[1], r[2]) for r in rows}
-
-
 def save(file, rows):
-    (WORK / file).write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
+    save_rows(WORK / file, rows)
 
 
 def parallel(fn, items):

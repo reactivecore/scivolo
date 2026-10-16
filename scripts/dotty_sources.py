@@ -1,9 +1,55 @@
-"""The tests of dotty's tests/run: their sources in compilation groups, check files and skip reasons."""
+"""The tests of dotty's tests/run: their sources in compilation groups, check files and skip reasons;
+the work directory of their builds, its result files, and running a command with a timeout."""
+import os
 import re
+import signal
+import subprocess
 import sys
 from pathlib import Path
 
-TESTS = Path(__file__).resolve().parent.parent / "ref/scala3/tests/run"
+SCALA, NATIVE = "3.9.0", "0.5.12"
+ROOT = Path(__file__).resolve().parent.parent
+# The main checkout, whose ref/ and tmp/dotty a worktree without its own uses.
+MAIN = (ROOT / subprocess.run(["git", "rev-parse", "--git-common-dir"], cwd=ROOT, capture_output=True,
+                              text=True).stdout.strip()).resolve().parent
+
+
+def shared(rel):
+    """`rel` in this checkout, else in the main checkout when only that has it."""
+    return ROOT / rel if (ROOT / rel).exists() or not (MAIN / rel).exists() else MAIN / rel
+
+
+TESTS = shared("ref/scala3/tests/run")
+WORK = shared(f"tmp/dotty/{SCALA}-{NATIVE}")
+
+
+def lines(text):
+    return text.rstrip("\n").splitlines()
+
+
+def run(cmd, timeout, **kwargs):
+    """Exit code (None on timeout), stdout and stderr of `cmd`; on timeout its whole process group
+    is killed, so no child (cc, ld) outlives it."""
+    p = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, errors="replace",
+                         start_new_session=True, **kwargs)
+    try:
+        out, err = p.communicate(timeout=timeout)
+        return p.returncode, out, err
+    except subprocess.TimeoutExpired:
+        os.killpg(p.pid, signal.SIGKILL)
+        out, err = p.communicate()
+        return None, out, err
+
+
+def load(file):
+    """The rows of result file `file` in WORK: test → (outcome, detail)."""
+    path = WORK / file
+    rows = [l.split("\t") + [""] for l in path.read_text().splitlines()] if path.exists() else []
+    return {r[0]: (r[1], r[2]) for r in rows}
+
+
+def save(path, rows):
+    path.write_text("".join(f"{n}\t{o}\t{d}\n" for n, (o, d) in sorted(rows.items())))
 
 # Code outside comments using APIs the Scala Native javalib lacks.
 JVM_ONLY = re.compile(
