@@ -80,7 +80,7 @@ impl Typer<'_> {
         let mut bodies = FxHashMap::default();
         self.collect_transparent_bodies(meth, false, &mut bodies).map_err(|w| (span, w))?;
         let with_inits = self.classes_with_inits();
-        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), call, ctx))
+        self.with_inlining(true, |i| i.inline_transparent((bodies, with_inits), (call, false), ctx))
     }
 
     /// Whether `t` applies a type operation of `scala.compiletime.ops`.
@@ -96,7 +96,7 @@ impl Typer<'_> {
     }
 
     /// The classes of the unit that initialize something or are not completed yet.
-    fn classes_with_inits(&self) -> FxHashSet<SymbolId> {
+    pub fn classes_with_inits(&self) -> FxHashSet<SymbolId> {
         let classes = self.syms.completions.keys().filter(|&&c| self.u.symbol(c).kind == Kind::Class);
         classes.filter(|c| self.syms.no_inits.get(c) != Some(&true)).copied().collect()
     }
@@ -105,7 +105,7 @@ impl Typer<'_> {
     /// calls, of every inline method if `forced` or in the condition of an inline `if` or the
     /// selector of an inline match, typed ahead if they are not typed yet (dotty's
     /// `bodyToInline`).
-    fn collect_transparent_bodies(
+    pub fn collect_transparent_bodies(
         &mut self,
         meth: SymbolId,
         forced: bool,

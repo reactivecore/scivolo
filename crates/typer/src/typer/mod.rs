@@ -2,6 +2,7 @@
 
 mod access;
 mod accessible;
+mod accessor_defs;
 mod adapt;
 mod adapt_by_result;
 mod ahead;
@@ -64,6 +65,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inline_accessors;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
@@ -107,6 +109,7 @@ mod refined_types;
 mod refutable_warnings;
 mod repeated;
 mod report;
+mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sams;
@@ -157,6 +160,7 @@ use tasty::{Kind, SymbolId, Universe};
 
 pub use const_ops::{fold_binop, fold_unop};
 pub use overloads::Pt;
+pub use retained::RETAINED_BODY;
 pub use transparent::InlineDef;
 pub use widen_inferred::Widen;
 
@@ -210,6 +214,7 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    pub accessors: inline_accessors::Accessors,
     /// The implicit members of the unit's package objects in each package, once asked for.
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
@@ -267,6 +272,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
             depth: 0,

@@ -302,9 +302,10 @@ Next, in order of the tests they unblock:
 3. **Lowering gaps** (research 15): patterns of classes in classes, calls with several argument
    lists, `Unit`/`Null`/`Nothing` parameters and private fields, sub matches, reflective calls,
    overridable or overloaded methods with context function results.
-4. **Inlining leftovers** (research 12): `letBindUnless` projections, retained and overriding
-   inline methods, inline accessors, `constValueTuple`/`summonAll`, inline methods of
-   earlier REPL inputs; the forward-reference check (#90).
+4. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
+   polymorphic methods and outer `this` through outer fields in inline bodies,
+   `constValueTuple`/`summonAll`, inline methods of earlier REPL inputs; the forward-reference
+   check (#90).
 5. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
 6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
