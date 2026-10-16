@@ -78,6 +78,11 @@ impl World {
         self.classpath.resources()
     }
 
+    /// The services with `META-INF/services` files on the classpath.
+    pub fn services(&mut self) -> Vec<String> {
+        self.classpath.services()
+    }
+
     /// The contents of resource `rel` in classpath root `root`.
     pub fn resource(&mut self, root: usize, rel: &str) -> Option<Vec<u8>> {
         self.classpath.read_at(root, rel)

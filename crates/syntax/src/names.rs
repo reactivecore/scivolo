@@ -138,6 +138,14 @@ impl FreshNames {
         names.intern(&format!("${n}$"))
     }
 
+    /// Raises each counter to at least that of `other`.
+    pub fn include(&mut self, other: &FreshNames) {
+        for (prefix, &n) in &other.0 {
+            let mine = self.0.entry(prefix.clone()).or_insert(0);
+            *mine = (*mine).max(n);
+        }
+    }
+
     fn count(&mut self, prefix: &str) -> u32 {
         let n = self.0.entry(prefix.to_owned()).or_insert(0);
         *n += 1;

@@ -6,7 +6,7 @@ use super::{Native, NativeFn};
 use crate::class::ClassId;
 use crate::interp::{Flow, Func, func_ref};
 use crate::layout::ARRAY_HEADER;
-use crate::{Vm, heap};
+use crate::{Vm, World, heap};
 use nir::{Attr, DefnKind, GlobalId};
 use std::rc::Rc;
 
@@ -19,7 +19,9 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
     Some(f)
 }
 
-fn is_load(sig: &str, scope: char) -> bool {
+/// Whether `sig` is `ServiceLoader.load` or `loadInstalled` of a service, in a module (`'O'`)
+/// or static (`'o'`).
+pub fn is_load(sig: &str, scope: char) -> bool {
     (sig.starts_with("D4loadL15java.lang.Class") || sig.starts_with("D13loadInstalledL15java.lang.Class"))
         && sig.ends_with(&format!("L23java.util.ServiceLoaderE{scope}"))
 }
@@ -31,7 +33,7 @@ fn loader(vm: &mut Vm, service: u64) -> Flow {
     }
     let service_class = vm.class_of_rtti(service as usize);
     let service_name = String::from(vm.class_name(service_class));
-    let names = provider_names(vm, &service_name);
+    let names = provider_names(&mut vm.world, &service_name);
     let array = vm.link_top("scala.scalanative.runtime.ObjectArray")?;
     let array = vm.alloc_array(array, names.len());
     for (i, name) in names.iter().enumerate() {
@@ -48,9 +50,9 @@ fn loader(vm: &mut Vm, service: u64) -> Flow {
 
 /// The provider classes the classpath's `META-INF/services/<service>` files list, in order,
 /// without duplicates and `#` comments.
-fn provider_names(vm: &mut Vm, service: &str) -> Vec<String> {
+pub fn provider_names(world: &mut World, service: &str) -> Vec<String> {
     let mut names: Vec<String> = Vec::new();
-    for file in vm.world.classpath_files(&format!("META-INF/services/{service}")) {
+    for file in world.classpath_files(&format!("META-INF/services/{service}")) {
         for line in String::from_utf8_lossy(&file).lines() {
             let name = line.split('#').next().unwrap_or("").trim();
             if !name.is_empty() && !names.iter().any(|n| n == name) {
@@ -66,7 +68,7 @@ fn provider_names(vm: &mut Vm, service: &str) -> Vec<String> {
 /// `service` with a constructor without parameters.
 fn provider(vm: &mut Vm, name: &str, service: ClassId) -> Flow {
     let class = vm.world.top(name);
-    let cls = match constructible(vm, class) {
+    let cls = match constructible(&mut vm.world, class) {
         true => vm.link(class)?,
         false => service,
     };
@@ -81,11 +83,19 @@ fn provider(vm: &mut Vm, name: &str, service: ClassId) -> Flow {
 }
 
 /// Whether `class` is a concrete class with a constructor without parameters.
-fn constructible(vm: &mut Vm, class: GlobalId) -> bool {
-    let init = vm.world.member(class, "RE");
-    vm.world.defn(class).is_ok_and(|d| {
+pub fn constructible(world: &mut World, class: GlobalId) -> bool {
+    let init = world.member(class, "RE");
+    world.defn(class).is_ok_and(|d| {
         matches!(d.kind, DefnKind::Class { .. }) && !d.attrs.iter().any(|a| matches!(a, Attr::Abstract))
-    }) && vm.world.defn(init).is_ok()
+    }) && world.defn(init).is_ok()
+}
+
+/// The message of the `ServiceConfigurationError` of provider `provider` of `service` that is
+/// not a concrete subclass with a constructor without parameters.
+pub fn provider_error(service: &str, provider: &str) -> String {
+    format!(
+        "{service}: provider {provider} not found or not a concrete subclass with a constructor without parameters"
+    )
 }
 
 /// The function that makes a new instance of `class` for `service`, created on first use.
@@ -102,16 +112,12 @@ fn instantiator(vm: &mut Vm, class: GlobalId, service: ClassId) -> u32 {
 /// A new instance of `class` made with its constructor without parameters, as a provider of
 /// `service`.
 pub fn instantiate(vm: &mut Vm, class: GlobalId, service: ClassId) -> Flow {
-    let cls = match constructible(vm, class) {
+    let cls = match constructible(&mut vm.world, class) {
         true => Some(vm.link(class)?),
         false => None,
     };
     let Some(cls) = cls.filter(|&c| vm.is_subclass(c, service)) else {
-        let message = format!(
-            "{}: provider {} not found or not a concrete subclass with a constructor without parameters",
-            vm.class_name(service),
-            vm.world.pool.top_name(class)
-        );
+        let message = provider_error(vm.class_name(service), vm.world.pool.top_name(class));
         return vm.throw_new_with("java.util.ServiceConfigurationError", &message);
     };
     let obj = vm.alloc_object(cls) as u64;

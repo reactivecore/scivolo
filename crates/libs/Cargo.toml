@@ -1,0 +1,13 @@
+[package]
+name = "libs"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+libimage.workspace = true
+tasty = { path = "../tasty" }
+vm = { path = "../vm" }
+
+[lints]
+workspace = true
