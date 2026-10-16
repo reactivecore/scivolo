@@ -77,7 +77,10 @@ impl Typer<'_> {
             .or_else(|| aliased_object(self))
         {
             Some(class) => vec![class],
-            None if self.u.symbol(site).kind == Kind::Package => self.package_objects(site),
+            None if self.u.symbol(site).kind == Kind::Package => self
+                .u
+                .package_objects(site)
+                .map_err(|_| "implicit import from an unreadable package object")?,
             None if self.u.symbol(site).kind.is_term() => {
                 return Err("implicit import from a value other than an object");
             }

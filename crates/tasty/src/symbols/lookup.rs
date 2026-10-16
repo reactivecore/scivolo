@@ -93,15 +93,19 @@ impl Universe {
         if !found.is_empty() {
             return Ok(found);
         }
-        self.load_pending(owner, |file| file == "package" || file.ends_with("$package"))?;
-        let objects: Vec<SymbolId> = self
-            .symbol(owner)
-            .decls
+        let objects = self.package_objects(owner)?;
+        Ok(objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect())
+    }
+
+    /// The classes of the package objects of package `pkg`, loading only their files.
+    pub fn package_objects(&mut self, pkg: SymbolId) -> Result<Vec<SymbolId>, Error> {
+        self.load_pending(pkg, |file| file == "package" || file.ends_with("$package"))?;
+        let decls = &self.symbol(pkg).decls;
+        Ok(decls
             .iter()
             .copied()
             .filter(|&d| self.is_class(d) && is_package_object_name(&self.symbol(d).name))
-            .collect();
-        Ok(objects.into_iter().flat_map(|o| self.named(o, name).to_vec()).collect())
+            .collect())
     }
 
     /// The declarations of `owner` named `name`, through its name index, built on first use.

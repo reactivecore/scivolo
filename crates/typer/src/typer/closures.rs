@@ -45,12 +45,21 @@ impl Typer<'_> {
             let tpt = if !self.is_untyped_param(p) {
                 self.typed_type(tpt, ctx)
             } else if let Some((formals, _)) = &expected {
-                if contextual && !self.is_fully_defined(formals[i]) {
+                let lower = match *self.u.types().get(formals[i]) {
+                    Type::Bounds(lo, _) => Some(lo),
+                    _ => None,
+                };
+                let nothing = Some(self.u.builtins().nothing);
+                if lower.is_some_and(|lo| self.u.class_symbol(lo) == nothing) {
+                    return self.unsupported(p, "parameter type inferred from the target of a wildcard");
+                }
+                let formal = lower.unwrap_or(formals[i]);
+                if contextual && !self.is_fully_defined(formal) {
                     return self.unsupported(p, "context closure parameter of an open type");
                 }
-                let formal = match self.fully_defined(formals[i]) {
-                    Ok(t) if !has_wildcard(self.u, t) => t,
-                    Ok(_) => return self.unsupported(p, "parameter type of a wildcard"),
+                let formal = match self.fully_defined(formal) {
+                    Ok(t) if !self.has_proto_wildcard(t) => t,
+                    Ok(_) => return self.unsupported(p, "parameter type left open by the expected type"),
                     Err(what) => return self.unsupported(p, what),
                 };
                 self.type_tree(formal, self.ast.span(p).end_pos(), true)
@@ -79,8 +88,11 @@ impl Typer<'_> {
         let params_syms: Vec<tasty::SymbolId> = entries.iter().map(|&(_, s)| s).collect();
         let level = self.levels.push(Some(ctx.level), Level::Scope(entries));
         let bctx = Ctx { owner: anonfun, level, ..ctx };
-        let expected_result =
-            expected.map(|(_, r)| r).filter(|&r| !matches!(self.u.types().get(r), Type::Wildcard(_)));
+        let expected_result = expected.map(|(_, r)| r).and_then(|r| match *self.u.types().get(r) {
+            Type::Wildcard(_) => None,
+            Type::Bounds(_, hi) => Some(hi),
+            _ => Some(r),
+        });
         let body_pt = expected_result.map_or(Pt::Any, Pt::Type);
         let body = self.typed(body, body_pt, bctx);
         let result = match expected_result {
@@ -154,14 +166,4 @@ impl Typer<'_> {
         let stats = self.tpd.list(&[def]);
         self.build().block(stats, closure, span.to_synthetic())
     }
-}
-
-/// Whether `t` has a wildcard type argument or is one.
-pub fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
-    let mut found = false;
-    u.map_type(t, &mut |u, part| {
-        found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
-        None
-    });
-    found
 }

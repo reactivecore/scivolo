@@ -72,14 +72,8 @@ impl Typer<'_> {
             if let Level::Members(p) = *self.levels.get(l)
                 && self.u.symbol(p).kind == Kind::Package
             {
-                for d in self.u.decls(p).unwrap_or_default() {
-                    let name = self.u.symbol(d).name.clone();
-                    let top =
-                        tasty::module_name(&name).is_some_and(|n| n == "package" || n.ends_with("$package"));
-                    if top
-                        && self.u.symbol(d).kind == Kind::Class
-                        && !self.implicit_members(d, false).is_empty()
-                    {
+                for d in self.u.package_objects(p).unwrap_or_default() {
+                    if !self.implicit_members(d, false).is_empty() {
                         return true;
                     }
                 }
