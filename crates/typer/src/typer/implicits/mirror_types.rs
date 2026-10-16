@@ -131,6 +131,17 @@ impl Typer<'_> {
         self.nested_pairs(&labels)
     }
 
+    /// `new C(args)` of the class of full name `full` at `at`.
+    pub fn new_with_args(&mut self, full: &str, args: &[TNodeId], at: Span) -> Result<TNodeId, &'static str> {
+        let class = self.resolve_full_name(full, true).ok_or(MISSING)?;
+        let ctor = self.u.decl(class, "<init>").ok().and_then(|d| d.first().copied()).ok_or(MISSING)?;
+        let raw = crate::defn::type_ref(self.u, class);
+        let tpt = self.tpd.node(T::TypeTree { inferred: false }, at, Some(raw), None);
+        let new = self.tpd.node(T::New { tpt }, at, Some(raw), None);
+        let select = self.build().select(new, ctor, at);
+        Ok(self.build().apply(select, args, raw, at))
+    }
+
     /// `tree.$asInstanceOf$[to]` at `at`.
     pub fn cast_to(&mut self, tree: TNodeId, to: TypeId, at: Span) -> Result<TNodeId, &'static str> {
         let any = self.u.builtins().any;

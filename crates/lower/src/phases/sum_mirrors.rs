@@ -1,7 +1,6 @@
 //! Sum mirrors of the companions of sealed classes other than enums (dotty's `isGenericSum` and
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 
-use super::local_free::within;
 use super::mirrors::is_generic_product;
 use super::walk::class_defs;
 use crate::definitions::type_ref;
@@ -9,36 +8,21 @@ use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
 use syntax::ast::tree::MatchKind;
-use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type, TypeId};
+use tasty::tags::{ABSTRACT, ENUM, SEALED, SYNTHETIC};
+use tasty::{Flags, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The children of sealed class `sealed` in unit `root` in the order of their definitions:
 /// classes, and objects by their values; of an enum, its cases.
 fn children(l: &mut Lower, root: TNodeId, sealed: SymbolId) -> Vec<SymbolId> {
     if has(l.u, sealed, ENUM) {
-        let companion = l.u.companion_module(sealed).and_then(|m| l.u.module_class(m));
-        let decls = companion.map(|c| l.u.symbol(c).decls.clone()).unwrap_or_default();
-        return decls
-            .into_iter()
-            .filter(|&d| {
-                let kind = l.u.symbol(d).kind;
-                let class_or_value =
-                    kind == Kind::Class && !l.u.is_module_class(d) || kind == Kind::Val && !l.u.is_module(d);
-                class_or_value && has(l.u, d, CASE) && has(l.u, d, ENUM)
-            })
-            .collect();
+        return typer::sealed::enum_cases(l.u, sealed);
     }
-    let mut out = Vec::new();
-    for td in class_defs(l.tpd, root) {
-        let Some(c) = l.tpd.sym(td) else { continue };
-        if !l.u.parents(c).into_iter().any(|p| l.u.class_symbol(p) == Some(sealed)) {
-            continue;
-        }
-        let module = l.u.is_module_class(c).then(|| l.u.source_module(c)).flatten();
-        out.push(module.unwrap_or(c));
-    }
-    out
+    let classes: Vec<(u32, SymbolId)> = class_defs(l.tpd, root)
+        .into_iter()
+        .filter_map(|td| Some((l.tpd.span(td).start(), l.tpd.sym(td)?)))
+        .collect();
+    typer::sealed::direct_children(l.u, sealed, &classes)
 }
 
 /// Whether sealed class `s` of unit `root` is a sum dotty gives a mirror (`isGenericSum`):
@@ -52,16 +36,10 @@ pub fn is_generic_sum(l: &mut Lower, root: TNodeId, s: SymbolId) -> bool {
     !children.is_empty()
         && children.into_iter().all(|c| {
             let anonymous = l.u.symbol(c).name.starts_with("$anon");
-            let visible = l.u.symbol(c).owner.is_some_and(|o| visible_to_parent(l, s, o));
+            let visible = l.u.symbol(c).owner.is_some_and(|o| typer::sealed::visible_to_parent(l.u, s, o));
             let fits = !l.u.is_class(c) || is_generic_product(l, c) || is_generic_sum(l, root, c);
             !anonymous && visible && fits
         })
-}
-
-/// Whether `owner`, where a child of `s` is defined, encloses `s` or is an object visible so.
-fn visible_to_parent(l: &Lower, s: SymbolId, owner: SymbolId) -> bool {
-    within(l, s, owner)
-        || l.u.is_module_class(owner) && l.u.symbol(owner).owner.is_some_and(|o| visible_to_parent(l, s, o))
 }
 
 /// `def ordinal(x$0: P): Int` of class `class` for sealed class `sealed` of unit `root`, `P` the

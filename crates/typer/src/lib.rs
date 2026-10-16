@@ -10,6 +10,7 @@ pub mod dump;
 pub mod inlining;
 mod main_proxies;
 mod namer;
+pub mod sealed;
 mod signatures;
 mod symbols;
 pub mod tpd;

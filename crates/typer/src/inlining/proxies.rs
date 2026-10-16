@@ -139,13 +139,14 @@ impl Inlining<'_> {
     }
 
     /// Whether `t` defines a class (a synthesized anonymous mirror).
-    fn defines_class(&self, t: TNodeId) -> bool {
+    pub fn defines_class(&self, t: TNodeId) -> bool {
         let class = |i: &Self, s: Option<SymbolId>| s.is_some_and(|s| i.u.symbol(s).kind == Kind::Class);
         matches!(self.tpd.tree(t), T::TypeDef { .. }) && class(self, self.tpd.sym(t))
             || self.tpd.children(t).into_iter().any(|c| self.defines_class(c))
     }
 
-    /// `t` itself with the definitions owned by `old` given to `new` (dotty's `changeOwner`).
+    /// `t` itself with the definitions owned by `old` given to `new` (dotty's `changeOwner`); the
+    /// binding then shares `t` with the call the `Inlined` tree keeps, which the lowering drops.
     fn change_owner(&mut self, t: TNodeId, old: SymbolId, new: SymbolId) -> TNodeId {
         let mut stack = vec![t];
         while let Some(n) = stack.pop() {

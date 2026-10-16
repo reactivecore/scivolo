@@ -22,6 +22,7 @@ mod avoid_captures;
 mod avoid_map;
 mod avoid_select;
 mod call_types;
+mod case_companion;
 mod case_lambdas;
 mod class_bound;
 mod classes;

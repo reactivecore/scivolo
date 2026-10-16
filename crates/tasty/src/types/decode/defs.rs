@@ -72,11 +72,23 @@ impl Decoder<'_> {
         let mut t = self.ty(parent);
         for &m in members {
             if matches!(self.ast.tag(m), VALDEF | DEFDEF | TYPEDEF) {
-                let info = self.definition_type(m);
+                let mut info = self.definition_type(m);
+                if self.ast.tag(m) == TYPEDEF && !self.is_bounds_or_alias(info) {
+                    info = self.intern(Type::Alias(info));
+                }
                 t = self.intern(Type::Refined(t, self.name(m), info));
             }
         }
         t
+    }
+
+    /// Whether type member info `t` is bounds or an alias, of a type lambda's result too.
+    fn is_bounds_or_alias(&self, t: TypeId) -> bool {
+        match self.types.get(t) {
+            Type::Alias(_) | Type::Bounds(..) => true,
+            Type::Lambda { result, .. } => matches!(self.types.get(*result), Type::Bounds(..)),
+            _ => false,
+        }
     }
 
     /// The bounds of the opaque type defined at `id`, when it states them.
