@@ -27,6 +27,9 @@ impl Typer<'_> {
             let Some((case, body, captures)) = self.typed_type_case(pat, body, ctx) else {
                 return self.unsupported(c, "match type case");
             };
+            if !self.u.is_reducible_case(case) {
+                return self.unsupported(c, "match type pattern outside the subset");
+            }
             if bound.is_some_and(|b| !self.u.is_subtype(body, b)) {
                 return self.unsupported(c, "match type case body outside the bound");
             }
@@ -150,9 +153,8 @@ impl Typer<'_> {
         self.u.try_normalize(op).is_some()
     }
 
-    /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type
-    /// and does not reduce.
-    pub fn is_irreducible(&mut self, t: TypeId) -> bool {
+    /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type.
+    pub fn is_ground_match(&mut self, t: TypeId) -> bool {
         let dealiased = self.u.dealias(t);
         if !matches!(self.u.types().get(dealiased), Type::Match { .. }) {
             return false;
@@ -171,7 +173,7 @@ impl Typer<'_> {
             }
             None
         });
-        !abstract_part && self.u.try_normalize(t).is_none()
+        !abstract_part
     }
 
     /// The names of the type variables pattern `pat` binds: its lower-case type identifiers.

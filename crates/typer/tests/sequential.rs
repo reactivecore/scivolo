@@ -221,11 +221,15 @@ fn match_types_reduce_in_conformance() {
     let cases = [
         (
             "object M { type E[X] = X match { case String => Char; case Array[t] => t }
-             val c: E[String] = 'a'; val i: E[Array[Int]] = 1 }",
+             def c[X](x: X): E[X] = ???; val s: Char = c(\"a\"); val i: Int = c(Array(1)) }",
             "",
         ),
         ("object N { val h: Int = (1, \"a\").head; val n: 2 = (1, \"a\").size }", ""),
-        ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that does not reduce"),
+        ("object O { val d: Tuple.Head[EmptyTuple] = ??? }", "match type that may reduce"),
+        (
+            "object S { class C[-T]; type G[X] = X match { case C[List[t]] => t } }",
+            "match type pattern outside the subset",
+        ),
         (
             "object P { type M[X] = X match { case Array[t] => t => Unit }; def f[X](m: M[X]): Any => Unit = m }",
             "adaptation",

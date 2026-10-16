@@ -28,6 +28,14 @@ impl Typer<'_> {
         let vars = self.constraint.count();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         self.add_annotations(sym, tree, ctx);
+        let flags = self.u.symbol(sym).flags;
+        if flags.has(tasty::tags::INFIX)
+            && !flags.has(tasty::tags::EXTENSION)
+            && !self.u.is_type_symbol(sym)
+            && self.u.symbol(sym).owner.is_some_and(|o| crate::defn::is_named_package_object(self.u, o))
+        {
+            self.unsupported(tree, "top-level infix definition");
+        }
         match self.ast.tree(tree).clone() {
             Tree::ValDef { tpt, rhs, .. } => {
                 let info = self.result_type(sym, tpt, rhs, ctx.with_owner(sym));

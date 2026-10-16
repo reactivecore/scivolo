@@ -61,7 +61,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
     ("object O { def f[T](t: T) = { class C[U](u: U); new C(t) } }", "generic local classes"),
-    ("object O { def f: Tuple.Head[EmptyTuple] = ??? }", "match types that do not reduce"),
+    ("object O { def f: Tuple.Head[EmptyTuple] = ??? }", "ground match types in type trees"),
     (
         "object O { def f(k: Int) = { trait T { val v = k }; new T {}.v } }",
         "local traits initializing with captured values",

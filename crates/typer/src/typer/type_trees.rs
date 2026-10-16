@@ -62,8 +62,8 @@ impl Typer<'_> {
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
-                if self.is_irreducible(tpe) {
-                    return self.unsupported(id, "match type that does not reduce");
+                if self.is_ground_match(tpe) {
+                    return self.unsupported(id, "match type that may reduce");
                 }
                 let args = self.tpd.list(&typed_args);
                 self.tpd.node(T::AppliedTypeTree { tpt, args }, span, Some(tpe), None)

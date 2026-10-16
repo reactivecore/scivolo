@@ -30,7 +30,7 @@ impl Typer<'_> {
     }
 
     /// Result `t` of a method of parameters `params` applied to the typed arguments `args`, if
-    /// there is one argument per parameter.
+    /// there is one argument per parameter and every one is stable.
     pub fn dependent_result(
         &mut self,
         t: TypeId,
@@ -39,7 +39,22 @@ impl Typer<'_> {
         args: &[crate::tpd::TNodeId],
     ) -> Option<TypeId> {
         let types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        if types.len() != params.len() {
+        if types.len() != params.len() || !types.iter().all(|&a| is_stable_path(self.u, a)) {
+            return None;
+        }
+        let mut inner_class = false;
+        self.u.map_type(t, &mut |u, part| {
+            let (pre, s) = match u.types().get(part).clone() {
+                Type::Sym(Some(pre), s) => (pre, Some(s)),
+                Type::TypeRef(pre, _) => (pre, u.resolve_ref(part)),
+                _ => return None,
+            };
+            if mentions_params(u, pre, binder, method) {
+                inner_class |= s.is_some_and(|s| u.symbol(s).kind == Kind::Class);
+            }
+            None
+        });
+        if inner_class {
             return None;
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();

@@ -27,6 +27,11 @@ impl Universe {
     pub fn try_normalize(&mut self, t: TypeId) -> Option<TypeId> {
         Cmp::new(self, &mut NoVars).try_normalize(t)
     }
+
+    /// Whether match type case `case` has a pattern that reduction handles.
+    pub fn is_reducible_case(&mut self, case: TypeId) -> bool {
+        !matches!(Cmp::new(self, &mut NoVars).analyze(case), spec::Spec::Unsupported)
+    }
 }
 
 impl Cmp<'_> {
