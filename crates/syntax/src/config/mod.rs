@@ -75,7 +75,7 @@ pub enum KindProjector {
 }
 
 /// The settings of one compilation unit that the scanner reads.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Config {
     pub source_version: SourceVersion,
     /// `-no-indent` or `-old-syntax`.
