@@ -157,6 +157,7 @@ pub fn class_name(tree: &Tree) -> String {
     match tree {
         Tree::TypeTree { inferred: true } => "InferredTypeTree".into(),
         Tree::ClassLiteral { .. } => "Literal".into(),
+        Tree::Import { export: true, .. } => "Export".into(),
         Tree::If { inline: true, .. } => "InlineIf".into(),
         Tree::Match { kind: MatchKind::Inline, .. } => "InlineMatch".into(),
         Tree::Match { kind: MatchKind::Sub, .. } => "SubMatch".into(),

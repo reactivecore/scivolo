@@ -21,7 +21,7 @@ pub fn shown(u: &mut Universe, input: &Line) -> Vec<String> {
     let Tree::Template { body, .. } = *tpd.tree(input.template) else { return Vec::new() };
     let mut out = Vec::new();
     for &s in tpd.items(body) {
-        let Tree::Import { expr, selectors } = *tpd.tree(s) else { continue };
+        let Tree::Import { expr, selectors, export: false } = *tpd.tree(s) else { continue };
         let selectors: Vec<(String, bool)> =
             tpd.items(selectors).iter().map(|&s| selector(input, s)).collect();
         let selectors = match &selectors[..] {

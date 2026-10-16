@@ -127,10 +127,7 @@ fn call_of(l: &Lower, t: TNodeId, functions: &[Function]) -> Option<(usize, TNod
         Tree::Apply { fun, args } => (fun, l.tpd.items(args).to_vec()),
         _ => (t, Vec::new()),
     };
-    let reference = match *l.tpd.tree(fun) {
-        Tree::TypeApply { fun, .. } => fun,
-        _ => fun,
-    };
+    let reference = super::walk::without_type_args(l.tpd, fun);
     let i = l.tpd.sym(reference).and_then(|s| functions.iter().position(|f| f.sym == s))?;
     let call = functions[i].closure.is_none()
         && matches!(l.tpd.tree(reference), Tree::Ident { .. })

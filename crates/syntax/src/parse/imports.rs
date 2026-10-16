@@ -169,7 +169,7 @@ impl Parser<'_> {
     fn mk_import(&mut self, expr: NodeId, sels: &[NodeId], export: bool, outermost: bool) -> NodeId {
         let selectors = self.ast.list(sels);
         if export {
-            return self.ast.node(Tree::Export { expr, selectors });
+            return self.ast.node(Tree::Export { expr, selectors, ext: None });
         }
         let imp = self.ast.node(Tree::Import { expr, selectors });
         if let Some(prefix) = self.language_prefix(expr) {

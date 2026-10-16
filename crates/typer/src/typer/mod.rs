@@ -46,6 +46,7 @@ mod equality;
 mod errors;
 mod escaping;
 mod eta;
+mod export_trees;
 mod extension_calls;
 mod features;
 mod find_ref;
@@ -203,6 +204,8 @@ pub struct Typer<'a> {
     pub inline_defs: FxHashMap<SymbolId, InlineDef>,
     /// The context of each call of an inline method outside one.
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
+    /// The forwarders of each export clause in a class body.
+    pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -256,6 +259,7 @@ impl<'a> Typer<'a> {
             probe: None,
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
+            exports: FxHashMap::default(),
             depth: 0,
         };
         typer.enter_and_or();

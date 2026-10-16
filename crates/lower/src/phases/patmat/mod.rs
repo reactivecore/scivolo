@@ -28,16 +28,26 @@ use typer::tpd::{MatchKind, TNodeId, Tree};
 /// outside methods with their variables owned by the constructor.
 pub fn transform(l: &mut Lower, root: TNodeId, owner: SymbolId) -> Result<()> {
     let mut matches = Vec::new();
+    let mut case_bodies = FxHashSet::default();
     let mut todo = vec![(root, owner, false)];
     while let Some((t, owner, visited)) = todo.pop() {
         if visited {
-            if matches!(l.tpd.tree(t), Tree::Match { .. }) {
-                matches.push((t, owner));
+            match l.tpd.tree(t) {
+                Tree::Match { kind: MatchKind::Sub, .. } if !case_bodies.contains(&t) => {
+                    return crate::unsupported(l.tpd.span(t), "sub match");
+                }
+                Tree::Match { kind: MatchKind::Sub, .. } => {}
+                Tree::Match { .. } => matches.push((t, owner)),
+                _ => {}
             }
             matches.extend(try_catch::fallback(l, t, owner)?.map(|m| (m, owner)));
             continue;
         }
         let inner = match *l.tpd.tree(t) {
+            Tree::CaseDef { body, .. } => {
+                case_bodies.insert(body);
+                owner
+            }
             Tree::DefDef { .. } if is_inline_with_sub_match(l, t) => continue,
             Tree::DefDef { .. } | Tree::TypeDef { .. } => l.tpd.sym(t).unwrap_or(owner),
             Tree::ValDef { .. } => {
