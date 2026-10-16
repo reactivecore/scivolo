@@ -43,6 +43,7 @@ mod derived;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
+mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
 mod equality;
@@ -210,6 +211,10 @@ pub struct Typer<'a> {
     pub inline_ctxs: FxHashMap<TNodeId, Ctx>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The pending dynamic calls, by their placeholder trees.
+    pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
+    /// The left-hand side of the assignment being typed.
+    pub dynamic_lhs: Option<NodeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
 }
@@ -264,6 +269,8 @@ impl<'a> Typer<'a> {
             inline_defs: FxHashMap::default(),
             inline_ctxs: FxHashMap::default(),
             exports: FxHashMap::default(),
+            dynamic_calls: FxHashMap::default(),
+            dynamic_lhs: None,
             depth: 0,
         };
         typer.enter_and_or();

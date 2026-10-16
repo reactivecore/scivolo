@@ -9,7 +9,7 @@ use syntax::ast::{List, NodeId};
 use tasty::{Binder, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, ctx: Ctx) -> TNodeId {
+    pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let f = self.typed(fun, Pt::PolyFun, ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
         let class_of = fun_name.as_deref() == Some("scala.Predef$.classOf");
@@ -17,6 +17,10 @@ impl Typer<'_> {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
+        if self.is_pending_dynamic(f) {
+            let targs = self.ast.items(args).to_vec();
+            return self.dynamic_type_apply(f, targs, pt, ctx);
+        }
         let arg_ids = self.ast.items(args).to_vec();
         let const_value = matches!(
             fun_name.as_deref().and_then(|n| n.strip_prefix("scala.compiletime.package$package$.")),

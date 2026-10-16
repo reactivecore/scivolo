@@ -27,6 +27,10 @@ impl Typer<'_> {
         });
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
+            Ok(f) if self.is_pending_dynamic(f) => {
+                let args = self.protos[proto].args.clone();
+                return self.typed_dynamic_apply(id, f, &args, pt, fun_ctx);
+            }
             Ok(f) if self.is_error(f) => return self.error_tree(self.ast.span(id)),
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
@@ -191,7 +195,7 @@ impl Typer<'_> {
     }
 
     /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.
-    fn is_sequence_arg(&self, a: NodeId) -> bool {
+    pub fn is_sequence_arg(&self, a: NodeId) -> bool {
         let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
         matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
     }

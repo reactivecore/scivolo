@@ -94,7 +94,12 @@ impl Typer<'_> {
             self.ast.with_span(update, span);
             return self.typed_apply(update, select, args, Pt::Any, ctx);
         }
+        let outer = self.dynamic_lhs.replace(lhs);
         let lhs = self.typed(lhs, Pt::Any, ctx);
+        self.dynamic_lhs = outer;
+        if self.is_pending_dynamic(lhs) {
+            return self.typed_dynamic_assign(lhs, rhs, ctx);
+        }
         let var = self.tpd.sym(lhs).filter(|&s| {
             let s = self.u.symbol(s);
             s.kind == Kind::Val && s.flags.has(tasty::tags::MUTABLE)

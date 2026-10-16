@@ -23,6 +23,11 @@ impl Typer<'_> {
         }
         let tpe = self.widen_if_unstable(tpe);
         let Some(found) = self.members_found(tpe, "apply", false) else {
+            if let Pt::Fun(_) | Pt::PolyFun = pt
+                && let Some(call) = self.dynamic_apply_insertion(f)
+            {
+                return Ok(call);
+            }
             let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
             return proxy.ok_or("application of a non-method");
         };
