@@ -117,4 +117,5 @@ unitcases
 sambridges
 traitparams
 mirrors
+scala2mirrors
 deriving

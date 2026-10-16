@@ -8,7 +8,7 @@ use super::mirror_types::{MirrorCore, MirrorFormal, MirrorKind};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, CASE, CASEaccessor, PRIVATE, PROTECTED};
+use tasty::tags::{CASE, CASEaccessor, PRIVATE, PROTECTED};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -29,9 +29,13 @@ impl Typer<'_> {
         match formal.kind {
             MirrorKind::Product => self.product_mirror(&formal, source, at, ctx),
             MirrorKind::Sum => self.sum_mirror(&formal, source, at, ctx),
-            MirrorKind::Any => match self.product_mirror(&formal, source.clone(), at, ctx)? {
-                Some(m) => Ok(Some(m)),
-                None => self.sum_mirror(&formal, source, at, ctx),
+            MirrorKind::Any => match self.product_mirror(&formal, source.clone(), at, ctx) {
+                Ok(Some(m)) => Ok(Some(m)),
+                Ok(None) => self.sum_mirror(&formal, source, at, ctx),
+                Err(what) => match self.sum_mirror(&formal, source, at, ctx) {
+                    Ok(Some(m)) => Ok(Some(m)),
+                    _ => Err(what),
+                },
             },
         }
     }
@@ -94,7 +98,8 @@ impl Typer<'_> {
         self.cast_to(mirror, cast, at).map(Some)
     }
 
-    /// The case object or enum value `s` at `path` cast to its `Mirror.Singleton` type.
+    /// The case object or enum value `s` at `path` cast to its `Mirror.Singleton` type; a
+    /// Scala 2 object wrapped in `new Mirror.SingletonProxy(s)`.
     fn singleton_mirror(
         &mut self,
         formal: &MirrorFormal,
@@ -105,15 +110,18 @@ impl Typer<'_> {
         let empty = self.nested_pairs(&[])?;
         self.check_refinement(formal.pt, "MirroredElemTypes", empty)?;
         self.check_refinement(formal.pt, "MirroredElemLabels", empty)?;
-        let label = self.u.symbol(s).name.clone();
-        let core = MirrorCore {
-            parent: "scala.deriving.Mirror$.Singleton",
-            mono: formal.mirrored,
-            label: &label,
-            elems: None,
+        let scala2 = self.u.is_module(s) && self.u.module_class(s).is_some_and(|c| self.u.is_scala2(c));
+        let parent = match scala2 {
+            true => "scala.deriving.Mirror$.SingletonProxy",
+            false => "scala.deriving.Mirror$.Singleton",
         };
+        let label = self.u.symbol(s).name.clone();
+        let core = MirrorCore { parent, mono: formal.mirrored, label: &label, elems: None };
         let cast = self.mirror_type(formal, core)?;
-        let value = self.path_tree(path, at, 8).ok_or("Mirror of a singleton outside the subset")?;
+        let mut value = self.path_tree(path, at, 8).ok_or("Mirror of a singleton outside the subset")?;
+        if scala2 {
+            value = self.new_with_args(parent, &[value], at)?;
+        }
         self.cast_to(value, cast, at)
     }
 
@@ -121,12 +129,12 @@ impl Typer<'_> {
     /// its companion the mirror or its constructor accessible.
     pub fn is_generic_product(&mut self, c: SymbolId, ctx: Ctx) -> bool {
         self.complete(c);
-        let flags = self.u.symbol(c).flags;
-        let shape = flags.has(CASE)
-            && !flags.has(ABSTRACT)
-            && self.param_lists(c) == 1
-            && !self.is_derived_value_class(c);
-        shape && (self.product_companion(c).is_some() || self.can_access_constructor(c, ctx))
+        if let Some(&ctor) = self.u.decl(c, "<init>").unwrap_or_default().first() {
+            self.complete(ctor);
+        }
+        let value_class = self.is_derived_value_class(c);
+        crate::sealed::is_product_shape(self.u, c, value_class)
+            && (self.product_companion(c).is_some() || self.can_access_constructor(c, ctx))
     }
 
     /// Whether the primary constructor of `c` is accessible from `ctx` for an anonymous mirror
@@ -158,23 +166,11 @@ impl Typer<'_> {
 
     /// The companion of class `c` if it is its mirror (dotty's `useCompanionAsProductMirror`).
     fn product_companion(&mut self, c: SymbolId) -> Option<SymbolId> {
+        if self.u.is_scala2(c) {
+            return None;
+        }
         let module = self.u.companion_module(c)?;
         let case = self.u.module_class(module).is_some_and(|m| self.u.symbol(m).flags.has(CASE));
         (!case).then_some(module)
-    }
-
-    /// The number of parameter lists of the primary constructor of class `c`.
-    fn param_lists(&mut self, c: SymbolId) -> usize {
-        let Some(&ctor) = self.u.decl(c, "<init>").unwrap_or_default().first() else { return 0 };
-        self.complete(ctor);
-        let mut t = self.u.info(ctor);
-        let mut lists = 0;
-        loop {
-            match self.u.types().get(t) {
-                Type::Poly { result, .. } => t = *result,
-                Type::Method { result, .. } => (t, lists) = (*result, lists + 1),
-                _ => return lists,
-            }
-        }
     }
 }

@@ -3,7 +3,8 @@
 
 use super::super::Typer;
 use crate::ctx::Ctx;
-use tasty::tags::{ABSTRACT, CASE, CONTRAVARIANT, ENUM, OBJECT, SEALED};
+use crate::sealed;
+use tasty::tags::{ABSTRACT, CONTRAVARIANT, ENUM, SEALED};
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
@@ -14,39 +15,20 @@ impl Typer<'_> {
             return Err("sum Mirror of a library's sealed class");
         };
         if self.u.symbol(s).flags.has(ENUM) {
-            let companion = self.u.companion_module(s).and_then(|m| self.u.module_class(m));
-            let decls = companion.map(|c| self.u.symbol(c).decls.clone()).unwrap_or_default();
-            return Ok(decls
-                .into_iter()
-                .filter(|&d| {
-                    let (kind, flags) = (self.u.symbol(d).kind, self.u.symbol(d).flags);
-                    let case =
-                        kind == Kind::Class && !flags.has(OBJECT) || kind == Kind::Val && !flags.has(OBJECT);
-                    case && flags.has(CASE) && flags.has(ENUM)
-                })
-                .collect());
+            return Ok(sealed::enum_cases(self.u, s));
         }
         let file = self.file_of(self.ast.span(def));
-        let mut found: Vec<(u32, SymbolId)> = Vec::new();
         let defs: Vec<(SymbolId, syntax::ast::NodeId)> =
             self.syms.def_trees.iter().map(|(&k, &v)| (k, v)).collect();
+        let mut classes = Vec::new();
         for (c, node) in defs {
             let span = self.ast.span(node);
-            if self.u.symbol(c).kind != Kind::Class || c == s || self.file_of(span) != file {
-                continue;
+            if self.u.symbol(c).kind == Kind::Class && self.file_of(span) == file {
+                self.complete(c);
+                classes.push((span.start(), c));
             }
-            self.complete(c);
-            if !self.u.parents(c).into_iter().any(|p| self.u.class_symbol(p) == Some(s)) {
-                continue;
-            }
-            let child = match self.u.is_module_class(c) {
-                true => self.u.source_module(c).ok_or("sealed child object without its value")?,
-                false => c,
-            };
-            found.push((span.start(), child));
         }
-        found.sort_by_key(|&(start, _)| start);
-        Ok(found.into_iter().map(|(_, c)| c).collect())
+        Ok(sealed::direct_children(self.u, s, &classes))
     }
 
     /// Whether sealed class `s` has a sum mirror (dotty's `isGenericSum`), its children visible
@@ -65,7 +47,7 @@ impl Typer<'_> {
                 return Ok(false);
             }
             let owner = self.u.symbol(c).owner.ok_or("sealed child without owner")?;
-            if !self.is_visible_to_parent(s, owner) {
+            if !sealed::visible_to_parent(self.u, s, owner) {
                 return Ok(false);
             }
             if !companion && !self.is_visible_to_scope(owner, ctx.owner) {
@@ -97,8 +79,13 @@ impl Typer<'_> {
         }
         let mark = self.constraint.mark();
         let vars: Vec<TypeId> = params.iter().map(|_| self.constraint.fresh(self.u)).collect();
+        let bounded = self.bound_child_vars(&params, &vars);
         let applied = self.u.intern_type(Type::Applied(raw, vars.clone()));
-        let solved = self.conforms(applied, target) && self.instantiate_child_vars(&params, &vars).is_ok();
+        let before = self.constraint.mark();
+        if !self.conforms(applied, target) {
+            self.constraint.rollback(before);
+        }
+        let solved = bounded && self.instantiate_child_vars(&params, &vars).is_ok();
         let t = self.zonk(applied);
         self.constraint.rollback(mark);
         match solved && self.is_fully_defined(t) {
@@ -123,6 +110,26 @@ impl Typer<'_> {
         }
     }
 
+    /// Constrains `vars` by the declared bounds of type parameters `params` (dotty's
+    /// `constrained` of the primary constructor's type); `false` if they contradict.
+    fn bound_child_vars(&mut self, params: &[SymbolId], vars: &[TypeId]) -> bool {
+        let mut ok = true;
+        for (&p, &v) in params.iter().zip(vars) {
+            self.complete(p);
+            let info = self.u.info(p);
+            let Type::Bounds(lo, hi) = *self.u.types().get(info) else { continue };
+            let subst = |u: &mut tasty::Universe, t: TypeId| {
+                u.map_type(t, &mut |u, x| match *u.types().get(x) {
+                    Type::Sym(_, s) => params.iter().position(|&q| q == s).map(|i| vars[i]),
+                    _ => None,
+                })
+            };
+            let (lo, hi) = (subst(self.u, lo), subst(self.u, hi));
+            ok &= self.conforms(lo, v) && self.conforms(v, hi);
+        }
+        ok
+    }
+
     fn instantiate_child_vars(&mut self, params: &[SymbolId], vars: &[TypeId]) -> Result<(), &'static str> {
         for (&p, &v) in params.iter().zip(vars) {
             let Type::Var(v) = *self.u.types().get(v) else { continue };
@@ -134,29 +141,10 @@ impl Typer<'_> {
         Ok(())
     }
 
-    /// Whether `owner`, where a child of `s` is defined, encloses `s` or is an object visible so.
-    fn is_visible_to_parent(&mut self, s: SymbolId, owner: SymbolId) -> bool {
-        self.is_contained_in(s, owner)
-            || self.u.is_module_class(owner)
-                && self.u.symbol(owner).owner.is_some_and(|o| self.is_visible_to_parent(s, o))
-    }
-
     /// Whether `owner` encloses `site` or is an object visible so.
     fn is_visible_to_scope(&mut self, owner: SymbolId, site: SymbolId) -> bool {
-        self.is_contained_in(site, owner)
+        sealed::is_contained_in(self.u, site, owner)
             || self.u.is_module_class(owner)
                 && self.u.symbol(owner).owner.is_some_and(|o| self.is_visible_to_scope(o, site))
-    }
-
-    /// Whether `s` is `owner` or owned by it, transitively.
-    fn is_contained_in(&self, s: SymbolId, owner: SymbolId) -> bool {
-        let mut cur = Some(s);
-        while let Some(c) = cur {
-            if c == owner {
-                return true;
-            }
-            cur = self.u.symbol(c).owner;
-        }
-        false
     }
 }

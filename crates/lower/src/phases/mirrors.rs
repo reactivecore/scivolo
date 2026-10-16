@@ -11,8 +11,8 @@ use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::tags::{ABSTRACT, CASE, ENUM, SEALED, SYNTHETIC};
-use tasty::{Flags, Kind, SymbolId, Type};
+use tasty::tags::{CASE, ENUM, SEALED, SYNTHETIC};
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// The parent object class `class` gets and its members, at `span`'s point.
@@ -44,7 +44,7 @@ pub fn mirror_support(
     let focus = Span::new(span.point(), span.point(), span.point());
     if is_generic_product(l, linked) {
         mono_type(l, class, linked);
-        let from_product = from_product(l, class, linked, focus)?;
+        let from_product = from_product(l, class, linked, None, focus)?;
         return Ok(Some((l.case_classes()?.mirror_product, vec![from_product])));
     }
     if !has(l.u, linked, SEALED) || !is_generic_sum(l, root, linked) {
@@ -62,21 +62,7 @@ pub fn mirror_support(
 /// Whether `c` is a case class dotty gives a product mirror (`isGenericProduct`).
 pub fn is_generic_product(l: &mut Lower, c: SymbolId) -> bool {
     let value_class = l.u.underlying(c).is_some();
-    has(l.u, c, CASE) && !has(l.u, c, ABSTRACT) && !value_class && param_lists(l, c) == 1
-}
-
-/// The number of parameter lists of the primary constructor of class `c`.
-fn param_lists(l: &mut Lower, c: SymbolId) -> usize {
-    let Some(&ctor) = l.u.decl(c, "<init>").unwrap_or_default().first() else { return 0 };
-    let mut t = l.u.info(ctor);
-    let mut lists = 0;
-    loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { result, .. } => (t, lists) = (*result, lists + 1),
-            _ => return lists,
-        }
-    }
+    typer::sealed::is_product_shape(l.u, c, value_class)
 }
 
 /// `type MirroredMonoType = C` in object class `class` for its companion class `linked`.
@@ -89,8 +75,15 @@ fn mono_type(l: &mut Lower, class: SymbolId, linked: SymbolId) {
 }
 
 /// `def fromProduct(x$0: Product): C = { val a$1 = x$0.productElement(0).asInstanceOf[A]; ...; new C(a$1, ...) }`
-/// (dotty's `fromProductBody`).
-pub fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus: Span) -> Result<TNodeId> {
+/// (dotty's `fromProductBody`), of an anonymous mirror cast to its `MirroredMonoType` `mono`, a
+/// generic `C` applied to its type parameters' upper bounds.
+pub fn from_product(
+    l: &mut Lower,
+    class: SymbolId,
+    case_class: SymbolId,
+    mono: Option<TypeId>,
+    focus: Span,
+) -> Result<TNodeId> {
     let cc = l.case_classes()?;
     let product = type_ref(l.u, cc.product);
     let result = type_ref(l.u, case_class);
@@ -135,9 +128,21 @@ pub fn from_product(l: &mut Lower, class: SymbolId, case_class: SymbolId, focus:
         let ctor = l.u.decl(case_class, "<init>").unwrap_or_default();
         let ctor = ctor.into_iter().next().expect("a case class constructor");
         let created = l.call(new, ctor, &refs);
-        l.tpd.get_mut(created).tpe = Some(result);
+        let params = l.u.type_params(case_class);
+        let tpe = match mono.filter(|_| !params.is_empty()) {
+            Some(_) => {
+                let his = params.iter().map(|&p| typer::sealed::upper_bound(l.u, p)).collect();
+                crate::definitions::applied(l.u, case_class, his)
+            }
+            None => result,
+        };
+        l.tpd.get_mut(created).tpe = Some(tpe);
         let block = l.block(&defs, created, Span::NONE);
-        l.positioned(block)
+        let block = l.positioned(block);
+        match mono {
+            Some(m) => l.ensure_conforms(block, m),
+            None => block,
+        }
     })?;
     for local in locals {
         l.u.set_owner(local, method);

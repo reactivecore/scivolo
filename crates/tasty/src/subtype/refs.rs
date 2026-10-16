@@ -1,9 +1,10 @@
 //! What named types and paths refer to, as the comparison sees them.
 
 use super::Cmp;
+use super::meaning::{meaning, refined_meaning};
 use crate::tags::OBJECT;
 use crate::types::{Type, TypeId};
-use crate::{ANY, Kind, NOTHING, SymbolId, Universe, is_package_object_name, module_class_name};
+use crate::{Kind, NOTHING, SymbolId, Universe, is_package_object_name, module_class_name};
 
 /// What a named type stands for.
 #[derive(Clone, PartialEq, Debug)]
@@ -47,14 +48,10 @@ impl Cmp<'_> {
         Some(match u.resolve_ref(t) {
             Some(s) => Named { sym: Some(s), prefix: Some(prefix), meaning: meaning(u, s, Some(prefix)) },
             None => {
-                let refined = matches!(u.types().get(t), Type::TypeRef(..))
-                    .then(|| u.refinement_named(prefix, &name))
-                    .flatten()
-                    .map(|i| u.types().get(i).clone());
-                let meaning = match refined {
-                    Some(Type::Alias(a)) => Meaning::Alias(a),
-                    Some(Type::Bounds(lo, hi)) => Meaning::Abstract(lo, hi),
-                    _ => u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved),
+                let typeref = matches!(u.types().get(t), Type::TypeRef(..));
+                let meaning = match typeref.then(|| refined_meaning(u, prefix, &name)).flatten() {
+                    Some(m) => m,
+                    None => u.unresolved_class(prefix, &name).map_or(Meaning::Unknown, Meaning::Unresolved),
                 };
                 Named { sym: None, prefix: Some(prefix), meaning }
             }
@@ -159,46 +156,4 @@ fn package_object_of(u: &Universe, obj: SymbolId, pkg: SymbolId) -> bool {
     u.symbol(pkg).kind == Kind::Package
         && u.symbol(obj).owner == Some(pkg)
         && (is_package_object_name(name) || is_package_object_name(&module_class_name(name)))
-}
-
-/// What symbol `s` stands for when referred to through `prefix`.
-fn meaning(u: &mut Universe, s: SymbolId, prefix: Option<TypeId>) -> Meaning {
-    let seen = |u: &mut Universe, t: TypeId| match (prefix, u.symbol(s).owner) {
-        (Some(p), Some(owner)) if u.symbol(owner).kind == Kind::Class => u.as_seen_from(t, p, owner),
-        _ => t,
-    };
-    match u.symbol(s).kind {
-        Kind::Class => Meaning::Class(s),
-        Kind::Type | Kind::TypeParam => {
-            let refined = prefix.and_then(|p| u.refinement_info(p, s)).map(|i| u.types().get(i).clone());
-            match refined {
-                Some(Type::Alias(a)) => return Meaning::Alias(a),
-                Some(Type::Bounds(lo, hi)) => return Meaning::Abstract(lo, hi),
-                _ => {}
-            }
-            let opaque = u.visible_opaque_alias(s, prefix);
-            if let Some(alias) = opaque.or_else(|| u.alias_of(s)) {
-                return Meaning::Alias(seen(u, alias));
-            }
-            if let Some((lo, hi)) = u.opaque_bounds(s) {
-                return Meaning::Abstract(seen(u, lo), seen(u, hi));
-            }
-            let info = u.info(s);
-            match u.types().get(info).clone() {
-                Type::Bounds(lo, hi) => Meaning::Abstract(seen(u, lo), seen(u, hi)),
-                Type::Lambda { binder, params, result } => match u.types().get(result).clone() {
-                    Type::Bounds(lo, hi) => {
-                        let lambda = |u: &mut Universe, body| {
-                            let body = seen(u, body);
-                            u.intern_type(Type::Lambda { binder, params: params.clone(), result: body })
-                        };
-                        Meaning::Abstract(lambda(u, lo), lambda(u, hi))
-                    }
-                    _ => Meaning::Abstract(NOTHING, ANY),
-                },
-                _ => Meaning::Abstract(NOTHING, ANY),
-            }
-        }
-        _ => Meaning::Term(s),
-    }
 }

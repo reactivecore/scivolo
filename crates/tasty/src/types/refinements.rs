@@ -17,16 +17,15 @@ impl Universe {
     }
 
     /// The info a refinement of `prefix`'s widened type gives type member `name`, a member
-    /// that need not have a symbol: bounds, or an alias, which TASTy gives as the bare type.
+    /// that need not have a symbol: its bounds or alias.
     pub fn refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
         let mut t = self.widen(prefix);
         for _ in 0..MAX_STEPS {
             match self.types().get(t).clone() {
-                Type::Refined(_, n, info) if n == name && !is_term_info(self.types().get(info)) => {
-                    return match self.types().get(info) {
-                        Type::Alias(_) | Type::Bounds(..) => Some(info),
-                        _ => Some(self.intern_type(Type::Alias(info))),
-                    };
+                Type::Refined(_, n, info)
+                    if n == name && matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
+                {
+                    return Some(info);
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
                 _ => match self.dealias(t) {
@@ -37,9 +36,4 @@ impl Universe {
         }
         None
     }
-}
-
-/// Whether refinement info `t` is a method's or by-name value's.
-fn is_term_info(t: &Type) -> bool {
-    matches!(t, Type::Method { .. } | Type::Poly { .. } | Type::ByName(_))
 }
