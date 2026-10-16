@@ -8,7 +8,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, Span, Tree};
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
 
@@ -37,10 +37,11 @@ impl Typer<'_> {
         }
         let at = Span::at(self.ast.span(tpt).start());
         let mut found = None;
-        for (class, args) in TAGS.into_iter().zip([vec![p, tpe], vec![tpe]]) {
-            let Some(class) = self.resolve_full_name(class, true) else { continue };
+        for (class_name, args) in TAGS.into_iter().zip([vec![p, tpe], vec![tpe]]) {
+            let Some(class) = self.resolve_full_name(class_name, true) else { continue };
             let wanted = crate::defn::applied(self.u, class, args);
             match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NONE), 0) {
+                Ok(_) if class_name == TAGS[0] => return Err("type pattern tested by a given TypeTest"),
                 Ok(tag) => {
                     found = Some(tag);
                     break;
@@ -85,6 +86,7 @@ impl Typer<'_> {
             _ => self.is_abstract_type(t) && !has_wildcard(self.u, t),
         }
     }
+
     /// dotty's unchecked warning at `span` about testing a value of type `pt` for `tpe` that
     /// refers to an abstract type, unless `pt` conforms or is `@unchecked`.
     pub fn warn_unchecked_type_test(&mut self, pt: Pt, tpe: TypeId, span: Span) {
@@ -103,6 +105,9 @@ impl Typer<'_> {
     /// `x @ tag(e)` as `tag(x @ e)` if `body` is the extractor pattern of a type test.
     pub fn bind_in_type_test(&mut self, id: NodeId, body: TNodeId, ctx: Ctx) -> Option<TNodeId> {
         let T::UnApply { fun, implicits, patterns } = *self.tpd.tree(body) else { return None };
+        if !self.tpd.items(implicits).is_empty() {
+            return None;
+        }
         let [arg] = self.tpd.items(patterns)[..] else { return None };
         let owner = self.tpd.sym(self.tpd.meth_part(fun)).and_then(|s| self.u.symbol(s).owner)?;
         let name = self.u.full_name(owner);
@@ -122,7 +127,7 @@ impl Typer<'_> {
         Some(self.tpd.node(T::UnApply { fun, implicits, patterns }, span, Some(tpe), None))
     }
 
-    fn derives_from_named_class(&mut self, class: tasty::SymbolId, name: &str) -> bool {
+    fn derives_from_named_class(&mut self, class: SymbolId, name: &str) -> bool {
         let Some(base) = self.resolve_full_name(name, true) else { return false };
         self.u.symbol(class).kind == Kind::Class && self.u.derives_from(class, base)
     }
