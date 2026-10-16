@@ -67,8 +67,9 @@ impl Typer<'_> {
             return self.unsupported(id, what);
         }
         let meth = self.tpd.sym(self.tpd.meth_part(f));
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let result = self.without_false_deps(result, binder, meth);
-        let dependent = self.mentions_params(result, binder, meth);
+        let dependent = self.mentions_clause_params(result, (binder, &names), meth);
         if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
@@ -89,12 +90,17 @@ impl Typer<'_> {
                 _ => p,
             })
             .collect();
-        if formals.iter().any(|&p| {
-            self.is_special_param(p)
-                || self.mentions_params(p, binder, meth)
+        let in_order = aligned.is_none() && pretyped.is_none() && repeated.is_none();
+        let mut param_dependent = false;
+        for &p in &formals {
+            let own = self.mentions_clause_params(p, (binder, &names), meth);
+            param_dependent |= own;
+            if own && !in_order
+                || !own && (self.is_special_param(p) || self.mentions_params(p, binder, meth))
                 || self.mentions_foreign_private_type(p, ctx)
-        }) {
-            return self.unsupported(id, "dependent parameter or private type");
+            {
+                return self.unsupported(id, "dependent parameter or private type");
+            }
         }
         let seq_arg = arg_ids
             .last()
@@ -119,7 +125,12 @@ impl Typer<'_> {
         let result = if lifted.is_empty() { result } else { self.result_of(f).unwrap_or(result) };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
-            let formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
+            let mut formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
+            if param_dependent {
+                let before: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                formal = self.applied_result(formal, (binder, &names), meth, &before);
+                self.complete_type_members(formal);
+            }
             typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
                 Some(typed) => {
                     let arg = self.to_sam(typed, formal).unwrap_or(typed);
