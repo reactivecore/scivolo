@@ -133,7 +133,8 @@ impl Typer<'_> {
                     let params = params.clone();
                     self.u.intern_type(Type::Lambda { binder, params, result })
                 };
-                (Some(lambda(lo)).filter(|_| !bottom), lambda(hi), arity)
+                let lo = lambda(lo);
+                ((!bottom).then_some(lo), lambda(hi), arity)
             }
             _ => (Some(bounds), bounds, self.type_arity(bounds)),
         }
