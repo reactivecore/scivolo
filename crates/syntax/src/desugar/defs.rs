@@ -72,7 +72,7 @@ impl Desugar<'_> {
             .collect();
         let selectors = if mapped == items { selectors } else { self.list(&mapped) };
         let tree = match *self.ast.tree(id) {
-            Tree::Export { ext_clauses, .. } => Tree::Export { expr, selectors, ext_clauses },
+            Tree::Export { ext, .. } => Tree::Export { expr, selectors, ext },
             _ => Tree::Import { expr, selectors },
         };
         self.ast.derived(id, tree)

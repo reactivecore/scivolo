@@ -30,9 +30,12 @@ impl Typer<'_> {
         span: Span,
     ) {
         let mut non_contextual: Vec<String> = seen.to_vec();
-        let class = self.path_class(e.path);
-        let case_path = class.is_some_and(|c| self.u.symbol(c).flags.has(t::CASE));
-        for name in class.map(|c| self.member_names_of(c)).unwrap_or_default() {
+        let Some(class) = self.path_class(e.path) else {
+            self.unsupported_at(span, "wildcard export from a path whose type is not a class");
+            return;
+        };
+        let case_path = self.u.symbol(class).flags.has(t::CASE);
+        for name in self.member_names_of(class) {
             for m in self.type_members(e.path, &name) {
                 let flags = self.u.symbol(m).flags;
                 if flags.has(t::PRIVATE)
@@ -75,7 +78,15 @@ impl Typer<'_> {
             return self.u.module_class(s);
         }
         let widened = self.u.widen(t);
-        self.u.class_symbol(widened)
+        let widened = self.u.dealias(widened);
+        let tycon = match *self.u.types().get(widened) {
+            Type::Applied(tycon, _) => tycon,
+            _ => widened,
+        };
+        match *self.u.types().get(tycon) {
+            Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => Some(c),
+            _ => None,
+        }
     }
 
     /// The names of the members of class `c`, its own first, then those of its base classes.

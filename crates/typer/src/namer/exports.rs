@@ -1,8 +1,6 @@
-//! Export clauses: the forwarders they define in their class (dotty's `Namer.exportForwarders`
-//! and `processExports`).
+//! Export clauses: the forwarders they define in their class (dotty's `Namer.exportForwarders`).
 
-use crate::ctx::{Ctx, Mode};
-use crate::typer::Pt;
+use crate::ctx::Ctx;
 use crate::typer::Typer;
 use crate::typer::stability::is_stable_path;
 use syntax::ast::flags::{self as f, FlagSet};
@@ -61,76 +59,15 @@ const RETAINED: [(u8, FlagSet); 4] = [
 ];
 
 impl Typer<'_> {
-    /// Defines the forwarders of the export clauses among `body`, the statements of class `cls`
-    /// indexed in `ctx`.
-    pub fn process_exports(&mut self, cls: SymbolId, body: &[NodeId], mut ctx: Ctx) {
-        for &stat in body {
-            if let Tree::Export { expr, selectors, ext_clauses } = *self.ast.tree(stat) {
-                let path_method = match ext_clauses {
-                    0 => None,
-                    n => match self.export_path_method(cls, expr, n as usize) {
-                        Some(m) => Some(m),
-                        None => continue,
-                    },
-                };
-                let forwarders = self.export_forwarders(cls, (expr, selectors), path_method, ctx);
-                self.exports.insert(stat, Exported { path_method, forwarders });
-            }
-            ctx = self.after_stat(stat, ctx);
-        }
-    }
-
-    /// The extension method of class `cls` that path `expr` of an export in an extension of `n`
-    /// clauses refers to: one without clauses of its own (dotty's `exportPathSym`).
-    fn export_path_method(&mut self, cls: SymbolId, expr: NodeId, n: usize) -> Option<SymbolId> {
-        let found = match *self.ast.tree(expr) {
-            Tree::Ident { name } => {
-                let name = self.text(name.name).to_owned();
-                let decls = self.u.decl(cls, &name).unwrap_or_default();
-                let extension = |t: &Self, d: &SymbolId| {
-                    t.syms.flags.get(d).is_some_and(|fl| fl.is(f::EXTENSION_METHOD))
-                        && t.syms.def_trees.get(d).is_some_and(|&tree| t.def_clauses(tree).len() == n)
-                };
-                decls.into_iter().filter(|d| extension(self, d)).collect()
-            }
-            _ => Vec::new(),
-        };
-        match found[..] {
-            [m] => Some(m),
-            _ => {
-                self.unsupported(expr, "export qualifier that is not one parameterless extension method");
-                None
-            }
-        }
-    }
-
-    fn export_forwarders(
+    /// The forwarders an export clause in class `cls` with path type `path` and `selectors`
+    /// defines (dotty's `exportForwarders`).
+    pub fn export_forwarders(
         &mut self,
         cls: SymbolId,
-        (expr, selectors): (NodeId, List),
+        (path, selectors): (TypeId, List),
         path_method: Option<SymbolId>,
         ctx: Ctx,
     ) -> Vec<Forwarder> {
-        let path = match path_method {
-            Some(m) => {
-                self.complete(m);
-                let mut t = self.u.info(m);
-                while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.u.types().get(t) {
-                    t = result;
-                }
-                t
-            }
-            None => {
-                let path = self.typed(expr, Pt::Any, ctx.with_mode(Mode::QUALIFIER));
-                self.typed_ahead(expr, path, ctx);
-                let package = self.tpd.sym(path).is_some_and(|s| self.u.symbol(s).kind == Kind::Package);
-                if package || !self.is_stable_path(path) {
-                    self.unsupported(expr, "export prefix that is not a stable path to a value");
-                    return Vec::new();
-                }
-                self.tpd.tpe(path)
-            }
-        };
         let Some(sels) = self.export_selectors(selectors) else { return Vec::new() };
         let mut e = Export { cls, path, path_method, ctx, targets: Vec::new(), out: Vec::new() };
         let mut seen = Vec::new();
@@ -205,7 +142,9 @@ impl Typer<'_> {
             .iter()
             .filter(|&&(tag, _)| flags.has(tag))
             .fold(f::EXPORTED.or(f::METHOD).or(f::FINAL), |acc, &(_, fl)| acc.or(fl));
-        let public = !flags.has(t::PRIVATE) && !flags.has(t::PROTECTED) && !flags.has(t::PRIVATEqualified);
+        let public = ![t::PRIVATE, t::PROTECTED, t::PRIVATEqualified, t::PROTECTEDqualified]
+            .iter()
+            .any(|&fl| flags.has(fl));
         let stable = self.is_stable_member(m)
             && public
             && e.path_method.is_none()
@@ -218,11 +157,18 @@ impl Typer<'_> {
             fl = fl.or(f::EXTENSION_METHOD);
         }
         let sym = self.syms.define(self.u, alias, Kind::Def, e.cls, fl);
+        if let Some(name) = self.u.symbol(m).target.clone() {
+            self.u.set_target(sym, &name);
+        }
         if stable {
             let target = self.u.intern_type(Type::Sym(Some(e.path), m));
             self.set_forwarder_result(sym, Vec::new(), target);
         } else {
             self.set_forwarder_info(sym, m, e.path, e.path_method);
+            let info = self.u.info(sym);
+            if self.refers_to_private(e.path) && self.mentions(info, e.path) {
+                self.unsupported_at(span, "export forwarder whose type refers to a private path");
+            }
         }
         e.out.push(Forwarder { sym, target: m, span });
         self.add_default_forwarders(e, m, alias, span);
@@ -238,13 +184,35 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether type `t` has part `part`.
+    fn mentions(&mut self, t: TypeId, part: TypeId) -> bool {
+        let mut found = false;
+        self.u.map_type(t, &mut |_, x| {
+            found |= x == part;
+            None
+        });
+        found
+    }
+
     /// The type alias forwarding to type member `m` of `e`'s path.
     fn add_type_forwarder(&mut self, e: &mut Export, alias: &str, m: SymbolId, span: Span) {
         let info = self.u.info(m);
-        let class_params = self.u.symbol(m).kind == Kind::Class
-            && self.u.symbol(m).decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam);
+        let class = self.u.symbol(m).kind == Kind::Class;
+        let class_params =
+            class && self.u.symbol(m).decls.iter().any(|&d| self.u.symbol(d).kind == Kind::TypeParam);
         if class_params || matches!(self.u.types().get(info), Type::Lambda { .. }) {
             self.unsupported_at(span, "export of a type constructor");
+            return;
+        }
+        let name = self.u.symbol(m).name.clone();
+        if class && !self.type_members(e.path, &name).iter().any(|&c| !self.u.is_type_symbol(c)) {
+            self.unsupported_at(span, "export of a class without a companion object");
+            return;
+        }
+        let taken =
+            self.u.decl(e.cls, alias).unwrap_or_default().into_iter().any(|d| self.u.is_type_symbol(d));
+        if taken {
+            self.unsupported_at(span, "export of a type whose name the class defines");
             return;
         }
         let mut target = self.u.intern_type(Type::Sym(Some(e.path), m));
@@ -267,8 +235,7 @@ impl Typer<'_> {
         e.out.push(Forwarder { sym, target: m, span });
     }
 
-    /// Fails on two forwarders of the same name that erase alike (dotty's `avoidClashes`, which
-    /// keeps the one overloading resolution prefers).
+    /// Fails on two forwarders of the same name that erase alike (dotty's `avoidClashes`).
     fn check_clashes(&mut self, out: &[Forwarder]) {
         for (i, a) in out.iter().enumerate() {
             for b in &out[i + 1..] {

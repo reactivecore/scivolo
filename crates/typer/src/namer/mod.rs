@@ -8,6 +8,7 @@ mod complete;
 mod defaults;
 mod double_definitions;
 mod export_members;
+mod export_paths;
 pub(crate) mod exports;
 mod forwarders;
 mod inheritance;

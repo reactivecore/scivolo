@@ -54,7 +54,8 @@ impl Typer<'_> {
             return self.tpd.node(T::TypeDef { name, rhs }, f.span, None, Some(f.sym));
         }
         let mut fun = self.export_path(expr, path_method, ctx.with_owner(f.sym));
-        let mut path_clauses = path_method.map_or(0, |m| self.clause_count(m));
+        let path_def = path_method.and_then(|m| self.syms.def_trees.get(&m).copied());
+        let mut path_clauses = path_def.map_or(0, |d| self.def_clauses(d).len());
         let path_span = self.ast.span(expr);
         if path_clauses == 0 {
             fun = self.build().select(fun, f.target, at);
@@ -141,16 +142,5 @@ impl Typer<'_> {
         };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         self.u.subst(result, binder, &names, refs)
-    }
-
-    /// The number of parameter clauses of method `m`.
-    fn clause_count(&mut self, m: SymbolId) -> usize {
-        let mut t = self.u.info(m);
-        let mut n = 0;
-        while let Type::Poly { result, .. } | Type::Method { result, .. } = *self.u.types().get(t) {
-            t = result;
-            n += 1;
-        }
-        n
     }
 }
