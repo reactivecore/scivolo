@@ -68,6 +68,12 @@ impl World {
         GlobalId(self.pool.globals.intern(Global::Member(owner, s)))
     }
 
+    /// Adds directory or jar `path` to the classpath, before the library image; its top-level
+    /// names must not have been looked up.
+    pub fn add_classpath(&mut self, path: &std::path::Path) -> std::io::Result<()> {
+        self.classpath.add(path)
+    }
+
     /// The top-level names on the classpath that end in `suffix`.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         self.classpath.tops_ending(suffix)

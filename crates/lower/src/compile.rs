@@ -9,6 +9,7 @@ use syntax::parse::Parser;
 use syntax::source::SourceFile;
 use tasty::Universe;
 use typer::Fallback;
+use typer::inlining::Macros;
 
 /// Why a source takes the JVM frontend, with the syntax or type errors behind it.
 pub struct Refusal {
@@ -36,15 +37,16 @@ impl std::fmt::Debug for Refusal {
 
 /// The NIR files of `source`, or why it takes the JVM frontend.
 pub fn compile(u: &mut Universe, source: &SourceFile, options: &[&str]) -> Result<Vec<NirFile>, Refusal> {
-    compile_with(u, source, Config::from_options(options)).map(|(files, _)| files)
+    compile_with(u, source, Config::from_options(options), None).map(|(files, _)| files)
 }
 
-/// The NIR files and warnings of `source` under settings `cfg`, or why it takes the JVM
-/// frontend.
+/// The NIR files and warnings of `source` under settings `cfg`, its macro calls expanded
+/// through `macros`, or why it takes the JVM frontend.
 pub fn compile_with(
     u: &mut Universe,
     source: &SourceFile,
     cfg: Config,
+    macros: Option<&mut dyn Macros>,
 ) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
     let mut names = Names::default();
     let mut p = Parser::new(source, &mut names, cfg);
@@ -54,7 +56,7 @@ pub fn compile_with(
     if p.s.diags.has_errors() {
         return Err(Refusal { what: "syntax errors".into(), diags: std::mem::take(&mut p.s.diags) });
     }
-    let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), root, cfg) {
+    let mut typed = match typer::type_unit(u, &mut p.ast, (p.s.names, &mut p.fresh), (root, cfg), macros) {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, .. }) => {
             return Err(Refusal::new(format!("the typer does not support {what}")));

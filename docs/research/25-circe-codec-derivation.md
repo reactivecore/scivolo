@@ -244,6 +244,17 @@ and worth doing first because the mirror is the macro's *input*: M4 cannot be te
 without it, and the mirror tests are JVM-free. M4a lands behind a flag until M4b passes
 `typer-compare` on the pos corpus's macro files.
 
+M4a findings (2026-10-16, ADR 0029) [V, `tests/macros/lib`]: a macro body in TASTy is
+`TYPED(SPLICE(BLOCK(DEFDEF $anonfun(contextual$: Quotes) = impl(QUOTE(x).apply(q))(q), LAMBDA)))`;
+a pickled quote (Base64 TASTy, the tooling's version) is `INLINED(expr, call = the macro's
+module)`, `expr` a `BLOCK` of `@SplicedType` `TYPEDEF`s whose right-hand side is a type `HOLE`
+when it has type holes, each term hole `INLINED(HOLE idx tpe args*)`; `'{ 42 }` compiles to
+`ToExpr.IntToExpr`, i.e. `quotes.reflect` (so M4b); the hole closure of a quote can be filled
+with an expression made before the quote (`typed('{ … })` with a `Type.of` from
+`unpickleTypeV2`). Quote locals (`'{ val v = $x; … }`) reach the lowering's refusal of
+definitions from library inline bodies (`phases/drop_inlined.rs`), as plain library inline
+bodies with locals do.
+
 Risks: the VM bridge (gap 4) is the first time the typer runs code; the REPL's VM is
 single-threaded and already in the interpreter thread (`main.rs:70-76`) — the typer calls into it
 synchronously, GC roots for host-held `Expr` objects need a handle table (ADR 0002's slots).

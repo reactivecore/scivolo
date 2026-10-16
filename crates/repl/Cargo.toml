@@ -7,6 +7,7 @@ publish = false
 [dependencies]
 libimage.workspace = true
 lower = { path = "../lower" }
+macros = { path = "../macros" }
 syntax = { path = "../syntax" }
 tasty = { path = "../tasty" }
 typer = { path = "../typer" }

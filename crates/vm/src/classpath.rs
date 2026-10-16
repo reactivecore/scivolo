@@ -38,6 +38,17 @@ impl Classpath {
         Ok(classpath)
     }
 
+    /// Adds directory or jar `path` before the library image.
+    pub fn add(&mut self, path: &Path) -> io::Result<()> {
+        let root = match Self::open(&[path.to_owned()])?.roots.pop() {
+            Some(root) => root,
+            None => return Ok(()),
+        };
+        let at = self.roots.iter().position(|r| matches!(r, Root::Image(_))).unwrap_or(self.roots.len());
+        self.roots.insert(at, root);
+        Ok(())
+    }
+
     /// The distinct top-level names defined on the classpath that end in `suffix`, sorted.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         let file_suffix = format!("{suffix}.nir");

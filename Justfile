@@ -371,10 +371,12 @@ highlight-oracle:
     mv tmp/highlight-cases.check tests/highlight/cases.check
 
 # Record dotty's typed trees of the golden tests in crates/typer/tests/typed, and its `Inlined`
-# trees after the `inlining` phase of those in crates/typer/tests/inlined (JVM).
+# trees after the `inlining` phase of those in crates/typer/tests/inlined and
+# crates/macros/tests/inlined (JVM).
 typer-checks:
     python3 scripts/typer-tests.py checks crates/typer/tests/typed
     python3 scripts/typer-tests.py checks crates/typer/tests/inlined
+    python3 scripts/typer-tests.py checks crates/macros/tests/inlined
 
 # The difference between dotty's and the Rust typed trees of one file.
 typer-diff path:
@@ -436,6 +438,18 @@ subtype-oracle:
 # Compile the library of inline methods that crates/typer/tests/inlined/libbodies.scala calls.
 inline-fixture:
     scala-cli --power package --library --server=false -S 3.9.0 crates/typer/tests/inlined/lib/Lib.scala -o crates/typer/tests/inlined/lib/lib.jar -f
+
+# Compile the macro library tests/macros/lib with Scala Native into tests/macros/lib/macros.jar:
+# NIR and TASTy, as a `--dep` jar holds them, and the class files dotty's oracle runs.
+macro-fixture:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf tmp/macro-fixture
+    scala-cli --power compile --quiet --native --native-version 0.5.12 --scala 3.9.0 --server=false \
+        --scalac-option -sourceroot --scalac-option {{ justfile_directory() }} \
+        --workspace tmp/macro-fixture/ws -d tmp/macro-fixture/out tests/macros/lib/Macros.scala
+    rm -f tests/macros/lib/macros.jar
+    (cd tmp/macro-fixture/out && zip -q -X -r {{ justfile_directory() }}/tests/macros/lib/macros.jar . -i '*/' '*.nir' '*.tasty' '*.class')
 
 # Rebuild the checked-in libs/javalib-tasty-<version>.jar (sbt, JDK) from ref/scala-native.
 javalib-tasty:

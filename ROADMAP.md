@@ -249,6 +249,11 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
   quote type patterns (`case '[T]`).
 - Until this phase lands, scripts that call macros take the phase 1 fallback.
 
+Status (2026-10-16, #40 M4a, ADR 0029): behind `SCALAI_MACROS=on`, a library macro
+`${ impl('x) }` runs from its NIR in the VM and its quotes (type and term holes) are unpickled
+into the typer's trees, in scripts and the REPL; quote patterns and `quotes.reflect` (M4b of
+[research 25](docs/research/25-circe-codec-derivation.md)) are refused.
+
 ## Phase 5 — precompiled code and wider reach (open-ended)
 
 - **AOT for libraries.** Compile library NIR through LLVM (Scala Native's own

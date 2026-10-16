@@ -1,7 +1,7 @@
 //! What an expansion asks of the typer it runs in: the context of a call, implicit arguments,
 //! errors (dotty's `Inliner` working in the context of the call).
 
-use super::{Inlining, Unsupported};
+use super::{Expanded, Inlining, MacroCall, MacroError, Unsupported};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
@@ -26,6 +26,8 @@ pub trait Host {
     ) -> Result<Option<TNodeId>, &'static str>;
     /// Reports error `msg` at `at`.
     fn error(&mut self, at: Span, msg: String);
+    /// What macro call `call` expands to (dotty's `Splicer.splice`).
+    fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
 }
 
 impl Inlining<'_> {

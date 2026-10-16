@@ -133,12 +133,13 @@ mod tests {
         let mut library = Classpath::open(&jars).unwrap();
         let mut world = World::new(Classpath::open(&jars).unwrap());
         for (top, _) in embedded::FILES {
+            let helper = top.starts_with("scalai.") || top.starts_with("scala.quoted.runtime.impl.");
             assert!(
-                library.find(top).is_some() || top.starts_with("scalai."),
-                "{top}: neither in the library nor a helper in package scalai"
+                library.find(top).is_some() || helper,
+                "{top}: neither in the library nor a helper in package scalai or scala.quoted.runtime.impl"
             );
             let g = world.top(top);
-            world.defn(g).unwrap_or_else(|e| panic!("{e}"));
+            world.members(g).unwrap_or_else(|e| panic!("{e}"));
         }
         for (top, sig) in ADDED.lines().filter(|l| !l.starts_with('#')).filter_map(|l| l.split_once(' ')) {
             let (data, _) =

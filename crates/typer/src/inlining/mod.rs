@@ -12,14 +12,17 @@ mod erased;
 mod expand;
 mod host;
 mod inline_call;
+mod macros;
 mod no_inits;
 mod outer_this;
 mod proxies;
 mod purity;
+mod quoted;
 mod reduce;
 mod reselect;
 mod retype;
 mod skolems;
+mod splice;
 mod this_proxy;
 mod transparent;
 mod tuple_intrinsics;
@@ -28,6 +31,7 @@ mod unused;
 
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
+pub use macros::{Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
 
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T, map_children};

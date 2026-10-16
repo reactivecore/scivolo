@@ -14,7 +14,8 @@ use vm::{Classpath, Vm, VmError};
 /// target, starts the REPL.
 ///
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
-/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_FRONTEND=strict compiles
+/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_MACROS=on expands macro
+/// calls in scripts and the REPL, running them in the VM; SCALAI_FRONTEND=strict compiles
 /// scripts with the own frontend only, =jvm with scala-cli only (default: the own frontend,
 /// scala-cli where it refuses); SCALAI_SCALA_CLI names the scala-cli binary; SCALAI_TIMEOUT
 /// stops the program, compiling included, after that many seconds (exit 124); SCALAI_TRACE traces exceptions;
@@ -100,31 +101,33 @@ fn watch_timeout() {
 /// Runs main class `target`, or the main class of source file `target` (`chosen` if given)
 /// compiled with compiler options `options`.
 fn run(
-    mut cp: Vec<PathBuf>,
+    cp: Vec<PathBuf>,
     target: String,
     (chosen, options): (Option<String>, &[String]),
     args: &[String],
 ) -> Result<i32, String> {
     watch_timeout();
     let jars = libs::jars()?;
-    let image = libs::image(&jars);
-    let main_class = match script::is_source(&target) {
-        true => {
-            let (classes, main) = script::main_of(&target, chosen, image.as_ref().ok().copied(), options)?;
-            cp.push(classes);
-            main
-        }
-        false => target,
-    };
+    let with_cp: Vec<PathBuf> = jars.iter().chain(cp.iter().filter(|p| !p.is_dir())).cloned().collect();
+    let image = libs::image(&with_cp);
+    let known = image.as_ref().ok().copied();
     let classpath = match image.and_then(|image| Classpath::with_image(&cp, image)) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("scalai: no library image ({e}); reading the jars");
-            cp.extend(jars);
-            Classpath::open(&cp).map_err(|e| e.to_string())?
+            let all: Vec<PathBuf> = cp.iter().chain(&jars).cloned().collect();
+            Classpath::open(&all).map_err(|e| e.to_string())?
         }
     };
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    let main_class = match script::is_source(&target) {
+        true => {
+            let (classes, main) = script::main_of(&target, chosen, (known, &cp), options, &mut vm)?;
+            vm.world.add_classpath(&classes).map_err(|e| format!("{}: {e}", classes.display()))?;
+            main
+        }
+        false => target,
+    };
     let result = vm.run_main(&main_class, args);
     if std::env::var_os("SCALAI_PROFILE").is_some() {
         for (calls, name) in vm.profile_report(30) {
