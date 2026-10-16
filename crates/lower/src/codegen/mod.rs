@@ -65,6 +65,7 @@ pub struct Gen<'l, 'a> {
 /// The NIR files of unit `root`, one per top-level name, in the order first defined.
 pub fn unit(l: &mut Lower, root: TNodeId) -> Result<Vec<NirFile>> {
     let mut pool = Pool::default();
+    // Interns the file names first, ahead of every other string of the file.
     for (_, source) in l.sources.files() {
         pool.strings.intern_str(&source.name);
     }

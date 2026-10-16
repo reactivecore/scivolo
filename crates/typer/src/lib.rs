@@ -91,20 +91,20 @@ impl Units {
         self.finish(typer, typed)
     }
 
-    /// Types units `roots` of one `ast`, whose spans do not overlap, as dotty's namer and typer
-    /// do: enters the symbols of all, then types each. The result's root is a package clause of
-    /// the root package holding the typed units.
+    /// Types the units of one `ast`, each the root of a source file with the offset it starts at,
+    /// in increasing order, as dotty's namer and typer do: enters the symbols of all, then types
+    /// each. The result's root is a package clause of the root package holding the typed units.
     pub fn type_units(
         &mut self,
         u: &mut Universe,
         ast: &mut Ast,
         (names, fresh): (&mut Names, &mut FreshNames),
-        roots: &[NodeId],
+        units: &[(syntax::source::Offset, NodeId)],
         cfg: syntax::config::Config,
     ) -> Result<Typed, Fallback> {
-        let roots: Vec<NodeId> = roots
+        let roots: Vec<NodeId> = units
             .iter()
-            .flat_map(|&r| match *ast.tree(r) {
+            .flat_map(|&(_, r)| match *ast.tree(r) {
                 Tree::Thicket { trees } => ast.items(trees).to_vec(),
                 Tree::Empty => Vec::new(),
                 _ => vec![r],
@@ -114,8 +114,10 @@ impl Units {
         let unit = ast.node(Tree::Thicket { trees });
         let mut typer = Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
+        typer.file_starts = units.iter().skip(1).map(|&(start, _)| start).collect();
         let ctx = root_context(&mut typer);
         typer.index(&roots, ctx);
+        typer.check_split_companions();
         let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
         let root = typer.u.root();
         let tpe = typer.u.intern_type(tasty::Type::Package(root));

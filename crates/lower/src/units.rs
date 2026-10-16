@@ -19,47 +19,51 @@ pub fn compile_sources(
     files: &[SourceFile],
     cfg: Config,
 ) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
-    let sources = Sources::new(files);
-    let (mut names, mut fresh, mut ast) = (Names::default(), FreshNames::default(), Ast::default());
-    let mut roots = Vec::new();
+    let sources = Sources::new(files).map_err(refused)?;
+    let (mut names, mut ast) = (Names::default(), Ast::default());
+    // Temporary until #115 (fresh names per file): the typer and the lowering count on from the
+    // highest counters of the files' parsers.
+    let mut fresh = FreshNames::default();
+    let mut units = Vec::new();
     for &(base, source) in sources.files() {
         let mark = ast.mark();
         let mut p = Parser::new(source, &mut names, cfg);
-        (p.ast, p.fresh) = (std::mem::take(&mut ast), std::mem::take(&mut fresh));
+        p.ast = std::mem::take(&mut ast);
         let root = p.parse();
         let file_cfg = p.s.cfg;
         let root =
             Desugar::new(&mut p.ast, p.s.names, &mut p.s.diags, &mut p.fresh, source, file_cfg).unit(root);
         if p.s.diags.has_errors() {
-            let local = Sources::new([source]);
-            return Err(refusal(&format!("syntax errors in {}", source.name), &p.s.diags, &local));
+            let what = format!("syntax errors in {}", source.name);
+            return Err(refusal(&what, &p.s.diags, &Sources::one(source)));
         }
-        if file_cfg.source_version != cfg.source_version {
-            let what = format!("{}: a source version of its own in a unit of several files", source.name);
-            return Err(Refusal { what, diags: Diagnostics::default() });
+        // Temporary until #115 (settings per file): a unit is typed with one `Config`.
+        if file_cfg != cfg {
+            return Err(refused(format!("{}: language imports in a unit of several files", source.name)));
         }
-        (ast, fresh) = (p.ast, p.fresh);
+        fresh.include(&p.fresh);
+        ast = p.ast;
         ast.shift_spans(mark, base);
-        roots.push(root);
+        units.push((base, root));
     }
-    let typed = Units::default().type_units(u, &mut ast, (&mut names, &mut fresh), &roots, cfg);
+    let typed = Units::default().type_units(u, &mut ast, (&mut names, &mut fresh), &units, cfg);
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {
-            let what = format!("the typer does not support {what}{}", at_point(&sources, at));
-            return Err(Refusal { what, diags: Diagnostics::default() });
+            return Err(refused(format!("the typer does not support {what}{}", at_point(&sources, at))));
         }
         Err(Fallback::Errors(diags)) => return Err(refusal("type errors", &diags, &sources)),
     };
+    let located = Sources::new(files).map_err(refused)?;
     let files = crate::lower_sources(u, &mut typed.tpd, typed.root, (&mut names, &mut fresh), sources)
         .map_err(|e| {
-            let what = format!("the lowering does not support {}", e.what);
-            Refusal {
-                what: format!("{what}{}", at_point(&Sources::new(files), e.at)),
-                diags: Diagnostics::default(),
-            }
+            refused(format!("the lowering does not support {}{}", e.what, at_point(&located, e.at)))
         })?;
     Ok((files, typed.diags))
+}
+
+fn refused(what: String) -> Refusal {
+    Refusal { what, diags: Diagnostics::default() }
 }
 
 /// ` at FILE:LINE:COLUMN` of the point of `at`, if it has one in `sources`.
@@ -82,5 +86,5 @@ fn refusal(what: &str, diags: &Diagnostics, sources: &Sources) -> Refusal {
         let at = d.offset.map_or_else(String::new, |o| format!("{}: ", position(sources, o)));
         format!("\n  {at}{}", d.message)
     });
-    Refusal { what: format!("{what}:{}", errors.collect::<String>()), diags: Diagnostics::default() }
+    refused(format!("{what}:{}", errors.collect::<String>()))
 }

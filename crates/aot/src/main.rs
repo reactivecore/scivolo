@@ -47,23 +47,33 @@ fn run(args: &Args) -> R<()> {
     let image = libs::image(&lib_jars).map_err(|e| format!("library image: {e}"))?;
     let (srcs, named): (Vec<String>, Vec<String>) =
         args.inputs.iter().cloned().partition(|a| sources::is_source(a));
+    if let Some(path) = named.iter().find(|n| n.contains('/')) {
+        return Err(format!("{path}: no such directory"));
+    }
+    if args.out_dir.is_some() && (srcs.is_empty() || args.main.is_some() || args.entry.is_some()) {
+        return Err("-d writes the NIR of sources; it takes sources and neither --main nor --entry".into());
+    }
     let mut classpath = dirs;
     let main = match (srcs.is_empty(), &named[..], &args.main) {
+        (true, [_], Some(_)) => return Err("a main class both as an argument and with --main".into()),
         (true, [main], None) | (true, [], Some(main)) => Some(main.clone()),
         (true, [], None) => None,
+        (true, _, _) => return Err(format!("several main classes given: {}", named.join(" "))),
         (false, [], _) => {
-            let files = sources::collect(&srcs)?;
+            let unit = frontend::read(&sources::collect(&srcs)?)?;
             if let Some(out) = &args.out_dir {
-                return frontend::compile_into(&files, image, out);
+                return frontend::compile_into(&unit, image, out);
             }
-            let (nir, mains) = frontend::compile(&files, &lib_jars, image)?;
+            let (nir, mains) = frontend::compile(&unit, &lib_jars, image)?;
             classpath.insert(0, nir);
             match &args.entry {
                 Some(_) => None,
                 None => Some(sources::pick(&mains, args.main.as_deref())?),
             }
         }
-        _ => return Err(format!("neither sources nor one main class: {}", args.inputs.join(" "))),
+        (false, _, _) => {
+            return Err(format!("sources and a main class name mixed ({}); use --main", named.join(" ")));
+        }
     };
     let output = args.output.as_ref().ok_or("-o is required to link an executable")?;
     let classpath_entries = classpath.clone();

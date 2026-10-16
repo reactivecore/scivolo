@@ -4,6 +4,8 @@
 mod codegen;
 mod compile;
 mod definitions;
+pub mod directives;
+pub mod output;
 mod phases;
 mod symbols;
 mod units;
@@ -124,7 +126,7 @@ pub fn lower(
     fresh: &mut FreshNames,
     source: &SourceFile,
 ) -> Result<Vec<NirFile>> {
-    lower_sources(u, tpd, root, (names, fresh), Sources::new([source]))
+    lower_sources(u, tpd, root, (names, fresh), Sources::one(source))
 }
 
 /// The NIR files of typed unit `root`, one per top-level name, whose spans are offsets into

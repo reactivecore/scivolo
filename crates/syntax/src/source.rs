@@ -114,18 +114,23 @@ pub struct Sources<'a> {
 }
 
 impl<'a> Sources<'a> {
-    pub fn new(files: impl IntoIterator<Item = &'a SourceFile>) -> Self {
-        let mut next = 0;
-        let files = files
-            .into_iter()
-            .map(|f| {
-                let base = next;
-                next += f.len() + 1;
-                (base, f)
-            })
-            .collect();
-        assert!((next as usize) < crate::ast::span::MAX_SOURCE_LEN, "sources of at most 1 GiB");
-        Sources { files }
+    /// The sources `files`, unless together they reach the length spans may not.
+    pub fn new(files: impl IntoIterator<Item = &'a SourceFile>) -> Result<Self, String> {
+        let mut next = 0usize;
+        let mut placed = Vec::new();
+        for f in files {
+            placed.push((next as Offset, f));
+            next += f.text.len() + 1;
+            if next >= crate::ast::span::MAX_SOURCE_LEN {
+                return Err("sources of more than 1 GiB together".into());
+            }
+        }
+        Ok(Sources { files: placed })
+    }
+
+    /// The one source `file`.
+    pub fn one(file: &'a SourceFile) -> Self {
+        Sources { files: vec![(0, file)] }
     }
 
     /// Each file with the offset its text starts at.
@@ -135,9 +140,13 @@ impl<'a> Sources<'a> {
 
     /// The file `offset` is in and the offset in it.
     pub fn locate(&self, offset: Offset) -> (&'a SourceFile, Offset) {
-        let i = self.files.partition_point(|&(base, _)| base <= offset).saturating_sub(1);
-        let (base, file) = self.files[i];
+        let (base, file) = self.files[self.index(offset)];
         (file, offset - base)
+    }
+
+    /// The index of the file `offset` is in.
+    pub fn index(&self, offset: Offset) -> usize {
+        self.files.partition_point(|&(base, _)| base <= offset).saturating_sub(1)
     }
 }
 
@@ -148,7 +157,7 @@ mod tests {
     #[test]
     fn sources_locate_offsets() {
         let (a, b) = (SourceFile::new("a", "ab"), SourceFile::new("b", "c"));
-        let s = Sources::new([&a, &b]);
+        let s = Sources::new([&a, &b]).expect("small sources");
         assert_eq!(s.locate(1).0.name, "a");
         assert_eq!((s.locate(3).0.name.as_str(), s.locate(3).1), ("b", 0));
     }

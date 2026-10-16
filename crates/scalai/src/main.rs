@@ -62,7 +62,9 @@ fn main() -> ExitCode {
             repl::run(&cp)
         }
     });
-    let joined = thread.map_err(|e| e.to_string()).and_then(|t| t.join().map_err(|p| panicked(p.as_ref())));
+    let joined = thread
+        .map_err(|e| e.to_string())
+        .and_then(|t| t.join().map_err(|p| lower::output::panicked(p.as_ref())));
     match joined {
         Ok(Ok(code)) => ExitCode::from(code as u8),
         Ok(Err(e)) | Err(e) => {
@@ -70,12 +72,6 @@ fn main() -> ExitCode {
             ExitCode::FAILURE
         }
     }
-}
-
-/// The error for a panic with payload `panic`.
-fn panicked(panic: &(dyn std::any::Any + Send)) -> String {
-    let what = panic.downcast_ref::<String>().map(String::as_str).or(panic.downcast_ref::<&str>().copied());
-    format!("internal error: {}", what.unwrap_or("panic"))
 }
 
 /// Stops the process after `SCALAI_TIMEOUT` seconds, if set.

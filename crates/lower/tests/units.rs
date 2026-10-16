@@ -14,16 +14,25 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
         eprintln!("skipped: the library jars are not in ref/libs");
         return;
     }
-    let compile = |b: &str| {
-        let a = SourceFile::new("a.scala", "object A { def f: Int = B.g + 1 }");
-        let sources = [a, SourceFile::new("b.scala", b)];
+    let compile = |a: &str, b: &str| {
+        let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
         let mut u = Universe::open(&jars).unwrap();
         lower::compile_sources(&mut u, &sources, Config::from_options(&[]))
             .map(|(files, _)| files.into_iter().map(|f| f.name).collect::<Vec<_>>())
             .map_err(|r| r.what)
     };
-    let names = compile("object B { def g: Int = 2; def h: Int = A.f }").expect("compiled");
+    let a = "object A { def f: Int = B.g + 1 }";
+    let names = compile(a, "object B { def g: Int = 2; def h: Int = A.f }").expect("compiled");
     assert!(names.contains(&"A".to_owned()) && names.contains(&"B".to_owned()), "{names:?}");
-    let error = compile("object B { def g: Int = \"s\" }").expect_err("a type error");
+    let error = compile(a, "object B { def g: Int = \"s\" }").expect_err("a type error");
     assert!(error.starts_with("type errors:") && error.contains("b.scala:1:"), "{error}");
+    let error = compile("sealed trait S", "class C extends S").expect_err("a sealed parent");
+    assert!(
+        error.contains("b.scala:1:7: Cannot extend sealed trait S in a different source file"),
+        "{error}"
+    );
+    let error = compile("class C", "object C").expect_err("split companions");
+    assert!(error.contains("companion object in different source files"), "{error}");
+    let error = compile("import scala.language.`3.9-migration`\nobject A", "object B");
+    assert!(error.expect_err("a language import").contains("language imports"));
 }

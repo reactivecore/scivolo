@@ -29,12 +29,17 @@ pub fn collect(inputs: &[String]) -> R<Vec<PathBuf>> {
     }
 }
 
+/// Adds the `.scala` files under `dir` to `files`, without following symbolic links or entering
+/// directories whose names start with a dot.
 fn under(dir: &Path, files: &mut Vec<PathBuf>) -> R<()> {
-    let entries = std::fs::read_dir(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
-    for path in entries.flatten().map(|e| e.path()) {
-        if path.is_dir() {
+    let failed = |e: std::io::Error| format!("{}: {e}", dir.display());
+    for entry in std::fs::read_dir(dir).map_err(failed)? {
+        let entry = entry.map_err(failed)?;
+        let (path, kind) = (entry.path(), entry.file_type().map_err(failed)?);
+        let hidden = entry.file_name().to_string_lossy().starts_with('.');
+        if kind.is_dir() && !hidden {
             under(&path, files)?;
-        } else if path.extension().is_some_and(|e| e == "scala") {
+        } else if kind.is_file() && path.extension().is_some_and(|e| e == "scala") {
             files.push(path);
         }
     }
