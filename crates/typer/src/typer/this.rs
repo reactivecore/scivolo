@@ -86,16 +86,6 @@ impl Typer<'_> {
         }
     }
 
-    /// The name of the object whose `this` type `p` is, if it is one other than a package object.
-    pub fn object_this_name(&mut self, p: TypeId) -> Option<String> {
-        let Type::This(c) = *self.u.types().get(p) else { return None };
-        let o = self
-            .u
-            .class_symbol(c)
-            .filter(|&o| self.u.is_module_class(o) && !self.is_named_package_object(o))?;
-        tasty::module_name(&self.u.symbol(o).name).map(str::to_owned)
-    }
-
     /// Whether module value `s` is reachable from the root through objects.
     pub fn is_static_term(&self, s: SymbolId) -> bool {
         self.u.symbol(s).owner.is_none_or(|o| self.is_static_owner(o))

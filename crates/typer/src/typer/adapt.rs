@@ -138,10 +138,9 @@ impl Typer<'_> {
             return None;
         }
         let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
-            Type::Sym(Some(p), _) => self.object_this_name(p).map(|n| format!("{n}.")),
-            _ => None,
+            Type::Sym(Some(p), _) => self.shown_prefix(p),
+            _ => String::new(),
         };
-        let prefix = prefix.unwrap_or_default();
         let msg = format!(
             "The method `apply` is inserted. The auto insertion will be deprecated, please write `{prefix}{}.apply` explicitly.",
             self.text(name.name)

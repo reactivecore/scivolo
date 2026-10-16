@@ -94,14 +94,13 @@ impl Levels {
         }
     }
 
-    /// The symbols of the scope level `sym` is entered in, if any.
-    pub fn scope_mates(&self, sym: SymbolId) -> Option<Vec<SymbolId>> {
-        self.all.iter().find_map(|e| match &e.level {
-            Level::Scope(entries) if entries.iter().any(|&(_, s)| s == sym) => {
-                Some(entries.iter().map(|&(_, s)| s).collect())
-            }
+    /// The symbol entered as `name` in the scope level `sym` is entered in, if any.
+    pub fn scope_mate(&self, sym: SymbolId, name: &str) -> Option<SymbolId> {
+        let entries = self.all.iter().find_map(|e| match &e.level {
+            Level::Scope(entries) if entries.iter().any(|&(_, s)| s == sym) => Some(entries),
             _ => None,
-        })
+        })?;
+        entries.iter().find(|(n, s)| n == name && *s != sym).map(|&(_, s)| s)
     }
 
     /// Enters `sym` as `name` in scope level `id`.
