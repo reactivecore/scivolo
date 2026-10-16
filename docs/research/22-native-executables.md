@@ -1,4 +1,4 @@
-# 21 — Native executables from NIR without Scala Native's toolchain (Cranelift)
+# 22 — Native executables from NIR without Scala Native's toolchain (Cranelift)
 
 Date: 2026-10-15. [V] verified by reading code or running it, [I] inferred. Paths: `SN/` =
 `ref/scala-native/` (v0.5.12), `T/` = `SN/tools/src/main/scala/scala/scalanative/`, `R/` =
