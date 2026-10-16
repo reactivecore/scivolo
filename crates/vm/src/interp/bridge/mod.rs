@@ -3,9 +3,9 @@
 
 mod body;
 
-use crate::Vm;
 use crate::class::ClassId;
 use crate::interp::Flow;
+use crate::{LoadError, Vm, World};
 use nir::{DefnKind, Global, GlobalId, StrId};
 
 /// The box class of each primitive mangled type.
@@ -44,36 +44,43 @@ impl Vm {
     /// The bridge for method `sig` of class `cls`, defined on first use, if the methods `cls`
     /// has give one target of fewest conversions.
     pub fn bridge(&mut self, cls: ClassId, sig: StrId) -> Flow<Option<GlobalId>> {
-        let Some((name, wanted)) = nir::demangle::method(self.world.pool.str(sig)) else { return Ok(None) };
-        let mut found: Vec<(u32, GlobalId, Vec<String>)> = Vec::new();
-        for id in self.lookup_order(cls) {
-            let owner = self.class(id).name;
-            for m in self.world.members(owner)?.to_vec() {
-                let Some(msig) = self.world.pool.member_sig(m).map(str::to_owned) else { continue };
-                let Some((n, tys)) = nir::demangle::method(&msig) else { continue };
-                let last = tys.len().saturating_sub(1);
-                let costs = tys.iter().zip(&wanted).enumerate().map(|(i, (t, w))| match i == last {
-                    true => cost(t, w),
-                    false => cost(w, t),
-                });
-                let total: Option<u32> = costs.sum();
-                let overridden = found.iter().any(|(_, g, _)| self.world.pool.member_sig(*g) == Some(&msig));
-                if n == name
-                    && tys.len() == wanted.len()
-                    && !overridden
-                    && let Some(total) = total
-                    && matches!(self.world.defn(m)?.kind, DefnKind::Define { .. })
-                {
-                    found.push((total, m, tys));
-                }
+        let order: Vec<GlobalId> = self.lookup_order(cls).into_iter().map(|id| self.class(id).name).collect();
+        Ok(bridge(&mut self.world, &order, sig)?)
+    }
+}
+
+/// The bridge for method `sig` of the class whose lookup order (by name, itself first) is
+/// `order`, defined in `world` on first use, if its methods give one target of fewest
+/// conversions.
+pub fn bridge(world: &mut World, order: &[GlobalId], sig: StrId) -> Result<Option<GlobalId>, LoadError> {
+    let Some((name, wanted)) = nir::demangle::method(world.pool.str(sig)) else { return Ok(None) };
+    let mut found: Vec<(u32, GlobalId, Vec<String>)> = Vec::new();
+    for &owner in order {
+        for m in world.members(owner)?.to_vec() {
+            let Some(msig) = world.pool.member_sig(m).map(str::to_owned) else { continue };
+            let Some((n, tys)) = nir::demangle::method(&msig) else { continue };
+            let last = tys.len().saturating_sub(1);
+            let costs = tys.iter().zip(&wanted).enumerate().map(|(i, (t, w))| match i == last {
+                true => cost(t, w),
+                false => cost(w, t),
+            });
+            let total: Option<u32> = costs.sum();
+            let overridden = found.iter().any(|(_, g, _)| world.pool.member_sig(*g) == Some(&msig));
+            if n == name
+                && tys.len() == wanted.len()
+                && !overridden
+                && let Some(total) = total
+                && matches!(world.defn(m)?.kind, DefnKind::Define { .. })
+            {
+                found.push((total, m, tys));
             }
         }
-        let Some(best) = found.iter().map(|(c, ..)| *c).min() else { return Ok(None) };
-        let best: Vec<_> = found.into_iter().filter(|(c, ..)| *c == best).collect();
-        let [(_, target, tys)] = &best[..] else { return Ok(None) };
-        let name = GlobalId(self.world.pool.globals.intern(Global::Member(self.class(cls).name, sig)));
-        let defn = self.bridge_defn(name, &wanted, *target, tys)?;
-        self.world.define(defn);
-        Ok(Some(name))
     }
+    let Some(best) = found.iter().map(|(c, ..)| *c).min() else { return Ok(None) };
+    let best: Vec<_> = found.into_iter().filter(|(c, ..)| *c == best).collect();
+    let [(_, target, tys)] = &best[..] else { return Ok(None) };
+    let name = GlobalId(world.pool.globals.intern(Global::Member(order[0], sig)));
+    let defn = body::bridge_defn(world, name, &wanted, *target, tys)?;
+    world.define(defn);
+    Ok(Some(name))
 }

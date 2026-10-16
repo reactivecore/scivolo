@@ -4,6 +4,7 @@ pub mod cursor;
 pub mod decode;
 pub mod demangle;
 pub mod encode;
+pub mod mains;
 pub mod nir;
 mod operands;
 pub mod pool;

@@ -10,7 +10,7 @@ use crate::class::ClassId;
 use crate::interp::Flow;
 use crate::stack::Frames;
 use crate::{Vm, heap};
-use nir::GlobalId;
+use nir::{GlobalId, Pool, PosId};
 
 /// The instruction pointers of the frames at the last `get_context`, innermost first.
 #[derive(Default)]
@@ -97,10 +97,15 @@ fn frame_ips(vm: &Vm, limit: usize) -> Vec<u64> {
     ips
 }
 
+/// Whether a method with signature `sig` builds a throwable if its owner is a throwable class or a
+/// supertype: a constructor or `fillInStackTrace`.
+pub fn may_build_throwable(sig: &str) -> bool {
+    sig.starts_with('R') || sig.starts_with("D16fillInStackTrace")
+}
+
 /// Whether `method` is a constructor or `fillInStackTrace` of a throwable class or a supertype.
 fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: ClassId) -> bool {
-    let sig = vm.world.pool.member_sig(method).unwrap_or("");
-    if !(sig.starts_with('R') || sig.starts_with("D16fillInStackTrace")) {
+    if !may_build_throwable(vm.world.pool.member_sig(method).unwrap_or("")) {
         return false;
     }
     let owner = vm.world.owner(method);
@@ -109,9 +114,26 @@ fn builds_throwable(vm: &mut Vm, method: GlobalId, throwable: ClassId) -> bool {
 }
 
 pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
-    let is_element = owner == "scala.scalanative.runtime.StackTrace$"
-        && sig.starts_with("D20withNameFromUnwind$1jL44scala.scalanative.runtime.StackTrace$Context");
-    is_element.then_some(element as NativeFn)
+    is_element_method(owner, sig).then_some(element as NativeFn)
+}
+
+/// Whether `owner::sig` is `StackTrace.withNameFromUnwind`, which makes the element of a frame.
+pub fn is_element_method(owner: &str, sig: &str) -> bool {
+    owner == "scala.scalanative.runtime.StackTrace$"
+        && sig.starts_with("D20withNameFromUnwind$1jL44scala.scalanative.runtime.StackTrace$Context")
+}
+
+/// The class and method name of the stack trace element of a frame of `method`.
+pub fn element_names(pool: &Pool, method: GlobalId) -> (String, String) {
+    (pool.top_name(method).to_owned(), method_name(pool.member_sig(method).unwrap_or("")))
+}
+
+/// The file name and one-based line of the stack trace element of a frame at `pos`, if it has a
+/// file.
+pub fn element_position(pool: &Pool, pos: PosId) -> Option<(&str, i32)> {
+    let p = pool.pos(pos);
+    let file = pool.str(p.file);
+    (!file.is_empty()).then(|| (file.rsplit('/').next().unwrap_or(file), p.line as i32 + 1))
 }
 
 /// `withNameFromUnwind(ip, context, position)`: the `StackTraceElement` for `ip`.
@@ -123,22 +145,13 @@ fn element(vm: &mut Vm, args: &[u64]) -> Flow {
 fn element_of(vm: &mut Vm, ip: u64) -> Flow {
     let (method, pc, tier) = (GlobalId(ip as u32), (ip >> 32 & PC_MASK) as usize, (ip >> 63) as u8);
     let (class, name) = match (method.0 as usize) < vm.world.pool.globals.len() {
-        true => (
-            vm.world.pool.top_name(method).to_owned(),
-            method_name(vm.world.pool.member_sig(method).unwrap_or("")),
-        ),
+        true => element_names(&vm.world.pool, method),
         false => ("<unknown>".to_owned(), "<unknown>".to_owned()),
     };
-    let position = if ip & INLINED != 0 {
-        Some(vm.source_of(nir::PosId(pc as u32)))
-    } else {
-        vm.source_position(method, pc, tier)
-    };
-    let (file, line) = match position {
-        Some((file, line)) if !file.is_empty() => {
-            (Some(file.rsplit('/').next().unwrap_or(file).to_owned()), line as i32 + 1)
-        }
-        _ => (None, -1),
+    let pos = if ip & INLINED != 0 { Some(PosId(pc as u32)) } else { vm.position_at(method, pc, tier) };
+    let (file, line) = match pos.and_then(|p| element_position(&vm.world.pool, p)) {
+        Some((file, line)) => (Some(file.to_owned()), line),
+        None => (None, -1),
     };
     new_element(vm, &class, &name, file.as_deref(), line)
 }
