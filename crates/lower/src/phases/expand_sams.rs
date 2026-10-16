@@ -197,14 +197,28 @@ fn translate_match(
 /// cases share one literal (dotty's `translateCase`).
 fn defined_case(l: &mut Lower, c: TNodeId, at: Span) -> Result<(TNodeId, Span)> {
     let Tree::CaseDef { pat, guard, body } = *l.tpd.tree(c) else { unreachable!("a case") };
-    if matches!(l.tpd.tree(body), Tree::Match { kind: MatchKind::Sub, .. }) {
-        return unsupported(l.tpd.span(body), "sub matches in partial functions");
-    }
-    let tru = l.build().literal(Constant::Boolean(true), at);
-    let tpe = l.tpd.tpe(tru);
-    let case = l.tpd.node(Tree::CaseDef { pat, guard, body: tru }, Span::NONE, Some(tpe), None);
+    let (body, tru, at) = match *l.tpd.tree(body) {
+        Tree::Match { selector: Some(selector), cases, kind: MatchKind::Sub } => {
+            let mut cases = l.tpd.items(cases).to_vec();
+            let mut at = at;
+            for c in &mut cases {
+                (*c, at) = defined_case(l, *c, at)?;
+            }
+            let cases = l.tpd.list(&cases);
+            let boolean = l.u.class_ref("scala.Boolean");
+            let m = Tree::Match { selector: Some(selector), cases, kind: MatchKind::Sub };
+            let m = l.tpd.node(m, Span::NONE, Some(boolean), None);
+            (l.with_span(m, l.tpd.span(body)), None, at)
+        }
+        _ => {
+            let tru = l.build().literal(Constant::Boolean(true), at);
+            (tru, Some(tru), at)
+        }
+    };
+    let tpe = l.tpd.tpe(body);
+    let case = l.tpd.node(Tree::CaseDef { pat, guard, body }, Span::NONE, Some(tpe), None);
     let case = l.with_span(case, l.tpd.span(c));
-    Ok((case, l.tpd.span(tru)))
+    Ok((case, tru.map_or(at, |tru| l.tpd.span(tru))))
 }
 
 /// Whether case `c` has no guard and a pattern matching anything (dotty's `isDefaultCase`).

@@ -106,3 +106,4 @@ opaques
 samclasses
 lowerfixes2
 bynameimplicits
+subcases
