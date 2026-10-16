@@ -319,16 +319,11 @@ impl<'a> Typer<'a> {
         }
         self.settle_type(tree, inner);
         let adapted = self.adapt(tree, pt, ctx);
-        if adapted != tree
-            && let crate::tpd::Tree::Apply { fun, .. } = *self.tpd.tree(adapted)
-            && self.tpd.meth_part(fun) == self.tpd.meth_part(tree)
-            && let Err(what) = self.interpolate(adapted, pt, vars)
-        {
+        if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
             self.unsupported(id, what);
         }
-        let tree = adapted;
         self.u.set_comparison_owner(outer);
         self.depth -= 1;
-        tree
+        adapted
     }
 }

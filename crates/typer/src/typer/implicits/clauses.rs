@@ -1,9 +1,9 @@
 //! Implicit parameter clauses applied to the arguments the search finds (dotty's
 //! `adaptNoArgsImplicitMethod`).
 
-use super::super::Typer;
+use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, NodeId, Span};
 use tasty::{Type, TypeId};
 
@@ -63,6 +63,24 @@ impl Typer<'_> {
         let span = self.tpd.span(tree);
         let applied = self.with_implicit_clause(tree, (span.end_pos(), span.to_synthetic()), args_ctx, 0)?;
         Ok(applied.unwrap_or(tree))
+    }
+
+    /// Interpolates the type variables of id `from` or later again if `adapted`, the adaptation
+    /// of `tree` to `pt`, applies it (dotty's `readaptSimplified`).
+    pub fn reinterpolate(
+        &mut self,
+        (tree, adapted): (TNodeId, TNodeId),
+        pt: Pt,
+        from: usize,
+    ) -> Result<(), &'static str> {
+        match *self.tpd.tree(adapted) {
+            T::Apply { fun, .. }
+                if adapted != tree && self.tpd.meth_part(fun) == self.tpd.meth_part(tree) =>
+            {
+                self.interpolate(adapted, pt, from)
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Function `f` of application `id` applied to the arguments of its leading `using` clauses

@@ -370,6 +370,18 @@ fn constructs_diverging_from_dotty_are_refused() {
              object Ko { import ly.y.{Foo, foo}; implicitly[Foo] }",
             "implicit a package object inherits, through its package",
         ),
+        ("object Vg { def g[L <: 1](implicit v: ValueOf[L]) = v.value; val a = g }", "no implicit argument"),
+        (
+            "object Sg { val a = 1 }
+             object Vs { def s[L <: Sg.type](implicit v: ValueOf[L]): L = v.value; val b = s }",
+            "no implicit argument",
+        ),
+        ("object Vu { def u[L <: Unit](implicit v: ValueOf[L]): L = v.value; val c = u }", "no implicit argument"),
+        (
+            "trait En[A]; object En { implicit def lit[L <: Int](implicit v: ValueOf[L]): En[L] = new En[L] {} }
+             object Ve { def f[A <: 1](implicit e: En[A]): Int = 1; val x = f }",
+            "no implicit argument",
+        ),
         (
             "class B[T](val t: T) { def this() = this(null.asInstanceOf[T]) }",
             "secondary constructor call of a polymorphic class",

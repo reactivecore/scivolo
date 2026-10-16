@@ -3,10 +3,8 @@
 
 mod transcript;
 
-use repl::Session;
 use std::path::{Path, PathBuf};
-use transcript::{answer, non_blank};
-use vm::{Classpath, Vm};
+use transcript::{answer, check, non_blank, session};
 
 fn transcripts() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/repl");
@@ -19,11 +17,7 @@ fn transcripts() -> Vec<PathBuf> {
 fn run() -> Result<(), String> {
     std::env::set_current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
         .map_err(|e| e.to_string())?;
-    let jars = libs::jars()?;
-    let image = libs::image(&jars).map_err(|e| e.to_string())?;
-    let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
-    let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    let mut session = Session::new(vm, image, 80).map_err(|e| e.to_string())?;
+    let mut session = session(&[])?;
     let mut failed = Vec::new();
     for file in transcripts() {
         let text = std::fs::read_to_string(&file).unwrap();
@@ -43,11 +37,5 @@ fn run() -> Result<(), String> {
 
 #[test]
 fn transcripts_match() {
-    let run = std::thread::Builder::new().stack_size(1 << 30).spawn(run).unwrap().join().unwrap();
-    match run {
-        Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
-            eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
-        }
-        run => run.unwrap(),
-    }
+    check(run);
 }

@@ -169,22 +169,20 @@ pub fn is_named_package_object(u: &Universe, c: SymbolId) -> bool {
 /// The reference to the package object that declares `sym`, if one does, else to the object
 /// `package` of package `pkg` if it inherits `sym` (dotty's `packageObjFor`).
 fn package_object_prefix(u: &mut Universe, pkg: Option<SymbolId>, sym: SymbolId) -> Option<TypeId> {
-    let owner = u.symbol(sym).owner?;
-    if u.symbol(owner).kind != Kind::Class {
-        return None;
-    }
-    let inheriting = match pkg.filter(|_| !is_named_package_object(u, owner)) {
-        Some(pkg) => u
-            .package_objects(pkg)
-            .ok()
-            .unwrap_or_default()
-            .into_iter()
-            .find(|&o| u.symbol(o).name == "package$" && u.linearization(o).contains(&owner)),
-        None => None,
-    };
+    let owner = u.symbol(sym).owner.filter(|&o| u.symbol(o).kind == Kind::Class)?;
+    let inheriting = pkg.and_then(|pkg| inheriting_package_object(u, pkg, owner));
     let in_package = u.symbol(owner).owner.is_some_and(|o| u.symbol(o).kind == Kind::Package);
     let module = u.source_module(inheriting.or(in_package.then_some(owner))?)?;
     Some(type_ref(u, module))
+}
+
+/// The class of the object `package` of package `pkg` if it inherits the members of class
+/// `owner`, another class.
+pub fn inheriting_package_object(u: &mut Universe, pkg: SymbolId, owner: SymbolId) -> Option<SymbolId> {
+    let objects = u.package_objects(pkg).ok()?;
+    objects
+        .into_iter()
+        .find(|&o| o != owner && u.symbol(o).name == "package$" && u.linearization(o).contains(&owner))
 }
 
 /// `class[args]`.

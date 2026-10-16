@@ -39,7 +39,7 @@ impl Typer<'_> {
         t: TypeId,
         at: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
-        let t = self.fully_defined(t)?;
+        let t = self.fully_defined_as(t, true)?;
         let dealiased = self.u.dealias(t);
         let value = match self.u.types().get(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| self.build().literal(c, at)),

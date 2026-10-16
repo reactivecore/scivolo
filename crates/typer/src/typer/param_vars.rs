@@ -29,12 +29,18 @@ impl Typer<'_> {
                     return Err("type variable with a declared lower bound constrained from above");
                 } else if lo != NOTHING {
                     self.instantiate_var(v, true)?;
-                } else if hi != ANY {
+                } else if !self.is_any(hi) && !matches!(self.u.types().get(hi), Type::Var(_)) {
                     self.instantiate_var(v, false)?;
                 }
             }
         }
         Ok(())
+    }
+
+    /// Whether `t` is `Any` or `AnyKind`.
+    fn is_any(&mut self, t: TypeId) -> bool {
+        let builtins = self.u.builtins();
+        t == ANY || self.u.class_symbol(t).is_some_and(|c| c == builtins.any || c == builtins.any_kind)
     }
 
     /// The uninstantiated type variables in `t`.
