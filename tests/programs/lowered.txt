@@ -117,3 +117,4 @@ unitcases
 sambridges
 traitparams
 mirrors
+deriving

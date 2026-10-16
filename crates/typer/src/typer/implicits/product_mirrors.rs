@@ -166,6 +166,7 @@ impl Typer<'_> {
     /// The number of parameter lists of the primary constructor of class `c`.
     fn param_lists(&mut self, c: SymbolId) -> usize {
         let Some(&ctor) = self.u.decl(c, "<init>").unwrap_or_default().first() else { return 0 };
+        self.complete(ctor);
         let mut t = self.u.info(ctor);
         let mut lists = 0;
         loop {

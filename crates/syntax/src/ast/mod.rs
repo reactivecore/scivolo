@@ -67,6 +67,8 @@ impl Attrs {
     pub const ETA_UNDERSCORE: Attrs = Attrs(1 << 20);
     /// An application whose arguments are in parentheses.
     pub const PAREN_ARGS: Attrs = Attrs(1 << 21);
+    /// `DERIVING_COMPANION` kept through copies, for the typer.
+    pub const DERIVES_OF_CLASS: Attrs = Attrs(1 << 22);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

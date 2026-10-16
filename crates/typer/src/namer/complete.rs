@@ -49,7 +49,7 @@ impl Typer<'_> {
                 self.u.set_info(sym, info);
             }
             Tree::TypeDef { rhs, .. } if matches!(self.ast.tree(rhs), Tree::Template { .. }) => {
-                self.complete_class(sym, rhs, ctx)
+                self.complete_class(sym, (tree, rhs), ctx)
             }
             Tree::TypeDef { rhs, .. } => {
                 let info = self.type_member_info(sym, rhs, ctx);

@@ -24,13 +24,14 @@ impl Typer<'_> {
         Template { constr, parents, self_, body: self.ast.items(body).to_vec() }
     }
 
-    fn class_ctx(&mut self, cls: SymbolId, ctx: Ctx) -> Ctx {
+    pub fn class_ctx(&mut self, cls: SymbolId, ctx: Ctx) -> Ctx {
         let level = self.levels.push(Some(ctx.level), Level::Members(cls));
         Ctx { owner: cls, level, ..ctx }
     }
 
-    /// Sets the parents of class `cls` and enters its constructor and members.
-    pub fn complete_class(&mut self, cls: SymbolId, rhs: NodeId, ctx: Ctx) {
+    /// Sets the parents of class `cls`, defined by `tree` with template `rhs`, and enters its
+    /// constructor and members.
+    pub fn complete_class(&mut self, cls: SymbolId, (tree, rhs): (NodeId, NodeId), ctx: Ctx) {
         let t = self.template(rhs);
         let cctx = self.class_ctx(cls, ctx);
         let mut members = vec![t.constr];
@@ -43,10 +44,13 @@ impl Typer<'_> {
         let parents = self.parent_types(cls, &t.parents, super_ctx);
         self.check_parents(cls, rhs, &parents);
         self.check_dynamics_enabled(rhs, &parents, ctx);
-        if matches!(*self.ast.tree(rhs), Tree::Template { derived: Some(n), .. } if n > 0) {
-            self.unsupported(rhs, "derives clause");
-        }
         self.u.set_parents(cls, parents);
+        if let Tree::Template { parents_or_derived, derived: Some(n), .. } = *self.ast.tree(rhs) {
+            let items = self.ast.items(parents_or_derived);
+            let derived = items[items.len() - n as usize..].to_vec();
+            let companion = self.ast.attrs(tree).contains(syntax::ast::Attrs::DERIVES_OF_CLASS);
+            self.enter_derived(cls, companion, &derived, cctx);
+        }
         if let Some(s) = t.self_
             && !self.is_module_self(s)
         {
@@ -140,6 +144,7 @@ impl Typer<'_> {
     ) -> (Vec<TNodeId>, Option<SymbolId>) {
         let mut dummy = None;
         let mut out = Vec::new();
+        let mut ctxs = Vec::new();
         for &s in stats {
             let stat_ctx = match self.ast.tree(s) {
                 Tree::Empty => continue,
@@ -157,8 +162,10 @@ impl Typer<'_> {
                 }
             };
             out.push(self.typed_stat(s, stat_ctx));
+            ctxs.push(stat_ctx);
             ctx = self.after_stat(s, ctx);
         }
+        self.finalize_derived(&out, &ctxs);
         (out, dummy)
     }
 

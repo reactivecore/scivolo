@@ -1,0 +1,22 @@
+scala> import scala.deriving.Mirror, scala.compiletime.constValue
+
+scala> trait Show[A] { def show(a: A): String }; object Show { inline def derived[A](using m: Mirror.ProductOf[A]): Show[A] = (a: A) => constValue[m.MirroredLabel] + a.asInstanceOf[Product].productIterator.mkString("(", ", ", ")") }; case class P(id: Int, name: String) derives Show, CanEqual
+// defined trait Show
+// defined object Show
+// defined case class P
+
+scala> summon[Show[P]].show(P(1, "a"))
+val res0: String = "P(1, a)"
+
+scala> P(1, "a") == P(1, "a")
+val res1: Boolean = true
+
+scala> trait Size[A] { def size: Int }; object Size { def derived[A](using m: Mirror.ProductOf[A]): Size[A] = new Size[A] { def size = 7 } }
+// defined trait Size
+// defined object Size
+
+scala> case class Q() derives Size
+// defined case class Q
+
+scala> summon[Size[Q]].size
+val res2: Int = 7

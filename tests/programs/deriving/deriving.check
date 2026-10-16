@@ -1,0 +1,8 @@
+P(id = 1, name = "a")
+Q(p = P(id = 2, name = "b"), n = 3)
+Pair(a = "x", b = "y")
+true
+false
+1
+2
+true

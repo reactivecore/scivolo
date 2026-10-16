@@ -69,12 +69,29 @@ impl Inlining<'_> {
             };
             let widened = self.u.dealias(widened);
             let widened = crate::typer::simplify::normalize_all(self.u, widened);
+            let widened = if widened == tpe { self.avoid_parts(tpe, locals) } else { widened };
             if widened == tpe {
                 return None;
             }
             tpe = widened;
         }
         Some(tpe)
+    }
+
+    /// `tpe` with its parts that refer to `locals` replaced: a local value by its type, a type
+    /// selected from a path through one by its alias.
+    fn avoid_parts(&mut self, tpe: TypeId, locals: &[SymbolId]) -> TypeId {
+        self.u.map_type(tpe, &mut |u, part| {
+            let Type::Sym(p, x) = *u.types().get(part) else { return None };
+            if locals.contains(&x) && !u.is_type_symbol(x) {
+                return Some(u.info(x)).filter(|&i| i != part);
+            }
+            let p = p?;
+            if !u.is_type_symbol(x) || !mentions_any(u, p, locals) {
+                return None;
+            }
+            Some(u.dealias(part)).filter(|&d| d != part)
+        })
     }
 
     /// Whether type `t` refers to symbol `s`.
@@ -86,7 +103,19 @@ impl Inlining<'_> {
         });
         found
     }
+}
 
+/// Whether type `t` refers to one of `syms`.
+fn mentions_any(u: &mut tasty::Universe, t: TypeId, syms: &[SymbolId]) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= matches!(*u.types().get(part), Type::Sym(_, x) if syms.contains(&x));
+        None
+    });
+    found
+}
+
+impl Inlining<'_> {
     /// Whether `owner` is an inline method.
     pub fn is_inline_method(&self, owner: SymbolId) -> bool {
         let s = self.u.symbol(owner);

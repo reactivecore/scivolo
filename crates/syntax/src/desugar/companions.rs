@@ -107,7 +107,7 @@ impl Desugar<'_> {
         let Tree::TypeDef { name, mods, .. } = *self.ast.tree(expl) else { unreachable!("a class") };
         let merged = self.ast.derived(expl, Tree::TypeDef { name, rhs, mods });
         if !syn_derived.is_empty() {
-            self.ast.add_attrs(merged, Attrs::DERIVING_COMPANION);
+            self.ast.add_attrs(merged, Attrs::DERIVING_COMPANION.union(Attrs::DERIVES_OF_CLASS));
         }
         merged
     }

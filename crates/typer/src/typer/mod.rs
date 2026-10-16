@@ -42,6 +42,9 @@ mod defs;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;
+mod deriving;
+mod deriving_kinds;
+mod deriving_trees;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
@@ -224,6 +227,11 @@ pub struct Typer<'a> {
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The definitions of the instances of each module class's `derives` clause, entered and
+    /// not typed yet.
+    pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving::Problem>)>>,
+    /// The type lambdas of derived instances' types, owned by the instance.
+    pub derived_lambdas: rustc_hash::FxHashSet<NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.
@@ -287,6 +295,8 @@ impl<'a> Typer<'a> {
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
+            derived_instances: FxHashMap::default(),
+            derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
             depth: 0,
