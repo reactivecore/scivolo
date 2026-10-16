@@ -15,6 +15,7 @@ mod inheritance;
 mod inherited;
 mod inline_checks;
 mod params;
+mod split_companions;
 mod value_classes;
 
 use crate::ctx::{Ctx, Level};

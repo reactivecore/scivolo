@@ -32,6 +32,17 @@ impl Typer<'_> {
             let projection = prefix.is_some_and(|pre| {
                 matches!(*self.u.types().get(pre), tasty::Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class)
             });
+            let def_span = |t: &Self, s: SymbolId| t.syms.def_trees.get(&s).map(|&d| t.ast.span(d));
+            if flags.has(SEALED)
+                && let (Some(parent), Some(at)) = (def_span(self, c), def_span(self, cls))
+                && self.file_of(parent) != self.file_of(at)
+            {
+                let kind = if flags.has(TRAIT) { "trait" } else { "class" };
+                let name = &self.u.symbol(c).name;
+                let msg = format!("Cannot extend sealed {kind} {name} in a different source file");
+                self.diags.error(at.point(), syntax::diag::Message::syntax(112, msg));
+                continue;
+            }
             let what = if c == cls || self.u.derives_from(c, cls) {
                 "cyclic inheritance"
             } else if projection {
