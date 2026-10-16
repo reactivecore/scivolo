@@ -14,6 +14,7 @@ mod forwarders;
 mod inheritance;
 mod inherited;
 mod params;
+mod split_companions;
 mod value_classes;
 
 use crate::ctx::{Ctx, Level};

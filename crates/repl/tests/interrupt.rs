@@ -1,8 +1,5 @@
 //! Ctrl-C while an input runs stops that input and keeps the session.
 
-#[path = "../../scalai/src/libs.rs"]
-mod libs;
-
 use repl::Session;
 use std::time::{Duration, Instant};
 use vm::{Classpath, Vm};

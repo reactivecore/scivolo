@@ -93,6 +93,14 @@ impl Pool {
         self.positions.get(id.0)
     }
 
+    /// Whether function type `id` takes C varargs.
+    pub fn is_variadic(&self, id: TypeId) -> bool {
+        match self.ty(id) {
+            Type::Function(args, _) => args.iter().any(|t| matches!(self.ty(*t), Type::Vararg)),
+            _ => false,
+        }
+    }
+
     pub fn top_name(&self, id: GlobalId) -> &str {
         match self.global(id) {
             Global::Top(s) => self.str(*s),
