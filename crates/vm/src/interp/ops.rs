@@ -9,6 +9,8 @@ pub mod arith;
 pub(super) mod boxing;
 pub mod int;
 
+pub use boxing::helper as box_method;
+
 impl Vm {
     pub fn op(&mut self, op: &Op, slots: &[u64]) -> Flow {
         match op {
