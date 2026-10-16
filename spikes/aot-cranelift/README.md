@@ -4,7 +4,7 @@ Translates Scala Native 0.5.12 NIR (decoded with `crates/nir`) to Cranelift IR a
 file; runtime operations (module loading, allocation, virtual dispatch, type tests, boxing,
 throwing) are calls to the stubs in `c/rt.c`, field offsets are fake, module methods are
 devirtualized, unwind edges become checks of a global exception flag. The findings are in
-`docs/research/22-native-executables.md`.
+`docs/research/24-native-executables.md`.
 
 ```
 cargo run --release -- [--opt none|speed] [--eh flag|none] [--verify] [--disasm] [--link] [--run N] OUT.o DIR_OR_JAR...
