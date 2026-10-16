@@ -23,13 +23,13 @@ impl Typer<'_> {
         }
         let tpe = self.widen_if_unstable(tpe);
         let Some(found) = self.members_found(tpe, "apply", false) else {
-            if let Pt::Fun(_) | Pt::PolyFun = pt
-                && let Some(call) = self.dynamic_apply_insertion(f)
-            {
-                return Ok(call);
-            }
             let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
-            return proxy.ok_or("application of a non-method");
+            if let Some(proxy) = proxy {
+                return Ok(proxy);
+            }
+            let dynamic =
+                if let Pt::Fun(_) | Pt::PolyFun = pt { self.dynamic_apply_insertion(f, ctx)? } else { None };
+            return dynamic.ok_or("application of a non-method");
         };
         let sym = match self.choose(&found.syms, Some(tpe), pt) {
             Err(_) if self.unusable_for_inference(pt) => return Ok(self.error_tree(self.tpd.span(f))),

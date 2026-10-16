@@ -89,11 +89,10 @@ mod tests {
 
     #[test]
     fn names_the_first_option_not_implemented() {
-        let bad: [&[&str]; 8] = [
+        let bad: [&[&str]; 7] = [
             &["-source"],
             &["-source:3.0-migration"],
             &["-source:nonsense"],
-            &["-language:dynamics"],
             &["-Xkind-projector:other"],
             &["-Werror"],
             &["-Wconf:any:e"],

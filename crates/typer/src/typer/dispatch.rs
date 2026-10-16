@@ -53,7 +53,7 @@ impl Typer<'_> {
                 self.typed_if(id, (cond, thenp, elsep, inline), pt, ctx)
             }
             Tree::WhileDo { cond, body } => self.typed_while(id, cond, body, ctx),
-            Tree::Assign { lhs, rhs } => self.typed_assign(id, lhs, rhs, ctx),
+            Tree::Assign { lhs, rhs } => self.typed_assign(id, (lhs, rhs), pt, ctx),
             Tree::Return { expr } => self.typed_return(id, expr, ctx),
             Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),

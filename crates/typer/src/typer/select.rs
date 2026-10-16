@@ -102,7 +102,7 @@ impl Typer<'_> {
             if self.extension_visible(&text, ctx) {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
-            if let Some(dynamic) = self.try_dynamic(id, qual, name, pt, ctx) {
+            if let Some(dynamic) = self.try_dynamic_inaccessible(id, qual, name, pt, ctx) {
                 return dynamic;
             }
         }

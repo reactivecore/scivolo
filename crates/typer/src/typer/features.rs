@@ -8,11 +8,9 @@ use syntax::config::Features;
 impl Typer<'_> {
     /// Whether feature `f`, `scala.language.name` (`name` dotted or not), is enabled in `ctx`.
     pub fn feature_enabled(&mut self, f: Features, name: &str, ctx: Ctx) -> bool {
-        self.features.contains(f) || self.feature_imported(name, ctx)
-    }
-
-    /// Whether `scala.language.name` (`name` dotted or not) is imported in `ctx`.
-    pub fn feature_imported(&mut self, name: &str, ctx: Ctx) -> bool {
+        if self.features.contains(f) {
+            return true;
+        }
         let (object, name) = match name.rsplit_once('.') {
             Some((prefix, last)) => (format!("scala.language.{prefix}"), last),
             None => ("scala.language".to_owned(), name),
