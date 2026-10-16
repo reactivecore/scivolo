@@ -3,6 +3,8 @@
 
 use super::body::FnBuilder;
 use crate::R;
+use crate::classes::ClassId;
+use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Value, types};
 use cranelift_module::Module;
 use nir::{Type, TypeId, Val, ValId};
@@ -23,6 +25,7 @@ impl FnBuilder<'_, '_> {
             Some(elems) => self.b.ins().iconst(ptr, elems.len() as i64),
             None => {
                 let n = self.val(init)?;
+                self.length_check(cls, n)?;
                 self.b.ins().sextend(ptr, n)
             }
         };
@@ -38,6 +41,16 @@ impl FnBuilder<'_, '_> {
             self.b.ins().store(MemFlagsData::new(), v, arr, at);
         }
         Ok(arr)
+    }
+
+    /// Throws NegativeArraySizeException through the array class's `alloc` unless `0 <= n`.
+    fn length_check(&mut self, cls: ClassId, n: Value) -> R<()> {
+        let name = self.reach.classes.get(cls).name;
+        let class = self.reach.world.pool.top_name(name).to_owned();
+        let g = self.reach.world.member(name, &format!("D5allociL{}{class}Eo", class.len()));
+        let f = self.decls.func(self.module, self.reach, g)?;
+        let ok = self.b.ins().icmp_imm_s(IntCC::SignedGreaterThanOrEqual, n, 0);
+        self.check_call(ok, f, &[n])
     }
 
     /// The address of element `idx` of array `arr` of `elem`s, checked against null and bounds.
