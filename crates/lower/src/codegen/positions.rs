@@ -17,10 +17,11 @@ impl Gen<'_, '_> {
         if !span.exists() {
             return None;
         }
-        let src = self.l.source;
-        let line = src.offset_to_line(span.point()) as u32;
-        let column = src.column(span.point()) as u32;
-        Some(PosId(self.pool.positions.intern(Pos { file: self.file, line, column })))
+        let (src, point) = self.l.sources.locate(span.point());
+        let line = src.offset_to_line(point) as u32;
+        let column = src.column(point) as u32;
+        let file = self.str(&src.name);
+        Some(PosId(self.pool.positions.intern(Pos { file, line, column })))
     }
 
     /// The position of `span`, or `or` if it has none.

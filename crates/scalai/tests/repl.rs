@@ -1,9 +1,5 @@
 //! `scalai` without a target: the REPL reading inputs from piped stdin.
 
-#[allow(dead_code)]
-#[path = "../src/libs.rs"]
-mod libs;
-
 use std::io::{BufRead, BufReader, Read, Write};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
