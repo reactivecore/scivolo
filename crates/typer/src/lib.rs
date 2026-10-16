@@ -17,7 +17,7 @@ mod typer;
 pub mod unpickle;
 
 use crate::ctx::{Ctx, Level, Mode};
-use syntax::ast::{Ast, NodeId, Span};
+use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
@@ -88,6 +88,46 @@ impl Units {
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
+        self.finish(typer, typed)
+    }
+
+    /// Types units `roots` of one `ast`, whose spans do not overlap, as dotty's namer and typer
+    /// do: enters the symbols of all, then types each. The result's root is a package clause of
+    /// the root package holding the typed units.
+    pub fn type_units(
+        &mut self,
+        u: &mut Universe,
+        ast: &mut Ast,
+        (names, fresh): (&mut Names, &mut FreshNames),
+        roots: &[NodeId],
+        cfg: syntax::config::Config,
+    ) -> Result<Typed, Fallback> {
+        let roots: Vec<NodeId> = roots
+            .iter()
+            .flat_map(|&r| match *ast.tree(r) {
+                Tree::Thicket { trees } => ast.items(trees).to_vec(),
+                Tree::Empty => Vec::new(),
+                _ => vec![r],
+            })
+            .collect();
+        let trees = ast.list(&roots);
+        let unit = ast.node(Tree::Thicket { trees });
+        let mut typer = Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms)
+            .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
+        let ctx = root_context(&mut typer);
+        typer.index(&roots, ctx);
+        let typed: Vec<TNodeId> = roots.iter().map(|&r| typer.typed(r, typer::Pt::Any, ctx)).collect();
+        let root = typer.u.root();
+        let tpe = typer.u.intern_type(tasty::Type::Package(root));
+        let name = syntax::ast::TName { name: typer.names.intern("_root_"), is_type: false };
+        let pid = typer.tpd.node(tpd::Tree::Ident { name }, Span::NONE, Some(tpe), Some(root));
+        let stats = typer.tpd.list(&typed);
+        let unit = typer.tpd.node(tpd::Tree::PackageDef { pid, stats }, Span::NONE, Some(tpe), None);
+        self.finish(typer, unit)
+    }
+
+    /// Completes typed unit `typed`: its annotations, type variables and inline calls.
+    fn finish(&mut self, mut typer: Typer, typed: TNodeId) -> Result<Typed, Fallback> {
         typer.typed_annotations();
         if let Err(what) = typer.zonk_trees() {
             typer.unsupported_at(Span::NONE, what);
