@@ -32,7 +32,7 @@ impl Typer<'_> {
                 let call = self.typed(p, super::Pt::Any, ctx);
                 self.typed_ahead(p, call, ctx);
                 tpe = self.tpd.tpe(call);
-                tpe = match self.fully_defined(tpe) {
+                tpe = match self.fully_defined_as(tpe, true) {
                     Ok(t) => t,
                     Err(what) => {
                         self.unsupported(p, what);
