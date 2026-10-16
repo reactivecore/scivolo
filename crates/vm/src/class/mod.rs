@@ -2,6 +2,8 @@
 
 mod fields;
 
+pub use fields::{FieldSlot, instance_fields};
+
 use crate::interp::Unwound;
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, Type, TypeId};

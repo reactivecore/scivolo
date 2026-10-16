@@ -15,13 +15,14 @@ pub struct Linktime {
     conds: FxHashMap<usize, bool>,
 }
 
-enum Prop {
+pub enum Prop {
     Bool(bool),
     Int(i32),
     Str(&'static str),
 }
 
-fn property(name: &str) -> Option<Prop> {
+/// The value of link-time property `name`, if it is one the VM knows.
+pub fn property(name: &str) -> Option<Prop> {
     let key = name.strip_prefix(PREFIX)?;
     Some(match key {
         "debugMode"
@@ -146,7 +147,7 @@ pub fn method_name(sig: &str) -> Option<&str> {
 }
 
 /// Splits a mangled member name `M<len><top><sig>` into its owner and signature.
-fn parse_member(mangled: &str) -> Option<(&str, &str)> {
+pub fn parse_member(mangled: &str) -> Option<(&str, &str)> {
     ident(mangled.strip_prefix('M')?)
 }
 

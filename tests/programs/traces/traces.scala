@@ -33,3 +33,8 @@ def show(e: Throwable): Unit =
   for i <- 0 until 1500 do sum += both(c, i, i)
   try both(c, 1, -2)
   catch case e: IllegalArgumentException => show(e)
+  println(here())
+
+def here(): String =
+  val ours = Thread.currentThread.getStackTrace.toList.filter(_.getClassName.startsWith("traces"))
+  ours.map(f => s"${f.getClassName}.${f.getMethodName} ${f.getFileName}:${f.getLineNumber}").mkString("\n")

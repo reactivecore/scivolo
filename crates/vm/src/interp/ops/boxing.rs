@@ -135,7 +135,7 @@ impl Vm {
 }
 
 /// The module and mangled method that box or unbox values of box class `class`.
-fn helper(class: &str, boxing: bool) -> Option<(&'static str, String)> {
+pub fn helper(class: &str, boxing: bool) -> Option<(&'static str, String)> {
     let (module, prim, short, unboxed) = match class {
         "java.lang.Boolean" => ("scala.runtime.BoxesRunTime$", "z", "Boolean", "Boolean"),
         "java.lang.Character" => ("scala.runtime.BoxesRunTime$", "c", "Character", "Char"),

@@ -107,9 +107,60 @@ impl SourceFile {
     }
 }
 
+/// The source files of one unit of several, whose offsets follow one another in the order given,
+/// one byte apart.
+pub struct Sources<'a> {
+    files: Vec<(Offset, &'a SourceFile)>,
+}
+
+impl<'a> Sources<'a> {
+    /// The sources `files`, unless together they reach the length spans may not.
+    pub fn new(files: impl IntoIterator<Item = &'a SourceFile>) -> Result<Self, String> {
+        let mut next = 0usize;
+        let mut placed = Vec::new();
+        for f in files {
+            placed.push((next as Offset, f));
+            next += f.text.len() + 1;
+            if next >= crate::ast::span::MAX_SOURCE_LEN {
+                return Err("sources of more than 1 GiB together".into());
+            }
+        }
+        Ok(Sources { files: placed })
+    }
+
+    /// The one source `file`.
+    pub fn one(file: &'a SourceFile) -> Self {
+        Sources { files: vec![(0, file)] }
+    }
+
+    /// Each file with the offset its text starts at.
+    pub fn files(&self) -> &[(Offset, &'a SourceFile)] {
+        &self.files
+    }
+
+    /// The file `offset` is in and the offset in it.
+    pub fn locate(&self, offset: Offset) -> (&'a SourceFile, Offset) {
+        let (base, file) = self.files[self.index(offset)];
+        (file, offset - base)
+    }
+
+    /// The index of the file `offset` is in.
+    pub fn index(&self, offset: Offset) -> usize {
+        self.files.partition_point(|&(base, _)| base <= offset).saturating_sub(1)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::SourceFile;
+    use super::{SourceFile, Sources};
+
+    #[test]
+    fn sources_locate_offsets() {
+        let (a, b) = (SourceFile::new("a", "ab"), SourceFile::new("b", "c"));
+        let s = Sources::new([&a, &b]).expect("small sources");
+        assert_eq!(s.locate(1).0.name, "a");
+        assert_eq!((s.locate(3).0.name.as_str(), s.locate(3).1), ("b", 0));
+    }
 
     #[test]
     fn lines_follow_dotty() {
