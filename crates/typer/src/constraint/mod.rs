@@ -74,7 +74,7 @@ impl Constraint {
         self.vars[i].hi = hi;
     }
 
-    /// Starts an implicit argument search.
+    /// Starts an implicit argument search, also one nested in another.
     pub fn enter_search(&mut self) {
         self.searches.push(self.vars.len());
     }

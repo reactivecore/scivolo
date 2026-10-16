@@ -6,7 +6,7 @@ use syntax::ast::TName;
 use tasty::{SymbolId, Type, TypeId};
 
 /// The largest arity of a `TupleN` class.
-const MAX_TUPLE_ARITY: usize = 22;
+pub const MAX_TUPLE_ARITY: usize = 22;
 
 impl Typer<'_> {
     /// `qual.$asInstanceOf$[TupleN[A, B, …]]` when `qual` is an `A *: B *: … *: EmptyTuple` of at

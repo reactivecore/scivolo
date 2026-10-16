@@ -35,7 +35,7 @@ pub fn is_misfit(what: &str) -> bool {
 
 impl Typer<'_> {
     /// An implicit argument of type `pt` at `at` in `ctx`, with the dictionary of its by-name
-    /// implicits if the search is outermost.
+    /// implicits if the search is outermost; the constraint knows the search is in progress.
     pub fn implicit_arg(
         &mut self,
         pt: TypeId,
@@ -44,6 +44,7 @@ impl Typer<'_> {
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
         let outermost = self.history.open.is_empty();
+        self.constraint.enter_search();
         let found = match self.var_upper_bound(pt) {
             Some(hi) => self.arg_search(hi, at, ctx, depth).and_then(|t| {
                 let tpe = self.tpd.tpe(t);
@@ -51,6 +52,7 @@ impl Typer<'_> {
             }),
             None => self.arg_search(pt, at, ctx, depth),
         };
+        self.constraint.leave_search();
         if outermost { self.emitted(found, at, ctx) } else { found }
     }
 

@@ -40,6 +40,10 @@ impl Typer<'_> {
         if with_targs && !self.is_new_instance(unapp) {
             return Err("extractor with type arguments");
         }
+        if with_targs && let crate::tpd::Tree::Select { qualifier, .. } = *self.tpd.tree(unapp) {
+            let span = self.tpd.span(qualifier);
+            self.tpd.get_mut(qualifier).span = span.to_synthetic();
+        }
         if self.tpd.sym(self.tpd.meth_part(unapp)).is_some_and(|s| self.is_transparent_inline(s)) {
             return Err("transparent inline extractor");
         }
