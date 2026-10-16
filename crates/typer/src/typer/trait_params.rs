@@ -85,6 +85,35 @@ impl Typer<'_> {
         out
     }
 
+    /// Checks that no parent of trait `cls` among `parents` is selected on a member of `cls`
+    /// (dotty's `checkParentPrefix`), at `span`.
+    pub fn check_parent_prefixes(&mut self, cls: SymbolId, parents: &[TypeId], span: Span) {
+        if !self.u.is_trait(cls) {
+            return;
+        }
+        for &p in parents {
+            let tycon = match *self.u.types().get(p) {
+                tasty::Type::Applied(t, _) => t,
+                _ => p,
+            };
+            let prefix = match *self.u.types().get(tycon) {
+                tasty::Type::Sym(Some(pre), _) | tasty::Type::TypeRef(pre, _) => pre,
+                _ => continue,
+            };
+            let mut own = false;
+            self.u.map_type(prefix, &mut |u, part| {
+                if let tasty::Type::Sym(_, s) = *u.types().get(part) {
+                    own |= u.symbol(s).kind.is_term() && u.symbol(s).owner == Some(cls);
+                }
+                None
+            });
+            if own {
+                let name = self.u.symbol(cls).name.clone();
+                self.error_at(span, format!("trait parameters of {name} cannot be used as parent prefixes"));
+            }
+        }
+    }
+
     /// Checks constructor call `call` of a parent of class `cls` (dotty's `checkParentCall`).
     pub fn check_parent_call(&mut self, cls: SymbolId, call: TNodeId, called: Option<SymbolId>) {
         let Some(called) = called else { return };
