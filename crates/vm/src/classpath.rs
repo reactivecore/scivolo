@@ -17,18 +17,20 @@ enum Root {
 
 pub struct Classpath {
     roots: Vec<Root>,
+    /// How many roots come before the library's.
+    own: usize,
 }
 
 impl Classpath {
     pub fn open(paths: &[PathBuf]) -> io::Result<Self> {
-        let roots = paths
+        let roots: Vec<Root> = paths
             .iter()
             .map(|p| match p.is_dir() {
                 true => Ok(Root::Dir(p.clone())),
                 false => ZipArchive::new(File::open(p)?).map(Root::Jar).map_err(io::Error::other),
             })
             .collect::<io::Result<_>>()?;
-        Ok(Self { roots })
+        Ok(Self { own: roots.len(), roots })
     }
 
     /// `paths`, then the library files of `image`.
@@ -38,14 +40,21 @@ impl Classpath {
         Ok(classpath)
     }
 
-    /// Adds directory or jar `path` before the library image.
+    /// `paths`, then the library jars `jars`.
+    pub fn with_jars(paths: &[PathBuf], jars: &[PathBuf]) -> io::Result<Self> {
+        let mut classpath = Self::open(paths)?;
+        classpath.roots.extend(Self::open(jars)?.roots);
+        Ok(classpath)
+    }
+
+    /// Adds directory or jar `path` before the library.
     pub fn add(&mut self, path: &Path) -> io::Result<()> {
         let root = match Self::open(&[path.to_owned()])?.roots.pop() {
             Some(root) => root,
             None => return Ok(()),
         };
-        let at = self.roots.iter().position(|r| matches!(r, Root::Image(_))).unwrap_or(self.roots.len());
-        self.roots.insert(at, root);
+        self.roots.insert(self.own, root);
+        self.own += 1;
         Ok(())
     }
 

@@ -23,7 +23,7 @@ impl Macros for VmMacros<'_> {
         let module = u.binary_name(owner);
         let sig = u.method_signature(call.method);
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
-        let mut host = Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2, &mut *lent.3), call.owner);
+        let mut host = Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner);
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
@@ -35,7 +35,7 @@ impl Macros for VmMacros<'_> {
             .collect();
         let (host, result) = self.vm.expand_macro(Box::new(host), (&module, &sig), &args);
         let mut host: Box<Host> = (host as Box<dyn std::any::Any>).downcast().expect("the macro's host");
-        host.restore((&mut *lent.0, &mut *lent.1, &mut *lent.2, &mut *lent.3));
+        host.restore((lent.0, lent.1, lent.2));
         match (result, host.refusal.take()) {
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),

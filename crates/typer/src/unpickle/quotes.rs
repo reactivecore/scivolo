@@ -71,9 +71,7 @@ fn unpickler<'a>(
 ) -> Result<(Unpickler<'a>, NodeId), Refusal> {
     let file = u.load_quote(bytes).map_err(|_| "a quote of unreadable TASTy")?;
     let root = *u.file(file).0.roots().first().ok_or("an empty quote")?;
-    let scala = u.package("scala").ok_or("a library without package scala")?;
-    let synthetic = Flags::default().with(tasty::tags::SYNTHETIC);
-    crate::defn::special(u, scala, "<repeated>", Kind::Class, synthetic);
+    super::define_repeated(u)?;
     let p = Unpickler { u, tpd, names, file, meth: owner, owner, holes: Some(Vec::new()) };
     Ok((p, root))
 }

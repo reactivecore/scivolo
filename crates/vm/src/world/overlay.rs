@@ -139,7 +139,9 @@ mod tests {
                 "{top}: neither in the library nor a helper in package scalai or scala.quoted.runtime.impl"
             );
             let g = world.top(top);
-            world.members(g).unwrap_or_else(|e| panic!("{e}"));
+            if world.place(g).unwrap_or_else(|e| panic!("{e}")).is_some() {
+                world.defn(g).unwrap_or_else(|e| panic!("{e}"));
+            }
         }
         for (top, sig) in ADDED.lines().filter(|l| !l.starts_with('#')).filter_map(|l| l.split_once(' ')) {
             let (data, _) =

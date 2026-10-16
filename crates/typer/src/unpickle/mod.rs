@@ -48,11 +48,17 @@ pub fn inline_def(
     if u.body_info(file).is_err() {
         return Err("inline method of an unreadable TASTy file");
     }
+    define_repeated(u)?;
     let mut unpickler = Unpickler { u, tpd, names, file, meth, owner: meth, holes: None };
-    let scala = unpickler.u.package("scala").ok_or("a library without package scala")?;
-    let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
-    crate::defn::special(unpickler.u, scala, "<repeated>", tasty::Kind::Class, synthetic);
     unpickler.inline_def(id)
+}
+
+/// Defines the class `scala.<repeated>` of repeated parameter types, which pickled trees name.
+fn define_repeated(u: &mut Universe) -> Result<(), Refusal> {
+    let scala = u.package("scala").ok_or("a library without package scala")?;
+    let synthetic = tasty::Flags::default().with(tasty::tags::SYNTHETIC);
+    crate::defn::special(u, scala, "<repeated>", tasty::Kind::Class, synthetic);
+    Ok(())
 }
 
 impl Unpickler<'_> {

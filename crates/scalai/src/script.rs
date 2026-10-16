@@ -1,5 +1,5 @@
 //! Compiles a `.scala` or `.sc` file to NIR through the own frontend or scala-cli, cached by
-//! path, content, frontend mode and versions.
+//! path, content, frontend mode, versions and the classpath entries' paths, sizes and times.
 
 use crate::frontend::{self, Mode, Refused};
 use crate::mains;
@@ -56,7 +56,11 @@ fn compile(
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
     let macros = frontend::macros_on();
-    (&source, &text, mode, options, BUILD, SCALA, NATIVE, cp, macros).hash(&mut h);
+    (&source, &text, mode, options, BUILD, SCALA, NATIVE, macros).hash(&mut h);
+    for entry in cp {
+        let meta = std::fs::metadata(entry).ok();
+        (entry.canonicalize().ok(), meta.as_ref().map(|m| (m.len(), m.modified().ok()))).hash(&mut h);
+    }
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);

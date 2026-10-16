@@ -2,11 +2,14 @@
 //! the expressions and types the macro holds by number.
 
 use crate::tasty_string;
-use syntax::names::{FreshNames, Names};
+use syntax::names::Names;
 use tasty::{SymbolId, TypeId, Universe};
-use typer::inlining::{Lent, Quoted};
+use typer::inlining::Quoted;
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::{Quote, quote, quoted_type};
+
+/// The universe, trees and names the typer lends the expansion.
+pub type Tables<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names);
 
 /// A quote unpickled for the macro: its tree, its spliced types and, per term hole, the
 /// placeholder, the pickled index, the arguments' expressions and the filling expression.
@@ -25,23 +28,21 @@ pub struct Host {
     pub u: Universe,
     pub tpd: Tpd,
     pub names: Names,
-    pub fresh: FreshNames,
     /// The owner of the splice expanded.
     owner: SymbolId,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
-    /// Why the frontend refused a quote, if it did.
+    /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
 }
 
 impl Host {
     /// A host of the trees and tables of `lent`, which it takes, leaving empty ones.
-    pub fn new((u, tpd, names, fresh): Lent<'_>, owner: SymbolId) -> Host {
+    pub fn new((u, tpd, names): Tables<'_>, owner: SymbolId) -> Host {
         Host {
             u: std::mem::replace(u, Universe::empty()),
             tpd: std::mem::take(tpd),
             names: std::mem::take(names),
-            fresh: std::mem::take(fresh),
             owner,
             exprs: Vec::new(),
             types: Vec::new(),
@@ -50,11 +51,10 @@ impl Host {
     }
 
     /// Hands the trees and tables back to `lent`.
-    pub fn restore(&mut self, (u, tpd, names, fresh): Lent<'_>) {
+    pub fn restore(&mut self, (u, tpd, names): Tables<'_>) {
         std::mem::swap(u, &mut self.u);
         std::mem::swap(tpd, &mut self.tpd);
         std::mem::swap(names, &mut self.names);
-        std::mem::swap(fresh, &mut self.fresh);
     }
 
     pub fn add_tree(&mut self, t: TNodeId) -> u32 {
@@ -82,29 +82,21 @@ impl Host {
         self.exprs.iter().map(quoted).collect()
     }
 
-    fn refuse<T>(&mut self, why: &'static str) -> Result<T, &'static str> {
-        self.refusal.get_or_insert_with(|| why.to_owned());
-        Err(why)
-    }
-
     /// The bytes of `pickled` and the types numbered `types`.
-    fn decoded(&mut self, pickled: &str, types: &[u32]) -> Result<(Vec<u8>, Vec<TypeId>), &'static str> {
-        let Some(bytes) = tasty_string::decode(pickled) else { return self.refuse("a quote not in Base64") };
-        match types.iter().map(|&t| self.types.get(t as usize).copied()).collect() {
-            Some(types) => Ok((bytes, types)),
-            None => self.refuse("a quote of an unknown type"),
-        }
+    fn decoded(&self, pickled: &str, types: &[u32]) -> Result<(Vec<u8>, Vec<TypeId>), &'static str> {
+        let bytes = tasty_string::decode(pickled).ok_or("a quote not in Base64")?;
+        let types: Option<Vec<TypeId>> = types.iter().map(|&t| self.types.get(t as usize).copied()).collect();
+        Ok((bytes, types.ok_or("a quote of an unknown type")?))
     }
 }
 
+/// The refusals of the natives become `Unsupported` exceptions, which record them through
+/// `refuse`.
 impl vm::QuoteHost for Host {
     fn unpickle_expr(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
         let (bytes, types) = self.decoded(pickled, types)?;
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        let Quote { root, spliced, holes } = match quote(lent, bytes, self.owner, &types) {
-            Ok(q) => q,
-            Err(why) => return self.refuse(why),
-        };
+        let Quote { root, spliced, holes } = quote(lent, bytes, self.owner, &types)?;
         let holes = holes
             .into_iter()
             .map(|h| (h.node, h.index, h.args.into_iter().map(|a| self.add_tree(a)).collect(), None))
@@ -116,10 +108,8 @@ impl vm::QuoteHost for Host {
     fn unpickle_type(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
         let (bytes, types) = self.decoded(pickled, types)?;
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        match quoted_type(lent, bytes, self.owner, &types) {
-            Ok(t) => Ok(self.add_type(t)),
-            Err(why) => self.refuse(why),
-        }
+        let t = quoted_type(lent, bytes, self.owner, &types)?;
+        Ok(self.add_type(t))
     }
 
     fn hole_count(&self, quote: u32) -> u32 {
@@ -144,7 +134,7 @@ impl vm::QuoteHost for Host {
             h.3 = Some(expr);
             return Ok(());
         }
-        self.refuse("a quote hole filled with an unknown expression")
+        Err("a quote hole filled with an unknown expression")
     }
 
     fn refuse(&mut self, what: &str) {

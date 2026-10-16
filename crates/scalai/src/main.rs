@@ -98,6 +98,19 @@ fn watch_timeout() {
     }
 }
 
+/// Runs this command again, in place of this process, to run a script whose compile ran macros
+/// in a fresh VM from the cache; returns if this is that run already, or with why it cannot.
+fn rerun() -> Result<(), String> {
+    use std::os::unix::process::CommandExt;
+    const AGAIN: &str = "SCALAI_RERUN";
+    if std::env::var_os(AGAIN).is_some() {
+        return Ok(());
+    }
+    let exe = std::env::current_exe().map_err(|e| format!("this program: {e}"))?;
+    let e = std::process::Command::new(&exe).args(std::env::args_os().skip(1)).env(AGAIN, "1").exec();
+    Err(format!("{}: {e}", exe.display()))
+}
+
 /// Runs main class `target`, or the main class of source file `target` (`chosen` if given)
 /// compiled with compiler options `options`.
 fn run(
@@ -115,14 +128,16 @@ fn run(
         Ok(c) => c,
         Err(e) => {
             eprintln!("scalai: no library image ({e}); reading the jars");
-            let all: Vec<PathBuf> = cp.iter().chain(&jars).cloned().collect();
-            Classpath::open(&all).map_err(|e| e.to_string())?
+            Classpath::with_jars(&cp, &jars).map_err(|e| e.to_string())?
         }
     };
     let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
     let main_class = match script::is_source(&target) {
         true => {
             let (classes, main) = script::main_of(&target, chosen, (known, &cp), options, &mut vm)?;
+            if vm.macro_expansions() > 0 {
+                rerun()?;
+            }
             vm.world.add_classpath(&classes).map_err(|e| format!("{}: {e}", classes.display()))?;
             main
         }
