@@ -64,13 +64,26 @@ impl Typer<'_> {
         false
     }
 
-    /// The companion of class `c`: the class of its object, or the class of the object it is
-    /// (dotty's `linkedClass`).
+    /// The companion of class `c`: the class of its object, or the class of the object it is,
+    /// in the same scope if `c` is local (dotty's `linkedClass`).
     fn linked_class(&mut self, c: SymbolId) -> Option<SymbolId> {
         if !self.u.is_class(c) {
             return None;
         }
-        if self.u.is_module_class(c) {
+        let module_class = self.u.is_module_class(c);
+        if let Some(mates) = self.levels.scope_mates(c) {
+            let name = &self.u.symbol(c).name;
+            let name = match module_class {
+                true => tasty::module_name(name)?.to_owned(),
+                false => tasty::module_class_name(name),
+            };
+            return mates.into_iter().find(|&s| {
+                self.u.is_class(s)
+                    && self.u.is_module_class(s) != module_class
+                    && self.u.symbol(s).name == name
+            });
+        }
+        if module_class {
             return self.u.companion_class(c);
         }
         let module = self.u.companion_module(c)?;

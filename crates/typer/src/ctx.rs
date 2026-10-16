@@ -94,6 +94,16 @@ impl Levels {
         }
     }
 
+    /// The symbols of the scope level `sym` is entered in, if any.
+    pub fn scope_mates(&self, sym: SymbolId) -> Option<Vec<SymbolId>> {
+        self.all.iter().find_map(|e| match &e.level {
+            Level::Scope(entries) if entries.iter().any(|&(_, s)| s == sym) => {
+                Some(entries.iter().map(|&(_, s)| s).collect())
+            }
+            _ => None,
+        })
+    }
+
     /// Enters `sym` as `name` in scope level `id`.
     pub fn enter(&mut self, id: LevelId, name: &str, sym: SymbolId) {
         if let Level::Scope(entries) = &mut self.all[id.0 as usize].level {
