@@ -29,7 +29,10 @@ impl Typer<'_> {
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs
-            && !matches!(self.ast.tree(fun), Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. })
+            && !matches!(
+                self.ast.tree(fun),
+                Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. }
+            )
         {
             return Err("extractor with type arguments");
         }

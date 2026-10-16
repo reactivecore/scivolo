@@ -13,7 +13,11 @@ object O:
   class Inst[T]:
     def unapply(x: Any): Option[T] = None
 
+class Ord(val s: String) extends Comparable[Ord]:
+  def compareTo(other: Ord) = s.compareTo(other.s)
+
 object Test:
+  def sorted = List(Ord("b"), Ord("a")).sorted
   def f[T: TC]: TC[T] = summon
   def g(using x: TC[Int]): TC[Int] = implicitly
   val h: TC[Int] = summon

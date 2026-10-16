@@ -28,7 +28,10 @@ variable and are refused, and large literals compare unions of growing bounds ag
   definitions, also through other variables, is refused. This also refuses tests/pos/i8900a3,
   whose tree from dotty leaves the block's class in the type of a definition outside it. A
   check of all trees after zonking is not made for the same reason.
-- **Implicit searches:** no variables are unified while an implicit argument is searched. Our
+- **Implicit searches:** while an implicit argument is searched, only a variable of a candidate
+  of the outermost search is unified, with a variable made before that search (`f[B >: C](using
+  Ordering[B])` with `ordered[A]: Ordering[A]`; without it the two bound each other in a cycle
+  the satisfiability checks cannot close). Other variables are not unified. Our
   search neither interpolates a candidate's application, as dotty's `typed` does, nor detects
   divergence; with unification, candidates whose variables dotty instantiates there would get
   other instances (tests/pos/t7983), and self-recursive candidates would no longer fail
