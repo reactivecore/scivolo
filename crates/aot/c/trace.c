@@ -1,6 +1,6 @@
-// Scala Native's unwinder interface over a frame-pointer walk of the compiled methods, which the
-// code-address table `scalai_aot_frames` names; as the VM's (crates/vm/src/natives/unwind.rs),
-// `get_context` snapshots the frames and a cursor is `[generation, index]` into the snapshot.
+// Scala Native's unwinder interface over a frame-pointer walk, naming frames by the code-address
+// table `scalai_aot_frames`. As in crates/vm/src/natives/unwind.rs, `get_context` snapshots the
+// frames and a cursor is `[generation, index]` into the snapshot.
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -34,6 +34,7 @@ extern const int32_t scalai_aot_layout[4];
 void *scalanative_GC_alloc(void *info, uint64_t size);
 void *scalanative_GC_alloc_array(void *info, uint64_t length, uint64_t stride);
 #define scalai_aot_frames_count scalai_aot_trace_info.frames_count
+extern char *scalai_aot_stack_high;
 
 #define MAX_FRAMES 1025
 #define SKIPPABLE 32
@@ -90,7 +91,7 @@ int scalanative_unwind_get_context(void *context) {
             ips[n++] = ip;
         }
         void **next = fp[0];
-        if (next <= fp)
+        if (next <= fp || (char *)next >= scalai_aot_stack_high || (uintptr_t)next % 16 != 0)
             break;
         fp = next;
     }

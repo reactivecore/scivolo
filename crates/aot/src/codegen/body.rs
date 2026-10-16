@@ -102,6 +102,9 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 let values = self.b.block_params(block).to_vec();
                 self.vals.extend(params.iter().map(|p| p.id.0).zip(values));
                 if std::mem::take(&mut check) {
+                    let first =
+                        body.positions.get(n + 1).map_or(SourceLoc::default(), |p| SourceLoc::new(p.0));
+                    self.b.set_srcloc(first);
                     self.stack_check()?;
                 }
                 open = true;

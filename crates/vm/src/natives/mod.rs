@@ -19,8 +19,8 @@ pub use ffi::{
     Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, take_sigint,
     watch_sigint,
 };
-pub use resources::Resources;
-pub use services::{is_load, provider_names};
+pub use resources::{Resources, embedded_content, embedded_resources};
+pub use services::{constructible, is_load, provider_error, provider_names};
 pub use threads::interrupt_thread;
 pub use unwind::{StackWalk, element_names, element_position, is_element_method, may_build_throwable};
 

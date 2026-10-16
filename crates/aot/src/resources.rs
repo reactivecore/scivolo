@@ -11,12 +11,12 @@ use vm::World;
 const ENTRY: usize = 32;
 
 pub fn define(module: &mut ObjectModule, world: &mut World) -> R<()> {
-    let all = world.resources();
+    let all = vm::embedded_resources(world);
     let mut table = Blob::zeroed(ENTRY * all.len().max(1));
-    for (i, (root, rel)) in all.iter().enumerate() {
-        let content = world.resource(*root, rel).filter(|d| d.len() <= i32::MAX as usize).unwrap_or_default();
+    for (i, (root, path)) in all.iter().enumerate() {
+        let content = vm::embedded_content(world, *root, path);
         let at = ENTRY * i;
-        let path = format!("/{rel}").into_bytes();
+        let path = path.clone().into_bytes();
         table.bytes[at + 8..at + 16].copy_from_slice(&(path.len() as u64).to_le_bytes());
         table.bytes[at + 24..at + 32].copy_from_slice(&(content.len() as u64).to_le_bytes());
         for (offset, mut bytes, suffix) in [(at, path, "path"), (at + 16, content, "content")] {

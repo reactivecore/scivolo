@@ -1,17 +1,14 @@
 //! The stack overflow check on entry to a function that calls others.
 
-use super::RUNTIME;
 use super::body::FnBuilder;
 use super::unwind::may_throw;
 use crate::R;
-use cranelift_codegen::Context;
 use cranelift_codegen::ir::condcodes::IntCC;
 use cranelift_codegen::ir::{InstBuilder, MemFlagsData, Signature, TrapCode, types};
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
-use cranelift_module::{FuncId, Linkage, Module};
+use cranelift_module::{FuncId, Module};
 use nir::{Body, Inst, Next};
 
-const THROW: &str = "D30throwPendingStackOverflowErroruEO";
+const ERROR: &str = "java.lang.StackOverflowError";
 
 /// Whether `body` calls other code.
 pub fn calls(body: &Body) -> bool {
@@ -40,42 +37,41 @@ impl FnBuilder<'_, '_> {
         Ok(())
     }
 
-    /// `scalai_aot_overflow()`: throws StackOverflowError, constructed with the stack's reserve
-    /// open.
+    /// `scalai_aot_overflow()`: throws a new StackOverflowError, constructed with the stack's
+    /// reserve open, as the VM's `throw_new` does.
     fn overflow(&mut self) -> R<FuncId> {
-        let sig = Signature::new(self.decls.call_conv);
-        let id = self
-            .module
-            .declare_function("scalai_aot_overflow", Linkage::Local, &sig)
-            .map_err(|e| e.to_string())?;
-        if !self.decls.generated.insert("scalai_aot_overflow".into()) {
-            return Ok(id);
-        }
+        let ptr = self.decls.ptr;
         let reserve = self.decls.import(self.module, "scalai_aot_stack_reserve", &[types::I8], None)?;
-        let runtime = self.reach.link_top(RUNTIME)?;
-        let load = self.decls.module_load(self.module, self.reach, runtime)?;
-        let g = self.reach.world.member(self.reach.classes.get(runtime).name, THROW);
-        let throw = self.decls.func(self.module, self.reach, g)?;
-        let mut ctx = Context::new();
-        ctx.func.signature = sig;
-        let mut fb = FunctionBuilderContext::new();
-        let mut b = FunctionBuilder::new(&mut ctx.func, &mut fb);
-        let block = b.create_block();
-        b.switch_to_block(block);
-        let reserve = self.module.declare_func_in_func(reserve, b.func);
-        let open = b.ins().iconst(types::I8, 1);
-        b.ins().call(reserve, &[open]);
-        let load = self.module.declare_func_in_func(load, b.func);
-        let call = b.ins().call(load, &[]);
-        let instance = b.inst_results(call)[0];
-        let throw = self.module.declare_func_in_func(throw, b.func);
-        b.ins().call(throw, &[instance]);
-        let close = b.ins().iconst(types::I8, 0);
-        b.ins().call(reserve, &[close]);
-        b.ins().return_(&[]);
-        b.seal_all_blocks();
-        b.finalize(self.module.target_config());
-        self.module.define_function(id, &mut ctx).map_err(|e| format!("scalai_aot_overflow: {e:?}"))?;
-        Ok(id)
+        let alloc = self.decls.import(self.module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
+        let cls = self.reach.link_top(ERROR)?;
+        self.reach.allocate(cls);
+        let rtti = self.decls.rtti(self.module, self.reach, cls)?;
+        let size = self.reach.classes.get(cls).size as i64;
+        let init = self.reach.world.member(self.reach.classes.get(cls).name, "RE");
+        let init = self.decls.func(self.module, self.reach, init)?;
+        let slot = self.decls.exception;
+        let sig = Signature::new(self.decls.call_conv);
+        self.decls.define_generated(self.module, "scalai_aot_overflow", sig, |b, module| {
+            let reserve = module.declare_func_in_func(reserve, b.func);
+            let open = b.ins().iconst(types::I8, 1);
+            b.ins().call(reserve, &[open]);
+            let rtti = module.declare_data_in_func(rtti, b.func);
+            let rtti = b.ins().symbol_value(ptr, rtti);
+            let size = b.ins().iconst(ptr, size);
+            let alloc = module.declare_func_in_func(alloc, b.func);
+            let call = b.ins().call(alloc, &[rtti, size]);
+            let error = b.inst_results(call)[0];
+            let init = module.declare_func_in_func(init, b.func);
+            b.ins().call(init, &[error]);
+            let slot = module.declare_data_in_func(slot, b.func);
+            let slot = b.ins().symbol_value(ptr, slot);
+            let thrown = b.ins().load(ptr, MemFlagsData::new(), slot, 0);
+            let thrown = b.ins().select(thrown, thrown, error);
+            b.ins().store(MemFlagsData::new(), thrown, slot, 0);
+            let close = b.ins().iconst(types::I8, 0);
+            b.ins().call(reserve, &[close]);
+            b.ins().return_(&[]);
+            Ok(())
+        })
     }
 }

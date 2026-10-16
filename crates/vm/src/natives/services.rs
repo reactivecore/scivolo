@@ -68,7 +68,7 @@ pub fn provider_names(world: &mut World, service: &str) -> Vec<String> {
 /// `service` with a constructor without parameters.
 fn provider(vm: &mut Vm, name: &str, service: ClassId) -> Flow {
     let class = vm.world.top(name);
-    let cls = match constructible(vm, class) {
+    let cls = match constructible(&mut vm.world, class) {
         true => vm.link(class)?,
         false => service,
     };
@@ -83,11 +83,19 @@ fn provider(vm: &mut Vm, name: &str, service: ClassId) -> Flow {
 }
 
 /// Whether `class` is a concrete class with a constructor without parameters.
-fn constructible(vm: &mut Vm, class: GlobalId) -> bool {
-    let init = vm.world.member(class, "RE");
-    vm.world.defn(class).is_ok_and(|d| {
+pub fn constructible(world: &mut World, class: GlobalId) -> bool {
+    let init = world.member(class, "RE");
+    world.defn(class).is_ok_and(|d| {
         matches!(d.kind, DefnKind::Class { .. }) && !d.attrs.iter().any(|a| matches!(a, Attr::Abstract))
-    }) && vm.world.defn(init).is_ok()
+    }) && world.defn(init).is_ok()
+}
+
+/// The message of the `ServiceConfigurationError` of provider `provider` of `service` that is
+/// not a concrete subclass with a constructor without parameters.
+pub fn provider_error(service: &str, provider: &str) -> String {
+    format!(
+        "{service}: provider {provider} not found or not a concrete subclass with a constructor without parameters"
+    )
 }
 
 /// The function that makes a new instance of `class` for `service`, created on first use.
@@ -104,16 +112,12 @@ fn instantiator(vm: &mut Vm, class: GlobalId, service: ClassId) -> u32 {
 /// A new instance of `class` made with its constructor without parameters, as a provider of
 /// `service`.
 pub fn instantiate(vm: &mut Vm, class: GlobalId, service: ClassId) -> Flow {
-    let cls = match constructible(vm, class) {
+    let cls = match constructible(&mut vm.world, class) {
         true => Some(vm.link(class)?),
         false => None,
     };
     let Some(cls) = cls.filter(|&c| vm.is_subclass(c, service)) else {
-        let message = format!(
-            "{}: provider {} not found or not a concrete subclass with a constructor without parameters",
-            vm.class_name(service),
-            vm.world.pool.top_name(class)
-        );
+        let message = provider_error(vm.class_name(service), vm.world.pool.top_name(class));
         return vm.throw_new_with("java.util.ServiceConfigurationError", &message);
     };
     let obj = vm.alloc_object(cls) as u64;
