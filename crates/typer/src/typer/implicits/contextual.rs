@@ -145,8 +145,9 @@ impl Typer<'_> {
                     Some(members) => members.clone(),
                     None => {
                         let mut members = Vec::new();
-                        for c in self.package_objects(pkg) {
-                            if self.syms.is_script(c) {
+                        for c in self.u.symbol(pkg).decls.clone() {
+                            if self.syms.is_script(c) && self.is_named_package_object(c) && self.u.is_class(c)
+                            {
                                 members.extend(self.implicit_members(c, true).into_iter().map(|m| (c, m)));
                             }
                         }

@@ -153,7 +153,11 @@ impl Units {
         if typer.diags.has_errors() {
             return Err(Fallback::Errors(typer.diags));
         }
-        Ok(Typed { tpd: typer.tpd, root: typed, diags: typer.diags })
+        let mut diags = typer.diags;
+        if !self.typer_only {
+            diags.items.append(&mut typer.erasure_diags.items);
+        }
+        Ok(Typed { tpd: typer.tpd, root: typed, diags })
     }
 
     /// Removes the object `name` from the root package, and it and the definitions in it from

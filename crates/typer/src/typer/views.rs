@@ -76,7 +76,7 @@ impl Typer<'_> {
         let (qual, names) = (*qual, selectors.iter().map(|s| s.name.clone()).collect::<Vec<_>>());
         let site = self.import_site(qual)?;
         let classes = match self.u.symbol(site).kind {
-            Kind::Package => self.package_objects(site),
+            Kind::Package => self.u.package_objects(site).ok()?,
             _ => vec![self.u.module_class(site)?],
         };
         let mut out = Vec::new();
@@ -86,15 +86,6 @@ impl Typer<'_> {
             out.extend(members.into_iter().filter(|&m| wildcard || names.contains(&self.u.symbol(m).name)));
         }
         Some(out)
-    }
-
-    /// The classes of the package objects of `pkg`.
-    pub fn package_objects(&mut self, pkg: SymbolId) -> Vec<SymbolId> {
-        let decls = self.u.decls(pkg).unwrap_or_default();
-        decls
-            .into_iter()
-            .filter(|&d| self.u.symbol(d).kind == Kind::Class && self.is_named_package_object(d))
-            .collect()
     }
 
     /// The declarations of class `c` and its base classes.

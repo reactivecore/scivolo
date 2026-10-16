@@ -135,6 +135,7 @@ mod type_args;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;
+mod type_tests;
 mod type_trees;
 mod unapply;
 mod unapply_results;
@@ -178,6 +179,8 @@ pub struct Typer<'a> {
     pub levels: Levels,
     pub syms: Syms,
     pub diags: Diagnostics,
+    /// The warnings dotty reports after the typer, in erasure.
+    pub erasure_diags: Diagnostics,
     /// The language features the options and the unit's language imports enable.
     pub features: Features,
     /// The `-W` lints the options enable.
@@ -261,6 +264,7 @@ impl<'a> Typer<'a> {
             levels: Levels::default(),
             syms,
             diags: Diagnostics::default(),
+            erasure_diags: Diagnostics::default(),
             features: cfg.features,
             lints: cfg.warnings.lints,
             ahead: FxHashMap::default(),

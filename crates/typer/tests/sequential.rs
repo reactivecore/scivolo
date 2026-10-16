@@ -309,7 +309,7 @@ fn no_false_errors_behind_unsupported_constructs() {
             "class not conforming to a parent's self type",
         ),
         (
-            "object M:\n  def f[T](x: Any) = x match\n    case y: T => y\n",
+            "object M:\n  type F[X]\n  def f(x: Any) = x match\n    case y: F[Int] => y\n",
             "type pattern needing a type test or type binding",
         ),
         (
@@ -357,6 +357,8 @@ fn constructs_diverging_from_dotty_are_refused() {
             "implicit search for a union with type variables",
         ),
         ("object J { def f(cs: CharSequence) = cs.toString }", "Object member a JDK interface redeclares"),
+        ("object W { val f: ? => Int = x => 1 }", "parameter type inferred from the target of a wildcard"),
+        ("object U { val f: (? >: (Int, Int)) => Int = (a, b) => a }", "untupled parameters of a wildcard formal"),
         (
             "class CS extends CharSequence { def length = 0; def charAt(i: Int) = 'a'
              def subSequence(a: Int, b: Int): CharSequence = this; def s = toString }",

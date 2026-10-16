@@ -2,7 +2,6 @@
 //! `TermLambda.resultType`, `safeSubstParam` in `matchArgs` and `safeSubstParams` in `assignType`).
 
 use super::Typer;
-use super::closures::has_wildcard;
 use super::dependent_params::{applied_result, mentions_clause_params, mentions_params};
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -173,4 +172,14 @@ impl Typer<'_> {
         });
         members.into_iter().for_each(|s| self.complete(s));
     }
+}
+
+/// Whether `t` has a wildcard type argument or is one.
+fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
+    let mut found = false;
+    u.map_type(t, &mut |u, part| {
+        found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
+        None
+    });
+    found
 }
