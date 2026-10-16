@@ -175,7 +175,7 @@ impl Typer<'_> {
 }
 
 /// Whether `t` has a wildcard type argument or is one.
-fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
+pub fn has_wildcard(u: &mut tasty::Universe, t: TypeId) -> bool {
     let mut found = false;
     u.map_type(t, &mut |u, part| {
         found |= matches!(u.types().get(part), Type::Bounds(..) | Type::Wildcard(_));
