@@ -79,8 +79,16 @@ impl Typer<'_> {
         self.tpd.node(T::WhileDo { cond, body }, span, Some(unit), None)
     }
 
+    /// Whether identifier `qual`'s type has a structural refinement `setter`.
+    fn structural_setter(&mut self, qual: NodeId, setter: &str, ctx: Ctx) -> bool {
+        let q = self.typed(qual, Pt::Any, ctx);
+        let pre = self.tpd.tpe(q);
+        let pre = self.u.widen(pre);
+        self.u.term_refinement_named(pre, setter).is_some()
+    }
+
     /// `x = v` for a variable `x`, or a dynamic `updateDynamic` call typed for `pt` (dotty's
-    /// `typedAssign`); a non-variable selection `q.x = v` becomes `q.x_=(v)`.
+    /// `typedAssign`); `q.x = v` with a structural setter `x_=` becomes `q.x_=(v)`.
     pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let syntax::ast::Tree::Apply { fun, args } = *self.ast.tree(lhs) {
             let name = TName { name: self.name("update"), is_type: false };
@@ -108,7 +116,9 @@ impl Typer<'_> {
         });
         let Some(var) = var else {
             if let syntax::ast::Tree::Select { qualifier, name } = *self.ast.tree(lhs_tree)
+                && matches!(self.ast.tree(qualifier), syntax::ast::Tree::Ident { .. })
                 && !self.is_error(lhs)
+                && self.structural_setter(qualifier, &format!("{}_=", self.text(name.name)), ctx)
             {
                 let setter = format!("{}_=", self.text(name.name));
                 let name = TName { name: self.name(&setter), is_type: false };
