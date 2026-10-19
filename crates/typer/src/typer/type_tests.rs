@@ -14,8 +14,8 @@ const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
-    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]` if `tpe` is or applies an
-    /// abstract type.
+    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]` if `tpe`, its aliases
+    /// followed up to a match-type alias, is or applies a type that is not a class.
     pub fn try_with_type_test(
         &mut self,
         id: NodeId,
@@ -27,7 +27,11 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let Pt::Type(p) = pt else { return Ok(None) };
         let dealiased = self.dealiased(tpe);
-        let tycon = self.applied_constructor(tpe).unwrap_or(dealiased);
+        let tycon = match *self.u.types().get(dealiased) {
+            Type::Applied(tycon, _) => tycon,
+            _ => dealiased,
+        };
+        let tycon = self.match_alias(tpe).unwrap_or(tycon);
         let same = self.u.is_subtype(dealiased, p) && self.u.is_subtype(p, dealiased);
         let non_class = self.referenced(tycon).is_some_and(|s| {
             self.complete(s);
@@ -89,17 +93,27 @@ impl Typer<'_> {
         Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
     }
 
-    /// The constructor of the first applied type among `t` and the aliases it follows.
-    fn applied_constructor(&mut self, mut t: TypeId) -> Option<TypeId> {
+    /// The match-type alias that `t`, or an alias `t` refers to, is or applies.
+    fn match_alias(&mut self, mut t: TypeId) -> Option<TypeId> {
         for _ in 0..8 {
-            match *self.u.types().get(t) {
-                Type::Applied(tycon, _) => return Some(tycon),
-                Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Type => {
-                    self.complete(s);
-                    let info = self.u.info(s);
-                    let Type::Alias(target) = *self.u.types().get(info) else { return None };
-                    t = target;
-                }
+            let tycon = match *self.u.types().get(t) {
+                Type::Applied(tycon, _) => tycon,
+                _ => t,
+            };
+            let s = self.referenced(tycon).filter(|&s| self.u.symbol(s).kind == Kind::Type)?;
+            self.complete(s);
+            let info = self.u.info(s);
+            let rhs = match *self.u.types().get(info) {
+                Type::Alias(rhs) => rhs,
+                _ => info,
+            };
+            let body = match *self.u.types().get(rhs) {
+                Type::Lambda { result, .. } => result,
+                _ => rhs,
+            };
+            match *self.u.types().get(body) {
+                Type::Match { .. } => return Some(tycon),
+                _ if tycon == t && rhs != info => t = rhs,
                 _ => return None,
             }
         }

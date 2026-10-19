@@ -35,19 +35,6 @@ pub fn applied_result(
     substituted(u, t, &param, &replacements)
 }
 
-/// Result `t` of the method type of binder `binder` and parameters `names`, of method `method`,
-/// with its references to the parameters replaced by the types `args` (dotty's `instantiate`).
-pub fn instantiated_result(
-    u: &mut Universe,
-    t: TypeId,
-    (binder, names): (Binder, &[String]),
-    method: Option<SymbolId>,
-    args: &[TypeId],
-) -> TypeId {
-    let param = |u: &Universe, part: TypeId| clause_param(u, part, (binder, names), method);
-    substituted(u, t, &param, args)
-}
-
 /// The number of the parameter of the clause of binder `binder` and parameter names `names` of
 /// method `method` that `part` refers to.
 fn clause_param(

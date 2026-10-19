@@ -66,9 +66,7 @@ impl Typer<'_> {
         let own = self.pattern_type(sel, arg_type, vars)?;
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
-        let method = self.tpd.sym(self.tpd.meth_part(unapp));
-        let result = self.applied_unapply_result(result, (binder, param), method, own);
-        let result = self.zonk(result);
+        let result = self.applied_unapply_result(unapp, result, (binder, param), own)?;
         let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
             if named {
