@@ -4,9 +4,9 @@
 use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::{GIVEN, IMPLICIT, MUTABLE};
-use syntax::ast::{NodeId, TName, Tree};
+use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
@@ -51,7 +51,7 @@ impl Typer<'_> {
                 }
                 params.push((self.text(name.name).to_owned(), tpe));
             }
-            let binder = self.syms.fresh_binder();
+            let binder = self.u.fresh_binder();
             let method = Type::Method { binder, params, result: info, implicit: false, contextual: false };
             info = self.u.intern_type(method);
         }
@@ -66,6 +66,7 @@ impl Typer<'_> {
         id: NodeId,
         (qual, pre): (TNodeId, TypeId),
         name: TName,
+        pt: Pt,
         ctx: Ctx,
     ) -> Option<TNodeId> {
         let text = self.text(name.name).to_owned();
@@ -73,9 +74,14 @@ impl Typer<'_> {
             return None;
         }
         let info = self.u.term_refinement_named(pre, &text)?;
-        if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
-            return Some(self.unsupported(id, "structural method call"));
-        }
+        let method = match self.u.types().get(info) {
+            Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
+            Type::Method { .. } if !matches!(pt, Pt::Fun(_)) => {
+                return Some(self.unsupported(id, "structural method value"));
+            }
+            Type::Method { .. } => Some(info),
+            _ => None,
+        };
         let tpe = self.u.intern_type(Type::TermRef(pre, text.clone()));
         let selectable = self.u.class_ref("scala.Selectable");
         let qual_tpe = self.zonk(self.tpd.tpe(qual));
@@ -91,16 +97,89 @@ impl Typer<'_> {
             }
         };
         let span = self.ast.span(id);
-        let qualifier = self.spliced(qual);
-        let dyn_name = TName { name: self.name("selectDynamic"), is_type: false };
-        let fun = self.ast.node(Tree::Select { qualifier, name: dyn_name });
-        self.ast.with_span(fun, span);
-        let literal = self.string_literal(&text, span.end_pos());
+        if let Some(method) = method {
+            return Some(self.pending_structural(qual, text, span, method));
+        }
+        let (fun, literal) = self.structural_fun(qual, "selectDynamic", &text, span);
         let (apply, args) = self.applied(fun, &[literal]);
         let call = self.typed_apply(apply, fun, args, Pt::Any, ctx);
-        if self.is_error(call) {
-            return Some(call);
+        Some(self.structural_cast(id, call, tpe))
+    }
+
+    /// Structural call `id` of method `name` of type `method` on `qual` to `args` (dotty's
+    /// `handleStructural`): `qual.applyDynamic("name", classOf[P1], …)(args).$asInstanceOf$[R]`.
+    pub fn structural_apply(
+        &mut self,
+        id: NodeId,
+        (qual, name, span): (TNodeId, &str, Span),
+        method: TypeId,
+        args: &[NodeId],
+        ctx: Ctx,
+    ) -> TNodeId {
+        let Type::Method { params, result, .. } = self.u.types().get(method).clone() else {
+            return self.unsupported(id, "structural method call");
+        };
+        if matches!(self.u.types().get(result), Type::Method { .. }) {
+            return self.unsupported(id, "structural call with several argument lists");
         }
-        Some(self.cast_to_captured(call, tpe).unwrap_or_else(|what| self.unsupported(id, what)))
+        let plain =
+            |s: &Self, a: NodeId| !matches!(s.ast.tree(a), Tree::NamedArg { .. }) && !s.is_sequence_arg(a);
+        if args.len() != params.len() || !args.iter().all(|&a| plain(self, a)) {
+            return self.unsupported(id, "structural call with named, repeated or missing arguments");
+        }
+        let mut class_ofs = Vec::new();
+        for &(_, p) in &params {
+            let Some(c) = self.structural_class_of(p, span) else {
+                return self.unsupported(id, "structural parameter type with an unstable erasure");
+            };
+            class_ofs.push(c);
+        }
+        let mut typed_args = Vec::new();
+        for (&a, &(_, p)) in args.iter().zip(&params) {
+            let typed = self.typed(a, Pt::Type(p), ctx);
+            if self.is_error(typed) {
+                return typed;
+            }
+            typed_args.push(self.spliced(typed));
+        }
+        let (fun, literal) = self.structural_fun(qual, "applyDynamic", name, span);
+        let first: Vec<NodeId> = std::iter::once(literal).chain(class_ofs).collect();
+        let (inner, _) = self.applied(fun, &first);
+        let (outer, list) = self.applied(inner, &typed_args);
+        let call = self.typed_apply(outer, inner, list, Pt::Any, ctx);
+        self.structural_cast(id, call, result)
+    }
+
+    /// The untyped `qual.selector` at `span` and the literal `"name"` after it.
+    fn structural_fun(&mut self, qual: TNodeId, selector: &str, name: &str, span: Span) -> (NodeId, NodeId) {
+        let qualifier = self.spliced(qual);
+        let selector = TName { name: self.name(selector), is_type: false };
+        let fun = self.ast.node(Tree::Select { qualifier, name: selector });
+        self.ast.with_span(fun, span);
+        (fun, self.string_literal(name, span.end_pos()))
+    }
+
+    /// The untyped `classOf[C]` of the class parameter type `p` erases to; `None` for an array or
+    /// a type that erases to no class.
+    fn structural_class_of(&mut self, p: TypeId, at: Span) -> Option<NodeId> {
+        let widened = self.u.widen(p);
+        let dealiased = self.u.dealias(widened);
+        if self.class_args(dealiased, "scala.Array").is_some() {
+            return None;
+        }
+        let class = self.u.erased_class(dealiased)?;
+        let erased = crate::defn::type_ref(self.u, class);
+        let class_class = self.resolve_full_name("java.lang.Class", true)?;
+        let tpe = crate::defn::applied(self.u, class_class, vec![erased]);
+        let literal = self.tpd.node(T::ClassLiteral { tpe: erased }, at.end_pos(), Some(tpe), None);
+        Some(self.spliced(literal))
+    }
+
+    /// `call.$asInstanceOf$[tpe]`, or `call` if it is an error.
+    fn structural_cast(&mut self, id: NodeId, call: TNodeId, tpe: TypeId) -> TNodeId {
+        if self.is_error(call) {
+            return call;
+        }
+        self.cast_to_captured(call, tpe).unwrap_or_else(|what| self.unsupported(id, what))
     }
 }
