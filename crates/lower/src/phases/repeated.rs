@@ -159,6 +159,7 @@ fn java_varargs(l: &mut Lower, method: SymbolId, clause: usize, i: usize) -> Opt
 
 /// The `ScalaRunTime` method wrapping an array of `elem` (dotty's `wrapArrayMethodName`).
 fn wrapper(l: &mut Lower, elem: TypeId) -> &'static str {
+    let elem = l.u.dealias(elem);
     let Some(class) = l.u.class_symbol(elem).filter(|&c| l.u.symbol(c).kind == Kind::Class) else {
         return "genericWrapArray";
     };

@@ -77,6 +77,11 @@ impl Universe {
             }
             _ if self.class_name(*tail).as_deref() == Some("scala.Tuple$package.EmptyTuple") => Some(1),
             Type::TypeRef(_, n) if n == "EmptyTuple" => Some(1),
+            Type::Sym(_, s)
+                if self.symbol(s).name == "EmptyTuple" && self.full_name(s).starts_with("scala.") =>
+            {
+                Some(1)
+            }
             _ => None,
         }
     }

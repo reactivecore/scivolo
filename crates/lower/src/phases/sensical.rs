@@ -38,7 +38,8 @@ fn checkable(l: &mut Lower, found: SymbolId, test: SymbolId) -> bool {
     found_prim == test_prim && !is_value_class(l, found) && !is_value_class(l, test)
 }
 
-/// The classes of the values of type `tpe`, `AnyVal` as `Any`; none if unknown.
+/// The classes of the values of type `tpe`, `AnyVal` as `Any` and `*:` as its erasure's; none
+/// if unknown (dotty's `effectiveClass`).
 fn found_classes(l: &mut Lower, tpe: TypeId) -> Vec<SymbolId> {
     let tpe = l.u.widen(tpe);
     let tpe = l.u.dealias(tpe);
@@ -50,7 +51,13 @@ fn found_classes(l: &mut Lower, tpe: TypeId) -> Vec<SymbolId> {
         }
         Type::And(..) => Vec::new(),
         _ => {
-            let class = l.u.class_symbol(tpe);
+            let mut class = l.u.class_symbol(tpe);
+            if class.is_some_and(|c| l.u.full_name(c) == "scala.*:") {
+                class = match l.u.erase(tpe) {
+                    Erased::Class(name) => class_named(l, &name),
+                    _ => None,
+                };
+            }
             let any_val = l.u.builtins().any_val;
             class.map(|c| if Some(c) == any_val { l.u.builtins().any } else { c }).into_iter().collect()
         }
