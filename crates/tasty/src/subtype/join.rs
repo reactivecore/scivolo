@@ -114,13 +114,17 @@ impl Universe {
                 Some(xs.into_iter().filter(|x| ys.contains(x)).collect())
             }
             Type::And(a, b) => {
-                let (mut xs, ys) = (self.or_base_classes(a)?, self.or_base_classes(b)?);
+                let (xs, ys) = (self.or_base_classes(a)?, self.or_base_classes(b)?);
+                let mut merged = Vec::new();
                 for y in ys {
                     if !xs.contains(&y) {
-                        xs.push(y);
+                        merged.push(y);
+                    } else if !self.is_trait(y) {
+                        break;
                     }
                 }
-                Some(xs)
+                merged.extend(xs);
+                Some(merged)
             }
             _ => {
                 let widened = self.widen(t);
@@ -141,7 +145,7 @@ impl Universe {
                 self.merged(x, y)
             }
             Type::And(a, b) => match (self.or_base_type(a, c), self.or_base_type(b, c)) {
-                (Some(x), Some(y)) if x != y => Some(self.intern_type(Type::And(x, y))),
+                (Some(x), Some(y)) => Some(self.glb(x, y)),
                 (x, y) => x.or(y),
             },
             _ => {
@@ -174,10 +178,12 @@ impl Universe {
             return Some(x);
         }
         match (self.types().get(x).clone(), self.types().get(y).clone()) {
+            (Type::And(x1, x2), _) => {
+                let (m1, m2) = (self.merged(x1, y)?, self.merged(x2, y)?);
+                Some(self.glb(m1, m2))
+            }
             (Type::Applied(t1, xs), Type::Applied(t2, ys))
-                if xs.len() == ys.len()
-                    && (t1 == t2
-                        || self.class_symbol(t1).is_some_and(|c| self.class_symbol(t2) == Some(c))) =>
+                if xs.len() == ys.len() && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
                 let c = self.class_symbol(t1)?;
                 let variances = self.variances(c);
@@ -203,12 +209,21 @@ impl Universe {
             }
             (Type::Sym(p1, s1), Type::Sym(p2, s2)) if s1 == s2 && p1 == p2 => Some(x),
             (Type::Sym(..) | Type::TypeRef(..), Type::Sym(..) | Type::TypeRef(..)) => {
-                let c = self.class_symbol(x)?;
-                let static_class = self.symbol(c).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
-                (static_class && self.class_symbol(y) == Some(c) && self.type_params(c).is_empty())
-                    .then_some(x)
+                let c = self.same_static_class(x, y)?;
+                self.type_params(c).is_empty().then_some(x)
+            }
+            (_, Type::And(y1, y2)) => {
+                let (m1, m2) = (self.merged(x, y1)?, self.merged(x, y2)?);
+                Some(self.glb(m1, m2))
             }
             _ => None,
         }
+    }
+
+    /// The class of class references `x` and `y` if both are the same top-level class.
+    fn same_static_class(&mut self, x: TypeId, y: TypeId) -> Option<SymbolId> {
+        let c = self.class_symbol(x)?;
+        let static_class = self.symbol(c).owner.is_some_and(|o| self.symbol(o).kind == Kind::Package);
+        (static_class && self.class_symbol(y) == Some(c)).then_some(c)
     }
 }
