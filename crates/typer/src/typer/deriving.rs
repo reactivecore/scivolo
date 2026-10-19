@@ -58,9 +58,7 @@ impl Typer<'_> {
         let Type::Sym(prefix, tc) = *self.u.types().get(tc_type) else { unreachable!("a class reference") };
         let Type::Sym(_, written) = *self.u.types().get(original) else { unreachable!("a type reference") };
         let name = format!("derived${}", self.u.symbol(written).name);
-        let declared =
-            self.u.decls(ctx.owner).unwrap_or_default().iter().any(|&s| self.u.symbol(s).name == name);
-        if declared || names.contains(&name) {
+        if !self.class_members(ctx.owner, &name).is_empty() || names.contains(&name) {
             let tc_name = self.u.symbol(written).name.clone();
             self.error(d, format!("duplicate type class derivation for {tc_name}"));
             return None;
@@ -130,18 +128,23 @@ impl Typer<'_> {
                 self.derived_node(Tree::ValDef { name, tpt, rhs: None, mods }, span)
             })
             .collect();
-        if instance.tparams.is_empty() && evidence.is_empty() {
+        let def = if instance.tparams.is_empty() && evidence.is_empty() {
             let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN.or(f::LAZY)));
-            return Some((
-                self.derived_node(Tree::ValDef { name, tpt, rhs: Some(rhs), mods }, span),
-                problem,
-            ));
+            self.derived_node(Tree::ValDef { name, tpt, rhs: Some(rhs), mods }, span)
+        } else {
+            let clauses: Vec<_> = [instance.tparams, evidence]
+                .iter()
+                .filter(|c| !c.is_empty())
+                .map(|c| self.ast.list(c))
+                .collect();
+            let paramss = self.ast.clauses(&clauses);
+            let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
+            self.derived_node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods }, span)
+        };
+        if let Some(lambda) = instance.lambda {
+            self.derived_lambdas.insert(lambda, def);
         }
-        let clauses: Vec<_> =
-            [instance.tparams, evidence].iter().filter(|c| !c.is_empty()).map(|c| self.ast.list(c)).collect();
-        let paramss = self.ast.clauses(&clauses);
-        let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
-        Some((self.derived_node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods }, span), problem))
+        Some((def, problem))
     }
 
     /// The text of path type `t` as a reference to it shows it: `a.b.C`.

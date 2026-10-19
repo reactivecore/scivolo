@@ -34,7 +34,9 @@ impl Typer<'_> {
     /// class's `derived` cannot be called reported.
     fn typed_derived_instances(&mut self, cls: SymbolId, ctx: Ctx) -> Vec<TNodeId> {
         let mut out = Vec::new();
-        for (d, problem) in self.derived_instances.remove(&cls).unwrap_or_default() {
+        let instances = self.derived_instances.remove(&cls).unwrap_or_default();
+        let defs: Vec<_> = instances.iter().map(|&(d, _)| d).collect();
+        for (d, problem) in instances {
             if let Some(problem) = problem {
                 let sym = self.syms.by_tree[&d];
                 self.complete(sym);
@@ -57,6 +59,7 @@ impl Typer<'_> {
             let typed = self.typed_stat(d, ctx);
             out.push(self.with_plain_type_trees(typed));
         }
+        self.derived_lambdas.retain(|_, def| !defs.contains(def));
         out
     }
 }

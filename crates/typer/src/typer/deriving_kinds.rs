@@ -6,11 +6,13 @@ use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
 /// The parts of an instance: its type parameters, the type arguments of its evidence
-/// parameters' type classes, and the type class's arguments in its result type.
+/// parameters' type classes, the type class's arguments in its result type, and the type
+/// lambda among them.
 pub struct Instance {
     pub tparams: Vec<NodeId>,
     pub evidence: Vec<Vec<NodeId>>,
     pub args: Vec<NodeId>,
+    pub lambda: Option<NodeId>,
 }
 
 impl Typer<'_> {
@@ -56,18 +58,17 @@ impl Typer<'_> {
                 }
                 let body = self.class_applied(class, args, span);
                 let tparams = self.ast.list(&lparams);
-                let lambda = self.derived_node(Tree::LambdaTypeTree { tparams, body }, span);
-                self.derived_lambdas.insert(lambda);
-                lambda
+                self.derived_node(Tree::LambdaTypeTree { tparams, body }, span)
             };
-            return Ok(Some(Instance { tparams, evidence: Vec::new(), args: vec![arg] }));
+            let lambda = (instance_arity != cls_arity).then_some(arg);
+            return Ok(Some(Instance { tparams, evidence: Vec::new(), args: vec![arg], lambda }));
         }
         if instance_arity == 0 && cls_infos.iter().all(|&i| self.hk_params(i).is_none()) {
             let tparams = cls_params.iter().map(|&p| self.param_def_of(p, span)).collect::<Result<_, _>>()?;
             let args: Vec<NodeId> = cls_params.iter().map(|&p| self.param_ident(p, span)).collect();
             let evidence = cls_params.iter().map(|&p| vec![self.param_ident(p, span)]).collect();
             let arg = self.class_applied(class, args, span);
-            return Ok(Some(Instance { tparams, evidence, args: vec![arg] }));
+            return Ok(Some(Instance { tparams, evidence, args: vec![arg], lambda: None }));
         }
         Ok(None)
     }
@@ -109,7 +110,7 @@ impl Typer<'_> {
                 self.class_applied(class, args, span)
             })
             .collect();
-        Ok(Some(Instance { tparams, evidence, args }))
+        Ok(Some(Instance { tparams, evidence, args, lambda: None }))
     }
 
     /// The type parameters of class `cls`, completed.
