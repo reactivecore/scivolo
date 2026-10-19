@@ -127,6 +127,7 @@ impl Typer<'_> {
         (params, formals): (&[(String, TypeId)], &[TypeId]),
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
+        let method = method.or_else(|| self.tpd.sym(self.tpd.meth_part(f)));
         let complex = method.is_some_and(|m| self.has_defaults(m));
         let contextual = self.takes_using(f);
         let at = self.tpd.span(f).start_pos();
