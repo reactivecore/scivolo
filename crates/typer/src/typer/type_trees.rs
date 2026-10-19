@@ -91,7 +91,7 @@ impl Typer<'_> {
                 let arg = self.typed_type(arg, ctx);
                 let annot = self.typed(annot, Pt::Any, ctx);
                 let annot_tpe = self.tpd.tpe(annot);
-                if !self.is_repeated_annot(annot_tpe) {
+                if self.u.class_symbol(annot_tpe).is_none() {
                     return self.unsupported(id, "annotated type");
                 }
                 let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
