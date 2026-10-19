@@ -113,6 +113,15 @@ impl Universe {
                 let (xs, ys) = (self.or_base_classes(a)?, self.or_base_classes(b)?);
                 Some(xs.into_iter().filter(|x| ys.contains(x)).collect())
             }
+            Type::And(a, b) => {
+                let (mut xs, ys) = (self.or_base_classes(a)?, self.or_base_classes(b)?);
+                for y in ys {
+                    if !xs.contains(&y) {
+                        xs.push(y);
+                    }
+                }
+                Some(xs)
+            }
             _ => {
                 let widened = self.widen(t);
                 let c = self.class_symbol(widened)?;
@@ -131,6 +140,10 @@ impl Universe {
                 let (x, y) = (self.or_base_type(a, c)?, self.or_base_type(b, c)?);
                 self.merged(x, y)
             }
+            Type::And(a, b) => match (self.or_base_type(a, c), self.or_base_type(b, c)) {
+                (Some(x), Some(y)) if x != y => Some(self.intern_type(Type::And(x, y))),
+                (x, y) => x.or(y),
+            },
             _ => {
                 let widened = self.widen(t);
                 self.base_type(widened, c)
@@ -161,21 +174,29 @@ impl Universe {
             return Some(x);
         }
         match (self.types().get(x).clone(), self.types().get(y).clone()) {
-            (Type::Applied(t1, xs), Type::Applied(t2, ys)) if t1 == t2 && xs.len() == ys.len() => {
+            (Type::Applied(t1, xs), Type::Applied(t2, ys))
+                if xs.len() == ys.len()
+                    && (t1 == t2
+                        || self.class_symbol(t1).is_some_and(|c| self.class_symbol(t2) == Some(c))) =>
+            {
                 let c = self.class_symbol(t1)?;
                 let variances = self.variances(c);
                 let mut args = Vec::new();
                 for (i, (&p, &q)) in xs.iter().zip(&ys).enumerate() {
-                    let bounds = |u: &Self, t| matches!(u.types().get(t), Type::Bounds(..));
-                    if bounds(self, p) || bounds(self, q) {
-                        return None;
-                    }
-                    let same = p == q || self.is_subtype(p, q) && self.is_subtype(q, p);
+                    let interval = |u: &Self, t| match *u.types().get(t) {
+                        Type::Bounds(lo, hi) => (lo, hi, true),
+                        _ => (t, t, false),
+                    };
+                    let ((plo, phi, pb), (qlo, qhi, qb)) = (interval(self, p), interval(self, q));
+                    let same = p == q || !pb && !qb && self.is_subtype(p, q) && self.is_subtype(q, p);
                     args.push(match variances.get(i).copied().unwrap_or(0) {
                         _ if same => p,
-                        1 => self.lub(p, q),
-                        -1 => self.glb(p, q),
-                        _ => return None,
+                        1 => self.lub(phi, qhi),
+                        -1 => self.glb(plo, qlo),
+                        _ => {
+                            let (lo, hi) = (self.glb(plo, qlo), self.lub(phi, qhi));
+                            self.intern_type(Type::Bounds(lo, hi))
+                        }
                     });
                 }
                 Some(self.intern_type(Type::Applied(t1, args)))
