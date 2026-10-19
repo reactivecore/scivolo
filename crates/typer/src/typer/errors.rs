@@ -16,10 +16,21 @@ pub fn missing_parameter_type(param: &str, expected: Option<&str>) -> Message {
     message(81, "Type", false, text)
 }
 
-/// `MissingIdent` for identifier `name`, a type if `is_type`, with no name to suggest.
-pub fn not_found(name: &str, is_type: bool) -> Message {
+/// `MissingIdent` for identifier `name`, a type if `is_type`, followed by `hint`.
+pub fn not_found(name: &str, is_type: bool, hint: &str) -> Message {
     let kind = if is_type { "type " } else { "" };
-    message(6, "Not Found", true, format!("Not found: {kind}{name}"))
+    message(6, "Not Found", true, format!("Not found: {kind}{name}{hint}"))
+}
+
+/// `MissingIdent` for identifier `name`, a type if `is_type`, where only a binding of the other
+/// kind has that name, an object if `module`.
+pub fn wrong_kind(name: &str, is_type: bool, module: bool) -> Message {
+    let text = match is_type {
+        true if module => format!("Expected a type, but found a term: {name} - did you mean {name}.type?"),
+        true => format!("Expected a type, but found a term: {name}"),
+        false => format!("Expected a term, but found a type: {name}"),
+    };
+    message(6, "Not Found", true, text)
 }
 
 /// `TypeMismatch` of a tree of the type shown as `found` with the type shown as `required`, with

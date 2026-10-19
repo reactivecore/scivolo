@@ -1,5 +1,5 @@
-//! Whether dotty's `MissingIdent` could add a "did you mean" hint (dotty's `DidYouMean`): a name
-//! bound in scope, of either kind, close to the missing one by `closestTo`.
+//! The names dotty's "did you mean" hints may suggest, of either kind, and `closestTo`'s
+//! distance (dotty's `DidYouMean`).
 
 use super::Typer;
 use super::imports::ImportEntry;
@@ -21,17 +21,9 @@ pub const OBJECT_MEMBERS: &str = "== != ## equals hashCode toString getClass isI
 pub const KNOWN_JAVA: [&str; 3] = ["java.lang.Object", "java.lang.Comparable", "java.io.Serializable"];
 
 impl Typer<'_> {
-    /// Whether dotty may suggest a name for `missing` in `ctx`: a candidate is close to it, or the
-    /// candidates are not all known.
-    pub fn may_suggest(&mut self, missing: &str, ctx: Ctx) -> bool {
-        let Some(candidates) = self.candidates(ctx) else { return true };
-        let missing: Vec<u16> = missing.encode_utf16().collect();
-        candidates.iter().any(|c| close(&missing, c) || close(&missing, c.trim_end_matches('$')))
-    }
-
     /// The names of all bindings dotty's hint may suggest in `ctx`, and more; `None` where they
     /// are not all known, as in a named package or with members of the JDK.
-    fn candidates(&mut self, ctx: Ctx) -> Option<Vec<String>> {
+    pub fn candidates(&mut self, ctx: Ctx) -> Option<Vec<String>> {
         let mut script: Vec<SymbolId> = self.syms.flags.keys().copied().collect();
         script.extend(self.syms.by_tree.values().copied());
         script.extend(self.syms.closure_syms.iter().copied());
@@ -74,7 +66,7 @@ impl Typer<'_> {
     }
 
     /// The package or class whose members an import of a path of type `qual` makes visible.
-    fn import_site_class(&mut self, qual: TypeId) -> Option<SymbolId> {
+    pub fn import_site_class(&mut self, qual: TypeId) -> Option<SymbolId> {
         match self.u.types().get(qual).clone() {
             Type::Package(p) => Some(p),
             Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Package => Some(s),
