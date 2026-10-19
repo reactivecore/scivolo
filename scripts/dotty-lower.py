@@ -30,7 +30,7 @@ LOWER, SCALAI = ROOT / "target/release/lower", ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 OUTCOMES = ["passed", "wrong output", "crashed", "timeout", "lowering refused", "typer refused",
-            "parser refused", "frontend crashed", "earlier groups failed", "several files", "fails in the VM",
+            "parser refused", "macro refused", "frontend crashed", "earlier groups failed", "several files", "fails in the VM",
             "skipped"]
 TOP = 40
 
@@ -57,11 +57,21 @@ def earlier(name, groups, dir):
 
 
 def one(name, groups, check, reason, baseline, dir):
-    """The outcome of test `name` through the frontend and the VM, and a detail."""
+    """The outcome of test `name` through the frontend and the VM, and a detail; a group whose
+    macro definitions the typer refuses compiles them first, as dotty suspends their callers."""
     if reason:
         return "skipped", reason
     if dir == "run" and baseline != "passed":
         return "fails in the VM", baseline
+    outcome = lowered(name, groups, check, dir)
+    quoted = [s for s in groups[-1] if "scala.quoted" in s.read_text(errors="replace")]
+    if outcome == ("typer refused", "Splice") and 0 < len(quoted) < len(groups[-1]):
+        rest = [s for s in groups[-1] if s not in quoted]
+        return lowered(name, [*groups[:-1], quoted, rest], check, dir)
+    return outcome
+
+
+def lowered(name, groups, check, dir):
     cp = []
     if len(groups) > 1:
         before, why = earlier(name, groups, dir)
@@ -75,6 +85,8 @@ def one(name, groups, check, reason, baseline, dir):
     except subprocess.TimeoutExpired:
         return "frontend crashed", "timeout"
     if r.returncode != 0:
+        if m := re.search(r"Failed to evaluate macro\..*?unsupported: no method (\S+)", r.stderr):
+            return "macro refused", m[1].removeprefix("scala.quoted.runtime.impl.")
         message = first_line(r.stderr)
         if m := re.match(r"the (typer|lowering) does not support (.*?)( at (\S+:)?\d+:\d+)?$", message):
             return f"{m[1]} refused", m[2]
@@ -118,7 +130,7 @@ def report(filter_, dir):
     counts = collections.Counter(o for o, _ in rows.values())
     md = "| Outcome | Tests |\n|---|---:|\n" + "".join(f"| {o} | {counts[o]} |\n" for o in OUTCOMES)
     md += f"| **total** | **{len(rows)}** |\n"
-    for stage in ("lowering", "typer"):
+    for stage in ("lowering", "typer", "macro"):
         reasons = collections.Counter(d for o, d in rows.values() if o == f"{stage} refused")
         md += f"\n### {stage.capitalize()} refusals (top {TOP} of {len(reasons)})\n\n| Tests | Reason |\n|---:|---|\n"
         md += "".join(f"| {c} | {r} |\n" for r, c in reasons.most_common(TOP))

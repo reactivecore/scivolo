@@ -54,7 +54,13 @@ fn main() {
                 println!("{}.nir", f.name);
             }
         }
-        Err(e) => fail(&e.to_string()),
+        Err(e) => {
+            let error = e.diags.items.iter().find(|d| d.level == syntax::diag::Level::Error);
+            fail(&match error {
+                Some(d) => format!("{}: {}", e.what, d.message.replace('\n', " ")),
+                None => e.what.replace("\n  ", " "),
+            })
+        }
     }
 }
 
