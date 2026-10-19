@@ -27,8 +27,11 @@ impl Typer<'_> {
             if let Some(proxy) = proxy {
                 return Ok(proxy);
             }
-            let dynamic =
-                if let Pt::Fun(_) | Pt::PolyFun = pt { self.dynamic_apply_insertion(f, ctx)? } else { None };
+            let dynamic = if let Pt::Fun(_) | Pt::PolyFun(_) = pt {
+                self.dynamic_apply_insertion(f, ctx)?
+            } else {
+                None
+            };
             return dynamic.ok_or("application of a non-method");
         };
         let sym = match self.choose(&found.syms, Some(tpe), pt) {

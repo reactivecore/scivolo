@@ -27,7 +27,7 @@ impl Typer<'_> {
         self.check_in_inline_context("summonFrom", span, ctx);
         let scrutinee = self.implicit_scrutinee();
         let case_pt = match pt {
-            Pt::Fun(_) | Pt::PolyFun => Pt::Any,
+            Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
         let mut typed = Vec::new();

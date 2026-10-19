@@ -40,6 +40,52 @@ impl Typer<'_> {
         None
     }
 
+    /// `WrongNumberOfTypeArgs` for applied type `id` of type constructor `tycon` to `args`, if
+    /// `tycon` takes type parameters and dotty shows it and the arguments as `show_user` does.
+    pub fn wrong_type_arg_count(&mut self, id: NodeId, tycon: TypeId, args: &[NodeId]) -> Option<TNodeId> {
+        let dealiased = self.u.dealias(tycon);
+        let params: Vec<String> = match self.u.types().get(dealiased).clone() {
+            Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
+                self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()
+            }
+            Type::Lambda { params, .. } => params.into_iter().map(|(n, _)| n).collect(),
+            _ if self.type_arity(tycon) == 0 => Vec::new(),
+            _ => return None,
+        };
+        let mut actual = Vec::new();
+        for &a in args {
+            let Tree::Ident { name } = *self.ast.tree(a) else { return None };
+            actual.push(self.text(name.name).to_owned());
+        }
+        let plain = |n: &String| !n.is_empty() && n.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+        let param = match *self.u.types().get(tycon) {
+            Type::Sym(_, s) if matches!(self.u.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
+                let info = self.u.info(s);
+                matches!(self.u.types().get(info), Type::Bounds(..))
+                    && self.u.show_user(tycon) == self.u.symbol(s).name
+            }
+            _ => false,
+        };
+        let parts = self.type_parts(tycon);
+        if !params.iter().all(plain)
+            || !param
+                && !parts
+                    .iter()
+                    .all(|&p| super::not_a_member::is_concrete_part(self.u, p) && self.shown_as_dotty(p))
+        {
+            return None;
+        }
+        let shown = self.u.show_user(tycon);
+        if shown.contains(['<', '?', '[', ' ']) {
+            return None;
+        }
+        let msg = match params.is_empty() {
+            true => super::errors::type_does_not_take_parameters(&shown),
+            false => super::errors::wrong_number_of_type_args(&shown, &params, &actual),
+        };
+        Some(self.error(id, msg))
+    }
+
     /// Whether type constructor `t` is a type lambda with a parameter bounded by more than `Any`.
     fn has_bounded_params(&mut self, t: TypeId) -> bool {
         let lambda = self.u.dealias(t);

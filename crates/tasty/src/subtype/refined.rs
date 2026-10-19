@@ -36,7 +36,8 @@ impl Cmp<'_> {
                 let ((lo1, hi1), (lo2, hi2)) = (bounds(self, have), bounds(self, want));
                 self.recur(lo2, lo1) && self.recur(hi1, hi2)
             }
-            Type::Method { .. } | Type::Poly { .. } | Type::ByName(_) => self.recur(have, want),
+            Type::Method { .. } | Type::Poly { .. } => self.recur(have, want),
+            Type::ByName(want) => self.info_conforms(have, want),
             _ => match self.u.types().get(have).clone() {
                 Type::Method { params, result, .. } if params.is_empty() => self.recur(result, want),
                 Type::ByName(result) => self.recur(result, want),

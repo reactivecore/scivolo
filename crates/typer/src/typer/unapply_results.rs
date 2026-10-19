@@ -2,10 +2,48 @@
 //! selectors, `get` of an `isEmpty`/`get` result, Boolean results.
 
 use super::Typer;
+use super::dependent_params::applied_result;
 use crate::symbols::Completion;
-use tasty::{SymbolId, Type, TypeId};
+use crate::tpd::TNodeId;
+use tasty::{Binder, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
+    /// Result `t` of extractor `unapp` of parameter `param` of the method type of binder
+    /// `binder`, applied to a value of type `own`, an intersection `(?1 : S) & T` with the
+    /// skolem of an unstable `own` as `S & T` simplified, type variables instantiated.
+    pub fn applied_unapply_result(
+        &mut self,
+        unapp: TNodeId,
+        t: TypeId,
+        (binder, param): (Binder, &str),
+        own: TypeId,
+    ) -> Result<TypeId, &'static str> {
+        let method = self.tpd.sym(self.tpd.meth_part(unapp));
+        let names = [param.to_owned()];
+        let applied = applied_result(self.u, t, (binder, &names), method, &[own]);
+        let skolem = |u: &Universe, x| match *u.types().get(x) {
+            Type::Skolem(_, w) => Some(w),
+            _ => None,
+        };
+        let result = self.u.map_type(applied, &mut |u, part| {
+            let Type::And(a, b) = *u.types().get(part) else { return None };
+            match (skolem(u, a), skolem(u, b)) {
+                (Some(w), None) => Some(u.glb(w, b)),
+                (None, Some(w)) => Some(u.glb(a, w)),
+                _ => None,
+            }
+        });
+        let mut skolems = false;
+        self.u.map_type(result, &mut |u, part| {
+            skolems |= skolem(u, part).is_some();
+            None
+        });
+        match skolems && result != t {
+            true => Err("extractor result depending on its unstable argument"),
+            false => Ok(self.zonk(result)),
+        }
+    }
+
     /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
     /// `UnapplyArgs.argTypes` for `unapply`).
     pub fn unapply_arg_types(&mut self, result: TypeId, n: usize) -> Result<Vec<TypeId>, &'static str> {

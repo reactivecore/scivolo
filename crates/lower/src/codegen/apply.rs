@@ -107,6 +107,12 @@ impl Gen<'_, '_> {
         args: &[TNodeId],
         span: Span,
     ) -> Result<ValId> {
+        if self.is_reflective(sym, "selectDynamic") {
+            return self.gen_reflective_select(sym, recv, args, span);
+        }
+        if self.is_reflective(sym, "applyDynamic") {
+            return self.gen_reflective_apply(sym, recv, args, span);
+        }
         self.check_callee(sym, span)?;
         if is_java_static(self.l.u, sym) {
             let owner = match recv {

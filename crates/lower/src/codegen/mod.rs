@@ -13,6 +13,7 @@ mod closure;
 mod closure_methods;
 mod concat;
 mod dead;
+mod dynmethod;
 mod equality;
 mod erased;
 mod expr;

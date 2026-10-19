@@ -65,6 +65,8 @@ Apache-2.0. Rust translations of:
   and `crates/tasty/src/symbols/context_functions.rs`; `Erasure.Typer.mapOwner` and
   `ContextFunctionResults` (`annotateContextResults`, `contextResultCount`,
   `integrateContextResults`) in `crates/lower/src/phases`.
+- `crates/typer/src/typer/structural.rs`: `Dynamic.handleStructural` (`structuralCall`,
+  the `classOf` arguments of `applyDynamic`).
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/typer/src/typer/type_lambdas.rs`: `HKTypeLambda.boundsFromParams`;
@@ -75,6 +77,8 @@ Apache-2.0. Rust translations of:
 - `crates/typer/src/typer/{arg_shapes,pretyped_args}.rs`: `Applications` (`typeShape`, `normArg`,
   `narrowByShapes`, `pretypeArgs`, `ptIsCorrectProduct`), `FunProto.typedArgs` without forcing,
   `TreeInfo.functionWithUnknownParamType`.
+- `crates/typer/src/typer/poly_alternatives.rs`: `Applications.resolveOverloaded1` (`PolyProto`
+  case, `resolveMapped`), `ProtoTypes.PolyProto` (`canInstantiate`, `isMatchedBy`).
 - `crates/typer/src/typer/{sams,sam_closures}.rs`: `Types.SAMType.unapply` (`PartialFunction` as a SAM type),
   `SAMType.samClass`, `Typer.typedClosure` (the closure's target type).
 - `crates/typer/src/typer/selves.rs`, `crates/tasty/src/types/widen.rs` (`self_type`):
@@ -84,6 +88,8 @@ Apache-2.0. Rust translations of:
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/typer/src/typer/linter.rs`: `Linter.warnOnInterestingResultInStatement`,
   `TreeInfo.isThisTypeResult`.
+- `crates/typer/src/typer/{did_you_mean,*_hint,scope_bindings}.rs`: `reporting/DidYouMean` (`memberCandidates`,
+  `inScopeCandidates`, `closestTo`, `didYouMean`), the messages of `NotAMember` and `MissingIdent`.
 - `crates/lower/src/phases`, from `transform/`:
   - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
     `config/JavaPlatform.isSam` (without `samExpansionNotNeeded`'s bridges: refused), `ast/tpd` (`AnonClass`,
@@ -228,7 +234,7 @@ the VM (fetched, not vendored).
   (`crates/tasty`: its tag table and tree grammar); `Scanners`/`Parsers`/`Desugar` as the parser
   to port in phase 3; `TypeErasure.scala` and `transform/Bridges.scala` for erasure and bridges;
   `core/TypeComparer.scala` (`recur`, `firstTry`…`fourthTry`, `isSubArgs`, `either`,
-  `compareAtoms`, `mergedLub`), `Atoms.scala`, `Type.atoms`, `hasClassSymbol`,
+  `compareAtoms`, `mergedLub`, `lubArgs`), `TypeOps.orDominator`, `Atoms.scala`, `Type.atoms`, `hasClassSymbol`,
   `OrType.balanced` and `OrType.atoms` (its `myAtoms` cache), and the
   classes and the members of `Any` and `Object` that `Definitions` makes without TASTy, for subtyping in `crates/tasty/src/subtype`.
 - **Scala Native's compiler plugin** (`nscplugin`): `NirGenStat.genInterfaceMethodBridge`, the

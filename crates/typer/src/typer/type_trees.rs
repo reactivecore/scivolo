@@ -19,10 +19,20 @@ impl Typer<'_> {
             Tree::AppliedTypeTree { tpt, args } => {
                 let tpt = self.typed_type(tpt, ctx);
                 let tycon = self.tpd.tpe(tpt);
-                let arg_ids = self.ast.items(args).to_vec();
+                let mut arg_ids = self.ast.items(args).to_vec();
                 let arity = self.type_arity(tycon);
                 if !self.is_error(tpt) && arity != arg_ids.len() {
-                    return self.unsupported(id, "wrong number of type arguments");
+                    let Some(error) = self.wrong_type_arg_count(id, tycon, &arg_ids) else {
+                        return self.unsupported(id, "wrong number of type arguments");
+                    };
+                    if arity == 0 {
+                        return tpt;
+                    }
+                    if arity > arg_ids.len() {
+                        arg_ids.iter().for_each(|&a| _ = self.typed_type(a, ctx));
+                        return error;
+                    }
+                    arg_ids.truncate(arity);
                 }
                 let mut typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
@@ -35,7 +45,9 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if let Some(what) = self.type_args_problem(tycon, arity, &arg_types) {
+                if let Some(what) =
+                    self.type_args_problem(tycon, arity, &arg_types).filter(|_| !self.is_error(tpt))
+                {
                     return self.unsupported(id, what);
                 }
                 let arg_types: Vec<TypeId> =
@@ -91,7 +103,7 @@ impl Typer<'_> {
                 let arg = self.typed_type(arg, ctx);
                 let annot = self.typed(annot, Pt::Any, ctx);
                 let annot_tpe = self.tpd.tpe(annot);
-                if !self.is_repeated_annot(annot_tpe) {
+                if self.u.class_symbol(annot_tpe).is_none() {
                     return self.unsupported(id, "annotated type");
                 }
                 let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
@@ -102,6 +114,7 @@ impl Typer<'_> {
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
+            Tree::Tuple { trees } => self.typed_tuple_type(id, trees, ctx),
             Tree::MatchTypeTree { bound, selector, cases } => {
                 self.typed_match_type_tree(id, (bound, selector, cases), ctx)
             }

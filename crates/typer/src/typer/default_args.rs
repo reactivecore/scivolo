@@ -73,7 +73,7 @@ impl Typer<'_> {
             let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
             let arg_types: Vec<_> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
             let result = self.applied_result(result, (binder, &names), self.tpd.sym(getter), &arg_types);
-            getter = self.build().apply(getter, &args, result, span);
+            getter = self.build().apply(getter, &args, result, span.to_synthetic());
         }
         Ok(getter)
     }
@@ -83,10 +83,11 @@ impl Typer<'_> {
         match *self.tpd.tree(t) {
             T::Ident { .. } | T::Literal { .. } | T::This { .. } => true,
             T::Select { qualifier, .. } => self.is_copyable(qualifier),
-            T::TypeApply { fun, .. } => self.is_copyable(fun),
+            T::TypeApply { fun, .. } | T::Typed { expr: fun, .. } => self.is_copyable(fun),
             T::Apply { fun, args } => {
                 self.is_copyable(fun) && self.tpd.items(args).iter().all(|&a| self.is_copyable(a))
             }
+            T::SeqLiteral { elems, .. } => self.tpd.items(elems).iter().all(|&a| self.is_copyable(a)),
             _ => false,
         }
     }
@@ -96,6 +97,12 @@ impl Typer<'_> {
         let tree = match self.tpd.tree(t).clone() {
             T::Select { qualifier, name } => T::Select { qualifier: self.copied_path(qualifier), name },
             T::This { qual } => T::This { qual: self.copied_path(qual) },
+            T::Typed { expr, tpt } => T::Typed { expr: self.copied_path(expr), tpt: self.copied_path(tpt) },
+            T::SeqLiteral { elems, elemtpt } => {
+                let items: Vec<TNodeId> =
+                    self.tpd.items(elems).to_vec().into_iter().map(|a| self.copied_path(a)).collect();
+                T::SeqLiteral { elems: self.tpd.list(&items), elemtpt: self.copied_path(elemtpt) }
+            }
             T::Apply { fun, args } | T::TypeApply { fun, args } => {
                 let fun = self.copied_path(fun);
                 let items: Vec<TNodeId> =

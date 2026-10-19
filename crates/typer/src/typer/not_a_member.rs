@@ -1,8 +1,7 @@
 //! Selections of a member the qualifier's type lacks (dotty's `NotAMember`), reported where
-//! dotty finds no member, conversion or extension either and adds neither a hint nor an addendum.
+//! dotty finds no member, conversion or extension either and adds no addendum.
 
 use super::Typer;
-use super::did_you_mean::{OBJECT_MEMBERS, close};
 use super::not_found::{path_to, uncertain_edge};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -49,14 +48,16 @@ impl Typer<'_> {
             return None;
         }
         let (class, site) = self.member_site(qual_tpe)?;
-        if self.may_hint(class, &text) || !name.is_type && self.may_supply((class, site), &text, ctx) {
+        if !name.is_type && self.may_supply((class, site), &text, ctx) {
             return None;
         }
+        let path = self.zonk(qual_tpe);
+        let hint = self.member_hint(class, path, &text, name.is_type, ctx)?;
         let shown = match self.u.symbol(class).flags.has(OBJECT) {
             true => format!("object {}", self.u.show_user(site).strip_suffix(".type")?),
             false => self.u.show_user(site),
         };
-        Some(self.error(id, super::errors::not_a_member(&text, name.is_type, &shown)))
+        Some(self.error(id, super::errors::not_a_member(&text, name.is_type, &shown, &hint)))
     }
 
     /// Whether the trees from the outermost definition enclosing `id` down to it are typed as
@@ -88,7 +89,7 @@ impl Typer<'_> {
 
     /// The class of the members of `qual_tpe` and its widened type, if a class type whose members
     /// dotty finds as the universe does and whose type arguments are concrete.
-    fn member_site(&mut self, qual_tpe: TypeId) -> Option<(SymbolId, TypeId)> {
+    pub fn member_site(&mut self, qual_tpe: TypeId) -> Option<(SymbolId, TypeId)> {
         let t = self.zonk(qual_tpe);
         let site = self.u.widen(t);
         let dealiased = self.u.dealias(site);
@@ -138,17 +139,6 @@ impl Typer<'_> {
             }
         }
         false
-    }
-
-    /// Whether dotty's hint may suggest a member of class `class` for `missing`: one of its names,
-    /// or those of `Any` and `Object`, is close to it, or they are not all known.
-    fn may_hint(&mut self, class: SymbolId, missing: &str) -> bool {
-        let mut names: Vec<String> = OBJECT_MEMBERS.split_whitespace().map(str::to_owned).collect();
-        if self.member_names(class, &mut names).is_none() {
-            return true;
-        }
-        let missing: Vec<u16> = missing.encode_utf16().collect();
-        names.iter().any(|n| close(&missing, n) || close(&missing, n.trim_end_matches('$')))
     }
 }
 

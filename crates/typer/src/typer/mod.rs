@@ -64,6 +64,7 @@ mod find_ref;
 mod function_types;
 mod generic_arrays;
 mod harmonize;
+mod ident_hint;
 mod idents;
 mod implicit_views;
 mod implicits;
@@ -85,6 +86,7 @@ mod linter;
 mod literals;
 mod match_type_trees;
 mod matches;
+mod member_hint;
 mod member_views;
 mod members;
 mod migrations;
@@ -94,9 +96,11 @@ mod name_clashes;
 mod named_args;
 mod names;
 mod no_inits;
+mod non_method_apply;
 mod not_a_member;
 mod not_found;
 mod op_assign;
+mod overload_errors;
 mod overloads;
 mod overrides;
 mod package_members;
@@ -108,6 +112,7 @@ mod pattern_args;
 mod pattern_bounds;
 mod patterns;
 mod plain_trees;
+mod poly_alternatives;
 mod pretyped_args;
 mod purity;
 mod qualifier_views;
@@ -120,6 +125,7 @@ mod retained;
 mod right_assoc;
 mod sam_closures;
 mod sams;
+mod scope_bindings;
 pub(crate) mod seen_from;
 mod select;
 mod selves;
@@ -128,6 +134,7 @@ pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
 mod stats;
+mod structural;
 mod summon_from;
 mod supers;
 mod this;
@@ -136,6 +143,7 @@ mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
+mod tuple_xxl;
 pub(crate) mod type_apply;
 mod type_args;
 mod type_defs;
@@ -212,6 +220,12 @@ pub struct Typer<'a> {
     pub history: implicits::History,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
+    /// The type argument lists of the type applications being typed.
+    pub poly_protos: Vec<poly_alternatives::PolyProto>,
+    /// The alternatives being resolved with their type parameters instantiated, and the types.
+    pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
+    /// The applicable alternatives of the last overload resolution found ambiguous.
+    pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many constructs outside the subset were reported.
@@ -257,8 +271,9 @@ impl<'a> Typer<'a> {
         cfg: Config,
         syms: &mut Syms,
     ) -> Result<Self, String> {
-        if cfg.source_version != SourceVersion::V3_9 {
-            return Err("source versions other than 3.9".into());
+        let v = cfg.source_version;
+        if !v.is_at_least(SourceVersion::V3_7) || v.requires_new_syntax() || v.migrating {
+            return Err("source versions other than 3.7 to 3.9".into());
         }
         let defn = Defn::new(u)?;
         let mut syms = std::mem::take(syms);
@@ -290,6 +305,9 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             history: Default::default(),
             protos: Vec::new(),
+            poly_protos: Vec::new(),
+            mapped_targs: None,
+            ambiguous: Vec::new(),
             unsupported: None,
             reports: 0,
             method_infos: Default::default(),

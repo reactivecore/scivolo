@@ -1,4 +1,4 @@
-//! Refined type trees with type-member refinements (dotty's `typedRefinedTypeTree`), and
+//! Refined type trees (dotty's `typedRefinedTypeTree`), and
 //! selections of members only a refinement has.
 
 use super::Typer;
@@ -8,8 +8,8 @@ use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// `tpt { type X = … }`: the parent refined by each type member in turn; a structural
-    /// refinement, a higher-kinded one and one that refines no type member of the parent refused.
+    /// `tpt { type X = … }`: the parent, `Object` if none, refined by each member in turn; a
+    /// higher-kinded refinement and one that refines no type member of the parent refused.
     pub fn typed_refined_type(
         &mut self,
         id: NodeId,
@@ -17,19 +17,30 @@ impl Typer<'_> {
         refinements: List,
         ctx: Ctx,
     ) -> TNodeId {
-        let Some(tpt) = tpt else { return self.unsupported(id, "refinement of an anonymous parent") };
-        let parent = self.typed_type(tpt, ctx);
-        if self.is_error(parent) {
-            return parent;
-        }
-        let mut tpe = self.tpd.tpe(parent);
+        let mut tpe = match tpt {
+            Some(tpt) => {
+                let parent = self.typed_type(tpt, ctx);
+                if self.is_error(parent) {
+                    return parent;
+                }
+                self.tpd.tpe(parent)
+            }
+            None => self.u.class_ref("java.lang.Object"),
+        };
         if self.type_arity(tpe) > 0 {
             return self.unsupported(id, "refinement of a type constructor");
         }
         let items = self.ast.items(refinements).to_vec();
         for &r in &items {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
-                return self.unsupported(r, "structural refinement");
+                match self.term_refinement(r, ctx) {
+                    Ok((name, _)) if !self.type_members(tpe, &name).is_empty() => {
+                        return self.unsupported(r, "structural refinement of an existing member");
+                    }
+                    Ok((name, info)) => tpe = self.u.intern_type(Type::Refined(tpe, name, info)),
+                    Err(what) => return self.unsupported(r, what),
+                }
+                continue;
             };
             if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. } | Tree::Template { .. }) {
                 return self.unsupported(r, "higher-kinded refinement");

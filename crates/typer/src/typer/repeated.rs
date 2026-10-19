@@ -93,17 +93,25 @@ impl Typer<'_> {
     }
 
     /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
-    /// `xs` typed as a `Seq[elem]`, ascribed `<repeated>[elem]`.
+    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, ascribed `<repeated>[T]` with `T` its
+    /// element type.
     pub fn sequence_arg(&mut self, a: syntax::ast::NodeId, elem: TypeId, ctx: crate::ctx::Ctx) -> TNodeId {
         let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
             return self.unsupported(a, "sequence argument");
         };
-        let Some(seq_class) = self.resolve_full_name("scala.collection.immutable.Seq", true) else {
+        let (Some(seq_class), Some(array_class)) = (
+            self.resolve_full_name("scala.collection.immutable.Seq", true),
+            self.resolve_full_name("scala.Array", true),
+        ) else {
             return self.unsupported(a, "sequence argument");
         };
         let seq = crate::defn::type_ref(self.u, seq_class);
         let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
-        let expr = self.typed(expr, super::Pt::Type(seq), ctx);
+        let array = crate::defn::type_ref(self.u, array_class);
+        let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
+        let array = self.u.intern_type(Type::Applied(array, vec![below]));
+        let pt = self.u.union(seq, array, false);
+        let expr = self.typed(expr, super::Pt::Type(pt), ctx);
         let converted = self.converted_result(expr);
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);
@@ -113,14 +121,21 @@ impl Typer<'_> {
                 .class_symbol(expr_tpe)
                 .is_some_and(|c| Some(c) == null || c == self.u.builtins().nothing)
         {
-            return self.unsupported(a, "sequence argument of an array or a bottom type");
+            return self.unsupported(a, "sequence argument of a conversion or a bottom type");
         }
         let widened = self.u.widen(expr_tpe);
-        let base = self.u.base_type(widened, seq_class);
+        let class = self.u.class_symbol(widened);
+        let from =
+            if class.is_some_and(|c| self.u.derives_from(c, array_class)) { array_class } else { seq_class };
+        let base = self.u.base_type(widened, from);
         let Some(Type::Applied(_, args)) = base.map(|b| self.u.types().get(b).clone()) else {
             return self.unsupported(a, "sequence argument");
         };
-        let repeated = self.repeated_type(args[0]);
+        let arg = match *self.u.types().get(args[0]) {
+            Type::Bounds(_, hi) => hi,
+            _ => args[0],
+        };
+        let repeated = self.repeated_type(arg);
         let tpt = self.type_tree(repeated, self.ast.span(tpt), false);
         self.tpd.node(T::Typed { expr, tpt }, self.ast.span(a), Some(repeated), None)
     }

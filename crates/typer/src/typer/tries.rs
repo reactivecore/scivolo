@@ -39,7 +39,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> TNodeId {
         let pt = match pt {
-            Pt::Fun(_) | Pt::PolyFun => Pt::Any,
+            Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
         let expr = self.typed(expr, pt, ctx);

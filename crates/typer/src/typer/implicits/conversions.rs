@@ -137,7 +137,7 @@ impl Typer<'_> {
 
     /// `c(tree)` with `c`'s implicit arguments, if it fits `goal`, constant `tree` converted to
     /// the parameter type if `widen`, wildcards in its type captured if that fits.
-    fn try_conversion(
+    pub fn try_conversion(
         &mut self,
         c: Candidate,
         (tree, widen): (TNodeId, bool),
