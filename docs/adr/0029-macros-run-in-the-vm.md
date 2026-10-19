@@ -64,7 +64,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   (`exec`, the hidden option `--rerun-of` giving the first start, from which `SCALAI_TIMEOUT`
   counts) after a compile that ran a macro, and the program runs from the cache in a fresh VM. Output a macro buffered in the VM without flushing is lost.
 - The AOT compiler needs no rerun: macro state stays in its VM and cannot reach the native
-  executable.
+  executable. It starts the VM for every compile missing the cache, so a VM that cannot start
+  (e.g. a bad `SCALAI_NATIVE_LIBS`) fails sources without macro calls too.
 - Scripts read the TASTy of `--cp` and `--dep` jars in the own frontend, as the REPL does
   (most of #128); the script cache key holds each classpath
   entry's path, size and time.

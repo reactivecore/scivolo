@@ -82,14 +82,25 @@ fn macro_calls_of_a_library_jar_expand() {
 
 #[test]
 fn circe_codec_derives_through_its_macros() {
-    let deps = ["io.circe::circe-parser::0.14.10".to_owned(), "io.circe::circe-generic::0.14.10".to_owned()];
-    if let Err(e) = libs::jars().and_then(|_| libs::deps::fetch(&deps).map_err(|e| e.to_string()))
-        && std::env::var_os("CI").is_none()
-    {
-        eprintln!("skipped: {e}");
+    let deps = ["io.circe:circe-parser_native0.5_3:0.14.10", "io.circe:circe-generic_native0.5_3:0.14.10"];
+    if !in_coursier_cache(&deps) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: Circe 0.14.10 is not in the Coursier cache");
         return;
     }
     check_expanded("circe", &[]);
+}
+
+/// Whether Coursier finds `coordinates` without going online.
+fn in_coursier_cache(coordinates: &[&str]) -> bool {
+    let chosen = std::env::var_os("SCALAI_COURSIER").map(|c| vec![c]);
+    chosen.unwrap_or_else(|| vec!["coursier".into(), "cs".into()]).into_iter().any(|cs| {
+        Command::new(cs)
+            .args(["fetch", "--mode", "offline"])
+            .args(coordinates)
+            .args(["--exclude", "org.scala-lang:*", "--exclude", "org.scala-native:*"])
+            .output()
+            .is_ok_and(|o| o.status.success())
+    })
 }
 
 /// What the executable built from method `entry` of test program `name` prints for `arg`.
@@ -126,15 +137,7 @@ fn sources_referring_to_each_other_build_into_one_executable() {
 
 #[test]
 fn sources_use_a_dependency_from_the_coursier_cache() {
-    let chosen = std::env::var_os("SCALAI_COURSIER").map(|c| vec![c]);
-    let offline = chosen.unwrap_or_else(|| vec!["coursier".into(), "cs".into()]).into_iter().any(|cs| {
-        Command::new(cs)
-            .args(["fetch", "--mode", "offline", "com.lihaoyi:geny_native0.5_3:1.1.0"])
-            .args(["--exclude", "org.scala-lang:*", "--exclude", "org.scala-native:*"])
-            .output()
-            .is_ok_and(|o| o.status.success())
-    });
-    if !offline {
+    if !in_coursier_cache(&["com.lihaoyi:geny_native0.5_3:1.1.0"]) {
         eprintln!("skipped: geny 1.1.0 is not in the Coursier cache");
         return;
     }

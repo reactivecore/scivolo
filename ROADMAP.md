@@ -253,13 +253,13 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
 - Until this phase lands, scripts that call macros take the phase 1 fallback.
 
 Status (2026-10-19, #40, ADR 0029, [research 25](docs/research/25-circe-codec-derivation.md)):
-macro calls expand in scripts, the REPL and the AOT compiler. A library macro runs from its NIR in the VM; its
-quotes (type and term holes) are unpickled into the typer's trees; typed-hole quote patterns
-and a `quotes.reflect` subset (terms, literals, `TypeRepr`, symbols, `Ref`/`select`) are
-implemented, everything else of `Quotes` is refused by name. First client: Circe 0.14.10's
-`derives Codec.AsObject` encodes and decodes in the REPL, in scripts (`--dep`) and in native
-executables. Scripts read the TASTy of `--cp`/`--dep` jars in the own frontend (most of #128).
-Open: structural quote patterns, higher-order holes, `Type`/`Expr.show`.
+macro calls expand in scripts, the REPL and the AOT compiler. A library macro runs from its NIR
+in the VM; its quotes (type and term holes) are unpickled into the typer's trees; typed-hole
+quote patterns and a `quotes.reflect` subset (terms, literals, `TypeRepr`, symbols,
+`Ref`/`select`) are implemented, everything else of `Quotes` is refused by name. First client:
+Circe 0.14.10's `derives Codec.AsObject` encodes and decodes in the REPL, in scripts (`--dep`)
+and in native executables. Scripts read the TASTy of `--cp`/`--dep` jars in the own frontend
+(most of #128). Open: structural quote patterns, higher-order holes, `Type`/`Expr.show`.
 
 ## Phase 5 — precompiled code and wider reach (open-ended)
 
@@ -325,7 +325,8 @@ Next, in order of the tests they unblock:
    opaque aliases, tuples over 22, small groups, structural types; the rest of type patterns
    (#127) and mirrors (#129); match-type leftovers (#120); typed-tree printing gaps (#122);
    implicit candidate interpolation (#123).
-2. **Macros** (phase 4, #40): structural quote patterns, higher-order holes, `Type`/`Expr.show` and more of `quotes.reflect` as libraries need them.
+2. **Macros** (phase 4, #40): structural quote patterns, higher-order holes, `Type`/`Expr.show`
+   and more of `quotes.reflect` as libraries need them.
 3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    overridable methods with context function results, traits nested in local traits.
