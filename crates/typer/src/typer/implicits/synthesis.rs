@@ -1,6 +1,6 @@
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
-//! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a tuple's `Mirror`
-//! (`tuple_mirrors.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
+//! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
+//! (`product_mirrors.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
 use super::super::Typer;
 use super::super::constants::of_type;
@@ -19,7 +19,7 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<Option<TNodeId>, &'static str> {
-        if let Some(mirror) = self.synthesized_tuple_mirror(pt, at)? {
+        if let Some(mirror) = self.synthesized_mirror(pt, at, ctx)? {
             return Ok(Some(mirror));
         }
         let Type::Applied(tycon, args) = self.u.types().get(pt).clone() else { return Ok(None) };
@@ -32,17 +32,14 @@ impl Typer<'_> {
         }
     }
 
-    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`.
+    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`, `t` made fully defined.
     fn synthesized_value_of(
         &mut self,
         class: SymbolId,
         t: TypeId,
         at: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
-        if !self.is_fully_defined(t) {
-            return Err("ValueOf of an undetermined type");
-        }
-        let t = self.zonk(t);
+        let t = self.fully_defined_as(t, true)?;
         let dealiased = self.u.dealias(t);
         let value = match self.u.types().get(dealiased).clone() {
             Type::Constant(tag, bits) => of_type(tag, bits).map(|c| self.build().literal(c, at)),

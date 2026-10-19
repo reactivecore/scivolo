@@ -22,6 +22,7 @@ mod avoid_captures;
 mod avoid_map;
 mod avoid_select;
 mod call_types;
+mod case_companion;
 mod case_lambdas;
 mod class_bound;
 mod classes;
@@ -42,6 +43,10 @@ mod defs;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;
+mod deriving;
+mod deriving_finalize;
+mod deriving_kinds;
+mod deriving_trees;
 pub(crate) mod deskolemize;
 pub(crate) mod did_you_mean;
 mod dispatch;
@@ -94,6 +99,7 @@ mod not_found;
 mod op_assign;
 mod overloads;
 mod overrides;
+mod package_members;
 mod param_vars;
 mod parent_trees;
 mod parents;
@@ -223,6 +229,11 @@ pub struct Typer<'a> {
     pub package_implicits: FxHashMap<SymbolId, Vec<(SymbolId, SymbolId)>>,
     /// The forwarders of each export clause in a class body.
     pub exports: FxHashMap<NodeId, crate::namer::exports::Exported>,
+    /// The definitions of the instances of each module class's `derives` clause, entered and
+    /// not typed yet.
+    pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
+    /// The type lambdas of derived instances' types, by the instances that own their parameters.
+    pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.
@@ -231,6 +242,8 @@ pub struct Typer<'a> {
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
     pub file_starts: Vec<syntax::source::Offset>,
+    /// What runs macro implementations; without it, macro calls are refused.
+    pub macros: Option<&'a mut dyn crate::inlining::Macros>,
 }
 
 /// How many `typed` calls may be in progress at once.
@@ -286,10 +299,13 @@ impl<'a> Typer<'a> {
             accessors: Default::default(),
             package_implicits: FxHashMap::default(),
             exports: FxHashMap::default(),
+            derived_instances: FxHashMap::default(),
+            derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
             depth: 0,
             file_starts: Vec::new(),
+            macros: None,
         };
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);
@@ -317,9 +333,12 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
-        let tree = self.adapt(tree, pt, ctx);
+        let adapted = self.adapt(tree, pt, ctx);
+        if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
+            self.unsupported(id, what);
+        }
         self.u.set_comparison_owner(outer);
         self.depth -= 1;
-        tree
+        adapted
     }
 }

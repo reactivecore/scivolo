@@ -4,7 +4,7 @@
 use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::Ctx;
-use crate::inlining::{Host, Inlining, Lent};
+use crate::inlining::{Expanded, Host, Inlining, Lent, MacroCall, MacroError};
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use syntax::ast::Span;
@@ -35,7 +35,7 @@ impl Typer<'_> {
         }
         let Some(meth) = self.tpd.sym(self.tpd.meth_part(tree)) else { return };
         let s = self.u.symbol(meth);
-        if s.kind != Kind::Def || !s.flags.has(INLINE) || s.flags.has(MACRO) {
+        if s.kind != Kind::Def || !s.flags.has(INLINE) || s.flags.has(MACRO) && self.macros.is_none() {
             return;
         }
         let Some(tpe) = self.tpd.get(tree).tpe else { return };
@@ -80,5 +80,16 @@ impl Host for Typer<'_> {
 
     fn error(&mut self, at: Span, msg: String) {
         self.error_at(at, msg);
+    }
+
+    fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
+        let expanded = match self.macros.as_deref_mut() {
+            Some(macros) => macros.expand(lent, call),
+            None => Err(MacroError::Unsupported("macro call".into())),
+        };
+        if let Err(MacroError::Unsupported(what)) = &expanded {
+            self.unsupported_at(call.span, what);
+        }
+        expanded
     }
 }

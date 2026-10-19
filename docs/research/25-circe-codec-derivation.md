@@ -244,6 +244,32 @@ and worth doing first because the mirror is the macro's *input*: M4 cannot be te
 without it, and the mirror tests are JVM-free. M4a lands behind a flag until M4b passes
 `typer-compare` on the pos corpus's macro files.
 
+M4a findings (2026-10-16, ADR 0029) [V, `tests/macros/lib`]: a macro body in TASTy is
+`TYPED(SPLICE(BLOCK(DEFDEF $anonfun(contextual$: Quotes) = impl(QUOTE(x).apply(q))(q), LAMBDA)))`;
+a pickled quote (Base64 TASTy, the tooling's version) is `INLINED(expr, call = the macro's
+module)`, `expr` a `BLOCK` of `@SplicedType` `TYPEDEF`s whose right-hand side is a type `HOLE`
+when it has type holes, each term hole `INLINED(HOLE idx tpe args*)`; `'{ 42 }` compiles to
+`ToExpr.IntToExpr`, i.e. `quotes.reflect` (so M4b); the hole closure of a quote can be filled
+with an expression made before the quote (`typed('{ … })` with a `Type.of` from
+`unpickleTypeV2`). Quote locals (`'{ val v = $x; … }`) reach the lowering's refusal of
+definitions from library inline bodies (`phases/drop_inlined.rs`), as plain library inline
+bodies with locals do.
+
+M4b findings (2026-10-19) [V, `tests/repl/deps/circe-derives.check`, `crates/scalai/tests/circe.rs`]:
+a quote pattern pickled by 3.3.3 is `INLINED(BLOCK(BLOCK(TYPEAPPLY(patternHole, T), @patternType
+TYPEDEF l/el/et), @SplicedType TYPEDEF A = HOLE))`, without a `TYPED`; `${_}` is a `patternHole`
+too, its match returned like `$m`'s. The open [I] items, resolved: `constValue[l & String]` needs
+the `&` simplified (`l <: String`); `erasedValue[(Int, String) & Tuple]` matched against `_: (t *:
+ts)` needs inline-match type bindings in library bodies (bindings of `BIND` in pattern type trees,
+instantiated by a subtype check under a constraint, as quote patterns are) and `summonFrom` read
+from TASTy; `Tuple.Size[("id", "name") & Tuple]` reduces through the existing match type reduction
+once `constValue` normalizes; `getDefaults[T](size)` sees `Literal(2)` because the splice turns a
+quoted reference to a value whose type normalizes to a constant into the literal. Also needed:
+`summonInline` results with their inline calls expanded (`Default.mkDefault` is a transparent
+inline given), a macro's own body not counting as a local implicit, wildcard type arguments
+(`TYPEBOUNDStpt`) in library type trees, and the lowering no longer refusing definitions from
+library inline bodies (they take the call's position).
+
 Risks: the VM bridge (gap 4) is the first time the typer runs code; the REPL's VM is
 single-threaded and already in the interpreter thread (`main.rs:70-76`) — the typer calls into it
 synchronously, GC roots for host-held `Expr` objects need a handle table (ADR 0002's slots).

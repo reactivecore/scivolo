@@ -44,13 +44,27 @@ impl Unpickler<'_> {
             APPLIEDtpt => {
                 let tpt = self.tpt(k[0])?;
                 let args = k[1..].iter().map(|&a| self.tpt(a)).collect::<Result<Vec<_>, _>>()?;
-                let tpe = self.ty(id);
+                let tpe = match k[1..].iter().any(|&a| self.tag(a) == BIND) {
+                    true => {
+                        let arg_types = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+                        self.u.intern_type(Type::Applied(self.tpd.tpe(tpt), arg_types))
+                    }
+                    false => self.ty(id),
+                };
                 let tpe = normalized(self.u, tpe);
                 let args = self.tpd.list(&args);
                 self.bare(T::AppliedTypeTree { tpt, args }, Some(tpe), None)
             }
             EXPLICITtpt => self.tpt(k[0])?,
-            ANNOTATEDtpt | LAMBDAtpt | REFINEDtpt | MATCHtpt | TYPEBOUNDStpt | BLOCK | HOLE => {
+            BIND => self.type_bind(id)?,
+            TYPEBOUNDStpt => {
+                let lo = self.tpt(k[0])?;
+                let hi = k.get(1).map(|&h| self.tpt(h)).transpose()?.unwrap_or(lo);
+                let alias = k.get(2).map(|&a| self.tpt(a)).transpose()?;
+                let tpe = self.u.intern_type(Type::Bounds(self.tpd.tpe(lo), self.tpd.tpe(hi)));
+                self.bare(T::TypeBoundsTree { lo, hi, alias }, Some(tpe), None)
+            }
+            ANNOTATEDtpt | LAMBDAtpt | REFINEDtpt | MATCHtpt | BLOCK | HOLE => {
                 return Err("type tree of another kind in a library inline body");
             }
             _ => {

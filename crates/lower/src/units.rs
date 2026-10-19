@@ -9,15 +9,17 @@ use syntax::names::{FreshNames, Names};
 use syntax::parse::Parser;
 use syntax::source::{Offset, SourceFile, Sources};
 use tasty::Universe;
+use typer::inlining::Macros;
 use typer::{Fallback, Units};
 
 /// The NIR files and warnings of `files` under settings `cfg`, typed together so that each sees
-/// the definitions of all, or why they take the JVM frontend; the warnings' offsets are those of
-/// `Sources::new(files)`.
+/// the definitions of all, their macro calls expanded through `macros`, or why they take the JVM
+/// frontend; the warnings' offsets are those of `Sources::new(files)`.
 pub fn compile_sources(
     u: &mut Universe,
     files: &[SourceFile],
     cfg: Config,
+    macros: Option<&mut dyn Macros>,
 ) -> Result<(Vec<NirFile>, Diagnostics), Refusal> {
     let sources = Sources::new(files).map_err(refused)?;
     let (mut names, mut ast) = (Names::default(), Ast::default());
@@ -46,7 +48,7 @@ pub fn compile_sources(
         ast.shift_spans(mark, base);
         units.push((base, root));
     }
-    let typed = Units::default().type_units(u, &mut ast, (&mut names, &mut fresh), &units, cfg);
+    let typed = Units::default().type_units(u, &mut ast, (&mut names, &mut fresh), (&units, cfg), macros);
     let mut typed = match typed {
         Ok(typed) => typed,
         Err(Fallback::Unsupported { what, at }) => {

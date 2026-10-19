@@ -15,6 +15,7 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
 use tasty::Universe;
+use typer::inlining::Macros;
 use typer::tpd::TNodeId;
 use typer::{Fallback, Typed, Units};
 use vm::{Vm, VmError};
@@ -169,7 +170,10 @@ impl Session {
         };
         self.res = wrapped.next_res;
         let cfg = parsed.cfg;
-        let typed = self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), wrapped.root, cfg);
+        let mut runner = macros::VmMacros { vm: &mut self.vm };
+        let macros = Some(&mut runner as &mut dyn Macros);
+        let typed =
+            self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), (wrapped.root, cfg), macros);
         let mut typed = match typed {
             Ok(typed) => typed,
             Err(Fallback::Errors(diags)) => return Err(parsed.errors(diags, width)),

@@ -17,7 +17,7 @@ fn sources_refer_to_each_other_and_errors_name_their_file() {
     let compile = |a: &str, b: &str| {
         let sources = [SourceFile::new("a.scala", a), SourceFile::new("b.scala", b)];
         let mut u = Universe::open(&jars).unwrap();
-        lower::compile_sources(&mut u, &sources, Config::from_options(&[]))
+        lower::compile_sources(&mut u, &sources, Config::from_options(&[]), None)
             .map(|(files, _)| files.into_iter().map(|f| f.name).collect::<Vec<_>>())
             .map_err(|r| r.what)
     };

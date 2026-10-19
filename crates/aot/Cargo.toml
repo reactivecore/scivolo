@@ -17,6 +17,7 @@ cranelift-object = "0.135"
 libimage.workspace = true
 libs = { path = "../libs" }
 lower = { path = "../lower" }
+macros = { path = "../macros" }
 nir.workspace = true
 rustc-hash.workspace = true
 snrt = { path = "../snrt" }

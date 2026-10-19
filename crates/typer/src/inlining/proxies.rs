@@ -69,8 +69,14 @@ impl Expansion<'_, '_> {
             tree: None,
         });
         i.u.set_info(s, info);
-        let mut m = TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
-        let mut rhs = i.copy(&mut m, arg, &mut |_, _, _| None)?;
+        let mut rhs = match i.defines_class(arg) {
+            true => i.change_owner(arg, self.owner, s),
+            false => {
+                let mut m =
+                    TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
+                i.copy(&mut m, arg, &mut |_, _, _| None)?
+            }
+        };
         if let Some(sk) = skolem {
             rhs = i.cast(rhs, sk)?;
         }
@@ -130,6 +136,29 @@ impl Inlining<'_> {
             self.tpd.tree(t),
             T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. } | T::Closure { .. }
         ) || self.tpd.children(t).into_iter().any(|c| self.has_definitions(c))
+    }
+
+    /// Whether `t` defines a class (a synthesized anonymous mirror).
+    pub fn defines_class(&self, t: TNodeId) -> bool {
+        let class = |i: &Self, s: Option<SymbolId>| s.is_some_and(|s| i.u.symbol(s).kind == Kind::Class);
+        matches!(self.tpd.tree(t), T::TypeDef { .. }) && class(self, self.tpd.sym(t))
+            || self.tpd.children(t).into_iter().any(|c| self.defines_class(c))
+    }
+
+    /// `t` itself with the definitions owned by `old` given to `new` (dotty's `changeOwner`); the
+    /// binding then shares `t` with the call the `Inlined` tree keeps, which the lowering drops.
+    fn change_owner(&mut self, t: TNodeId, old: SymbolId, new: SymbolId) -> TNodeId {
+        let mut stack = vec![t];
+        while let Some(n) = stack.pop() {
+            let defines = matches!(self.tpd.tree(n), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. });
+            if let Some(s) = self.tpd.sym(n).filter(|_| defines)
+                && self.u.symbol(s).owner == Some(old)
+            {
+                self.u.set_owner(s, new);
+            }
+            stack.extend(self.tpd.children(n));
+        }
+        t
     }
 
     /// Whether parameter type `p` is annotated `@InlineParam`, also inside a by-name type.

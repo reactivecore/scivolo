@@ -1,0 +1,19 @@
+scala> import io.circe.{Decoder, Encoder, JsonObject}, io.circe.syntax.*, io.circe.parser.decode
+
+scala> case class P(id: Int, name: String)
+// defined case class P
+
+scala> 1.asJson.noSpaces
+val res0: String = "1"
+
+scala> given Encoder.AsObject[P] = Encoder.AsObject.instance(p => JsonObject("id" -> p.id.asJson, "name" -> p.name.asJson))
+lazy val given_AsObject_P: io.circe.Encoder.AsObject[P]
+
+scala> given Decoder[P] = Decoder.forProduct2("id", "name")(P.apply)
+lazy val given_Decoder_P: io.circe.Decoder[P]
+
+scala> P(1, "a").asJson.noSpaces
+val res1: String = "{\"id\":1,\"name\":\"a\"}"
+
+scala> decode[P]("""{"id":1,"name":"a"}""")
+val res2: Either[io.circe.Error, P] = Right(P(id = 1, name = "a"))

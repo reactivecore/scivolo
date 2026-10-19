@@ -17,18 +17,20 @@ enum Root {
 
 pub struct Classpath {
     roots: Vec<Root>,
+    /// How many roots come before the library's.
+    own: usize,
 }
 
 impl Classpath {
     pub fn open(paths: &[PathBuf]) -> io::Result<Self> {
-        let roots = paths
+        let roots: Vec<Root> = paths
             .iter()
             .map(|p| match p.is_dir() {
                 true => Ok(Root::Dir(p.clone())),
                 false => ZipArchive::new(File::open(p)?).map(Root::Jar).map_err(io::Error::other),
             })
             .collect::<io::Result<_>>()?;
-        Ok(Self { roots })
+        Ok(Self { own: roots.len(), roots })
     }
 
     /// `paths`, then the library files of `image`.
@@ -36,6 +38,20 @@ impl Classpath {
         let mut classpath = Self::open(paths)?;
         classpath.roots.push(Root::Image(image));
         Ok(classpath)
+    }
+
+    /// `paths`, then the library jars `jars`.
+    pub fn with_jars(paths: &[PathBuf], jars: &[PathBuf]) -> io::Result<Self> {
+        Ok(Self { own: paths.len(), ..Self::open(&[paths, jars].concat())? })
+    }
+
+    /// Adds directory or jar `path` before the library.
+    pub fn add(&mut self, path: &Path) -> io::Result<()> {
+        for root in Self::open(&[path.to_owned()])?.roots {
+            self.roots.insert(self.own, root);
+            self.own += 1;
+        }
+        Ok(())
     }
 
     /// The distinct top-level names defined on the classpath that end in `suffix`, sorted.

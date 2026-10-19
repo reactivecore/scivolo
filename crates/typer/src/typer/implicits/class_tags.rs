@@ -103,7 +103,7 @@ impl Typer<'_> {
         if unbounded {
             return Err("class tag of an undetermined type");
         }
-        let mut arg = self.fully_defined(arg)?;
+        let mut arg = self.fully_defined_as(arg, true)?;
         loop {
             let dealiased = self.u.dealias(arg);
             match *self.u.types().get(dealiased) {

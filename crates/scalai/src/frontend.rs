@@ -3,6 +3,7 @@
 use libimage::Image;
 use libs::SCALA;
 use lower::directives::{directive_options, without_header};
+use macros::Macros;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 use syntax::config::Config;
@@ -46,14 +47,14 @@ impl<T: Into<String>> From<T> for Refused {
 }
 
 /// Writes the NIR files of `source`, whose content is `text`, under `classes` with compiler
-/// options `given` and returns the classes that define `main`, or why the own frontend does
-/// not compile it.
+/// options `given`, its macro calls expanded through `macros`, and returns the classes that
+/// define `main`, or why the own frontend does not compile it.
 pub fn compile(
-    source: &Path,
-    text: &[u8],
+    (source, text): (&Path, &[u8]),
     image: Option<&'static Image>,
     classes: &Path,
     given: &[String],
+    macros: Option<&mut dyn Macros>,
 ) -> Result<Vec<String>, Refused> {
     if source.extension().is_some_and(|e| e == "sc") {
         return Err(".sc scripts".into());
@@ -67,7 +68,7 @@ pub fn compile(
     let name = source.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned());
     let source = SourceFile::new(name, without_header(text));
     let lowered = catch_unwind(AssertUnwindSafe(|| {
-        lower::compile_with(&mut Universe::open_image(image), &source, cfg)
+        lower::compile_with(&mut Universe::open_image(image), &source, cfg, macros)
     }));
     let (files, warnings) =
         lowered.map_err(|p| lower::output::panicked(p.as_ref()))?.map_err(|r| Refused {

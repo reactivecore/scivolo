@@ -1,0 +1,10 @@
+scala> import io.circe.Codec, io.circe.syntax.*, io.circe.parser.decode
+
+scala> case class Person(id: Int, name: String) derives Codec.AsObject
+// defined case class Person
+
+scala> Person(1, "a").asJson.noSpaces
+val res0: String = "{\"id\":1,\"name\":\"a\"}"
+
+scala> decode[Person]("""{"id":1,"name":"a"}""")
+val res1: Either[io.circe.Error, Person] = Right(Person(id = 1, name = "a"))

@@ -82,6 +82,7 @@ dependencies = [
  "libimage",
  "libs",
  "lower",
+ "macros",
  "nir",
  "rustc-hash",
  "snrt",
@@ -523,6 +524,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "macros"
+version = "0.1.0"
+dependencies = [
+ "libs",
+ "syntax",
+ "tasty",
+ "typer",
+ "vm",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -625,6 +637,7 @@ dependencies = [
  "libimage",
  "libs",
  "lower",
+ "macros",
  "syntax",
  "tasty",
  "typer",
@@ -665,6 +678,7 @@ dependencies = [
  "libimage",
  "libs",
  "lower",
+ "macros",
  "nir",
  "repl",
  "rustyline",

@@ -140,16 +140,16 @@ compiled by Scala Native (`dotty-report`) are counted apart; refusals are groupe
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scalai FILE.scala` with `SCALAI_FRONTEND=strict` (`crates/scalai/tests/lowered.rs`).
 
-Results (2026-10-16, at !313):
+Results (2026-10-19):
 
 | Outcome | Tests |
 |---|---:|
-| passed | 964 |
+| passed | 990 |
 | wrong output | 0 |
 | crashed | 1 |
 | timeout | 0 |
-| lowering refused | 9 |
-| typer refused | 458 |
+| lowering refused | 12 |
+| typer refused | 429 |
 | parser refused | 13 |
 | frontend crashed | 1 |
 | several files | 59 |
@@ -157,15 +157,17 @@ Results (2026-10-16, at !313):
 | skipped | 175 |
 | **total** | **1711** |
 
-On 2026-10-15: 878 passed, 23 refused by the lowering, 531 by the typer. Before the 2026-10-15
+On 2026-10-16: 964 passed, 9 refused by the lowering, 458 by the typer. On 2026-10-15: 878
+passed, 23 refused by the lowering, 531 by the typer. Before the 2026-10-15
 evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before the
 2026-10-15 afternoon batch: 855 passed; before the 2026-10-15 batch: 809 passed; before the
 2026-10-14 batch: 684 passed.
 
-- **Lowering refused:** reflective calls (2); other reasons one test each.
-- **Typer refused:** mostly missing implicit arguments (28, mirrors among them), adaptations (27),
-  members not found (23), type patterns needing a type test (17) and generic tuples (16 + 11);
-  see research 23.
+- **Lowering refused:** reflective calls, selections of values that are not fields, forwarders of
+  objects extending JDK classes (2 each); other reasons one test each.
+- **Typer refused:** mostly adaptations (25), members not found (18), generic tuples (16 + 11),
+  missing implicit arguments (11) and overloaded references with type arguments (10); see
+  research 23.
 - **Crashed:** i15618, a match type erased unreduced (#120).
 - **Frontend crashed:** t8199, `lower` panics writing a NIR file.
 

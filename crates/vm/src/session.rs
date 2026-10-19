@@ -98,7 +98,10 @@ impl Vm {
 
     /// Runs `body` on a new main green thread until it ends; an exception it does not catch is
     /// `VmError::Uncaught`.
-    fn run_main_thread(&mut self, body: impl FnOnce(&mut Vm) -> Flow<()> + 'static) -> Result<(), VmError> {
+    pub fn run_main_thread(
+        &mut self,
+        body: impl FnOnce(&mut Vm) -> Flow<()> + 'static,
+    ) -> Result<(), VmError> {
         let vm: *mut Vm = self;
         let _running = self.callbacks.enter(vm);
         let main = move |vm: &mut Vm| {

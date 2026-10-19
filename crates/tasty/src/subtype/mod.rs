@@ -14,6 +14,7 @@ mod join;
 mod lift;
 mod lub;
 mod match_types;
+mod meaning;
 mod no_vars;
 mod nothing;
 mod null;

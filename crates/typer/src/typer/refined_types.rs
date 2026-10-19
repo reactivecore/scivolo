@@ -1,9 +1,10 @@
-//! Refined type trees with type-member refinements (dotty's `typedRefinedTypeTree`).
+//! Refined type trees with type-member refinements (dotty's `typedRefinedTypeTree`), and
+//! selections of members only a refinement has.
 
 use super::Typer;
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
-use syntax::ast::{List, NodeId, Tree};
+use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
@@ -37,7 +38,7 @@ impl Typer<'_> {
                 return self.unsupported(r, "refinement referring to the refined type's members");
             }
             let text = self.text(name.name).to_owned();
-            if !self.refines_type_member(tpe, &text) {
+            if !self.refines_type_member(tpe, &text) && !self.is_mirror_type(tpe) {
                 return self.unsupported(r, "refinement that refines no type member");
             }
             let info = self.type_def_info(rhs, ctx);
@@ -70,6 +71,32 @@ impl Typer<'_> {
             );
             sibling || !self.type_members(parent, &text).is_empty()
         })
+    }
+
+    /// `qual.name` for a type member only a refinement of `qual`'s path type `pre` has (one of
+    /// a library's refined types: `MirroredElemTypes` of a `Mirror.Of[T]`); `None` otherwise.
+    pub fn refined_select(&mut self, id: NodeId, qual: TNodeId, pre: TypeId, name: TName) -> Option<TNodeId> {
+        let stable = match self.u.types().get(pre).clone() {
+            Type::Sym(_, s) => !self.u.is_type_symbol(s),
+            Type::This(_) | Type::TermRef(..) => true,
+            _ => false,
+        };
+        let text = self.text(name.name).to_owned();
+        if !stable || self.u.refinement_named(pre, &text).is_none() {
+            return None;
+        }
+        let tpe = self.u.intern_type(Type::TypeRef(pre, text));
+        let span = self.ast.span(id);
+        Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
+    }
+
+    /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
+    /// `MirroredType` and `MirroredElemTypes` exist only as refinements.
+    fn is_mirror_type(&mut self, mut t: TypeId) -> bool {
+        while let Type::Refined(parent, ..) = *self.u.types().get(t) {
+            t = parent;
+        }
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
     }
 
     /// Whether `t` has a type member named `name` that is not a class.

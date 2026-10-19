@@ -119,19 +119,6 @@ impl Typer<'_> {
         t
     }
 
-    /// The members named `name` of package `p`, those of its package objects that the unit
-    /// defines among them once completed.
-    fn package_members(&mut self, p: SymbolId, name: &str) -> Vec<SymbolId> {
-        let objects: Vec<SymbolId> =
-            self.u.symbol(p).decls.iter().copied().filter(|&d| self.is_named_package_object(d)).collect();
-        for o in objects {
-            if matches!(self.syms.completions.get(&o), Some(crate::symbols::Completion::Pending { .. })) {
-                self.complete(o);
-            }
-        }
-        self.u.decl(p, name).unwrap_or_default()
-    }
-
     /// The members named `name` of class `c`, its base classes' included: the first type member,
     /// or the term members, of each overriding pair the one dotty's `preferSym` prefers.
     pub fn class_members(&mut self, c: SymbolId, name: &str) -> Vec<SymbolId> {

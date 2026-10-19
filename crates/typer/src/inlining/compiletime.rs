@@ -18,8 +18,14 @@ impl Inlining<'_> {
         ours.then(|| self.u.symbol(meth).name.clone())
     }
 
-    /// What `call` of `scala.compiletime` operation `op` reduces to without its body, if it does.
-    pub fn intrinsic(&mut self, op: Option<&str>, call: TNodeId) -> Result<Option<TNodeId>, Unsupported> {
+    /// What `call`, owned by `owner`, of `scala.compiletime` operation `op` reduces to without its
+    /// body, if it does; an implicit it summons with its inline calls expanded.
+    pub fn intrinsic(
+        &mut self,
+        op: Option<&str>,
+        call: TNodeId,
+        owner: SymbolId,
+    ) -> Result<Option<TNodeId>, Unsupported> {
         let Some(op) = op else { return Ok(None) };
         let span = self.tpd.span(call);
         let (targs, vargss) = self.call_args(call);
@@ -46,7 +52,8 @@ impl Inlining<'_> {
             ("constValueOpt", _, Some(t)) => self.const_value_opt(t, span)?,
             ("summonInline", _, Some(t)) => {
                 let (tpe, at) = (self.tpd.tpe(t), self.tpd.span(t).start_pos());
-                self.summon(tpe, at)?.ok_or((span, "no implicit argument"))?
+                let found = self.summon(tpe, at)?.ok_or((span, "no implicit argument"))?;
+                self.transform(found, owner)?
             }
             ("constValueTuple", _, Some(t)) => self.tuple_intrinsic(t, false, span)?,
             ("summonAll", _, Some(t)) => self.tuple_intrinsic(t, true, span)?,

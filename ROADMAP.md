@@ -188,7 +188,10 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    and reduced (research 21, #39), `constValueTuple`/`summonAll`. Research 22 (2026-10-16):
    exports, qualified private/protected with dotty's `isAccessibleFrom`, dotty's `AvoidMap`,
    trait parameters, `scala.Dynamic` (#42), dependent result types; implicits from the expected
-   type and tuple mirrors (#83); retained inline methods and inline accessors (#82).
+   type and tuple mirrors (#83); retained inline methods and inline accessors (#82); type
+   patterns of abstract types (research 23 P). Research 25 (2026-10-19): `ValueOf` candidates,
+   members package objects inherit, maximized variables before implicit searches; product and
+   sum mirrors and `derives` clauses (#43).
    `just typer-report`: tests/pos 1359 typed as dotty, 32 differ, 1618 refused (source
    versions other than 3.9 among them); tests run with warnings as errors are skipped.
 4. **Lowering.** Pattern matching, lazy vals, closures, mixins, bridges and
@@ -206,9 +209,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    parameters of type Unit, Null or Nothing; sub matches, type tests of unions and generic
    arrays, generic local classes, inner classes' secondary constructors, sum mirrors, SAM
    bridges and trait parameters (2026-10-16).
-   Of dotty's `tests/run`, 964 pass through typer, lowering and VM on 2026-10-16 (878 on
-   2026-10-15, 399 on 2026-10-11), 9 are refused by the lowering, 1 crashes in the VM (i15618,
-   a match type erased unreduced, #120); see
+   Of dotty's `tests/run`, 990 pass through typer, lowering and VM on 2026-10-19 (964 on
+   2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 12 are refused by the lowering, 1 crashes
+   in the VM (i15618, a match type erased unreduced, #120); see
    [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
@@ -249,6 +252,15 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
   quote type patterns (`case '[T]`).
 - Until this phase lands, scripts that call macros take the phase 1 fallback.
 
+Status (2026-10-19, #40, ADR 0029, [research 25](docs/research/25-circe-codec-derivation.md)):
+macro calls expand in scripts, the REPL and the AOT compiler. A library macro runs from its NIR
+in the VM; its quotes (type and term holes) are unpickled into the typer's trees; typed-hole
+quote patterns and a `quotes.reflect` subset (terms, literals, `TypeRepr`, symbols,
+`Ref`/`select`) are implemented, everything else of `Quotes` is refused by name. First client:
+Circe 0.14.10's `derives Codec.AsObject` encodes and decodes in the REPL, in scripts (`--dep`)
+and in native executables. Scripts read the TASTy of `--cp`/`--dep` jars in the own frontend
+(most of #128). Open: structural quote patterns, higher-order holes, `Type`/`Expr.show`.
+
 ## Phase 5 — precompiled code and wider reach (open-ended)
 
 - **AOT for libraries.** Compile library NIR through LLVM (Scala Native's own
@@ -261,13 +273,19 @@ implicit candidate prefilter, cheaper lowering walks): the criterion is met.
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Where we are and what's next (2026-10-16)
+## Where we are and what's next (2026-10-19)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-16,
-964 of 1711 pass at `scala.Dynamic` (!313; 878 on 2026-10-15, 399 on 2026-10-11), 458 stop at
-the typer, 9 at the lowering, 1 crashes in the frontend (t8199) and 1 in the VM (i15618).
-Dependent result types (!314) add 7 more, measured on their branch.
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-19,
+990 of 1711 pass (964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 429 stop at the
+typer, 12 at the lowering, 1 crashes in the frontend (t8199) and 1 in the VM (i15618). Phase 4
+started: macros run in the VM, always on (ADR 0029).
+
+Merged on 2026-10-19 (one integration MR, each part reviewed by a subagent in its own MR,
+research 25): the typer fixes Circe needed, product and sum mirrors, `derives` clauses (#43),
+macros in the VM with quote patterns and a `quotes.reflect` subset (#40); Circe's
+`derives Codec.AsObject` works in the REPL and in scripts (#94); `SCALAI_MACROS` removed; CI
+images carry Coursier.
 
 Stacked on 2026-10-16 (one MR each, reviewed by a subagent, !298–!313): research 22; the
 lowering gaps of #34; exports; match-type reduction (research 21 M2–M4); access; avoidance of
@@ -303,19 +321,21 @@ decoded with their cases); the lowering's outer tests of path and projection pre
 local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
-1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): type patterns
-   (P, ~24 tests, in progress), overloads (O), mirrors and `derives` (#43), opaque aliases,
-   tuples over 22, small groups, structural types; match-type leftovers (#120); typed-tree
-   printing gaps (#122); implicit candidate interpolation (#123).
-2. **Startup** (#9): the VM's `run_main` from a heap snapshot.
-3. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
+1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): overloads (O),
+   opaque aliases, tuples over 22, small groups, structural types; the rest of type patterns
+   (#127) and mirrors (#129); match-type leftovers (#120); typed-tree printing gaps (#122);
+   implicit candidate interpolation (#123).
+2. **Macros** (phase 4, #40): structural quote patterns, higher-order holes, `Type`/`Expr.show`
+   and more of `quotes.reflect` as libraries need them.
+3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
+4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    overridable methods with context function results, traits nested in local traits.
-4. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
+5. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
    polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
    inputs; the forward-reference check (#90).
-5. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
+6. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
-6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+7. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just

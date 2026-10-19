@@ -1,9 +1,9 @@
 //! Implicit parameter clauses applied to the arguments the search finds (dotty's
 //! `adaptNoArgsImplicitMethod`).
 
-use super::super::Typer;
+use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Attrs, NodeId, Span};
 use tasty::{Type, TypeId};
 
@@ -38,13 +38,15 @@ impl Typer<'_> {
         else {
             return Ok(None);
         };
+        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let mut args = Vec::new();
         for &(_, p) in &params {
-            args.push(self.implicit_arg(p, at, ctx, depth)?);
+            let before: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+            let formal = self.applied_result(p, (binder, &names), meth, &before);
+            args.push(self.implicit_arg(formal, at, ctx, depth)?);
         }
-        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);
         Ok(Some(self.build().apply(tree, &args, result, span)))
     }
@@ -63,6 +65,24 @@ impl Typer<'_> {
         let span = self.tpd.span(tree);
         let applied = self.with_implicit_clause(tree, (span.end_pos(), span.to_synthetic()), args_ctx, 0)?;
         Ok(applied.unwrap_or(tree))
+    }
+
+    /// Interpolates the type variables of id `from` or later again if `adapted`, the adaptation
+    /// of `tree` to `pt`, applies it (dotty's `readaptSimplified`).
+    pub fn reinterpolate(
+        &mut self,
+        (tree, adapted): (TNodeId, TNodeId),
+        pt: Pt,
+        from: usize,
+    ) -> Result<(), &'static str> {
+        match *self.tpd.tree(adapted) {
+            T::Apply { fun, .. }
+                if adapted != tree && self.tpd.meth_part(fun) == self.tpd.meth_part(tree) =>
+            {
+                self.interpolate(adapted, pt, from)
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Function `f` of application `id` applied to the arguments of its leading `using` clauses

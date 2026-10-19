@@ -87,12 +87,15 @@ impl Typer<'_> {
     /// The typed statements `stats`, whose symbols are entered.
     pub fn typed_stats(&mut self, stats: &[NodeId], mut ctx: Ctx) -> Vec<TNodeId> {
         let mut out = Vec::new();
+        let mut ctxs = Vec::new();
         for &s in stats {
             if !matches!(self.ast.tree(s), Tree::Empty) {
                 out.push(self.typed_stat(s, ctx));
+                ctxs.push(ctx);
                 ctx = self.after_stat(s, ctx);
             }
         }
+        self.finalize_derived(&out, &ctxs);
         out
     }
 

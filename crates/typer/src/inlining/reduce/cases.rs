@@ -73,10 +73,13 @@ impl Reducer<'_, '_> {
     ) -> Result<Case, Unsupported> {
         let T::CaseDef { pat, guard, body } = *self.i.tpd.tree(c) else { return Ok(Case::NoMatch) };
         let mut map: Bindings = binding.map(|b| (None, b)).into_iter().collect();
+        let mark = self.type_bindings.len();
         if !self.reduce_pattern(&mut map, scrut, pat)? {
+            self.type_bindings.truncate(mark);
             return Ok(Case::NoMatch);
         }
-        let mut m = TreeTypeMap::default();
+        let mut m =
+            TreeTypeMap { refs: self.type_bindings.drain(mark..).collect(), ..TreeTypeMap::default() };
         for &(from, b) in &map {
             if let (Some(from), Some(to)) = (from, self.i.tpd.sym(b)) {
                 m.syms.insert(from, to);

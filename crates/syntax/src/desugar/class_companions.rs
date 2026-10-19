@@ -38,7 +38,7 @@ impl Desugar<'_> {
         if n > 0 {
             for &t in &mdefs {
                 if matches!(self.ast.tree(t), Tree::TypeDef { .. }) {
-                    self.ast.add_attrs(t, Attrs::DERIVING_COMPANION);
+                    self.ast.add_attrs(t, Attrs::DERIVING_COMPANION.union(Attrs::DERIVES_OF_CLASS));
                 }
             }
         }

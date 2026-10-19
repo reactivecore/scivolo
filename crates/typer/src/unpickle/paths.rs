@@ -29,6 +29,18 @@ impl Unpickler<'_> {
                 let tpe = self.resolved(tpe);
                 self.this_tree(tpe)
             }
+            TERMREF if self.signature(id).is_some() => {
+                let prefix = self.ty(self.kids(id)[0]);
+                let prefix = self.resolved(prefix);
+                let name = self.name(id);
+                let found = match *self.u.types().get(prefix) {
+                    Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
+                    _ => self.u.member_of_type(prefix, &name),
+                };
+                let sym = self.at_signature(found, id, false)?;
+                let tpe = crate::defn::ref_type(self.u, Some(prefix), sym);
+                self.ref_tree(tpe)
+            }
             TERMREFdirect | TERMREFsymbol | TERMREFpkg | TERMREF | TERMREFin => {
                 let tpe = self.ty(id);
                 let tpe = self.resolved(tpe);

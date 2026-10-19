@@ -49,6 +49,7 @@ impl Typer<'_> {
         if !defined && stripped != result && matches!(self.u.types().get(stripped), Type::Var(_)) {
             return Err("implicit method result under a type with type variables");
         }
+        self.refinement_result(result, pt)?;
         let follow = !self.is_context_function_type(p);
         let value = match defined && self.u.class_symbol(p) != Some(self.defn.unit) {
             true => self.proto_normalized((result, meth), p, follow, 8),
@@ -60,6 +61,25 @@ impl Typer<'_> {
             self.conforms(value, p);
         }
         Ok(())
+    }
+
+    /// Refuses implicit method type `result` whose result selects a type member only a
+    /// refinement has under a `pt` with type variables (dotty constrains by its approximation).
+    pub fn refinement_result(&mut self, result: TypeId, pt: Pt) -> Result<(), &'static str> {
+        let Pt::Type(p) = pt else { return Ok(()) };
+        let stripped = self.strip_implicit(result);
+        if stripped == result || self.is_fully_defined(p) {
+            return Ok(());
+        }
+        let mut found = false;
+        self.u.map_type(stripped, &mut |u, part| {
+            found |= matches!(u.types().get(part), Type::TypeRef(..)) && u.resolve_ref(part).is_none();
+            None
+        });
+        match found {
+            true => Err("implicit method result selecting a refinement member under type variables"),
+            false => Ok(()),
+        }
     }
 
     /// `t` without its leading implicit parameter clauses (dotty's `stripImplicit`).

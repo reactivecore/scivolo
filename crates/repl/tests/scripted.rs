@@ -1,14 +1,10 @@
-//! The transcripts in `tests/repl/*.check`, in the format of dotty's `test-resources/repl`:
-//! `scala> ` input lines, `     | ` continuation lines (`     |` an empty one), the expected
-//! output; blank lines do not count. All share one session, reset between files, run in the
-//! repository root.
+//! The transcripts in `tests/repl/*.check`. All share one session, reset between files, run in
+//! the repository root.
 
-use repl::Session;
+mod transcript;
+
 use std::path::{Path, PathBuf};
-use vm::{Classpath, Vm};
-
-const PROMPT: &str = "scala> ";
-const CONTINUATION: &str = "     |";
+use transcript::{answer, check, non_blank, session};
 
 fn transcripts() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/repl");
@@ -18,35 +14,10 @@ fn transcripts() -> Vec<PathBuf> {
     files
 }
 
-fn non_blank(lines: impl Iterator<Item = String>) -> Vec<String> {
-    lines.map(|l| l.trim_end().to_owned()).filter(|l| !l.is_empty()).collect()
-}
-
-/// The transcript of the inputs of `expected` as `session` answers them.
-fn answer(session: &mut Session, expected: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    let mut lines = expected.lines().peekable();
-    while let Some(line) = lines.next() {
-        let Some(first) = line.strip_prefix(PROMPT) else { continue };
-        let mut input = vec![first.to_owned()];
-        out.push(line.to_owned());
-        while let Some(more) = lines.peek().and_then(|l| l.strip_prefix(CONTINUATION)) {
-            input.push(more.strip_prefix(' ').unwrap_or(more).to_owned());
-            out.push(lines.next().unwrap().to_owned());
-        }
-        out.extend(session.eval(&input.join("\n")));
-    }
-    out
-}
-
 fn run() -> Result<(), String> {
     std::env::set_current_dir(Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."))
         .map_err(|e| e.to_string())?;
-    let jars = libs::jars()?;
-    let image = libs::image(&jars).map_err(|e| e.to_string())?;
-    let classpath = Classpath::with_image(&[], image).map_err(|e| e.to_string())?;
-    let vm = Vm::new(classpath).map_err(|e| e.to_string())?;
-    let mut session = Session::new(vm, image, 80).map_err(|e| e.to_string())?;
+    let mut session = session(&[])?;
     let mut failed = Vec::new();
     for file in transcripts() {
         let text = std::fs::read_to_string(&file).unwrap();
@@ -66,11 +37,5 @@ fn run() -> Result<(), String> {
 
 #[test]
 fn transcripts_match() {
-    let run = std::thread::Builder::new().stack_size(1 << 30).spawn(run).unwrap().join().unwrap();
-    match run {
-        Err(e) if e.contains("or the Coursier cache") && std::env::var_os("CI").is_none() => {
-            eprintln!("skipped: Scala Native libraries are not in the Coursier cache");
-        }
-        run => run.unwrap(),
-    }
+    check(run);
 }

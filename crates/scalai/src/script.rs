@@ -1,13 +1,15 @@
 //! Compiles a `.scala` or `.sc` file to NIR through the own frontend or scala-cli, cached by
-//! path, content, frontend mode and versions.
+//! path, content, frontend mode, versions and the classpath entries' paths, sizes and times.
 
 use crate::frontend::{self, Mode, Refused};
 use crate::mains;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
+use macros::{Macros, VmMacros};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use vm::Vm;
 
 /// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
 const FALLBACK: &str = "fallback";
@@ -17,15 +19,17 @@ pub fn is_source(arg: &str) -> bool {
     arg.ends_with(".scala") || arg.ends_with(".sc")
 }
 
-/// The NIR directory of `source`, compiled with compiler options `options`, and its main class:
-/// `chosen`, else the only one. The own frontend reads the library's TASTy from `image`.
+/// The NIR directory of `source`, compiled with compiler options `options` against classpath
+/// `cp`, and its main class: `chosen`, else the only one. The own frontend reads the library's
+/// TASTy from `image` and runs macros in `vm`.
 pub fn main_of(
     source: &str,
     chosen: Option<String>,
-    image: Option<&'static Image>,
+    (image, cp): (Option<&'static Image>, &[PathBuf]),
     options: &[String],
+    vm: &mut Vm,
 ) -> Result<(PathBuf, String), String> {
-    let (classes, mains) = compile(source, Mode::from_env()?, image, options)?;
+    let (classes, mains) = compile(source, Mode::from_env()?, (image, cp), options, vm)?;
     Ok((classes, pick(source, &mains, chosen)?))
 }
 
@@ -44,13 +48,18 @@ fn pick(source: &str, mains: &[String], chosen: Option<String>) -> Result<String
 fn compile(
     file: &str,
     mode: Mode,
-    image: Option<&'static Image>,
+    (image, cp): (Option<&'static Image>, &[PathBuf]),
     options: &[String],
+    vm: &mut Vm,
 ) -> Result<(PathBuf, Vec<String>), String> {
     let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
     (&source, &text, mode, options, BUILD, SCALA, NATIVE).hash(&mut h);
+    for entry in cp {
+        let meta = std::fs::metadata(entry).ok();
+        (entry.canonicalize().ok(), meta.as_ref().map(|m| (m.len(), m.modified().ok()))).hash(&mut h);
+    }
     let scripts = cache_dir().join("scripts");
     let dir = scripts.join(format!("{:016x}", h.finish()));
     cache::touch(&dir);
@@ -65,7 +74,9 @@ fn compile(
         cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
     }
     let staging = dir.with_extension(std::process::id().to_string());
-    let built = build(file, (&source, &text, options), mode, image, &staging);
+    let mut runner = VmMacros { vm };
+    let macros = Some(&mut runner as &mut dyn Macros);
+    let built = build(file, (&source, &text, options), mode, (image, macros), &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
         return cached(&dir).ok_or_else(|| format!("{}: unreadable", dir.display()));
     }
@@ -87,14 +98,14 @@ fn build(
     file: &str,
     (source, text, options): (&Path, &[u8], &[String]),
     mode: Mode,
-    image: Option<&'static Image>,
+    (image, macros): (Option<&'static Image>, Option<&mut dyn Macros>),
     out: &Path,
 ) -> Result<(), String> {
     let classes = out.join("classes");
     let mut mains = Vec::new();
     match mode {
         Mode::Jvm => scala_cli(source, options, out, &mut mains)?,
-        _ => match frontend::compile(source, text, image, &classes, options) {
+        _ => match frontend::compile((source, text), image, &classes, options, macros) {
             Ok(own) => mains = own,
             Err(Refused { why, errors, fatal: true }) => {
                 errors.iter().for_each(|line| eprintln!("{line}"));

@@ -27,6 +27,15 @@ impl Universe {
         Ok(())
     }
 
+    /// Loads the TASTy of a pickled quote, which enters no symbols; its trees are the quote's.
+    pub fn load_quote(&mut self, bytes: Vec<u8>) -> Result<FileId, Error> {
+        let path = "<quote>";
+        let decoded = Decoded::parse(&bytes).map_err(|e| Error::Corrupt(path.to_owned(), e))?;
+        let file = FileId(self.files.len() as u32);
+        self.files.push(Loaded::decoded_now(path, bytes.into(), decoded));
+        Ok(file)
+    }
+
     /// Enters `entries` of loaded file `file`, each into the symbol of its owner entry.
     fn enter_entries(&mut self, file: FileId, entries: Vec<Entry>) {
         let mut ids: Vec<SymbolId> = Vec::with_capacity(entries.len());
