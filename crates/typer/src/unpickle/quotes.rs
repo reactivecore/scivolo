@@ -64,7 +64,7 @@ pub fn quoted_type(
     }))
 }
 
-fn unpickler<'a>(
+pub fn unpickler<'a>(
     (u, tpd, names): (&'a mut Universe, &'a mut Tpd, &'a mut Names),
     bytes: Vec<u8>,
     owner: SymbolId,
@@ -79,7 +79,7 @@ fn unpickler<'a>(
 impl Unpickler<'_> {
     /// The tree at `id` without the type definitions a quote with type holes starts with, and
     /// those definitions' symbols, each an alias of its type in `types` (dotty's `spliceTypes`).
-    fn spliced_types(
+    pub fn spliced_types(
         &mut self,
         id: NodeId,
         types: &[TypeId],

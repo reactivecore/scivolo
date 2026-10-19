@@ -33,5 +33,45 @@ object Macros:
   inline def fail: Int = ${ failImpl }
   def failImpl(using Quotes): Expr[Int] = throw new RuntimeException("the macro failed")
 
+  inline def describe[T](x: T): String = ${ describeImpl('x) }
+  def describeImpl[T: Type](x: Expr[T])(using Quotes): Expr[String] = x match
+    case '{ $i: Int }    => '{ "an Int: " + $i }
+    case '{ $s: String } => '{ "a String: " + $s }
+    case _               => Expr("something else")
+
+  inline def elemOf[T](x: T): String = ${ elemOfImpl('x) }
+  def elemOfImpl[T: Type](x: Expr[T])(using Quotes): Expr[String] = x match
+    case '{ $l: List[e] } => '{ $l.headOption.toString }
+    case _                => '{ "no list" }
+
+  inline def plusOne(inline n: Int): Int = ${ plusOneImpl('n) }
+  def plusOneImpl(n: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    Expr(n.asTerm.underlying.asInstanceOf[Literal].constant.value.asInstanceOf[Int] + 1)
+
+  inline def firstDefault[T]: Option[Any] = ${ firstDefaultImpl[T] }
+  def firstDefaultImpl[T: Type](using Quotes): Expr[Option[Any]] =
+    import quotes.reflect.*
+    val companion = TypeRepr.of[T].typeSymbol.companionModule
+    companion.declaredMethod("$lessinit$greater$default$1").headOption match
+      case Some(s) => '{ Some(${ Ref(companion).select(s).asExpr }) }
+      case None    => Expr(None)
+
+  inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
+  def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
+
+object Tuples:
+  import scala.compiletime.{constValue, erasedValue}
+
+  inline def size[T <: Tuple]: Int = inline erasedValue[T] match
+    case _: EmptyTuple => 0
+    case _: (t *: ts)  => 1 + size[ts]
+
+  inline def labels[T <: Tuple]: List[String] = inline erasedValue[T] match
+    case _: EmptyTuple => Nil
+    case _: (t *: ts)  => constValue[t].asInstanceOf[String] :: labels[ts]
+
+  inline def sizeOf[T]: Int = constValue[Tuple.Size[T & Tuple]]
+
 object Helpers:
   inline def inc(x: Int): Int = x + 1

@@ -11,8 +11,7 @@ use std::cell::Cell;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
-const HOST: &str = "scala.quoted.runtime.impl.QuoteHost$";
-const QUOTES: &str = "scala.quoted.runtime.impl.QuotesImpl";
+pub const HOST: &str = "scala.quoted.runtime.impl.QuoteHost$";
 const UNSUPPORTED: &str = "scala.quoted.runtime.impl.Unsupported";
 
 /// The frontend's side of the macro expansion running: expressions and types by number.
@@ -25,6 +24,14 @@ pub trait QuoteHost: std::any::Any {
     fn hole_count(&self, quote: u32) -> u32;
     fn hole(&self, quote: u32, hole: u32) -> Option<Hole>;
     fn fill_hole(&mut self, quote: u32, hole: u32, expr: u32) -> Result<(), &'static str>;
+    /// Matches expression `scrutinee` against quote pattern `pattern`: how many things it
+    /// matched, `u32::MAX` if it does not match.
+    fn match_pattern(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str>;
+    /// Thing `i` the last match matched: an expression `Ok`, a type `Err`.
+    fn matched(&self, i: u32) -> Option<Result<u32, u32>>;
+    /// Operation `op` of `quotes.reflect` on handles and numbers `args` and text `text`: its
+    /// handles and numbers, and its text if it answers one.
+    fn reflect(&mut self, op: &str, args: &[i32], text: &str) -> Result<Reflected, &'static str>;
     /// Refuses the expansion for `what`, whatever the macro returns.
     fn refuse(&mut self, what: &str);
 }
@@ -32,6 +39,9 @@ pub trait QuoteHost: std::any::Any {
 /// A term hole of a quote: the index its pickle gives it and its arguments, an expression
 /// `Ok`, a type `Err`.
 pub type Hole = (u32, Vec<Result<u32, u32>>);
+
+/// What a `quotes.reflect` operation answers: numbers and a text.
+pub type Reflected = (Vec<i32>, Option<String>);
 
 /// An argument of a macro implementation.
 #[derive(Clone, Copy)]
@@ -47,6 +57,8 @@ pub enum MacroArg {
 pub struct Expansions {
     running: Option<(Box<dyn QuoteHost>, Vec<MacroArg>)>,
     count: u32,
+    /// What the last `quotes.reflect` operation answered.
+    pub reflected: Reflected,
 }
 
 impl Vm {
@@ -123,17 +135,14 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
             }
             Ok(0)
         },
-        (QUOTES, "D7reflectL33scala.quoted.Quotes$reflectModuleEO") => {
-            |vm, _| vm.throw_new_with(UNSUPPORTED, "quotes.reflect")
-        }
-        _ => return None,
+        _ => return super::reflect::method(owner, sig),
     };
     Some(f)
 }
 
 /// What `f` answers of the quote host, an `Unsupported` thrown for a refusal, a panic or
 /// outside a macro expansion.
-fn with_host(vm: &mut Vm, f: impl FnOnce(&mut dyn QuoteHost) -> Result<u32, &'static str>) -> Flow {
+pub fn with_host(vm: &mut Vm, f: impl FnOnce(&mut dyn QuoteHost) -> Result<u32, &'static str>) -> Flow {
     let answer = match vm.quotes.running.as_mut() {
         Some((host, _)) => catch_unwind(AssertUnwindSafe(|| f(host.as_mut())))
             .unwrap_or(Err("a quote the frontend fails on")),
@@ -151,15 +160,18 @@ fn hole(vm: &mut Vm, args: &[u64], pick: fn(Hole, u64) -> Option<u32>) -> Flow {
     with_host(vm, |h| h.hole(quote, hole).and_then(|found| pick(found, i)).ok_or("no such quote hole"))
 }
 
+/// The elements of the `Array[Int]` at `arr`.
+pub fn ints(arr: usize) -> Vec<i32> {
+    let len: i32 = heap::read(arr + ARRAY_LENGTH);
+    (0..len as usize).map(|i| heap::read(arr + ARRAY_HEADER as usize + 4 * i)).collect()
+}
+
 fn unpickle(vm: &mut Vm, args: &[u64], term: bool) -> Flow {
     if args[1] == 0 || args[2] == 0 {
         return vm.null_pointer();
     }
     let pickled = vm.read_string(args[1] as usize)?;
-    let arr = args[2] as usize;
-    let len: i32 = heap::read(arr + ARRAY_LENGTH);
-    let types: Vec<u32> =
-        (0..len as usize).map(|i| heap::read::<i32>(arr + ARRAY_HEADER as usize + 4 * i) as u32).collect();
+    let types: Vec<u32> = ints(args[2] as usize).into_iter().map(|t| t as u32).collect();
     with_host(vm, |h| match term {
         true => h.unpickle_expr(&pickled, &types),
         false => h.unpickle_type(&pickled, &types),

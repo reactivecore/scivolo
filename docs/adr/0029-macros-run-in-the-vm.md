@@ -31,9 +31,18 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
 - **Where Quotes lives.** `QuotesImpl` is Scala in the overlay: `unpickleExprV2` and
   `unpickleTypeV2` call the Rust natives of `QuoteHost` (unpickle, list the term holes, fill
   a hole), and run the term-hole closures themselves, so natives never call back into Scala.
-  Every other member throws `Unsupported(<member>)`; `reflect`'s getter is a native that does,
-  since the trait's `val` cannot be implemented lazily. The natives reach the frontend through
+  Every other member throws `Unsupported(<member>)`. The natives reach the frontend through
   `vm::QuoteHost`, a trait object the VM holds only while a macro runs.
+- **Quote patterns** of a typed term hole (`'{ $m: T { type L = l } }`, dotty's `QuoteMatcher`
+  hole cases) are matched by the typer (`inlining::quote_match`): the pattern's type bindings
+  become type variables of a subtype check of the scrutinee's type against the hole's, and are
+  approximated after it; other pattern shapes are refused by name.
+- **`quotes.reflect`** is the overlay's abstract `ReflectImpl` with the members macros such as
+  Circe's use (terms as `ExprImpl`s, `TypeRepr`s as `TypeImpl`s, symbols by number), each a
+  named operation the typer runs (`inlining::Reflect`). `reflect`'s getter and the `given`
+  method objects are allocated by a native without a constructor, since the traits' other
+  members stay unimplemented; calling one is a VM error naming the member, which refuses the
+  expansion.
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.
@@ -45,9 +54,10 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   refused. Running library code at compile time is what dotty does too.
 
 ## Consequences
-- A macro whose implementation is not on the VM's classpath, or that uses `quotes.reflect`, a
-  quote pattern or `Expr.show`, is refused by name and the script falls back to scala-cli; an
-  exception the implementation throws is dotty's "Failed to evaluate macro" error.
+- A macro whose implementation is not on the VM's classpath, or that uses a `quotes.reflect`
+  member outside the subset, a quote pattern other than a typed hole or `Expr.show`, is refused
+  by name and the script falls back to scala-cli; an exception the implementation throws is
+  dotty's "Failed to evaluate macro" error.
 - Macro side effects happen in the VM that compiles the script. So that they do not reach
   the program, as they would not on the JVM, scalai runs itself again in place of its process
   (`exec`, the hidden option `--rerun-of` giving the first start, from which `SCALAI_TIMEOUT`
@@ -58,7 +68,7 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
 - The TASTy of every quote unpickled stays loaded in the universe (`Universe::load_quote`),
   since the symbols read from it point into it: a script pays per expansion, the REPL for the
   session.
-- Literal quotes such as `'{ 42 }` compile to `ToExpr`, which uses `quotes.reflect`, so they wait
-  for M4b.
+- Definitions a macro's quotes or a library's inline body bring into the expansion take the
+  call's position in the lowering, where dotty keeps their library offsets.
 - Rejected: a second VM for macros (one Immix per process); Rust natives for all of `Quotes`
   (the hole closures would make natives re-enter the interpreter).

@@ -2,6 +2,7 @@
 //! their quotes unpickled into the typer's trees (ADR 0029).
 
 mod host;
+mod reflect;
 mod tasty_string;
 
 pub use typer::inlining::Macros;
@@ -40,7 +41,9 @@ impl Macros for VmMacros<'_> {
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),
             (Err(VmError::Uncaught(thrown)), None) => Err(failure(&thrown)),
-            (Err(_), None) => Err(refused("a macro implementation the VM cannot run")),
+            (Err(e), None) => {
+                Err(MacroError::Unsupported(format!("a macro implementation the VM cannot run: {e}")))
+            }
         }
     }
 }

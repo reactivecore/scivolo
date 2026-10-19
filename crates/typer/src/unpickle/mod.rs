@@ -8,6 +8,7 @@ mod cases;
 mod defs;
 mod locals;
 mod paths;
+mod quote_patterns;
 mod quotes;
 mod selections;
 mod splices;
@@ -19,6 +20,7 @@ use syntax::ast::{Span, TName};
 use syntax::names::Names;
 use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
 
+pub use quote_patterns::{QuotePattern, quote_pattern};
 pub use quotes::{Quote, QuoteHole, quote, quoted_type};
 
 /// Why a body is outside the subset read.

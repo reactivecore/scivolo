@@ -60,6 +60,11 @@ impl<'a> Inlining<'a> {
                     }
                 }
             }
+            T::CaseDef { pat, .. } => {
+                for s in self.pattern_vars(pat) {
+                    self.fresh_symbol(m, s);
+                }
+            }
             T::TypeDef { .. } if sym.is_some_and(|s| self.u.symbol(s).kind == Kind::TypeParam) => {
                 self.fresh_symbol(m, sym.expect("a type parameter"));
             }
@@ -98,6 +103,16 @@ impl<'a> Inlining<'a> {
         }
         self.fold_constants(copy);
         Ok(copy)
+    }
+
+    /// The symbols the binds of pattern `pat` define, outermost first (dotty's `patVars`).
+    fn pattern_vars(&self, pat: TNodeId) -> Vec<SymbolId> {
+        let own = match self.tpd.tree(pat) {
+            T::Bind { .. } => self.tpd.sym(pat),
+            _ => None,
+        };
+        let inner = self.tpd.children(pat).into_iter().flat_map(|c| self.pattern_vars(c));
+        own.into_iter().chain(inner).collect()
     }
 
     /// The fresh symbol of local definition `s` in `m`, made if it is not yet: owned by what

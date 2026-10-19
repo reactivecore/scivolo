@@ -83,11 +83,32 @@ impl Inlining<'_> {
         for arg in clauses.into_iter().rev().flatten() {
             let refused = (self.tpd.span(arg), "a macro argument other than a quote, a type or the Quotes");
             args.push(match self.macro_arg(arg, quotes).ok_or(refused)? {
-                MacroArg::Expr(body) => MacroArg::Expr(self.outer_inlined(body)),
+                MacroArg::Expr(body) => {
+                    let body = self.constant_arg(body);
+                    MacroArg::Expr(self.outer_inlined(body))
+                }
                 arg => arg,
             });
         }
         Ok(MacroCall { method, args, owner, span })
+    }
+
+    /// Quoted argument `body` as a literal if it refers to a value whose type normalizes to a
+    /// constant (dotty's `constToLiteral` of an inline parameter's binding).
+    fn constant_arg(&mut self, body: TNodeId) -> TNodeId {
+        let inner = self.unwrapped(body);
+        let Some(s) = self.tpd.sym(inner).filter(|&s| self.u.symbol(s).kind == Kind::Val) else {
+            return body;
+        };
+        if !matches!(self.tpd.tree(inner), T::Ident { .. }) {
+            return body;
+        }
+        let info = self.u.info(s);
+        let info = self.u.try_normalize(info).unwrap_or(info);
+        match self.constant_of_type(info) {
+            Some(value) => self.literal(value, self.tpd.span(inner)),
+            None => body,
+        }
     }
 
     /// Quoted expression `body` as an argument inlined from the outer scope, as the

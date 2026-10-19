@@ -3,11 +3,11 @@ package scala.quoted.runtime.impl
 import scala.quoted.{Expr, FromExpr, Quotes, Type}
 import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
 
-/** The `Quotes` a macro runs with: quotes unpickled into the frontend's trees, everything else
- *  `Unsupported`.
+/** The `Quotes` a macro runs with: quotes unpickled into the frontend's trees, quote patterns of
+ *  a typed term hole, the subset of `reflect` of `ReflectImpl`; everything else `Unsupported`.
  */
-final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching {
-  /** Its getter is a VM native throwing `Unsupported`. */
+final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport {
+  /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 
   extension [T](self: Expr[T]) {
@@ -58,8 +58,20 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching {
     QuoteHost.tpe(QuoteHost.unpickleType(text(pickled), typeIds(types))).asInstanceOf[Type[T]]
 
   object ExprMatch extends ExprMatchModule {
-    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Expr[Any])(using pattern: Expr[Any]): Option[Tup] =
-      throw new Unsupported("a quote pattern")
+    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Expr[Any])(using pattern: Expr[Any]): Option[Tup] = {
+      val n = QuoteHost.matchPattern(QuoteHost.exprId(scrutinee), QuoteHost.exprId(pattern))
+      if (n < 0) None
+      else {
+        val things = new Array[Object](n)
+        var i = 0
+        while (i < n) {
+          val m = QuoteHost.matched(i)
+          things(i) = if (m >= 0) QuoteHost.expr(m) else QuoteHost.tpe(-1 - m)
+          i += 1
+        }
+        Some(Tuple.fromArray(things).asInstanceOf[Tup])
+      }
+    }
   }
 
   object TypeMatch extends TypeMatchModule {

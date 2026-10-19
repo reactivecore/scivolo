@@ -48,9 +48,13 @@ impl Inlining<'_> {
     }
 
     /// Whether the body of inline method definition `def` defines a given or implicit term other
-    /// than by the pattern of a `summonFrom` case.
+    /// than by the pattern of a `summonFrom` case; a macro's body, which its expansion replaces,
+    /// does not.
     pub fn defines_implicit(&self, def: TNodeId) -> bool {
         let T::DefDef { rhs: Some(rhs), .. } = *self.tpd.tree(def) else { return false };
+        if self.tpd.sym(def).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::MACRO)) {
+            return false;
+        }
         self.has_implicit_def(rhs)
     }
 

@@ -23,6 +23,8 @@ pub struct Reducer<'r, 'a> {
     unusable: FxHashSet<SymbolId>,
     /// Whether the match is a `summonFrom`, its patterns matching implicit arguments.
     implicit: bool,
+    /// The types the type variables of the patterns matched so far stand for.
+    type_bindings: Vec<(SymbolId, TypeId)>,
 }
 
 impl Inlining<'_> {
@@ -39,7 +41,8 @@ impl Inlining<'_> {
         let sel = sel.map(|s| self.sel_typed(s));
         let cases = self.tpd.items(cases).to_vec();
         let (rhs_of, unusable, implicit) = (FxHashMap::default(), FxHashSet::default(), sel.is_none());
-        let mut r = Reducer { i: self, args, owner, rhs_of, unusable, implicit };
+        let type_bindings = Vec::new();
+        let mut r = Reducer { i: self, args, owner, rhs_of, unusable, implicit, type_bindings };
         match sel {
             Some(sel) => {
                 let sel_type = r.i.tpd.tpe(sel);
