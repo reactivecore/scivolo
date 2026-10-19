@@ -51,9 +51,8 @@ impl Typer<'_> {
             T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
             _ => (tasty::NOTHING, tasty::ANY),
         };
-        let class = matches!(*self.u.types().get(alias), Type::Sym(_, c) if self.u.symbol(c).kind == tasty::Kind::Class);
-        if !class || self.type_arity(alias) > 0 {
-            self.unsupported(rhs, "opaque alias other than a class");
+        if self.type_arity(alias) > 0 {
+            self.unsupported(rhs, "opaque alias of a type constructor");
             return error;
         }
         if !self.u.is_subtype(lo, alias) || !self.u.is_subtype(alias, hi) {
