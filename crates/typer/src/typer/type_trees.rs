@@ -34,7 +34,8 @@ impl Typer<'_> {
                     }
                     arg_ids.truncate(arity);
                 }
-                let mut typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
+                let (mut typed_args, vars): (Vec<TNodeId>, Vec<_>) =
+                    arg_ids.iter().map(|&a| self.typed_pattern_type_arg(a, ctx)).unzip();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
                 if !ctx.mode.is(Mode::CONST_VALUE_ARG)
                     && self
@@ -72,7 +73,7 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "parameterized type alias applied to a wildcard");
                 }
-                let arg_types = self.pattern_bound_args(tycon, &mut typed_args, arg_types, ctx);
+                let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
