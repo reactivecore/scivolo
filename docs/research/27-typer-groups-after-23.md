@@ -71,21 +71,27 @@ enum as the *text* `List[T:scala.Nothing]` handed to `sym_ref` [V]; the typer's 
 [V]: enum-List2, enum-List2a, enum-Option, enum-Option1, i9011, typeclass-derivation1,
 typeclass-derivation3, deriving-constructor-order (8). dotty's `interpolatedEnumParent`
 (`D/DesugarEnums.scala:66-83`) is a `TypeTree(enumClass.typeRef.appliedTo(targs))` with the
-bounds' `lo`/`hi`. The four "derived type without a source" tests (enum-List1, enum-Tree,
-better-fors-map-elim, better-fors-map-inlined, `Y/derived.rs:21`) are the same parent reaching
-the typer as a derived type without its `watched` symbols [I, research 23 §2.9]. The other enum
-refusals [I, by text]: "generic enum case" (enum-HList: a case with its own type parameters,
-`DesugarEnums.expandEnumModule:283` / `enumCaseDef`), "enum class with its own ordinal"
-(enum-constrs, enum-custom-toString, enum-values-order: a user `ordinal`/`toString` alongside the
-synthesized ones, `X/SyntheticMembers.scala` skips `ordinal` when defined), "constructor proxy
-shadowing a term" (enum-Color), "reference to a companion member from an enum case"
-(enums-precise), "reference to Outer._$E" (enums-thunk, an enum inside a class), "unresolved
-name n" (enum-nat).
+bounds' `lo`/`hi`; ~10 lines. All eight then need the next item [I]. The four "derived type
+without a source" tests (enum-List1, enum-Tree, better-fors-map-elim, better-fors-map-inlined)
+are a case class taking over the enum's type parameters: `G/enum_cases.rs:74` builds
+`DerivedTypeTree { FromParam, watched: None }`, `Y/derived.rs:21` refuses [V dumps]; dotty
+`Desugar.derivedEnumParams`/`derivedTypeParamWithVariance` watch the enum's parameter — set
+`watched`, and `derived_from_param` takes the source from the enum's primary constructor, ~25.
+A generic enum case class's `apply` widening (enum-HList; `Y/enum_cases.rs:33-34` widens with
+the class-level parents instead of the applied type's — dotty `widenEnumCase` uses
+`tpe.parents`; ~10) [V]. Enum classes referenced by textual full name (`G/enums.rs:144-155`
+`enum_class_ref`/`raw_enum_ref`): a local enum (enums-thunk "Outer._$E") or one in a braced
+package (i15234, i19178 — `G/class_syms.rs:45` `child_full_name` lacks the package) — emit a
+`DerivedTypeTree { TypeRef, watched: enum }` resolved by `derived.rs:31,141`, ~10 [V]. Case
+companions counted as members (enums-precise, `Y/enum_case_refs.rs:61-62,93` compares names
+without `is_type`; ~5) [V]. The case import of enum-Color (`G/enum_cases.rs:34-35` →
+`Y/find_ref.rs:59-68` "constructor proxy shadowing a term"; resolve the companion symbol
+directly, ~10) [V]. Enums extending `java.lang.Enum` (enum-constrs, enum-custom-toString,
+enum-values-order: `Y/classes.rs:72-98` `defines_enum_ordinal` counts `java.lang.Enum`'s final
+`ordinal()`; dotty `X/SyntheticMembers.scala:485-494` skips `ordinal` for Java enums; ~15, the
+Java constructor protocol maybe ~40 more) [V]. enum-nat is §2.2's type-pattern variable.
 
-Port (~60 lines for the first 12, ~100 for the rest): `interpolated_enum_parent` emits an
-`AppliedTypeTree(enum ref, [Nothing | Any])` instead of a text (the oracle's typed tree is the
-same), `derived.rs` takes the enum's parameters as `watched`; then one probe each for the six
-singles. Tests: 12, then up to 8.
+Port (~100 lines): 12 tests for the first two items, then 8 more.
 
 ### 2.2 Type variables in applied type patterns (10 tests) and inline leftovers (#82, ~15)
 
@@ -316,16 +322,27 @@ Port (~250 lines): 12 tests.
 
 ### 2.13 Small groups and singles
 
-- **Parents with different type arguments** (4): CollectionTests, i10068d, iterables, t2857 at
-  `Yn/base_types.rs:37` — dotty `checkParents`/`baseType` take the first and check
-  `@uncheckedVariance` or an exact match (`C/SymDenotations.scala` `baseTypeOf`, `T/Checking.scala`
-  `checkNoConflict`); ~40 lines [I].
-- **Cyclic reference** (3: Providers, t3502, t7200, `Yn/complete.rs:17`): completion of a
-  definition whose type needs itself — dotty's `CyclicReference` is an error, so these tests use
-  a form we complete too early (a `given` in its own type's companion? [I]); probe.
-- **Double definition / conflicting members** (6): i209, i5823, typeclass-derivation2d
-  (`Yn/checks.rs:70`, `Y/overrides.rs:89`); i12032, i8582, productElementName (`:167`) — the
-  checker rejects signatures dotty keeps apart after erasure (`matchesLoosely`, #78); ~50 lines.
+- **Parents with different type arguments** (4, dumped [V]): `Yn/base_types.rs:34-37,96-98`
+  `same_base_type` gives up on variant or higher-kinded arguments (CollectionTests `Seq[+A]`
+  with `SeqLike[A, Seq]`, i10068d `Function0`'s covariant result, iterables, t2857 aliased
+  arguments) — dotty's `baseType` joins by variance (`&`/`|`); ~40 lines.
+- **Cyclic reference** (3 [V]): a recursive method without a result type overriding a member
+  whose signature comes through parent type arguments (t3502, t7200 — `Yn/complete.rs:16-17`,
+  `Yn/inherited.rs:14` finds no match; as-seen-from before comparing, ~20) and a self-referential
+  match-type alias with a declared bound (Providers — `complete.rs:54-57`; dotty `typeDefSig`
+  sets provisional bounds first, ~10).
+- **Double definition / conflicting members** (6 [V]): synthetic case-class members clashing with
+  user ones (i209 `copy`, i5823, typeclass-derivation2d `apply` — `Y/overrides.rs:88-89`,
+  `Yn/checks.rs:69-70`; dotty `Namer.invalidateIfClashingSynthetic`, `T/Namer.scala:976-1014`,
+  ~30); an overriding trait whose win comes through its *self type* (i12032, i8582,
+  productElementName — `overrides.rs:161-175` looks at base classes only; dotty
+  `extendedOverriddenSymbols`, ~10). Also `abstract override` not counted as an override (t4996,
+  `overrides.rs:136`, 1 line), an abstract redeclaration of a concrete member (i7359,
+  `:133-134`, ~3), `this(…)` in a secondary constructor of a polymorphic class (i3189, i8064,
+  `Y/apply.rs:178-180`; dotty copies the class parameters to the constructor, ~25), inherited vs
+  outer definitions (NestedClasses, `Y/qualifies.rs:44-54` uses all members where dotty uses own
+  `decls`, ~5), wildcard imports of inaccessible members (triemap-hash, `Y/imports.rs:193-198`,
+  ~10).
 - **Wrong number of type arguments** (6): i13691b, i13961a, i15998, i17115, saferExceptions,
   transparentArrowAssoc — `throws`/`CanThrow` and kind-polymorphic `AnyKind` arguments; singles.
 - **Source versions** (5, `Y/mod.rs:276` [V]): four are `import language.future` (given-
@@ -378,7 +395,7 @@ refusals from §2 that no other item blocks.
 
 | MR | scope | lines | tests |
 |---|---|---:|---|
-| E enum parents | §2.1 applied-type parent, `watched` for derived parents, the six enum singles | ~160 | enum-List1, enum-List2, enum-List2a, enum-Option, enum-Option1, enum-Tree, i9011, typeclass-derivation1, typeclass-derivation3, deriving-constructor-order, better-fors-map-elim, better-fors-map-inlined (+ up to 8 singles) |
+| E enum parents | §2.1 applied-type parent, `watched` for derived parameters, generic case `apply`, enum refs, Java enums | ~160 | enum-List1, enum-List2, enum-List2a, enum-Option, enum-Option1, enum-Tree, i9011, typeclass-derivation1, typeclass-derivation3, deriving-constructor-order, better-fors-map-elim, better-fors-map-inlined (+ up to 8 singles) |
 | F functions XXL | §2.8 synthetic `FunctionN`, `FunctionXXL` closures and forwarders | ~150 | functionXXL, implicitFunctionXXL, tupled-function-extension-method, tupled-function-tupled, context-functions, i2004, i2004b, i1915 |
 | Y poly function types | §2.7 `makePolyFunctionType`, `PolyFunction` erasure, value forms | ~120 | boehm-berarducci, contextbounds-for-poly-functions, i13950, i6891, polymorphic-functions, tuple-map, i13304, single-case-expr |
 | B type-pattern variables | §2.2 var-pattern arguments of applied type patterns as `Bind`s | ~30 | erased-inline-product-1/2/3, tuple-typetests, i11542, i12328, i11706, typeclass-derivation2b, typelevel-peano, i15302a |
@@ -389,7 +406,7 @@ refusals from §2 that no other item blocks.
 | W arguments and extractors | §2.10–2.11 auto-tupling, later-clause and alias defaults, by-name varargs, implicit extractor clauses, `*:` results, skolemized results, untupling, SAM shapes | ~380 | t8610, unapply, virtpatmat_unapply, i3207, byname-varargs, byNameVarargs, t3488, i14164, t4535, UnrolledBuffer, i8903, enrich-gentraversable, t3353, t6111, i11008, i11008b, fully-abstract-nat-5/6/7, unapply-tparam, automatic-tupling-…, i7788, i5257, 16405, i18315, i15855 |
 | J adaptation + implicits | §2.4 views/weak conformance after a probe pass, §2.6 `TupledFunction`/`Manifest` synthesis, `instances` | ~270 | ~14 adaptation tests, manifest-summoning, tupled-function-andThen, tupled-function-compose, instances, instances-anonymous |
 | L lowering | §2.14 context results of overridable methods, package-object selections, JDK forwarders, abstract vars, long file names | ~200 | ConfManagement, config, implicitFuns, t1987, t5604, t8933c, tryPatternMatch, i4496b, array-erasure, t8199 |
-| U structural + small | §2.12–2.13 setter selections, `catch` handlers, extension singles, `using` refinements, parents, double definitions, `future` imports | ~350 | Signals2, t2754, i8662, liftedTry, sticky-extmethod, classof-object, i1856, i4451, structural, structural-compat, i17761, structural-contextual, given-disambiguation, i10930, i21213, i21213-min, CollectionTests, i10068d, iterables, t2857, i209, i5823, i12032, i8582 (+ singles) |
+| U structural + small | §2.12–2.13 setter selections, `catch` handlers, extension singles, `using` refinements, parents, synthetic clashes, self-type overrides, cyclic completions, `future` imports | ~400 | Signals2, t2754, i8662, liftedTry, sticky-extmethod, classof-object, i1856, i4451, structural, structural-compat, i17761, structural-contextual, given-disambiguation, i10930, i21213, i21213-min, CollectionTests, i10068d, iterables, t2857, i209, i5823, typeclass-derivation2d, i12032, i8582, productElementName, t4996, i7359, t3502, t7200, Providers, i3189, i8064, NestedClasses, triemap-hash |
 
 Order: B → E → H → L → F → Y → V1 → V2 → W → I1–I2 → J → U, by run tests per line (B is 10
 tests for 30 lines, E 12 for 60 before its singles, H's first item 6 for 10; L is cheap and
