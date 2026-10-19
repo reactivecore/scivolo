@@ -41,10 +41,15 @@ impl Typer<'_> {
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
         let mut args = Vec::new();
-        for &(_, p) in &params {
+        for (name, p) in &params {
             let before: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
-            let formal = self.applied_result(p, (binder, &names), meth, &before);
-            args.push(self.implicit_arg(formal, at, ctx, depth)?);
+            let formal = self.applied_result(*p, (binder, &names), meth, &before);
+            match self.implicit_arg(formal, at, ctx, depth) {
+                Err(what @ "no implicit argument") if depth == 0 => {
+                    return self.missing_given(tree, (name, formal), at, ctx).map(Some).ok_or(what);
+                }
+                arg => args.push(arg?),
+            }
         }
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);

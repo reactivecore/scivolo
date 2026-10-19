@@ -45,6 +45,11 @@ pub fn cannot_compare(l: &str, r: &str) -> Message {
     message(172, "Type", false, format!("Values of types {l} and {r} cannot be compared with == or !="))
 }
 
+/// `MissingImplicitArgument` for the type shown as `tpe`, searched for `place`, with no addendum.
+pub fn missing_given(tpe: &str, place: &str) -> Message {
+    message(172, "Type", false, format!("No given instance of type {tpe} was found for {place}"))
+}
+
 /// `NoMatchingOverload` for the alternatives of `method`, shown with location, of types `types`,
 /// none of which matches `args`.
 pub fn no_matching_overload(method: &str, types: &[String], args: &str) -> Message {
