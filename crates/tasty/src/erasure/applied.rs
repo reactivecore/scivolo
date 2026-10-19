@@ -2,18 +2,10 @@
 //! intersections written as `|[A, B]`/`&[A, B]`, and applied aliases, whose arguments are
 //! substituted into their right-hand side.
 
-use super::special::{UNBOUNDED, special, tuple};
+use super::special::tuple;
 use super::{Erased, object};
 use crate::types::{Type, TypeId};
 use crate::{Kind, Universe};
-
-/// The kind of JVM array that can hold every value of a type (dotty's `arrayUpperBound`).
-#[derive(Clone, Copy, PartialEq, Debug)]
-enum Holder {
-    None,
-    Object,
-    Prim(char),
-}
 
 impl Universe {
     pub fn erase_applied(&mut self, tycon: TypeId, args: &[TypeId]) -> Erased {
@@ -133,65 +125,6 @@ impl Universe {
             Type::Param(b, i) if *b == binder => args.get(*i as usize).copied(),
             _ => None,
         })
-    }
-
-    /// Whether an array of `t` erases to `Object`: no JVM array holds all its values.
-    pub fn is_generic(&mut self, t: TypeId) -> bool {
-        match self.types().get(t).clone() {
-            Type::Param(..) | Type::Local(..) => true,
-            Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
-            Type::Annotated(u, _) | Type::Refined(u, _, _) | Type::Rec(_, u) => self.is_generic(u),
-            Type::And(a, b) => self.is_generic(a) && self.is_generic(b),
-            Type::Or(a, b, _) => self.is_generic(a) || self.is_generic(b),
-            Type::Sym(..) | Type::TypeRef(..) => match self.referenced(t) {
-                Some(s) if matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam) => {
-                    let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                    match self.types().get(info).clone() {
-                        Type::Bounds(_, hi) => self.holder(hi) == Holder::None,
-                        Type::Lambda { .. } => false,
-                        _ => self.is_generic(info),
-                    }
-                }
-                _ => false,
-            },
-            _ => false,
-        }
-    }
-
-    /// The kind of array that can hold every value of type `t`.
-    fn holder(&mut self, t: TypeId) -> Holder {
-        match self.types().get(t).clone() {
-            Type::Annotated(u, _) | Type::Refined(u, _, _) | Type::Rec(_, u) | Type::Bounds(_, u) => {
-                self.holder(u)
-            }
-            Type::Applied(c, _) => self.holder(c),
-            Type::And(a, b) => match (self.holder(a), self.holder(b)) {
-                (x, y) if x == y => x,
-                (Holder::None, y) => y,
-                (x, _) => x,
-            },
-            Type::Or(a, b, _) => match (self.holder(a), self.holder(b)) {
-                (x, y) if x == y => x,
-                _ => Holder::None,
-            },
-            Type::Sym(..) | Type::TypeRef(..) => {
-                if let Some(c) = self.class_name(t) {
-                    return match special(&c) {
-                        _ if UNBOUNDED.contains(&c.as_str()) => Holder::None,
-                        Some(Erased::Prim(p)) => Holder::Prim(p),
-                        _ => Holder::Object,
-                    };
-                }
-                let Some(s) = self.referenced(t) else { return Holder::None };
-                let info = self.opaque_alias(s).unwrap_or_else(|| self.info(s));
-                if matches!(self.types().get(info), Type::Lambda { .. }) {
-                    Holder::None
-                } else {
-                    self.holder(info)
-                }
-            }
-            _ => Holder::None,
-        }
     }
 
     /// The symbol a `Sym` or `TypeRef` refers to.

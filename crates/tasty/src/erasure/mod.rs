@@ -4,6 +4,7 @@
 mod applied;
 mod bounds;
 mod bridges;
+mod generic;
 mod mangle;
 mod scala2;
 mod special;
