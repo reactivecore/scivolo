@@ -16,7 +16,7 @@ impl Typer<'_> {
         let apply_selected = ctx.mode.is(Mode::APPLY_QUALIFIER);
         let ctx = ctx.with_mode(ctx.mode.without(Mode::APPLY_QUALIFIER));
         let Some(tpe) = self.tpd.get(tree).tpe else { return tree };
-        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun) {
+        if matches!(self.u.types().get(tpe), Type::Error) || matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) {
             return tree;
         }
         let span = self.tpd.span(tree);

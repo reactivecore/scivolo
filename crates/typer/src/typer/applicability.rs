@@ -167,6 +167,9 @@ impl Typer<'_> {
     pub fn poly_instance(&mut self, info: TypeId, owner: SymbolId, rigid: bool) -> TypeId {
         let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else { return info };
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
+        if let Some(args) = self.mapped_targs_of(owner, names.len()) {
+            return self.instantiate_poly(result, binder, &names, &args, Some(owner));
+        }
         let mut args = Vec::new();
         for n in &names {
             args.push(if rigid {

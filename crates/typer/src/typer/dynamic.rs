@@ -42,7 +42,7 @@ impl Typer<'_> {
             return Some(self.unsupported(id, "Dynamic member in a pattern"));
         }
         let call = DynamicCall { qual, name: text, span: self.ast.span(id), targs: Vec::new() };
-        if matches!(pt, Pt::Fun(_) | Pt::PolyFun) || self.dynamic_lhs == Some(id) {
+        if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) || self.dynamic_lhs == Some(id) {
             return Some(self.pending_dynamic(call));
         }
         Some(self.typed_dynamic_select(call, pt, ctx))

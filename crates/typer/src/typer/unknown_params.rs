@@ -75,7 +75,7 @@ impl Typer<'_> {
                 let t = self.zonk(p);
                 (self.is_fully_defined(t) && self.is_sam_free_class(t)).then(|| Some(self.u.show_user(t)))
             }
-            Pt::Fun(_) | Pt::PolyFun | Pt::AnyFunction => None,
+            Pt::Fun(_) | Pt::PolyFun(_) | Pt::AnyFunction => None,
         }
     }
 

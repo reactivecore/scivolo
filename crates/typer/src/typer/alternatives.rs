@@ -40,6 +40,7 @@ impl Typer<'_> {
             self.complete(s);
             let tpe = self.ref_type(prefix, s);
             let info = self.method_info(tpe).unwrap_or(tpe);
+            let info = self.mapped_info(info, s);
             let result = match self.u.types().get(info).clone() {
                 Type::ByName(r) => r,
                 Type::Poly { result, .. } => match self.u.types().get(result) {
@@ -78,20 +79,8 @@ impl Typer<'_> {
         if let [s] = syms {
             return Ok(*s);
         }
-        if let Pt::PolyFun = pt {
-            let mut poly = Vec::new();
-            for &s in syms {
-                self.complete(s);
-                let tpe = self.ref_type(prefix, s);
-                let info = self.method_info(tpe).unwrap_or(tpe);
-                if matches!(self.u.types().get(info), Type::Poly { .. }) {
-                    poly.push(s);
-                }
-            }
-            return match poly[..] {
-                [s] => Ok(s),
-                _ => Err("overloaded reference with type arguments"),
-            };
+        if let Pt::PolyFun(poly) = pt {
+            return self.choose_poly(syms, prefix, poly);
         }
         if matches!(pt, Pt::Any | Pt::Type(_)) {
             return self.parameterless_alternative(syms, prefix, pt);

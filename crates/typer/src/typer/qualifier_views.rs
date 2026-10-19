@@ -58,6 +58,10 @@ impl Typer<'_> {
         match *self.ast.tree(a) {
             Tree::Literal { .. } | Tree::Ident { .. } => true,
             Tree::Select { qualifier, .. } => self.is_plain_arg(qualifier),
+            Tree::TypeApply { fun, .. } => self.is_plain_arg(fun),
+            Tree::Apply { fun, args } => {
+                self.is_plain_arg(fun) && self.ast.items(args).iter().all(|&a| self.is_plain_arg(a))
+            }
             _ => false,
         }
     }

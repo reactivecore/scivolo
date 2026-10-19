@@ -2,6 +2,7 @@
 //! polymorphic function gets when applied without them (`constrained` in `adaptNoArgs`), their
 //! bounds checked or added to the constraint.
 
+use super::poly_alternatives::PolyProto;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -10,24 +11,28 @@ use tasty::{Binder, SymbolId, Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let f = self.typed(fun, Pt::PolyFun, ctx);
+        let poly = self.poly_protos.len();
+        let arg_ids = self.ast.items(args).to_vec();
+        self.poly_protos.push(PolyProto { args: arg_ids.clone(), ctx, pt, typed: None });
+        let f = self.typed(fun, Pt::PolyFun(poly), ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
         let class_of = fun_name.as_deref() == Some("scala.Predef$.classOf");
-        let f = match self.with_apply(f, Pt::PolyFun, ctx) {
+        let f = match self.with_apply(f, Pt::PolyFun(poly), ctx) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };
         if self.is_pending_dynamic(f) {
-            let targs = self.ast.items(args).to_vec();
-            return self.dynamic_type_apply(f, targs, pt, ctx);
+            return self.dynamic_type_apply(f, arg_ids, pt, ctx);
         }
-        let arg_ids = self.ast.items(args).to_vec();
         let const_value = matches!(
             fun_name.as_deref().and_then(|n| n.strip_prefix("scala.compiletime.package$package$.")),
             Some("constValue" | "constValueOpt")
         );
         let arg_ctx = if const_value { ctx.with_mode(ctx.mode.with(Mode::CONST_VALUE_ARG)) } else { ctx };
-        let typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect();
+        let typed_args: Vec<TNodeId> = match self.poly_protos[poly].typed.take() {
+            Some(typed) => typed,
+            None => arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect(),
+        };
         let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
         if arg_types.iter().any(|&a| self.type_arity(a) > 0) {
             return self.unsupported(id, "higher-kinded type argument of a method");
