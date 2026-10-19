@@ -6,12 +6,12 @@ use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::CASE;
 use syntax::ast::{NodeId, Span, TName, Tree};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{ANY, Kind, NOTHING, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Type argument `id` of a pattern's type tree, a variable pattern typed as a wildcard; its
-    /// name if it is one.
-    pub fn typed_pattern_type_arg(&mut self, id: NodeId, ctx: Ctx) -> (TNodeId, Option<TName>) {
+    /// Type argument `id` of a pattern's type tree, a variable pattern typed as a wildcard `_`;
+    /// its name and span if it is one.
+    pub fn typed_pattern_type_arg(&mut self, id: NodeId, ctx: Ctx) -> (TNodeId, Option<(TName, Span)>) {
         let var = match *self.ast.tree(id) {
             Tree::Ident { name } if ctx.mode.is(Mode::PATTERN_TYPE) => {
                 Some(name).filter(|n| self.is_var_pattern(id, self.text(n.name)))
@@ -19,9 +19,11 @@ impl Typer<'_> {
             _ => None,
         };
         let Some(name) = var else { return (self.typed_type(id, ctx), None) };
-        let wild = self.ast.node(Tree::TypeBoundsTree { lo: None, hi: None, alias: None });
-        self.ast.with_span(wild, self.ast.span(id));
-        (self.typed_type(wild, ctx), Some(name))
+        let span = self.ast.span(id);
+        let wild = TName { name: self.name("_"), is_type: false };
+        let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
+        let at = Span::synthetic(span.start(), span.start());
+        (self.tpd.node(T::Ident { name: wild }, at, Some(bounds), None), Some((name, span)))
     }
 
     /// Type arguments `args` of `tycon` in a pattern's type tree with each wildcard replaced by a
@@ -31,7 +33,7 @@ impl Typer<'_> {
         &mut self,
         tycon: TypeId,
         args: &mut [TNodeId],
-        vars: &[Option<TName>],
+        vars: &[Option<(TName, Span)>],
         types: Vec<TypeId>,
         ctx: Ctx,
     ) -> Vec<TypeId> {
@@ -48,9 +50,11 @@ impl Typer<'_> {
             _ => Vec::new(),
         };
         for (i, a) in args.iter_mut().enumerate() {
-            let T::TypeBoundsTree { alias: None, .. } = *self.tpd.tree(*a) else { continue };
             let var = vars.get(i).copied().flatten();
-            let name = var.map_or_else(|| self.fresh.next(self.names, "_$"), |v| v.name);
+            if var.is_none() && !matches!(*self.tpd.tree(*a), T::TypeBoundsTree { alias: None, .. }) {
+                continue;
+            }
+            let name = var.map_or_else(|| self.fresh.next(self.names, "_$"), |(v, _)| v.name);
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
             if var.is_some() {
@@ -62,8 +66,12 @@ impl Typer<'_> {
             let tpe = self.u.intern_type(Type::Sym(None, sym));
             let span = self.tpd.span(*a);
             let name = TName { name, is_type: true };
-            let span = Span::synthetic(span.start(), span.end());
-            *a = self.tpd.node(T::Bind { name, body: *a }, span, Some(tpe), Some(sym));
+            let body = match var {
+                Some(_) => self.tpd.node(self.tpd.tree(*a).clone(), span, Some(info), None),
+                None => *a,
+            };
+            let span = var.map_or_else(|| Span::synthetic(span.start(), span.end()), |(_, s)| s);
+            *a = self.tpd.node(T::Bind { name, body }, span, Some(tpe), Some(sym));
         }
         args.iter().map(|&a| self.tpd.tpe(a)).collect()
     }
