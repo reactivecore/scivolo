@@ -85,6 +85,7 @@ mod linter;
 mod literals;
 mod match_type_trees;
 mod matches;
+mod member_hint;
 mod member_views;
 mod members;
 mod migrations;

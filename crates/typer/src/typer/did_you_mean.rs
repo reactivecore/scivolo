@@ -184,7 +184,7 @@ pub fn close(missing: &[u16], cand: &str) -> bool {
 }
 
 /// The Levenshtein distance of `a` and `b` (dotty's `DidYouMean.distance`).
-fn distance(a: &[u16], b: &[u16]) -> usize {
+pub fn distance(a: &[u16], b: &[u16]) -> usize {
     let mut row: Vec<usize> = (0..=a.len()).collect();
     for (j, &cb) in b.iter().enumerate() {
         let mut diag = row[0];

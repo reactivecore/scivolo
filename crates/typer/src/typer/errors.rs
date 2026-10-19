@@ -34,9 +34,9 @@ pub fn cannot_compare(l: &str, r: &str) -> Message {
     message(172, "Type", false, format!("Values of types {l} and {r} cannot be compared with == or !="))
 }
 
-/// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, with no
-/// addendum and no name to suggest.
-pub fn not_a_member(name: &str, is_type: bool, site: &str) -> Message {
+/// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
+/// `hint`.
+pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {
     let kind = if is_type { "type" } else { "value" };
-    message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}"))
+    message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}{hint}"))
 }
