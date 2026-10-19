@@ -86,6 +86,8 @@ Apache-2.0. Rust translations of:
   `transform/patmat/Space.isIrrefutable`, the `@RuntimeChecked` selector of `Typer.typedMatch`.
 - `crates/typer/src/typer/linter.rs`: `Linter.warnOnInterestingResultInStatement`,
   `TreeInfo.isThisTypeResult`.
+- `crates/typer/src/typer/{did_you_mean,*_hint,scope_bindings}.rs`: `reporting/DidYouMean` (`memberCandidates`,
+  `inScopeCandidates`, `closestTo`, `didYouMean`), the messages of `NotAMember` and `MissingIdent`.
 - `crates/lower/src/phases`, from `transform/`:
   - `ExpandSAMs` (`toPartialFunction`, anonymous classes of other SAM types),
     `config/JavaPlatform.isSam` (without `samExpansionNotNeeded`'s bridges: refused), `ast/tpd` (`AnonClass`,

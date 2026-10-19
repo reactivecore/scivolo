@@ -35,7 +35,9 @@ impl Typer<'_> {
                 {
                     return self.unsupported(id, "compile-time operation type");
                 }
-                if let Some(what) = self.type_args_problem(tycon, arity, &arg_types) {
+                if let Some(what) =
+                    self.type_args_problem(tycon, arity, &arg_types).filter(|_| !self.is_error(tpt))
+                {
                     return self.unsupported(id, what);
                 }
                 let arg_types: Vec<TypeId> =

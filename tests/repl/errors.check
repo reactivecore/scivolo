@@ -80,7 +80,13 @@ scala> val abc = 1
 val abc: Int = 1
 
 scala> abd
--- unsupported: unresolved name abd
+-- [E006] Not Found Error: -----------------------------------------------------
+1 |abd
+  |^^^
+  |Not found: abd - did you mean abc?
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
 
 scala> class K { def m = wwww }
 -- [E006] Not Found Error: -----------------------------------------------------

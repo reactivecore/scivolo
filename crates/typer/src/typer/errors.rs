@@ -16,10 +16,21 @@ pub fn missing_parameter_type(param: &str, expected: Option<&str>) -> Message {
     message(81, "Type", false, text)
 }
 
-/// `MissingIdent` for identifier `name`, a type if `is_type`, with no name to suggest.
-pub fn not_found(name: &str, is_type: bool) -> Message {
+/// `MissingIdent` for identifier `name`, a type if `is_type`, followed by `hint`.
+pub fn not_found(name: &str, is_type: bool, hint: &str) -> Message {
     let kind = if is_type { "type " } else { "" };
-    message(6, "Not Found", true, format!("Not found: {kind}{name}"))
+    message(6, "Not Found", true, format!("Not found: {kind}{name}{hint}"))
+}
+
+/// `MissingIdent` for identifier `name`, a type if `is_type`, where only a binding of the other
+/// kind has that name, an object if `module`.
+pub fn wrong_kind(name: &str, is_type: bool, module: bool) -> Message {
+    let text = match is_type {
+        true if module => format!("Expected a type, but found a term: {name} - did you mean {name}.type?"),
+        true => format!("Expected a type, but found a term: {name}"),
+        false => format!("Expected a term, but found a type: {name}"),
+    };
+    message(6, "Not Found", true, text)
 }
 
 /// `TypeMismatch` of a tree of the type shown as `found` with the type shown as `required`, with
@@ -34,9 +45,20 @@ pub fn cannot_compare(l: &str, r: &str) -> Message {
     message(172, "Type", false, format!("Values of types {l} and {r} cannot be compared with == or !="))
 }
 
-/// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, with no
-/// addendum and no name to suggest.
-pub fn not_a_member(name: &str, is_type: bool, site: &str) -> Message {
+/// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
+/// `hint`.
+pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {
     let kind = if is_type { "type" } else { "value" };
-    message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}"))
+    message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}{hint}"))
+}
+
+/// The hint of dotty's `didYouMean` for the best name `first` and the other names at its
+/// distance, `alts`, sorted.
+pub fn did_you_mean(first: &str, alts: &[String]) -> String {
+    let mut shown: Vec<&str> = alts.iter().map(String::as_str).filter(|&a| a != first).take(3).collect();
+    shown.dedup();
+    match shown.is_empty() {
+        true => format!(" - did you mean {first}?"),
+        false => format!(" - did you mean {first}? or perhaps {}?", shown.join(" or ")),
+    }
 }

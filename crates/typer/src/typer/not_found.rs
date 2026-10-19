@@ -1,5 +1,5 @@
 //! Identifiers nothing in scope defines (dotty's `MissingIdent`), reported where dotty finds
-//! nothing either and has no name to suggest.
+//! nothing either.
 
 use super::Typer;
 use crate::ctx::{Ctx, Mode};
@@ -21,13 +21,11 @@ impl Typer<'_> {
         }
         let root = self.enclosing_definition(id, ctx)?;
         let mut path = Vec::new();
-        if !path_to(self.ast, root, id, &mut path)
-            || path.windows(2).any(|w| uncertain_edge(self.ast, w))
-            || self.may_suggest(&text, ctx)
-        {
+        if !path_to(self.ast, root, id, &mut path) || path.windows(2).any(|w| uncertain_edge(self.ast, w)) {
             return None;
         }
-        Some(self.error(id, super::errors::not_found(&text, name.is_type)))
+        let message = self.missing_ident(&text, name.is_type, ctx)?;
+        Some(self.error(id, message))
     }
 
     /// The outermost definition tree of an owner of `ctx` that contains `id`.
