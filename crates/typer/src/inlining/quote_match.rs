@@ -5,12 +5,73 @@
 
 use crate::constraint::Constraint;
 use crate::unpickle::QuotePattern;
+use rustc_hash::FxHashMap;
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 /// The types the bindings of `pattern` stand for if an expression of type `scrutinee` matches
 /// it, in their order.
 pub fn quote_match(u: &mut Universe, scrutinee: TypeId, pattern: &QuotePattern) -> Option<Vec<TypeId>> {
     bound_types(u, scrutinee, pattern.hole, &pattern.bindings)
+}
+
+/// Each of `binds` with whether it occurs in `t` only contravariantly, so is approximated from
+/// above (dotty's `InlineReducer.getTypeBindsMap`).
+pub fn bind_variances(u: &mut Universe, t: TypeId, binds: &[SymbolId]) -> Vec<(SymbolId, bool)> {
+    let mut found: FxHashMap<SymbolId, i8> = FxHashMap::default();
+    collect_variances(u, t, 1, binds, &mut found, 0);
+    binds.iter().map(|&s| (s, found.get(&s) == Some(&-1))).collect()
+}
+
+fn collect_variances(
+    u: &mut Universe,
+    t: TypeId,
+    v: i8,
+    binds: &[SymbolId],
+    found: &mut FxHashMap<SymbolId, i8>,
+    depth: u32,
+) {
+    if depth > 32 {
+        return;
+    }
+    let mut go = |u: &mut Universe, t, v| collect_variances(u, t, v, binds, found, depth + 1);
+    match u.types().get(t).clone() {
+        Type::Sym(None, s) if binds.contains(&s) => {
+            let entry = found.entry(s).or_insert(v);
+            if *entry != v {
+                *entry = 0;
+            }
+        }
+        Type::Applied(tycon, args) => {
+            let variances = match *u.types().get(tycon) {
+                Type::Sym(_, c) => u.variances(c),
+                _ => Vec::new(),
+            };
+            for (i, a) in args.into_iter().enumerate() {
+                go(u, a, v * variances.get(i).copied().unwrap_or(0));
+            }
+            go(u, tycon, v);
+        }
+        Type::And(a, b) | Type::Or(a, b, _) => {
+            go(u, a, v);
+            go(u, b, v);
+        }
+        Type::Bounds(lo, hi) => {
+            go(u, lo, -v);
+            go(u, hi, v);
+        }
+        _ => {
+            let mut parts = Vec::new();
+            u.map_type(t, &mut |u, part| {
+                if matches!(*u.types().get(part), Type::Sym(None, s) if binds.contains(&s)) {
+                    parts.push(part);
+                }
+                None
+            });
+            for p in parts.into_iter().filter(|&p| p != t) {
+                go(u, p, 0);
+            }
+        }
+    }
 }
 
 /// The types bindings `binds` stand for if `scrutinee` conforms to `pattern`, which refers to
@@ -56,7 +117,7 @@ pub fn bound_types(
     let approximated = vars.iter().zip(binds).map(|(&(_, id, _), &(_, from_above))| {
         c.instance(id).unwrap_or_else(|| {
             let (lo, hi) = c.bounds(id);
-            if from_above || lo == NOTHING { hi } else { lo }
+            if from_above { hi } else { lo }
         })
     });
     Some(approximated.collect())

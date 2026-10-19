@@ -24,6 +24,15 @@ plusOne(41)
 case class D(x: Int = 7)
 firstDefault[D]
 tupled(1, \"a\")
+type DA = D
+firstDefault[DA]
+type LI = List[Int]
+typeArgCount[LI]
+typeArgCount[List[Int]]
+object K { final val three = 3 }
+plusOne(K.three)
+macrolib.Tuples.elemKind[List[Nothing]]
+macrolib.Tuples.elemKind[List[String]]
 ";
 
 const REPL_OUTPUT: &str = "val res0: Int = 42
@@ -50,6 +59,15 @@ val res14: Int = 42
 // defined case class D
 val res15: Option[Any] = Some(7)
 val res16: Tuple = (1, \"a\")
+// defined alias type DA = D
+val res17: Option[Any] = None
+// defined alias type LI = List[Int]
+val res18: Int = 0
+val res19: Int = 1
+// defined object K
+-- unsupported: Literal.constant of a term other than a literal
+val res21: String = \"Int or Nothing\"
+val res22: String = \"other\"
 ";
 
 const SCRIPT: &str = "import macrolib.Macros.*

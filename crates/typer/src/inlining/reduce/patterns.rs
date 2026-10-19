@@ -3,7 +3,7 @@
 use super::Reducer;
 use super::cases::Bindings;
 use crate::inlining::Unsupported;
-use crate::inlining::quote_match::bound_types;
+use crate::inlining::quote_match::{bind_variances, bound_types};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
@@ -25,8 +25,8 @@ impl Reducer<'_, '_> {
                     return Err((span, "type binding in an inline match pattern"));
                 }
                 let tpe = self.i.tpd.tpe(tpt);
-                let binds: Vec<(SymbolId, bool)> =
-                    self.type_binds(tpt).into_iter().map(|s| (s, false)).collect();
+                let binds = self.type_binds(tpt);
+                let binds = bind_variances(self.i.u, tpe, &binds);
                 let conforms = match binds.is_empty() {
                     true => self.i.u.is_subtype(scrut, tpe),
                     false => match bound_types(self.i.u, scrut, tpe, &binds) {
