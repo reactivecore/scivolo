@@ -159,7 +159,7 @@ use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::{Defn, entered};
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
-use rustc_hash::{FxHashMap, FxHashSet};
+use rustc_hash::FxHashMap;
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
@@ -232,8 +232,8 @@ pub struct Typer<'a> {
     /// The definitions of the instances of each module class's `derives` clause, entered and
     /// not typed yet.
     pub derived_instances: FxHashMap<SymbolId, Vec<(NodeId, Option<deriving_finalize::Problem>)>>,
-    /// The type lambdas of derived instances' types, owned by the instance.
-    pub derived_lambdas: FxHashSet<NodeId>,
+    /// The type lambdas of derived instances' types, by the instances that own their parameters.
+    pub derived_lambdas: FxHashMap<NodeId, NodeId>,
     /// The pending dynamic calls, by their placeholder trees.
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.

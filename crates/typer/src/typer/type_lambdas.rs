@@ -12,7 +12,7 @@ impl Typer<'_> {
     /// Type lambda `id` of type parameters `tparams` and `body`, typed in `ctx`: its parameters
     /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
-        let derived = self.derived_lambdas.contains(&id).then_some(ctx.owner);
+        let derived = self.derived_lambdas.get(&id).and_then(|d| self.syms.by_tree.get(d)).copied();
         let Some(owner) = self.type_def_with_rhs(id).or(derived) else {
             return self.unsupported(id, "type lambda other than the right-hand side of a type definition");
         };
