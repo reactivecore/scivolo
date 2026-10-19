@@ -31,11 +31,6 @@ impl Gen<'_, '_> {
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");
         }
-        let reflective =
-            self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == "scala.reflect.Selectable");
-        if reflective && self.l.u.symbol(sym).name == "applyDynamic" {
-            return unsupported(span, "reflective calls");
-        }
         Ok(())
     }
 
