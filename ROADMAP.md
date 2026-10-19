@@ -276,10 +276,20 @@ and in native executables. Scripts read the TASTy of `--cp`/`--dep` jars in the 
 ## Where we are and what's next (2026-10-19)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-19,
-990 of 1711 pass (964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 429 stop at the
-typer, 12 at the lowering, 1 crashes in the frontend (t8199) and 1 in the VM (i15618). Phase 4
-started: macros run in the VM, always on (ADR 0029).
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-19
+afternoon, 1043 of 1711 pass (990 in the morning, 964 on 2026-10-16, 878 on 2026-10-15, 399 on
+2026-10-11), 372 stop at the typer, 16 at the lowering, 1
+crashes in the frontend (t8199) and 1 in the VM (i15618, #120). Phase 4 started: macros run in
+the VM, always on (ADR 0029).
+
+Batch of 2026-10-19 afternoon (one integration MR, each part reviewed by a subagent in its own
+MR): research 23 O (overloads with type arguments, receiver views), Q (opaque aliases of any
+type), X (tuples over 22), K (annotated types, union join, by-name function types, array
+varargs, source versions 3.7–3.9, later-clause defaults), S (structural types through
+`reflectiveSelectable`, lowered to `dynmethod`) and the rest of P (#127: given `TypeTest`s,
+extractors on abstract types); dotty's errors with did-you-mean hints, overload, type-argument
+and non-method errors instead of refusals (#130); [research 26](docs/research/26-macros-next.md)
+on the next macro steps.
 
 Merged on 2026-10-19 (one integration MR, each part reviewed by a subagent in its own MR,
 research 25): the typer fixes Circe needed, product and sum mirrors, `derives` clauses (#43),
@@ -321,12 +331,14 @@ decoded with their cases); the lowering's outer tests of path and projection pre
 local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
-1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): overloads (O),
-   opaque aliases, tuples over 22, small groups, structural types; the rest of type patterns
-   (#127) and mirrors (#129); match-type leftovers (#120); typed-tree printing gaps (#122);
-   implicit candidate interpolation (#123).
-2. **Macros** (phase 4, #40): structural quote patterns, higher-order holes, `Type`/`Expr.show`
-   and more of `quotes.reflect` as libraries need them.
+1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): the rest of type
+   patterns (#127: synthesized `TypeTest`, pattern-bound type variables) and mirrors (#129);
+   structural setters and implicit parameters; match-type leftovers (#120); typed-tree printing
+   gaps (#122); implicit candidate interpolation (#123); missing-given and type-mismatch errors
+   (#130).
+2. **Macros** (phase 4, #40, [research 26](docs/research/26-macros-next.md)): two-file tests in
+   the report and `tests/run-macros`, then positions and symbols (sourcecode, munit, scalatest),
+   term extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices.
 3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    overridable methods with context function results, traits nested in local traits.
