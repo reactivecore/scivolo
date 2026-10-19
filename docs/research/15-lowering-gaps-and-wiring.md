@@ -2,7 +2,7 @@
 
 Date: 2026-10-12. Claims are [V] verified by reading the code or running it, [I] inferred. Paths:
 `T/` = `ref/scala3/compiler/src/dotty/tools/dotc/transform/` (3.9.0), `L/` =
-`crates/lower/src/phases/`, `G/` = `crates/lower/src/codegen/`, `S/` = `crates/scalai/src/`. Measured
+`crates/lower/src/phases/`, `G/` = `crates/lower/src/codegen/`, `S/` = `crates/scivolo/src/`. Measured
 on the #88 branch (`tmp/wt/88c`, main's inlining-free base: 412 of dotty's `tests/run` pass, 34 are
 refused by the lowering) and on the inlining stack (`tmp/wt/82d`: 576 pass, 64 refused, 22 of them
 "members value classes inherit", which #88 lifts) [V]. Probes under `tmp/rv/p1..p11.scala`.
@@ -10,7 +10,7 @@ refused by the lowering) and on the inlining stack (`tmp/wt/82d`: 576 pass, 64 r
 **Recommendation.** Item 4 is four lowering MRs, each lifting one family of refusals: outer instances
 of local classes (with inner-class creation through prefixes), subclasses of inner classes,
 ProtectedAccessors, local traits and lambdas in inner classes; then the small refusals and the byte
-issues. Item 5 is two small MRs: `scalai FILE.scala` through `lower::compile` with scala-cli as the
+issues. Item 5 is two small MRs: `scivolo FILE.scala` through `lower::compile` with scala-cli as the
 announced fallback, and REPL transcripts for what the lowering covers already. "Objects in traits
 mixed into classes" is done: the probe's NIR equals Scala Native's (§1.5).
 
@@ -151,11 +151,11 @@ Not lowering work: "inline methods" and "a call of an inline method" (13 tests h
 
 ## 2. Item 5: wiring
 
-### 2.1 What `scalai` does today
+### 2.1 What `scivolo` does today
 
-`scalai TARGET`: a `.scala`/`.sc` target goes through `S/script.rs::main_of`: the key is a hash of
+`scivolo TARGET`: a `.scala`/`.sc` target goes through `S/script.rs::main_of`: the key is a hash of
 the canonical path, the text, the crate version and the Scala and Scala Native versions (`:36-42`);
-`$SCALAI_CACHE/scripts/<key>/` holds `classes/` and `main` (the main classes, found by
+`$SCIVOLO_CACHE/scripts/<key>/` holds `classes/` and `main` (the main classes, found by
 `defines_main` reading each `.nir`'s index, `:93-117`); a miss builds with `scala-cli --power compile
 --native` into `<key>.<pid>` and renames it (`:49-57,66-90`); entries unused for 30 days and
 abandoned stagings older than a day are pruned (`crates/libimage/src/cache.rs:8-10`) [V]. Then
@@ -170,18 +170,18 @@ runs parser, desugaring, `typer::type_unit` and `lower::lower`; its errors are t
 `scripts/dotty-lower.py:57` parses ("syntax errors", "the typer does not support …", "type errors",
 "the lowering does not support … at l:c"); `bin/lower.rs:26-37` writes the files as
 `<name with . as />.nir` [V]. Research 09 §5 fixed the fallback shape: one stderr line, fallback on
-`Errors` too, `SCALAI_FRONTEND=strict` makes fallback an error and `=jvm` forces scala-cli [V].
+`Errors` too, `SCIVOLO_FRONTEND=strict` makes fallback an error and `=jvm` forces scala-cli [V].
 
 Plan for `S/script.rs` [I]:
 1. `compile`: on a miss, `own(&source, &staging)` first: `Universe::open_image(libs::image(jars)?)`
    (1 ms, ADR 0005), `lower::compile`, the files into `classes/`, `main` as today.
-2. On `Err(what)`: `eprintln!("scalai: {file}: falling back to scala-cli ({what})")`, then `build`.
-   `SCALAI_FRONTEND=strict` turns the line into the error; `=jvm` skips step 1. The key includes the
+2. On `Err(what)`: `eprintln!("scivolo: {file}: falling back to scala-cli ({what})")`, then `build`.
+   `SCIVOLO_FRONTEND=strict` turns the line into the error; `=jvm` skips step 1. The key includes the
    mode, so a forced mode never serves the other's entry; a `fallback` file in the entry names
    the reason, repeated on a hit.
 3. `.sc` files fall back: scala-cli wraps them in an object; the REPL's `wrap.rs` has the pieces for
    an own wrapper later. Files with `//> using` directives fall back too (dependencies, options).
-4. `crates/scalai/tests/lowered.rs` runs `lowered.txt` through `scalai FILE.scala` with `strict`;
+4. `crates/scivolo/tests/lowered.rs` runs `lowered.txt` through `scivolo FILE.scala` with `strict`;
    one test checks the fallback line on a file the typer refuses.
 
 Cost: `target/release/lower` (universe from the jars) takes 70 ms on `hello`, 160 ms on `moderate`
@@ -190,7 +190,7 @@ in the MR against the ≤ 50 ms criterion; a hit costs VM time only, as today [I
 
 ### 2.3 The REPL
 
-Piped into `scalai` (`tmp/rv/repl-probe.txt`), these work now [V]: `lazy val` at top level
+Piped into `scivolo` (`tmp/rv/repl-probe.txt`), these work now [V]: `lazy val` at top level
 (`lazy val lz: Int`, initialized on use), in classes, objects and methods; `enum Color { case Red,
 Green }` and `enum Shape { case Circle(r: Int) … }` with `Shape.Circle(2)`; `case class Box[A](a: A)`;
 `class M(var p: Int)` with `m.p = 2`; `trait T { object O … }; class K extends T; new K().O.f`.

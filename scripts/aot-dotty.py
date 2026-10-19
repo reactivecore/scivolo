@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Dotty's tests/run that pass in the VM, built as native executables with scalai-aot (#113).
+"""Dotty's tests/run that pass in the VM, built as native executables with scivolo-aot (#113).
 
 Usage: scripts/aot-dotty.py [N|NAMES]   all VM-passing tests, an evenly spaced sample of N, or
                                         the comma-separated NAMES
@@ -17,7 +17,7 @@ import sys
 
 from dotty_sources import NATIVE, ROOT, SCALA, WORK, lines, load, run, save, shared, tests
 
-AOT = ROOT / "target/release/scalai-aot"
+AOT = ROOT / "target/release/scivolo-aot"
 NIR = shared(f"tmp/dotty/{SCALA}-{NATIVE}/nir")
 OUT = ROOT / "tmp/aot/dotty"
 JOBS, TIMEOUT = 4, int(os.environ.get("AOT_TIMEOUT", "20"))

@@ -60,10 +60,10 @@ fn listed(list: &Path) -> Option<Vec<PathBuf>> {
     jars.iter().all(|j| j.exists()).then_some(jars)
 }
 
-/// `coursier fetch` of `coordinates`, by `$SCALAI_COURSIER`, else `coursier`, else `cs`; its
+/// `coursier fetch` of `coordinates`, by `$SCIVOLO_COURSIER`, else `coursier`, else `cs`; its
 /// progress and errors go to stderr.
 fn run_coursier(coordinates: &[String]) -> Result<Output, String> {
-    let chosen = std::env::var_os("SCALAI_COURSIER");
+    let chosen = std::env::var_os("SCIVOLO_COURSIER");
     let candidates = match &chosen {
         Some(c) => vec![c.clone()],
         None => vec!["coursier".into(), "cs".into()],
@@ -80,7 +80,7 @@ fn run_coursier(coordinates: &[String]) -> Result<Output, String> {
             Ok(out) => return Ok(out),
         }
     }
-    Err("Coursier not found (tried coursier and cs); set SCALAI_COURSIER to its path".into())
+    Err("Coursier not found (tried coursier and cs); set SCIVOLO_COURSIER to its path".into())
 }
 
 /// Whether `jar` holds a `.nir` file, by the names in its directory.

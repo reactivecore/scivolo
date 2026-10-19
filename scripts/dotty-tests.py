@@ -12,9 +12,9 @@ import sys
 
 from dotty_sources import ROOT, WORK, compile_groups, lines, load, run as run_cmd, save as save_rows, scala_cli, tests
 
-SCALAI = ROOT / "target/release/scalai"
+SCIVOLO = ROOT / "target/release/scivolo"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
+TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "60"))
 FAILED = ("wrong output", "crashed", "timeout")
 SAME = "fails in Scala Native too"
 OUTCOMES = ["passed", *FAILED, SAME, "not built", "compile failed", "skipped"]
@@ -22,10 +22,10 @@ OUTCOMES = ["passed", *FAILED, SAME, "not built", "compile failed", "skipped"]
 
 def run(cmd, check, log):
     """The outcome of `cmd` and a detail, with its output written to `log`."""
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
+    env = dict(os.environ, SCIVOLO_TIMEOUT=str(TIMEOUT))
     code, out, err = run_cmd(cmd, TIMEOUT + 10, env=env)
     log.write_text(out + "\n--- stderr ---\n" + err)
-    if code is None or "scalai: timed out" in err:
+    if code is None or "scivolo: timed out" in err:
         return "timeout", ""
     if code != 0:
         return "crashed", next((l for l in err.splitlines() if l.strip()), "").replace("\t", " ")[:160]
@@ -117,7 +117,7 @@ def report(filter_):
             rows[name] = ("compile failed", (errors or [next((l for l in plain if l.strip()), "")])[0][:160])
         else:
             rows[name] = ("not built", "")
-    cmd = lambda name: [str(SCALAI), "--cp", str(WORK / "nir" / name), "Test"]
+    cmd = lambda name: [str(SCIVOLO), "--cp", str(WORK / "nir" / name), "Test"]
     runs = parallel(lambda n, c: run(cmd(n), c, WORK / "logs" / (n + ".run")), runnable)
     for (name, _), (outcome, detail) in zip(runnable, runs):
         rows[name] = classify(name, outcome, detail, native_rows.get(name))

@@ -119,7 +119,7 @@ impl FnBuilder<'_, '_> {
     /// The floating-point remainder of `l / r`, through C's `fmod`.
     fn frem(&mut self, l: Value, r: Value) -> R<Value> {
         let t = self.b.func.dfg.value_type(l);
-        let name = if t == types::F32 { "scalai_aot_frem_f32" } else { "scalai_aot_frem_f64" };
+        let name = if t == types::F32 { "scivolo_aot_frem_f32" } else { "scivolo_aot_frem_f64" };
         let f = self.decls.import(self.module, name, &[t, t], Some(t))?;
         let fref = self.module.declare_func_in_func(f, self.b.func);
         let call = self.b.ins().call(fref, &[l, r]);

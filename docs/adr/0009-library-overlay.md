@@ -16,7 +16,7 @@ against it directly.
 - **Shadow declarations:** an overlay file declares a library class under its own name, with
   only the members it needs; the compiler sees it instead of the JDK's. A member the overlay
   uses but does not change is a stub, a method whose body only calls `???`. Helper classes go
-  into package `scalai` and are taken whole.
+  into package `scivolo` and are taken whole.
 - **Member-level precedence:** when the VM loads a library class the overlay also declares,
   each overlay method replaces the library's or is added to the class, including the ones the
   compiler generates (static forwarders, `writeReplace`), which match the library's. The

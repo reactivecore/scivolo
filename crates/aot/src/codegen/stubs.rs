@@ -52,11 +52,11 @@ pub fn missing(
     ctx.func.signature = sig;
     decls.anon += 1;
     let text = module
-        .declare_data(&format!("scalai_aot_missing.{}", decls.anon), Linkage::Local, false, false)
+        .declare_data(&format!("scivolo_aot_missing.{}", decls.anon), Linkage::Local, false, false)
         .map_err(|e| e.to_string())?;
     let bytes: Vec<u8> = message.bytes().chain([0]).collect();
     Blob { bytes, ..Default::default() }.define(module, text)?;
-    let report = decls.import(module, "scalai_aot_missing", &[decls.ptr], None)?;
+    let report = decls.import(module, "scivolo_aot_missing", &[decls.ptr], None)?;
     let mut b = FunctionBuilder::new(&mut ctx.func, fb);
     let block = b.create_block();
     b.append_block_params_for_function_params(block);
@@ -71,12 +71,12 @@ pub fn missing(
     Ok(())
 }
 
-/// `scalai_entry(n: i32) -> i32`, which calls `target`.
+/// `scivolo_entry(n: i32) -> i32`, which calls `target`.
 pub fn entry_wrapper(module: &mut ObjectModule, decls: &Decls, target: FuncId) -> R<()> {
     let mut sig = Signature::new(decls.call_conv);
     sig.params.push(AbiParam::new(types::I32));
     sig.returns.push(AbiParam::new(types::I32));
-    let id = module.declare_function("scalai_entry", Linkage::Export, &sig).map_err(|e| e.to_string())?;
+    let id = module.declare_function("scivolo_entry", Linkage::Export, &sig).map_err(|e| e.to_string())?;
     let mut ctx = Context::new();
     ctx.func.signature = sig;
     let mut fb = FunctionBuilderContext::new();

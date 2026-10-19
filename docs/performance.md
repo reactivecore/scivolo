@@ -7,14 +7,14 @@ expected gain per effort.
 
 ```sh
 just bench cpu                     # wall time of tests/programs/cpu (sort + fib)
-just bench-base OLD/scalai cpu     # alternating runs of an older build and the current one
+just bench-base OLD/scivolo cpu     # alternating runs of an older build and the current one
 just vm-profile cpu                # call and instruction counts; `just script-profile FILE`
 python3 scripts/profile.py cpu     # native profile (macOS `sample`)
 ```
 
 ## Where it stands (2026-09-29, M4 Pro, release)
 
-| Program | scalai | Scala Native binary | notes |
+| Program | scivolo | Scala Native binary | notes |
 |---|---:|---:|---|
 | hello | 9.5 ms | 5 ms | runtime initialization |
 | moderate | 18 ms | 5 ms | |
@@ -48,7 +48,7 @@ or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which mad
 
 1. **Deeper inlining** (ADR 0006 does small callees after tier-up): larger callees on hot
    paths.
-2. **More superinstructions**, chosen with `SCALAI_PROFILE` instruction counts: a load or an
+2. **More superinstructions**, chosen with `SCIVOLO_PROFILE` instruction counts: a load or an
    operation fused with the branch or store after it. Removes one dispatch and one slot
    write each.
 3. **Operand specialization.** `arg()` matches three operand kinds on every read. Emit

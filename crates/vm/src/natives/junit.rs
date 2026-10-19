@@ -9,9 +9,9 @@ const SUFFIX: &str = "$scalanative$junit$bootstrapper$";
 
 pub fn extern_fn(name: &str) -> Option<NativeFn> {
     let f: NativeFn = match name {
-        "scalai_bootstrapper_count" => |vm, _| Ok(bootstrappers(vm).len() as u64),
-        "scalai_bootstrapper" => module,
-        "scalai_bootstrapper_name" => name_of,
+        "scivolo_bootstrapper_count" => |vm, _| Ok(bootstrappers(vm).len() as u64),
+        "scivolo_bootstrapper" => module,
+        "scivolo_bootstrapper_name" => name_of,
         _ => return None,
     };
     Some(f)

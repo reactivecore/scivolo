@@ -98,7 +98,7 @@ impl Vm {
                 ("java.lang.UnsatisfiedLinkError", what.clone())
             }
             Unwound::Fatal(VmError::Unsupported(what)) => {
-                ("java.lang.InternalError", format!("scalai: unsupported: {what}"))
+                ("java.lang.InternalError", format!("scivolo: unsupported: {what}"))
             }
             _ => return u,
         };

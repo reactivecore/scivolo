@@ -171,7 +171,7 @@ Apache-2.0. Rust translations of:
 
 ### [JLine](https://github.com/jline/jline3) 4.0.14
 
-BSD-3. `crates/scalai/src/history.rs`: `reader/impl/history/DefaultHistory` (file format,
+BSD-3. `crates/scivolo/src/history.rs`: `reader/impl/history/DefaultHistory` (file format,
 `escape`/`unescape`, the add filters, `trimHistory`/`doTrimHistory`, the size limits).
 `crates/repl/src/completion/listed.rs`: `CompletionMatcherImpl`'s default matchers,
 `ReaderUtils.distance`, `utils/Levenshtein.distance` and the grouping and order of
@@ -179,7 +179,7 @@ BSD-3. `crates/scalai/src/history.rs`: `reader/impl/history/DefaultHistory` (fil
 
 ### [PPrint](https://github.com/com-lihaoyi/PPrint) by Li Haoyi, as vendored by dotty 3.9.0
 
-MIT. `overlay/src/scalai/repl`: a Scala port of `Walker`, `Renderer`, `Result`, `Truncated`,
+MIT. `overlay/src/scivolo/repl`: a Scala port of `Walker`, `Renderer`, `Result`, `Truncated`,
 `Util` and `ProductSupport`, without colors (fansi).
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 compiler and NIR
@@ -242,7 +242,7 @@ the VM (fetched, not vendored).
   classes it renames and the `__` of `_Object`'s methods (the table in `crates/tasty`'s `jdk.rs`).
 
 - **Cranelift** ([cranelift.dev](https://cranelift.dev/)), Apache-2.0 with LLVM exception: the
-  code generator of `scalai-aot` (`crates/aot`), used as a library
+  code generator of `scivolo-aot` (`crates/aot`), used as a library
   ([ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)); Scala Native's `Lower.scala`
   and `Generate.scala` give the semantics it lowers NIR to.
 

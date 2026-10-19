@@ -79,7 +79,7 @@ mod tests {
 
     #[test]
     fn directives_are_read_before_the_code_only() {
-        let text = "#!/usr/bin/env scalai\n\n// c\n//> using dep x\nobject A\n//> using dep y\n";
+        let text = "#!/usr/bin/env scivolo\n\n// c\n//> using dep x\nobject A\n//> using dep y\n";
         assert_eq!(directive_options(text, SCALA), Err("`//> using dep`".into()));
         let text = "/*\n  License text\n*/\n/* c */\n//> using dep z\n@main def m() = ()\n";
         assert_eq!(directive_options(text, SCALA), Err("`//> using dep`".into()));
@@ -103,8 +103,8 @@ mod tests {
     #[test]
     fn blanks_a_shebang_line() {
         assert_eq!(
-            without_header("#!/usr/bin/env scalai\nobject A"),
-            format!("{}\nobject A", " ".repeat(21))
+            without_header("#!/usr/bin/env scivolo\nobject A"),
+            format!("{}\nobject A", " ".repeat(22))
         );
         assert_eq!(without_header("object A"), "object A");
     }

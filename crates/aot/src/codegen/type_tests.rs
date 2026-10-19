@@ -47,7 +47,7 @@ impl FnBuilder<'_, '_> {
             let list = self.load(ptr, rtti, traits);
             let n = self.load(types::I32, rtti, count);
             let params = [ptr, types::I32, ptr];
-            let has = self.decls.import(self.module, "scalai_aot_has_trait", &params, Some(types::I8))?;
+            let has = self.decls.import(self.module, "scivolo_aot_has_trait", &params, Some(types::I8))?;
             let fref = self.module.declare_func_in_func(has, self.b.func);
             let call = self.b.ins().call(fref, &[list, n, target]);
             self.b.inst_results(call)[0]

@@ -15,13 +15,13 @@
 
 extern word_t *__modules;
 extern int __modules_size;
-// scalai: roots of each green thread, see native/scalai/gc_glue.c.
+// scivolo: roots of each green thread, see native/scivolo/gc_glue.c.
 typedef struct {
     uintptr_t *frames;
     uintptr_t low, high;
-} ScalaiThreadRoots;
-extern ScalaiThreadRoots *scalai_threads;
-extern int scalai_threads_count;
+} ScivoloThreadRoots;
+extern ScivoloThreadRoots *scivolo_threads;
+extern int scivolo_threads_count;
 
 #define LAST_FIELD_OFFSET -1
 
@@ -235,9 +235,9 @@ void Marker_MarkRoots(Heap *heap, Stack *stack) {
     }
     Marker_markModules(heap, stack);
     Marker_markCustomRoots(heap, stack, customRoots);
-    // scalai: each green thread's frame stack and, while it is suspended, its native stack.
-    for (int i = 0; i < scalai_threads_count; i++) {
-        ScalaiThreadRoots *t = &scalai_threads[i];
+    // scivolo: each green thread's frame stack and, while it is suspended, its native stack.
+    for (int i = 0; i < scivolo_threads_count; i++) {
+        ScivoloThreadRoots *t = &scivolo_threads[i];
         if (t->frames != NULL) {
             Marker_markRange(heap, stack, (word_t **)t->frames[0],
                              (word_t **)t->frames[1], sizeof(word_t));

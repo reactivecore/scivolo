@@ -26,9 +26,9 @@ from dotty_sources import compile_groups, tests
 SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/dotty" / f"{SCALA}-{NATIVE}"
-LOWER, SCALAI = ROOT / "target/release/lower", ROOT / "target/release/scalai"
+LOWER, SCIVOLO = ROOT / "target/release/lower", ROOT / "target/release/scivolo"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
+TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "60"))
 OUTCOMES = ["passed", "wrong output", "crashed", "timeout", "lowering refused", "typer refused",
             "parser refused", "macro refused", "frontend crashed", "earlier groups failed", "several files", "fails in the VM",
             "skipped"]
@@ -93,13 +93,13 @@ def lowered(name, groups, check, dir):
         if "syntax error" in message:
             return "parser refused", message
         return "frontend crashed", message
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
+    env = dict(os.environ, SCIVOLO_TIMEOUT=str(TIMEOUT))
     try:
-        r = subprocess.run([str(SCALAI), "--cp", str(out), *cp, "Test"], capture_output=True, text=True,
+        r = subprocess.run([str(SCIVOLO), "--cp", str(out), *cp, "Test"], capture_output=True, text=True,
                            errors="replace", env=env, timeout=TIMEOUT + 10)
     except subprocess.TimeoutExpired:
         return "timeout", ""
-    if "scalai: timed out" in r.stderr:
+    if "scivolo: timed out" in r.stderr:
         return "timeout", ""
     if r.returncode != 0:
         return "crashed", first_line(r.stderr)

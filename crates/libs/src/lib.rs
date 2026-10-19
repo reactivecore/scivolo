@@ -1,5 +1,5 @@
 //! Locates the precompiled Scala Native libraries and the Scala standard library's TASTy: in
-//! `$SCALAI_LIBS` if set, else in the Coursier cache; and maps their library image.
+//! `$SCIVOLO_LIBS` if set, else in the Coursier cache; and maps their library image.
 
 pub mod deps;
 
@@ -11,7 +11,7 @@ pub const SCALA: &str = "3.9.0";
 pub const NATIVE: &str = "0.5.12";
 
 /// A hash of the workspace's sources, which keys what the build derives from them.
-pub const BUILD: &str = env!("SCALAI_BUILD");
+pub const BUILD: &str = env!("SCIVOLO_BUILD");
 
 const LIBS: [&str; 6] = ["auxlib", "javalib", "nativelib", "clib", "posixlib", "scalalib"];
 
@@ -47,7 +47,7 @@ pub fn image(jars: &[PathBuf]) -> io::Result<&'static Image> {
 fn scala_library() -> Option<PathBuf> {
     let file = format!("scala-library-{SCALA}.jar");
     let rel = format!("https/repo1.maven.org/maven2/org/scala-lang/scala-library/{SCALA}/{file}");
-    let libs = std::env::var_os("SCALAI_LIBS").map(|l| PathBuf::from(l).join(&file));
+    let libs = std::env::var_os("SCIVOLO_LIBS").map(|l| PathBuf::from(l).join(&file));
     libs.into_iter().chain(coursier_roots().into_iter().map(|root| root.join(&rel))).find(|p| p.exists())
 }
 
@@ -70,7 +70,7 @@ fn candidates(lib: &str) -> Vec<(PathBuf, String)> {
     };
     let file = format!("{dir}-{version}.jar");
     let mut out = Vec::new();
-    if let Some(libs) = std::env::var_os("SCALAI_LIBS") {
+    if let Some(libs) = std::env::var_os("SCIVOLO_LIBS") {
         out.push((PathBuf::from(libs), file.clone()));
     }
     let rel = format!("https/repo1.maven.org/maven2/org/scala-native/{dir}/{version}/{file}");
@@ -86,20 +86,20 @@ pub fn jars() -> Result<Vec<PathBuf>, String> {
                 .into_iter()
                 .map(|(root, rel)| root.join(rel))
                 .find(|p| p.exists())
-                .ok_or_else(|| format!("{lib} {NATIVE} not in $SCALAI_LIBS or the Coursier cache"))
+                .ok_or_else(|| format!("{lib} {NATIVE} not in $SCIVOLO_LIBS or the Coursier cache"))
         })
         .collect()
 }
 
-/// Where the library image lives: `$SCALAI_CACHE`, else the user's cache directory.
+/// Where the library image lives: `$SCIVOLO_CACHE`, else the user's cache directory.
 pub fn cache_dir() -> PathBuf {
-    if let Some(dir) = std::env::var_os("SCALAI_CACHE") {
+    if let Some(dir) = std::env::var_os("SCIVOLO_CACHE") {
         return PathBuf::from(dir);
     }
     let home = PathBuf::from(std::env::var_os("HOME").unwrap_or_default());
     match std::env::var_os("XDG_CACHE_HOME") {
-        Some(xdg) => PathBuf::from(xdg).join("scalai"),
-        None if cfg!(target_os = "macos") => home.join("Library/Caches/scalai"),
-        None => home.join(".cache/scalai"),
+        Some(xdg) => PathBuf::from(xdg).join("scivolo"),
+        None if cfg!(target_os = "macos") => home.join("Library/Caches/scivolo"),
+        None => home.join(".cache/scivolo"),
     }
 }

@@ -6,7 +6,7 @@ use crate::line_names::PREFIX;
 use vm::{Frame, Thrown};
 
 /// The package of the value printer in the overlay.
-const PRINTER: &str = "scalai.repl.";
+const PRINTER: &str = "scivolo.repl.";
 
 /// The classes whose cause is reported instead (dotty's `Rendering.rootCause`).
 const WRAPPERS: [&str; 4] = [
@@ -104,8 +104,8 @@ mod tests {
             "E",
             vec![
                 frame("rs$line$2$C", "toString", Some("rs$line$2"), 1),
-                frame("scalai.repl.Renderer", "rec", Some("Renderer.scala"), 9),
-                frame("scalai.repl.Show$", "apply", Some("Show.scala"), 9),
+                frame("scivolo.repl.Renderer", "rec", Some("Renderer.scala"), 9),
+                frame("scivolo.repl.Show$", "apply", Some("Show.scala"), 9),
             ],
         );
         assert_eq!(lines(&t), ["E", "  at rs$line$2$C.toString(rs$line$2:1)", "  ... 2 elided"]);

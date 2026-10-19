@@ -28,12 +28,12 @@ collector family beyond Immix is needed.
 ## Implementation (2026-09-25)
 Where the implementation differs from the plan above:
 - `gc/immix`, `gc/immix_commix` and `gc/shared` are vendored under `native/nativelib/scala-native/gc/`
-  and compiled with `-DSCALANATIVE_GC_IMMIX`. `native/scalai/gc_glue.c` defines the linker
-  symbols with setters, `currentThreadInfo`, `scalai_GC_init(low, high)` and the stack-trace stub.
+  and compiled with `-DSCALANATIVE_GC_IMMIX`. `native/scivolo/gc_glue.c` defines the linker
+  symbols with setters, `currentThreadInfo`, `scivolo_GC_init(low, high)` and the stack-trace stub.
 - Patches to Immix: `Marker_MarkRoots` also scans a table of green-thread roots
-  (`scalai_threads`): every frame stack from its low end to the current top, since registering
+  (`scivolo_threads`): every frame stack from its low end to the current top, since registering
   the whole reserved region would scan stale frames, and the native stack of each suspended
-  thread; `scalai_GC_switch_stack` points the collector at the running thread's native stack.
+  thread; `scivolo_GC_switch_stack` points the collector at the running thread's native stack.
   `ObjectHeader.h` declares the class id symbols non-`const`.
 - The weak-reference callback only raises a flag in C; the VM runs the program's handler at the
   next interpreted call, never inside the allocation that collected.

@@ -13,7 +13,7 @@
 #include "limits.h"
 #include "assert.h"
 
-// scalai: set at run time by scalai_GC_set_ids, so not const.
+// scivolo: set at run time by scivolo_GC_set_ids, so not const.
 extern int __object_array_id;
 extern int __blob_array_id;
 extern int __weak_ref_ids_min;

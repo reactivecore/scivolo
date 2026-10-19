@@ -1,11 +1,11 @@
-//! The natives of the REPL's value printer `scalai.repl.Show` in the overlay.
+//! The natives of the REPL's value printer `scivolo.repl.Show` in the overlay.
 
 use super::NativeFn;
 use crate::Vm;
 use crate::interp::Flow;
 use nir::{DefnKind, Inst, Local, Op, Pool, StrId, Val, ValId};
 
-const SHOW: &str = "scalai.repl.Show$";
+const SHOW: &str = "scivolo.repl.Show$";
 const TO_STRING: &str = "D8toStringL16java.lang.StringEO";
 const RUNTIME_TO_STRING: &str = "D9_toStringL13scala.ProductL16java.lang.StringEO";
 const SCALA_RUN_TIME: &str = "scala.runtime.ScalaRunTime$";

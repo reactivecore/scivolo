@@ -222,18 +222,18 @@ Stacked MRs, each gated by the oracle pass counts (Rust lines, [I]):
 7. Inline (~3k): TASTy bodies to `tpd`, `Inliner` with `InlineTyper`/`ReTyper`, `inline if`/`match`,
    `summonInline`, `constValue`/`erasedValue`; needed for `summon`, `IArray`, `boundary.break`.
 8. Hardening (~1.5k): `tests/neg` parity for the errors the typer keeps, opaque types, exports, lazy
-   vals, unions and intersections as the corpus needs, fallback plumbing in `scalai`.
+   vals, unions and intersections as the corpus needs, fallback plumbing in `scivolo`.
 
 15–19k lines of Rust in `crates/typer` plus 1.5–2k in `crates/tasty` (5b and §2 items 2–5); with
 the lowering still to come, the largest part of phase 3's 9–15 person-months [I].
 
 **Fallback.** `typer::type_unit` returns `Result<Unit, Fallback>`: `Unsupported { at, what }` (match
 type, macro or quote, `Dynamic`, `derives`, structural call, capture-checking or experimental import,
-a `java.*` member javalib's TASTy lacks, GADT bounds from a pattern) or `Errors(diags)`. `scalai` then
-runs the phase 1 path (`crates/scalai/src/script.rs`: scala-cli behind the content-hash cache) and
+a `java.*` member javalib's TASTy lacks, GADT bounds from a pattern) or `Errors(diags)`. `scivolo` then
+runs the phase 1 path (`crates/scivolo/src/script.rs`: scala-cli behind the content-hash cache) and
 prints one line on stderr, `note: <file>:<line>: falling back to scala-cli (<what>)`. `Errors` falls
 back too, because a type error from a subset typer may be the typer's bug: dotc's diagnostics are
-the ones shown, and if dotc compiles what we rejected the note says so. `SCALAI_FRONTEND=strict`
+the ones shown, and if dotc compiles what we rejected the note says so. `SCIVOLO_FRONTEND=strict`
 turns fallback into an error (tests, CI), `=jvm` forces the old path. The own frontend's NIR also
 enters the content-hash cache, so a hit costs VM time only [I].
 

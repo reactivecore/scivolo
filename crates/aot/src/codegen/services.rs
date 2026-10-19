@@ -75,7 +75,7 @@ impl FnBuilder<'_, '_> {
         let ptr = self.decls.ptr;
         let array_cls = self.reach.link_top("scala.scalanative.runtime.ObjectArray")?;
         self.reach.allocate(array_cls);
-        let alloc = self.decls.import(self.module, "scalai_aot_alloc_array", &[ptr, ptr, ptr], Some(ptr))?;
+        let alloc = self.decls.import(self.module, "scivolo_aot_alloc_array", &[ptr, ptr, ptr], Some(ptr))?;
         let rtti = self.rtti_addr(array_cls)?;
         let (len, stride) = (self.b.ins().iconst(ptr, providers.len() as i64), self.b.ins().iconst(ptr, 8));
         let alloc = self.module.declare_func_in_func(alloc, self.b.func);
@@ -98,7 +98,7 @@ impl FnBuilder<'_, '_> {
         Ok(array)
     }
 
-    /// `scalai_aot_new.<class>()`: what `make` makes, with a constructor of its class.
+    /// `scivolo_aot_new.<class>()`: what `make` makes, with a constructor of its class.
     fn instantiator(&mut self, make: Make) -> R<FuncId> {
         let ptr = self.decls.ptr;
         let (cls, init_sig, message): (ClassId, &str, Option<DataId>) = match &make {
@@ -111,14 +111,14 @@ impl FnBuilder<'_, '_> {
         };
         let name = self.reach.world.pool.mangle(self.reach.classes.get(cls).name);
         let name = match &make {
-            Make::New(_) => format!("scalai_aot_new.{name}"),
-            Make::Fail(_) => format!("scalai_aot_new.{}.{name}", self.decls.anon),
+            Make::New(_) => format!("scivolo_aot_new.{name}"),
+            Make::Fail(_) => format!("scivolo_aot_new.{}.{name}", self.decls.anon),
         };
         self.decls.anon += 1;
         self.reach.allocate(cls);
         let init = self.reach.world.member(self.reach.classes.get(cls).name, init_sig);
         let init = self.decls.func(self.module, self.reach, init)?;
-        let alloc = self.decls.import(self.module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
+        let alloc = self.decls.import(self.module, "scivolo_aot_alloc", &[ptr, ptr], Some(ptr))?;
         let rtti = self.decls.rtti(self.module, self.reach, cls)?;
         let size = self.reach.classes.get(cls).size as i64;
         let slot = self.decls.exception;

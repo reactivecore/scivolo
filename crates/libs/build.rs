@@ -1,4 +1,4 @@
-//! Sets `SCALAI_BUILD`, a hash of the workspace's crate sources, manifests, lockfile and `libs/`.
+//! Sets `SCIVOLO_BUILD`, a hash of the workspace's crate sources, manifests, lockfile and `libs/`.
 
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
@@ -22,7 +22,7 @@ fn main() {
         file.strip_prefix(&root).unwrap_or(file).hash(&mut h);
         std::fs::read(file).unwrap_or_default().hash(&mut h);
     }
-    println!("cargo::rustc-env=SCALAI_BUILD={:016x}", h.finish());
+    println!("cargo::rustc-env=SCIVOLO_BUILD={:016x}", h.finish());
 }
 
 /// Adds `path`, or the files under it, to `files`.

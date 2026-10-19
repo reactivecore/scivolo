@@ -19,9 +19,9 @@ DENYLIST = ROOT / f"ref/scala-native/scala-partest-junit-tests/src/test/resource
 HELPERS = [ROOT / "ref/scala2/src/testkit/scala/tools/testkit/AssertUtil.scala", ROOT / "tests/junit/runner.scala"]
 WORK = ROOT / "tmp/m5" / f"{SCALA}-{NATIVE}"
 LIBS = ROOT / "ref/libs"
-SCALAI = ROOT / "target/release/scalai"
+SCIVOLO = ROOT / "target/release/scivolo"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "900"))
+TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "900"))
 # Helper source changes Scala 3 needs, by file name.
 PATCHES = {"AssertUtil.scala": [("new Thread(group, () => test())", "new Thread(group, (() => test()): Runnable)")]}
 ANSI = re.compile(r"\x1b\[[0-9;]*m")
@@ -84,18 +84,18 @@ def text(out):
 
 def run_class(cls):
     """PASS/FAIL/SKIP lines of test class `cls`, then `ENDED cls: reason` if its run ended early."""
-    cmd = [str(SCALAI), "--cp", str(WORK / "nir"), "--cp", str(LIBS / f"junit-runtime_native0.5_3-{NATIVE}.jar"),
+    cmd = [str(SCIVOLO), "--cp", str(WORK / "nir"), "--cp", str(LIBS / f"junit-runtime_native0.5_3-{NATIVE}.jar"),
            "--cp", str(LIBS / f"test-interface-sbt-defs_native0.5_3-{NATIVE}.jar"), "runner", cls]
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
+    env = dict(os.environ, SCIVOLO_TIMEOUT=str(TIMEOUT))
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", env=env, timeout=TIMEOUT + 10)
         out, err, code = r.stdout, r.stderr, r.returncode
     except subprocess.TimeoutExpired as e:
-        out, err, code = text(e.stdout), text(e.stderr) + "\nscalai: timed out", None
+        out, err, code = text(e.stdout), text(e.stderr) + "\nscivolo: timed out", None
     (WORK / "logs" / (cls + ".log")).write_text(out + "\n--- stderr ---\n" + err)
     lines = [l for l in out.splitlines() if re.match(rf"(PASS|FAIL|SKIP) {re.escape(cls)}[.: ]", l)]
     if code != 0 or not re.search(r"^passed \d+, failed \d+, skipped \d+$", out, re.M):
-        reason = "timeout" if "scalai: timed out" in err else next((l for l in err.splitlines() if l.strip()), f"exit {code}")
+        reason = "timeout" if "scivolo: timed out" in err else next((l for l in err.splitlines() if l.strip()), f"exit {code}")
         lines.append(f"ENDED {cls}: {reason[:160]}")
     return lines
 

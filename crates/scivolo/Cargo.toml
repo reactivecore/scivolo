@@ -1,0 +1,25 @@
+[package]
+name = "scivolo"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+clap.workspace = true
+libimage.workspace = true
+libs = { path = "../libs" }
+lower = { path = "../lower" }
+macros = { path = "../macros" }
+nir.workspace = true
+repl = { path = "../repl" }
+rustyline.workspace = true
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+vm = { path = "../vm" }
+
+[dev-dependencies]
+libc = "0.2"
+typer = { path = "../typer" }
+
+[lints]
+workspace = true

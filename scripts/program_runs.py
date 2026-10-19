@@ -11,8 +11,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 PROGRAMS = ROOT / "tests/programs"
-SCALAI = ROOT / "target/release/scalai"
-TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
+SCIVOLO = ROOT / "target/release/scivolo"
+TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "60"))
 
 
 class Failed(Exception):
@@ -28,9 +28,9 @@ def run(name):
     check = PROGRAMS / name / f"{name}.check"
     if not check.exists():
         raise Failed(f"no {check.relative_to(ROOT)}")
-    env = dict(os.environ, SCALAI_TIMEOUT=str(TIMEOUT))
+    env = dict(os.environ, SCIVOLO_TIMEOUT=str(TIMEOUT))
     try:
-        r = subprocess.run([str(SCALAI), "--cp", str(PROGRAMS / name), name], cwd=ROOT, env=env, text=True,
+        r = subprocess.run([str(SCIVOLO), "--cp", str(PROGRAMS / name), name], cwd=ROOT, env=env, text=True,
                            errors="replace", stdout=subprocess.PIPE, stderr=subprocess.STDOUT, timeout=TIMEOUT + 10)
     except subprocess.TimeoutExpired:
         return "timeout", ""

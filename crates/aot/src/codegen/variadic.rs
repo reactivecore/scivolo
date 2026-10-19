@@ -55,7 +55,7 @@ impl FnBuilder<'_, '_> {
     fn shim(&mut self, name: &str, fixed: usize, args: &[TypeId], ret: Option<TypeId>) -> R<FuncId> {
         let pool = &self.reach.world.pool;
         let n = self.decls.shims.len();
-        let shim = format!("scalai_aot_variadic_{n}");
+        let shim = format!("scivolo_aot_variadic_{n}");
         let params: Vec<String> =
             args.iter().enumerate().map(|(i, &t)| format!("{} a{i}", c_type(pool, Some(t)))).collect();
         let fixed_types: Vec<&str> = args[..fixed].iter().map(|&t| c_type(pool, Some(t))).collect();

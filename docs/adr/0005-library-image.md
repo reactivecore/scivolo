@@ -12,8 +12,8 @@ roadmap's startup target is a cached hello in ≤ 20 ms; it took 47 ms.
   uncompressed, with a sorted name index (`crates/libimage/src/image.rs`), and maps it read-only
   for the rest of the process; files are read from the mapping without copying.
   It is keyed by the jars' canonical paths, sizes and modification times and lives in
-  `$SCALAI_CACHE`, else the user's cache directory (`~/Library/Caches/scalai`,
-  `$XDG_CACHE_HOME/scalai` or `~/.cache/scalai`). The first run builds it (≈0.4 s, 36 MB);
+  `$SCIVOLO_CACHE`, else the user's cache directory (`~/Library/Caches/scivolo`,
+  `$XDG_CACHE_HOME/scivolo` or `~/.cache/scivolo`). The first run builds it (≈0.4 s, 36 MB);
   if that fails, the jars are read directly. User classpath entries stay directories or jars.
 - **Member tables.** Per file the image holds its members' signatures, sorted, with their
   definition offsets and which are fields (`crates/vm/src/member_table.rs`). A definition is

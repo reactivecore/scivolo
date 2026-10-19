@@ -1,4 +1,4 @@
-//! Per-function call counts, collected when `SCALAI_PROFILE` is set.
+//! Per-function call counts, collected when `SCIVOLO_PROFILE` is set.
 
 use super::FuncId;
 use crate::Vm;

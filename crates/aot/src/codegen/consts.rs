@@ -66,8 +66,8 @@ impl Decls {
         Ok(id)
     }
 
-    /// `scalai_aot_globals`: the address and size of each global variable, for the collector to
-    /// scan, and `scalai_aot_globals_count` of them.
+    /// `scivolo_aot_globals`: the address and size of each global variable, for the collector to
+    /// scan, and `scivolo_aot_globals_count` of them.
     pub fn define_roots(&mut self, module: &mut ObjectModule) -> R<()> {
         let mut table = Blob::zeroed(16 * self.roots.len().max(1));
         for (i, &(id, size)) in self.roots.iter().enumerate() {
@@ -77,10 +77,10 @@ impl Decls {
         let declare = |module: &mut ObjectModule, name: &str| {
             module.declare_data(name, Linkage::Export, false, false).map_err(|e| e.to_string())
         };
-        let id = declare(module, "scalai_aot_globals")?;
+        let id = declare(module, "scivolo_aot_globals")?;
         table.define(module, id)?;
         let count = Blob { bytes: (self.roots.len() as u64).to_le_bytes().to_vec(), ..Blob::default() };
-        let id = declare(module, "scalai_aot_globals_count")?;
+        let id = declare(module, "scivolo_aot_globals_count")?;
         count.define(module, id)
     }
 
@@ -90,7 +90,7 @@ impl Decls {
         let mut blob = Blob::zeroed(size.max(1));
         self.encode(module, reach, v, &mut blob, 0)?;
         self.anon += 1;
-        let name = format!("scalai_aot_const.{}", self.anon);
+        let name = format!("scivolo_aot_const.{}", self.anon);
         let id = module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())?;
         blob.define(module, id)?;
         Ok(id)

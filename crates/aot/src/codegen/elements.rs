@@ -10,13 +10,13 @@ const ELEMENT: &str = "java.lang.StackTraceElement";
 const INIT: &str = "RL16java.lang.StringL16java.lang.StringL16java.lang.StringiE";
 
 impl FnBuilder<'_, '_> {
-    /// A new `StackTraceElement` of the call at return address `ip`, as `scalai_aot_frame_info`
+    /// A new `StackTraceElement` of the call at return address `ip`, as `scivolo_aot_frame_info`
     /// describes it.
     pub fn trace_element(&mut self, ip: Value) -> R<Value> {
         let ptr = self.decls.ptr;
         let slot = self.b.create_sized_stack_slot(StackSlotData::new(StackSlotKind::ExplicitSlot, 32, 3));
         let out = self.b.ins().stack_addr(ptr, slot, 0);
-        let info = self.decls.import(self.module, "scalai_aot_frame_info", &[ptr, ptr], None)?;
+        let info = self.decls.import(self.module, "scivolo_aot_frame_info", &[ptr, ptr], None)?;
         let info = self.module.declare_func_in_func(info, self.b.func);
         self.b.ins().call(info, &[ip, out]);
         let [class, method, file] = [0, 8, 16].map(|at| self.b.ins().load(ptr, MemFlagsData::new(), out, at));

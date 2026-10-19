@@ -31,7 +31,7 @@ impl Universe {
 }
 
 /// The name of the package table in a library image.
-pub const PACKAGE_TABLE: &str = "scalai/tasty-packages";
+pub const PACKAGE_TABLE: &str = "scivolo/tasty-packages";
 
 /// The format of the package table.
 const FORMAT: u32 = 1;

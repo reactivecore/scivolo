@@ -133,10 +133,10 @@ mod tests {
         let mut library = Classpath::open(&jars).unwrap();
         let mut world = World::new(Classpath::open(&jars).unwrap());
         for (top, _) in embedded::FILES {
-            let helper = top.starts_with("scalai.") || top.starts_with("scala.quoted.runtime.impl.");
+            let helper = top.starts_with("scivolo.") || top.starts_with("scala.quoted.runtime.impl.");
             assert!(
                 library.find(top).is_some() || helper,
-                "{top}: neither in the library nor a helper in package scalai or scala.quoted.runtime.impl"
+                "{top}: neither in the library nor a helper in package scivolo or scala.quoted.runtime.impl"
             );
             let g = world.top(top);
             if world.place(g).unwrap_or_else(|e| panic!("{e}")).is_some() {

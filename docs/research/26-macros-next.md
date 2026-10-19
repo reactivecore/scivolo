@@ -29,7 +29,7 @@ Implemented [V, sizes `wc -l`]: the VM bridge (`V/quotes.rs` 179, `V/reflect.rs`
 `tests/macros/lib/Macros.scala` (17 macros: quotes with term and type holes, typed-hole patterns
 with a type binding `'{ $l: List[e] }`, `underlying`/`Literal`, `companionModule`/`declaredMethod`/
 `Ref`/`select`, `typeArgs`, `Expr.ofTupleFromSeq`) and Circe (`tests/repl/deps/circe-derives.check`,
-`crates/scalai/tests/circe.rs`) [V].
+`crates/scivolo/tests/circe.rs`) [V].
 
 Refused by name [V]:
 
@@ -116,8 +116,8 @@ group seeing the previous output (dotty's runner), so `Macro_1.scala`'s TASTy an
 `tmp/dotty/…/nir/<test>`; `scripts/dotty-lower.py:44-46` then skips every test with more than one
 source ("several files", 59 tests, 4 of them macros) and `crates/lower/src/bin/lower.rs:11-16`
 takes one file and no classpath [V]. Port: `compile_one` writes each group to its own subdirectory;
-`lower.rs` gains `--cp DIR…` read as scalai reads `--cp` jars (TASTy into the universe, the
-directory on the VM's classpath for the macro's NIR, `crates/scalai/src/frontend.rs:52-`); the
+`lower.rs` gains `--cp DIR…` read as scivolo reads `--cp` jars (TASTy into the universe, the
+directory on the VM's classpath for the macro's NIR, `crates/scivolo/src/frontend.rs:52-`); the
 report lowers the last group with the earlier ones on `--cp` and runs it with `--cp` of all. ~30
 Python + ~50 Rust [I]. Plus the `run-macros` checkout recipe and a `lower-report` filter for it.
 Unlocks: the 59 two-file tests of `tests/run` become measurable (55 of them non-macro: separate

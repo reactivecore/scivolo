@@ -1,4 +1,4 @@
-//! `scalai_aot_main(argc, argv)`, which runs a program as Scala Native's generated `main` does:
+//! `scivolo_aot_main(argc, argv)`, which runs a program as Scala Native's generated `main` does:
 //! static initializers, `Runtime.init`, the main class's `main`, then `onShutdown`; an uncaught
 //! exception goes to the current thread's uncaught exception handler and makes it return 1.
 
@@ -96,7 +96,7 @@ pub fn define_main(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Dec
     let mut sig = Signature::new(decls.call_conv);
     sig.params.extend([AbiParam::new(types::I32), AbiParam::new(ptr)]);
     sig.returns.push(AbiParam::new(types::I32));
-    let id = module.declare_function("scalai_aot_main", Linkage::Export, &sig).map_err(|e| e.to_string())?;
+    let id = module.declare_function("scivolo_aot_main", Linkage::Export, &sig).map_err(|e| e.to_string())?;
     let mut ctx = Context::new();
     ctx.func.signature = sig;
     let mut fb = FunctionBuilderContext::new();

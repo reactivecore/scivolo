@@ -13,9 +13,9 @@
 #define ALTERNATE (64 * 1024)
 
 // Below this stack pointer a compiled function throws StackOverflowError.
-char *scalai_aot_stack_limit = 0;
+char *scivolo_aot_stack_limit = 0;
 // The main thread's stack: its lowest address and the address past its end.
-char *scalai_aot_stack_low = 0, *scalai_aot_stack_high = 0;
+char *scivolo_aot_stack_low = 0, *scivolo_aot_stack_high = 0;
 static char *saved_limit = 0;
 static int overflowing = 0;
 static struct sigaction previous_segv, previous_bus;
@@ -26,7 +26,7 @@ static void fatal(const char *text) {
 }
 
 static void on_fault(int sig, siginfo_t *info, void *context) {
-    char *addr = info->si_addr, *low = scalai_aot_stack_low;
+    char *addr = info->si_addr, *low = scivolo_aot_stack_low;
     if (addr >= low - GUARD && addr < low + RESERVE)
         fatal("Exception in thread \"main\" java.lang.StackOverflowError\n");
     struct sigaction *previous = sig == SIGSEGV ? &previous_segv : &previous_bus;
@@ -42,10 +42,10 @@ static void on_fault(int sig, siginfo_t *info, void *context) {
 }
 
 // Sets the limit for the stack from `low` to `high` and installs the fault handler.
-void scalai_aot_stack_init(char *low, char *high) {
-    scalai_aot_stack_low = low;
-    scalai_aot_stack_high = high;
-    scalai_aot_stack_limit = low + MARGIN;
+void scivolo_aot_stack_init(char *low, char *high) {
+    scivolo_aot_stack_low = low;
+    scivolo_aot_stack_high = high;
+    scivolo_aot_stack_limit = low + MARGIN;
     size_t size = SIGSTKSZ > ALTERNATE ? SIGSTKSZ : ALTERNATE;
     stack_t ss = {.ss_sp = malloc(size), .ss_size = size, .ss_flags = 0};
     sigaltstack(&ss, 0);
@@ -60,15 +60,15 @@ void scalai_aot_stack_init(char *low, char *high) {
 
 // Lets the code that constructs a StackOverflowError use the stack's reserve (`open`), or
 // restores the limit; an overflow while constructing one stops the program, as in the VM.
-void scalai_aot_stack_reserve(int8_t open) {
+void scivolo_aot_stack_reserve(int8_t open) {
     if (!open) {
-        scalai_aot_stack_limit = saved_limit;
+        scivolo_aot_stack_limit = saved_limit;
         overflowing = 0;
         return;
     }
     if (overflowing)
-        fatal("scalai-aot: stack overflow while throwing StackOverflowError\n");
+        fatal("scivolo-aot: stack overflow while throwing StackOverflowError\n");
     overflowing = 1;
-    saved_limit = scalai_aot_stack_limit;
-    scalai_aot_stack_limit = scalai_aot_stack_low + RESERVE;
+    saved_limit = scivolo_aot_stack_limit;
+    scivolo_aot_stack_limit = scivolo_aot_stack_low + RESERVE;
 }

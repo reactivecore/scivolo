@@ -11,7 +11,7 @@ use typer::dump::library_jars;
 use typer::{Fallback, Units};
 
 fn universe() -> Option<Universe> {
-    let libs = std::env::var_os("SCALAI_LIBS")
+    let libs = std::env::var_os("SCIVOLO_LIBS")
         .map(PathBuf::from)
         .unwrap_or_else(|| Path::new(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"));
     let jars = library_jars(&libs);
