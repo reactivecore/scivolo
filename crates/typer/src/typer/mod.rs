@@ -99,6 +99,7 @@ mod no_inits;
 mod not_a_member;
 mod not_found;
 mod op_assign;
+mod overload_errors;
 mod overloads;
 mod overrides;
 mod package_members;
@@ -215,6 +216,8 @@ pub struct Typer<'a> {
     pub history: implicits::History,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
+    /// The applicable alternatives of the last overload resolution found ambiguous.
+    pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many constructs outside the subset were reported.
@@ -293,6 +296,7 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             history: Default::default(),
             protos: Vec::new(),
+            ambiguous: Vec::new(),
             unsupported: None,
             reports: 0,
             method_infos: Default::default(),
