@@ -27,12 +27,13 @@ impl Typer<'_> {
     ) -> Result<Option<TNodeId>, &'static str> {
         let Pt::Type(p) = pt else { return Ok(None) };
         let dealiased = self.dealiased(tpe);
-        let tycon = match *self.u.types().get(dealiased) {
-            Type::Applied(tycon, _) => tycon,
-            _ => dealiased,
-        };
+        let tycon = self.applied_constructor(tpe).unwrap_or(dealiased);
         let same = self.u.is_subtype(dealiased, p) && self.u.is_subtype(p, dealiased);
-        if !self.is_abstract_type(tycon) || same || has_wildcard(self.u, dealiased) {
+        let non_class = self.referenced(tycon).is_some_and(|s| {
+            self.complete(s);
+            matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type)
+        });
+        if !non_class || same || has_wildcard(self.u, dealiased) {
             return Ok(None);
         }
         let at = Span::at(self.ast.span(tpt).start());
@@ -86,6 +87,23 @@ impl Typer<'_> {
         }
         let tpt = self.type_tree(own, span.end_pos(), false);
         Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
+    }
+
+    /// The constructor of the first applied type among `t` and the aliases it follows.
+    fn applied_constructor(&mut self, mut t: TypeId) -> Option<TypeId> {
+        for _ in 0..8 {
+            match *self.u.types().get(t) {
+                Type::Applied(tycon, _) => return Some(tycon),
+                Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Type => {
+                    self.complete(s);
+                    let info = self.u.info(s);
+                    let Type::Alias(target) = *self.u.types().get(info) else { return None };
+                    t = target;
+                }
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// Whether `t` refers to a type parameter or an abstract type member.
