@@ -34,7 +34,7 @@ impl Gen<'_, '_> {
     }
 
     /// The class boxing values of primitive type `t`.
-    fn boxed_class(&mut self, t: TypeId) -> Option<TypeId> {
+    pub fn boxed_class(&mut self, t: TypeId) -> Option<TypeId> {
         let letter = match self.pool.ty(t) {
             Type::Bool => 'z',
             Type::Char => 'c',

@@ -72,9 +72,15 @@ impl Universe {
                     None => object(),
                 },
             },
-            Type::TermRef(..) => match self.resolve_ref(t) {
+            Type::TermRef(p, n) => match self.resolve_ref(t) {
                 Some(s) => self.erase_symbol(s),
-                None => object(),
+                None => match self.term_refinement_named(p, &n) {
+                    Some(info) => match *self.types().get(info) {
+                        Type::ByName(r) => self.erase(r),
+                        _ => self.erase(info),
+                    },
+                    None => object(),
+                },
             },
             Type::Applied(tycon, args) => self.erase_applied(tycon, &args),
             Type::This(c) | Type::Alias(c) | Type::Bounds(_, c) | Type::Annotated(c, _) | Type::Rec(_, c) => {

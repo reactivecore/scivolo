@@ -33,7 +33,7 @@ impl Gen<'_, '_> {
         }
         let reflective =
             self.l.u.symbol(sym).owner.is_some_and(|o| self.l.u.full_name(o) == "scala.reflect.Selectable");
-        if reflective && matches!(self.l.u.symbol(sym).name.as_str(), "selectDynamic" | "applyDynamic") {
+        if reflective && self.l.u.symbol(sym).name == "applyDynamic" {
             return unsupported(span, "reflective calls");
         }
         Ok(())
