@@ -38,7 +38,7 @@ impl Typer<'_> {
         let constant = matches!(self.u.types().get(sel_tpe), Type::Constant(..) | Type::Str(_));
         let sel_tpe = if constant { sel_tpe } else { self.widened_selector(sel_tpe) };
         let case_pt = match pt {
-            Pt::Fun(_) | Pt::PolyFun => Pt::Any,
+            Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
         let case_ids = self.ast.items(cases).to_vec();

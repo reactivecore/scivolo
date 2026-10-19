@@ -51,7 +51,7 @@ impl Typer<'_> {
         }
         let found = match self.find_ref(&text, name.is_type, ctx) {
             Ok(Some(found)) => found,
-            Ok(None) if matches!(pt, Pt::Fun(_) | Pt::PolyFun) && !name.is_type => {
+            Ok(None) if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) && !name.is_type => {
                 return self.proxy_ident(id, name, pt, ctx);
             }
             Ok(None) => {
@@ -60,7 +60,7 @@ impl Typer<'_> {
                     None => self.unsupported(id, &format!("unresolved name {text}")),
                 };
             }
-            Err("constructor proxy") if matches!(pt, Pt::Fun(_) | Pt::PolyFun) => {
+            Err("constructor proxy") if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) => {
                 return self.proxy_ident(id, name, pt, ctx);
             }
             Err(what) => return self.unsupported(id, what),

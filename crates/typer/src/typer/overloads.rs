@@ -14,8 +14,9 @@ pub enum Pt {
     Type(TypeId),
     /// A function applied to the arguments of a `FunProto`, by its index in `Typer::protos`.
     Fun(usize),
-    /// A polymorphic function applied to type arguments (dotty's `PolyProto`).
-    PolyFun,
+    /// A polymorphic function applied to type arguments, by the index of its `PolyProto` in
+    /// `Typer::poly_protos`.
+    PolyFun(usize),
     /// The method of `m _`, to be eta-expanded (dotty's `AnyFunctionProto`).
     AnyFunction,
 }

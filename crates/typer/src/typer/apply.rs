@@ -14,7 +14,7 @@ impl Typer<'_> {
         let ctx = self.arg_ctx(fun, fun_ctx);
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
-        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun);
+        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun(_));
         let result = if let Pt::Type(p) = pt { Some(p) } else { None };
         let dual = self.infix_tuple_elems(id, &arg_ids);
         self.protos.push(super::overloads::FunProto {

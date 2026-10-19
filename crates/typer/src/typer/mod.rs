@@ -108,6 +108,7 @@ mod pattern_args;
 mod pattern_bounds;
 mod patterns;
 mod plain_trees;
+mod poly_alternatives;
 mod pretyped_args;
 mod purity;
 mod qualifier_views;
@@ -212,6 +213,10 @@ pub struct Typer<'a> {
     pub history: implicits::History,
     /// The argument lists of the applications being typed.
     pub protos: Vec<overloads::FunProto>,
+    /// The type argument lists of the type applications being typed.
+    pub poly_protos: Vec<poly_alternatives::PolyProto>,
+    /// The alternatives being resolved with their type parameters instantiated, and the types.
+    pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many constructs outside the subset were reported.
@@ -290,6 +295,8 @@ impl<'a> Typer<'a> {
             implicit_budget: 0,
             history: Default::default(),
             protos: Vec::new(),
+            poly_protos: Vec::new(),
+            mapped_targs: None,
             unsupported: None,
             reports: 0,
             method_infos: Default::default(),
