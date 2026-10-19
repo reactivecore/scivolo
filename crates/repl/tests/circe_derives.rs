@@ -8,5 +8,5 @@ const DEPS: [&str; 2] = ["io.circe::circe-parser::0.14.10", "io.circe::circe-gen
 
 #[test]
 fn circe_derives_transcript_matches() {
-    transcript::check(|| deps::check_with_deps(&DEPS, "tests/repl/deps/circe-derives.check", true));
+    transcript::check(|| deps::check_with_deps(&DEPS, "tests/repl/deps/circe-derives.check"));
 }

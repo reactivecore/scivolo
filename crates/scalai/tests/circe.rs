@@ -1,4 +1,4 @@
-//! A script deriving Circe's `Codec` through its macros (`SCALAI_MACROS=on`), compiled by the own
+//! A script deriving Circe's `Codec` through its macros, compiled by the own
 //! frontend with Circe from Coursier; skipped outside CI when Coursier cannot provide it.
 
 use std::path::PathBuf;
@@ -32,7 +32,6 @@ fn circe_codec_derives_in_a_script() {
     let _ = std::fs::remove_dir_all(cache.join("scripts"));
     let out = Command::new(env!("CARGO_BIN_EXE_scalai"))
         .env("SCALAI_TIMEOUT", "300")
-        .env("SCALAI_MACROS", "on")
         .env("SCALAI_FRONTEND", "strict")
         .env("SCALAI_CACHE", &cache)
         .args(DEPS.iter().flat_map(|d| ["--dep", d]))

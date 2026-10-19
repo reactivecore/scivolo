@@ -7,6 +7,6 @@ mod transcript;
 #[test]
 fn circe_transcript_matches() {
     transcript::check(|| {
-        deps::check_with_deps(&["io.circe::circe-parser::0.14.10"], "tests/repl/deps/circe.check", false)
+        deps::check_with_deps(&["io.circe::circe-parser::0.14.10"], "tests/repl/deps/circe.check")
     });
 }
