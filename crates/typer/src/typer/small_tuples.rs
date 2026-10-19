@@ -42,10 +42,15 @@ impl Typer<'_> {
 
     /// The element types of `t` if it is a chain `A *: B *: … *: T`, `T` `EmptyTuple` or a `TupleN`.
     pub fn tuple_elements(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
+        self.tuple_elements_within(t, MAX_TUPLE_ARITY + 1)
+    }
+
+    /// `tuple_elements` of a chain of at most `pairs` `*:`.
+    pub fn tuple_elements_within(&mut self, t: TypeId, pairs: usize) -> Option<Vec<TypeId>> {
         let pair = self.resolve_full_name("scala.*:", true)?;
         let mut elems = Vec::new();
         let mut t = t;
-        for _ in 0..=MAX_TUPLE_ARITY {
+        for _ in 0..pairs {
             let d = self.u.dealias(t);
             if let Type::Applied(f, args) = self.u.types().get(d).clone()
                 && let [head, tail] = args[..]

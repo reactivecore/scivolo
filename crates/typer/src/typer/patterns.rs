@@ -90,6 +90,7 @@ impl Typer<'_> {
             _ if !ref_or_literal && self.is_error(body) => body_tpe,
             _ if implicit => body_tpe,
             Pt::Type(p) if stable_or_literal => p,
+            Pt::Type(p) if self.binds_tuple_pt(body_tpe, p) => p,
             Pt::Type(p) if !self.is_bottom_type(p) && !self.u.is_subtype(body_tpe, p) => {
                 self.u.glb(body_tpe, p)
             }

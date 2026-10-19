@@ -25,28 +25,25 @@ impl Typer<'_> {
         self.ast.with_span(fun, first);
         let app = self.ast.node(Tree::Apply { fun, args: trees });
         self.ast.with_span(app, span);
-        if ctx.mode.is(Mode::PATTERN) {
-            let sel = match pt {
-                Pt::Type(t) => self.pair_chain(t),
-                _ => Vec::new(),
-            };
-            if sel.len() == elems.len() {
-                for (&e, &t) in elems.iter().zip(&sel) {
-                    let typed = self.typed(e, Pt::Type(t), ctx);
-                    self.typed_ahead(e, typed, ctx);
+        let pts = match pt {
+            Pt::Type(t) => self.tuple_element_types(t),
+            _ => None,
+        };
+        let pts = pts.filter(|p| p.len() == elems.len()).unwrap_or_else(|| vec![tasty::ANY; elems.len()]);
+        let mut types = Vec::with_capacity(elems.len());
+        for (&e, &p) in elems.iter().zip(&pts) {
+            let typed = self.typed(e, Pt::Type(p), ctx);
+            self.typed_ahead(e, typed, ctx);
+            if !ctx.mode.is(Mode::PATTERN) {
+                let tpe = self.tpd.tpe(typed);
+                match self.widen_inferred(tpe, p, Widen::Unions) {
+                    Ok(t) => types.push(t),
+                    Err(what) => return self.unsupported(e, what),
                 }
             }
-            return self.typed(app, pt, ctx);
         }
-        let mut types = Vec::with_capacity(elems.len());
-        for &e in &elems {
-            let typed = self.typed(e, Pt::Any, ctx);
-            let tpe = self.tpd.tpe(typed);
-            match self.widen_inferred(tpe, tasty::ANY, Widen::Unions) {
-                Ok(t) => types.push(t),
-                Err(what) => return self.unsupported(e, what),
-            }
-            self.typed_ahead(e, typed, ctx);
+        if ctx.mode.is(Mode::PATTERN) {
+            return self.typed(app, pt, ctx);
         }
         let Some(class) = self.resolve_full_name("scala.runtime.TupleXXL", true) else {
             return self.unsupported(id, "TupleXXL missing from the library");
@@ -90,21 +87,18 @@ impl Typer<'_> {
         acc
     }
 
-    /// The element types of `t` if it is a chain `A *: B *: … *: EmptyTuple`, else none.
-    fn pair_chain(&mut self, t: TypeId) -> Vec<TypeId> {
-        let Some(pair) = self.resolve_full_name("scala.*:", true) else { return Vec::new() };
-        let mut elems = Vec::new();
-        let mut t = self.u.widen(t);
-        loop {
-            let d = self.u.dealias(t);
-            match self.u.types().get(d).clone() {
-                Type::Applied(f, args) if args.len() == 2 && self.u.class_symbol(f) == Some(pair) => {
-                    elems.push(args[0]);
-                    t = args[1];
-                }
-                _ => return elems,
-            }
-        }
+    /// The element types of tuple type `t` of any length (dotty's `tupleElementTypes`).
+    fn tuple_element_types(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
+        let t = self.u.widen(t);
+        self.tuple_elements_within(t, usize::MAX)
+    }
+
+    /// Whether a bind over a pattern of type `body` has expected type `pt` as its type: `body`
+    /// the `TupleXXL` class and `pt` a tuple type (dotty's `typedBind`).
+    pub fn binds_tuple_pt(&mut self, body: TypeId, pt: TypeId) -> bool {
+        let xxl = self.resolve_full_name("scala.runtime.TupleXXL", true);
+        let class = matches!(self.u.types().get(body), Type::Sym(..) | Type::TypeRef(..));
+        class && xxl.is_some() && self.u.class_symbol(body) == xxl && self.tuple_element_types(pt).is_some()
     }
 
     /// `qual.$asInstanceOf$[to]` (dotty's `cast`).
