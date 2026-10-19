@@ -24,9 +24,7 @@ impl Typer<'_> {
         if !path_to(self.ast, root, id, &mut path) || path.windows(2).any(|w| uncertain_edge(self.ast, w)) {
             return None;
         }
-        let parent = path.len().checked_sub(2).map(|i| self.ast.tree(path[i]));
-        let applied = matches!(parent, Some(&Tree::Apply { fun, .. }) if fun == id);
-        let message = self.missing_ident(&text, name.is_type, applied, ctx)?;
+        let message = self.missing_ident(&text, name.is_type, ctx)?;
         Some(self.error(id, message))
     }
 

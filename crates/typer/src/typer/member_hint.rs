@@ -33,7 +33,9 @@ impl Typer<'_> {
                     continue;
                 }
                 let plain_class = is_type && !module_class;
-                if matches!(s.kind, Kind::Param | Kind::TypeParam) || s.kind == Kind::Class && !plain_class {
+                let odd_kind =
+                    matches!(s.kind, Kind::Param | Kind::TypeParam) || s.kind == Kind::Class && !plain_class;
+                if odd_kind || !close(&units, &s.name) {
                     return None;
                 }
                 let d_units = distance(&units, &s.name.encode_utf16().collect::<Vec<_>>());
@@ -48,7 +50,6 @@ impl Typer<'_> {
             return None;
         }
         found.sort_by(|a, b| (a.0, &a.1).cmp(&(b.0, &b.1)));
-        found.dedup_by(|a, b| a.1 == b.1);
         let mut qualifying = Vec::new();
         for (d, name, sym) in found {
             if self.is_accessible_from(sym, Some(site), ctx) {
@@ -59,13 +60,10 @@ impl Typer<'_> {
         let prefix = self.hint_prefix(site)?;
         let alts: Vec<String> = qualifying[1..]
             .iter()
-            .filter(|(d, _)| *d == best)
-            .take(3)
+            .take_while(|(d, _)| *d == best)
             .map(|(_, n)| format!("{prefix}{n}"))
             .collect();
-        let suffix =
-            if alts.is_empty() { String::new() } else { format!(" or perhaps {}?", alts.join(" or ")) };
-        Some(format!(" - did you mean {prefix}{first}?{suffix}"))
+        Some(super::errors::did_you_mean(&format!("{prefix}{first}"), &alts))
     }
 
     /// What dotty's hint writes before a suggested member of `site`: a named type's name and a

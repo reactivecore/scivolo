@@ -51,3 +51,14 @@ pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Messag
     let kind = if is_type { "type" } else { "value" };
     message(8, "Not Found", false, format!("{kind} {name} is not a member of {site}{hint}"))
 }
+
+/// The hint of dotty's `didYouMean` for the best name `first` and the other names at its
+/// distance, `alts`, sorted.
+pub fn did_you_mean(first: &str, alts: &[String]) -> String {
+    let mut shown: Vec<&str> = alts.iter().map(String::as_str).filter(|&a| a != first).take(3).collect();
+    shown.dedup();
+    match shown.is_empty() {
+        true => format!(" - did you mean {first}?"),
+        false => format!(" - did you mean {first}? or perhaps {}?", shown.join(" or ")),
+    }
+}
