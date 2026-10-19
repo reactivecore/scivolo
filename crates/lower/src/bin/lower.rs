@@ -35,7 +35,8 @@ fn main() {
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));
         vm::Vm::new(classpath).unwrap_or_else(|e| fail(&format!("the macro VM: {e}")))
     });
-    let mut runner = vm.as_mut().map(|vm| VmMacros { vm });
+    let copies = || sources.iter().map(|s| SourceFile::new(s.name.clone(), s.text.clone())).collect();
+    let mut runner = vm.as_mut().map(|vm| VmMacros { vm, sources: copies() });
     let macros = runner.as_mut().map(|r| r as &mut dyn Macros);
     let lowered = match &sources[..] {
         [one] => lower::compile_with(&mut u, one, Config::from_options(&[]), macros),
