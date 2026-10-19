@@ -79,8 +79,16 @@ impl Typer<'_> {
         self.tpd.node(T::WhileDo { cond, body }, span, Some(unit), None)
     }
 
+    /// Whether identifier `qual`'s type has a structural refinement `setter`.
+    fn structural_setter(&mut self, qual: NodeId, setter: &str, ctx: Ctx) -> bool {
+        let q = self.typed(qual, Pt::Any, ctx);
+        let pre = self.tpd.tpe(q);
+        let pre = self.u.widen(pre);
+        self.u.term_refinement_named(pre, setter).is_some()
+    }
+
     /// `x = v` for a variable `x`, or a dynamic `updateDynamic` call typed for `pt` (dotty's
-    /// `typedAssign`, without setters).
+    /// `typedAssign`); `q.x = v` with a structural setter `x_=` becomes `q.x_=(v)`.
     pub fn typed_assign(&mut self, id: NodeId, (lhs, rhs): (NodeId, NodeId), pt: Pt, ctx: Ctx) -> TNodeId {
         if let syntax::ast::Tree::Apply { fun, args } = *self.ast.tree(lhs) {
             let name = TName { name: self.name("update"), is_type: false };
@@ -95,6 +103,7 @@ impl Typer<'_> {
             self.ast.with_span(update, span);
             return self.typed_apply(update, select, args, Pt::Any, ctx);
         }
+        let lhs_tree = lhs;
         let outer = self.dynamic_lhs.replace(lhs);
         let lhs = self.typed(lhs, Pt::Any, ctx);
         self.dynamic_lhs = outer;
@@ -105,7 +114,23 @@ impl Typer<'_> {
             let s = self.u.symbol(s);
             s.kind == Kind::Val && s.flags.has(tasty::tags::MUTABLE)
         });
-        let Some(var) = var else { return self.unsupported(id, "assignment to a non-variable") };
+        let Some(var) = var else {
+            if let syntax::ast::Tree::Select { qualifier, name } = *self.ast.tree(lhs_tree)
+                && matches!(self.ast.tree(qualifier), syntax::ast::Tree::Ident { .. })
+                && !self.is_error(lhs)
+                && self.structural_setter(qualifier, &format!("{}_=", self.text(name.name)), ctx)
+            {
+                let setter = format!("{}_=", self.text(name.name));
+                let name = TName { name: self.name(&setter), is_type: false };
+                let select = self.ast.node(syntax::ast::Tree::Select { qualifier, name });
+                self.ast.with_span(select, self.ast.span(lhs_tree));
+                let args = self.ast.list(&[rhs]);
+                let call = self.ast.node(syntax::ast::Tree::Apply { fun: select, args });
+                self.ast.with_span(call, self.ast.span(id));
+                return self.typed_apply(call, select, args, Pt::Any, ctx);
+            }
+            return self.unsupported(id, "assignment to a non-variable");
+        };
         self.complete(var);
         let info = self.u.info(var);
         let rhs = self.typed(rhs, Pt::Type(info), ctx);
