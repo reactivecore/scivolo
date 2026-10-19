@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Type patterns of abstract types (dotty's `tryWithTypeTest`, and the unchecked warning of
 //! `TypeTestsCasts.checkTypePattern`).
 

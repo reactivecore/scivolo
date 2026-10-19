@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/ast/DesugarEnums.scala
 //! Enum classes and enum case classes: the cases moved out of the enum's body, the type
 //! parameters a case takes over from its enum, and its parent.
 

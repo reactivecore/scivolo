@@ -1,5 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The size of a type and the symbols it is built from, which the divergence check compares
-//! (dotty's `typeSize`, `coveringSet`).
+//! (dotty's `typeSize`, `coveringSet`, their `TypeSizeAccumulator` and `CoveringSetAccumulator`).
 
 use super::super::Typer;
 use tasty::{SymbolId, Type, TypeId, TypeVars, VarId};

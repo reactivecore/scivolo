@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! String concatenation: the operands of `a + b + …` appended to a `StringBuilder` (nscplugin's
 //! `genStringConcat`, `genStringBuilderAppend`).
 

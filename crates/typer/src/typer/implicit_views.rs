@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Whether an implicit definition may convert a class to a type with a given member or to a given
 //! type, or offer an extension method of that name (dotty's `candidateKind` for a view prototype).
 

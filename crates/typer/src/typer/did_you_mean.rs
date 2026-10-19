@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/DidYouMean.scala
 //! The names dotty's "did you mean" hints may suggest, of either kind, and `closestTo`'s
 //! distance (dotty's `DidYouMean`).
 

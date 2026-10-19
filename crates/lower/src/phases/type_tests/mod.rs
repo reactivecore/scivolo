@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! Type tests and casts as dotty's `TypeTestsCasts` erases them: `x.isInstanceOf[T]` as a null
 //! check if it holds statically in a match, a constant for a primitive value, else as a test of
 //! `T`'s erased class, a value class itself, the box class for a primitive; casts in

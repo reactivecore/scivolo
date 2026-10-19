@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TransformWildcards.scala
+//   compiler/src/dotty/tools/dotc/transform/UninitializedDefs.scala
 //! dotty's `UninitializedDefs`: a variable of a class whose right-hand side is
 //! `compiletime.uninitialized` gets `_` instead, a field without an initializer; and
 //! `TransformWildcards` for such fields that become values of the constructor.

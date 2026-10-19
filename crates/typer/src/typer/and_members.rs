@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Denotations.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The members of an intersection from those of its sides (dotty's `goAnd`, `Denotation.meet`
 //! with `mergeSingleDenot`).
 

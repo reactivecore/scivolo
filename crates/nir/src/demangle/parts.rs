@@ -1,3 +1,6 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Sig.scala
+//   nir/src/main/scala/scala/scalanative/nir/Unmangle.scala
 //! Parts of mangled signatures: names, types, the proxy signature of a method.
 
 use super::Demangler;

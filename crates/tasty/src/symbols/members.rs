@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Members of types (dotty's `Type.member`): through `this` and paths, of a class type, through
 //! aliases and upper bounds, both sides of an intersection, the first base class common to all
 //! parts of a union that declares the name. Refinements carry no symbols, so a refinement's

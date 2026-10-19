@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/PositionUnpickler.scala
 //! The Positions section: the span of each tree that pickled one, by its address
 //! (dotty's `PositionUnpickler`).
 

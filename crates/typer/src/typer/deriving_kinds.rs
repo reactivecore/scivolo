@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Deriving.scala
 //! The shape of a derived instance by the kinds of the type class's parameter and the deriving
 //! class's type parameters (dotty's `deriveSingleParameter` and `deriveCanEqual`).
 

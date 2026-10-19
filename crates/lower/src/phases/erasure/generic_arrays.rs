@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! Members of arrays of an element type erasure does not know, as `ScalaRunTime`'s
 //! `array_apply`, `array_update`, `array_length` and `array_clone` (dotty's `selectArrayMember`).
 

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! `constValueTuple` and `summonAll` (dotty's `InlineCall.expand` intrinsics with
 //! `unrollTupleTypes` and `tupleTree`).
 

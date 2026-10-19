@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/NonLocalReturns.scala
 //! dotty's `NonLocalReturns`: a return from a method other than the one it is in throws a
 //! `NonLocalReturnControl` with the method's key, and the method catches it:
 //! `{ val key = new Object(); try body catch { case ex: NonLocalReturnControl =>

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   library/src/scala/util/FromDigits.scala
 //! Numbers from their digits, as `scala.util.FromDigits`.
 
 pub fn int(digits: &str, radix: u32) -> Result<i32, &'static str> {

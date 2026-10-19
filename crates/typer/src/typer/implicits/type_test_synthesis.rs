@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Synthesized `TypeTest[S, T]` (dotty's `synthesizedTypeTest`): `TypeTest.identity[T]` if `S`
 //! conforms to `T`, else `(s: S) => if s.isInstanceOf[T] then Some(s.asInstanceOf[s.type & T])
 //! else None`.

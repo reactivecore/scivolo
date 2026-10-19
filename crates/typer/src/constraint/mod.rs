@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
+//   compiler/src/dotty/tools/dotc/core/OrderingConstraint.scala
 //! The bounds and instances of the type variables of a unit (dotty's `OrderingConstraint`,
 //! without the ordering between variables), with an undo log for `either` and failed
 //! comparisons and abandoned attempts.

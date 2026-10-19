@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TryCatchPatterns.scala
 //! dotty's `TryCatchPatterns`: the catch cases from the first one that is not a type test of a
 //! simple exception class or a default case become a match on the exception in a last case,
 //! rethrowing what no case matches.

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/util/Spans.scala
 //! Spans as dotty's `util.Spans`: start, end, and a point unless the span is synthetic.
 
 use crate::source::Offset;

@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;

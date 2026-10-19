@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/ReplBytecodeAnalysis.scala
 //! The natives of the REPL's value printer `scivolo.repl.Show` in the overlay.
 
 use super::NativeFn;
@@ -37,7 +39,8 @@ fn has_user_to_string(vm: &mut Vm, args: &[u64]) -> Flow {
     Ok(!synthesized(&vm.world.pool, &body.insts) as u64)
 }
 
-/// Whether `insts` only return `ScalaRunTime._toString(this)`, `this` cast or not.
+/// Whether `insts` only return `ScalaRunTime._toString(this)`, `this` cast or not (dotty's
+/// `ReplBytecodeAnalysis.isSynthesizedToString`).
 fn synthesized(pool: &Pool, insts: &[Inst]) -> bool {
     let [Inst::Label(_, params), lets @ .., Inst::Ret(_)] = insts else { return false };
     let Some(this) = params.first() else { return false };

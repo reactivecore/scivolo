@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/config/SourceVersion.scala
 /// The `-source` version, as dotty's `SourceVersion`: `3.minor` or `future`, possibly in
 /// its `-migration` variant, which counts as the version itself in comparisons.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

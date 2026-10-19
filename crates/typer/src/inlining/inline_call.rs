@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! One inline call replaced by its expansion: the operations of `scala.compiletime` reduced, any
 //! other call by an `Inlined` tree of its body (dotty's `Inlines.inlineCall`, `InlineCall.expand`).
 

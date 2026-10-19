@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/InterceptedMethods.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! Equality and hashes of references: `eq`, `ne`, `==`, `!=`, `##` (nscplugin's
 //! `genClassEquality`, `genClassUniversalEquality`, `genHashCode`).
 

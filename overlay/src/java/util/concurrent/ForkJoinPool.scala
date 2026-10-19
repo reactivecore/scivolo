@@ -1,3 +1,7 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); changed:
+//   javalib/src/main/scala/java/util/concurrent/ForkJoinPool.scala
+// ForkJoinPool.scala: written by Doug Lea with assistance from members of JCP JSR-166 Expert
+// Group and released to the public domain (CC0).
 package java.util.concurrent
 
 /** `helpAsyncBlocker`, which does nothing on threads other than workers. */

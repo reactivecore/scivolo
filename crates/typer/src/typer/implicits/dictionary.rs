@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! The dictionary of an outermost implicit search's by-name implicits: a local class with a value
 //! per implicit, and its instance (dotty's `SearchRoot.emitDictionary`).
 

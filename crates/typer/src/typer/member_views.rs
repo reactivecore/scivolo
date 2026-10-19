@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/ImportSuggestions.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Whether dotty may supply a member a qualifier lacks through an extension method or an implicit
 //! view, or suggest an import of one (dotty's `tryExtensionOrConversion`, `ImportSuggestions`):
 //! one named so, or one whose result may have the member, in the script or a Scala library object;

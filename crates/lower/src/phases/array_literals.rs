@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ArrayApply.scala
 //! The array part of dotty's `ArrayApply`: `Array(xs*)` with a class tag of a class literal, and
 //! `Array(x, xs*)`, become array literals.
 

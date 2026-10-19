@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! The expected result type of an application: the result constrained by it (dotty's
 //! `constrainResult`), overload resolution revisited by it (`adaptByResult`, `resultConforms`).
 
@@ -92,8 +95,8 @@ impl Typer<'_> {
 
     /// `t` as a value compared with `pt` (dotty's `normalize`): type parameters made type
     /// variables, implicit clauses stripped, a by-name type's result, a method as a function
-    /// type, a context function's result unless `t` itself is one and not `follow`; `None` where
-    /// outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
+    /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);
+    /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
     /// the result refers to are approximated by their types (dotty's `resultTypeApprox`).
     fn proto_normalized(
         &mut self,

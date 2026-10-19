@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
+//   compiler/src/scala/quoted/runtime/impl/QuoteMatcher.scala
 //! Type bindings of patterns: the types a scrutinee's type gives the type variables of a pattern
 //! type it conforms to (dotty's GADT approximation of quote pattern and inline match type
 //! binds); the runtime of `QuoteMatching.ExprMatch.unapply` for a quote pattern of a typed term
@@ -75,7 +78,8 @@ fn collect_variances(
 }
 
 /// The types bindings `binds` stand for if `scrutinee` conforms to `pattern`, which refers to
-/// them; each its lower bound, its upper one if approximated from above, unless instantiated.
+/// them; each its lower bound, its upper one if approximated from above, unless instantiated
+/// (dotty's `typeHoleApproximation`).
 pub fn bound_types(
     u: &mut Universe,
     scrutinee: TypeId,

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! References to local symbols escaping their scope (dotty's `escapingRefs`).
 
 use super::Typer;

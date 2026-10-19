@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! The parameters of a class: its constructor's, and the copies dotty derives from them for
 //! accessors and synthetic methods (dotty's `toMethParam`, `derivedTypeParam`,
 //! `derivedTermParam`).

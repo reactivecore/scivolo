@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! Selections of a member the qualifier's type lacks (dotty's `NotAMember`), reported where
 //! dotty finds no member, conversion or extension either and adds no addendum.
 

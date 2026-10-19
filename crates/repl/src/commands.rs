@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/ParseResult.scala
 //! The REPL's commands: `:` and a letter, then an argument (dotty's `ParseResult.commands`).
 
 #[derive(Debug, PartialEq, Eq)]

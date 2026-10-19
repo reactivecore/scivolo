@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirCodeGen.scala
 //! NIR generation from the lowered trees: a port of Scala Native's nscplugin, no native interop.
 
 mod apply;

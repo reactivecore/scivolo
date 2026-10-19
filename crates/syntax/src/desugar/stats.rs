@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Statement lists, blocks and templates: definitions expanded as dotty's Namer enters them.
 
 use super::{Desugar, Mode};

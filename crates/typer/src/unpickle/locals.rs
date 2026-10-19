@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Blocks with their local definitions, closures of local methods and inlined trees with their
 //! bindings, typed as `TypeAssigner` types them: a type referring to the locals avoided.
 

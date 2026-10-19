@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/ReplCompiler.scala
 //! An input's statements as a compilation unit, as dotty's `ReplPhase` wraps them: expressions
 //! become `val res<N> = e`, the statements the body of `object rs$line$<N>` in the empty
 //! package, after the imports of earlier lines; then desugared.

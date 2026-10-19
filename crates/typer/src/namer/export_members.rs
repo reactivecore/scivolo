@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Which members of an export's path get forwarders: those a wildcard selects, those that may
 //! be forwarded at all (dotty's `addWildcardForwarders`, `canForward`), and default getters.
 

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Bridges.scala
+//   compiler/src/dotty/tools/dotc/transform/OverridingPairs.scala
 //! dotty's `Bridges`: a class, not a trait, gets a bridge for each overriding pair of its
 //! members whose erasures differ, of the overridden member's type, calling the overriding one
 //! with its arguments cast where their erasures differ.

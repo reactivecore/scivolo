@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Constructors.scala
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! The secondary constructors of a class holding its enclosing instance: each takes it as its
 //! own leading parameter `$outer`, passes it on in its self-constructor call and reads it for the
 //! enclosing instance (dotty's outer parameters of constructors and `Constructors.mapOuter`).

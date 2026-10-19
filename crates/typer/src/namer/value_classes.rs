@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //! The rules of value classes (dotty's `Checking.checkDerivedValueClass`), with the messages of
 //! `reporting/messages.scala`.
 

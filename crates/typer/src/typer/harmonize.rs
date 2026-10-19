@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Where dotty's `harmonize` would convert numeric values to a common class, which the typer
 //! refuses.
 

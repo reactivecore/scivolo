@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/AttributeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/core/tasty/TastyUnpickler.scala
+//   tasty/src/dotty/tools/tasty/TastyHeaderUnpickler.scala
 use crate::cursor::{Cursor, Result};
 use crate::names::{NameRef, Names};
 use crate::tags::{MAJOR_VERSION, MINOR_VERSION};

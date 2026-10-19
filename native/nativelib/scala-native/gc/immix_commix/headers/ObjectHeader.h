@@ -1,3 +1,4 @@
+// Changed for Scivolo: lines marked "scivolo:".
 #ifndef IMMIX_OBJECTHEADER_H
 #define IMMIX_OBJECTHEADER_H
 

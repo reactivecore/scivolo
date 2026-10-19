@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
 //! Patterns matched against a scrutinee known at the inline call (dotty's `reducePattern`).
 
 use super::Reducer;

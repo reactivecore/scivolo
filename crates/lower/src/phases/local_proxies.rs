@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! The fields and constructor parameters standing for the values local classes use, and the
 //! order in which the local classes are named.
 

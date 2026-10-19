@@ -1,3 +1,6 @@
+// Derived from PPrint (MIT, see licenses/pprint.txt); translated and changed:
+//   pprint/src/pprint/Walker.scala
+// Copyright (c) 2019 Li Haoyi.
 package scivolo.repl
 
 /** A value as pretty-printable text, its children computed lazily. */

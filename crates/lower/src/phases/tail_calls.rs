@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TailRec.scala
 //! dotty's `TailRecElimination`: each call of a method to itself in tail position becomes the
 //! assignment of its arguments to variables for the receiver and the parameters, and a jump.
 

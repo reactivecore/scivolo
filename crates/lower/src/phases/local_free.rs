@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Dependencies.scala
 //! The local values a local class uses (dotty's `Dependencies` for classes): free in the class
 //! where its methods use them, else only in its constructor.
 

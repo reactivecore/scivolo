@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The members of `quotes.reflect` macros may use, over the typer's trees, types and symbols
 //! (dotty's `QuotesImpl.reflect`).
 

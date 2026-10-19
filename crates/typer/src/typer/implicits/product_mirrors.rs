@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! A `Mirror` search (dotty's `synthesizedMirror`), and the product mirrors of case classes and
 //! singletons (`productMirror`): the companion, the singleton or an anonymous class, cast to the
 //! mirror type.

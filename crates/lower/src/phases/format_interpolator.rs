@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/localopt/StringInterpolatorOpt.scala
 //! `f` interpolations (dotty's `StringInterpolatorOpt.transformF`): `StringContext(parts*).f(args*)`
 //! becomes `new StringOps(format).format(args*)`, `format` the checked format string of the parts.
 

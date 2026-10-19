@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameKinds.scala
+//   compiler/src/dotty/tools/dotc/core/NameOps.scala
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! The names `Mixin` gives accessors: trait setters `T$_setter_$x_=` (dotty's `TraitSetterName`)
 //! and the expanded names `p$T$$x` of private trait members (dotty's `expandedName`).
 

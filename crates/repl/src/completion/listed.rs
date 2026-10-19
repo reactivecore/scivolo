@@ -1,3 +1,9 @@
+// Derived from JLine 4.0.14 (BSD-3-Clause, see licenses/jline.txt); translated to Rust and changed:
+//   reader/src/main/java/org/jline/reader/impl/CompletionMatcherImpl.java
+//   reader/src/main/java/org/jline/reader/impl/LineReaderImpl.java
+//   reader/src/main/java/org/jline/reader/impl/ReaderUtils.java
+//   terminal/src/main/java/org/jline/utils/Levenshtein.java
+// Copyright (c) 2002-2023, the original author or authors.
 //! What JLine lists for the REPL's labels and the word under the cursor (`CompletionMatcherImpl`
 //! with the REPL's options, `LineReaderImpl.computePost` with groups).
 

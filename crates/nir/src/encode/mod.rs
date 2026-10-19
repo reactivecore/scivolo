@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/serialization/BinarySerializer.scala
 //! Writes definitions as one NIR file, which `decode` reads back; interned nodes are written
 //! once per file, each after the nodes it refers to.
 

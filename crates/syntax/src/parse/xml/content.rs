@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/xml/MarkupParserCommon.scala
+//   compiler/src/dotty/tools/dotc/parsing/xml/MarkupParsers.scala
+// MarkupParserCommon.scala: Copyright (c) 2003-2013, LAMP/EPFL.
 //! Elements and their content: text, references, CDATA, comments and processing instructions.
 
 use super::lexical::SU;

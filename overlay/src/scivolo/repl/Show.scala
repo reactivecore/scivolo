@@ -1,3 +1,9 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); changed:
+//   repl/src/dotty/tools/repl/Rendering.scala
+// Derived from PPrint (MIT, see licenses/pprint.txt); translated and changed:
+//   pprint/src/pprint/ProductSupport.scala
+//   pprint/src/pprint/Walker.scala
+// Copyright (c) 2019 Li Haoyi.
 package scivolo.repl
 
 import scala.collection.immutable.{HashMap, HashSet}

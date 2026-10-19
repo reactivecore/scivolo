@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Whether constructing a class runs no initialization code (dotty's `NoInits`, as
 //! `TreeUnpickler` computes it from the template: `parentsKind` and the body's statements).
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/quoted/TastyString.scala
 //! The TASTy of a pickled quote from its string form (dotty's `TastyString.unpickle`): Base64.
 
 /// The bytes Base64 text `text` encodes; `None` if it is not Base64.

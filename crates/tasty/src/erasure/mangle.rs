@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Mangle.scala
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenName.scala
 //! Scala Native's mangled member names (`nir/Mangle.scala`, nscplugin's `NirGenName`) of
 //! methods, from their erased types.
 
@@ -78,6 +83,8 @@ impl Universe {
         self.erased_method_as(def, true)
     }
 
+    /// The erasure of method `def`, as Scala 2 erases it for a method of a Scala 2 class that is
+    /// not inline (dotty's `SourceLanguage`).
     fn erased_method_as(&mut self, def: SymbolId, semi: bool) -> (Vec<Erased>, Erased) {
         if let Some(e) = self.erased_memo(def, semi) {
             return e.clone();

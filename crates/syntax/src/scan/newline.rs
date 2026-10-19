@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! Inserting NEWLINE, NEWLINES, INDENT and OUTDENT before a token that starts a line.
 
 use super::Scanner;

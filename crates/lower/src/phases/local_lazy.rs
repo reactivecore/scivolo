@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
 //! dotty's `LazyVals.transformLocalDef`: a local lazy value becomes a `LazyRef` holder at the
 //! start of its block, a synchronized `$lzyINIT` method and an accessor the references call.
 

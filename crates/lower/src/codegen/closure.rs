@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! Closures: per closure an anonymous class `C$$Lambda$N` of the function type, its fields the
 //! captured values, its abstract methods calling the lifted method (nscplugin's `genClosure`).
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/MainProxies.scala
 //! The classes that start `@main` methods (dotty's `MainProxies`): for `@main def f()`,
 //! `final class f { @static def main(args: Array[String]): Unit = try f() catch
 //! case error: ParseError => showError(error) }`.

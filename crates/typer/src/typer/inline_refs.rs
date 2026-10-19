@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/PrepareInlineable.scala
 //! References that inlining makes outside the subset: calls the typer or the `inlining` phase
 //! would expand or reject, and references from inline bodies that need inline accessors.
 

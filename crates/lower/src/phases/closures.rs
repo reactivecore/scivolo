@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! The closures of lifted lambdas: the functional interface a closure implements (a specialized
 //! `JFunctionN`, a `JProcedureN`, else its function type), its `$adapted` method where parameters
 //! or result erase differently from its abstract method's (dotty's `Erasure.adaptClosure`), and

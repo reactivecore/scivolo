@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Default arguments as getter calls (dotty's `findDefaultGetter`, `spliceMeth`).
 
 use super::Typer;
@@ -9,7 +11,7 @@ use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     /// The default argument for parameter `n` of `method`, which call `f` applies (dotty's
-    /// `defaultArgument`).
+    /// `defaultArgument` in `tryDefault`).
     pub fn default_arg(
         &mut self,
         f: TNodeId,

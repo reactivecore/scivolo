@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! The methods of local traits (dotty's `LambdaLift` for traits): each using local values of the
 //! enclosing methods takes them first, as parameters; its calls pass them.
 

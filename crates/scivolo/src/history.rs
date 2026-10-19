@@ -1,4 +1,8 @@
-//! The REPL's input history in JLine's file format (`<epoch millis>:<escaped line>`).
+// Derived from JLine 4.0.14 (BSD-3-Clause, see licenses/jline.txt); translated to Rust and changed:
+//   reader/src/main/java/org/jline/reader/impl/history/DefaultHistory.java
+// Copyright (c) 2002-2023, the original author or authors.
+//! The REPL's input history in JLine's file format (`<epoch millis>:<escaped line>`), as JLine's
+//! `DefaultHistory` keeps it.
 
 use std::collections::HashSet;
 use std::fs::OpenOptions;
@@ -30,7 +34,7 @@ pub fn load(path: &Path) -> Vec<String> {
     entries.into_iter().filter_map(entry).collect()
 }
 
-/// The entry that input `line` adds after entry `last`, if any.
+/// The entry that input `line` adds after entry `last`, if any (the filters of `DefaultHistory.add`).
 pub fn accept(last: Option<&str>, line: &str) -> Option<String> {
     if line.starts_with(' ') {
         return None;
@@ -61,7 +65,7 @@ pub fn append(path: &Path, line: &str) -> io::Result<()> {
 }
 
 /// Trims the file at `path` to its last `FILE_MAX` distinct entries when it holds more than
-/// `TRIM_ABOVE` lines; of equal entries (trimmed), the last stays.
+/// `TRIM_ABOVE` lines; of equal entries (trimmed), the last stays (`DefaultHistory.trimHistory`).
 fn trim_if_needed(path: &Path) -> io::Result<()> {
     let bytes = std::fs::read(path)?;
     let lines = lines(&bytes);
@@ -157,6 +161,7 @@ fn java_trim(s: &str) -> &str {
     s.trim_matches(|c| c <= ' ')
 }
 
+/// `s` with line breaks and `\` escaped (`DefaultHistory.escape`).
 fn escape(s: &str) -> String {
     s.chars().fold(String::with_capacity(s.len()), |mut out, c| {
         match c {
@@ -169,6 +174,7 @@ fn escape(s: &str) -> String {
     })
 }
 
+/// `s` with the escapes of `escape` undone (`DefaultHistory.unescape`).
 fn unescape(s: &str) -> String {
     let (mut out, mut chars) = (String::with_capacity(s.len()), s.chars());
     while let Some(c) = chars.next() {

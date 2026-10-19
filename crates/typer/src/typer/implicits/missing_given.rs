@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! Implicit arguments no candidate can supply (dotty's `MissingImplicitArgument` without an
 //! addendum), reported where neither the unit nor the library defines an implicit of the type.
 

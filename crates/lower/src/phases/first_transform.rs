@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/transform/FirstTransform.scala
 //! The constant folding of dotty's `FirstTransform`: a pure reference to a value of constant
 //! type, and a pure block of constant type, becomes the constant; a conditional on a constant
 //! its branch.

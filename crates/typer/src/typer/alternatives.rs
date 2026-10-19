@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Choosing among the alternatives a name denotes by the shape of an application: values
 //! without `apply` dropped, methods by the number of arguments they take (dotty's
 //! `narrowBySize` with `sizeFits`), before overload resolution.

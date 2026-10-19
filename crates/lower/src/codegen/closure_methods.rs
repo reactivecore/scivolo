@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! The methods of a closure's anonymous class: the constructor storing the captured values, and
 //! the abstract methods calling the lifted method (nscplugin's `genAnonymousClassCtor`,
 //! `genAnonClassMethod`).

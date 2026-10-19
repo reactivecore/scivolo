@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/BetaReduce.scala
 //! Applications of closures reduced to the closures' bodies, the arguments bound to the
 //! parameters (dotty's `BetaReduce`, without polymorphic functions and anonymous classes).
 

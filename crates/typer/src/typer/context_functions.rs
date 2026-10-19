@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Context functions: a term expected to be one wrapped in a context closure (dotty's
 //! `makeContextualFunction`), a context function value applied to its implicit arguments
 //! (dotty's `adaptNoArgsOther`).
@@ -20,7 +25,8 @@ impl Typer<'_> {
     }
 
     /// `id` typed against context function type `pt` as `(contextual$1: A, …) ?=> id` (dotty's
-    /// `makeContextualFunction`); `None` where dotty types `id` as it is.
+    /// `makeContextualFunction`, the check of `typedUnadapted` with `isApplyProto`); `None` where
+    /// dotty types `id` as it is.
     pub fn contextual_function(&mut self, id: NodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
         let Pt::Type(p) = pt else { return None };
         if ctx.mode.is(Mode::PATTERN)

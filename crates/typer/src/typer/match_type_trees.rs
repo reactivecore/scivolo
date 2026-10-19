@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Match type trees (dotty's `typedMatchTypeTree` and `typedTypeCase`): a case is a
 //! `MatchCase` under a type lambda over the type variables its pattern binds.
 

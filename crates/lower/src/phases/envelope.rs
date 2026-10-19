@@ -1,4 +1,7 @@
-//! The spans of trees made by the phases, as dotty's `Positioned` gives them: the union of
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Positioned.scala
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//! The spans of trees made by the phases, as dotty's `Positioned.envelope` gives them: the union of
 //! their children's, and to children without one the end of those before, else the start of
 //! those after.
 

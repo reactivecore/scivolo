@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/serialization/Prelude.scala
 //! The 45-byte file header: magic, version and the eight section offsets.
 
 use crate::cursor::{Cursor, Result};

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ElimByName.scala
 //! dotty's `ElimByName`: `f(e)` for `f(x: => T)` becomes
 //! `f({ def $anonfun(): T = e; closure($anonfun) })`, the closure owned by the definition the
 //! call is in, unless `e` is itself a by-name parameter, passed on as is; any other reference to

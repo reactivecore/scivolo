@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/AdaptLazyVals.scala
 //! The `$lzyINIT` method of a lazy value (dotty's `mkThreadSafeDef`): a loop reading the field
 //! that computes the value after setting the field from `null` to `Evaluating`, waits while
 //! another thread computes it, or returns it. Trees are made in dotty's order, sharing the trees

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Dynamic.scala
 //! Structural refinements `{ val a: T; def m(x: A): R }` and selections of their members
 //! (dotty's `handleStructural`).
 
@@ -155,7 +157,8 @@ impl Typer<'_> {
         self.structural_cast(id, call, result)
     }
 
-    /// The untyped `qual.selector` at `span` and the literal `"name"` after it.
+    /// The untyped `qual.selector` at `span` and the literal `"name"` after it (dotty's
+    /// `structuralCall`).
     fn structural_fun(&mut self, qual: TNodeId, selector: &str, name: &str, span: Span) -> (NodeId, NodeId) {
         let qualifier = self.spliced(qual);
         let selector = TName { name: self.name(selector), is_type: false };

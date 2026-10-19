@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameOps.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala
 //! Assignment operators `x op= y` typed as `x = x op y` when `x` has no member `op=` (dotty's
 //! `typedOpAssign`).
 

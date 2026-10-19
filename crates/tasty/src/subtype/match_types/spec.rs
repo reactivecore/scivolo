@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The cases of a match type as SIP-56 patterns (dotty's `MatchTypeCaseSpec.analyze` and
 //! `tryConvertToSpecPattern`).
 

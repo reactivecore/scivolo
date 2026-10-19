@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/util/SourceFile.scala
 //! A source file: its text and the line index dotty's `SourceFile` computes.
 
 /// Byte offset into a source text.

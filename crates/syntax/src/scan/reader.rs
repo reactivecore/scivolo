@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/CharArrayReader.scala
 //! A cursor over the source characters, as dotty's `CharArrayReader`.
 
 use crate::source::Offset;

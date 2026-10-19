@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Unions of inferred types joined or hardened (dotty's `widenUnion`, `hardenUnions`).
 
 use super::Typer;

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! dotty's `SyntheticMembers` as PostTyper runs it on each template: `writeReplace` of static
 //! objects, the members of enum values (`enum_values.rs`), case classes (`case_members.rs`) and
 //! value classes (`value_members.rs`).
@@ -47,7 +49,7 @@ pub fn add_synthetic_members(l: &mut Lower, root: TNodeId, td: TNodeId) -> Resul
 }
 
 /// `private def writeReplace(): AnyRef = new ModuleSerializationProxy(classOf[C.type])` for a
-/// static object `C` without one.
+/// static object `C` without one (dotty's `serializableObjectMethod`).
 fn serializable_object_method(l: &mut Lower, class: SymbolId, span: Span) -> Result<Vec<TNodeId>> {
     if !is_static_module(l.u, class) || has_write_replace(l, class) {
         return Ok(Vec::new());

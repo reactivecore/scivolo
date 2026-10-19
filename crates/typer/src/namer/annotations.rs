@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Annotations of definitions: their classes resolved when the definitions are completed
 //! (dotty's `Namer.addAnnotations`), the annotations typed as `new` expressions once the unit
 //! is typed (`Typer.typedAnnotation`, `Checking.checkAnnotArgs`).

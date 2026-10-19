@@ -1,3 +1,9 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/ExtensionMethods.scala
+//   compiler/src/dotty/tools/dotc/transform/VCInlineMethods.scala
+//   compiler/src/dotty/tools/dotc/transform/ValueClasses.scala
+// ExtensionMethods.scala: Copyright 2005-2013 LAMP/EPFL.
 //! Calls of value class methods (dotty's `VCInlineMethods` and the extension methods of
 //! `ExtensionMethods`): `q.m(args)` for `m` of value class `C` becomes
 //! `C.m$extension(q)(args)`, a method of the companion object taking the value first.

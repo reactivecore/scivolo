@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The typed trees of export clauses and of their forwarders (dotty's `typedExport` and the
 //! definitions `exportForwarders` builds).
 

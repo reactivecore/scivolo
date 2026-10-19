@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! Calls whose erased signature is not their method's: the operations of arrays of a known
 //! element type and `synchronized`.
 
@@ -25,7 +28,8 @@ pub fn array_op(l: &mut Lower, fun: TNodeId) -> Option<(Vec<Erased>, Erased)> {
     }
 }
 
-/// Whether `fun` applies `synchronized` to a type, which stays polymorphic after erasure.
+/// Whether `fun` applies `synchronized` to a type, which stays polymorphic after erasure
+/// (dotty's `isPolymorphicAfterErasure`).
 pub fn is_synchronized(l: &Lower, fun: TNodeId) -> bool {
     matches!(*l.tpd.tree(fun),
         Tree::TypeApply { fun: sel, .. } if l.tpd.sym(sel) == Some(l.defs.synchronized))

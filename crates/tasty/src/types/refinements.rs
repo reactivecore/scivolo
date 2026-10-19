@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The type members refinements give a path's type (dotty's `goRefined`, `lookupRefined`).
 
 use super::{Type, TypeId};

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! The members dotty's `SyntheticMembers` gives the class of an enum value, made in
 //! `$new(_$ordinal, $name)` or by a case with a body: `readResolve`, `productPrefix`, `toString`,
 //! `ordinal`, `hashCode`.

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Implicit conversions (dotty's `inferView`, `tryInsertImplicitOnQualifier`): an implicit method
 //! of one parameter applied to a tree, to fit an expected type or to give it a member.
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/HoistSuperArgs.scala
 //! dotty's `HoistSuperArgs`: a superclass constructor argument defining methods or classes or
 //! creating instances of classes that are not static becomes a private method `C$superArg$N`
 //! taking the constructor's parameters and the values the call defines before it, called in its

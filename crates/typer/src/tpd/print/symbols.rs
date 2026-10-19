@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //! Symbols as `scripts/typer-oracle` prints them: full names, and methods' erased signatures.
 
 use crate::signatures::params_sig;

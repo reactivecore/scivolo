@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ExtensionMethods.scala
+//   compiler/src/dotty/tools/dotc/transform/FullParameterization.scala
+// ExtensionMethods.scala: Copyright 2005-2013 LAMP/EPFL.
 //! dotty's `ExtensionMethods` with `FullParameterization`: the body of each method of a value
 //! class moves to its extension method `m$extension` in the companion object, `this` becoming
 //! the parameter `$this`; the method forwards to it.
@@ -81,7 +85,8 @@ fn append(l: &mut Lower, td: TNodeId, defs: &[TNodeId]) {
 }
 
 /// The definition of extension method `ext` of method definition `def` of value class `class`
-/// with `def`'s value parameters and body; `def` gets fresh parameters and forwards to `ext`.
+/// with `def`'s value parameters and body; `def` gets fresh parameters and forwards to `ext`
+/// (`FullParameterization`'s `fullyParameterizedDef`).
 fn move_body(l: &mut Lower, class: SymbolId, def: TNodeId, ext: SymbolId) -> TNodeId {
     let m = l.tpd.sym(def).expect("a method definition's symbol");
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(def) else { unreachable!("a method") };
@@ -201,7 +206,8 @@ fn defines(l: &Lower, t: TNodeId) -> bool {
     )
 }
 
-/// `C.ext(this)(params...)` for the companion `C` of `class`.
+/// `C.ext(this)(params...)` for the companion `C` of `class` (`FullParameterization`'s
+/// `forwarder`).
 fn forwarder(l: &mut Lower, class: SymbolId, ext: SymbolId, params: &[Vec<SymbolId>]) -> TNodeId {
     let module = l.u.companion_module(class).expect("a value class's companion");
     let module_ref = l.ident(module, Span::NONE);

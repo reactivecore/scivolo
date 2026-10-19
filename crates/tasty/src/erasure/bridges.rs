@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/transform/Bridges.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
 //! Bridge methods: dotty's (`Bridges`), in classes, for a concrete method overriding a base
 //! class method whose erased signature differs; Scala Native's (`genInterfaceMethodBridge`), in
 //! classes and traits, for a method implementing the only method of its name in a trait it

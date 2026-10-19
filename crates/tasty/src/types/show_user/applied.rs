@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/package.scala
+//   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
 //! Applied types: tuples `(A, B)`, functions `A => B` and `A ?=> B`, repeated `A*`, infix
 //! types `A & B`, `A | B`, `A *: T`, else `F[A, B]`.
 

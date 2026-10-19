@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   tasty/src/dotty/tools/tasty/TastyFormat.scala
 //! AST tag table of TastyFormat.scala (Scala 3.9.0, TASTy 28.9), spelled as in the spec.
 
 pub const MAJOR_VERSION: u64 = 28;

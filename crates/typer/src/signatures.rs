@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Signature.scala
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Methods' signatures as dotty's `Signature.paramsSig` gives them: the number of type parameters
 //! of each type parameter clause and the erased class of each value parameter.
 

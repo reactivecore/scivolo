@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/config/Feature.scala
 //! Whether a language feature is enabled where typing is (dotty's `Feature.enabled`): by the
 //! options, or by an import of it from `scala.language` in scope.
 

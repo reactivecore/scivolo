@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//   compiler/src/dotty/tools/dotc/printing/SyntaxHighlighting.scala
 //! Colours of an input as dotty's `SyntaxHighlighting`: a token pass, the comments, then the
 //! definitions and types of the parsed statements.
 
@@ -124,7 +127,8 @@ impl Walk<'_> {
         }
     }
 
-    /// The annotations, name and end marker name of definition `id`.
+    /// The annotations, name and end marker name of definition `id` (dotty's `nameSpan` and
+    /// `endSpan`).
     fn definition(&self, id: NodeId, name: TName, mods: ModsId, colors: &mut [&'static str]) {
         let mods = self.ast.modifiers(mods);
         for &annotation in self.ast.items(mods.annotations) {

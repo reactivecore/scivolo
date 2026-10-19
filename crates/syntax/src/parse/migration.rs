@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/config/MigrationVersion.scala
+//   compiler/src/dotty/tools/dotc/parsing/Parsers.scala
+//   compiler/src/dotty/tools/dotc/report.scala
 //! Legacy syntax, accepted with a warning or rejected by source version (dotty's
 //! `MigrationVersion` and `report.errorOrMigrationWarning`).
 

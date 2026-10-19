@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//   compiler/src/dotty/tools/dotc/ast/untpd.scala
 //! The untyped trees the parser builds: dotty's `untpd` trees, with fields in the order of
 //! the Scala case classes. `None` stands for `EmptyTree` (and `EmptyValDef` for `Template.self`).
 

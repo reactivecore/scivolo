@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! The values a reduction binds, erased when they refer to erased definitions and dropped when
 //! unusable (dotty's `newSym`, `adjustErased` and the `cleanupUnusable` of
 //! `reduceInlineMatch`).

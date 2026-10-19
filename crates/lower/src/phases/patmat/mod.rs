@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Pattern matches compiled to tests, value definitions, labeled blocks and switches (dotty's
 //! `PatternMatcher`): a match becomes a plan (`plan.rs`), optimized (`optimize.rs`), emitted as
 //! trees (`emit.rs`).

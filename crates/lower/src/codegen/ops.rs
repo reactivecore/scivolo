@@ -1,3 +1,6 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Ops.scala
+//   nir/src/main/scala/scala/scalanative/nir/Vals.scala
 //! Operations bound to fresh locals, and the types of operations and values (NIR's `resty`
 //! and `ty`).
 

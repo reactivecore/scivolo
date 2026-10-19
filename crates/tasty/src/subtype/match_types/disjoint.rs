@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Whether two types provably have no value in common (dotty's `provablyDisjoint`).
 
 use super::super::Cmp;

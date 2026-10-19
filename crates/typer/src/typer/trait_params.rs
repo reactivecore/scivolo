@@ -1,3 +1,9 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
+//   compiler/src/dotty/tools/dotc/typer/RefChecks.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Parent calls of parameterized traits (dotty's `ensureConstrCall` trait rule, `addUsingTraits`,
 //! `checkParentCall` and `Mixin`'s check that such a trait is implemented directly).
 

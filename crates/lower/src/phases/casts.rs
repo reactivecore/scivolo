@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! Erasure's casts: where a reference's erased class does not conform to the one expected, and
 //! the class a call's receiver is adapted to.
 
@@ -10,7 +13,7 @@ use tasty::{Erased, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// `t.asInstanceOf[T]` for the type `T` erasing to `to`, a primitive array first made an array of
-/// references by `ScalaRunTime.toObjectArray` where one is expected.
+/// references by `ScalaRunTime.toObjectArray` where one is expected (dotty's `Erasure.Boxing.cast`).
 pub fn cast(l: &mut Lower, t: TNodeId, to: &Erased) -> TNodeId {
     let prim = |e: &Erased| matches!(e, Erased::Prim(_));
     let t = match (super::adapt::erased_type(l, t), to) {

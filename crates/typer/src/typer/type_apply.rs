@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Type applications: explicit `f[T]` (dotty's `typedTypeApply`), and the type variables a
 //! polymorphic function gets when applied without them (`constrained` in `adaptNoArgs`), their
 //! bounds checked or added to the constraint.

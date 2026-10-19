@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Erasure of member types to what a method signature records (dotty's `TypeErasure`, as far
 //! as the symbol model reaches), and Scala Native's mangled names from it.
 

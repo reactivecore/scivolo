@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //! The widening of inferred types (dotty's `widenInferred`): singletons widened unless
 //! singleton-bounded, soft unions joined or hard unions hardened, module classes as their objects.
 

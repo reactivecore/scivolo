@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Contextual implicits that come too late: in the scope of a given definition enclosing the
 //! search, at or after it (dotty's `comesTooLate`).
 

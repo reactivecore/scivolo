@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! The typing pass over a copied inline body (dotty's `InlineTyper`, a `ReTyper`): inline
 //! arguments in place of their proxies, operations on constants folded into literals, `if`s on
 //! constants and inline matches reduced, and the types of `if`s, blocks and inlined arguments
@@ -27,6 +29,8 @@ impl Inlining<'_> {
         self.inline_call(t, def, owner)
     }
 
+    /// `t` retyped by its tree class, an `if` and an inline match as `InlineTyper.typedIf` and
+    /// `typedMatch` do.
     fn retype_node(
         &mut self,
         t: TNodeId,

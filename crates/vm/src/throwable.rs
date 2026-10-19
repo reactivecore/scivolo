@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/StackTraceOps.scala
+// StackTraceOps.scala: Copyright EPFL and Lightbend, Inc.
 //! What an uncaught throwable reports: its `toString()`, the header dotty's REPL prints for it and
 //! its stack trace.
 

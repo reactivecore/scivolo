@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! The outer arguments of dotty's `ExplicitOuter`: `new p.C(args)` of a class `C` taking its
 //! enclosing instance becomes `new p.C(p, args)`, `this` for a prefix `Outer.this`.
 

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/DidYouMean.scala
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! The message of dotty's `MissingIdent`: the wrong-kind note or the "did you mean" hint.
 
 use super::Typer;

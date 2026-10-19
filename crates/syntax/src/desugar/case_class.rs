@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! The synthetic methods of case classes and their companions: `copy`, `_N`, `apply`,
 //! `unapply` and `toString` (from dotty's `classDef`).
 

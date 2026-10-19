@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/RefChecks.scala
 //! What dotty's `RefChecks.checkAllOverrides` rejects and the typer does not port yet, made to fall
 //! back: a member overriding a concrete one without `override`, and concrete members of traits
 //! inherited in conflict.

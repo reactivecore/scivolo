@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/EtaReduce.scala
 //! dotty's `EtaReduce`: `{ def $anonfun(x1, ..., xN) = f.apply(x1, ..., xN); closure($anonfun) }`
 //! becomes `f` if `f` is a pure path, not a getter call, of a function type conforming to the
 //! closure's, unless erasure gives the closure a specialized interface: some `xi` primitive, or a

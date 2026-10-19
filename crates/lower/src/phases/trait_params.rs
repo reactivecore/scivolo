@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! Trait parameters in dotty's `Mixin`: a trait's constructor `$init$` takes none, and a class's
 //! call of a trait's constructor becomes the arguments that initialize the trait's parameter
 //! accessors (`transformConstructor`).

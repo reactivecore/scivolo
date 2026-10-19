@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! The last try of a comparison (dotty's `fourthTry`), by the left-hand side: abstract types
 //! through their upper bound, `Nothing` and `Null`, singletons, intersections.
 

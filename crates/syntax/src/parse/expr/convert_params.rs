@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/Parsers.scala
 //! The parameters of a lambda whose parameter part was parsed as an expression.
 
 use super::super::Parser;

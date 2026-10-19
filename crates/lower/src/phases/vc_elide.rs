@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/VCElideAllocations.scala
 //! dotty's `VCElideAllocations` on the trees `Erasure` types: `new C(u).value()` is `u`, and
 //! `new C(a) == new C(b)` is `a == b` unless `C` has an `equals` of its own.
 

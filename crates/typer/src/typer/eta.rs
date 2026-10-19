@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala
+//   compiler/src/dotty/tools/dotc/typer/Migrations.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Method references as function values (dotty's `etaExpand`): `m` as `(x1, ..., xn) => m(x1,
 //! ..., xn)`, its impure prefix and arguments lifted into values before the function, its
 //! parameter types from the method unless a function type of that arity is expected.

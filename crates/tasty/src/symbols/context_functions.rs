@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! The traits `ContextFunctionN[-T1, …, -TN, +R]`, N ≥ 1, that dotty's `Definitions` gives the
 //! `scala` package, each with an abstract `def apply(using x$0: T1, …): R`.
 

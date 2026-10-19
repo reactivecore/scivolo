@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! The right-hand sides of opaque types defined outside TASTy, seen only through the `this` of
 //! their owner until the lowering elides them (dotty's `opaqueAlias`, `ElimOpaque`).
 

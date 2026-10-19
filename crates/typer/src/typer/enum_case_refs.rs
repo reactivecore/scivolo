@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //! The references enum cases may make (dotty's `checkEnumCaseRefsLegal`).
 
 use super::Typer;

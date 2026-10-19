@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! Proxies of the `this` of the classes enclosing an inline method's class that its body refers
 //! to, bound to the paths the call's prefix makes them (dotty's `computeThisBindings`).
 

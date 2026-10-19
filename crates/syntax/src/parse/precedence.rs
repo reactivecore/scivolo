@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameOps.scala
+//   compiler/src/dotty/tools/dotc/parsing/package.scala
 //! Precedence and associativity of infix operators.
 
 use crate::scan::is_operator_part;

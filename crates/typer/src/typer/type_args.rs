@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The kinds of type arguments: type constructors where higher-kinded parameters are, class
 //! constructors eta-expanded (dotty's `adaptType`).
 

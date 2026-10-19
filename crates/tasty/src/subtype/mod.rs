@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Subtyping (dotty's `TypeComparer`): one comparison for ground types and for types with type
 //! variables, whose constraint the caller keeps behind `TypeVars`.
 

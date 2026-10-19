@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/quoted/PickledQuotes.scala
 //! Pickled quotes (dotty's `PickledQuotes.unpickleTerm`, `unpickleTypeTree`, `spliceTypes`): the
 //! TASTy of a quote read into typed trees owned by the splice, each spliced type definition a
 //! symbol aliasing the type it stands for, each term hole a placeholder to fill.

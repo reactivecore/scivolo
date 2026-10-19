@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Base types and member types as seen from a prefix (dotty's `baseType` and `asSeenFrom`).
 
 use super::{Kind, SymbolId, Universe};

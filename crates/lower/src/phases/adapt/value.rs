@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! The boxing and unboxing of value classes (dotty's `Erasure.Boxing.box` and `unbox` of an
 //! `ErasedValueType`): `new C(v)` and `v.value()`, null-checked unless `v` is statically a `C`.
 

@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/ContextOps.scala
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Self definitions of classes, `self =>` and `this: S =>` (dotty's `selfInfo` in
 //! `completeConstructor`, `ClassInfo.givenSelfType`).
 
@@ -92,7 +97,8 @@ impl Typer<'_> {
     }
 
     /// The type a definition infers from `this` type `t` of class type `c`: `t` for an object, the
-    /// self type for a class with a given one, else `c`.
+    /// self type for a class with a given one, else `c` (dotty's `ThisType.underlying`,
+    /// `ClassInfo.selfType`).
     pub fn widened_this(&mut self, t: TypeId, c: TypeId) -> TypeId {
         let Some(k) = self.u.class_symbol(c) else { return c };
         if self.u.is_module_class(k) {
@@ -140,7 +146,7 @@ impl Typer<'_> {
         Ok(())
     }
 
-    /// The self symbol of class `cls` if `name` names it.
+    /// The self symbol of class `cls` if `name` names it (dotty's `denotNamed` in `inClassContext`).
     pub fn self_named(&self, cls: SymbolId, name: &str) -> Option<SymbolId> {
         self.syms.selves.get(&cls).copied().filter(|&s| self.u.symbol(s).name == name)
     }

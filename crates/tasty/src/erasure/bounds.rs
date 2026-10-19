@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Erasure of intersections and unions (dotty's `erasedGlb` and `erasedLub`).
 
 use super::{Erased, OBJECT, object};

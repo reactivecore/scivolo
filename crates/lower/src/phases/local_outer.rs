@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! dotty's `ExplicitOuter` for local classes: one defined in a term that is not the method of a
 //! superclass argument of a static class takes the instance of its enclosing class if one of
 //! its parents may take one (`needsOuterAlways`), or if it refers to the instance of a class

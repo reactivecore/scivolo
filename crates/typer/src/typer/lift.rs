@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala
 //! Parts of applications lifted into local values, evaluated once and in order (dotty's
 //! `Lifter`, `LiftComplex` if `complex`, else `LiftImpure`).
 

@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameKinds.scala
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Retained inline methods, which override a method that is not inline and so keep a body at run
 //! time: each followed by its body retainer (dotty's `isRetainedInline`, `Inlines.bodyRetainer`).
 

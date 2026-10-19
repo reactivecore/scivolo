@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
 //! nscplugin's `genInterfaceMethodBridgeForDefDef`: a method overriding an abstract member, not
 //! overloaded, of a trait of the unit or the library its class directly extends, with another
 //! erased signature it conforms to, gets a bridge of that member's type calling it, itself a

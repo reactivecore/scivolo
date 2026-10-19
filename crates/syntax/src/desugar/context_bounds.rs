@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! Context bounds as evidence parameters (dotty's `desugarContextBounds` and
 //! `elimContextBounds`).
 

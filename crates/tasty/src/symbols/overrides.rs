@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Denotations.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Whether one method's signature matches another's as members of the same class (dotty's
 //! `matches`), on types in a normal form.
 

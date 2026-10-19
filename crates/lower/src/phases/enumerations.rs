@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/PrepNativeInterop.scala
 //! Values of `scala.Enumeration` defined by `Value`, `Value(i)`, `Value(null)` or
 //! `Value(i, null)`, given their field's name (Scala Native's `PrepNativeInterop`).
 

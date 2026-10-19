@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/xml/MarkupParsers.scala
+//   compiler/src/dotty/tools/dotc/parsing/xml/SymbolicXMLBuilder.scala
+//   compiler/src/dotty/tools/dotc/parsing/xml/Utility.scala
 //! Attributes: reading them, and the trees of their values with references.
 
 use super::char_ref::char_ref_units;

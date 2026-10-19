@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/transform/Dependencies.scala
 //! dotty's `Dependencies` (`CollectDependencies`, `markFree`, `markCalled`, `computeFreeVars`):
 //! the local values free in each local function, local class and local class constructor of a
 //! unit, the owners in the order they first got one, each one's values in order. Field

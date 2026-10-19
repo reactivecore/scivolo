@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
 //! Selections of a parameter of a new instance reduced to the argument (dotty's
 //! `InlineReducer.NewInstance`, `reduceProjection` and `normalizeBinding`).
 

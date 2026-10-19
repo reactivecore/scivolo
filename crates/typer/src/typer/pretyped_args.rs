@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! The arguments of an overloaded application typed before an alternative is chosen, functions
 //! without parameter types against the parameter types all alternatives agree on (dotty's
 //! `pretypeArgs`, `FunProto.typedArgs`).

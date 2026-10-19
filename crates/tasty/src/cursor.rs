@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   tasty/src/dotty/tools/tasty/TastyReader.scala
 use std::fmt;
 
 #[derive(Debug, Clone)]

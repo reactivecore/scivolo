@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Contexts.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The parent trees of a class when it is typed (dotty's `parentTrees`, `typedParent`,
 //! `ensureConstrCall`, `superCallContext`).
 

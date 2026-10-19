@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! dotty's `ExplicitOuter` for traits: a trait in a class gets a deferred accessor
 //! `O$T$$$outer()` that its references to the enclosing instance call; a class gets, for each
 //! trait it mixes in that may use its enclosing instance, an implementation of that trait's
@@ -29,7 +32,8 @@ pub fn outer_class(l: &Lower, c: SymbolId) -> Option<SymbolId> {
     (nested && !is_pure_interface(l.u, c)).then_some(owner)
 }
 
-/// Whether trait `t` has only abstract members and types (dotty's `PureInterface`).
+/// Whether trait `t` has only abstract members and types (dotty's `PureInterface` of
+/// `TreeInfo.bodyKind`).
 pub fn is_pure_interface(u: &Universe, t: SymbolId) -> bool {
     let concrete = |s: SymbolId| match u.symbol(s).tree.is_some() {
         true => u.body(s).is_some(),

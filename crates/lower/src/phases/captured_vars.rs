@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/CapturedVars.scala
 //! Local variables captured by closures (dotty's `CapturedVars`): `var x = e` becomes
 //! `val x = XRef.create(e)`, a read `x.elem` and a write `x.elem = e`, so closures share the
 //! variable.

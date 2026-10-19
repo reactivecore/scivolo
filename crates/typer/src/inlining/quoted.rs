@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/quoted/PickledQuotes.scala
 //! The expression a macro returned, built from its quotes (dotty's `PickledQuotes.spliceTerms`
 //! and `spliceTypes` after unpickling): each quote copied with its holes filled and its spliced
 //! types replaced.

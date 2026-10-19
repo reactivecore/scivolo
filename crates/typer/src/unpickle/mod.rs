@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! dotty's `TreeUnpickler.readTree` for the bodies of the library's inline methods: TASTy trees
 //! read into typed trees, typed as `TypeAssigner` types them, in the spans of the library's
 //! source. Bodies outside the subset read are refused.

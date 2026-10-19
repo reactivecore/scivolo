@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Constants.scala
 //! Literal constants, printed as Java prints them (dotty's `Constant.stringValue`).
 
 #[derive(Clone, PartialEq, Debug)]

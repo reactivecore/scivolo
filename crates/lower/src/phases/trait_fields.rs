@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
+//   compiler/src/dotty/tools/dotc/transform/MixinOps.scala
 //! The trait fields of dotty's `Mixin`: a trait's values become deferred getters, a `val` with a
 //! trait setter `T$_setter_$x_=`; a class gets, for each trait it mixes in, a getter of each value
 //! it does not override, the call of the trait's initializer `$init$` and its setters, which

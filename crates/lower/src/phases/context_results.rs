@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ContextFunctionResults.scala
 //! Methods whose results are context closures take the closures' parameters as their own, and
 //! their calls the closures' arguments (dotty's `ContextFunctionResults`).
 
@@ -131,7 +133,7 @@ fn method_clauses(l: &Lower, mut t: TypeId) -> usize {
 }
 
 /// Moves the parameters and bodies of the context closures of method definition `def` of `m`
-/// into it; returns how many there were.
+/// into it; returns how many there were (dotty's `contextResultCount`, `integrateContextResults`).
 fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
     let Tree::DefDef { name, paramss, mut tpt, rhs: Some(mut rhs) } = *l.tpd.tree(def) else {
         unreachable!("a method with a body")

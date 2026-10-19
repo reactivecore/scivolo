@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //! The library symbols the typer refers to by name (dotty's `Definitions`).
 
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId, Universe};

@@ -1,3 +1,6 @@
+// Derived from PPrint (MIT, see licenses/pprint.txt); translated and changed:
+//   pprint/src/pprint/Truncated.scala
+// Copyright (c) 2019 Li Haoyi.
 package scivolo.repl
 
 import scala.collection.mutable.ArrayBuffer

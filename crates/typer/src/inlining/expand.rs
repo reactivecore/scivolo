@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! The expansion of one inline call: its arguments bound to the parameters, directly or through
 //! proxies, and the body copied with the parameters replaced, retyped and rid of unused bindings
 //! (dotty's `Inliner.inlined`, `computeParamBindings`).

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SpecializeTuples.scala
 //! dotty's `SpecializeTuples`: an elideable `Tuple2.apply[Int, Int](a, b)` or
 //! `new Tuple2[Int, Int](a, b)` creates a `Tuple2$mcII$sp`, and `t._1` of a `Tuple2[Int, Int]`
 //! calls `t._1$mcI$sp`; likewise for the other specialized element types and `Tuple1`.

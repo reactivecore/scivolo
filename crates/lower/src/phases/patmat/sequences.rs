@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Plans of sequence patterns (dotty's `unapplySeqPlan`, `matchElemsPlan`,
 //! `unapplyProductSeqPlan`): a length test, the elements selected by `apply(i)` matched against
 //! the element patterns, a vararg pattern matched against `drop(n)`, or `toSeq` if it comes first;

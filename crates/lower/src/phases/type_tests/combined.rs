@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! Type tests of unions and intersections: `x.isInstanceOf[A | B]` as `x.isInstanceOf[A] ||
 //! x.isInstanceOf[B]`, `&&` for `A & B`, a value other than a name evaluated once into `ev$N`
 //! (dotty's `transformTypeTest`).

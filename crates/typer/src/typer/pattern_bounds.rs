@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Wildcard arguments of a pattern's type as pattern-bound types (dotty's `typedType` with
 //! `mapPatternBounds`, the type parameter bounds of `typedAppliedTypeTree`).
 

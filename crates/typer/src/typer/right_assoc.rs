@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/EtaExpansion.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Right-associative operator calls `l op: r`, typed as `r.op:(l)`, with `l` lifted unless pure
 //! so that it is evaluated first (dotty's `typedInfixOp`).
 

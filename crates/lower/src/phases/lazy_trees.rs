@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
 //! The trees of lazy values' methods, each positioned when made, as dotty's `Positioned` does.
 
 use super::lazy_vals::Lazy;

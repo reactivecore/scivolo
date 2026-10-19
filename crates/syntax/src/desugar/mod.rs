@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! The desugaring dotty's Namer and Typer apply to untyped trees before typing, as one pass over
 //! a compilation unit (a port of `ast/Desugar.scala`).
 

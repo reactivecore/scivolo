@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! The `$adapted` method of a lambda whose parameters or result erase differently from its
 //! abstract method's (dotty's `Erasure.adaptClosure`): erasure then adapts the arguments for the
 //! lambda's method and its result.

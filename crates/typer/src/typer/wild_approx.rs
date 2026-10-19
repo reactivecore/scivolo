@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Expected types with their open type variables approximated by wildcards (dotty's
 //! `wildApprox`), as transparent inline methods constrain their results.
 

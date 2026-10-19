@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The types of definitions: a method's type from its parameter clauses, the members of a
 //! refinement, the bounds of an opaque type.
 

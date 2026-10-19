@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! Constructors of classes and references to them: secondary constructors with the class's
 //! type parameters and evidence, methods split from their default getters, the applied class.
 

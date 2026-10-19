@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/ExpandSAMs.scala
 //! Closures of single abstract method types that are not functional interfaces as anonymous
 //! classes whose method calls the closure's (dotty's `ExpandSAMs.transformBlock`, `tpd.AnonClass`).
 

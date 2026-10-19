@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Variables of plans used once inlined and code after plans that cannot fall through dropped
 //! (dotty's `inlineVars`).
 

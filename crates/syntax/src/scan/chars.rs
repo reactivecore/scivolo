@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/xml/Utility.scala
+//   compiler/src/dotty/tools/dotc/util/Chars.scala
 //! Character classes as dotty's `Chars`, which uses Java's `Character` predicates.
 
 use unicode_general_category::{GeneralCategory as G, get_general_category};

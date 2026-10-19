@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! `x.asInstanceOf[T]` as dotty's `transformAsInstanceOf` erases it.
 
 use crate::phases::adapt::{adapt, ascribed, converted, erased_type};

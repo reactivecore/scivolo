@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/ErrorMessageID.scala
+//   compiler/src/dotty/tools/dotc/reporting/Message.scala
+//   compiler/src/dotty/tools/dotc/reporting/MessageKind.scala
+//   compiler/src/dotty/tools/dotc/reporting/UniqueMessagePositions.scala
 //! Errors and warnings, positioned at a point within a range of the source, or unpositioned.
 
 use crate::source::Offset;
