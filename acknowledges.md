@@ -7,7 +7,7 @@ was compared are in `docs/research/`; this list covers what we actually use or p
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 runtime
 
-BSD-3, `native/LICENSE-scala-native.md`; JSR-166 public domain.
+Apache-2.0, `native/LICENSE-scala-native.md`; JSR-166 public domain.
 
 - `native/`: the C runtime of nativelib, javalib, posixlib and clib, with the Immix collector
   (`gc/immix*`, `gc/shared`; one patch in `Marker.c`).
@@ -184,7 +184,7 @@ MIT. `overlay/src/scivolo/repl`: a Scala port of `Walker`, `Renderer`, `Result`,
 
 ### [Scala Native](https://github.com/scala-native/scala-native) 0.5.12 compiler and NIR
 
-BSD-3 / Apache-2.0. Rust translations of:
+Apache-2.0. Rust translations of:
 
 - `crates/lower/src/codegen`: nscplugin's `NirGen{Stat,Expr,Name,Type}` (`genTryFinally`, `genSynchronized` too), `NirCodeGen` (without
   native interop), `ControlFlow.removeDeadBlocks`, `Val.isZero`, `Val.isCanonical`,
@@ -195,7 +195,7 @@ BSD-3 / Apache-2.0. Rust translations of:
 
 ### Scala Native precompiled libraries
 
-BSD-3 / Apache-2.0. scalalib, javalib, nativelib, auxlib, posixlib and clib as NIR, executed by
+Apache-2.0. scalalib, javalib, nativelib, auxlib, posixlib and clib as NIR, executed by
 the VM (fetched, not vendored).
 
 ## Designs we follow

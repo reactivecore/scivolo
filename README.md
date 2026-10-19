@@ -172,3 +172,7 @@ CLAUDE.md           project rules (Rust style from rcui)
 
 Build folders and downloaded toolchains (`spikes/*/work/`, `target/`) are not
 checked in. Each spike's README says how to recreate them.
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
