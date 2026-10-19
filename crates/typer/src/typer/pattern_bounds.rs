@@ -5,16 +5,33 @@ use super::Typer;
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags::CASE;
-use syntax::ast::{Span, TName};
+use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Type argument `id` of a pattern's type tree, a variable pattern typed as a wildcard; its
+    /// name if it is one.
+    pub fn typed_pattern_type_arg(&mut self, id: NodeId, ctx: Ctx) -> (TNodeId, Option<TName>) {
+        let var = match *self.ast.tree(id) {
+            Tree::Ident { name } if ctx.mode.is(Mode::PATTERN_TYPE) => {
+                Some(name).filter(|n| self.is_var_pattern(id, self.text(n.name)))
+            }
+            _ => None,
+        };
+        let Some(name) = var else { return (self.typed_type(id, ctx), None) };
+        let wild = self.ast.node(Tree::TypeBoundsTree { lo: None, hi: None, alias: None });
+        self.ast.with_span(wild, self.ast.span(id));
+        (self.typed_type(wild, ctx), Some(name))
+    }
+
     /// Type arguments `args` of `tycon` in a pattern's type tree with each wildcard replaced by a
-    /// bind of a pattern-bound type `_$n`, bounded also by its type parameter; their types.
+    /// bind of a pattern-bound type, named by `vars` or `_$n`, bounded also by its type
+    /// parameter; their types.
     pub fn pattern_bound_args(
         &mut self,
         tycon: TypeId,
         args: &mut [TNodeId],
+        vars: &[Option<TName>],
         types: Vec<TypeId>,
         ctx: Ctx,
     ) -> Vec<TypeId> {
@@ -32,9 +49,13 @@ impl Typer<'_> {
         };
         for (i, a) in args.iter_mut().enumerate() {
             let T::TypeBoundsTree { alias: None, .. } = *self.tpd.tree(*a) else { continue };
-            let name = self.fresh.next(self.names, "_$");
+            let var = vars.get(i).copied().flatten();
+            let name = var.map_or_else(|| self.fresh.next(self.names, "_$"), |v| v.name);
             let text = self.text(name).to_owned();
             let sym = self.syms.define(self.u, &text, Kind::Type, ctx.owner, CASE);
+            if var.is_some() {
+                self.levels.enter(ctx.level, &text, sym);
+            }
             let bounds = self.tpd.tpe(*a);
             let info = self.with_param_bounds(bounds, params.get(i).copied(), &params);
             self.u.set_info(sym, info);
