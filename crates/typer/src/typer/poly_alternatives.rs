@@ -142,6 +142,14 @@ impl Typer<'_> {
         (alts.contains(&alt) && targs.len() == n).then(|| targs.clone())
     }
 
+    /// `arg` typed against `pt` with no alternatives resolved with instantiated type parameters.
+    pub fn typed_unmapped(&mut self, arg: NodeId, pt: Pt, ctx: Ctx) -> TNodeId {
+        let mapped = self.mapped_targs.take();
+        let typed = self.typed(arg, pt, ctx);
+        self.mapped_targs = mapped;
+        typed
+    }
+
     /// Polymorphic type `info` of `alt` instantiated if `alt` is resolved with type arguments,
     /// else `info`.
     pub fn mapped_info(&mut self, info: TypeId, alt: SymbolId) -> TypeId {

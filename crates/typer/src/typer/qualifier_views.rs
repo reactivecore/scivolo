@@ -49,10 +49,21 @@ impl Typer<'_> {
         if fits || diagnosed {
             return None;
         }
-        match self.viewed(qual, Goal::Member(name), ctx) {
-            Ok(Some(Viewed::Converted(q))) if self.member_applies(q, name, &types, ctx) => Some(q),
-            Ok(Some(Viewed::Converted(_)) | None) => self.arg_scope_view(qual, name, &types, ctx),
+        let reported = self.diags.items.len();
+        let (applies, clean, _) = self.speculatively(|t| match t.viewed(qual, Goal::Member(name), ctx) {
+            Ok(Some(Viewed::Converted(q))) => Some(t.member_applies(q, name, &types, ctx)),
+            Ok(None) => Some(false),
             _ => None,
+        });
+        self.diags.items.truncate(reported);
+        match applies {
+            _ if !clean => None,
+            Some(true) => match self.viewed(qual, Goal::Member(name), ctx) {
+                Ok(Some(Viewed::Converted(q))) => Some(q),
+                _ => None,
+            },
+            Some(false) => self.arg_scope_view(qual, name, &types, ctx),
+            None => None,
         }
     }
 
@@ -79,11 +90,13 @@ impl Typer<'_> {
             }
         }
         let mut fitting = Vec::new();
+        let reported = self.diags.items.len();
         for c in candidates {
             let (fits, clean, _) = self.speculatively(|t| {
                 let converted = t.try_conversion(c, (qual, false), Goal::Member(name), ctx);
                 converted.is_ok_and(|q| t.member_applies(q, name, args, ctx))
             });
+            self.diags.items.truncate(reported);
             if fits && clean {
                 fitting.push(c);
             }

@@ -24,8 +24,10 @@ impl Typer<'_> {
         let mut typed = Vec::new();
         for (i, &a) in args.iter().enumerate() {
             typed.push(match self.unknown_param_function(a) {
-                Some(f) => self.common_formal(f, i, alts, prefix)?.map(|p| self.typed(a, Pt::Type(p), ctx)),
-                None => Some(self.typed(a, Pt::Any, ctx)),
+                Some(f) => {
+                    self.common_formal(f, i, alts, prefix)?.map(|p| self.typed_unmapped(a, Pt::Type(p), ctx))
+                }
+                None => Some(self.typed_unmapped(a, Pt::Any, ctx)),
             });
         }
         self.protos[proto].typed = Some(typed.clone());

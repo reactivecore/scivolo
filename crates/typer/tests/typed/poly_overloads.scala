@@ -6,14 +6,13 @@ object A {
   def a[F](x: String) = 0
 }
 
-class Show[T](val i: Int)
-class Generic
-object Generic {
-  implicit val gen: Generic = new Generic
-}
 object B {
   def bar[T <: AnyVal](x: List[T]): Int = 1
   def bar[T <: String](x: Option[T]): Int = 2
+}
+object C {
+  def f[T](x: T, y: Int): T = x
+  def f[T](x: T, y: String): T = x
 }
 
 class Unit2
@@ -33,5 +32,6 @@ object Test {
     val b = B.bar[String](Some("x"))
     val h = 3.5 * Hour
     val d = 5 + BigDecimal(3)
+    val f = C.f[String](C.f(1, 2).toString, "a")
   }
 }
