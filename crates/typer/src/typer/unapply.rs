@@ -55,20 +55,18 @@ impl Typer<'_> {
         let unapp = self.with_type_vars(unapp)?;
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
+        else {
             return Err("not an extractor");
         };
-        let [(_, arg_type)] = params[..] else { return Err("not an extractor") };
+        let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
         if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
-        if tested && !self.is_checkable_class_type(own) {
-            return Err("extractor of a type that needs a type test");
-        }
-        let result = self.zonk(result);
+        let result = self.applied_unapply_result(unapp, result, (binder, param), own)?;
         let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
             if named {
@@ -90,8 +88,7 @@ impl Typer<'_> {
         if !tested || self.is_bottom_type(sel) {
             return Ok(tree);
         }
-        let tpt = self.type_tree(own, span.end_pos(), false);
-        Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
+        self.type_tested_unapply(id, tree, own, sel, ctx)
     }
 
     /// `qual.unapply` for extractor `qual`, typed as an expression, or `qual.unapplySeq` if it

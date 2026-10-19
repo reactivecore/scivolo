@@ -14,8 +14,8 @@ const TAGS: [&str; 2] = ["scala.reflect.TypeTest", "scala.reflect.ClassTag"];
 
 impl Typer<'_> {
     /// Pattern `id`, `expr: tpe` with type tree `tpt`, against `pt` as the extractor pattern
-    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]` if `tpe` is or applies an
-    /// abstract type.
+    /// `tag(expr)` of a given `TypeTest[pt, tpe]` or `ClassTag[tpe]` if `tpe`, its aliases
+    /// followed up to a match-type alias, is or applies a type that is not a class.
     pub fn try_with_type_test(
         &mut self,
         id: NodeId,
@@ -31,8 +31,13 @@ impl Typer<'_> {
             Type::Applied(tycon, _) => tycon,
             _ => dealiased,
         };
+        let tycon = self.match_alias(tpe).unwrap_or(tycon);
         let same = self.u.is_subtype(dealiased, p) && self.u.is_subtype(p, dealiased);
-        if !self.is_abstract_type(tycon) || same || has_wildcard(self.u, dealiased) {
+        let non_class = self.referenced(tycon).is_some_and(|s| {
+            self.complete(s);
+            matches!(self.u.symbol(s).kind, Kind::TypeParam | Kind::Type)
+        });
+        if !non_class || same || has_wildcard(self.u, dealiased) {
             return Ok(None);
         }
         let at = Span::at(self.ast.span(tpt).start());
@@ -41,7 +46,6 @@ impl Typer<'_> {
             let Some(class) = self.resolve_full_name(class_name, true) else { continue };
             let wanted = crate::defn::applied(self.u, class, args);
             match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NONE), 0) {
-                Ok(_) if class_name == TAGS[0] => return Err("type pattern tested by a given TypeTest"),
                 Ok(tag) => {
                     found = Some(tag);
                     break;
@@ -58,6 +62,62 @@ impl Typer<'_> {
         let apply = self.ast.node(Tree::Apply { fun: splice, args });
         self.ast.with_span(apply, Span::synthetic(self.ast.span(id).start(), at.start()));
         Ok(Some(self.typed(apply, pt, ctx)))
+    }
+
+    /// Extractor pattern `id`, typed as `tree` of type `own`, against `sel` as `tree: own`,
+    /// tested by a given `TypeTest` or `ClassTag` if `own` refers to an abstract type.
+    pub fn type_tested_unapply(
+        &mut self,
+        id: NodeId,
+        tree: TNodeId,
+        own: TypeId,
+        sel: TypeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        let span = self.ast.span(id);
+        if !self.is_testable_type(own) {
+            let expr = self.ast.node(Tree::TypeTree);
+            self.ast.with_span(expr, span);
+            self.splices.insert(expr, tree);
+            let tpt = self.ast.node(Tree::TypeTree);
+            self.ast.with_span(tpt, span.end_pos());
+            if let Some(tagged) = self.try_with_type_test(id, expr, tpt, own, Pt::Type(sel), ctx)? {
+                return Ok(tagged);
+            }
+            if !self.is_erased_test_type(own) {
+                return Err("extractor of a type that needs a type test");
+            }
+            self.warn_unchecked_type_test(Pt::Type(sel), own, span);
+        }
+        let tpt = self.type_tree(own, span.end_pos(), false);
+        Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
+    }
+
+    /// The match-type alias that `t`, or an alias `t` refers to, is or applies.
+    fn match_alias(&mut self, mut t: TypeId) -> Option<TypeId> {
+        for _ in 0..8 {
+            let tycon = match *self.u.types().get(t) {
+                Type::Applied(tycon, _) => tycon,
+                _ => t,
+            };
+            let s = self.referenced(tycon).filter(|&s| self.u.symbol(s).kind == Kind::Type)?;
+            self.complete(s);
+            let info = self.u.info(s);
+            let rhs = match *self.u.types().get(info) {
+                Type::Alias(rhs) => rhs,
+                _ => info,
+            };
+            let body = match *self.u.types().get(rhs) {
+                Type::Lambda { result, .. } => result,
+                _ => rhs,
+            };
+            match *self.u.types().get(body) {
+                Type::Match { .. } => return Some(tycon),
+                _ if tycon == t && rhs != info => t = rhs,
+                _ => return None,
+            }
+        }
+        None
     }
 
     /// Whether `t` refers to a type parameter or an abstract type member.
