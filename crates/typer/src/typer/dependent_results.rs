@@ -10,9 +10,9 @@ use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 impl Typer<'_> {
     /// Whether parameter type `p` is by-name or refers to a parameter.
     pub fn is_special_param(&mut self, p: TypeId) -> bool {
-        let mut special = false;
+        let mut special = matches!(self.u.types().get(p), Type::ByName(_));
         self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::ByName(_) | Type::Param(..));
+            special |= matches!(u.types().get(part), Type::Param(..));
             None
         });
         special

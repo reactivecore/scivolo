@@ -135,7 +135,7 @@ impl Typer<'_> {
         };
         let mut typed: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
         typed.push(self.typed_type(body, ctx));
-        if typed.iter().any(|&t| matches!(self.tpd.tree(t), T::ByNameTypeTree { .. })) {
+        if matches!(self.tpd.tree(typed[n]), T::ByNameTypeTree { .. }) {
             return self.unsupported(id, "by-name function parameter");
         }
         let erased = self.resolve_full_name("scala.compiletime.Erased", true);
