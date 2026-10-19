@@ -2,10 +2,31 @@
 //! selectors, `get` of an `isEmpty`/`get` result, Boolean results.
 
 use super::Typer;
+use super::dependent_params::instantiated_result;
 use crate::symbols::Completion;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Binder, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// Result `t` of an extractor of parameter `param` of the method type of binder `binder`,
+    /// applied to a value of type `own`, intersections that mention it simplified.
+    pub fn applied_unapply_result(
+        &mut self,
+        t: TypeId,
+        (binder, param): (Binder, &str),
+        method: Option<SymbolId>,
+        own: TypeId,
+    ) -> TypeId {
+        let names = [param.to_owned()];
+        if !self.mentions_clause_params(t, (binder, &names), method) {
+            return t;
+        }
+        let t = instantiated_result(self.u, t, (binder, &names), method, &[own]);
+        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+            Type::And(a, b) => Some(u.glb(a, b)),
+            _ => None,
+        })
+    }
+
     /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
     /// `UnapplyArgs.argTypes` for `unapply`).
     pub fn unapply_arg_types(&mut self, result: TypeId, n: usize) -> Result<Vec<TypeId>, &'static str> {
