@@ -128,6 +128,7 @@ pub(crate) mod simplify;
 mod small_tuples;
 pub(crate) mod stability;
 mod stats;
+mod structural;
 mod summon_from;
 mod supers;
 mod this;

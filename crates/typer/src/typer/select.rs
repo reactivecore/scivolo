@@ -74,6 +74,9 @@ impl Typer<'_> {
             if self.extension_visible(&text, ctx) {
                 return self.extension_select(id, qual, name, pt, ctx);
             }
+            if let Some(structural) = self.structural_select(id, (qual, qual_tpe), name, ctx) {
+                return structural;
+            }
             match self.viewed(qual, Goal::Member(&text), ctx) {
                 Ok(Some(Viewed::Converted(q))) => qual = q,
                 Ok(Some(Viewed::Extension(c))) => {

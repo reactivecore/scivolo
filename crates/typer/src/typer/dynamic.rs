@@ -203,7 +203,7 @@ impl Typer<'_> {
     }
 
     /// The untyped `fun(args)`, spanning both, and its argument list.
-    fn applied(&mut self, fun: NodeId, args: &[NodeId]) -> (NodeId, List) {
+    pub fn applied(&mut self, fun: NodeId, args: &[NodeId]) -> (NodeId, List) {
         let span = self.envelope(self.ast.span(fun), args);
         let args = self.ast.list(args);
         let apply = self.ast.node(Tree::Apply { fun, args });
@@ -238,7 +238,7 @@ impl Typer<'_> {
         rest.iter().fold(first, |span, &t| span.union(self.ast.span(t))).to_synthetic()
     }
 
-    fn string_literal(&mut self, s: &str, span: Span) -> NodeId {
+    pub fn string_literal(&mut self, s: &str, span: Span) -> NodeId {
         let value = Constant::String(s.encode_utf16().collect());
         let literal = self.ast.node(Tree::Literal { value });
         self.ast.with_span(literal, span);
