@@ -4,13 +4,19 @@ use super::Typer;
 use tasty::tags::{ABSTRACT, FINAL, SEALED, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
-/// A single abstract method type: the method's parameter and result types, and the base type of
-/// its class that a function value implementing it gets (dotty's `samParent`).
+/// A single abstract method type: the method's parameter and result types, the base type of its
+/// class that a function value implementing it gets (dotty's `samParent`), and the method with
+/// the binder and names of its parameters.
 pub struct Sam {
     pub params: Vec<TypeId>,
     pub result: TypeId,
     pub parent: TypeId,
+    pub clause: SamClause,
 }
+
+pub type SamClause = (tasty::Binder, Vec<String>, SymbolId);
+/// `parent` and `clause` of a `Sam`.
+pub type SamParent = (TypeId, SamClause);
 
 impl Typer<'_> {
     /// The parameter and result types of the single abstract method of `t`, of `n` parameters,
@@ -41,14 +47,16 @@ impl Typer<'_> {
             .without_wildcard_args(parent, class, method)
             .ok_or("single abstract method type of a wildcard argument outside the subset")?;
         let info = self.u.member_info(parent, method);
-        let Type::Method { params, result, implicit: false, .. } = self.u.types().get(info).clone() else {
+        let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
+        else {
             return Ok(None);
         };
         if params.len() != n || matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
         {
             return Ok(None);
         }
-        Ok(Some(Sam { params: params.into_iter().map(|(_, p)| p).collect(), result, parent }))
+        let (names, params) = params.into_iter().unzip();
+        Ok(Some(Sam { params, result, parent, clause: (binder, names, method) }))
     }
 
     /// `parent`, an application of class `c`, its wildcard arguments replaced by their lower

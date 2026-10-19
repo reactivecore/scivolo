@@ -50,14 +50,14 @@ impl Typer<'_> {
 
     /// The expected parameter and result types of function value `id` of `n` parameters, a
     /// context function if `contextual`, under `pt`, and the single abstract method type it
-    /// implements; `Err` with the tree of a refusal.
+    /// implements with that method's parameter clause; `Err` with the tree of a refusal.
     pub fn expected_function_parts(
         &mut self,
         id: NodeId,
         pt: Pt,
         n: usize,
         contextual: bool,
-    ) -> Result<(Option<Parts>, Option<TypeId>), TNodeId> {
+    ) -> Result<(Option<Parts>, Option<super::sams::SamParent>), TNodeId> {
         let Pt::Type(p) = pt else { return Ok((None, None)) };
         if contextual {
             return Ok((self.context_function_parts(p).filter(|(params, _)| params.len() == n), None));
@@ -74,7 +74,7 @@ impl Typer<'_> {
             Ok(Some(s)) if self.context_function_parts(s.result).is_some() => {
                 Err(self.unsupported(id, "single abstract method with a context function result"))
             }
-            Ok(Some(s)) => Ok((Some((s.params, s.result)), Some(s.parent))),
+            Ok(Some(s)) => Ok((Some((s.params, s.result)), Some((s.parent, s.clause)))),
             Ok(None) => Ok((None, None)),
             Err(what) => Err(self.unsupported(id, what)),
         }

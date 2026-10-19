@@ -1,6 +1,6 @@
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
-//! (`product_mirrors.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
+//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
 use super::super::Typer;
 use super::super::constants::of_type;
@@ -28,6 +28,7 @@ impl Typer<'_> {
             ("scala.CanEqual", &[l, r]) => self.synthesized_can_equal(l, r, at, ctx, depth),
             ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth).map(Some),
             ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
+            ("scala.reflect.TypeTest", &[from, to]) => self.synthesized_type_test(from, to, at, ctx),
             _ => Ok(None),
         }
     }
