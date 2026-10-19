@@ -65,7 +65,7 @@ impl Host {
                 let t = self.reflect().applied_to_types(fun, &types)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
-            _ => Err("a quotes.reflect operation the frontend does not know"),
+            _ => self.run_position(op, args),
         }
     }
 
@@ -74,7 +74,7 @@ impl Host {
     }
 }
 
-fn symbol(n: i32) -> Result<SymbolId, &'static str> {
+pub fn symbol(n: i32) -> Result<SymbolId, &'static str> {
     (n >= 0).then_some(SymbolId(n as u32)).ok_or("a quotes.reflect operation on Symbol.noSymbol")
 }
 

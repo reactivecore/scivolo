@@ -14,6 +14,7 @@ use run::Unit;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
+use syntax::source::SourceFile;
 use tasty::Universe;
 use typer::inlining::Macros;
 use typer::tpd::TNodeId;
@@ -170,7 +171,8 @@ impl Session {
         };
         self.res = wrapped.next_res;
         let cfg = parsed.cfg;
-        let mut runner = macros::VmMacros { vm: &mut self.vm };
+        let source = SourceFile::new(parsed.source.name.clone(), parsed.source.text.clone());
+        let mut runner = macros::VmMacros { vm: &mut self.vm, sources: vec![source] };
         let macros = Some(&mut runner as &mut dyn Macros);
         let typed =
             self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), (wrapped.root, cfg), macros);

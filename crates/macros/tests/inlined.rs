@@ -30,7 +30,8 @@ fn run() -> Result<(), String> {
         let text = std::fs::read_to_string(&input).expect("a test input");
         let mut u = Universe::open(&tasty).map_err(|e| e.to_string())?;
         let source = SourceFile::new(input.to_string_lossy(), text.as_str());
-        let mut runner = VmMacros { vm: &mut vm };
+        let mut runner =
+            VmMacros { vm: &mut vm, sources: vec![SourceFile::new(source.name.clone(), text.as_str())] };
         let actual = dump_with(&mut u, &source, &[], (false, true), Some(&mut runner));
         if actual != expected {
             let at = actual.bytes().zip(expected.bytes()).take_while(|(a, b)| a == b).count();

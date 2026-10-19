@@ -91,7 +91,7 @@ impl Inlining<'_> {
                 arg => arg,
             });
         }
-        Ok(MacroCall { method, args, owner, span })
+        Ok(MacroCall { method, args, owner, span, expansion: self.outermost_span })
     }
 
     /// Quoted argument `body` as a literal if it refers to an inline proxy whose type normalizes
