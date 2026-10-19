@@ -36,4 +36,24 @@ impl Universe {
         }
         None
     }
+
+    /// The info a refinement of `prefix`'s widened type gives term member `name`.
+    pub fn term_refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
+        let mut t = self.widen(prefix);
+        for _ in 0..MAX_STEPS {
+            match self.types().get(t).clone() {
+                Type::Refined(_, n, info)
+                    if n == name && !matches!(self.types().get(info), Type::Alias(_) | Type::Bounds(..)) =>
+                {
+                    return Some(info);
+                }
+                Type::Refined(p, ..) | Type::Annotated(p, _) | Type::Rec(_, p) => t = p,
+                _ => match self.dealias(t) {
+                    d if d != t => t = d,
+                    _ => return None,
+                },
+            }
+        }
+        None
+    }
 }

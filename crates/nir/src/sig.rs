@@ -16,6 +16,7 @@ pub enum Sig {
     Clinit,
     Method(String, Vec<TypeId>, Scope),
     Extern(String),
+    Proxy(String, Vec<TypeId>),
 }
 
 impl Pool {
@@ -44,6 +45,12 @@ impl Pool {
             Sig::Extern(id) => {
                 out.push('C');
                 ident(&mut out, id);
+            }
+            Sig::Proxy(id, types) => {
+                out.push('P');
+                ident(&mut out, id);
+                types.iter().for_each(|&t| self.mangle_type(&mut out, t));
+                out.push('E');
             }
         }
         StrId(self.strings.intern_str(&out))

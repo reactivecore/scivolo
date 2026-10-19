@@ -16,6 +16,8 @@ pub struct DynamicCall {
     name: String,
     span: Span,
     targs: Vec<NodeId>,
+    /// The method type of a structural refinement member, whose call is an `applyDynamic`.
+    method: Option<tasty::TypeId>,
 }
 
 fn is_dynamic_method(name: &str) -> bool {
@@ -41,7 +43,7 @@ impl Typer<'_> {
         if ctx.mode.is(Mode::PATTERN) {
             return Some(self.unsupported(id, "Dynamic member in a pattern"));
         }
-        let call = DynamicCall { qual, name: text, span: self.ast.span(id), targs: Vec::new() };
+        let call = DynamicCall { qual, name: text, span: self.ast.span(id), targs: Vec::new(), method: None };
         if matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)) || self.dynamic_lhs == Some(id) {
             return Some(self.pending_dynamic(call));
         }
@@ -76,7 +78,13 @@ impl Typer<'_> {
         if self.supplied_otherwise(f, "apply", ctx)? {
             return Err("apply of a Dynamic value an extension or conversion may supply");
         }
-        let call = DynamicCall { qual: f, name: "apply".into(), span: self.tpd.span(f), targs: Vec::new() };
+        let call = DynamicCall {
+            qual: f,
+            name: "apply".into(),
+            span: self.tpd.span(f),
+            targs: Vec::new(),
+            method: None,
+        };
         Ok(Some(self.pending_dynamic(call)))
     }
 
@@ -108,6 +116,18 @@ impl Typer<'_> {
         let tpe = self.tpd.tpe(qual);
         let tpe = self.zonk(tpe);
         self.derives_from_named(tpe, "scala.Dynamic")
+    }
+
+    /// A pending call of structural member `name` of type `method`, selected from `qual` at
+    /// `span`.
+    pub fn pending_structural(
+        &mut self,
+        qual: TNodeId,
+        name: String,
+        span: Span,
+        method: tasty::TypeId,
+    ) -> TNodeId {
+        self.pending_dynamic(DynamicCall { qual, name, span, targs: Vec::new(), method: Some(method) })
     }
 
     /// A placeholder tree of the error type standing for `call`.
@@ -160,6 +180,9 @@ impl Typer<'_> {
     pub fn dynamic_apply(&mut self, id: NodeId, f: TNodeId, proto: usize, pt: Pt, ctx: Ctx) -> TNodeId {
         let call = self.dynamic_calls.remove(&f).expect("pending dynamic call");
         let args = self.protos[proto].args.clone();
+        if let Some(method) = call.method {
+            return self.structural_apply(id, (call.qual, &call.name, call.span), method, &args, ctx);
+        }
         let named = args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }));
         if !named {
             let fun = self.core_dynamic(&call, "applyDynamic");
@@ -203,7 +226,7 @@ impl Typer<'_> {
     }
 
     /// The untyped `fun(args)`, spanning both, and its argument list.
-    fn applied(&mut self, fun: NodeId, args: &[NodeId]) -> (NodeId, List) {
+    pub fn applied(&mut self, fun: NodeId, args: &[NodeId]) -> (NodeId, List) {
         let span = self.envelope(self.ast.span(fun), args);
         let args = self.ast.list(args);
         let apply = self.ast.node(Tree::Apply { fun, args });
@@ -238,7 +261,7 @@ impl Typer<'_> {
         rest.iter().fold(first, |span, &t| span.union(self.ast.span(t))).to_synthetic()
     }
 
-    fn string_literal(&mut self, s: &str, span: Span) -> NodeId {
+    pub fn string_literal(&mut self, s: &str, span: Span) -> NodeId {
         let value = Constant::String(s.encode_utf16().collect());
         let literal = self.ast.node(Tree::Literal { value });
         self.ast.with_span(literal, span);

@@ -30,10 +30,10 @@ impl Universe {
     /// and unresolved paths.
     pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
         Some(match self.types().get(t).clone() {
-            Type::TermRef(p, _) => {
-                let s = self.resolve_ref(t)?;
-                self.term_type(Some(p), s)
-            }
+            Type::TermRef(p, name) => match self.resolve_ref(t) {
+                Some(s) => self.term_type(Some(p), s),
+                None => self.term_refinement_named(p, &name)?,
+            },
             Type::Sym(p, s) if matches!(self.symbol(s).kind, Kind::Val | Kind::Param | Kind::Def) => {
                 self.term_type(p, s)
             }

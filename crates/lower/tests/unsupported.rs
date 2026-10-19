@@ -107,6 +107,16 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f() = { var y: Int = scala.compiletime.uninitialized; y } }",
         "`uninitialized` other than as a variable field's value",
     ),
+    (
+        "import scala.reflect.Selectable.reflectiveSelectable\nclass V(val n: Int) extends AnyVal\n\
+         object O { def f(p: { def v: V }) = p.v }",
+        "structural member of a value class type",
+    ),
+    (
+        "class S extends Selectable { def applyDynamic(n: String)(args: Any*): Any = 1 }\n\
+         object O { def f(p: S { def m(x: Int): Int }) = p.m(1) }",
+        "structural call on a Selectable other than reflect.Selectable",
+    ),
 ];
 
 #[test]

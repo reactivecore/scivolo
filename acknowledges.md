@@ -65,6 +65,8 @@ Apache-2.0. Rust translations of:
   and `crates/tasty/src/symbols/context_functions.rs`; `Erasure.Typer.mapOwner` and
   `ContextFunctionResults` (`annotateContextResults`, `contextResultCount`,
   `integrateContextResults`) in `crates/lower/src/phases`.
+- `crates/typer/src/typer/structural.rs`: `Dynamic.handleStructural` (`structuralCall`,
+  the `classOf` arguments of `applyDynamic`).
 - `crates/typer/src/typer/pattern_bounds.rs`: `Typer.typedType` with `mapPatternBounds`
   (pattern-bound wildcard types), the `tparamBounds` of `Typer.typedAppliedTypeTree`.
 - `crates/typer/src/typer/type_lambdas.rs`: `HKTypeLambda.boundsFromParams`;
