@@ -1,5 +1,5 @@
 //! Macro calls of the library `tests/macros/lib` expanded in the REPL and in a script, their
-//! implementations run in the VM (`SCALAI_MACROS=on`).
+//! implementations run in the VM.
 
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -55,7 +55,6 @@ fn scalai(args: &[&str], input: &str, env: &[(&str, &str)]) -> Output {
     let jar = root().join("tests/macros/lib/macros.jar");
     let mut child = Command::new(env!("CARGO_BIN_EXE_scalai"))
         .env("SCALAI_TIMEOUT", "300")
-        .env("SCALAI_MACROS", "on")
         .envs(env.iter().copied())
         .arg("--cp")
         .arg(jar)

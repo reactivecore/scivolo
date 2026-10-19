@@ -15,8 +15,7 @@ use vm::{Classpath, Vm, VmError};
 /// target, starts the REPL.
 ///
 /// Environment: SCALAI_LIBS holds the library jars (default: the Coursier cache);
-/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_MACROS=on expands macro
-/// calls in scripts and the REPL, running them in the VM; SCALAI_FRONTEND=strict compiles
+/// SCALAI_CACHE holds the library image and compiled scripts; SCALAI_FRONTEND=strict compiles
 /// scripts with the own frontend only, =jvm with scala-cli only (default: the own frontend,
 /// scala-cli where it refuses); SCALAI_SCALA_CLI names the scala-cli binary; SCALAI_TIMEOUT
 /// stops the program, compiling included, after that many seconds (exit 124); SCALAI_TRACE traces exceptions;

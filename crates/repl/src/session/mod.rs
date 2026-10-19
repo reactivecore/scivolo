@@ -52,8 +52,6 @@ pub struct Session {
     quiet: bool,
     /// How many `:load` commands run, one inside the other.
     loading: u32,
-    /// Whether macro calls expand, their implementations run in the VM.
-    macros: bool,
 }
 
 impl Session {
@@ -80,13 +78,7 @@ impl Session {
             width,
             quiet,
             loading,
-            macros: false,
         })
-    }
-
-    /// Sets whether macro calls expand.
-    pub fn expand_macros(&mut self, on: bool) {
-        self.macros = on;
     }
 
     /// Forgets the definitions of all inputs; the VM keeps their code under names not reused.
@@ -179,7 +171,7 @@ impl Session {
         self.res = wrapped.next_res;
         let cfg = parsed.cfg;
         let mut runner = macros::VmMacros { vm: &mut self.vm };
-        let macros = self.macros.then_some(&mut runner as &mut dyn Macros);
+        let macros = Some(&mut runner as &mut dyn Macros);
         let typed =
             self.units.type_unit(&mut self.u, &mut parsed.ast, (names, fresh), (wrapped.root, cfg), macros);
         let mut typed = match typed {

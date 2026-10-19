@@ -41,8 +41,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   hole fillings); `inlining/splice.rs` builds the expansion by copying each quote with its
   holes filled and its spliced types replaced, then retypes it, which expands the inline calls
   in it (dotty's `typedExpr` after `expandMacro`).
-- **Behind `SCALAI_MACROS=on`** until quote patterns and the reflect subset (M4b) pass
-  `typer-compare`; without it, and without a VM (typer reports, AOT), macro calls stay refused.
+- **Always on** in scripts and the REPL; without a VM (typer reports, AOT) macro calls stay
+  refused. Running library code at compile time is what dotty does too.
 
 ## Consequences
 - A macro whose implementation is not on the VM's classpath, or that uses `quotes.reflect`, a
@@ -52,8 +52,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   the program, as they would not on the JVM, scalai runs itself again in place of its process
   (`exec`, the hidden option `--rerun-of` giving the first start, from which `SCALAI_TIMEOUT`
   counts) after a compile that ran a macro, and the program runs from the cache in a fresh VM. Output a macro buffered in the VM without flushing is lost.
-- Scripts read the TASTy of `--cp` and `--dep` jars in the own frontend, with or without
-  `SCALAI_MACROS`, as the REPL does (most of #128); the script cache key holds each classpath
+- Scripts read the TASTy of `--cp` and `--dep` jars in the own frontend, as the REPL does
+  (most of #128); the script cache key holds each classpath
   entry's path, size and time.
 - The TASTy of every quote unpickled stays loaded in the universe (`Universe::load_quote`),
   since the symbols read from it point into it: a script pays per expansion, the REPL for the

@@ -32,11 +32,6 @@ impl Mode {
     }
 }
 
-/// Whether macro calls expand, as `SCALAI_MACROS=on` asks.
-pub fn macros_on() -> bool {
-    std::env::var_os("SCALAI_MACROS").is_some_and(|v| v == "on")
-}
-
 /// Why the own frontend does not compile a script, and its syntax or type errors as dotty
 /// prints them; `fatal` if the script fails rather than taking scala-cli.
 pub struct Refused {

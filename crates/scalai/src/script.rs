@@ -21,7 +21,7 @@ pub fn is_source(arg: &str) -> bool {
 
 /// The NIR directory of `source`, compiled with compiler options `options` against classpath
 /// `cp`, and its main class: `chosen`, else the only one. The own frontend reads the library's
-/// TASTy from `image` and, if `SCALAI_MACROS=on`, runs macros in `vm`.
+/// TASTy from `image` and runs macros in `vm`.
 pub fn main_of(
     source: &str,
     chosen: Option<String>,
@@ -55,8 +55,7 @@ fn compile(
     let source = Path::new(file).canonicalize().map_err(|e| format!("{file}: {e}"))?;
     let text = std::fs::read(&source).map_err(|e| format!("{file}: {e}"))?;
     let mut h = DefaultHasher::new();
-    let macros = frontend::macros_on();
-    (&source, &text, mode, options, BUILD, SCALA, NATIVE, macros).hash(&mut h);
+    (&source, &text, mode, options, BUILD, SCALA, NATIVE).hash(&mut h);
     for entry in cp {
         let meta = std::fs::metadata(entry).ok();
         (entry.canonicalize().ok(), meta.as_ref().map(|m| (m.len(), m.modified().ok()))).hash(&mut h);
@@ -76,7 +75,7 @@ fn compile(
     }
     let staging = dir.with_extension(std::process::id().to_string());
     let mut runner = VmMacros { vm };
-    let macros = macros.then_some(&mut runner as &mut dyn Macros);
+    let macros = Some(&mut runner as &mut dyn Macros);
     let built = build(file, (&source, &text, options), mode, (image, macros), &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {
         return cached(&dir).ok_or_else(|| format!("{}: unreadable", dir.display()));
