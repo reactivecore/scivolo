@@ -41,7 +41,6 @@ impl Typer<'_> {
             let Some(class) = self.resolve_full_name(class_name, true) else { continue };
             let wanted = crate::defn::applied(self.u, class, args);
             match self.implicit_arg(wanted, at, ctx.with_mode(Mode::NONE), 0) {
-                Ok(_) if class_name == TAGS[0] => return Err("type pattern tested by a given TypeTest"),
                 Ok(tag) => {
                     found = Some(tag);
                     break;
@@ -58,6 +57,35 @@ impl Typer<'_> {
         let apply = self.ast.node(Tree::Apply { fun: splice, args });
         self.ast.with_span(apply, Span::synthetic(self.ast.span(id).start(), at.start()));
         Ok(Some(self.typed(apply, pt, ctx)))
+    }
+
+    /// Extractor pattern `id`, typed as `tree` of type `own`, against `sel` as `tree: own`,
+    /// tested by a given `TypeTest` or `ClassTag` if `own` refers to an abstract type.
+    pub fn type_tested_unapply(
+        &mut self,
+        id: NodeId,
+        tree: TNodeId,
+        own: TypeId,
+        sel: TypeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        let span = self.ast.span(id);
+        if !self.is_testable_type(own) {
+            let expr = self.ast.node(Tree::TypeTree);
+            self.ast.with_span(expr, span);
+            self.splices.insert(expr, tree);
+            let tpt = self.ast.node(Tree::TypeTree);
+            self.ast.with_span(tpt, span.end_pos());
+            if let Some(tagged) = self.try_with_type_test(id, expr, tpt, own, Pt::Type(sel), ctx)? {
+                return Ok(tagged);
+            }
+            if !self.is_erased_test_type(own) {
+                return Err("extractor of a type that needs a type test");
+            }
+            self.warn_unchecked_type_test(Pt::Type(sel), own, span);
+        }
+        let tpt = self.type_tree(own, span.end_pos(), false);
+        Ok(self.tpd.node(T::Typed { expr: tree, tpt }, span.to_synthetic(), Some(own), None))
     }
 
     /// Whether `t` refers to a type parameter or an abstract type member.
