@@ -139,7 +139,7 @@ impl Typer<'_> {
     /// Adds the classes of the objects the imports in `ctx` import from, or of the objects of the
     /// packages they import from, to `out`; `None` if one imports from a path other than a package
     /// or an object.
-    fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>) -> Option<()> {
+    pub fn imported_objects(&mut self, ctx: Ctx, out: &mut Vec<SymbolId>) -> Option<()> {
         let mut level = Some(ctx.level);
         while let Some(l) = level {
             if let Level::Import(i) = *self.levels.get(l) {

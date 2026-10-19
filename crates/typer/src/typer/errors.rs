@@ -81,6 +81,11 @@ pub fn type_does_not_take_parameters(tpe: &str) -> Message {
     message(53, "Type", true, format!("{tpe} does not take type parameters"))
 }
 
+/// `MethodDoesNotTakeParameters` for a reference to `what`, shown with location, applied once.
+pub fn does_not_take_parameters(what: &str) -> Message {
+    message(50, "Type", true, format!("{what} does not take parameters"))
+}
+
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
 /// `hint`.
 pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {

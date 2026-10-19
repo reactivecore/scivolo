@@ -96,6 +96,7 @@ mod name_clashes;
 mod named_args;
 mod names;
 mod no_inits;
+mod non_method_apply;
 mod not_a_member;
 mod not_found;
 mod op_assign;

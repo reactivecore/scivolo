@@ -104,7 +104,7 @@ impl Typer<'_> {
 
     /// Where dotty's `showLocated` places a member of `owner`: ` in object O`, or nothing for a
     /// top-level or local definition.
-    fn location(&mut self, owner: SymbolId) -> Option<String> {
+    pub fn location(&mut self, owner: SymbolId) -> Option<String> {
         let o = self.u.symbol(owner);
         let (name, kind, flags, parent) = (o.name.clone(), o.kind, o.flags, o.owner);
         Some(match kind {
