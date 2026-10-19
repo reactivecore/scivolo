@@ -4,7 +4,7 @@
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
-use tasty::tags::INLINE;
+use tasty::tags::{CONTRAVARIANT, COVARIANT, INLINE, INLINEPROXY};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
@@ -78,9 +78,12 @@ impl Inlining<'_> {
         Some(tpe)
     }
 
-    /// `tpe` with its parts that refer to `locals` replaced: a local value by its type, a type
-    /// selected from a path through one by its alias.
+    /// `tpe` with its parts that refer to `locals` replaced: a type selected from a path through
+    /// one by its alias, a local value by its type; `tpe` itself if a local value is misplaced.
     fn avoid_parts(&mut self, tpe: TypeId, locals: &[SymbolId]) -> TypeId {
+        if self.misplaced_local(tpe, locals, 1, 16) {
+            return tpe;
+        }
         self.u.map_type(tpe, &mut |u, part| {
             let Type::Sym(p, x) = *u.types().get(part) else { return None };
             if locals.contains(&x) && !u.is_type_symbol(x) {
@@ -94,14 +97,51 @@ impl Inlining<'_> {
         })
     }
 
+    /// Whether a local value of `locals` occurs in `t`, at a position of variance `variance`
+    /// (1 covariant, 0 invariant, -1 contravariant), where its type cannot stand for it: other
+    /// than covariantly, or contravariantly for an inline proxy; a type selection with an alias
+    /// counts by its alias.
+    fn misplaced_local(&mut self, t: TypeId, locals: &[SymbolId], variance: i8, depth: u32) -> bool {
+        if depth == 0 {
+            return mentions_any(self.u, t, locals);
+        }
+        match self.u.types().get(t).clone() {
+            Type::Sym(p, x) if !self.u.is_type_symbol(x) => {
+                if locals.contains(&x) {
+                    let proxy = self.u.symbol(x).flags.has(INLINEPROXY);
+                    return if proxy { variance < 0 } else { variance < 1 };
+                }
+                p.is_some_and(|p| self.misplaced_local(p, locals, 0, depth - 1))
+            }
+            Type::Sym(p, _) => {
+                let d = self.u.dealias(t);
+                if d != t {
+                    return self.misplaced_local(d, locals, variance, depth - 1);
+                }
+                p.is_some_and(|p| self.misplaced_local(p, locals, 0, depth - 1))
+            }
+            Type::Applied(tycon, args) => {
+                let class = self.u.class_symbol(tycon).filter(|&c| self.u.is_class(c));
+                let params = class.map(|c| self.u.type_params(c)).unwrap_or_default();
+                let mut found = self.misplaced_local(tycon, locals, 0, depth - 1);
+                for (i, a) in args.into_iter().enumerate() {
+                    let flags = params.get(i).map(|&p| self.u.symbol(p).flags);
+                    let param = match flags {
+                        Some(f) if f.has(COVARIANT) => 1,
+                        Some(f) if f.has(CONTRAVARIANT) => -1,
+                        _ => 0,
+                    };
+                    found = found || self.misplaced_local(a, locals, variance * param, depth - 1);
+                }
+                found
+            }
+            _ => mentions_any(self.u, t, locals),
+        }
+    }
+
     /// Whether type `t` refers to symbol `s`.
     pub fn mentions(&mut self, t: TypeId, s: SymbolId) -> bool {
-        let mut found = false;
-        self.u.map_type(t, &mut |u, part| {
-            found |= matches!(*u.types().get(part), Type::Sym(_, x) if x == s);
-            None
-        });
-        found
+        mentions_any(self.u, t, &[s])
     }
 }
 

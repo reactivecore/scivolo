@@ -2,24 +2,24 @@
 //! TC.derived` in the companion of `C`, entered with the companion and typed after its body.
 
 use super::Typer;
+use super::deriving_finalize::Problem;
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
-
-/// Why an instance's `TC.derived` cannot be called: the type class, or its companion's path.
-pub enum Problem {
-    NoCompanion(String),
-    ExplicitParams(String),
-}
 
 impl Typer<'_> {
     /// Enters into module class `cls` the instances of its `derives` clause `derived`, for its
     /// companion class if `companion`, else for itself (dotty's `Deriver.enterDerived`).
     pub fn enter_derived(&mut self, cls: SymbolId, companion: bool, derived: &[NodeId], ctx: Ctx) {
         let deriving = if companion { self.u.companion_class(cls).unwrap_or(cls) } else { cls };
+        if self.u.is_module_class(deriving)
+            && let Some(&d) = derived.first()
+        {
+            self.unsupported(d, "derives clause of an object");
+            return;
+        }
         let mut defs = Vec::new();
         let mut names = Vec::new();
         for &d in derived {
@@ -75,8 +75,14 @@ impl Typer<'_> {
         let instance = match tc_params.len() {
             1 => self.derive_single_parameter(cls, tc_params[0], span),
             _ if self.u.full_name(tc) == "scala.CanEqual" => self.derive_can_equal(cls, &tc_params, span),
-            0 => Err(format!("type {tc_name} in derives clause of {cls_name} has no type parameters")),
-            _ => Err(cannot_be_unified.clone()),
+            0 => {
+                self.error(
+                    d,
+                    format!("type {tc_name} in derives clause of {cls_name} has no type parameters"),
+                );
+                return None;
+            }
+            _ => Ok(None),
         };
         let instance = match instance {
             Ok(Some(i)) => i,
@@ -84,8 +90,8 @@ impl Typer<'_> {
                 self.error(d, cannot_be_unified);
                 return None;
             }
-            Err(msg) => {
-                self.error(d, msg);
+            Err(what) => {
+                self.unsupported(d, what);
                 return None;
             }
         };
@@ -138,53 +144,6 @@ impl Typer<'_> {
         Some((self.derived_node(Tree::DefDef { name, paramss, tpt, rhs: Some(rhs), mods }, span), problem))
     }
 
-    /// Appends to the body of each module class among typed statements `stats`, typed in `ctxs`,
-    /// the instances of its `derives` clause (dotty's `Deriver.finalize`).
-    pub fn finalize_derived(&mut self, stats: &[TNodeId], ctxs: &[Ctx]) {
-        for (&s, &ctx) in stats.iter().zip(ctxs) {
-            let T::TypeDef { rhs, .. } = *self.tpd.tree(s) else { continue };
-            let Some(cls) = self.tpd.sym(s).filter(|c| self.derived_instances.contains_key(c)) else {
-                continue;
-            };
-            let cctx = self.class_ctx(cls, ctx);
-            let derived = self.typed_derived_instances(cls, cctx);
-            let T::Template { constr, parents, self_, body } = *self.tpd.tree(rhs) else { continue };
-            let body = [self.tpd.items(body), &derived].concat();
-            let body = self.tpd.list(&body);
-            self.tpd.get_mut(rhs).tree = T::Template { constr, parents, self_, body };
-        }
-    }
-
-    /// The instances of module class `cls`'s `derives` clause, typed in `ctx` (dotty's
-    /// `Deriver.syntheticDefs`); one whose type class's `derived` cannot be called reported.
-    fn typed_derived_instances(&mut self, cls: SymbolId, ctx: Ctx) -> Vec<TNodeId> {
-        let mut out = Vec::new();
-        for (d, problem) in self.derived_instances.remove(&cls).unwrap_or_default() {
-            if let Some(problem) = problem {
-                let sym = self.syms.by_tree[&d];
-                self.complete(sym);
-                let result = match self.syms.def_results.get(&sym) {
-                    Some(&r) => r,
-                    None => self.u.info(sym),
-                };
-                let shown = self.show_type(result);
-                let msg = match problem {
-                    Problem::NoCompanion(tc) => {
-                        format!("{shown} cannot be derived since {tc} has no companion object")
-                    }
-                    Problem::ExplicitParams(module) => format!(
-                        "derived instance {shown} failed to generate:\nmethod `derived` from object {module} takes explicit term parameters"
-                    ),
-                };
-                self.error_at(self.ast.span(d), msg);
-                continue;
-            }
-            let typed = self.typed_stat(d, ctx);
-            out.push(self.with_plain_type_trees(typed));
-        }
-        out
-    }
-
     /// The text of path type `t` as a reference to it shows it: `a.b.C`.
     fn ref_text(&mut self, t: TypeId) -> String {
         match *self.u.types().get(t) {
@@ -207,7 +166,7 @@ impl Typer<'_> {
         loop {
             match *self.u.types().get(info) {
                 Type::Poly { result, .. } => info = result,
-                Type::Method { implicit: false, .. } => return true,
+                Type::Method { implicit: false, ref params, .. } if !params.is_empty() => return true,
                 Type::Method { result, .. } => info = result,
                 _ => return false,
             }

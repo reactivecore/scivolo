@@ -83,6 +83,9 @@ impl Desugar<'_> {
             unreachable!("a template")
         };
         let syn_derived = self.derived_of(syn_pd, syn_n);
+        if !syn_derived.is_empty() && derived.is_some_and(|n| n > 0) {
+            self.error(expl, "a class and its companion cannot both have `derives` clauses");
+        }
         let items = self.ast.items(parents_or_derived).to_vec();
         let parents = &items[..items.len() - derived.unwrap_or(0) as usize];
         let (new_derived, n) = if syn_derived.is_empty() {

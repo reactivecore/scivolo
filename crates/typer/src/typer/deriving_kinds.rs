@@ -21,7 +21,7 @@ impl Typer<'_> {
         cls: SymbolId,
         tc_param: SymbolId,
         span: Span,
-    ) -> Result<Option<Instance>, String> {
+    ) -> Result<Option<Instance>, &'static str> {
         self.complete(tc_param);
         let tc_param_info = self.u.info(tc_param);
         let tc_infos = self.hk_params(tc_param_info).unwrap_or_default();
@@ -44,7 +44,7 @@ impl Typer<'_> {
                 let mut args: Vec<NodeId> = derived.iter().map(|&p| self.param_ident(p, span)).collect();
                 let lambda_names: Vec<String> = tc_infos.iter().map(|(n, _)| n.clone()).collect();
                 if derived.iter().any(|&p| lambda_names.contains(&self.u.symbol(p).name)) {
-                    return Err("derives clause whose type lambda shadows a type parameter".into());
+                    return Err("derives clause whose type lambda shadows a type parameter");
                 }
                 let lparams = tc_infos
                     .iter()
@@ -79,7 +79,7 @@ impl Typer<'_> {
         cls: SymbolId,
         tc_params: &[SymbolId],
         span: Span,
-    ) -> Result<Option<Instance>, String> {
+    ) -> Result<Option<Instance>, &'static str> {
         let cls_params = self.class_type_params(cls);
         let mut rows: Vec<(Vec<String>, bool)> = Vec::new();
         let mut tparams = Vec::new();

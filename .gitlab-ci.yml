@@ -74,6 +74,8 @@ test:linux:
   needs:
     - job: build-image
       artifacts: true
+  variables:
+    XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
     - key: scalai-cargo-linux
       paths: *cargo_cache_paths
@@ -83,8 +85,10 @@ test:linux:
       paths: [target]
     - key: scalai-libs-linux
       paths: *libs_cache_paths
+    - key: scalai-coursier-linux
+      paths: [.cache/coursier]
   script:
-    - rustc --version && cargo --version && just --version && clang --version
+    - rustc --version && cargo --version && just --version && clang --version && cs version
     - just ci
 
 # Scala Native's unit tests: on main, and on demand in a merge request.
