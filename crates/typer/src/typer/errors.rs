@@ -70,9 +70,15 @@ pub fn ambiguous_overload(method: &str, types: &[String], args: &str) -> Message
 pub fn wrong_number_of_type_args(tycon: &str, expected: &[String], actual: &[String]) -> Message {
     let prefix = if actual.len() > expected.len() { "Too many" } else { "Not enough" };
     let (expected, actual) = (expected.join(", "), actual.join(", "));
-    let text =
-        format!("{prefix} type arguments for {tycon}[{expected}]\nexpected: [{expected}]\nactual:   [{actual}]");
+    let text = format!(
+        "{prefix} type arguments for {tycon}[{expected}]\nexpected: [{expected}]\nactual:   [{actual}]"
+    );
     message(23, "Syntax", true, text)
+}
+
+/// `TypeDoesNotTakeParameters` for the type shown as `tpe`, not an F-bounded type parameter.
+pub fn type_does_not_take_parameters(tpe: &str) -> Message {
+    message(53, "Type", true, format!("{tpe} does not take type parameters"))
 }
 
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
