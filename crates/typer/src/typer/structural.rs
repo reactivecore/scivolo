@@ -74,7 +74,7 @@ impl Typer<'_> {
             return None;
         }
         let info = self.u.term_refinement_named(pre, &text)?;
-        let method = match self.u.types().get(info) {
+        let method = match self.u.types().get(info).clone() {
             Type::Poly { .. } => return Some(self.unsupported(id, "polymorphic structural method")),
             Type::Method { .. } if !matches!(pt, Pt::Fun(_)) => {
                 return Some(self.unsupported(id, "structural method value"));
@@ -122,6 +122,11 @@ impl Typer<'_> {
         if matches!(self.u.types().get(result), Type::Method { .. }) {
             return self.unsupported(id, "structural call with several argument lists");
         }
+        let reflective = self.u.class_ref("scala.reflect.Selectable");
+        let qual_tpe = self.zonk(self.tpd.tpe(qual));
+        if !self.u.is_subtype(qual_tpe, reflective) {
+            return self.unsupported(id, "structural call on a Selectable other than reflect.Selectable");
+        }
         let plain =
             |s: &Self, a: NodeId| !matches!(s.ast.tree(a), Tree::NamedArg { .. }) && !s.is_sequence_arg(a);
         if args.len() != params.len() || !args.iter().all(|&a| plain(self, a)) {
@@ -130,7 +135,7 @@ impl Typer<'_> {
         let mut class_ofs = Vec::new();
         for &(_, p) in &params {
             let Some(c) = self.structural_class_of(p, span) else {
-                return self.unsupported(id, "structural parameter type with an unstable erasure");
+                return self.unsupported(id, "structural parameter of an array, value class or no class");
             };
             class_ofs.push(c);
         }
@@ -156,15 +161,15 @@ impl Typer<'_> {
         let selector = TName { name: self.name(selector), is_type: false };
         let fun = self.ast.node(Tree::Select { qualifier, name: selector });
         self.ast.with_span(fun, span);
-        (fun, self.string_literal(name, span.end_pos()))
+        (fun, self.string_literal(&tasty::encode(name), span.end_pos()))
     }
 
-    /// The untyped `classOf[C]` of the class parameter type `p` erases to; `None` for an array or
-    /// a type that erases to no class.
+    /// The untyped `classOf[C]` of the class parameter type `p` erases to; `None` for an array, a
+    /// value class or a type that erases to no class.
     fn structural_class_of(&mut self, p: TypeId, at: Span) -> Option<NodeId> {
         let widened = self.u.widen(p);
         let dealiased = self.u.dealias(widened);
-        if self.class_args(dealiased, "scala.Array").is_some() {
+        if self.class_args(dealiased, "scala.Array").is_some() || self.is_value_class_type(dealiased) {
             return None;
         }
         let class = self.u.erased_class(dealiased)?;
@@ -175,10 +180,20 @@ impl Typer<'_> {
         Some(self.spliced(literal))
     }
 
-    /// `call.$asInstanceOf$[tpe]`, or `call` if it is an error.
+    /// Whether `t` widens to a value class or a by-name one.
+    fn is_value_class_type(&mut self, t: TypeId) -> bool {
+        let widened = self.u.widen(t);
+        let value = if let Type::ByName(r) = *self.u.types().get(widened) { r } else { widened };
+        self.u.value_class(value).is_some()
+    }
+
+    /// `call.$asInstanceOf$[tpe]`, or `call` if it is an error; refused for a value class.
     fn structural_cast(&mut self, id: NodeId, call: TNodeId, tpe: TypeId) -> TNodeId {
         if self.is_error(call) {
             return call;
+        }
+        if self.is_value_class_type(tpe) {
+            return self.unsupported(id, "structural member of a value class type");
         }
         self.cast_to_captured(call, tpe).unwrap_or_else(|what| self.unsupported(id, what))
     }
