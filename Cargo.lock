@@ -516,11 +516,14 @@ name = "lower"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "libs",
+ "macros",
  "nir",
  "rustc-hash",
  "syntax",
  "tasty",
  "typer",
+ "vm",
 ]
 
 [[package]]
