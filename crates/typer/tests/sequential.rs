@@ -316,14 +316,17 @@ fn no_false_errors_behind_unsupported_constructs() {
             "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x: BigInt = 13232202002020202020202\n",
             "generic number literal",
         ),
-        ("class Term[T]\nobject M:\n  val t: Term[Int, Kind] = ???\n", "wrong number of type arguments"),
     ];
     for (text, what) in cases {
         assert_eq!(errors_first(text), Err(format!("unsupported {what}")), "{text}");
     }
     assert_eq!(errors_first("object M:\n  val x = y\n"), Err("type errors [\"Not found: y\"]".into()));
+    let many = "class Term[T]\nobject M:\n  val t: Term[Int, Kind] = ???\n";
+    let too_many = "Too many type arguments for Term[T]\\nexpected: [T]\\nactual:   [Int, Kind]";
+    assert_eq!(errors_first(many), Err(format!("type errors [\"{too_many}\"]")));
     let few = "class Term[A, B]\nobject M:\n  val t: Term[Kind] = ???\n";
-    assert_eq!(errors_first(few), Err("unsupported wrong number of type arguments".into()));
+    let not_enough = "Not enough type arguments for Term[A, B]\\nexpected: [A, B]\\nactual:   [Kind]";
+    assert_eq!(errors_first(few), Err(format!("type errors [\"{not_enough}\"]")));
     let untyped = "import scala.language.experimental.genericNumberLiterals\nobject M:\n  val x = 1\n";
     assert_eq!(errors_first(untyped), Ok(()));
     let strict = "import scala.language.strictEquality\nclass A\nclass B\nobject M:\n  val b = A() == B()\n";

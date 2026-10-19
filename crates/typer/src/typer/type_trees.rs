@@ -22,13 +22,13 @@ impl Typer<'_> {
                 let arg_ids = self.ast.items(args).to_vec();
                 let arity = self.type_arity(tycon);
                 if !self.is_error(tpt) && arity != arg_ids.len() {
+                    let Some(error) = self.wrong_type_arg_count(id, tycon, &arg_ids) else {
+                        return self.unsupported(id, "wrong number of type arguments");
+                    };
                     if arity > 0 {
                         arg_ids.iter().take(arity).for_each(|&a| _ = self.typed_type(a, ctx));
                     }
-                    return match self.wrong_type_arg_count(id, tycon, &arg_ids) {
-                        Some(error) => error,
-                        None => self.unsupported(id, "wrong number of type arguments"),
-                    };
+                    return error;
                 }
                 let mut typed_args: Vec<TNodeId> = arg_ids.iter().map(|&a| self.typed_type(a, ctx)).collect();
                 let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
