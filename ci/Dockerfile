@@ -20,6 +20,17 @@ RUN curl --proto '=https' --tlsv1.2 -sSfL \
     rm /tmp/just.tar.gz && \
     just --version
 
+# Coursier fetches the Maven dependencies of `--dep` and the REPL dependency tests.
+ARG COURSIER_VERSION=2.1.26
+ARG COURSIER_SHA256=348e37bc2a8c706640e6b032c4551a0e055a7f1537485b4a91540e9d3598ec6d
+RUN curl --proto '=https' --tlsv1.2 -sSfL \
+        "https://github.com/coursier/coursier/releases/download/v${COURSIER_VERSION}/cs-x86_64-pc-linux.gz" \
+        -o /tmp/cs.gz && \
+    echo "${COURSIER_SHA256}  /tmp/cs.gz" | sha256sum -c - && \
+    gunzip -c /tmp/cs.gz > /usr/local/bin/cs && \
+    chmod +x /usr/local/bin/cs && \
+    rm /tmp/cs.gz
+
 ARG RUST_VERSION=1.95.0
 ENV PATH="/root/.cargo/bin:$PATH"
 
