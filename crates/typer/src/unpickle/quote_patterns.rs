@@ -1,12 +1,10 @@
 //! Quote patterns as pickled for `QuoteMatching.ExprMatch` (dotty's `QuotePatterns`): a quote
 //! whose body is a term hole `patternHole[T]`, after the type definitions of its bindings.
 
-use super::quotes::unpickler;
 use super::{Refusal, Unpickler};
-use crate::tpd::{Tpd, Tree as T};
-use syntax::names::Names;
-use tasty::tags::{ANNOTATION, BLOCK, SYNTHETIC, TYPED, TYPEDEF};
-use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, Universe, View, view};
+use crate::tpd::Tree as T;
+use tasty::tags::{ANNOTATION, BLOCK, SYNTHETIC, TYPEAPPLY, TYPED, TYPEDEF};
+use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
 
 /// A quote pattern of a single typed term hole: the hole's type and the pattern's type
 /// bindings, each with whether it is approximated from above (`@fromAbove`).
@@ -16,28 +14,28 @@ pub struct QuotePattern {
 }
 
 const SHAPE: Refusal = "a quote pattern other than a typed term hole";
-
-/// The quote pattern whose TASTy is `bytes`, owned by `owner`, its type holes filled with
-/// `types`.
-pub fn quote_pattern(
-    lent: (&mut Universe, &mut Tpd, &mut Names),
-    bytes: Vec<u8>,
-    owner: SymbolId,
-    types: &[TypeId],
-) -> Result<QuotePattern, Refusal> {
-    let (mut p, root) = unpickler(lent, bytes, owner)?;
-    let View::Inlined { expr, bindings: [], .. } = view(p.ast(), root) else { return Err(SHAPE) };
-    let (body, spliced) = p.spliced_types(expr, types)?;
-    let (body, bindings) = p.type_bindings(body)?;
-    let hole = p.hole_type(body)?;
-    let hole = p.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
-        Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
-        _ => None,
-    });
-    Ok(QuotePattern { hole, bindings })
-}
+const PATTERNS: &str = "scala.quoted.runtime.Patterns$";
 
 impl Unpickler<'_> {
+    /// The quote pattern quote body `body` is, if it is one, its spliced type definitions'
+    /// symbols `spliced` standing for their types.
+    pub fn pattern(
+        &mut self,
+        body: NodeId,
+        spliced: &[(SymbolId, TypeId)],
+    ) -> Result<Option<QuotePattern>, Refusal> {
+        let (inner, bindings) = self.type_bindings(body)?;
+        if bindings.is_empty() && !self.is_hole(inner) {
+            return Ok(None);
+        }
+        let hole = self.hole_type(inner)?;
+        let hole = self.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+            _ => None,
+        });
+        Ok(Some(QuotePattern { hole, bindings }))
+    }
+
     /// The body of the block at `id` after its type binding definitions, and the bindings
     /// defined; `id` itself without bindings if it is not such a block.
     fn type_bindings(&mut self, id: NodeId) -> Result<(NodeId, Vec<(SymbolId, bool)>), Refusal> {
@@ -76,8 +74,15 @@ impl Unpickler<'_> {
         let annots: Vec<NodeId> = mods.iter().copied().filter(|&m| self.tag(m) == ANNOTATION).collect();
         annots.into_iter().any(|m| {
             let tpe = self.ty(self.kids(m)[0]);
-            self.u.class_symbol(tpe).is_some_and(|c| self.u.symbol(c).name == name)
+            self.u.class_symbol(tpe).is_some_and(|c| self.is_patterns_member(c, name))
         })
+    }
+
+    /// Whether the tree at `id`, possibly ascribed, applies a method named `patternHole` to a
+    /// type.
+    fn is_hole(&self, id: NodeId) -> bool {
+        let id = if self.tag(id) == TYPED { self.kids(id)[0] } else { id };
+        self.tag(id) == TYPEAPPLY && self.name(self.ast().deref(self.kids(id)[0])) == "patternHole"
     }
 
     /// The type `T` of the term hole `patternHole[T]` at `id`, possibly ascribed.
@@ -86,11 +91,13 @@ impl Unpickler<'_> {
         let t = self.term(id)?;
         let T::TypeApply { fun, args } = *self.tpd.tree(t) else { return Err(SHAPE) };
         let [tpt] = self.tpd.items(args)[..] else { return Err(SHAPE) };
-        let hole = self.tpd.sym(fun).is_some_and(|s| {
-            let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
-            self.u.symbol(s).name == "patternHole"
-                && owner.is_some_and(|o| o.contains("quoted.runtime.Patterns"))
-        });
+        let hole = self.tpd.sym(fun).is_some_and(|s| self.is_patterns_member(s, "patternHole"));
         hole.then(|| self.tpd.tpe(tpt)).ok_or(SHAPE)
+    }
+
+    /// Whether `s` is member `name` of object `scala.quoted.runtime.Patterns`.
+    fn is_patterns_member(&self, s: SymbolId, name: &str) -> bool {
+        let owner = self.u.symbol(s).owner.map(|o| self.u.full_name(o));
+        self.u.symbol(s).name == name && owner.as_deref() == Some(PATTERNS)
     }
 }

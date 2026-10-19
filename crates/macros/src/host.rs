@@ -6,7 +6,7 @@ use syntax::names::Names;
 use tasty::{SymbolId, TypeId, Universe};
 use typer::inlining::{Quoted, quote_match};
 use typer::tpd::{TNodeId, Tpd};
-use typer::unpickle::{Quote, QuotePattern, quote, quote_pattern, quoted_type};
+use typer::unpickle::{Quote, QuotePattern, quote, quoted_type};
 
 /// The universe, trees and names the typer lends the expansion.
 pub type Tables<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names);
@@ -117,11 +117,13 @@ impl vm::QuoteHost for Host {
     fn unpickle_expr(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
         let (bytes, types) = self.decoded(pickled, types)?;
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        if bytes.windows(b"patternHole".len()).any(|w| w == b"patternHole") {
-            self.patterns.push(quote_pattern(lent, bytes, self.owner, &types)?);
-            return Ok(PATTERN | (self.patterns.len() as u32 - 1));
-        }
-        let Quote { root, spliced, holes } = quote(lent, bytes, self.owner, &types)?;
+        let Quote { root, spliced, holes } = match quote(lent, bytes, self.owner, &types)? {
+            typer::unpickle::Unpickled::Quote(q) => q,
+            typer::unpickle::Unpickled::Pattern(p) => {
+                self.patterns.push(p);
+                return Ok(PATTERN | (self.patterns.len() as u32 - 1));
+            }
+        };
         let holes = holes
             .into_iter()
             .map(|h| (h.node, h.index, h.args.into_iter().map(|a| self.add_tree(a)).collect(), None))

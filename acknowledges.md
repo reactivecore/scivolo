@@ -152,7 +152,12 @@ Apache-2.0. Rust translations of:
   and its `SpliceInterpreter`, `quoted/PickledQuotes` (unpickling with type and term holes),
   `quoted/QuotesImpl` and `QuoteUnpickler`/`QuoteMatching` (the shape of `QuotesImpl`, `ExprImpl`
   and `TypeImpl`), and `core/tasty/TastyString` (Base64 of pickled quotes,
-  `crates/macros/src/tasty_string.rs`).
+  `crates/macros/src/tasty_string.rs`). Quote patterns and `quotes.reflect`
+  (`crates/typer/src/inlining/{quote_match,reflect}.rs`, `crates/typer/src/unpickle/quote_patterns.rs`,
+  `crates/macros/src/reflect.rs`, `ReflectImpl.scala`): `QuoteMatcher` (`treeMatch`,
+  `instrumentTypeHoles`, `typeHoleApproximation`), `QuotePatterns` (the pickled pattern shape),
+  `QuotesImpl.reflect` (the members of the subset, `underlyingArgument`), and
+  `inlines/InlineReducer.getTypeBindsMap` (the variance of inline-match type bindings).
 - Completion: `interactive/Completion` (`completionPrefix`, `accessibleMembers`,
   `isValidCompletionSymbol`, `needsBacktick`) in `crates/typer/src/completion` and
   `crates/repl/src/completion`; `ast/NavigateAST.pathTo` (`crates/syntax/src/ast/path.rs`);

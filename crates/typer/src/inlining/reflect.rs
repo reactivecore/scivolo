@@ -22,14 +22,33 @@ impl Reflect<'_> {
         Ok(Build::new(self.tpd, self.u, self.names, unit.ok_or("a library without scala.Unit")?))
     }
 
-    /// `Term.underlying`: `t` without the inlined, typed and empty block trees around it.
+    /// `Term.underlying` (dotty's `underlyingArgument` at the top of `t`): `t` without the
+    /// inlined trees without bindings, empty blocks and argument names around it, a reference to
+    /// a local value replaced by the value's right-hand side.
     pub fn underlying(&self, t: TNodeId) -> TNodeId {
         match *self.tpd.tree(t) {
             T::Inlined { bindings, expansion, .. } if bindings.is_empty() => self.underlying(expansion),
-            T::Typed { expr, .. } => self.underlying(expr),
             T::Block { stats, expr } if stats.is_empty() => self.underlying(expr),
+            T::NamedArg { arg, .. } => self.underlying(arg),
+            T::Ident { .. } => match self.tpd.sym(t).and_then(|s| self.local_rhs(s)) {
+                Some(rhs) => self.underlying(rhs),
+                None => t,
+            },
             _ => t,
         }
+    }
+
+    /// The right-hand side of the definition of `s` if it is a value owned by a term.
+    fn local_rhs(&self, s: SymbolId) -> Option<TNodeId> {
+        let sym = self.u.symbol(s);
+        let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
+        if sym.kind != Kind::Val || !local {
+            return None;
+        }
+        (0..self.tpd.len()).rev().map(TNodeId::new).find_map(|d| match *self.tpd.tree(d) {
+            T::ValDef { rhs: Some(rhs), .. } if self.tpd.sym(d) == Some(s) => Some(rhs),
+            _ => None,
+        })
     }
 
     /// `Literal.constant`, if `t` is a literal.
@@ -45,19 +64,29 @@ impl Reflect<'_> {
         Ok(self.build()?.literal(constant, Span::NONE))
     }
 
-    /// `TypeRepr.typeSymbol`.
+    /// `TypeRepr.typeSymbol`: the symbol a type reference names, an alias's own; through the
+    /// underlying type of other proxies; none for other types.
     pub fn type_symbol(&mut self, t: TypeId) -> Option<SymbolId> {
-        let t = self.u.dealias(t);
         match *self.u.types().get(t) {
+            Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => {
+                let widened = self.u.widen_once(t)?;
+                self.type_symbol(widened)
+            }
+            Type::TermRef(..) => {
+                let widened = self.u.widen_once(t)?;
+                self.type_symbol(widened)
+            }
             Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) => self.u.resolve_ref(t),
             Type::Applied(tycon, _) => self.type_symbol(tycon),
-            _ => self.u.class_symbol(t),
+            Type::Annotated(inner, _) => self.type_symbol(inner),
+            Type::This(c) => self.u.class_symbol(c),
+            _ => None,
         }
     }
 
-    /// `TypeRepr.typeArgs`.
+    /// `TypeRepr.typeArgs`: the arguments of an applied type, none for other types.
     pub fn type_args(&mut self, t: TypeId) -> Vec<TypeId> {
-        let t = self.u.dealias(t);
         match self.u.types().get(t) {
             Type::Applied(_, args) => args.clone(),
             _ => Vec::new(),

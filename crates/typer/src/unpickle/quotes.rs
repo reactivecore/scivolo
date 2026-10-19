@@ -2,6 +2,7 @@
 //! TASTy of a quote read into typed trees owned by the splice, each spliced type definition a
 //! symbol aliasing the type it stands for, each term hole a placeholder to fill.
 
+use super::quote_patterns::QuotePattern;
 use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::TName;
@@ -24,26 +25,36 @@ pub struct Quote {
     pub holes: Vec<QuoteHole>,
 }
 
-/// The quote whose TASTy is `bytes`, owned by `owner`, its type holes filled with `types`.
+/// An unpickled quote or quote pattern.
+pub enum Unpickled {
+    Quote(Quote),
+    Pattern(QuotePattern),
+}
+
+/// The quote or quote pattern whose TASTy is `bytes`, owned by `owner`, its type holes filled
+/// with `types`.
 pub fn quote(
     (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     bytes: Vec<u8>,
     owner: SymbolId,
     types: &[TypeId],
-) -> Result<Quote, Refusal> {
+) -> Result<Unpickled, Refusal> {
     let (mut p, root) = unpickler((u, tpd, names), bytes, owner)?;
     let (expr, call) = match view(p.ast(), root) {
         View::Inlined { expr, call, bindings: [] } => (expr, call),
         _ => return Err("a quote of another shape"),
     };
     let (body, spliced) = p.spliced_types(expr, types)?;
+    if let Some(pattern) = p.pattern(body, &spliced)? {
+        return Ok(Unpickled::Pattern(pattern));
+    }
     let call = call.map(|c| p.tpt(c)).transpose()?;
     let expansion = p.term(body)?;
     let tpe = p.tpd.tpe(expansion);
     let bindings = p.tpd.list(&[]);
     let root_tree = p.bare(T::Inlined { call, bindings, expansion }, Some(tpe), None);
     let root = p.positioned(root, root_tree);
-    Ok(Quote { root, spliced, holes: p.holes.take().unwrap_or_default() })
+    Ok(Unpickled::Quote(Quote { root, spliced, holes: p.holes.take().unwrap_or_default() }))
 }
 
 /// The type whose TASTy is `bytes`, its type holes filled with `types`.
@@ -64,7 +75,7 @@ pub fn quoted_type(
     }))
 }
 
-pub fn unpickler<'a>(
+fn unpickler<'a>(
     (u, tpd, names): (&'a mut Universe, &'a mut Tpd, &'a mut Names),
     bytes: Vec<u8>,
     owner: SymbolId,
@@ -79,7 +90,7 @@ pub fn unpickler<'a>(
 impl Unpickler<'_> {
     /// The tree at `id` without the type definitions a quote with type holes starts with, and
     /// those definitions' symbols, each an alias of its type in `types` (dotty's `spliceTypes`).
-    pub fn spliced_types(
+    fn spliced_types(
         &mut self,
         id: NodeId,
         types: &[TypeId],

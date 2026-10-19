@@ -7,6 +7,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
+use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
 const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
@@ -93,13 +94,13 @@ impl Inlining<'_> {
         Ok(MacroCall { method, args, owner, span })
     }
 
-    /// Quoted argument `body` as a literal if it refers to a value whose type normalizes to a
-    /// constant (dotty's `constToLiteral` of an inline parameter's binding).
+    /// Quoted argument `body` as a literal if it refers to an inline proxy whose type normalizes
+    /// to a constant (dotty's `constToLiteral` of an inline parameter's binding).
     fn constant_arg(&mut self, body: TNodeId) -> TNodeId {
         let inner = self.unwrapped(body);
-        let Some(s) = self.tpd.sym(inner).filter(|&s| self.u.symbol(s).kind == Kind::Val) else {
-            return body;
-        };
+        let proxy =
+            |u: &tasty::Universe, s| u.symbol(s).kind == Kind::Val && u.symbol(s).flags.has(INLINEPROXY);
+        let Some(s) = self.tpd.sym(inner).filter(|&s| proxy(self.u, s)) else { return body };
         if !matches!(self.tpd.tree(inner), T::Ident { .. }) {
             return body;
         }

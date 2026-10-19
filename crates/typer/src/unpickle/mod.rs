@@ -20,8 +20,8 @@ use syntax::ast::{Span, TName};
 use syntax::names::Names;
 use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
 
-pub use quote_patterns::{QuotePattern, quote_pattern};
-pub use quotes::{Quote, QuoteHole, quote, quoted_type};
+pub use quote_patterns::QuotePattern;
+pub use quotes::{Quote, QuoteHole, Unpickled, quote, quoted_type};
 
 /// Why a body is outside the subset read.
 pub type Refusal = &'static str;

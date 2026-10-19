@@ -37,11 +37,11 @@ impl Host {
                 numbers(vec![self.reflect().type_symbol(t).map_or(-1, |s| s.0 as i32)])
             }
             "companionModule" => {
-                let s = symbol(arg(0)?)?;
+                let Ok(s) = symbol(arg(0)?) else { return numbers(vec![-1]) };
                 numbers(vec![self.reflect().companion_module(s).map_or(-1, |s| s.0 as i32)])
             }
             "declaredMethod" => {
-                let s = symbol(arg(0)?)?;
+                let Ok(s) = symbol(arg(0)?) else { return numbers(Vec::new()) };
                 numbers(self.reflect().declared_methods(s, text).into_iter().map(|s| s.0 as i32).collect())
             }
             "ref" => {

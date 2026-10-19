@@ -57,6 +57,11 @@ object Macros:
       case Some(s) => '{ Some(${ Ref(companion).select(s).asExpr }) }
       case None    => Expr(None)
 
+  inline def typeArgCount[T]: Int = ${ typeArgCountImpl[T] }
+  def typeArgCountImpl[T: Type](using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[T].typeArgs.size)
+
   inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
   def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
 
@@ -72,6 +77,14 @@ object Tuples:
     case _: (t *: ts)  => constValue[t].asInstanceOf[String] :: labels[ts]
 
   inline def sizeOf[T]: Int = constValue[Tuple.Size[T & Tuple]]
+
+  inline def elemKind[L]: String = inline erasedValue[L] match
+    case _: List[t] => kind[t]
+    case _          => "no list"
+
+  inline def kind[T]: String = inline erasedValue[T] match
+    case _: Int => "Int or Nothing"
+    case _      => "other"
 
 object Helpers:
   inline def inc(x: Int): Int = x + 1
