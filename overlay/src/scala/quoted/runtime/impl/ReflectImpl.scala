@@ -10,7 +10,7 @@ trait ReflectSupport { this: QuotesImpl =>
  *  `...MethodsImpl` classes without running a constructor; a member not implemented here is no
  *  method of the class, which refuses the expansion.
  */
-abstract class ReflectImpl extends reflectModule { self: reflect.type =>
+abstract class ReflectImpl extends reflectModule, ReflectSymbols { self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = termOf(QuoteHost.exprId(expr))
 
@@ -90,7 +90,10 @@ abstract class ReflectImpl extends reflectModule { self: reflect.type =>
   }
 
   abstract class TreeMethodsImpl extends TreeMethods {
-    extension (self: Tree) def asExpr: Expr[Any] = self.asInstanceOf[Expr[Any]]
+    extension (self: Tree) {
+      def asExpr: Expr[Any] = self.asInstanceOf[Expr[Any]]
+      def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
+    }
   }
 
   abstract class TermMethodsImpl extends TermMethods {
@@ -130,6 +133,11 @@ abstract class ReflectImpl extends reflectModule { self: reflect.type =>
         val n = ReflectOps.run("declaredMethod", Array(ReflectOps.id(self)), name)
         List.tabulate(n)(i => new SymbolImpl(QuoteHost.result(i)).asInstanceOf[Symbol])
       }
+      def owner: Symbol = new SymbolImpl(ReflectOps.one("owner", ReflectOps.id(self))).asInstanceOf[Symbol]
+      def name: String = ReflectOps.text("name", ReflectOps.id(self))
+      def fullName: String = ReflectOps.text("fullName", ReflectOps.id(self))
+      def isNoSymbol: Boolean = ReflectOps.id(self) < 0
+      def exists: Boolean = ReflectOps.id(self) >= 0
     }
   }
 
@@ -152,49 +160,4 @@ abstract class ReflectImpl extends reflectModule { self: reflect.type =>
   private def constant(kind: Int, bits: Long): Constant =
     new ConstantImpl(kind, bits.toInt, (bits >>> 32).toInt, null).asInstanceOf[Constant]
 }
-}
-
-/** The runs of `quotes.reflect` operations on the frontend, for the classes of `ReflectImpl`
- *  without an outer instance.
- */
-object ReflectOps {
-  def run(op: String, args: Array[Int], text: String): Int = QuoteHost.reflect(op, args, text)
-
-  def results(op: String, args: Int*): List[Int] = {
-    val n = run(op, args.toArray, null)
-    List.tabulate(n)(QuoteHost.result)
-  }
-
-  def one(op: String, args: Int*): Int = results(op, args*).head
-
-  def term(id: Int): Any = QuoteHost.expr(id)
-
-  def id(x: Any): Int = x match {
-    case e: ExprImpl   => QuoteHost.exprId(e)
-    case t: TypeImpl   => QuoteHost.typeId(t)
-    case s: SymbolImpl => s.id
-    case _             => throw new Unsupported("a quotes.reflect value made outside the frontend")
-  }
-}
-
-final class SymbolImpl(val id: Int)
-
-/** A constant: its kind, the two words of its value, and its text if it is a string. */
-final class ConstantImpl(val kind: Int, val lo: Int, val hi: Int, val text: String) {
-  def value: Any = {
-    val bits = (lo.toLong & 0xffffffffL) | (hi.toLong << 32)
-    kind match {
-      case 1  => bits.toInt
-      case 2  => bits
-      case 3  => bits != 0
-      case 4  => bits.toChar
-      case 5  => java.lang.Double.longBitsToDouble(bits)
-      case 6  => java.lang.Float.intBitsToFloat(bits.toInt)
-      case 7  => text
-      case 8  => null
-      case 9  => ()
-      case 10 => bits.toByte
-      case _  => bits.toShort
-    }
-  }
 }

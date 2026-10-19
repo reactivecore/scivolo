@@ -5,10 +5,12 @@ use crate::frontend::{self, Mode, Refused};
 use crate::mains;
 use libimage::{Image, cache};
 use libs::{BUILD, NATIVE, SCALA, cache_dir};
+use lower::directives::without_header;
 use macros::{Macros, VmMacros};
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use syntax::source::SourceFile;
 use vm::Vm;
 
 /// The file of a cache entry scala-cli compiled after a refusal, holding the reason.
@@ -74,7 +76,8 @@ fn compile(
         cache::prune(&scripts, cache::ABANDONED, |n| cache::is_staging(n, "", "."));
     }
     let staging = dir.with_extension(std::process::id().to_string());
-    let mut runner = VmMacros { vm };
+    let header_free = without_header(&String::from_utf8_lossy(&text));
+    let mut runner = VmMacros { vm, sources: vec![SourceFile::new(source.to_string_lossy(), header_free)] };
     let macros = Some(&mut runner as &mut dyn Macros);
     let built = build(file, (&source, &text, options), mode, (image, macros), &staging);
     if built.is_ok() && std::fs::rename(&staging, &dir).is_ok() {

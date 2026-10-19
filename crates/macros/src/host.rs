@@ -2,7 +2,9 @@
 //! the expressions and types the macro holds by number.
 
 use crate::tasty_string;
+use syntax::ast::Span;
 use syntax::names::Names;
+use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
 use typer::inlining::{Quoted, quote_match};
 use typer::tpd::{TNodeId, Tpd};
@@ -32,7 +34,10 @@ pub struct Host {
     pub tpd: Tpd,
     pub names: Names,
     /// The owner of the splice expanded.
-    owner: SymbolId,
+    pub owner: SymbolId,
+    /// The span of the macro expansion, in `sources`.
+    pub expansion: Span,
+    pub sources: Vec<SourceFile>,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     patterns: Vec<QuotePattern>,
@@ -44,12 +49,18 @@ pub struct Host {
 
 impl Host {
     /// A host of the trees and tables of `lent`, which it takes, leaving empty ones.
-    pub fn new((u, tpd, names): Tables<'_>, owner: SymbolId) -> Host {
+    pub fn new(
+        (u, tpd, names): Tables<'_>,
+        owner: SymbolId,
+        (expansion, sources): (Span, Vec<SourceFile>),
+    ) -> Host {
         Host {
             u: std::mem::replace(u, Universe::empty()),
             tpd: std::mem::take(tpd),
             names: std::mem::take(names),
             owner,
+            expansion,
+            sources,
             exprs: Vec::new(),
             types: Vec::new(),
             patterns: Vec::new(),

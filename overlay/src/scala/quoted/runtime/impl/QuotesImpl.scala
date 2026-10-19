@@ -6,7 +6,7 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
 /** The `Quotes` a macro runs with: quotes unpickled into the frontend's trees, quote patterns of
  *  a typed term hole, the subset of `reflect` of `ReflectImpl`; everything else `Unsupported`.
  */
-final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport {
+final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectSymbolSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 
