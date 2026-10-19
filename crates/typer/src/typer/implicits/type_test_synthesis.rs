@@ -38,7 +38,7 @@ impl Typer<'_> {
             return Ok(Some(self.typed(tree, Pt::Type(pt), ctx)));
         }
         let symbol = self.u.class_symbol(to).map(|c| self.u.full_name(c));
-        if symbol.is_some_and(|n| NO_TEST.contains(&n.as_str())) {
+        if symbol.is_some_and(|n| NO_TEST.contains(&n.as_str())) || !self.is_testable_type(to) {
             return Ok(None);
         }
         let s = TName { name: self.name("s"), is_type: false };
