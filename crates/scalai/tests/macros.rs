@@ -33,7 +33,8 @@ val res3: List[Int] = List(1, 2)
 val res4: Int = 42
 val res5: Int = 6
 val res6: List[Long] = List(1L)
--- unsupported: definitions from library inline bodies
+x
+val res7: String = \"x\"
 val res8: Int = 42
 -- Error: ----------------------------------------------------------------------
 1 |fail
@@ -52,7 +53,12 @@ val res16: Tuple = (1, \"a\")
 ";
 
 const SCRIPT: &str = "import macrolib.Macros.*
+import macrolib.Tuples.*
 @main def run(): Unit =
+  println(size[(Int, String) & Tuple])
+  println(labels[(\"id\", \"name\") & Tuple])
+  println(sizeOf[(Int, String)])
+  println(logged(3))
   println(twice(21))
   println(greet(\"Bob\"))
   println(pair(1.5))
@@ -117,6 +123,6 @@ fn macros_expand_in_a_script() {
     let env = [("SCALAI_FRONTEND", "strict"), ("SCALAI_CACHE", cache.to_str().unwrap())];
     let out = scalai(&[file.to_str().unwrap()], "", &env);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let expected = "42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\n";
+    let expected = "2\nList(id, name)\n2\n3\n3\n42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\n";
     assert_eq!(stdout, expected, "{}", String::from_utf8_lossy(&out.stderr));
 }

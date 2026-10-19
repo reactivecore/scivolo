@@ -60,5 +60,18 @@ object Macros:
   inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
   def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
 
+object Tuples:
+  import scala.compiletime.{constValue, erasedValue}
+
+  inline def size[T <: Tuple]: Int = inline erasedValue[T] match
+    case _: EmptyTuple => 0
+    case _: (t *: ts)  => 1 + size[ts]
+
+  inline def labels[T <: Tuple]: List[String] = inline erasedValue[T] match
+    case _: EmptyTuple => Nil
+    case _: (t *: ts)  => constValue[t].asInstanceOf[String] :: labels[ts]
+
+  inline def sizeOf[T]: Int = constValue[Tuple.Size[T & Tuple]]
+
 object Helpers:
   inline def inc(x: Int): Int = x + 1

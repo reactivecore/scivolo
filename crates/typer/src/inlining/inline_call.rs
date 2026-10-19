@@ -31,7 +31,7 @@ impl Inlining<'_> {
             }
         }
         let op = self.compiletime_op(call);
-        if let Some(reduced) = self.intrinsic(op.as_deref(), call)? {
+        if let Some(reduced) = self.intrinsic(op.as_deref(), call, owner)? {
             return Ok(reduced);
         }
         self.depth += 1;

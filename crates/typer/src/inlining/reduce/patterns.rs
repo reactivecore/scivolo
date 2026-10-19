@@ -3,6 +3,7 @@
 use super::Reducer;
 use super::cases::Bindings;
 use crate::inlining::Unsupported;
+use crate::inlining::quote_match::bound_types;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{Span, TName};
 use tasty::tags::{CASE, ENUM, SYNTHETIC};
@@ -20,11 +21,23 @@ impl Reducer<'_, '_> {
         let span = self.i.tpd.span(pat);
         Ok(match self.i.tpd.tree(pat).clone() {
             T::Typed { expr, tpt } => {
-                if self.binds_type(pat) {
+                if self.binds_type(expr) {
                     return Err((span, "type binding in an inline match pattern"));
                 }
                 let tpe = self.i.tpd.tpe(tpt);
-                self.i.u.is_subtype(scrut, tpe) && self.reduce_pattern(map, scrut, expr)?
+                let binds: Vec<(SymbolId, bool)> =
+                    self.type_binds(tpt).into_iter().map(|s| (s, false)).collect();
+                let conforms = match binds.is_empty() {
+                    true => self.i.u.is_subtype(scrut, tpe),
+                    false => match bound_types(self.i.u, scrut, tpe, &binds) {
+                        Some(types) => {
+                            self.type_bindings.extend(binds.iter().map(|&(s, _)| s).zip(types));
+                            true
+                        }
+                        None => false,
+                    },
+                };
+                conforms && self.reduce_pattern(map, scrut, expr)?
             }
             T::Bind { name, .. } if name.is_type => {
                 return Err((span, "type binding in an inline match pattern"));
@@ -220,5 +233,15 @@ impl Reducer<'_, '_> {
     fn binds_type(&self, t: TNodeId) -> bool {
         matches!(*self.i.tpd.tree(t), T::Bind { name, .. } if name.is_type)
             || self.i.tpd.children(t).into_iter().any(|c| self.binds_type(c))
+    }
+
+    /// The type variables type tree `t` binds.
+    fn type_binds(&self, t: TNodeId) -> Vec<SymbolId> {
+        let own = match *self.i.tpd.tree(t) {
+            T::Bind { name, .. } if name.is_type => self.i.tpd.sym(t),
+            _ => None,
+        };
+        let inner = self.i.tpd.children(t).into_iter().flat_map(|c| self.type_binds(c));
+        own.into_iter().chain(inner).collect()
     }
 }

@@ -63,7 +63,6 @@ fn local_methods_and_closures_are_read_with_their_symbols() {
 fn bodies_outside_the_subset_are_refused() {
     let Some(mut u) = universe() else { return };
     let cases = [
-        ("scala", "Predef$", "valueOf", "summonFrom in a library inline body"),
         ("scala", "Tuple", "map", "undecoded type in a library inline body"),
         ("scala.util", "boundary$", "apply", "type tree of another kind in a library inline body"),
     ];

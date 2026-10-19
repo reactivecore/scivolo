@@ -17,6 +17,16 @@ impl Inlining<'_> {
         if d != t {
             return self.const_value(d);
         }
+        if let Some(n) = self.u.try_normalize(t).filter(|&n| n != t) {
+            return self.const_value(n);
+        }
+        if let Type::And(a, b) = *self.u.types().get(t) {
+            return match (self.u.is_subtype(a, b), self.u.is_subtype(b, a)) {
+                (true, _) => self.const_value(a),
+                (_, true) => self.const_value(b),
+                _ => None,
+            };
+        }
         let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
         let Type::Sym(_, op) = *self.u.types().get(tycon) else { return None };
         let owner = self.u.full_name(self.u.symbol(op).owner?);

@@ -8,19 +8,19 @@ use tasty::tags::*;
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
 
 impl Unpickler<'_> {
-    /// `MATCH` of a selector, not a `summonFrom`; typed as its cases' lub.
+    /// `MATCH` of a selector, or a `summonFrom` without one; typed as its cases' lub.
     pub fn match_(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
-        let View::Match { prefix, sel: Some(sel), cases } = view(self.ast(), id) else {
-            return Err("summonFrom in a library inline body");
+        let View::Match { prefix, sel, cases } = view(self.ast(), id) else {
+            return Err("match of another kind in a library inline body");
         };
-        let kind = match prefix {
-            Some(INLINE) => MatchKind::Inline,
-            Some(SUBMATCH) => MatchKind::Sub,
-            None => MatchKind::Plain,
-            Some(_) => return Err("match of another kind in a library inline body"),
+        let kind = match (prefix, sel) {
+            (Some(INLINE) | Some(IMPLICIT), _) | (_, None) => MatchKind::Inline,
+            (Some(SUBMATCH), _) => MatchKind::Sub,
+            (None, _) => MatchKind::Plain,
+            (Some(_), _) => return Err("match of another kind in a library inline body"),
         };
         let cases = cases.to_vec();
-        let selector = Some(self.term(sel)?);
+        let selector = sel.map(|s| self.term(s)).transpose()?;
         let cases = cases.into_iter().map(|c| self.case_def(c)).collect::<Result<Vec<_>, _>>()?;
         let tpe = self.lub_of(&cases);
         let cases = self.tpd.list(&cases);
@@ -68,6 +68,7 @@ impl Unpickler<'_> {
         let View::CaseDef { pat, rhs, guard } = view(self.ast(), id) else {
             return Err("case of another kind in a library inline body");
         };
+        self.define_type_binds(pat);
         let pat = self.term(pat)?;
         let guard = guard.map(|g| self.term(g)).transpose()?;
         let body = self.term(rhs)?;
@@ -91,6 +92,47 @@ impl Unpickler<'_> {
         let name = self.tname(id, false);
         let tpe = self.u.intern_type(Type::Sym(None, sym));
         Ok(self.bare(T::Bind { name, body }, Some(tpe), Some(sym)))
+    }
+
+    /// Defines the type variables pattern `pat` binds, before types refer to them.
+    fn define_type_binds(&mut self, pat: NodeId) {
+        let k = self.kids(pat);
+        let is_type =
+            |p: &Self| p.tag(pat) == BIND && matches!(p.tag(p.ast().deref(k[0])), TYPEBOUNDS | TYPEBOUNDStpt);
+        if is_type(self) && self.u.defined_at(self.file, pat).is_none() {
+            let s = self.u.define(Symbol {
+                name: self.name(pat),
+                kind: Kind::Type,
+                owner: Some(self.owner),
+                flags: Flags::default().with(CASE),
+                target: None,
+                is_extern: false,
+                derived: false,
+                decls: Vec::new(),
+                tree: Some((self.file, pat)),
+            });
+            self.u.unenter(s);
+            let info = self.ty(k[0]);
+            self.u.set_info(s, info);
+        }
+        for c in k {
+            self.define_type_binds(c);
+        }
+    }
+
+    /// `BIND` of a type in a pattern's type tree: the type variable `define_type_binds` defined.
+    pub fn type_bind(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+        let s =
+            self.u.defined_at(self.file, id).ok_or("type binding outside a case in a library inline body")?;
+        let k = self.kids(id);
+        let info = self.u.info(s);
+        let body = match self.tag(k[1]) == IDENTtpt && self.name(k[1]) == "_" {
+            true => self.bare(T::TypeTree { inferred: false }, Some(info), None),
+            false => self.tpt(k[1])?,
+        };
+        let name = self.tname(id, true);
+        let tpe = self.u.intern_type(Type::Sym(None, s));
+        Ok(self.bare(T::Bind { name, body }, Some(tpe), Some(s)))
     }
 
     fn define_bind(&mut self, id: NodeId, tpe: NodeId) -> SymbolId {
