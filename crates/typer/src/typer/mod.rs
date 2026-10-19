@@ -96,9 +96,11 @@ mod name_clashes;
 mod named_args;
 mod names;
 mod no_inits;
+mod non_method_apply;
 mod not_a_member;
 mod not_found;
 mod op_assign;
+mod overload_errors;
 mod overloads;
 mod overrides;
 mod package_members;
@@ -222,6 +224,8 @@ pub struct Typer<'a> {
     pub poly_protos: Vec<poly_alternatives::PolyProto>,
     /// The alternatives being resolved with their type parameters instantiated, and the types.
     pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
+    /// The applicable alternatives of the last overload resolution found ambiguous.
+    pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
     pub unsupported: Option<(Span, String)>,
     /// How many constructs outside the subset were reported.
@@ -303,6 +307,7 @@ impl<'a> Typer<'a> {
             protos: Vec::new(),
             poly_protos: Vec::new(),
             mapped_targs: None,
+            ambiguous: Vec::new(),
             unsupported: None,
             reports: 0,
             method_infos: Default::default(),

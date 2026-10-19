@@ -45,6 +45,47 @@ pub fn cannot_compare(l: &str, r: &str) -> Message {
     message(172, "Type", false, format!("Values of types {l} and {r} cannot be compared with == or !="))
 }
 
+/// `NoMatchingOverload` for the alternatives of `method`, shown with location, of types `types`,
+/// none of which matches `args`.
+pub fn no_matching_overload(method: &str, types: &[String], args: &str) -> Message {
+    let types: String = types.iter().map(|t| format!("\n {t}")).collect();
+    let text =
+        format!("None of the overloaded alternatives of {method} with types{types}\nmatch arguments {args}");
+    message(134, "Type", false, text)
+}
+
+/// `AmbiguousOverload` for the alternatives of `method`, shown with location, of types `types`,
+/// which all match `args`.
+pub fn ambiguous_overload(method: &str, types: &[String], args: &str) -> Message {
+    let all = if types.len() == 2 { "both" } else { "all" };
+    let types: String = types.iter().map(|t| format!("\n {t}")).collect();
+    let text = format!(
+        "Ambiguous overload. The overloaded alternatives of {method} with types{types}\n{all} match arguments {args}"
+    );
+    message(51, "Reference", true, text)
+}
+
+/// `WrongNumberOfTypeArgs` for type constructor `tycon` of type parameters `expected` applied to
+/// type arguments `actual`.
+pub fn wrong_number_of_type_args(tycon: &str, expected: &[String], actual: &[String]) -> Message {
+    let prefix = if actual.len() > expected.len() { "Too many" } else { "Not enough" };
+    let (expected, actual) = (expected.join(", "), actual.join(", "));
+    let text = format!(
+        "{prefix} type arguments for {tycon}[{expected}]\nexpected: [{expected}]\nactual:   [{actual}]"
+    );
+    message(23, "Syntax", true, text)
+}
+
+/// `TypeDoesNotTakeParameters` for the type shown as `tpe`, not an F-bounded type parameter.
+pub fn type_does_not_take_parameters(tpe: &str) -> Message {
+    message(53, "Type", true, format!("{tpe} does not take type parameters"))
+}
+
+/// `MethodDoesNotTakeParameters` for a reference to `what`, shown with location, applied once.
+pub fn does_not_take_parameters(what: &str) -> Message {
+    message(50, "Type", true, format!("{what} does not take parameters"))
+}
+
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
 /// `hint`.
 pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {

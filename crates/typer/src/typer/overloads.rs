@@ -133,6 +133,7 @@ impl Typer<'_> {
                 return self.resolve_overloaded(&kept, prefix, proto);
             }
         }
+        self.ambiguous = applicable;
         Err("ambiguous overload")
     }
 

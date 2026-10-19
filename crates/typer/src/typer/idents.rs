@@ -77,6 +77,17 @@ impl Typer<'_> {
         }
         let sym = match self.choose(&found.syms, found.prefix, pt) {
             Ok(sym) => sym,
+            Err(
+                what @ ("no applicable alternative"
+                | "no alternative with that many arguments"
+                | "ambiguous overload"),
+            ) if !self.unusable_for_inference(pt) => {
+                let ambiguous = (what == "ambiguous overload").then(|| std::mem::take(&mut self.ambiguous));
+                return match self.overload_error(id, (&found.syms, found.prefix), pt, ambiguous) {
+                    Some(error) => error,
+                    None => self.unsupported(id, what),
+                };
+            }
             Err(what) => return self.unchosen(id, what, pt),
         };
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {

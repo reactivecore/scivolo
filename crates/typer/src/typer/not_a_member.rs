@@ -89,7 +89,7 @@ impl Typer<'_> {
 
     /// The class of the members of `qual_tpe` and its widened type, if a class type whose members
     /// dotty finds as the universe does and whose type arguments are concrete.
-    fn member_site(&mut self, qual_tpe: TypeId) -> Option<(SymbolId, TypeId)> {
+    pub fn member_site(&mut self, qual_tpe: TypeId) -> Option<(SymbolId, TypeId)> {
         let t = self.zonk(qual_tpe);
         let site = self.u.widen(t);
         let dealiased = self.u.dealias(site);
