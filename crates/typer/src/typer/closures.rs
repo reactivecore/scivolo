@@ -94,6 +94,14 @@ impl Typer<'_> {
             Type::Bounds(_, hi) => Some(hi),
             _ => Some(r),
         });
+        let expected_result = match &sam {
+            Some((_, (sam_binder, sam_names, method))) => expected_result.map(|r| {
+                let refs: Vec<TypeId> =
+                    params_syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+                self.applied_result(r, (*sam_binder, sam_names), Some(*method), &refs)
+            }),
+            None => expected_result,
+        };
         let body_pt = expected_result.map_or(Pt::Any, Pt::Type);
         let body = self.typed(body, body_pt, bctx);
         let result = match expected_result {
@@ -117,21 +125,28 @@ impl Typer<'_> {
                 None
             });
         }
-        if dependent {
+        if dependent && sam.is_none() {
             return self.unsupported(id, "dependent function type");
         }
         let binder = self.syms.fresh_binder();
+        let info_result = self.u.map_type(result, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(None, s) => {
+                let i = params_syms.iter().position(|&p| p == s)?;
+                Some(u.intern_type(Type::Param(binder, i as u32)))
+            }
+            _ => None,
+        });
         let method_params = names.into_iter().zip(param_types.iter().copied()).collect();
         let info = self.u.intern_type(Type::Method {
             binder,
             params: method_params,
-            result,
+            result: info_result,
             implicit: contextual,
             contextual,
         });
         self.u.set_info(anonfun, info);
         self.syms.closure_syms.push(anonfun);
-        let sam = match sam.map(|p| self.closure_parent(p, &param_types, result)).transpose() {
+        let sam = match sam.map(|(p, _)| self.closure_parent(p, &param_types, result)).transpose() {
             Ok(sam) => sam,
             Err(what) => return self.unsupported(id, what),
         };
