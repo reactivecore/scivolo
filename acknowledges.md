@@ -232,7 +232,7 @@ the VM (fetched, not vendored).
   (`crates/tasty`: its tag table and tree grammar); `Scanners`/`Parsers`/`Desugar` as the parser
   to port in phase 3; `TypeErasure.scala` and `transform/Bridges.scala` for erasure and bridges;
   `core/TypeComparer.scala` (`recur`, `firstTry`…`fourthTry`, `isSubArgs`, `either`,
-  `compareAtoms`, `mergedLub`), `Atoms.scala`, `Type.atoms`, `hasClassSymbol`,
+  `compareAtoms`, `mergedLub`, `lubArgs`), `TypeOps.orDominator`, `Atoms.scala`, `Type.atoms`, `hasClassSymbol`,
   `OrType.balanced` and `OrType.atoms` (its `myAtoms` cache), and the
   classes and the members of `Any` and `Object` that `Definitions` makes without TASTy, for subtyping in `crates/tasty/src/subtype`.
 - **Scala Native's compiler plugin** (`nscplugin`): `NirGenStat.genInterfaceMethodBridge`, the
