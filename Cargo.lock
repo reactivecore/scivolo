@@ -82,6 +82,7 @@ dependencies = [
  "libimage",
  "libs",
  "lower",
+ "macros",
  "nir",
  "rustc-hash",
  "snrt",

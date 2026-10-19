@@ -97,14 +97,15 @@ impl Units {
 
     /// Types the units of one `ast`, each the root of a source file with the offset it starts at,
     /// in increasing order, as dotty's namer and typer do: enters the symbols of all, then types
-    /// each. The result's root is a package clause of the root package holding the typed units.
+    /// each, expanding macro calls through `macros`. The result's root is a package clause of the
+    /// root package holding the typed units.
     pub fn type_units(
         &mut self,
         u: &mut Universe,
         ast: &mut Ast,
         (names, fresh): (&mut Names, &mut FreshNames),
-        units: &[(syntax::source::Offset, NodeId)],
-        cfg: syntax::config::Config,
+        (units, cfg): (&[(syntax::source::Offset, NodeId)], syntax::config::Config),
+        macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
         let roots: Vec<NodeId> = units
             .iter()
@@ -119,6 +120,7 @@ impl Units {
         let mut typer = Typer::new(u, (ast, unit), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
         typer.file_starts = units.iter().skip(1).map(|&(start, _)| start).collect();
+        typer.macros = macros.map(|m| m as &mut dyn Macros);
         let ctx = root_context(&mut typer);
         typer.index(&roots, ctx);
         typer.check_split_companions();
