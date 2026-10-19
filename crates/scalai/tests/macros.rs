@@ -16,6 +16,14 @@ wrapped(1L)
 logged(\"x\")
 answer
 fail
+describe(3)
+describe(\"x\")
+describe(1.5)
+elemOf(List(1, 2))
+plusOne(41)
+case class D(x: Int = 7)
+firstDefault[D]
+tupled(1, \"a\")
 ";
 
 const REPL_OUTPUT: &str = "val res0: Int = 42
@@ -26,13 +34,21 @@ val res4: Int = 42
 val res5: Int = 6
 val res6: List[Long] = List(1L)
 -- unsupported: definitions from library inline bodies
--- unsupported: quotes.reflect
+val res8: Int = 42
 -- Error: ----------------------------------------------------------------------
 1 |fail
   |^^^^
   |Failed to evaluate macro.
   |  Caused by class java.lang.RuntimeException: the macro failed
 1 error found
+val res10: String = \"an Int: 3\"
+val res11: String = \"a String: x\"
+val res12: String = \"something else\"
+val res13: String = \"Some(1)\"
+val res14: Int = 42
+// defined case class D
+val res15: Option[Any] = Some(7)
+val res16: Tuple = (1, \"a\")
 ";
 
 const SCRIPT: &str = "import macrolib.Macros.*

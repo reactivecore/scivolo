@@ -25,6 +25,26 @@ object QuoteHost {
 
   def fillHole(quote: Int, hole: Int, expr: Int): Unit = throw new UnsupportedOperationException("VM native")
 
+  /** Matches expression `scrutinee` against quote pattern `pattern`: how many things it
+   *  matched, `-1` if it does not match.
+   */
+  def matchPattern(scrutinee: Int, pattern: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** Thing `i` the last match matched: an `Expr` number, or `-1 - n` for `Type` number `n`. */
+  def matched(i: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** Runs `quotes.reflect` operation `op` on `args` and `text`: how many numbers it answers. */
+  def reflect(op: String, args: Array[Int], text: String): Int = throw new UnsupportedOperationException("VM native")
+
+  /** Number `i` the last `quotes.reflect` operation answered. */
+  def result(i: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** The text the last `quotes.reflect` operation answered, if any. */
+  def resultText(): String = throw new UnsupportedOperationException("VM native")
+
+  /** An object of class `name`, its constructor not run. */
+  def allocate(name: String): Object = throw new UnsupportedOperationException("VM native")
+
   /** The number of the macro expansion running. */
   def expansion(): Int = throw new UnsupportedOperationException("VM native")
 

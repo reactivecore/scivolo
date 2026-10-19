@@ -8,6 +8,7 @@ mod java_thread;
 mod junit;
 mod llvm;
 mod quotes;
+mod reflect;
 mod repl;
 mod resources;
 mod runtime;
@@ -20,7 +21,7 @@ pub use ffi::{
     Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, take_sigint,
     watch_sigint,
 };
-pub use quotes::{Expansions, Hole, MacroArg, QuoteHost};
+pub use quotes::{Expansions, Hole, MacroArg, QuoteHost, Reflected};
 pub use resources::{Resources, embedded_content, embedded_resources};
 pub use services::{constructible, is_load, provider_error, provider_names};
 pub use threads::interrupt_thread;

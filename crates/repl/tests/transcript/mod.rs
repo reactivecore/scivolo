@@ -41,24 +41,6 @@ pub fn session(cp: &[PathBuf]) -> Result<Session, String> {
     Session::new(vm, image, 80).map_err(|e| e.to_string())
 }
 
-/// Checks transcript `check` (a path from the repository root) with the libraries `deps`
-/// fetched by Coursier, macro calls expanded if `macros`.
-pub fn check_with_deps(deps: &[&str], check: &str, macros: bool) -> Result<(), String> {
-    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-    let deps: Vec<String> = deps.iter().map(|&d| d.to_owned()).collect();
-    let cp = libs::deps::fetch(&deps).map_err(|e| format!("{MISSING}{e}"))?;
-    let mut session = session(&cp)?;
-    session.expand_macros(macros);
-    let text = std::fs::read_to_string(root.join(check)).map_err(|e| e.to_string())?;
-    let expected = non_blank(text.lines().map(str::to_owned));
-    let actual = non_blank(answer(&mut session, &text).into_iter());
-    session.shutdown().map_err(|e| e.to_string())?;
-    match actual == expected {
-        true => Ok(()),
-        false => Err(format!("transcript differs, actual output:\n\n{}", actual.join("\n"))),
-    }
-}
-
 /// Runs `run` on a thread with a large stack; skipped outside CI if its libraries are missing.
 pub fn check(run: fn() -> Result<(), String>) {
     let run = std::thread::Builder::new().stack_size(1 << 30).spawn(run).unwrap().join().unwrap();
