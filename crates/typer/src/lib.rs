@@ -18,6 +18,7 @@ mod typer;
 pub mod unpickle;
 
 use crate::ctx::{Ctx, Level, Mode};
+use crate::inlining::Macros;
 use syntax::ast::{Ast, NodeId, Span, Tree};
 use syntax::diag::Diagnostics;
 use syntax::names::{FreshNames, Names};
@@ -43,15 +44,16 @@ pub struct Typed {
 }
 
 /// Types the desugared unit `root` of `ast`, parsed with options `cfg`, defining its symbols in
-/// `u`, and expands its inline calls; `fresh` holds the counters of the unit's fresh names.
+/// `u`, and expands its inline calls, its macro calls through `macros`; `fresh` holds the
+/// counters of the unit's fresh names.
 pub fn type_unit(
     u: &mut Universe,
     ast: &mut Ast,
     (names, fresh): (&mut Names, &mut FreshNames),
-    root: NodeId,
-    cfg: syntax::config::Config,
+    (root, cfg): (NodeId, syntax::config::Config),
+    macros: Option<&mut dyn Macros>,
 ) -> Result<Typed, Fallback> {
-    Units::default().type_unit(u, ast, (names, fresh), root, cfg)
+    Units::default().type_unit(u, ast, (names, fresh), (root, cfg), macros)
 }
 
 /// The typer's knowledge of the script symbols of the units typed so far into one universe.
@@ -82,11 +84,12 @@ impl Units {
         u: &mut Universe,
         ast: &mut Ast,
         (names, fresh): (&mut Names, &mut FreshNames),
-        root: NodeId,
-        cfg: syntax::config::Config,
+        (root, cfg): (NodeId, syntax::config::Config),
+        macros: Option<&mut dyn Macros>,
     ) -> Result<Typed, Fallback> {
         let mut typer = Typer::new(u, (ast, root), (names, fresh), cfg, &mut self.syms)
             .map_err(|what| Fallback::Unsupported { at: Span::NONE, what })?;
+        typer.macros = macros.map(|m| m as &mut dyn Macros);
         let ctx = root_context(&mut typer);
         let typed = typer.typed(root, typer::Pt::Any, ctx);
         self.finish(typer, typed)

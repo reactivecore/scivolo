@@ -9,6 +9,7 @@ clap.workspace = true
 libimage.workspace = true
 libs = { path = "../libs" }
 lower = { path = "../lower" }
+macros = { path = "../macros" }
 nir.workspace = true
 repl = { path = "../repl" }
 rustyline.workspace = true

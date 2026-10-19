@@ -30,6 +30,7 @@ pub fn run(cp: &[PathBuf]) -> Result<i32, String> {
     let width = std::env::var("COLUMNS").ok().and_then(|c| c.parse().ok()).filter(|&w| w > 0).unwrap_or(80);
     let mut session = RefCell::new(Session::new(vm, image, width).map_err(|e| e.to_string())?);
     session.get_mut().watch_interrupts().map_err(|e| e.to_string())?;
+    session.get_mut().expand_macros(crate::frontend::macros_on());
     let read = match std::io::stdin().is_terminal() {
         true => interactive(&session),
         false => piped(session.get_mut()),

@@ -242,6 +242,8 @@ pub struct Typer<'a> {
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
     pub file_starts: Vec<syntax::source::Offset>,
+    /// What runs macro implementations; without it, macro calls are refused.
+    pub macros: Option<&'a mut dyn crate::inlining::Macros>,
 }
 
 /// How many `typed` calls may be in progress at once.
@@ -303,6 +305,7 @@ impl<'a> Typer<'a> {
             dynamic_lhs: None,
             depth: 0,
             file_starts: Vec::new(),
+            macros: None,
         };
         typer.enter_and_or();
         typer.u.set_comparison_owner(None);

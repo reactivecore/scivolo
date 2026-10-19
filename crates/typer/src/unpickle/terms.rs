@@ -85,6 +85,9 @@ impl Unpickler<'_> {
             }
             SUPER => return Err("super in a library inline body"),
             SELECTouter => return Err("outer selection in a library inline body"),
+            SPLICE if self.in_macro() => self.splice(id)?,
+            QUOTE if self.in_macro() => self.quote(id)?,
+            HOLE if self.holes.is_some() => self.hole(id)?,
             QUOTE | SPLICE | HOLE | QUOTEPATTERN | SPLICEPATTERN => {
                 return Err("quote in a library inline body");
             }

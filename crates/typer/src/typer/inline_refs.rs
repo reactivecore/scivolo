@@ -25,7 +25,7 @@ impl Typer<'_> {
     /// member that needs an inline accessor.
     pub fn check_inline_reference(&mut self, sym: SymbolId, ctx: Ctx) -> Result<(), &'static str> {
         let flags = self.u.symbol(sym).flags;
-        if flags.has(INLINE) && flags.has(MACRO) {
+        if flags.has(INLINE) && flags.has(MACRO) && self.macros.is_none() {
             return Err("macro call");
         }
         if flags.has(INLINE) && self.u.is_deferred(sym) && self.enclosing_inline(ctx.owner).is_none() {

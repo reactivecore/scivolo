@@ -1,0 +1,17 @@
+[package]
+name = "macros"
+version.workspace = true
+edition.workspace = true
+publish = false
+
+[dependencies]
+syntax = { path = "../syntax" }
+tasty = { path = "../tasty" }
+typer = { path = "../typer" }
+vm = { path = "../vm" }
+
+[dev-dependencies]
+libs = { path = "../libs" }
+
+[lints]
+workspace = true
