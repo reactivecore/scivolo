@@ -19,7 +19,6 @@ def shared(rel):
     return ROOT / rel if (ROOT / rel).exists() or not (MAIN / rel).exists() else MAIN / rel
 
 
-TESTS = shared("ref/scala3/tests/run")
 WORK = shared(f"tmp/dotty/{SCALA}-{NATIVE}")
 
 
@@ -81,10 +80,30 @@ def skip_reason(files, sources):
     return None
 
 
-def tests(filter_):
-    """(name, source groups in compilation order, check file or None, skip reason or None)."""
+def scala_cli(command, name, sources, *extra):
+    return ["scala-cli", "--power", command, "--quiet", "--native", "--native-version", NATIVE,
+            "--scala", SCALA, "--workspace", str(WORK / "ws" / name), *extra, *map(str, sources)]
+
+
+def compile_groups(name, groups, out, timeout=None):
+    """Compiles the groups in order into directory `out`, each seeing the output before it; the
+    exit code of the last compile (None on timeout) and the compilers' output."""
+    code, log = 0, ""
+    for i, sources in enumerate(groups):
+        extra = ["--extra-jars", str(out)] if i else []
+        code, stdout, stderr = run(scala_cli("compile", name, sources, *extra, "-d", str(out)), timeout)
+        log += stdout + stderr
+        if code != 0:
+            break
+    return code, log
+
+
+def tests(filter_, dir="run"):
+    """(name, source groups in compilation order, check file or None, skip reason or None) of
+    the tests in dotty's tests/`dir`."""
+    TESTS = shared(f"ref/scala3/tests/{dir}")
     if not TESTS.is_dir():
-        sys.exit(f"{TESTS} missing: run `just dotty-fetch`")
+        sys.exit(f"{TESTS} missing: run `just dotty-fetch`" + (" and `just dotty-macros`" if dir != "run" else ""))
     for path in sorted(TESTS.iterdir()):
         name = path.name if path.is_dir() else path.stem
         if not (path.is_dir() or path.suffix == ".scala") or filter_ not in name:

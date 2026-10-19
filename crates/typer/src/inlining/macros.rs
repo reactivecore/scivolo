@@ -19,6 +19,8 @@ pub struct MacroCall {
     pub args: Vec<MacroArg>,
     pub owner: SymbolId,
     pub span: Span,
+    /// The span of the outermost inline call expanded (dotty's `Position.ofMacroExpansion`).
+    pub expansion: Span,
 }
 
 /// An expression a macro made or was given, by number.

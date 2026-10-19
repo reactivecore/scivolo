@@ -229,6 +229,10 @@ dotty-fetch:
 dotty-sources: dotty-fetch
     git -C ref/scala3 sparse-checkout add compiler/src
 
+# Add dotty's tests/run-macros to ref/scala3, for `just dotty-lower-report "" run-macros`.
+dotty-macros: dotty-fetch
+    git -C ref/scala3 sparse-checkout add tests/run-macros
+
 # Compile dotty's tests/run (those whose names contain `filter`) to NIR under tmp/dotty.
 dotty-build filter="": dotty-fetch
     python3 scripts/dotty-tests.py build {{ filter }}
@@ -238,10 +242,12 @@ dotty-report filter="": release
     python3 scripts/dotty-tests.py report {{ filter }}
 
 # Run the dotty tests (default: all) through the Rust typer, the lowering and the VM, against
-# the outcomes of dotty-report; lower-report.md and lower-results.tsv under tmp/dotty.
-dotty-lower-report filter="": release
+# the outcomes of dotty-report; lower-report.md and lower-results.tsv under tmp/dotty. `dir`
+# another directory of dotty's tests (run-macros: `just dotty-macros`), reported in
+# lower-report-<dir>.md and lower-results-<dir>.tsv.
+dotty-lower-report filter="" dir="run": release
     cargo build -q --release -p lower
-    python3 scripts/dotty-lower.py '{{ filter }}'
+    python3 scripts/dotty-lower.py '{{ filter }}' '{{ dir }}'
 
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
 dotty-native filter="":

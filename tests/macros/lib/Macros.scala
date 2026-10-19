@@ -65,6 +65,43 @@ object Macros:
   inline def tupled(a: Any, b: Any): Tuple = ${ tupledImpl('a, 'b) }
   def tupledImpl(a: Expr[Any], b: Expr[Any])(using Quotes): Expr[Tuple] = Expr.ofTupleFromSeq(Seq(a, b))
 
+object Source:
+  inline def line: Int = ${ lineImpl }
+  def lineImpl(using Quotes): Expr[Int] = Expr(quotes.reflect.Position.ofMacroExpansion.startLine + 1)
+
+  inline def location: String = ${ locationImpl }
+  def locationImpl(using Quotes): Expr[String] =
+    val pos = quotes.reflect.Position.ofMacroExpansion
+    Expr(s"${pos.sourceFile.name}:${pos.startLine + 1}:${pos.startColumn}-${pos.endLine + 1}:${pos.endColumn}")
+
+  inline def name: String = ${ nameImpl }
+  def nameImpl(using Quotes): Expr[String] = Expr(simple(owner.name))
+
+  inline def fullName: String = ${ fullNameImpl }
+  def fullNameImpl(using Quotes): Expr[String] =
+    Expr(owner.fullName.split("\\.").map(n => simple(n).stripPrefix("_$")).filterNot(synthetic).mkString("."))
+
+  inline def enclosing: String = ${ enclosingImpl }
+  def enclosingImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val names = Iterator.iterate(owner)(_.owner).takeWhile(!_.isNoSymbol).map(s => simple(s.name)).toList
+    Expr(names.reverse.filterNot(n => synthetic(n) || n == "<root>" || n == "<empty>").mkString("."))
+
+  inline def text[T](inline x: T): String = ${ textImpl('x) }
+  def textImpl[T](x: Expr[T])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(x.asTerm.pos.sourceCode.getOrElse("<no source>"))
+
+  private def owner(using Quotes): quotes.reflect.Symbol =
+    var s = quotes.reflect.Symbol.spliceOwner
+    while synthetic(simple(s.name)) do s = s.owner
+    s
+
+  private def simple(name: String): String = name.trim.stripSuffix("$")
+
+  private def synthetic(name: String): Boolean =
+    name == "<init>" || name.startsWith("<local ") && name.endsWith(">") || name == "$anonfun" || name == "macro"
+
 object Tuples:
   import scala.compiletime.{constValue, erasedValue}
 

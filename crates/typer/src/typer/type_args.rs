@@ -45,6 +45,7 @@ impl Typer<'_> {
     pub fn wrong_type_arg_count(&mut self, id: NodeId, tycon: TypeId, args: &[NodeId]) -> Option<TNodeId> {
         let dealiased = self.u.dealias(tycon);
         let params: Vec<String> = match self.u.types().get(dealiased).clone() {
+            Type::Sym(_, c) if self.u.full_name(c) == "scala.throws" => return None,
             Type::Sym(_, c) if self.u.symbol(c).kind == Kind::Class => {
                 self.u.type_params(c).iter().map(|&p| self.u.symbol(p).name.clone()).collect()
             }

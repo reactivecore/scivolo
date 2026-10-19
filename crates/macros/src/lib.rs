@@ -2,18 +2,21 @@
 //! their quotes unpickled into the typer's trees (ADR 0029).
 
 mod host;
+mod positions;
 mod reflect;
 mod tasty_string;
 
 pub use typer::inlining::Macros;
 
 use host::Host;
+use syntax::source::SourceFile;
 use typer::inlining::{Expanded, Lent, MacroArg, MacroCall, MacroError};
 use vm::{Thrown, Vm, VmError};
 
-/// Runs macro implementations in `vm`.
+/// Runs macro implementations in `vm`, the positions of their calls in `sources`.
 pub struct VmMacros<'v> {
     pub vm: &'v mut Vm,
+    pub sources: Vec<SourceFile>,
 }
 
 impl Macros for VmMacros<'_> {
@@ -24,7 +27,9 @@ impl Macros for VmMacros<'_> {
         let module = u.binary_name(owner);
         let sig = u.method_signature(call.method);
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
-        let mut host = Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner);
+        let sources = std::mem::take(&mut self.sources);
+        let mut host =
+            Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner, (call.expansion, sources));
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
@@ -37,6 +42,7 @@ impl Macros for VmMacros<'_> {
         let (host, result) = self.vm.expand_macro(Box::new(host), (&module, &sig), &args);
         let mut host: Box<Host> = (host as Box<dyn std::any::Any>).downcast().expect("the macro's host");
         host.restore((lent.0, lent.1, lent.2));
+        self.sources = std::mem::take(&mut host.sources);
         match (result, host.refusal.take()) {
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),

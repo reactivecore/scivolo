@@ -10,7 +10,7 @@ import re
 import shutil
 import sys
 
-from dotty_sources import NATIVE, ROOT, SCALA, WORK, lines, load, run as run_cmd, save as save_rows, tests
+from dotty_sources import ROOT, WORK, compile_groups, lines, load, run as run_cmd, save as save_rows, scala_cli, tests
 
 SCALAI = ROOT / "target/release/scalai"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
@@ -18,11 +18,6 @@ TIMEOUT = int(os.environ.get("SCALAI_TIMEOUT", "60"))
 FAILED = ("wrong output", "crashed", "timeout")
 SAME = "fails in Scala Native too"
 OUTCOMES = ["passed", *FAILED, SAME, "not built", "compile failed", "skipped"]
-
-
-def scala_cli(command, name, sources, *extra):
-    return ["scala-cli", "--power", command, "--quiet", "--native", "--native-version", NATIVE,
-            "--scala", SCALA, "--workspace", str(WORK / "ws" / name), *extra, *map(str, sources)]
 
 
 def run(cmd, check, log):
@@ -62,13 +57,7 @@ def compile_one(name, groups):
     if (out / ".done").exists():
         return "compiled"
     shutil.rmtree(out, ignore_errors=True)
-    log = ""
-    for i, sources in enumerate(groups):
-        extra = ["--extra-jars", str(out)] if i else []
-        code, stdout, stderr = run_cmd(scala_cli("compile", name, sources, *extra, "-d", str(out)), None)
-        log += stdout + stderr
-        if code != 0:
-            break
+    code, log = compile_groups(name, groups, out)
     (WORK / "logs" / (name + ".compile")).write_text(log)
     if code != 0:
         return "compile failed"

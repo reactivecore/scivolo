@@ -259,7 +259,11 @@ quote patterns and a `quotes.reflect` subset (terms, literals, `TypeRepr`, symbo
 `Ref`/`select`) are implemented, everything else of `Quotes` is refused by name. First client:
 Circe 0.14.10's `derives Codec.AsObject` encodes and decodes in the REPL, in scripts (`--dep`)
 and in native executables. Scripts read the TASTy of `--cp`/`--dep` jars in the own frontend
-(most of #128). Open: structural quote patterns, higher-order holes, `Type`/`Expr.show`.
+(most of #128). Positions, source files and symbol names (`Position.ofMacroExpansion`,
+`Symbol.owner/fullName`) work for sourcecode-style macros. The lowering report runs tests of
+several files (macro definitions compiled by dotty first) and dotty's `tests/run-macros`
+(`just dotty-macros`; 7 of 321 pass on 2026-10-19). Open (research 26): term extractors and
+`Varargs`, `'[t]` patterns, `Type`/`Expr.show`, structural quote patterns, `Symbol.flags`.
 
 ## Phase 5 — precompiled code and wider reach (open-ended)
 
@@ -276,11 +280,18 @@ and in native executables. Scripts read the TASTy of `--cp`/`--dep` jars in the 
 ## Where we are and what's next (2026-10-19)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
-dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`): on 2026-10-19
-afternoon, 1043 of 1711 pass (990 in the morning, 964 on 2026-10-16, 878 on 2026-10-15, 399 on
-2026-10-11), 372 stop at the typer, 16 at the lowering, 1
-crashes in the frontend (t8199) and 1 in the VM (i15618, #120). Phase 4 started: macros run in
+dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`, tests of several
+files included since 2026-10-19 evening): on 2026-10-19 evening, 1071 of 1711 pass (1043 in the
+afternoon, 990 in the morning, 964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 393 stop
+at the typer, 22 at the lowering, 1 gives a wrong output (i4947b), 1 crashes in the VM
+(transparentAccess, an inline accessor across groups) and 1 in the frontend (t8199). Phase 4 started: macros run in
 the VM, always on (ADR 0029).
+
+Batch of 2026-10-19 evening (one integration MR): research 26 T (tests of several files and
+`tests/run-macros` in the report) and L (macro positions and symbol names); missing-given errors
+(#130); synthesized `TypeTest`s and SAM closures with dependent results (#127); arrays of match
+types erased as dotty and tuple intrinsics of any size (#120, the i15618 crash);
+[research 27](docs/research/27-typer-groups-after-23.md) on the next typer groups.
 
 Batch of 2026-10-19 afternoon (one integration MR, each part reviewed by a subagent in its own
 MR): research 23 O (overloads with type arguments, receiver views), Q (opaque aliases of any
@@ -331,14 +342,14 @@ decoded with their cases); the lowering's outer tests of path and projection pre
 local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
-1. **Typer groups** ([research 23](docs/research/23-typer-groups-after-22.md)): the rest of type
-   patterns (#127: synthesized `TypeTest`, pattern-bound type variables) and mirrors (#129);
-   structural setters and implicit parameters; match-type leftovers (#120); typed-tree printing
-   gaps (#122); implicit candidate interpolation (#123); missing-given and type-mismatch errors
+1. **Typer groups** ([research 27](docs/research/27-typer-groups-after-23.md)): type-pattern
+   variables (with #127's pattern-bound type variables), enum-case parents, higher-kinded types,
+   functions over 22 parameters, polymorphic function types, overloads and arguments; mirrors
+   (#129); match-type leftovers (#120); typed-tree printing gaps (#122); type-mismatch errors
    (#130).
-2. **Macros** (phase 4, #40, [research 26](docs/research/26-macros-next.md)): two-file tests in
-   the report and `tests/run-macros`, then positions and symbols (sourcecode, munit, scalatest),
-   term extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices.
+2. **Macros** (phase 4, #40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`,
+   term extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
+   measured on `tests/run-macros`.
 3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    overridable methods with context function results, traits nested in local traits.
