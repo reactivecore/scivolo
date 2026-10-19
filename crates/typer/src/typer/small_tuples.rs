@@ -1,8 +1,7 @@
 //! Selections on small generic tuples (dotty's `trySmallGenericTuple`).
 
 use super::Typer;
-use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::TName;
+use crate::tpd::TNodeId;
 use tasty::{SymbolId, Type, TypeId};
 
 /// The largest arity of a `TupleN` class.
@@ -21,15 +20,7 @@ impl Typer<'_> {
         let class = self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true)?;
         let class = self.u.intern_type(Type::Sym(None, class));
         let to = self.u.intern_type(Type::Applied(class, elems));
-        let any = self.u.builtins().any;
-        let m = self.u.decl(any, "$asInstanceOf$").ok()?.first().copied()?;
-        let span = self.tpd.span(qual).to_synthetic();
-        let select_tpe = self.u.intern_type(Type::Sym(Some(tpe), m));
-        let name = TName { name: self.names.intern("$asInstanceOf$"), is_type: false };
-        let fun = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(select_tpe), Some(m));
-        let tpt = self.tpd.node(T::TypeTree { inferred: false }, span.end_pos(), Some(to), None);
-        let args = self.tpd.list(&[tpt]);
-        Some(self.tpd.node(T::TypeApply { fun, args }, span, Some(to), None))
+        Some(self.type_cast(qual, to))
     }
 
     /// Whether the type of `qual` is a chain `A *: B *: … *: T` of at least 22 elements.

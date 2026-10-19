@@ -27,6 +27,7 @@ impl Typer<'_> {
                 }
                 apply
             }
+            Tree::Tuple { trees } => self.typed_tuple_xxl(id, trees, pt, ctx),
             Tree::Match { selector, cases, kind } => self.typed_match(id, selector, cases, kind, pt, ctx),
             Tree::Alternative { trees } => self.typed_alternative(id, trees, pt, ctx),
             Tree::TypeApply { fun, args } => self.typed_type_apply(id, fun, args, pt, ctx),
