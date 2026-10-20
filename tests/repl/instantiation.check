@@ -1,0 +1,62 @@
+scala> trait Env { def x: Int = 15 }
+// defined trait Env
+
+scala> trait Other
+// defined trait Other
+
+scala> abstract class Abs(i: Int) { def y = i }
+// defined class Abs
+
+scala> type A = Env
+// defined alias type A = Env
+
+scala> def g: Int => Env = i => new Env {}
+def g: Int => Env
+
+scala> g(14).x
+val res0: Int = 15
+
+scala> (new Env with Other).x
+val res1: Int = 15
+
+scala> new Abs(2) {}.y
+val res2: Int = 2
+
+scala> new A {}.x
+val res3: Int = 15
+
+scala> val f: Int => Env = i => new Env ()
+-- [E042] Type Error: ----------------------------------------------------------
+1 |val f: Int => Env = i => new Env ()
+  |                             ^^^
+  |                             Env is a trait; it cannot be instantiated
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> new Env
+-- [E042] Type Error: ----------------------------------------------------------
+1 |new Env
+  |    ^^^
+  |    Env is a trait; it cannot be instantiated
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> new Abs(1)
+-- [E042] Type Error: ----------------------------------------------------------
+1 |new Abs(1)
+  |    ^^^
+  |    Abs is abstract; it cannot be instantiated
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> new A()
+-- [E042] Type Error: ----------------------------------------------------------
+1 |new A()
+  |    ^
+  |    Env is a trait; it cannot be instantiated
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
