@@ -29,6 +29,10 @@ impl Typer<'_> {
         let Pt::Type(sel) = pt else { return Err("extractor without expected type") };
         let mut arg_ids = self.ast.items(args).to_vec();
         let sel_type = self.zonk(sel);
+        let widened = self.u.widen(sel_type);
+        if self.named_tuple_parts(widened).is_some() {
+            return Err("extractor pattern on a named tuple");
+        }
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs

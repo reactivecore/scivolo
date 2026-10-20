@@ -84,6 +84,7 @@ mod irrefutable;
 mod java_classes;
 mod java_members;
 mod java_objects;
+mod jdk_members;
 mod lift;
 mod lift_app;
 mod linter;

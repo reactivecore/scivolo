@@ -16,7 +16,7 @@ const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
 
 impl Typer<'_> {
     /// The names and values of tuple `trees` if any element is a named argument; `Err` if only
-    /// some are or there are more than 22.
+    /// some are, a name repeats or there are more than 22.
     pub fn named_elements(&self, trees: List) -> Option<Result<Vec<(String, NodeId)>, &'static str>> {
         let elems = self.ast.items(trees);
         let named: Vec<(String, NodeId)> = elems
@@ -30,6 +30,9 @@ impl Typer<'_> {
             0 => None,
             n if n < elems.len() => Some(Err("tuple of named and unnamed elements")),
             n if n > MAX_TUPLE_ARITY => Some(Err("named tuple of more than 22 elements")),
+            _ if named.iter().enumerate().any(|(i, (n, _))| named[..i].iter().any(|(m, _)| m == n)) => {
+                Some(Err("duplicate tuple element name"))
+            }
             _ => Some(Ok(named)),
         }
     }
