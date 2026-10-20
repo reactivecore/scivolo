@@ -51,8 +51,8 @@ impl Typer<'_> {
         self.class_named(simple, ctx).filter(|&c| self.desugared_name(c) == full)
     }
 
-    /// The full name the desugaring gives class `c`: its owners' names, a `_$` per term owner,
-    /// `<empty>` for a local class outside classes.
+    /// The full name the desugaring gives class `c`: its owners' names, a `_$` per method or
+    /// value owner, `<empty>` for a local class outside classes.
     fn desugared_name(&self, c: SymbolId) -> String {
         let name = &self.u.symbol(c).name;
         let mut terms = 0;
@@ -65,6 +65,7 @@ impl Typer<'_> {
                     let package = self.u.full_name(o);
                     break (!matches!(package.as_str(), "" | "<empty>")).then_some(package);
                 }
+                _ if self.u.symbol(o).name == "$anonfun" => {}
                 _ => terms += 1,
             }
             owner = self.u.symbol(o).owner;
