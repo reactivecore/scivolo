@@ -4,7 +4,7 @@
 //! Closures of single abstract method types that are not functional interfaces as anonymous
 //! classes whose method calls the closure's (dotty's `ExpandSAMs.transformBlock`, `tpd.AnonClass`).
 
-use super::anon_class::{class_symbol, def, instance, param};
+use super::anon_class::{class_symbol, def, instance, param, repeated_elem};
 use super::sam::abstract_methods;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -81,14 +81,19 @@ fn forwarder(l: &mut Lower, cls: SymbolId, method: SymbolId, anon: SymbolId, spa
     Ok(l.with_span(d, span))
 }
 
-/// The constructor of class `c` taking no arguments.
+/// The constructor of class `c` taking no arguments, or only repeated ones.
 fn no_arg_constructor(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     l.u.decl(c, "<init>").unwrap_or_default().into_iter().find(|&ctor| {
         let mut info = l.u.info(ctor);
         if let Type::Poly { result, .. } = *l.u.types().get(info) {
             info = result;
         }
-        matches!(l.u.types().get(info), Type::Method { params, result, .. }
-            if params.is_empty() && !matches!(l.u.types().get(*result), Type::Method { .. }))
+        let Type::Method { params, result, .. } = l.u.types().get(info).clone() else { return false };
+        let no_args = match params[..] {
+            [] => true,
+            [(_, p)] => repeated_elem(l, p).is_some(),
+            _ => false,
+        };
+        no_args && !matches!(l.u.types().get(result), Type::Method { .. })
     })
 }

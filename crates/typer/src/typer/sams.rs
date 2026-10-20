@@ -40,7 +40,8 @@ impl Typer<'_> {
     pub fn sam_shape(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
-        let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
+        let (unrefined, term_refined) = self.u.without_refinements(dealiased);
+        let Some(class) = self.u.class_symbol(unrefined).filter(|_| !term_refined) else { return Ok(None) };
         self.ensure_self(class);
         if self.u.given_self_type(class).is_some() {
             return Ok(None);
@@ -49,14 +50,17 @@ impl Typer<'_> {
         if self.u.symbol(method).flags.has(tasty::tags::INLINE) {
             return Err("single abstract method type of an inline method");
         }
-        if !self.no_args_needed(class)? {
+        if !self.no_args_needed(class) {
             return Ok(None);
         }
-        let parent = self.u.base_type(t, class).ok_or("single abstract method type outside the subset")?;
+        let parent =
+            self.u.base_type(unrefined, class).ok_or("single abstract method type outside the subset")?;
         let parent = self
             .without_wildcard_args(parent, class, method)
             .ok_or("single abstract method type of a wildcard argument outside the subset")?;
+        let parent = if unrefined != dealiased && parent == unrefined { dealiased } else { parent };
         let info = self.u.member_info(parent, method);
+        let info = self.u.with_refined_aliases(info, parent);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
         else {
             return Ok(None);
@@ -128,19 +132,19 @@ impl Typer<'_> {
     }
 
     /// Whether class `c`, and the first parent of a trait, have exactly one constructor applicable
-    /// to no arguments, or none (dotty's `samClass`); `Err` for a repeated parameter's.
-    fn no_args_needed(&mut self, c: SymbolId) -> Result<bool, &'static str> {
-        if !self.takes_no_args(c)? {
-            return Ok(false);
+    /// to no arguments, one of a repeated parameter too, or none (dotty's `samClass`).
+    fn no_args_needed(&mut self, c: SymbolId) -> bool {
+        if !self.takes_no_args(c) {
+            return false;
         }
         if !self.u.symbol(c).flags.has(TRAIT) {
-            return Ok(true);
+            return true;
         }
         let first = self.u.parents(c).first().and_then(|&p| self.u.class_symbol(p));
-        first.map_or(Ok(true), |p| self.takes_no_args(p))
+        first.is_none_or(|p| self.takes_no_args(p))
     }
 
-    fn takes_no_args(&mut self, c: SymbolId) -> Result<bool, &'static str> {
+    fn takes_no_args(&mut self, c: SymbolId) -> bool {
         self.complete(c);
         let ctors = self.u.decl(c, "<init>").unwrap_or_default();
         let mut applicable = 0;
@@ -150,15 +154,14 @@ impl Typer<'_> {
                 info = result;
             }
             let Type::Method { params, result, .. } = self.u.types().get(info).clone() else { continue };
-            if let [(_, p)] = params[..]
-                && self.repeated_elem(p).is_some()
-            {
-                return Err("single abstract method type of a class with a repeated constructor parameter");
-            }
-            applicable +=
-                usize::from(params.is_empty() && !matches!(self.u.types().get(result), Type::Method { .. }));
+            let no_args = match params[..] {
+                [] => true,
+                [(_, p)] => self.repeated_elem(p).is_some(),
+                _ => false,
+            };
+            applicable += usize::from(no_args && !matches!(self.u.types().get(result), Type::Method { .. }));
         }
-        Ok(ctors.is_empty() || applicable == 1)
+        ctors.is_empty() || applicable == 1
     }
 
     /// The abstract term members of class `c` that do not match members of `Object` (dotty's

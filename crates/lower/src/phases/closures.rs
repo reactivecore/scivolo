@@ -41,7 +41,8 @@ pub fn plan(
     let span = l.tpd.span(f.block);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
     let tpe = tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t));
-    let declared = l.u.class_symbol(tpe);
+    let (unrefined, _) = l.u.without_refinements(tpe);
+    let declared = l.u.class_symbol(unrefined);
     let xxl = declared
         .and_then(|c| function_class_arity(l, c))
         .is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY);

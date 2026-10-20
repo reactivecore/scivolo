@@ -1,8 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Plans of extractor patterns (dotty's `unapplyPlan`, `matchArgsPlan`): the case accessors of a
-//! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, or the `get` of an
-//! option-like one, each component then matched against its argument pattern; the sequence an
+//! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, the elements of a
+//! generic tuple (`generic_tuples.rs`), or the `get` of an option-like one, each component then
+//! matched against its argument pattern, after the extractor's implicit arguments; the sequence an
 //! `unapplySeq` returns (`sequences.rs`).
 
 use super::Translator;
@@ -13,7 +14,7 @@ use crate::{Result, unsupported};
 use syntax::ast::Span;
 use tasty::tags::SYNTHETIC;
 use tasty::{SymbolId, Type};
-use typer::tpd::{List, TNodeId, Tree};
+use typer::tpd::{List, TNodeId};
 
 impl Translator<'_, '_> {
     /// The plan of extractor pattern `pat` with `unapply` method tree `fun` and argument
@@ -27,9 +28,6 @@ impl Translator<'_, '_> {
         on_success: PlanId,
     ) -> Result<PlanId> {
         let span = self.l.tpd.span(pat);
-        if !implicits.is_empty() {
-            return unsupported(span, "extractors with implicit arguments");
-        }
         let fun_type = self.l.u.widen(self.l.tpd.tpe(fun));
         let Type::Method { params, result, .. } = self.l.u.types().get(fun_type).clone() else {
             return unsupported(span, "extractors that are not methods");
@@ -42,7 +40,14 @@ impl Translator<'_, '_> {
         } else {
             let value = self.l.ident(scrutinee, Span::NONE);
             let arg = self.l.ensure_conforms(value, params[0].1);
-            let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            let mut unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            if !implicits.is_empty() {
+                let Type::Method { result, .. } = *self.l.u.types().get(result) else {
+                    return unsupported(span, "extractors with implicit arguments");
+                };
+                let implicits = self.l.tpd.items(implicits).to_vec();
+                unapp = self.l.apply(unapp, &implicits, result, Span::NONE);
+            }
             let unapp = self.l.positioned(unapp);
             let args = self.l.tpd.items(args).to_vec();
             self.unapply_plan(scrutinee, unapp, &args, on_success)?
@@ -62,12 +67,7 @@ impl Translator<'_, '_> {
         args: &[TNodeId],
         on_success: PlanId,
     ) -> Result<PlanId> {
-        let Tree::Apply { fun, .. } = *self.l.tpd.tree(unapp) else { unreachable!("an application") };
-        let extractor = match *self.l.tpd.tree(fun) {
-            Tree::TypeApply { fun, .. } => self.l.tpd.sym(fun),
-            _ => self.l.tpd.sym(fun),
-        };
-        let extractor = extractor.expect("an extractor's symbol");
+        let extractor = self.l.tpd.sym(self.l.tpd.meth_part(unapp)).expect("an extractor's symbol");
         let span = self.l.tpd.span(unapp);
         if self.l.u.symbol(extractor).name == "unapplySeq" {
             return self.let_abstract(unapp, None, |t, result| {
@@ -77,6 +77,9 @@ impl Translator<'_, '_> {
                 }
                 if let Some(arity) = t.product_seq_arity(result_type, args.len())? {
                     return t.unapply_product_seq_plan(result, args, arity, on_success);
+                }
+                if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
+                    return Ok(plan);
                 }
                 let Some(get) = t.member_named(result_type, "get") else {
                     return unsupported(span, "sequence extractors without `get`");
@@ -130,6 +133,9 @@ impl Translator<'_, '_> {
                     })
                     .collect();
                 return t.match_args_plan(&components, args, on_success);
+            }
+            if let Some(plan) = t.generic_tuple_plan(result, args, on_success)? {
+                return Ok(plan);
             }
             let Some(get) = t.member_named(result_type, "get") else {
                 return unsupported(span, "extractors without `get`");

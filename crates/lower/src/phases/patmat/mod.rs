@@ -6,6 +6,7 @@
 
 mod emit;
 mod extractors;
+mod generic_tuples;
 mod inline;
 mod members;
 mod merge;

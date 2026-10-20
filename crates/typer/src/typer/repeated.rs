@@ -37,13 +37,8 @@ impl Typer<'_> {
     pub fn with_repeated_class(&mut self, t: TypeId) -> TypeId {
         match self.u.types().get(t).clone() {
             Type::Method { binder, params, result, implicit, contextual } => {
-                let params = params
-                    .into_iter()
-                    .map(|(n, p)| match self.repeated_elem(p) {
-                        Some(elem) => (n, self.repeated_type(elem)),
-                        None => (n, p),
-                    })
-                    .collect();
+                let params =
+                    params.into_iter().map(|(n, p)| (n, self.with_repeated_param_class(p))).collect();
                 let result = self.with_repeated_class(result);
                 self.u.intern_type(Type::Method { binder, params, result, implicit, contextual })
             }

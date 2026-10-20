@@ -15,7 +15,7 @@ pub type Aligned = Vec<Option<NodeId>>;
 
 impl Typer<'_> {
     /// The name of argument `a` if it is named.
-    fn arg_name(&self, a: NodeId) -> Option<String> {
+    pub fn arg_name(&self, a: NodeId) -> Option<String> {
         match *self.ast.tree(a) {
             Tree::NamedArg { name, .. } => Some(self.text(name.name).to_owned()),
             _ => None,

@@ -5,7 +5,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId};
+use syntax::ast::{List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -55,6 +55,10 @@ impl Typer<'_> {
         else {
             return self.unsupported(id, "application of a non-method");
         };
+        if let Err(what) = self.tuple_args_of_unary(proto, &params, ctx) {
+            return self.unsupported(id, what);
+        }
+        let arg_ids = self.protos[proto].args.clone();
         if let Err(what) = self.check_clause_args((id, &arg_ids), &params, implicit, contextual) {
             return self.unsupported(id, what);
         }
@@ -65,11 +69,19 @@ impl Typer<'_> {
         if !dependent && let Err(what) = self.constrain_applied_result(meth, result, pt) {
             return self.unsupported(id, what);
         }
-        let repeated = params.last().and_then(|&(_, p)| self.repeated_elem(p));
+        let repeated = params.last().and_then(|&(_, p)| self.repeated_param_elem(p));
+        let by_name_repeated = repeated.is_some()
+            && params.last().is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
         if repeated.is_some() {
             params.pop();
         }
-        let aligned = match self.aligned_args(&arg_ids, &params, repeated.is_some(), pretyped.is_some()) {
+        let seq_arg = arg_ids
+            .last()
+            .copied()
+            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
+        let named_seq = seq_arg.is_some_and(|a| self.arg_name(a).is_some_and(|n| Some(&n) == names.last()));
+        let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
+        let aligned = match self.aligned_args(unnamed, &params, repeated.is_some(), pretyped.is_some()) {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };
@@ -88,10 +100,6 @@ impl Typer<'_> {
             Ok(dependent) => dependent,
             Err(what) => return self.unsupported(id, what),
         };
-        let seq_arg = arg_ids
-            .last()
-            .copied()
-            .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
         let misplaced = arg_ids.iter().any(|&a| self.is_sequence_arg(a) && Some(a) != seq_arg);
         if misplaced || seq_arg.is_some() && pretyped.is_some() {
             return self.unsupported(id, "sequence argument");
@@ -142,7 +150,7 @@ impl Typer<'_> {
             let arg = match seq_arg {
                 Some(a) => {
                     let elem = self.from_java_object(meth, elem);
-                    self.sequence_arg(a, elem, ctx)
+                    self.named_sequence_arg(a, elem, ctx)
                 }
                 None => {
                     let elems = typed_args.split_off(params.len());
@@ -152,7 +160,13 @@ impl Typer<'_> {
                     }
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();
-                    self.seq_literal(&elems, elem, at)
+                    let arg = self.seq_literal(&elems, elem, at);
+                    if let T::Typed { expr, .. } = *self.tpd.tree(arg)
+                        && by_name_repeated
+                    {
+                        self.type_seq_literal(expr);
+                    }
+                    arg
                 }
             };
             typed_args.push(arg);
@@ -193,9 +207,22 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*`.
+    /// Whether argument `a` is a sequence passed to a repeated parameter, `xs*` or `p = xs*`.
     pub fn is_sequence_arg(&self, a: NodeId) -> bool {
-        let syntax::ast::Tree::Typed { tpt, .. } = *self.ast.tree(a) else { return false };
-        matches!(*self.ast.tree(tpt), syntax::ast::Tree::Ident { name } if self.text(name.name) == "_*")
+        match *self.ast.tree(a) {
+            Tree::NamedArg { arg, .. } => self.is_sequence_arg(arg),
+            Tree::Typed { tpt, .. } => {
+                matches!(*self.ast.tree(tpt), Tree::Ident { name } if self.text(name.name) == "_*")
+            }
+            _ => false,
+        }
+    }
+
+    /// Sequence argument `a`, named or not, passed to a repeated parameter of element type `elem`.
+    fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
+        let Tree::NamedArg { name, arg } = *self.ast.tree(a) else { return self.sequence_arg(a, elem, ctx) };
+        let arg = self.sequence_arg(arg, elem, ctx);
+        let tpe = self.tpd.get(arg).tpe;
+        self.tpd.node(T::NamedArg { name, arg }, self.ast.span(a), tpe, None)
     }
 }

@@ -26,6 +26,7 @@ impl Gen<'_, '_> {
         let fun = self.l.tpd.sym(meth).expect("a closure's method");
         let instance = !is_java_static(self.l.u, fun);
         let interface = tpt.map_or(self.l.tpd.tpe(t), |tpt| self.l.tpd.tpe(tpt));
+        let (interface, _) = self.l.u.without_refinements(interface);
         let Some(function) = self.l.u.class_symbol(interface) else {
             return unsupported(span, "closures of a type that is not a class");
         };

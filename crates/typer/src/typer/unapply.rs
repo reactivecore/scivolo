@@ -63,13 +63,15 @@ impl Typer<'_> {
             return Err("not an extractor");
         };
         let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+        let implicit = matches!(self.u.types().get(result), Type::Method { implicit: true, .. });
+        if !implicit && matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
-        let result = self.applied_unapply_result(unapp, result, (binder, param), own)?;
+        let result = self.applied_unapply_result(unapp, result, (binder, param), own);
+        let (result, implicits) = self.unapply_implicits(unapp, result, own, ctx)?;
         let result = self.simplified(result);
         let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
@@ -86,7 +88,7 @@ impl Typer<'_> {
             let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
             arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed_pattern_arg(a, t, ctx)).collect()
         };
-        let (implicits, patterns) = (self.tpd.list(&[]), self.tpd.list(&patterns));
+        let (implicits, patterns) = (self.tpd.list(&implicits), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
         if !tested || self.is_bottom_type(sel) {

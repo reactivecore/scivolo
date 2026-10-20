@@ -49,11 +49,12 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<bool> {
         let Tree::Closure { tpt: Some(tpt), .. } = *l.tpd.tree(closure) else { continue };
         let sam = l.tpd.tpe(tpt);
         let dealiased = l.u.dealias(sam);
-        let Some(class) = l.u.class_symbol(dealiased) else { continue };
+        let (unrefined, _) = l.u.without_refinements(dealiased);
+        let Some(class) = l.u.class_symbol(unrefined) else { continue };
         if class == l.partial_functions()?.class {
             found.push(Closure { block: t, def, anon, sam });
         } else if !is_platform_sam(l, class) {
-            to_anon_class(l, t, def, anon, dealiased)?;
+            to_anon_class(l, t, def, anon, unrefined)?;
             classes = true;
         }
     }
