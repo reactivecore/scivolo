@@ -2,7 +2,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
-//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
+//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), a `TupledFunction`
+//! (`tupled_functions.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
 use super::super::Typer;
 use super::super::constants::of_type;
