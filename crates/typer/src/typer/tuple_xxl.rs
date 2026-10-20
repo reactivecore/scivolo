@@ -13,10 +13,13 @@ use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     pub fn typed_tuple_xxl(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
-        let elems = self.ast.items(trees).to_vec();
-        if elems.iter().any(|&e| matches!(self.ast.tree(e), Tree::NamedArg { .. })) {
-            return self.unsupported(id, "named tuple");
+        match self.named_elements(trees) {
+            Some(Ok(_)) if ctx.mode.is(Mode::PATTERN) => return self.unsupported(id, "named tuple pattern"),
+            Some(Ok(named)) => return self.typed_named_tuple(id, named, pt, ctx),
+            Some(Err(what)) => return self.unsupported(id, what),
+            None => {}
         }
+        let elems = self.ast.items(trees).to_vec();
         if elems.len() <= super::small_tuples::MAX_TUPLE_ARITY {
             return self.unsupported(id, "tuple of at most 22 elements left by desugaring");
         }
@@ -61,8 +64,10 @@ impl Typer<'_> {
     /// Tuple type `id` of elements `trees` as `A *: B *: … *: EmptyTuple`.
     pub fn typed_tuple_type(&mut self, id: NodeId, trees: List, ctx: Ctx) -> TNodeId {
         let span = self.ast.span(id);
-        if self.ast.items(trees).iter().any(|&e| matches!(self.ast.tree(e), Tree::NamedArg { .. })) {
-            return self.unsupported(id, "named tuple");
+        match self.named_elements(trees) {
+            Some(Ok(named)) => return self.typed_named_tuple_type(id, named, ctx),
+            Some(Err(what)) => return self.unsupported(id, what),
+            None => {}
         }
         let elems: Vec<TNodeId> =
             self.ast.items(trees).to_vec().iter().map(|&e| self.typed_type(e, ctx)).collect();

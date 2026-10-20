@@ -70,6 +70,9 @@ impl Typer<'_> {
             {
                 return proxy;
             }
+            if let Some(element) = self.named_tuple_select(id, qual, name, ctx) {
+                return element;
+            }
             if !tupled && let Some(q) = self.small_generic_tuple(qual) {
                 (qual, tupled) = (q, true);
                 continue;

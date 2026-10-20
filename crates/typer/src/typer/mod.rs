@@ -99,6 +99,7 @@ mod mismatch_context;
 mod mismatch_text;
 mod name_clashes;
 mod named_args;
+mod named_tuples;
 mod names;
 mod no_inits;
 mod non_method_apply;
