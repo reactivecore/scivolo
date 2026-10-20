@@ -60,3 +60,18 @@ scala> new A()
   |
   | longer explanation available when compiling with `-explain`
 1 error found
+
+scala> class Box[T](t: T)
+// defined class Box
+
+scala> class G extends Box(new Env)
+-- [E042] Type Error: ----------------------------------------------------------
+1 |class G extends Box(new Env)
+  |                        ^^^
+  |                        Env is a trait; it cannot be instantiated
+  |
+  | longer explanation available when compiling with `-explain`
+1 error found
+
+scala> class H extends Box(new Env {})
+// defined class H
