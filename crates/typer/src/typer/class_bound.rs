@@ -67,13 +67,13 @@ impl Typer<'_> {
             return matches!(self.u.types().get(theirs), Type::Bounds(..)) && theirs != own;
         }
         let info = self.u.info(d);
-        let own = self.final_result(info);
         let poly = matches!(self.u.types().get(info), Type::Poly { .. });
+        let own = if poly { info } else { self.final_result(info) };
         let class = self.u.intern_type(Type::Sym(None, c));
         let this = self.u.intern_type(Type::This(class));
         inherited.into_iter().any(|m| {
             let info = self.u.member_info(this, m);
-            let theirs = self.final_result(info);
+            let theirs = if poly { info } else { self.final_result(info) };
             let theirs = self.own_type_members(c, this, theirs);
             let narrower = own == theirs || self.u.is_subtype(own, theirs);
             let wider = own == theirs || self.u.is_subtype(theirs, own);

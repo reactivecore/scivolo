@@ -18,9 +18,6 @@ impl Typer<'_> {
         let derived = self.derived_lambdas.get(&id).and_then(|d| self.syms.by_tree.get(d)).copied();
         let type_def = self.type_def_with_rhs(id).or(derived);
         let owner = type_def.unwrap_or(ctx.owner);
-        if matches!(self.ast.tree(body), Tree::TypeBoundsTree { alias: Some(_), .. }) {
-            return self.unsupported(id, "opaque type");
-        }
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
         let lctx = Ctx { level, owner, ..ctx };
         let params = self.ast.items(tparams).to_vec();
@@ -55,15 +52,7 @@ impl Typer<'_> {
         let typed_params: Vec<TNodeId> = params.iter().map(|&p| self.typed_type_def(p, lctx)).collect();
         let body = self.typed_type(body, lctx);
         let binder = self.syms.fresh_binder();
-        let refs = |u: &mut tasty::Universe, t: TypeId| {
-            u.map_type(t, &mut |u, x| match *u.types().get(x) {
-                Type::Sym(_, s) => {
-                    let i = syms.iter().position(|&p| p == s)?;
-                    Some(u.intern_type(Type::Param(binder, i as u32)))
-                }
-                _ => None,
-            })
-        };
+        let refs = |u: &mut tasty::Universe, t: TypeId| over_params(u, &syms, binder, t);
         let lambda_params: Vec<(String, TypeId)> = syms
             .iter()
             .map(|&s| {
@@ -143,4 +132,15 @@ impl Typer<'_> {
             (self.u.symbol(s).kind == Kind::TypeParam).then_some(s)
         })
     }
+}
+
+/// `t` with references to `params` replaced by the parameters of lambda `binder`.
+pub fn over_params(u: &mut tasty::Universe, params: &[SymbolId], binder: tasty::Binder, t: TypeId) -> TypeId {
+    u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        Type::Sym(_, s) => {
+            let i = params.iter().position(|&p| p == s)?;
+            Some(u.intern_type(Type::Param(binder, i as u32)))
+        }
+        _ => None,
+    })
 }

@@ -5,9 +5,10 @@
 //! the `TypeDefCompleter` side of their infos).
 
 use super::Typer;
+use super::type_lambdas::over_params;
 use crate::ctx::Ctx;
 use crate::defn::type_ref;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::{List as TList, TNodeId, Tree as T};
 use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, Type, TypeId};
 
@@ -43,18 +44,16 @@ impl Typer<'_> {
     /// `Nothing..Any`; its alias is recorded apart (dotty's `opaqueToBounds`).
     fn opaque_info(&mut self, sym: SymbolId, rhs: NodeId, ctx: Ctx) -> TypeId {
         let error = self.u.intern_type(Type::Error);
-        if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. }) {
-            self.unsupported(rhs, "higher-kinded opaque type");
-            return error;
-        }
         let typed = self.typed_type(rhs, ctx);
         self.typed_ahead(rhs, typed, ctx);
         let alias = self.tpd.tpe(typed);
         let (lo, hi) = match *self.tpd.tree(typed) {
+            T::LambdaTypeTree { tparams, body } => self.lambda_bounds(alias, tparams, body),
             T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
             _ => (tasty::NOTHING, tasty::ANY),
         };
-        if self.type_arity(alias) > 0 {
+        let lambda = matches!(self.u.types().get(alias), Type::Lambda { .. });
+        if !lambda && self.type_arity(alias) > 0 {
             self.unsupported(rhs, "opaque alias of a type constructor");
             return error;
         }
@@ -64,6 +63,27 @@ impl Typer<'_> {
         }
         self.u.set_opaque_alias(sym, alias);
         self.u.intern_type(Type::Bounds(lo, hi))
+    }
+
+    /// The bounds of the opaque type lambda `alias` of parameters `tparams` and body `body`:
+    /// the body's declared bounds as lambdas over the same parameters, a lower `Nothing` kept
+    /// (dotty's `HKTypeLambda.boundsFromParams`).
+    fn lambda_bounds(&mut self, alias: TypeId, tparams: TList, body: TNodeId) -> (TypeId, TypeId) {
+        let Type::Lambda { binder, params, .. } = self.u.types().get(alias).clone() else {
+            return (tasty::NOTHING, tasty::ANY);
+        };
+        let syms: Vec<SymbolId> = self.tpd.items(tparams).iter().filter_map(|&p| self.tpd.sym(p)).collect();
+        let (lo, hi) = match *self.tpd.tree(body) {
+            T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
+            _ => (tasty::NOTHING, tasty::ANY),
+        };
+        let lambda = |u: &mut tasty::Universe, t: TypeId| {
+            let result = over_params(u, &syms, binder, t);
+            u.intern_type(Type::Lambda { binder, params: params.clone(), result })
+        };
+        let nothing = self.u.class_symbol(lo) == Some(self.u.builtins().nothing);
+        let lo = if nothing { lo } else { lambda(self.u, lo) };
+        (lo, lambda(self.u, hi))
     }
 
     pub fn typed_type_def(&mut self, id: NodeId, ctx: Ctx) -> TNodeId {

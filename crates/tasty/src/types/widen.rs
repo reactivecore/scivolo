@@ -66,10 +66,7 @@ impl Universe {
                         self.subst(result, binder, &names, &args)
                     }
                     _ => match self.referenced_alias(tycon) {
-                        Some(_) => match self.expand(tycon, &args) {
-                            Some(e) => e,
-                            None => return t,
-                        },
+                        Some(a) => self.intern_type(Type::Applied(a, args)),
                         None => return t,
                     },
                 },
