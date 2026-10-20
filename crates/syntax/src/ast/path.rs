@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/NavigateAST.scala
 //! The trees enclosing an offset (dotty's `NavigateAST.pathTo` with `skipZeroExtent`).
 
 use super::{Ast, NodeId, Span};

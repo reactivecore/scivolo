@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! `new Array[T](n)` of a generic `T` as `scala.runtime.Arrays.newGenericArray[T](n)`, which
 //! takes a class tag (dotty's `convertNewGenericArray`).
 

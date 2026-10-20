@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ExplicitSelf.scala
 //! dotty's `ExplicitSelf`: a reference to a class's self becomes `C.this`, and a member `m` of
 //! `C.this` that `C` does not inherit is selected on `C.this.asInstanceOf[S & C.this.type]`, `S`
 //! the self type of `C`.

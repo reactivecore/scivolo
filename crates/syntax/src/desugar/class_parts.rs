@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! What the expansion of a class definition is made of: its desugared constructors, the
 //! parameter copies, the body, and the reference to the class (the first half of dotty's
 //! `classDef`).

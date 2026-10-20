@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/DidYouMean.scala
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! The "did you mean" hint of dotty's `NotAMember` (`DidYouMean.memberCandidates`, `closestTo`
 //! and `didYouMean`).
 

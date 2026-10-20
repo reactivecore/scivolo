@@ -34,7 +34,7 @@ fn narrow(num: Num, v: u64) -> u64 {
 }
 
 fn abort(message: &str) -> ! {
-    eprintln!("scalai: {message}");
+    eprintln!("scivolo: {message}");
     std::process::abort()
 }
 

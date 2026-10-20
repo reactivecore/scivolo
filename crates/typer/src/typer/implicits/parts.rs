@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! The parts of a type whose companions make up its implicit scope (dotty's `collectParts`).
 
 use super::super::Typer;

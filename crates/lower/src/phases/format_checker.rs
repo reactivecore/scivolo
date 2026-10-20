@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/localopt/FormatChecker.scala
 //! The format check of `f` interpolations (dotty's `TypedFormatChecker.checked`): the format
 //! string of the parts, `%s` inserted before a part without a leading conversion, every
 //! conversion verified against its argument's type. Warnings are not reported.

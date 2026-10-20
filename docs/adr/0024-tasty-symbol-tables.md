@@ -19,8 +19,8 @@ every name as text (moderate: 188 files, 2.1 MB, 245k nodes; hello decodes `Char
 - **Versioned.** The table starts with `SYMBOL_TABLE_VERSION`, which the image tag also holds; it
   changes with the layout or with what `entries` computes. A table of another version or a
   malformed one is ignored and the file decoded.
-- **Keyed by the build.** The image tag also holds `SCALAI_BUILD`, the hash of the workspace's
-  sources (`crates/scalai/build.rs`, also the build script of `crates/repl`, whose tests open
+- **Keyed by the build.** The image tag also holds `SCIVOLO_BUILD`, the hash of the workspace's
+  sources (`crates/scivolo/build.rs`, also the build script of `crates/repl`, whose tests open
   images), so a changed program never reads tables, NIR member tables included, that older code
   wrote. Building an image removes images unused for a day.
 - **Checked.** When a file entered from its table is decoded, each entered tree must exist and

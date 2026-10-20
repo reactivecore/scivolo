@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+//   compiler/src/dotty/tools/dotc/core/TypeEval.scala
 //! Constant types, through the type operations of `scala.compiletime.ops` on constants (dotty's
 //! `TypeComparer.constValue`, `TypeEval.tryCompiletimeConstantFold`): `int`, `long`, `boolean`,
 //! `string` and `any`; `float` and `double` are outside the subset.

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/ast/untpd.scala
 //! Types the desugaring leaves to the typer (dotty's `DerivedTypeTree`s): copies of a class's
 //! constructor parameters, a setter's parameter, references to a class or its companion.
 

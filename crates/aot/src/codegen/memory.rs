@@ -40,7 +40,7 @@ impl FnBuilder<'_, '_> {
                         };
                         let bytes = self.b.ins().imul_imm_s(n, size as i64);
                         let alloc =
-                            self.decls.import(self.module, "scalai_aot_stackalloc", &[ptr], Some(ptr))?;
+                            self.decls.import(self.module, "scivolo_aot_stackalloc", &[ptr], Some(ptr))?;
                         let fref = self.module.declare_func_in_func(alloc, self.b.func);
                         let call = self.b.ins().call(fref, &[bytes]);
                         return Ok(Some(self.b.inst_results(call)[0]));

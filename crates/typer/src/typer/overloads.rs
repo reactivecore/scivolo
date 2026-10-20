@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Choosing among overloaded alternatives by their arguments (dotty's `resolveOverloaded`,
 //! `compare`): those applicable without implicit conversions, else those applicable with.
 

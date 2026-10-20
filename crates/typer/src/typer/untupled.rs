@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! Function values of several parameters where a function of one tuple is expected, as
 //! `x$1 => { val a = x$1._1; ...; body }` (dotty's `makeTupledFunction`).
 

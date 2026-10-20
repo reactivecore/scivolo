@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! The definitions erasure drops (dotty's `isEffectivelyErased` and `erasedDef`): inline methods
 //! and values.
 

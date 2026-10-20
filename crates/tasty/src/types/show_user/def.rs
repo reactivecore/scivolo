@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/ReplPrinter.scala
 //! Definitions (`dclText`), method and lambda types, bounds and refinements.
 
 use super::{DOT, GLOBAL, Printer, simple};

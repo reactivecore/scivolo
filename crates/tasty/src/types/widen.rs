@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Widening singleton types and following aliases with their prefixes kept (dotty's `widen` and
 //! `dealias`).
 
@@ -27,7 +29,7 @@ impl Universe {
     }
 
     /// The underlying type of singleton type, constant or `this` `t`; `None` for other types
-    /// and unresolved paths.
+    /// and unresolved paths (dotty's `underlying`, `ThisType.underlying` for `this`).
     pub fn widen_once(&mut self, t: TypeId) -> Option<TypeId> {
         Some(match self.types().get(t).clone() {
             Type::TermRef(p, name) => match self.resolve_ref(t) {

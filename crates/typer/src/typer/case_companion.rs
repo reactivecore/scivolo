@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! A case class companion adapted to a function type by inserting `apply` (dotty's
 //! `adaptNoArgsOther`'s `caseCompanion`).
 

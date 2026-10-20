@@ -8,7 +8,7 @@ use typer::dump::{dump, library_jars};
 
 /// Prints what the typer makes of Scala files, in the format of `scripts/typer-oracle`.
 ///
-/// Environment: SCALAI_LIBS holds the library jars (default: ref/libs).
+/// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
 #[command(name = "typer-dump")]
 struct Cli {
@@ -25,7 +25,7 @@ struct Cli {
 
 fn main() {
     let Cli { list, errors_first, inlined } = Cli::parse();
-    let libs = std::env::var_os("SCALAI_LIBS")
+    let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = library_jars(&libs);
     let jobs = std::fs::read_to_string(list).expect("reading the list");

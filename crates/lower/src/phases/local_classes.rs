@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! Classes defined in blocks (dotty's `LambdaLift` for classes): each becomes a class of its
 //! package named `Outer$Name$N`, taking the local values it uses as its first constructor
 //! parameters, kept in private fields where its methods read them.

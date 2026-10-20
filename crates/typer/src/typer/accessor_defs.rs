@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameKinds.scala
+//   compiler/src/dotty/tools/dotc/inlines/PrepareInlineable.scala
+//   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
 //! The definitions of inline accessors: their class, name and forwarding body (dotty's
 //! `hostForAccessorOf`, `InlineAccessorName`, `accessorDef`).
 

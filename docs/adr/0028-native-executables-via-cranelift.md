@@ -9,7 +9,7 @@ Cranelift, LLVM and smaller backends and measures a spike (`spikes/aot-cranelift
 
 ## Decision
 - **Backend:** Cranelift (`cranelift-codegen`, `-frontend`, `-module`, `-object`) in the crate
-  `crates/aot`, binary `scalai-aot`; NIR is translated to CLIF directly, one object file per
+  `crates/aot`, binary `scivolo-aot`; NIR is translated to CLIF directly, one object file per
   build, linked with `cc` against `libsnrt.a`, the static archive of `native/`.
 - **Exceptions:** a global flag slot checked after every call, jumping to the handler or
   returning to the caller, as the VM's `Result` unwinding does. No Itanium tables: Cranelift

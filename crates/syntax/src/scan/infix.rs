@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
 //! Leading infix operators: an operator starting a line continues the line before.
 
 use super::indent::IndentWidth;

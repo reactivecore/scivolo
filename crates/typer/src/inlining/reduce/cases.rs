@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/InlineReducer.scala
 //! The case an inline match selects, its scrutinee bound once, its guard folded and its sub
 //! match reduced (dotty's `reduceInlineMatch`, `reduceCase`).
 

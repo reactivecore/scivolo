@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Function values `(x: T) => e` (dotty's `typedFunctionValue`): a closure is an anonymous
 //! method and a `Closure` of it in a block, its parameter types from the declarations or the
 //! expected function or single abstract method type.

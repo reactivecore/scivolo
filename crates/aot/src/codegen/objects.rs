@@ -81,7 +81,7 @@ impl FnBuilder<'_, '_> {
     pub fn alloc(&mut self, cls: ClassId) -> R<Value> {
         self.reach.allocate(cls);
         let ptr = self.decls.ptr;
-        let alloc = self.decls.import(self.module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
+        let alloc = self.decls.import(self.module, "scivolo_aot_alloc", &[ptr, ptr], Some(ptr))?;
         let rtti = self.rtti_addr(cls)?;
         let size = self.b.ins().iconst(ptr, self.reach.classes.get(cls).size as i64);
         let fref = self.module.declare_func_in_func(alloc, self.b.func);
@@ -182,8 +182,12 @@ impl FnBuilder<'_, '_> {
         let table = self.load(ptr, rtti, self.decls.rtti.itable);
         let len = self.load(types::I64, rtti, self.decls.rtti.itable_len);
         let key = self.b.ins().iconst(types::I64, method_key(self.reach.world.pool.str(sig)) as i64);
-        let lookup =
-            self.decls.import(self.module, "scalai_aot_itable", &[ptr, types::I64, types::I64], Some(ptr))?;
+        let lookup = self.decls.import(
+            self.module,
+            "scivolo_aot_itable",
+            &[ptr, types::I64, types::I64],
+            Some(ptr),
+        )?;
         let fref = self.module.declare_func_in_func(lookup, self.b.func);
         let call = self.b.ins().call(fref, &[table, len, key]);
         Ok(self.b.inst_results(call)[0])

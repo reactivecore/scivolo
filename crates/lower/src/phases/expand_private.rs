@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/transform/ExpandPrivate.scala
 //! dotty's `ExpandPrivate`: private members used from another class, a nested one or a
 //! companion, and the private values of value classes get expanded names and become public.
 

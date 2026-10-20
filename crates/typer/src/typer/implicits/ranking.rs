@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Ranking successful implicit candidates (dotty's `compare` with `preferGeneral`): by the
 //! derivation of their owners and by their types, first without their implicit clauses, then
 //! with them; the same member by its prefix.

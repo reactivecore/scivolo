@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Dependencies.scala
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! The classes nested in a lifted local class (dotty's intermediate classes of `markFree`): their
 //! methods read the values the local class captures from its fields, through their enclosing
 //! instances (dotty's `proxyRef` through `outer.path`).

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
+//   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
 //! `Inlined` trees of transparent inline calls: expanded while typing, their calls reduced to a
 //! trace after it (dotty's `Inlines.inlineCall` in the typer, `PostTyper`'s `inlineCallTrace`).
 

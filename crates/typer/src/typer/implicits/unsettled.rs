@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Expected types of implicit searches with type variables outside the subset (unbounded ones,
 //! ones in unions), or too unspecific to search; variables settled by their bounds.
 

@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   tools/src/main/scala/scala/scalanative/codegen/MemoryLayout.scala
 //! Sizes and alignments of NIR types, following Scala Native's `MemoryLayout` on 64-bit targets.
 
 use nir::{Pool, Type, TypeId};

@@ -7,7 +7,7 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 const RUNTIME: &str = "scala.scalanative.runtime.package$";
-const SHOW: &str = "scalai.repl.Show$";
+const SHOW: &str = "scivolo.repl.Show$";
 
 impl Vm {
     /// Runs `main(args)` of the top-level object or class `entry` on the main green thread as a
@@ -64,7 +64,7 @@ impl Vm {
     }
 
     /// What the no-argument method `method` of module `module`, returning a `java.lang.Object`,
-    /// returns, as the REPL prints it: `scalai.repl.Show(value, width, height, offset)`.
+    /// returns, as the REPL prints it: `scivolo.repl.Show(value, width, height, offset)`.
     pub fn show_value(
         &mut self,
         module: &str,

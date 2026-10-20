@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ArrayApply.scala
 //! dotty's `ArrayApply`: array literals for `Array(..)` (`array_literals.rs`); `List(xs*)` and
 //! `Seq(xs*)` become `::` cells ending in `Nil`, within a budget of 8 elements over nested calls.
 

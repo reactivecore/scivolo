@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! Sum mirrors of the companions of sealed classes other than enums (dotty's `isGenericSum` and
 //! `ordinalBody`): `def ordinal(x$0: S): Int = x$0 match { case _: C1 => 0; ... }`.
 

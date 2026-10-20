@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Show.scala
 //! Text form of definitions, following Scala Native's `nir.Show`.
 
 mod attr;

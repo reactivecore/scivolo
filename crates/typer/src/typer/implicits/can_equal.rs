@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! The `CanEqual` instances the compiler assumes (dotty's `synthesizedCanEqual`): for predefined
 //! classes that compare, and `CanEqual.canEqualAny` where neither side has a reflexive instance.
 

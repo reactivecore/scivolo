@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Tuples of more than 22 elements (dotty's `typedTuple` above `MaxTupleArity`): expressions as
 //! `TupleXXL(…)` cast to the `*:` chain of their element types, patterns as `TupleXXL(…)`
 //! extractors, types as `*:` chains ending in `EmptyTuple`.

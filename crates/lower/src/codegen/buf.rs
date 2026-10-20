@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! The instructions of a method body as nscplugin's `FixupBuffer` collects them: a label
 //! before code that follows control flow, `unreachable` after a `Nothing` value.
 

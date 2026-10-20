@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/interactive/Completion.scala
 //! The selection under the cursor and the prefix of the names it completes (dotty's
 //! `completionMode` and `completionPrefix` for a term `Select`).
 

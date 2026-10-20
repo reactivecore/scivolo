@@ -92,7 +92,7 @@ impl Vm {
         }
         i.signals += taken;
         if i.signals > 1 {
-            eprintln!("scalai: terminating");
+            eprintln!("scivolo: terminating");
             natives::exit_immediately(130);
         }
         i.stop = true;

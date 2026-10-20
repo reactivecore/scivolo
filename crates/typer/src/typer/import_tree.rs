@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! The typed tree of an import, and the checks on its selectors (dotty's `typedImport`,
 //! `checkImportSelectors`).
 

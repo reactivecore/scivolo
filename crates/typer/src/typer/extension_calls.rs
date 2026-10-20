@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Selections that call an extension method (dotty's `tryExtensionOrConversion` with
 //! `extMethodApply`): `qual.name` typed as `name(qual)` for an extension method `name` in scope.
 

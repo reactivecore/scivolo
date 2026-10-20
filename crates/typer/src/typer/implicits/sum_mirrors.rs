@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Sum mirrors of sealed classes and enums (dotty's `sumMirror`): the companion or an anonymous
 //! class, cast to the mirror type.
 

@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Positioned.scala
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//   compiler/src/dotty/tools/dotc/ast/untpd.scala
 //! Copies of trees as dotty's `cpy`, `withSpan` and `withMods` make them.
 
 use super::modifiers::Modifiers;

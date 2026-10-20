@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
 //! The subtrees of typed trees, and trees rebuilt with mapped subtrees (dotty's `TreeMap`).
 
 use super::slots::Slot;

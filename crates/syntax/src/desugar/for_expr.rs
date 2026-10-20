@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! `for` comprehensions as calls of `map`, `flatMap`, `foreach` and `withFilter` (dotty's
 //! `makeFor`).
 

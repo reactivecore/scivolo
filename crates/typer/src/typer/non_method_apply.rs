@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Applications of a value without `apply` (dotty's `MethodDoesNotTakeParameters` from
 //! `adaptToArgs`), reported where no extension method or implicit view may supply one.
 

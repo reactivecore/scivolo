@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! The aliases `ImpureFunctionN` and `ImpureContextFunctionN` that dotty's `Definitions` gives the
 //! `scala` package: `FunctionN` and `ContextFunctionN` of the same parameters.
 

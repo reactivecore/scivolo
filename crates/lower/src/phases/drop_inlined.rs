@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! dotty's `Inlines.dropInlined`, run before the other phases: each `Inlined` tree becomes the
 //! block of its bindings and expansion, or its expansion alone; its call is dropped. Under the
 //! outermost one, the trees from another source take its span (`reposition`).

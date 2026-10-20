@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/localopt/StringInterpolatorOpt.scala
 //! The `s` and `raw` interpolations `StringInterpolatorOpt` does not make concatenations:
 //! `sc.s(args)` becomes `StringContext.standardInterpolator(processEscapes, args, sc.parts)`,
 //! `raw` passing `x => x`, `sc` evaluated once (dotty's `transformS`).

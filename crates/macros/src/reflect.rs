@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The `quotes.reflect` operations of the overlay's `ReflectImpl` by name: terms are expression
 //! numbers, types type numbers, symbols the frontend's symbol numbers (`-1` for none), constants
 //! a kind, two words and a text.

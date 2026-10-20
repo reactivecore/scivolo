@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! The test types dotty tests by calls of runtime methods: tuple types (`Tuples.isInstanceOf..`)
 //! and arrays of elements that are not of a class (`ScalaRunTime.isArray`).
 

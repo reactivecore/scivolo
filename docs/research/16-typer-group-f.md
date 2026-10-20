@@ -248,7 +248,7 @@ included), `just dotty-lower-report` and `just snapshot-diff programs lower` [I]
 |---|---|---:|---|
 | F0 small fixes | §1.2 zonk, §1.3 budget, §1.4 case-lambda arity, §2.2 constant scrutinees | ~120 | OrderingTest, t1500b/c, t4930, 1938-2, i11008, patmat-spec, t0005, t0048, unapply-tparam, the "inaccessible member" nine if same cause; repros `p2a`, `p4b`, `p5a` as golden inputs |
 | F1 type patterns | §2.1 W, S, L; `whyUncheckable` warning; lowering singleton tests; program `typepatterns` with `nir-cmp` | ~400 | null-and-intersect, rescue-boundary, t13418, t1434, t3097, value-class-extractor-2, i16806, i23875, i3200c, t4577, t4897, i6996, i24357 |
-| F4 `f` interpolator | §1.5 intrinsic, ADR | ~200 | `tests/programs/moderate` through `just lower-run` and `scalai` strict; the ≤ 50 ms measurement |
+| F4 `f` interpolator | §1.5 intrinsic, ADR | ~200 | `tests/programs/moderate` through `just lower-run` and `scivolo` strict; the ≤ 50 ms measurement |
 | F2 refutable definitions and binds | §2.3, §2.6 intersections and open-class arguments | ~250 | correct-bind, i1748, i1779, i5067b, t3488, t4709, t8395, trailingCommas, tuple-patmat-extract, case-class-23, i10178, i1354, i1354b, matchable, t6111, matchnull, matchonseq, t3702 |
 | F3 sub-patterns and sequences | §2.4, §2.5 (typer and lowering) | ~400 | catch-sub-cases, enum-HList, i14693, i16108, irrefutable, run-bug4840, i1773, i22900a, i24926, t493, i23776, i3248, i3248b/c/d, i4984c/e, i6490, i6490b, t6541, string-extractor, i11008b |
 | F5 abstract type tests | §2.1 T with `tryWithTypeTest` (needs group A's `ClassTag` synthesis) | ~250 | i20225, rescue, tryPatternMatch, i1991, fully-abstract-*, type-test-nat |

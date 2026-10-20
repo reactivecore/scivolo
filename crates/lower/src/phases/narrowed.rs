@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Dependencies.scala
 //! The functions lifted into a class enclosing the one they are defined in (dotty's
 //! `narrowLogicOwner`): those reading a value captured by an enclosing local class, and those of a
 //! local trait using a value from outside it, lifted into the outermost local trait between.
@@ -19,7 +21,8 @@ pub fn home(l: &Lower, class: SymbolId, f: &Function) -> SymbolId {
     }
 }
 
-/// Sets the class each of `functions` of `class` is narrowed into, before calls carry it.
+/// Sets the class each of `functions` of `class` is narrowed into, before calls carry it
+/// (dotty's `computeLogicOwners`).
 pub fn narrow(l: &Lower, class: SymbolId, functions: &mut [Function]) {
     let proxies: FxHashMap<SymbolId, SymbolId> = l
         .trait_methods

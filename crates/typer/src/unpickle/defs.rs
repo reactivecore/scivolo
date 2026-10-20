@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Definitions (dotty's `readIndexedDef`): the inline method with its parameters, and the local
 //! values and methods of its body, their symbols defined when their block is read.
 

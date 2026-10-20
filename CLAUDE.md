@@ -26,14 +26,21 @@ Minimal. State only what code does, never why — no rationale, history,
 alternatives, or reviewer notes. Every `unsafe` block carries a concise
 `// SAFETY:` justification (mandatory). A module comment (`//!`) only where
 the file name and items do not already say what it holds, a line or two.
-Rationale goes in `docs/adr/`, one decision per file.
+Rationale goes in `docs/adr/`, one decision per file. A file with translated
+code starts with its license notice, which lists its upstream files:
+
+```rust
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
+```
 
 ## Code style
 
 - No source file over 200 lines, tests excluded; split by what the code is
   for, not by size. Exempt: a data table, a set of type definitions, or the
   API around a single type (e.g. the TASTy tag table). A file that ports
-  exactly one dotty method or one dotty phase may have up to 300 lines.
+  exactly one dotty method or one dotty phase may have up to 300 lines. The
+  license notice does not count.
 - Group by meaning, not by syntactic form: no `types.rs`, `enums.rs`,
   `utils.rs`. A type lives beside the code that uses it.
 - The reader is a Rust developer; use the shorter idiom where the language
@@ -50,7 +57,9 @@ Rationale goes in `docs/adr/`, one decision per file.
   slot table (ADR 0002), the collector (ADR 0004) and the SIGINT counter
   (ADR 0013) are the only state outside `Vm`.
 - Documentation is short: one home per fact.
-- Code or ideas taken from elsewhere get an entry in `acknowledges.md`.
+- Translated code gets the license notice in its file; a new upstream project
+  also goes into `NOTICE` and `acknowledges.md`. Designs and ideas taken from
+  elsewhere get an entry in `acknowledges.md`, which names projects, not files.
 
 ## Tooling
 

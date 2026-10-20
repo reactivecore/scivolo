@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Alternatives narrowed by the shapes of function arguments without parameter types (dotty's
 //! `typeShape`, `normArg`, `narrowByShapes`).
 
@@ -82,7 +85,7 @@ impl Typer<'_> {
 
     /// Whether function argument `arg` at position `i` takes its parameters as one tuple: no
     /// alternative of `alts` takes a function of as many parameters there and one takes a
-    /// function of a tuple of that many (dotty's `normArg`).
+    /// function of a tuple of that many (dotty's `normArg` with `ptIsCorrectProduct`).
     fn tupled_arg(
         &mut self,
         arg: NodeId,

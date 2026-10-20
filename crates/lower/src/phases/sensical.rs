@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! Whether a type test can hold (dotty's `TypeTestsCasts.checkSensical`): not if the tested
 //! value's class is final and no subclass of the tested class, or the two are unrelated classes.
 

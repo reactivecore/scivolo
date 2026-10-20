@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! The result types of default getters, `m$default$N`: the type of `m`'s parameter `N` (dotty's
 //! `defaultParamType` in `Namer.inferredResultType`).
 

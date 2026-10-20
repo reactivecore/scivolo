@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Least upper bounds of types by their atoms (dotty's `mergedLub`, its step on atoms).
 
 use super::atoms::Atoms;

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
 //! Identifiers nothing in scope defines (dotty's `MissingIdent`), reported where dotty finds
 //! nothing either.
 

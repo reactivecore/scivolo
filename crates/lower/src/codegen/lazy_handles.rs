@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/AdaptLazyVals.scala
 //! The `VarHandle` fields dotty's `LazyVals` gives lazy values and Scala Native's accessors of
 //! them: a static field `x$lzyN$lzyHandle` of the object or companion object, never set, and a
 //! private static method of the class reading it.

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
+//   compiler/src/dotty/tools/dotc/transform/InterceptedMethods.scala
 //! Erasure's adaptation of a typed tree to its expected erased type: parameterless methods
 //! applied, values boxed, unboxed or cast.
 

@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/serialization/Tags.scala
 //! Serialization tags from `nir/serialization/Tags.scala` (0.5.12). Bin/Comp/Conv/MemoryOrder
 //! tags are `index + 1` into the tables in `nir.rs`.
 

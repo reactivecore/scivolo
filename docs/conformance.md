@@ -40,7 +40,7 @@ where their resource files are.
 Counts are test methods, from macOS. Linux fails the same tests. It skips four more: the
 read-only-file cases, because the CI container runs as root.
 
-A feature the VM lacks throws `java.lang.InternalError("scalai: unsupported: …")`, a missing class
+A feature the VM lacks throws `java.lang.InternalError("scivolo: unsupported: …")`, a missing class
 `NoClassDefFoundError`, a missing C function `UnsatisfiedLinkError`, so one gap fails a test
 instead of the run.
 
@@ -138,7 +138,7 @@ just dotty-lower-report   # typer, lowering and VM; lower-report.md and lower-re
 Each single-file test is lowered by `lower` and run in the VM. Tests failing in the VM when
 compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
-`scalai FILE.scala` with `SCALAI_FRONTEND=strict` (`crates/scalai/tests/lowered.rs`).
+`scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
 
 Results (2026-10-19):
 

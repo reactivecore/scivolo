@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/Parsers.scala
 use super::ParamOwner;
 use crate::ast::flags;
 use crate::ast::modifiers::Modifiers;

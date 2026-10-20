@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/ReplPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/package.scala
 //! Types and definitions as dotty's REPL shows them to users (`ReplPrinter` over
 //! `RefinedPrinter` and `PlainPrinter`): `List[Int]`, `Int => String`, `def f[A](x: A): A`.
 

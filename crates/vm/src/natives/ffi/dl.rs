@@ -6,9 +6,9 @@ use crate::interp::Flow;
 use std::ffi::{CStr, CString};
 
 /// Makes the symbols of Scala Native's C runtime, and of the libraries listed in
-/// `SCALAI_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
+/// `SCIVOLO_NATIVE_LIBS` (`:`-separated), visible to `dlsym`.
 pub fn load_runtime() -> Result<(), String> {
-    let extra = std::env::var("SCALAI_NATIVE_LIBS").unwrap_or_default();
+    let extra = std::env::var("SCIVOLO_NATIVE_LIBS").unwrap_or_default();
     std::iter::once(snrt::PATH).chain(extra.split(':').filter(|p| !p.is_empty())).try_for_each(open)
 }
 
@@ -22,10 +22,10 @@ fn open(lib: &str) -> Result<(), String> {
     }
 }
 
-/// The address of C symbol `name` in the process, else of the runtime's `scalai_<name>`
-/// (`native/scalai/libc_glue.c`); `errno` is left as it was and no `dlerror` message is left.
+/// The address of C symbol `name` in the process, else of the runtime's `scivolo_<name>`
+/// (`native/scivolo/libc_glue.c`); `errno` is left as it was and no `dlerror` message is left.
 pub fn symbol(name: &str) -> Option<usize> {
-    lookup(name).or_else(|| lookup(&format!("scalai_{name}")))
+    lookup(name).or_else(|| lookup(&format!("scivolo_{name}")))
 }
 
 fn lookup(name: &str) -> Option<usize> {

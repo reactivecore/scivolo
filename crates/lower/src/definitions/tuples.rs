@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Definitions.scala
 //! The specialized tuple classes `Tuple1$mc<T>$sp` and `Tuple2$mc<T1><T2>$sp` and the
 //! specialized accessors `_1$mc<T>$sp` of `Tuple1` and `Tuple2` (dotty's `SpecializedTuple`,
 //! `withSpecMethods`), defined if the library has no TASTy for them.

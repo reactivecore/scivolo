@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SpecializeFunctions.scala
 //! dotty's `SpecializeFunctions`: a class's `apply` of a `FunctionN` with primitive types moves
 //! its body to the specialized `apply$mc<R><Ps>$sp` it calls, and `f(x)` for `f: Int => Int`
 //! calls `f.apply$mcII$sp(x)`, which needs no boxing.

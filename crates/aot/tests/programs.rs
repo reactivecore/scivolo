@@ -42,9 +42,9 @@ fn output(cmd: &mut Command, what: &str, limit: Duration) -> Output {
     Output { status, stdout: stdout.join().expect(what), stderr: stderr.join().expect(what) }
 }
 
-/// What the executable `scalai-aot` builds with `args` into `bin` prints when run with `run`.
+/// What the executable `scivolo-aot` builds with `args` into `bin` prints when run with `run`.
 fn build_and_run(args: &[&str], bin: &Path, run: &[&str]) -> String {
-    build_with(Command::new(env!("CARGO_BIN_EXE_scalai-aot")).args(args), bin, TIMEOUT);
+    build_with(Command::new(env!("CARGO_BIN_EXE_scivolo-aot")).args(args), bin, TIMEOUT);
     run_bin(bin, run)
 }
 
@@ -67,8 +67,8 @@ fn check_expanded(name: &str, args: &[&str]) {
     let tmp = Path::new(env!("CARGO_TARGET_TMPDIR")).join("aot-macros").join(name);
     let cache = tmp.join("cache");
     let _ = std::fs::remove_dir_all(cache.join("aot-units"));
-    let mut compile = Command::new(env!("CARGO_BIN_EXE_scalai-aot"));
-    compile.env("SCALAI_CACHE", &cache).args(args).arg(&dir);
+    let mut compile = Command::new(env!("CARGO_BIN_EXE_scivolo-aot"));
+    compile.env("SCIVOLO_CACHE", &cache).args(args).arg(&dir);
     build_with(&mut compile, &tmp.join(name), MACRO_TIMEOUT);
     let out = run_bin(&tmp.join(name), &[]);
     assert_eq!(out, std::fs::read_to_string(dir.join(format!("{name}.check"))).expect("the .check file"));
@@ -92,7 +92,7 @@ fn circe_codec_derives_through_its_macros() {
 
 /// Whether Coursier finds `coordinates` without going online.
 fn in_coursier_cache(coordinates: &[&str]) -> bool {
-    let chosen = std::env::var_os("SCALAI_COURSIER").map(|c| vec![c]);
+    let chosen = std::env::var_os("SCIVOLO_COURSIER").map(|c| vec![c]);
     chosen.unwrap_or_else(|| vec!["coursier".into(), "cs".into()]).into_iter().any(|cs| {
         Command::new(cs)
             .args(["fetch", "--mode", "offline"])

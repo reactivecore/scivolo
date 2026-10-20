@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/unpickleScala2/Scala2Erasure.scala
 //! Erasure of intersections in the signatures of Scala 2 symbols (dotty's `Scala2Erasure`).
 
 use super::Erased;

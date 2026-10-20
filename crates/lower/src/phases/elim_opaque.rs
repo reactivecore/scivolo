@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ElimOpaque.scala
 //! Opaque types turned into aliases (dotty's `ElimOpaque`); `==` and `!=` on their values, which
 //! dotty resolves again with the underlying types, are refused.
 

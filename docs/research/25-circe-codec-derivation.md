@@ -50,9 +50,9 @@ Probes around it (`tmp/r25/p-*.txt`) [V]:
 4. `ConfiguredCodec.derived[P]` with a `given Configuration` stops at "macro call"
    (`Y/inline_refs.rs:28-29`) before the missing `Mirror.Of[P]` is noticed [V].
 
-Scripts: `//> using dep` makes a script take scala-cli (`crates/scalai/src/frontend.rs:63-64`,
-until #118); `scalai --dep … file.scala` runs through the own frontend and hits the same refusals
-[V for the flag, `crates/scalai/src/main.rs:29-33`].
+Scripts: `//> using dep` makes a script take scala-cli (`crates/scivolo/src/frontend.rs:63-64`,
+until #118); `scivolo --dep … file.scala` runs through the own frontend and hits the same refusals
+[V for the flag, `crates/scivolo/src/main.rs:29-33`].
 
 Libraries [V]: Circe 0.14.10 publishes `_native0.5_3` artifacts (core, generic, parser, numbers,
 jawn; cats-core/kernel and jawn-parser come with them, built against Scala Native 0.5.5 and Scala
@@ -173,7 +173,7 @@ fourteen reflect members of the table, `Expr.asTerm`/`asExpr` wrappers (`Qi/Expr
    class implemented by natives that call back into the typer (`crates/vm/src/natives/`, the
    `callback.rs` slot table of ADR 0002 is the model). The typer must own or borrow a running
    `Vm` during inlining: the REPL has one (`crates/repl`), scripts create theirs after the
-   frontend (`crates/scalai/src/main.rs:111-127`) — the script path needs the VM created first,
+   frontend (`crates/scivolo/src/main.rs:111-127`) — the script path needs the VM created first,
    or a second VM for macros (an ADR). ~400 lines, the largest unknown.
 3. **Quote unpickling**: `unpickleExprV2(pickled: String | List[String], types, termHole)` — the
    pickled quote is TASTy bytes (`Qd/TastyString.scala`) read with `crates/tasty` into our typed
@@ -237,7 +237,7 @@ on top of the same macros), ADR 0023 intrinsics (ruled out), the `summonFrom` er
 | M3 | the three small fixes (gap 3) | ~80 | `1.asJson.noSpaces`, `import io.circe.parser.decode`, `Decoder.forProduct2("id","name")(P.apply)` run; `tests/repl/circe.check` with the hand-written codec of §1.2 |
 | M4a | Quotes core (gaps 4, 5, 8; an ADR for the typer ↔ VM bridge) | ~1,000 | a macro of the form `${ impl('x) }` whose impl returns `'{ … $x … }` runs from a `--dep` jar and from `tests/pos` (`macro_calls`), with `just typer-compare` against dotty's expansion |
 | M4b | quote patterns with typed holes + reflect subset (gaps 6, 7) | ~500 | `ConfiguredEncoder.derived[P]` (one macro, no `Default`) encodes `P(1,"a")`; then `Codec.AsObject.derived[P]` with `Default` |
-| — | integration (#94) | — | the issue's four inputs through `just repl --dep …` print `{"id":1,"name":"a"}` and `Right(Person(1,a))`; the same file through `scalai --dep … circe.scala`; `tests/repl/circe-derives.check` skipped when the Coursier cache lacks Circe (as `crates/repl/tests/*.rs:50-72` do) |
+| — | integration (#94) | — | the issue's four inputs through `just repl --dep …` print `{"id":1,"name":"a"}` and `Right(Person(1,a))`; the same file through `scivolo --dep … circe.scala`; `tests/repl/circe-derives.check` skipped when the Coursier cache lacks Circe (as `crates/repl/tests/*.rs:50-72` do) |
 
 Order: M3 (independent, one day) → M1 → M2 → M4a → M4b. M1+M2 is research 23's plan unchanged
 and worth doing first because the mirror is the macro's *input*: M4 cannot be tested on Circe
@@ -255,7 +255,7 @@ with an expression made before the quote (`typed('{ … })` with a `Type.of` fro
 definitions from library inline bodies (`phases/drop_inlined.rs`), as plain library inline
 bodies with locals do.
 
-M4b findings (2026-10-19) [V, `tests/repl/deps/circe-derives.check`, `crates/scalai/tests/circe.rs`]:
+M4b findings (2026-10-19) [V, `tests/repl/deps/circe-derives.check`, `crates/scivolo/tests/circe.rs`]:
 a quote pattern pickled by 3.3.3 is `INLINED(BLOCK(BLOCK(TYPEAPPLY(patternHole, T), @patternType
 TYPEDEF l/el/et), @SplicedType TYPEDEF A = HOLE))`, without a `TYPED`; `${_}` is a `patternHole`
 too, its match returned like `$m`'s. The open [I] items, resolved: `constValue[l & String]` needs

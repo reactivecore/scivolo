@@ -16,7 +16,7 @@ pub fn calls(body: &Body) -> bool {
 }
 
 impl FnBuilder<'_, '_> {
-    /// Throws StackOverflowError when the stack pointer is below `scalai_aot_stack_limit`.
+    /// Throws StackOverflowError when the stack pointer is below `scivolo_aot_stack_limit`.
     pub fn stack_check(&mut self) -> R<()> {
         let ptr = self.decls.ptr;
         let gv = self.module.declare_data_in_func(self.decls.stack_limit, self.b.func);
@@ -37,12 +37,12 @@ impl FnBuilder<'_, '_> {
         Ok(())
     }
 
-    /// `scalai_aot_overflow()`: throws a new StackOverflowError, constructed with the stack's
+    /// `scivolo_aot_overflow()`: throws a new StackOverflowError, constructed with the stack's
     /// reserve open, as the VM's `throw_new` does.
     fn overflow(&mut self) -> R<FuncId> {
         let ptr = self.decls.ptr;
-        let reserve = self.decls.import(self.module, "scalai_aot_stack_reserve", &[types::I8], None)?;
-        let alloc = self.decls.import(self.module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
+        let reserve = self.decls.import(self.module, "scivolo_aot_stack_reserve", &[types::I8], None)?;
+        let alloc = self.decls.import(self.module, "scivolo_aot_alloc", &[ptr, ptr], Some(ptr))?;
         let cls = self.reach.link_top(ERROR)?;
         self.reach.allocate(cls);
         let rtti = self.decls.rtti(self.module, self.reach, cls)?;
@@ -51,7 +51,7 @@ impl FnBuilder<'_, '_> {
         let init = self.decls.func(self.module, self.reach, init)?;
         let slot = self.decls.exception;
         let sig = Signature::new(self.decls.call_conv);
-        self.decls.define_generated(self.module, "scalai_aot_overflow", sig, |b, module| {
+        self.decls.define_generated(self.module, "scivolo_aot_overflow", sig, |b, module| {
             let reserve = module.declare_func_in_func(reserve, b.func);
             let open = b.ins().iconst(types::I8, 1);
             b.ins().call(reserve, &[open]);

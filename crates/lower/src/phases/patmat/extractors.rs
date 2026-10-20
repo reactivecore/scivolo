@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Plans of extractor patterns (dotty's `unapplyPlan`, `matchArgsPlan`): the case accessors of a
 //! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, or the `get` of an
 //! option-like one, each component then matched against its argument pattern; the sequence an

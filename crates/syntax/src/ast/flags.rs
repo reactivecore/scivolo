@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Flags.scala
 //! Flag sets with dotty's bit layout (`core/Flags.scala`): bits 0 and 1 say whether a set
 //! applies to terms, types or both, bits 2..63 are flags.
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Type trees (dotty's `readTpt`): type identifiers, selections and applications, singleton and
 //! by-name types, and types read as `TypeTree`s.
 

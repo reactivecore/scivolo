@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Memoize.scala
 //! dotty's `Memoize`: each getter of a class gets a private field that its right-hand side
 //! (or, for a class parameter, the constructor) initializes and that the getter returns; a
 //! setter stores its argument in the field; a constant `final` value needs no field. The class's
@@ -60,7 +62,8 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 }
 
 /// Makes getter definition `stat` of `getter` return its field, or the value of a type needing
-/// none; the field's definition, none for a mixed-in or uninitialized getter of such a type.
+/// none (dotty's `erasedBottomTree`); the field's definition, none for a mixed-in or
+/// uninitialized getter of such a type.
 fn getter(l: &mut Lower, class: SymbolId, stat: TNodeId, getter: SymbolId) -> Option<TNodeId> {
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(stat) else { unreachable!("a getter") };
     let mixed_in = l.mixed_in.contains(&getter);

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! dotty's `Mixin`: a trait's constructor becomes `$init$`, its values deferred accessors
 //! (`trait_fields.rs`); a class gets the members its traits' values need and, for each concrete
 //! method it inherits from a trait of the unit or the library, a forwarder calling that method

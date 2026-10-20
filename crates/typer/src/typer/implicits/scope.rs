@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! The implicit scope of a type (dotty's `implicitScope`, `collectCompanions`): the implicits of
 //! the companions of the classes of its parts and of their base classes, and of the values on
 //! their prefix paths.

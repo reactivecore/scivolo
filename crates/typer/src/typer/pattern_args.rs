@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Argument patterns of extractors before they are typed: the type trees `typedUnApply` types
 //! against a tuple selector, named patterns reordered by the case accessors (dotty's
 //! `adaptPatternArgs`).

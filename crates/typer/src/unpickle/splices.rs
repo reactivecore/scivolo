@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Splices and quotes of macro bodies, read as dotty types them: `${ e }` as
 //! `scala.quoted.runtime.Expr.splice[T](e)`, `'{ e }` as `scala.quoted.runtime.Expr.quote[T](e)`.
 

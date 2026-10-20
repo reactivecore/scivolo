@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Which implicits convert a tree (dotty's `candidateKind` for a view prototype): a method of one
 //! explicit parameter, or a value, or a method's result after its implicit clauses, of a class
 //! deriving from `Conversion` or `<:<`; and the `apply` of such a value.

@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/serialization/BinaryDeserializer.scala
 use super::Reader;
 use crate::cursor::Result;
 use crate::nir::{BINS, COMPS, CONVS, Cond, Inst, MemoryOrder, Next, ORDERS, Op, Param, PosId};

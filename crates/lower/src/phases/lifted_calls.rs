@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! Calls of lifted local methods: they call the lifted method with the captured values first; a
 //! reference to a local method without parameter lists becomes such a call.
 

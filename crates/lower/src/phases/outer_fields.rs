@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/DropOuterAccessors.scala
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! The enclosing instance a class holds: a leading constructor parameter `$outer`, a field and an
 //! accessor `C$$$outer()`; its references to enclosing instances read the parameter in
 //! constructor code, else the field. An anonymous local class has the field only where its

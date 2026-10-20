@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Substituting arguments for the parameters of a method type (dotty's `safeSubstParam`).
 
 use super::stability::is_stable_path;

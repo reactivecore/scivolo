@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/MegaPhase.scala
 //! dotty's `TreeTraverser` and `TreeAccumulator` over typed trees: children in the order of
 //! `Tpd::children`, each with the owner dotty's `localCtx` gives it and, for a template, the
 //! owners of `MegaPhase` and `TreeMap.transformStats` (`superCallContext` for the parents,

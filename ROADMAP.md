@@ -85,7 +85,7 @@ frontend is still dotc + nscplugin, behind a cache.
    through `libffi` and `dlsym`. Pointer intrinsics (`Ptr`, `stackalloc`,
    `Intrinsics.*`) run on a byte-addressable native heap. Single-threaded
    first.
-5. **Frontend shim.** A `scalai run script.scala` command:
+5. **Frontend shim.** A `scivolo run script.scala` command:
    1. hash the script
    2. on a cache miss, compile it to NIR with dotc + nscplugin (a Bloop or
       scalino server)
@@ -221,7 +221,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    its NIR added to the running VM. An expression's value is printed with
    its type (`val res0: Int = 3`). Input the frontend cannot handle yet is
    reported as unsupported, never run through another path (#37). Runs as
-   `scalai` without a target (2026-10-07): values (printed as dotty's
+   `scivolo` without a target (2026-10-07): values (printed as dotty's
    pprint), defs, type aliases, imports, lambdas, shadowing, `:reset`,
    `:type`, stack traces with causes and suppressed exceptions and the
    `res` numbering match dotty 3.9 on the transcripts in
@@ -236,7 +236,7 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    the typer.
 
 **Exit criterion.** Editing and then running `moderate.scala` takes ≤ 50 ms
-with no JVM involved. Status (2026-10-12, #89): `scalai FILE.scala` compiles through the own
+with no JVM involved. Status (2026-10-12, #89): `scivolo FILE.scala` compiles through the own
 frontend. On 2026-10-15 (`just bench-edit FILE 15`, strict frontend, median) `moderate.scala`
 compiles and edit-then-run takes 48 ms (22 ms cached), hello 16 ms, caseclasses 33 ms, after
 the MRs of [research 17](docs/research/17-frontend-speed.md) §5 (#100: discarded type
@@ -305,7 +305,7 @@ on the next macro steps.
 Merged on 2026-10-19 (one integration MR, each part reviewed by a subagent in its own MR,
 research 25): the typer fixes Circe needed, product and sum mirrors, `derives` clauses (#43),
 macros in the VM with quote patterns and a `quotes.reflect` subset (#40); Circe's
-`derives Codec.AsObject` works in the REPL and in scripts (#94); `SCALAI_MACROS` removed; CI
+`derives Codec.AsObject` works in the REPL and in scripts (#94); `SCIVOLO_MACROS` removed; CI
 images carry Coursier.
 
 Stacked on 2026-10-16 (one MR each, reviewed by a subagent, !298–!313): research 22; the

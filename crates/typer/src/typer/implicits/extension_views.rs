@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Implicit values, and the objects and values of an implicit scope, as containers of extension
 //! methods (dotty's `Candidate.Extension`): `qual.name` typed as `c.name(qual)`.
 
@@ -49,7 +51,7 @@ impl Typer<'_> {
     }
 
     /// The reference to candidate `c` if it is a value with one extension method `name` whose
-    /// receiver `tree` fits.
+    /// receiver `tree` fits (dotty's `hasExtMethod`).
     fn try_extension(
         &mut self,
         c: Candidate,

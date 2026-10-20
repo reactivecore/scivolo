@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Deriving.scala
 //! Type class instances of `derives` clauses (dotty's `Deriving`): `given derived$TC: TC[C] =
 //! TC.derived` in the companion of `C`, entered with the companion and typed after its body.
 

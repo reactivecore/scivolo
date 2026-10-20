@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Dependencies.scala
 //! What lifted functions capture (dotty's `Dependencies`): the local values free in them or in the
 //! functions they call, in the order dotty records them, and whether they need `this`.
 

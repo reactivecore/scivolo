@@ -1,7 +1,10 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SuperAccessors.scala
 //! dotty's `SuperAccessors`: `C.super[M].m` in a trait `C` without `M`, or in a class nested in
 //! `C`, becomes `C.this.acc` of a super accessor `C` declares, as does `C.this.m` of a protected
 //! `m` whose protected accessor trait `C` would host. A trait's accessors have no body and the
-//! classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`.
+//! classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`
+//! (`transformSuperSelect`, `superAccessorCall`).
 
 use super::mixin::{has_body, java_named};
 use super::protected_accessors::super_accessor_needed;

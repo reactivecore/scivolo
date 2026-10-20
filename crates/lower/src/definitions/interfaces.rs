@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SpecializeApplyMethods.scala
 //! The Java interfaces of functions that need no boxing, defined if the library has no TASTy for
 //! them: `scala.runtime.function.JProcedureN` returning `Unit`, and the specialized
 //! `scala.runtime.java8.JFunctionN$mc<R><Ps>$sp`; and the specialized `apply` methods of

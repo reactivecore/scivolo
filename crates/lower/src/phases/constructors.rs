@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Constructors.scala
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! The superclass constructor call of dotty's `Mixin` and the constructor body of
 //! `Constructors`: the class parameters stored in their fields, that call, the fields of eager
 //! objects, then the other field initializers and statements of the class body in order.

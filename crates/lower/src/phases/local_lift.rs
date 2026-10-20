@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! Where a lifted local class is instantiated and defined: its constructor calls pass the values
 //! it captures, and its definition moves from its block to its package as `Outer$Name$N`.
 

@@ -10,7 +10,7 @@ measurement (other sessions building), release builds, single-threaded codegen. 
 subagents and are condensed into §2 and §7 with their file:line evidence.
 
 **Recommendation.** Cranelift 0.135 (`cranelift-codegen/frontend/module/object`) as the backend
-in a new crate `crates/aot` with its own binary `scalai-aot`; flag-based exceptions; no stack
+in a new crate `crates/aot` with its own binary `scivolo-aot`; flag-based exceptions; no stack
 maps (Immix scans stacks conservatively); single-threaded; the library NIR compiled once into a
 cached object with all dispatch data (class ids, vtables, itables, module slots) generated per
 executable, so library code embeds no whole-program numbers. The spike turns the NIR of
@@ -60,7 +60,7 @@ log]; totals 3.4–5.6 s (spike 00).
 | dynmap | `DynamicHashMap.scala:14-25`, `PerfectHashMap.scala:169-222`, `R/dyndispatch.c:9-42`, proxies `GenerateReflectiveProxies.scala:11-180` | `V/interp/reflective.rs` | perfect-hash consts + proxies (`Lower.scala:1218-1268`) | 400 |
 | Lower | `T/codegen/Lower.scala` (2,500 lines): slow paths `:89-100, 296-311, 371-498`, null checks `:215-219, 2008-2052`, `throw` `:517-533`, bounds `:642-662`, fields `:664-738`, calls `:1040-1097`, `method` `:1099-1216`, `is`/`as` `:1270-1394`, `classalloc` `:1424-1465` (`alloc_small` < 8192 B), `fptosi` saturation `:1467-1569`, div/rem/shift `:1577-1715`, box/unbox via `BoxesRunTime` `:1717-1765`, `module` `:1767-1790`, arrays `:1792-1915`, `stackalloc` + memset `:1917-1965`, strings `:1967-2006` | the same semantics in the interpreter (`V/interp/lower/*` 915 lines, `V/interp/memory.rs:98-119`, `V/interp/ops/arith.rs:72-106`, `V/interp/dispatch.rs:148-161`) | NIR → CLIF with these semantics; the spike's `translate.rs` (1,050 lines, stubs for the runtime ops) is the skeleton | 3,500–4,500 |
 | Interflow | `T/interflow/*`; debug mode inlines `alwaysinline` and constructors only, release adds small (≤ 12 insts) and hinted callees, depth 32, callee ≤ 256 (`Inline.scala:14-91`, `OptimizerConfig.scala:39-44`); escape analysis (`Eval.scala:253-255`), poly-inline in release (`PolyInline.scala:10-53`) | tier-up devirtualization and inlining (ADR 0006, `V/interp/devirtualize.rs`, `inline.rs`) | none at first; later a NIR-to-NIR pass reusing the VM's `devirtualize`/`inline` logic in a whole-program `--release` mode | 0 (later ~1,500) |
-| Generate | `T/codegen/Generate.scala`: `main` `:155-192` (GC init, every reachable `<clinit>` `:113-127`, `Runtime.init`, main, `onShutdown`, uncaught handler `:72-110`), module `load` accessors `:194-335` (slot store before the ctor), `__modules` `:337-353`, array/weak-ref ids `:364-464` | `V/session.rs:17-27`; `native/scalai/gc_glue.c` defines empty `__modules` and the ids | `main` in CLIF; module `load` functions; data symbols | 400 |
+| Generate | `T/codegen/Generate.scala`: `main` `:155-192` (GC init, every reachable `<clinit>` `:113-127`, `Runtime.init`, main, `onShutdown`, uncaught handler `:72-110`), module `load` accessors `:194-335` (slot store before the ctor), `__modules` `:337-353`, array/weak-ref ids `:364-464` | `V/session.rs:17-27`; `native/scivolo/gc_glue.c` defines empty `__modules` and the ids | `main` in CLIF; module `load` functions; data symbols | 400 |
 | metadata, stack traces | DWARF (`MetadataCodeGen.scala`); traces by libunwind (`R/platform/posix/unwind.c:21-80`, `runtime/StackTrace.scala:13-326`) | `V/natives/unwind.rs` emulates libunwind over frames | frame-pointer walk (`preserve_frame_pointers`) + a code-address → method table emitted with the object; no DWARF | 300 |
 | exceptions | §3 | `Result` flag (`V/interp/unwind.rs:7-14`) | flags in CLIF; C `scalanative_throw` that sets the flag | 400 |
 | externs, `@link`, `@define` | `Lower.scala:1040-1097` (blocking externs wrapped in GC state changes, multithreaded only); `LLVM.scala:225,250`, `NativeLib.scala:72-119` | dlsym + fixed-shape trampoline (`V/natives/ffi/mod.rs:112-154`), variadics `ffi/variadic.rs`, Rust overrides (`V/natives/runtime.rs:9-17,38-56`, `threads.rs`, `unwind.rs`, `resources.rs`, `llvm.rs`) | direct calls with real signatures; generated C shims for variadic externs and `llvm.*` intrinsics; `-l` flags; resources embedded like `ResourceEmbedder.scala:181-251` or read from the classpath as the VM does | 600 |
@@ -191,23 +191,23 @@ Design [I]:
    hierarchy into the key); duplicate erased names in the NIR (966) need the "last wins" rule of
    SN's reader (spike 04).
 
-## 7. Executable layout: `scalai-aot`
+## 7. Executable layout: `scivolo-aot`
 
 CLI (scalac-like) [proposal]:
 ```
-scalai-aot [-o BIN | -d OUT_DIR] [--main CLASS] [--dep org:name:ver]… [--cp DIR_OR_JAR]…
+scivolo-aot [-o BIN | -d OUT_DIR] [--main CLASS] [--dep org:name:ver]… [--cp DIR_OR_JAR]…
            [--release] [--link-flag FLAG]… SRC_DIR_OR_FILE…
 ```
 Sources: every `.scala` file under a directory (sorted) and single files; NIR directories through
-`--cp` (today's `scalai --cp`, `crates/scalai/src/main.rs:14-36`). Main class: the one
-`static main(Array[String])` (`crates/scalai/src/mains.rs:6,23`, `D4mainLAL16java.lang.String_uEo`)
+`--cp` (today's `scivolo --cp`, `crates/scivolo/src/main.rs:14-36`). Main class: the one
+`static main(Array[String])` (`crates/scivolo/src/mains.rs:6,23`, `D4mainLAL16java.lang.String_uEo`)
 among the compiled units, `--main` when several (`script.rs:31-39` picks the same way).
 Dependencies: Maven coordinates resolved with coursier to `_native0.5_3` jars as
 `scripts/repl-deps.sh:18-23` does (`g::a::v` → `g:a_native0.5_3:v`, excluding scala-lang and
 scala-native), then added to a per-project library image as the REPL does (`repl.rs:25-28`,
 `libs::image(&jars)`): the image carries their `.nir` for codegen and `.tasty` with symbol tables
 for the typer (`crates/tasty/src/library.rs:62`, `symbols/open.rs:19-20`). Today only the REPL
-does this; `scalai FILE.scala` builds the image from the standard jars alone and puts `--cp`
+does this; `scivolo FILE.scala` builds the image from the standard jars alone and puts `--cp`
 jars into the VM classpath only (`main.rs:89-106`), so scripts cannot type against a dependency
 jar: the aot path takes the REPL's route [V].
 
@@ -242,13 +242,13 @@ native` builds and diffs; (3) unit tests of the tables against the VM's answers
 
 | # | MR | milestone | lines |
 |---|---|---|---|
-| 1 | `crates/aot` skeleton: `scalai-aot --cp DIR MAIN -o BIN`; NIR → CLIF for ints, control flow, direct and module-method calls (the spike's translator, cleaned); object + `cc` link; `crates/snrt` gains a static archive target | `fib`'s `fibo` runs from a C `main` | 650 |
+| 1 | `crates/aot` skeleton: `scivolo-aot --cp DIR MAIN -o BIN`; NIR → CLIF for ints, control flow, direct and module-method calls (the spike's translator, cleaned); object + `cc` link; `crates/snrt` gains a static archive target | `fib`'s `fibo` runs from a C `main` | 650 |
 | 2 | reachability over image + program NIR; tables object with the `object` crate: rtti, ids/ranges, declaration-ordered vtables, itables, module slots, array ids; `method`/`is`/`as`/`module` lowering | dispatch unit tests agree with the VM | 700 |
 | 3 | heap: `classalloc`/arrays/boxes/strings/consts through `scalanative_GC_alloc*`, offsets from `V/layout.rs`; `main` with GC init, `<clinit>`s, `Runtime.init`, `onShutdown`; null/bounds/div/cast slow paths calling `runtime.package$.throwX` | **hello world executable** (`tests/programs/hello`) | 700 |
 | 4 | exceptions as flags, `scalanative_throw` in C, stack traces by frame-pointer walk with a code-address table | `throws`, `tryfinally`, `traces` pass | 500 |
 | 5 | externs with real signatures, variadic C shims, `llvm.*` intrinsic shims, `@link`/`@define`, `stackalloc` shadow stack, resources, linktime properties | all of `tests/programs` pass as executables (`just aot-check`) | 700 |
 | 6 | library cache (`libs-<key>.o`, per-dependency objects), per-function sections and dead-strip link, `--dep` through coursier | cached hello links in < 250 ms | 500 |
-| 7 | typer: enter all units before typing (`Units`), then `scalai-aot` over source directories with `-d`/`-o`/`--main`, per-file NIR cache, incremental rebuild | `tests/programs/*.scala` as directories; a two-file program with forward references | 400 + 400 |
+| 7 | typer: enter all units before typing (`Units`), then `scivolo-aot` over source directories with `-d`/`-o`/`--main`, per-file NIR cache, incremental rebuild | `tests/programs/*.scala` as directories; a two-file program with forward references | 400 + 400 |
 | 8 | dotty `tests/run` driver and the fixes it finds | ≥ 95% of the VM's passing subset pass as executables | 500 |
 
 Total ~5,500 product lines plus tests (~7–8k), 8–9 MRs, roughly 6–9 person-weeks [I]. Later,

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Trees whose type conforms neither to the expected type nor converts to it (dotty's
 //! `TypeMismatch`), reported where dotty adapts no further and adds neither a note nor an addendum.
 

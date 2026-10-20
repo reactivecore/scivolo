@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/ElimRepeated.scala
+//   compiler/src/dotty/tools/dotc/transform/SeqLiterals.scala
 //! Repeated arguments (dotty's `ElimRepeated` and `SeqLiterals`): the `SeqLiteral` passed to a
 //! Java varargs parameter becomes an array, one passed to a Scala repeated parameter an array
 //! wrapped by `ScalaRunTime.wrapXArray`.

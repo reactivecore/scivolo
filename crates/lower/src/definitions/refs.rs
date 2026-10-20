@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/CapturedVars.scala
 //! The classes `scala.runtime.XRef` holding captured variables, defined if the library has no
 //! TASTy for them.
 

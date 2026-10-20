@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Types without skolems (dotty's `deskolemized`, an approximating type map): a skolem by its
 //! type where it occurs covariantly, `Nothing` where contravariantly, by bounds where invariantly.
 

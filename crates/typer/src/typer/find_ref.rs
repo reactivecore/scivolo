@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! What a simple name refers to (dotty's `findRef`): the context chain searched outward, a
 //! found binding checked against what outer levels bind with lower or equal precedence.
 

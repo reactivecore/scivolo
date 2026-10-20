@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/localopt/StringInterpolatorOpt.scala
 //! `s`, `raw` and `f` interpolations (dotty's `StringInterpolatorOpt`): those of `s` and `raw`
 //! with literal parts, `StringContext(p0, p1, …).s(a1, …)`, become `p0 + a1 + p1 + …`, empty
 //! parts dropped and the parts of `s` with their escapes processed.

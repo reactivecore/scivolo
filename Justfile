@@ -4,10 +4,10 @@
 locked := if env_var_or_default("CI", "") == "" { "" } else { "--locked" }
 
 # Scala Native's library jars, copied into the repo by `just libs`.
-export SCALAI_LIBS := justfile_directory() + "/ref/libs"
+export SCIVOLO_LIBS := justfile_directory() + "/ref/libs"
 
 # The library image of development runs.
-export SCALAI_CACHE := justfile_directory() + "/tmp/cache"
+export SCIVOLO_CACHE := justfile_directory() + "/tmp/cache"
 
 default: gates
 
@@ -15,25 +15,25 @@ default: gates
 # them in the VM. Needs `ref/scala-native` (v0.5.12) and scala-cli.
 sn-tests *dirs:
     scripts/sn-tests.sh {{ dirs }}
-    cargo build -q --release -p scalai
+    cargo build -q --release -p scivolo
     scripts/sn-run.sh
 
-# Run test program `name` from tests/programs in the release VM, stopped after `SCALAI_TIMEOUT`
+# Run test program `name` from tests/programs in the release VM, stopped after `SCIVOLO_TIMEOUT`
 # seconds (default 60).
 run name *args: release
-    SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
+    SCIVOLO_TIMEOUT=${SCIVOLO_TIMEOUT:-60} target/release/scivolo --cp tests/programs/{{ name }} {{ name }} {{ args }}
 
 # Run a `.scala` or `.sc` file (relative to the current directory), compiled through the own
 # frontend or scala-cli unless cached.
 [no-cd]
 script file *args: release
-    {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}
+    {{ justfile_directory() }}/target/release/scivolo {{ file }} {{ args }}
 
 # Build method `entry` (an `(Int) => Int`) of test program `name` as the native executable
 # tmp/aot/<name>, which prints the method's result for its first argument.
 aot-build name entry:
     cargo build -q --release -p aot
-    perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot --cp tests/programs/{{ name }} --entry {{ entry }} -o tmp/aot/{{ name }}
+    perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot --cp tests/programs/{{ name }} --entry {{ entry }} -o tmp/aot/{{ name }}
 
 # Build test program `name` (main class `name`) as the native executable tmp/aot/<name> and
 # compare its output with its `.check` file; compile and run stop after 20 s each.
@@ -41,7 +41,7 @@ aot-check name:
     #!/usr/bin/env bash
     set -euo pipefail
     cargo build -q --release -p aot
-    perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot --cp tests/programs/{{ name }} -o tmp/aot/{{ name }} {{ name }}
+    perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot --cp tests/programs/{{ name }} -o tmp/aot/{{ name }} {{ name }}
     perl -e 'alarm 20; exec @ARGV' tmp/aot/{{ name }} > tmp/aot/{{ name }}.out
     diff tmp/aot/{{ name }}.out tests/programs/{{ name }}/{{ name }}.check
     echo "{{ name }}: ok"
@@ -59,7 +59,7 @@ aot-check-all:
     for dir in tests/programs/*/; do
       name=$(basename "$dir")
       [ -f "$dir$name.check" ] || continue
-      perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot --cp "$dir" -o "tmp/aot/$name" "$name" 2> "tmp/aot/$name.err"
+      perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot --cp "$dir" -o "tmp/aot/$name" "$name" 2> "tmp/aot/$name.err"
       status=$?
       if [ $status -eq 142 ]; then failed "$name" "timeout (compile)"; continue; fi
       if [ $status -ne 0 ]; then failed "$name" "$(head -c 300 "tmp/aot/$name.err" | head -n 1)"; continue; fi
@@ -80,7 +80,7 @@ aot-check-all:
 aot-src dir main *args:
     cargo build -q --release -p aot
     mkdir -p tmp/aot/src
-    perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot -o tmp/aot/src/{{ main }} --main {{ main }} {{ dir }}
+    perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot -o tmp/aot/src/{{ main }} --main {{ main }} {{ dir }}
     perl -e 'alarm 20; exec @ARGV' tmp/aot/src/{{ main }} {{ args }}
 
 # Build every test program from its `.scala` sources as a native executable and compare each
@@ -96,10 +96,10 @@ aot-src-all:
     for dir in tests/programs/*/; do
       name=$(basename "$dir")
       [ -f "$dir$name.check" ] || continue
-      perl -e 'alarm 20; exec @ARGV' target/release/scalai-aot -o "tmp/aot/src/$name" --main "$name" "$dir" 2> "tmp/aot/src/$name.err"
+      perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot -o "tmp/aot/src/$name" --main "$name" "$dir" 2> "tmp/aot/src/$name.err"
       status=$?
       if [ $status -eq 142 ]; then failed "$name" "timeout (compile)"; continue; fi
-      if [ $status -ne 0 ]; then failed "$name" "$(grep -m1 '^scalai-aot:' "tmp/aot/src/$name.err" || head -n 1 "tmp/aot/src/$name.err")"; continue; fi
+      if [ $status -ne 0 ]; then failed "$name" "$(grep -m1 '^scivolo-aot:' "tmp/aot/src/$name.err" || head -n 1 "tmp/aot/src/$name.err")"; continue; fi
       perl -e 'alarm 20; exec @ARGV' "tmp/aot/src/$name" > "tmp/aot/src/$name.out" 2>> "tmp/aot/src/$name.err"
       status=$?
       if [ $status -eq 142 ]; then failed "$name" "timeout (run)"; continue; fi
@@ -126,7 +126,7 @@ aot-run name entry *args: (aot-build name entry)
 # Start the REPL in the release build; `--dep COORDINATE` adds a library fetched by Coursier.
 [no-cd]
 repl *args: release
-    {{ justfile_directory() }}/target/release/scalai {{ args }}
+    {{ justfile_directory() }}/target/release/scivolo {{ args }}
 
 # Compare test programs (default: all) with their `.check` files, with wall time.
 check *names: release
@@ -200,7 +200,7 @@ sn-build *dirs:
 bench name runs="10" *args: release
     python3 scripts/bench.py {{ name }} {{ runs }} {{ args }}
 
-# Like bench, alternating runs between the scalai binary `base` and the release VM.
+# Like bench, alternating runs between the scivolo binary `base` and the release VM.
 bench-base base name runs="10" *args: release
     python3 scripts/bench.py --base {{ base }} {{ name }} {{ runs }} {{ args }}
 
@@ -208,18 +208,18 @@ bench-base base name runs="10" *args: release
 bench-edit file runs="10": release
     python3 scripts/bench_edit.py {{ file }} {{ runs }}
 
-# Like bench-edit, alternating runs between the scalai binary `base` and the release one.
+# Like bench-edit, alternating runs between the scivolo binary `base` and the release one.
 bench-edit-base base file runs="10": release
     python3 scripts/bench_edit.py --base {{ base }} {{ file }} {{ runs }}
 
-# Run test program `name` with call and instruction counts on stderr (`SCALAI_PROFILE`).
+# Run test program `name` with call and instruction counts on stderr (`SCIVOLO_PROFILE`).
 vm-profile name *args: release
-    SCALAI_PROFILE=1 target/release/scalai --cp tests/programs/{{ name }} {{ name }} {{ args }}
+    SCIVOLO_PROFILE=1 target/release/scivolo --cp tests/programs/{{ name }} {{ name }} {{ args }}
 
 # Run a `.scala` or `.sc` file with call and instruction counts on stderr.
 [no-cd]
 script-profile file *args: release
-    SCALAI_PROFILE=1 {{ justfile_directory() }}/target/release/scalai {{ file }} {{ args }}
+    SCIVOLO_PROFILE=1 {{ justfile_directory() }}/target/release/scivolo {{ file }} {{ args }}
 
 # Check out dotty's tests/run at the Scala version the VM runs into ref/scala3 (M4).
 dotty-fetch:
@@ -407,10 +407,10 @@ lower file:
     target/release/lower {{ file }} tmp/lowered/$(basename {{ file }} .scala)
 
 # Lower a Scala file through the Rust frontend and run its `main` (default: the file name) in
-# the release VM, stopped after `SCALAI_TIMEOUT` seconds (default 60).
+# the release VM, stopped after `SCIVOLO_TIMEOUT` seconds (default 60).
 lower-run file main="": release (lower file)
     m="{{ main }}"; [ -z "$m" ] && m=$(basename {{ file }} .scala); \
-    SCALAI_TIMEOUT=${SCALAI_TIMEOUT:-60} target/release/scalai --cp tmp/lowered/$(basename {{ file }} .scala) $m
+    SCIVOLO_TIMEOUT=${SCIVOLO_TIMEOUT:-60} target/release/scivolo --cp tmp/lowered/$(basename {{ file }} .scala) $m
 
 # Run Scala Native test classes whose names contain the arguments (`-part` excludes).
 sn-run *filters: release
@@ -418,10 +418,10 @@ sn-run *filters: release
 
 # The per-group Scala Native test report, each group stopped after `timeout` seconds.
 sn-report timeout="300": release
-    SCALAI_TIMEOUT={{ timeout }} scripts/sn-report.sh
+    SCIVOLO_TIMEOUT={{ timeout }} scripts/sn-report.sh
 
 release:
-    cargo build -q --release -p scalai
+    cargo build -q --release -p scivolo
 
 # Copy the library jars (Scala Native's, the Scala standard library) from the Coursier cache
 # into ref/libs.

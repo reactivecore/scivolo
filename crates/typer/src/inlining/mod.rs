@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
+//   compiler/src/dotty/tools/dotc/transform/Inlining.scala
 //! dotty's `inlining` phase: each call of an inline method that is not itself in an inline method,
 //! replaced by an `Inlined` tree of the method's body with the arguments bound (`Inlining`,
 //! `Inlines.inlineCall`).

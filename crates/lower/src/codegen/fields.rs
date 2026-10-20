@@ -1,3 +1,7 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenName.scala
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
 //! Fields: a `var` per field of a class and a static getter per static one, loads and stores
 //! (nscplugin's `genClassFields`, `genFieldName`, and the field cases of `genSelect` and
 //! `genAssign`).

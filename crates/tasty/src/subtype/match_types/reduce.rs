@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Matching a scrutinee against the cases of a match type (dotty's `MatchReducer.matchCases`).
 
 use super::super::Cmp;

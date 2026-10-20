@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Selections `qual.name` (dotty's `typedSelect`).
 
 use super::implicits::conversions::{Goal, Viewed};

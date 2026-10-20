@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeTypeMap.scala
 //! Copies of typed trees whose local definitions get fresh symbols, with symbols substituted and
 //! an owner changed (dotty's `TreeTypeMap` of `subst` and `changeOwner`).
 

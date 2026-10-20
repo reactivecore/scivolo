@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/interactive/Completion.scala
 //! The labels of completed names (dotty's `backtickCompletions`).
 
 use syntax::scan::{is_identifier_part, is_identifier_start, is_operator_part};

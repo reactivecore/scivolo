@@ -2,10 +2,11 @@
 name = "aot"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 publish = false
 
 [[bin]]
-name = "scalai-aot"
+name = "scivolo-aot"
 path = "src/main.rs"
 
 [dependencies]

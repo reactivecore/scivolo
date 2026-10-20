@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/Rendering.scala
+//   repl/src/dotty/tools/repl/ReplDriver.scala
 //! The definitions of an input as dotty's `Rendering` prints them: `val x: Int = 1`,
 //! `def f(x: Int): Int`, `// defined class C`.
 
@@ -18,7 +21,8 @@ pub struct Definition {
     show: Option<String>,
 }
 
-/// The definitions of top-level object `object` but `unprinted`, in source order.
+/// The definitions of top-level object `object` but `unprinted`, in source order (dotty's
+/// `ReplDriver.renderDefinitions`).
 pub fn definitions(u: &mut Universe, object: &str, unprinted: &[SymbolId]) -> Vec<Definition> {
     let root = u.root();
     let Some(class) = u.module_class_in(root, object) else { return Vec::new() };

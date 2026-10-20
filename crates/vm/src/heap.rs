@@ -44,7 +44,7 @@ pub struct ThreadRoots {
 }
 
 /// Class ids the collector needs to tell arrays, blobs, boxed pointers and weak references
-/// apart, and where a weak reference keeps its referent; `scalai_GC_set_ids` reads it.
+/// apart, and where a weak reference keeps its referent; `scivolo_GC_set_ids` reads it.
 #[repr(C)]
 pub struct GcIds {
     pub object_array: i32,
@@ -73,15 +73,15 @@ impl Heap {
                 alloc: c_fn(find("scalanative_GC_alloc")?),
                 alloc_array: c_fn(find("scalanative_GC_alloc_array")?),
                 add_roots: c_fn(find("scalanative_GC_add_roots")?),
-                set_ids: c_fn(find("scalai_GC_set_ids")?),
-                watch_weak_refs: c_fn(find("scalai_GC_watch_weak_refs")?),
-                set_threads: c_fn(find("scalai_GC_set_threads")?),
-                switch_stack: c_fn(find("scalai_GC_switch_stack")?),
-                weak_refs_collected: find("scalai_weak_refs_collected")?,
+                set_ids: c_fn(find("scivolo_GC_set_ids")?),
+                watch_weak_refs: c_fn(find("scivolo_GC_watch_weak_refs")?),
+                set_threads: c_fn(find("scivolo_GC_set_threads")?),
+                switch_stack: c_fn(find("scivolo_GC_switch_stack")?),
+                weak_refs_collected: find("scivolo_weak_refs_collected")?,
             }
         };
         // SAFETY: as above.
-        let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scalai_GC_init")?) };
+        let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scivolo_GC_init")?) };
         init(stack.0, stack.1);
         Ok(Self { cur: 0, end: 0, allocated: 0, gc })
     }

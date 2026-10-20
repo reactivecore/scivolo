@@ -16,7 +16,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 pub fn extern_name(pool: &Pool, g: GlobalId) -> Option<String> {
     let name = nir::demangle::extern_name(pool.member_sig(g)?)?;
     Some(match name.strip_prefix("llvm.") {
-        Some(intrinsic) => format!("scalai_aot_llvm_{}", intrinsic.replace('.', "_")),
+        Some(intrinsic) => format!("scivolo_aot_llvm_{}", intrinsic.replace('.', "_")),
         None => name,
     })
 }
@@ -26,9 +26,9 @@ pub struct Decls {
     pub ptr: types::Type,
     pub rtti: RttiLayout,
     pub module_slots: DataId,
-    /// `scalai_aot_exception`, the thrown object waiting for a handler.
+    /// `scivolo_aot_exception`, the thrown object waiting for a handler.
     pub exception: DataId,
-    /// `scalai_aot_stack_limit`, below which a function throws StackOverflowError.
+    /// `scivolo_aot_stack_limit`, below which a function throws StackOverflowError.
     pub stack_limit: DataId,
     /// Whether functions check the stack and appear in stack traces (not with `--entry`).
     pub stack_checks: bool,
@@ -55,10 +55,10 @@ impl Decls {
         let mut declare = |name: &str, linkage, writable| {
             module.declare_data(name, linkage, writable, false).map_err(|e| e.to_string())
         };
-        let module_slots = declare("scalai_aot_modules", Linkage::Export, true)?;
-        let exception = declare("scalai_aot_exception", Linkage::Import, true)?;
-        let stack_limit = declare("scalai_aot_stack_limit", Linkage::Import, true)?;
-        let all_classes = declare("scalai_aot_classes", Linkage::Local, false)?;
+        let module_slots = declare("scivolo_aot_modules", Linkage::Export, true)?;
+        let exception = declare("scivolo_aot_exception", Linkage::Import, true)?;
+        let stack_limit = declare("scivolo_aot_stack_limit", Linkage::Import, true)?;
+        let all_classes = declare("scivolo_aot_classes", Linkage::Local, false)?;
         Ok(Decls {
             exception,
             stack_limit,

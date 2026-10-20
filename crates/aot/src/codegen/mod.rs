@@ -59,7 +59,7 @@ fn object_module() -> R<ObjectModule> {
         .finish(settings::Flags::new(flags))
         .map_err(|e| e.to_string())?;
     let builder =
-        ObjectBuilder::new(isa, "scalai-aot", default_libcall_names()).map_err(|e| e.to_string())?;
+        ObjectBuilder::new(isa, "scivolo-aot", default_libcall_names()).map_err(|e| e.to_string())?;
     Ok(ObjectModule::new(builder))
 }
 
@@ -67,7 +67,7 @@ fn object_module() -> R<ObjectModule> {
 pub enum Root {
     /// An `(Int) => Int` method, called by the entry stub, for tests.
     Entry(GlobalId),
-    /// The main class, run by `scalai_aot_main`.
+    /// The main class, run by `scivolo_aot_main`.
     Main(GlobalId),
 }
 

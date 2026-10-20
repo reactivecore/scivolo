@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! Conversions between types: casts `x.asInstanceOf[T]` between references (nscplugin's
 //! `genAsInstanceOf`), the `box` and `unbox` methods of the primitives' objects, and the boxing
 //! of values passed through erased signatures (`ensureBoxed`, `ensureUnboxed`).

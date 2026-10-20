@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeApplications.scala
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! Higher-kinded types: a type variable applied to arguments, constrained to a constructor of
 //! the other side (dotty's `compareAppliedTypeParamRef`), class constructors as type lambdas
 //! (`etaExpand`), constructors combined under a lambda (`liftIfHK`), and tuple classes as

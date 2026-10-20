@@ -1,6 +1,6 @@
 //! Class metadata: class ids in hierarchy preorder with the range of their subclasses, each
 //! class's `java.lang.Class` instance with its itable and vtable, the class ids the collector
-//! reads (`scalai_aot_gc_ids`, for `scalai_GC_set_ids`), and the array of all classes.
+//! reads (`scivolo_aot_gc_ids`, for `scivolo_GC_set_ids`), and the array of all classes.
 
 mod rtti;
 
@@ -41,7 +41,7 @@ pub fn define(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -
     layout(module, reach, decls)
 }
 
-/// `scalai_aot_classes`: an `Array[Class]` of every class, which `Class.forName` searches.
+/// `scivolo_aot_classes`: an `Array[Class]` of every class, which `Class.forName` searches.
 // Temporary until #115 (closed world): only classes the program reaches are found, unlike in the
 // VM, which links any class of the classpath.
 fn all_classes(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
@@ -58,12 +58,12 @@ fn all_classes(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) 
     blob.define(module, decls.all_classes)
 }
 
-/// `scalai_aot_rtti_offsets` (a class's id, last subclass id, traits, number of traits) for
-/// `Class.is`, and `scalai_aot_layout` (the class name, `String`'s `value` and `count`, the array
+/// `scivolo_aot_rtti_offsets` (a class's id, last subclass id, traits, number of traits) for
+/// `Class.is`, and `scivolo_aot_layout` (the class name, `String`'s `value` and `count`, the array
 /// header size) for the C stub to print a class name.
 fn layout(module: &mut ObjectModule, reach: &mut Reach, decls: &Decls) -> R<()> {
     let l = &decls.rtti;
-    define_i32s(module, "scalai_aot_rtti_offsets", &[l.id, l.range, l.traits, l.traits_len])?;
+    define_i32s(module, "scivolo_aot_rtti_offsets", &[l.id, l.range, l.traits, l.traits_len])?;
     let string = reach.link_top("java.lang.String")?;
     let mut values = vec![l.name];
     for sig in ["F5valueO", "F5countO"] {
@@ -72,7 +72,7 @@ fn layout(module: &mut ObjectModule, reach: &mut Reach, decls: &Decls) -> R<()> 
         values.push(f.offset as i32);
     }
     values.push(vm::ARRAY_HEADER as i32);
-    define_i32s(module, "scalai_aot_layout", &values)
+    define_i32s(module, "scivolo_aot_layout", &values)
 }
 
 fn define_i32s(module: &mut ObjectModule, name: &str, values: &[i32]) -> R<()> {
@@ -162,8 +162,9 @@ fn gc_ids(module: &mut ObjectModule, reach: &mut Reach, ids: &[(i32, i32)]) -> R
     let (lo, hi) = ids[array as usize];
     let values = [object_array, blob_array, lo, hi, boxed_ptr, weak[0], weak[1], weak[2]];
     let bytes: Vec<u8> = values.iter().flat_map(|v| v.to_le_bytes()).collect();
-    let data =
-        module.declare_data("scalai_aot_gc_ids", Linkage::Export, false, false).map_err(|e| e.to_string())?;
+    let data = module
+        .declare_data("scivolo_aot_gc_ids", Linkage::Export, false, false)
+        .map_err(|e| e.to_string())?;
     let mut desc = DataDescription::new();
     desc.set_align(8);
     desc.define(bytes.into_boxed_slice());

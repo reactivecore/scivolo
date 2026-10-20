@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/PatternTypeConstrainer.scala
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! An extractor pattern's type constrained by a union selector type (dotty's
 //! `constrainPatternType` on an `OrType` scrutinee, `necessaryEither`).
 

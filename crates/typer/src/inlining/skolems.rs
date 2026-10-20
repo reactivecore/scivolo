@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! Arguments the call's type refers to by skolems: their proxies typed by those skolems and the
 //! expansion cast to the call's type (dotty's `callValueSkolemss` and the sealing in
 //! `InlineCall.expand`).

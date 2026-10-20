@@ -8,10 +8,10 @@ import scala.scalanative.runtime.{Intrinsics, toRawPtr}
 import scala.scalanative.unsafe.*
 import scala.util.{Failure, Success, Try}
 
-@extern object scalai:
-  def scalai_bootstrapper_count(): CInt = extern
-  def scalai_bootstrapper(i: CInt): CVoidPtr = extern
-  def scalai_bootstrapper_name(i: CInt): CString = extern
+@extern object scivolo:
+  def scivolo_bootstrapper_count(): CInt = extern
+  def scivolo_bootstrapper(i: CInt): CVoidPtr = extern
+  def scivolo_bootstrapper_name(i: CInt): CString = extern
 
 def isAssumption(t: Throwable): Boolean =
   t.isInstanceOf[org.junit.AssumptionViolatedException] ||
@@ -44,10 +44,10 @@ def runTest(b: Bootstrapper, name: String, expected: Class[?]): Try[Unit] =
   def selected(cls: String) =
     (included.isEmpty || included.exists(cls.contains)) && !excluded.exists(e => cls.contains(e.drop(1)))
   var (passed, failed, skipped) = (0, 0, 0)
-  for i <- 0 until scalai.scalai_bootstrapper_count() do
-    val cls = fromCString(scalai.scalai_bootstrapper_name(i))
+  for i <- 0 until scivolo.scivolo_bootstrapper_count() do
+    val cls = fromCString(scivolo.scivolo_bootstrapper_name(i))
     if selected(cls) then
-      val b = Intrinsics.castRawPtrToObject(toRawPtr(scalai.scalai_bootstrapper(i))).asInstanceOf[Bootstrapper]
+      val b = Intrinsics.castRawPtrToObject(toRawPtr(scivolo.scivolo_bootstrapper(i))).asInstanceOf[Bootstrapper]
       if !b.testClassMetadata().ignored then
         attempt(b.beforeClass()) match
           case Failure(t) if isAssumption(t) =>

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/NameOps.scala
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! The order in which dotty's `LambdaLift` names what it lifts: the proxies of the functions and
 //! local classes in the order of the unit's dependencies; then the lifted functions and classes
 //! in the order they are defined.

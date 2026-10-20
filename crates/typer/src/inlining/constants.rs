@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/typer/ConstFold.scala
 //! Constants in inline expansions: the constants trees denote by their types, the literals that
 //! replace them, and the trees of singleton types (dotty's `ConstantValue`, `constToLiteral`,
 //! `tpd.singleton`).

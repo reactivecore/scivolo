@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Inferencing.scala
 //! Where type variables occur in a type: covariantly, contravariantly or both (dotty's
 //! `variances`).
 

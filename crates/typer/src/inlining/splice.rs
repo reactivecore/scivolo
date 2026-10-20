@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Splicer.scala
 //! Top-level splices of inlined macro bodies (dotty's `Splicer.splice` with its
 //! `SpliceInterpreter`): the call of the macro implementation read off the splice, run by the
 //! host, and the expression it returns built from its quotes.

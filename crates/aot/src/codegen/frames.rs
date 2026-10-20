@@ -1,6 +1,6 @@
-//! The code-address table of stack traces (`scalai_aot_frames`, read by `c/trace.c`): each
+//! The code-address table of stack traces (`scivolo_aot_frames`, read by `c/trace.c`): each
 //! compiled method's code, class and method name, the source line of each of its instructions,
-//! and whether it may build a throwable. Names are UTF-16 in `scalai_aot_names`, each after its
+//! and whether it may build a throwable. Names are UTF-16 in `scivolo_aot_names`, each after its
 //! length.
 
 use super::Decls;
@@ -13,7 +13,7 @@ use cranelift_object::ObjectModule;
 use nir::{GlobalId, PosId};
 use rustc_hash::FxHashMap;
 
-/// The size of an entry of `scalai_aot_frames` and of one of its lines.
+/// The size of an entry of `scivolo_aot_frames` and of one of its lines.
 const ENTRY: usize = 56;
 const LINE: usize = 16;
 
@@ -63,8 +63,8 @@ impl Frames {
         self.0.push(Compiled { func, method, size: code.code_info().total_size, positions });
     }
 
-    /// Defines `scalai_aot_frames`, `scalai_aot_lines`, `scalai_aot_names` and
-    /// `scalai_aot_trace_info` (frame count, `String` and `CharArray` metadata, `String` size,
+    /// Defines `scivolo_aot_frames`, `scivolo_aot_lines`, `scivolo_aot_names` and
+    /// `scivolo_aot_trace_info` (frame count, `String` and `CharArray` metadata, `String` size,
     /// the name of unknown methods); without entries for executables of single methods.
     pub fn define(mut self, module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
         if !decls.stack_checks {
@@ -96,12 +96,12 @@ impl Frames {
             let id = module.declare_data(name, Linkage::Export, false, false).map_err(|e| e.to_string())?;
             blob.define(module, id)
         };
-        export(module, "scalai_aot_frames", table)?;
+        export(module, "scivolo_aot_frames", table)?;
         lines.resize(lines.len().max(LINE), 0);
-        export(module, "scalai_aot_lines", Blob { bytes: lines, ..Blob::default() })?;
+        export(module, "scivolo_aot_lines", Blob { bytes: lines, ..Blob::default() })?;
         let unknown = names.of("<unknown>");
         let bytes = names.units.iter().flat_map(|u| u.to_le_bytes()).collect();
-        export(module, "scalai_aot_names", Blob { bytes, ..Blob::default() })?;
+        export(module, "scivolo_aot_names", Blob { bytes, ..Blob::default() })?;
         let (string, chars) = (linked(reach, "java.lang.String")?, linked(reach, CHAR_ARRAY)?);
         let mut info = Blob::zeroed(40);
         put(&mut info, 0, self.0.len() as u64);
@@ -109,7 +109,7 @@ impl Frames {
         info.data.push((16, decls.rtti(module, reach, chars)?));
         put(&mut info, 24, reach.classes.get(string).size as u64);
         put(&mut info, 32, unknown);
-        export(module, "scalai_aot_trace_info", info)
+        export(module, "scivolo_aot_trace_info", info)
     }
 }
 

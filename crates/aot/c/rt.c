@@ -6,33 +6,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-extern const int32_t scalai_aot_gc_ids[8];
-extern void *scalai_aot_modules[];
-extern const int64_t scalai_aot_modules_count;
-extern void *scalai_aot_thread[2];
+extern const int32_t scivolo_aot_gc_ids[8];
+extern void *scivolo_aot_modules[];
+extern const int64_t scivolo_aot_modules_count;
+extern void *scivolo_aot_thread[2];
 extern const struct {
     void *start;
     int64_t size;
-} scalai_aot_globals[];
-extern const int64_t scalai_aot_globals_count;
+} scivolo_aot_globals[];
+extern const int64_t scivolo_aot_globals_count;
 
-void scalai_GC_init(void *low, void *high);
-void scalai_GC_set_ids(const int32_t *ids);
+void scivolo_GC_init(void *low, void *high);
+void scivolo_GC_set_ids(const int32_t *ids);
 void scalanative_GC_add_roots(void *low, void *high);
 void *scalanative_GC_alloc(void *info, uint64_t size);
 void *scalanative_GC_alloc_array(void *info, uint64_t length, uint64_t stride);
 
 // The thrown object while it propagates to a handler (ADR 0028); a collector root.
-void *scalai_aot_exception = 0;
+void *scivolo_aot_exception = 0;
 
 // Throws `exc` from C: the calling Scala code finds it after the call returns.
-void scalanative_throw(void *exc) { scalai_aot_exception = exc; }
+void scalanative_throw(void *exc) { scivolo_aot_exception = exc; }
 
-void scalai_aot_stack_init(char *low, char *high);
+void scivolo_aot_stack_init(char *low, char *high);
 
 // Starts the collector on the calling thread's whole stack, with the module slots and the
 // exception slot as roots, and sets the stack limit.
-void scalai_aot_start_gc(void) {
+void scivolo_aot_start_gc(void) {
     char *low, *high;
 #ifdef __APPLE__
     high = pthread_get_stackaddr_np(pthread_self());
@@ -47,27 +47,27 @@ void scalai_aot_start_gc(void) {
     low = addr;
     high = low + size;
 #endif
-    scalai_GC_init(low, high);
-    scalai_GC_set_ids(scalai_aot_gc_ids);
-    scalanative_GC_add_roots(scalai_aot_modules, scalai_aot_modules + scalai_aot_modules_count);
-    scalanative_GC_add_roots(&scalai_aot_exception, &scalai_aot_exception + 1);
-    scalanative_GC_add_roots(scalai_aot_thread, scalai_aot_thread + 2);
-    for (int64_t i = 0; i < scalai_aot_globals_count; i++) {
-        char *start = scalai_aot_globals[i].start;
-        scalanative_GC_add_roots(start, start + scalai_aot_globals[i].size);
+    scivolo_GC_init(low, high);
+    scivolo_GC_set_ids(scivolo_aot_gc_ids);
+    scalanative_GC_add_roots(scivolo_aot_modules, scivolo_aot_modules + scivolo_aot_modules_count);
+    scalanative_GC_add_roots(&scivolo_aot_exception, &scivolo_aot_exception + 1);
+    scalanative_GC_add_roots(scivolo_aot_thread, scivolo_aot_thread + 2);
+    for (int64_t i = 0; i < scivolo_aot_globals_count; i++) {
+        char *start = scivolo_aot_globals[i].start;
+        scalanative_GC_add_roots(start, start + scivolo_aot_globals[i].size);
     }
-    scalai_aot_stack_init(low, high);
+    scivolo_aot_stack_init(low, high);
 }
 
 // `bytes` zeroed bytes for a stackalloc of a dynamic count.
 // Temporary until #115 (stackalloc shadow stack): never freed, not scanned by the collector.
-void *scalai_aot_stackalloc(int64_t bytes) { return calloc(1, bytes > 0 ? bytes : 1); }
+void *scivolo_aot_stackalloc(int64_t bytes) { return calloc(1, bytes > 0 ? bytes : 1); }
 
 // A zeroed object of `size` bytes with metadata `info`.
-void *scalai_aot_alloc(void *info, int64_t size) { return scalanative_GC_alloc(info, size); }
+void *scivolo_aot_alloc(void *info, int64_t size) { return scalanative_GC_alloc(info, size); }
 
 // A zeroed array of `length` elements of `stride` bytes with metadata `info`.
-void *scalai_aot_alloc_array(void *info, int64_t length, int64_t stride) {
+void *scivolo_aot_alloc_array(void *info, int64_t length, int64_t stride) {
     return scalanative_GC_alloc_array(info, length, stride);
 }
 
@@ -78,7 +78,7 @@ typedef struct {
 
 // The method with `key` in an itable sorted by key.
 // Temporary until #115 (AbstractMethodError): a missing method stops the program.
-void *scalai_aot_itable(const ItableEntry *table, int64_t len, uint64_t key) {
+void *scivolo_aot_itable(const ItableEntry *table, int64_t len, uint64_t key) {
     int64_t lo = 0, hi = len;
     while (lo < hi) {
         int64_t mid = lo + (hi - lo) / 2;
@@ -89,24 +89,24 @@ void *scalai_aot_itable(const ItableEntry *table, int64_t len, uint64_t key) {
     }
     if (lo < len && table[lo].key == key)
         return table[lo].method;
-    fprintf(stderr, "scalai-aot: no method for interface call %llx\n", (unsigned long long)key);
+    fprintf(stderr, "scivolo-aot: no method for interface call %llx\n", (unsigned long long)key);
     abort();
 }
 
 // Reports code that names a class the classpath lacks, reached at run time, and stops.
-void scalai_aot_missing(const char *what) {
-    fprintf(stderr, "scalai-aot: reached code that needs %s\n", what);
+void scivolo_aot_missing(const char *what) {
+    fprintf(stderr, "scivolo-aot: reached code that needs %s\n", what);
     abort();
 }
 
 // Offsets in class metadata: id, last subclass id, all traits, their number.
-extern const int32_t scalai_aot_rtti_offsets[4];
+extern const int32_t scivolo_aot_rtti_offsets[4];
 
 // `Class.is(left, right)`: whether instances of class `left` are instances of `right`.
-int8_t scalai_aot_class_is(void *self, const char *left, const char *right) {
+int8_t scivolo_aot_class_is(void *self, const char *left, const char *right) {
     if (left == right)
         return 1;
-    const int32_t *at = scalai_aot_rtti_offsets;
+    const int32_t *at = scivolo_aot_rtti_offsets;
     int32_t left_id = *(const int32_t *)(left + at[0]), right_id = *(const int32_t *)(right + at[0]);
     if (right_id >= 0)
         return left_id >= right_id && left_id <= *(const int32_t *)(right + at[1]);
@@ -119,7 +119,7 @@ int8_t scalai_aot_class_is(void *self, const char *left, const char *right) {
 }
 
 // Whether `trait` is among the `count` traits at `interfaces`.
-int8_t scalai_aot_has_trait(void *const *interfaces, int32_t count, const void *trait) {
+int8_t scivolo_aot_has_trait(void *const *interfaces, int32_t count, const void *trait) {
     for (int32_t i = 0; i < count; i++)
         if (interfaces[i] == trait)
             return 1;

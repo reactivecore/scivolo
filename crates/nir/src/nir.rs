@@ -1,3 +1,18 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Attrs.scala
+//   nir/src/main/scala/scala/scalanative/nir/Bins.scala
+//   nir/src/main/scala/scala/scalanative/nir/Comps.scala
+//   nir/src/main/scala/scala/scalanative/nir/Convs.scala
+//   nir/src/main/scala/scala/scalanative/nir/Defns.scala
+//   nir/src/main/scala/scala/scalanative/nir/Global.scala
+//   nir/src/main/scala/scala/scalanative/nir/Insts.scala
+//   nir/src/main/scala/scala/scalanative/nir/Local.scala
+//   nir/src/main/scala/scala/scalanative/nir/MemoryOrder.scala
+//   nir/src/main/scala/scala/scalanative/nir/Next.scala
+//   nir/src/main/scala/scala/scalanative/nir/Ops.scala
+//   nir/src/main/scala/scala/scalanative/nir/SourcePosition.scala
+//   nir/src/main/scala/scala/scalanative/nir/Types.scala
+//   nir/src/main/scala/scala/scalanative/nir/Vals.scala
 //! The NIR data model (Scala Native 0.5, compat 6). Interned nodes are referenced by id into a `Pool`.
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

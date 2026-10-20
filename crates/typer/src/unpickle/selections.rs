@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Identifiers and selections, members resolved by name and signature (dotty's `IDENT`,
 //! `completeSelect`, `SELECTin`, `QUALTHIS`).
 

@@ -1,5 +1,9 @@
-//! dotty's `LazyVals` (`transformMemberDefThreadSafeNew`): each lazy value of a class becomes a
-//! volatile field, an accessor reading it and a `$lzyINIT` method computing it under
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/AdaptLazyVals.scala
+//! dotty's `LazyVals` (`transformMemberDefThreadSafeNew`, `transformStats`): each lazy value of a
+//! class becomes a volatile field, an accessor reading it and a `$lzyINIT` method computing it under
 //! compare-and-set of the field (Scala Native's `LazyVals.objCAS`); those `Mixin` adds come
 //! after the class's own.
 

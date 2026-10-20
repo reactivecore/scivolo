@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/parsing/CharArrayReader.scala
+//   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
+//   compiler/src/dotty/tools/dotc/parsing/xml/MarkupParsers.scala
 //! Character access for the XML literal parser, which reads the source past the scanner's
 //! tokens and resumes scanning afterwards.
 

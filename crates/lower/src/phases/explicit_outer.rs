@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! dotty's `ExplicitOuter`: which classes and traits hold their enclosing instance, the outer
 //! arguments of their constructor calls, then the paths to enclosing instances
 //! (`outer_fields.rs`, `outer_traits.rs`).

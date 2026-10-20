@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! The members a sequence match selects (dotty's `unapplySeqTypeElemTp`): `apply(Int)` of the
 //! element type, `drop(Int)` and `toSeq` conforming to `collection.Seq` of it, and
 //! `lengthCompare(Int): Int` or `length: Int`; the length test's member.

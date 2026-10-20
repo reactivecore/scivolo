@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! The members of a class definition typed by `Erasure`: methods against their erased result
 //! types, statements, field initializers and superclass calls.
 

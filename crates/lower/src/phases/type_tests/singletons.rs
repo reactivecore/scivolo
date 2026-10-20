@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //! Tests for singleton types: `expr.asInstanceOf[Object] eq s` for a reference `s`, `s == expr`
 //! for a string constant or a value of another type (dotty's `tpd.isInstance`).
 

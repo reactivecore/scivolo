@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TyperState.scala
 //! Attempts given up: their changes undone and the type variables they made discarded (dotty's
 //! uncommitted `TyperState` dropped with its `ownedVars`).
 

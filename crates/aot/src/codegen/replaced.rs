@@ -21,7 +21,7 @@ pub enum Replaced {
 pub fn c_replacement(pool: &Pool, g: GlobalId) -> Option<&'static str> {
     const CLASS_IS: &str = "D2isL15java.lang.ClassL15java.lang.ClasszEPT15java.lang.Class";
     match (pool.top_name(g), pool.member_sig(g)?) {
-        ("java.lang.Class", CLASS_IS) => Some("scalai_aot_class_is"),
+        ("java.lang.Class", CLASS_IS) => Some("scivolo_aot_class_is"),
         _ => None,
     }
 }

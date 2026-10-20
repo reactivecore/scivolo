@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! A view on the qualifier of an application whose method does not apply to the arguments
 //! (dotty's `tryWithImplicitOnQualifier`, `tryInsertImplicitOnQualifier`).
 

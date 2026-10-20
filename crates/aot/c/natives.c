@@ -4,14 +4,14 @@
 #include <stdint.h>
 
 // The current `java.lang.Thread` and native thread objects; a collector root.
-void *scalai_aot_thread[2] = {0, 0};
+void *scivolo_aot_thread[2] = {0, 0};
 
 void scalanative_assignCurrentThread(void *thread, void *native) {
-    scalai_aot_thread[0] = thread;
-    scalai_aot_thread[1] = native;
+    scivolo_aot_thread[0] = thread;
+    scivolo_aot_thread[1] = native;
 }
-void *scalanative_currentThread(void) { return scalai_aot_thread[0]; }
-void *scalanative_currentNativeThread(void) { return scalai_aot_thread[1]; }
+void *scalanative_currentThread(void) { return scivolo_aot_thread[0]; }
+void *scalanative_currentNativeThread(void) { return scivolo_aot_thread[1]; }
 void scalanative_setupCurrentThreadInfo(void *thread) {}
 
 void scalanative_StackOverflowGuards_setup(int main) {}
@@ -21,11 +21,11 @@ int64_t scalanative_StackOverflowGuards_size(void) { return 0; }
 int64_t scalanative_Throwable_sizeOfExceptionWrapper(void) { return 0; }
 
 #define UNARY(name, fn)                                                                            \
-    double scalai_aot_llvm_##name##_f64(double x) { return fn(x); }                                \
-    float scalai_aot_llvm_##name##_f32(float x) { return fn##f(x); }
+    double scivolo_aot_llvm_##name##_f64(double x) { return fn(x); }                               \
+    float scivolo_aot_llvm_##name##_f32(float x) { return fn##f(x); }
 #define BINARY(name, fn)                                                                           \
-    double scalai_aot_llvm_##name##_f64(double x, double y) { return fn(x, y); }                   \
-    float scalai_aot_llvm_##name##_f32(float x, float y) { return fn##f(x, y); }
+    double scivolo_aot_llvm_##name##_f64(double x, double y) { return fn(x, y); }                  \
+    float scivolo_aot_llvm_##name##_f32(float x, float y) { return fn##f(x, y); }
 UNARY(ceil, ceil)
 UNARY(floor, floor)
 UNARY(sqrt, sqrt)
@@ -45,12 +45,12 @@ BINARY(pow, pow)
 BINARY(maxnum, fmax)
 BINARY(minnum, fmin)
 BINARY(copysign, copysign)
-double scalai_aot_frem_f64(double x, double y) { return fmod(x, y); }
-float scalai_aot_frem_f32(float x, float y) { return fmodf(x, y); }
-int32_t scalai_aot_llvm_ctlz_i32(int32_t x, int8_t undef) { return x ? __builtin_clz(x) : 32; }
-int64_t scalai_aot_llvm_ctlz_i64(int64_t x, int8_t undef) { return x ? __builtin_clzll(x) : 64; }
-int32_t scalai_aot_llvm_cttz_i32(int32_t x, int8_t undef) { return x ? __builtin_ctz(x) : 32; }
-int64_t scalai_aot_llvm_cttz_i64(int64_t x, int8_t undef) { return x ? __builtin_ctzll(x) : 64; }
-void scalai_aot_llvm_donothing(void) {}
-int32_t scalai_aot_llvm_ctpop_i32(int32_t x) { return __builtin_popcount(x); }
-int64_t scalai_aot_llvm_ctpop_i64(int64_t x) { return __builtin_popcountll(x); }
+double scivolo_aot_frem_f64(double x, double y) { return fmod(x, y); }
+float scivolo_aot_frem_f32(float x, float y) { return fmodf(x, y); }
+int32_t scivolo_aot_llvm_ctlz_i32(int32_t x, int8_t undef) { return x ? __builtin_clz(x) : 32; }
+int64_t scivolo_aot_llvm_ctlz_i64(int64_t x, int8_t undef) { return x ? __builtin_clzll(x) : 64; }
+int32_t scivolo_aot_llvm_cttz_i32(int32_t x, int8_t undef) { return x ? __builtin_ctz(x) : 32; }
+int64_t scivolo_aot_llvm_cttz_i64(int64_t x, int8_t undef) { return x ? __builtin_ctzll(x) : 64; }
+void scivolo_aot_llvm_donothing(void) {}
+int32_t scivolo_aot_llvm_ctpop_i32(int32_t x) { return __builtin_popcount(x); }
+int64_t scivolo_aot_llvm_ctpop_i64(int64_t x) { return __builtin_popcountll(x); }

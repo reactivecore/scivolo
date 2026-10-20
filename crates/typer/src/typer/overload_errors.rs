@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/reporting/messages.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Applications of an overloaded method by its simple name that no alternative or several accept
 //! (dotty's `NoMatchingOverload`, `AmbiguousOverload` from `adaptOverloaded`), reported where
 //! dotty tries no conversion and the alternatives and arguments show as dotty shows them.

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TastyUnpickler.scala
+//   tasty/src/dotty/tools/tasty/TastyFormat.scala
 use crate::cursor::{Cursor, Result};
 use std::fmt::Write;
 

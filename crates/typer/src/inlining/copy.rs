@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/ast/TreeTypeMap.scala
+//   compiler/src/dotty/tools/dotc/core/Symbols.scala
 //! Copies of typed trees with their types mapped and their local definitions given fresh symbols
 //! (dotty's `TreeTypeMap`).
 

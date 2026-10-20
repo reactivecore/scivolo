@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Inferencing.scala
 //! Instantiating the type variables of a type that does not fit as it is (dotty's
 //! `canDefineFurther` with `ForceDegree.failBottom`).
 

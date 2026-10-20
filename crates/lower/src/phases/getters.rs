@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Getters.scala
 //! dotty's `Getters`: each value of a class becomes a parameterless getter method with the
 //! value's right-hand side, none for a class parameter's; a static or private local value stays a field,
 //! none for a class parameter only the constructor uses; an assignment to a variable becomes a

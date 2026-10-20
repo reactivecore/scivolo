@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
 //! The children of a sealed class (dotty's `children`, `isGenericSum`), and their types as the
 //! elements of its sum mirror.
 

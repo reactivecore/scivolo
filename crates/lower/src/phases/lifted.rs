@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
 //! The methods lifted from lambdas and local methods: named `<owner>$$anonfun$N` and `f$N` from
 //! the outermost function in, taking proxies `x$N` of the captured values first; static unless
 //! they need an instance. Calls of local methods pass the captured values.

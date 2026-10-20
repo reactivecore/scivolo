@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Synthetic companions merged into explicit objects of the same name (the oracle's replay of
 //! dotty's `Namer.mergeCompanionDefs`).
 

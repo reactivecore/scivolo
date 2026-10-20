@@ -29,7 +29,7 @@ impl Decls {
         let declare = |module: &mut ObjectModule, name: String| {
             module.declare_data(&name, Linkage::Local, true, false).map_err(|e| e.to_string())
         };
-        let chars_id = declare(module, format!("scalai_aot_string.{n}.chars"))?;
+        let chars_id = declare(module, format!("scivolo_aot_string.{n}.chars"))?;
         chars.define(module, chars_id)?;
         let field = |reach: &mut Reach, sig: &str| {
             let g = reach.world.member(reach.classes.get(string).name, sig);
@@ -42,7 +42,7 @@ impl Decls {
         obj.i32_at(field(reach, "F5countO")?, units.len() as i32);
         let hash = units.iter().fold(0i32, |h, &u| h.wrapping_mul(31).wrapping_add(u as i32));
         obj.i32_at(field(reach, "F14cachedHashCodeO")?, hash);
-        let id = declare(module, format!("scalai_aot_string.{n}"))?;
+        let id = declare(module, format!("scivolo_aot_string.{n}"))?;
         obj.define(module, id)?;
         self.strings.insert(units.to_vec(), id);
         Ok(id)

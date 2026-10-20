@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! A class definition as the class with accessors and synthetic members, its companion
 //! object, its implicit wrapper and an enum's lookup methods (the second half of dotty's
 //! `classDef`).

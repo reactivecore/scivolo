@@ -25,7 +25,7 @@ to lower and pushed hello past 20 ms.
     sites resolved to; devirtualization runs first, so only calls still virtual get a guard.
 - The replaced code is kept as `retired`, since running frames still execute it; frame
   headers and stack-trace addresses carry the tier to find the right code's positions.
-- `SCALAI_NO_INLINE=1` turns tier-up off.
+- `SCIVOLO_NO_INLINE=1` turns tier-up off.
 
 ## Consequences
 - `cpu` takes 0.34 s (from 0.76), fib 30 72 ms (from 142); hello is unchanged at 20 ms.

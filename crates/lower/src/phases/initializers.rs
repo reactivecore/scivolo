@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Constructors.scala
 //! The class parameters of field initializers and class body statements, dotty's `Constructors`
 //! `intoConstr`: references to their fields become references to the constructor's parameters;
 //! a private parameter's field or private local value stays only where `markUsedPrivateSymbols`

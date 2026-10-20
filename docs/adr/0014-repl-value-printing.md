@@ -11,8 +11,8 @@ inputs are not plain Scala: `collectionClassName` is private to package `scala`,
 `toString` is the one a case class is given needs its compiled body.
 
 ## Decision
-- **Port:** `overlay/src/scalai/repl` holds pprint's walker, renderer and truncation in Scala,
-  without colors: `scalai.repl.Show(value, width, height, offset)`. A helper class of the
+- **Port:** `overlay/src/scivolo/repl` holds pprint's walker, renderer and truncation in Scala,
+  without colors: `scivolo.repl.Show(value, width, height, offset)`. A helper class of the
   overlay (ADR 0009), compiled to NIR and embedded.
 - **Two natives** (`crates/vm/src/natives/repl.rs`) for the methods `Show` cannot write:
   `hasUserToString` resolves the class's `toString` and answers false for `Object`'s and for a
@@ -30,7 +30,7 @@ inputs are not plain Scala: `collectionClassName` is private to package `scala`,
   the interpreter one by one and copy pprint's logic in another language; the Scala port stays
   a near line-by-line copy of pprint.
 - Deliberate differences from dotty:
-  - a trace thrown while printing stops at the first `scalai.repl` frame and counts the rest as
+  - a trace thrown while printing stops at the first `scivolo.repl` frame and counts the rest as
     elided, where dotty shows pprint's and its reflection frames;
   - `hasUserToString` only reads the compiled body, where dotty first asks the class's symbol:
     a written `toString = ScalaRunTime._toString(this)` counts as synthesized;

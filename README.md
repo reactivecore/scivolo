@@ -1,4 +1,4 @@
-# scala_interpreter
+# Scivolo
 
 Research project at Reactive Core: a fast Scala 3.9 interpreter in Rust for
 scripting, with no JVM. Status: research and spikes are done; the plan is in
@@ -67,7 +67,7 @@ label each claim as verified [V] or inferred [I], and list their sources.
 
 ## Status (2026-09-25): milestones M1, M2 and M3 reached
 
-The NIR VM (`crates/vm`, CLI `crates/scalai`) runs Scala 3.9 programs compiled to NIR with
+The NIR VM (`crates/vm`, CLI `crates/scivolo`) runs Scala 3.9 programs compiled to NIR with
 Scala Native's precompiled libraries (scalalib, javalib, nativelib, posixlib, clib, auxlib)
 and its C runtime built from `native/`.
 
@@ -83,7 +83,7 @@ and its C runtime built from `native/`.
   `tests/programs/gcstress` allocates far more than it keeps. `GC_MAXIMUM_HEAP_SIZE` and the
   other Immix settings apply.
 
-| Program | scalai (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
+| Program | scivolo (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
 |---|---:|---:|---:|
 | hello | 9.3 ms | 292 ms | 5 ms |
 | moderate | 17 ms | 329 ms | 5 ms |
@@ -97,7 +97,7 @@ just libs                       # or copy them from the Coursier cache
 just gates                      # fmt, clippy, tests (incl. tests/programs/*)
 just run moderate               # run tests/programs/moderate in the release build
 just script FILE.scala ARGS     # run a script, compiled unless cached
-just repl                       # the REPL: `scalai` without a target
+just repl                       # the REPL: `scivolo` without a target
 just check                      # every test program against its .check file, with timings
 just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
 just program-update NAME        # compile tests/programs/NAME with Scala Native (NIR + .check)
@@ -109,7 +109,7 @@ just sn-run Name -Other         # selected Scala Native test classes
 ```
 
 For REPL development with dependencies, install Coursier (`coursier` or `cs` on PATH, or
-`SCALAI_COURSIER`). `group::artifact::version` and `group::artifact:version` coordinates
+`SCIVOLO_COURSIER`). `group::artifact::version` and `group::artifact:version` coordinates
 select Scala Native 0.5 / Scala 3 artifacts:
 
 ```sh
@@ -117,12 +117,12 @@ just repl --dep io.circe::circe-parser::0.14.10 --dep io.circe::circe-generic::0
 ```
 
 Explicit Maven coordinates such as `io.circe:circe-parser_native0.5_3:0.14.10` also work.
-`scalai` fetches transitive dependencies using Coursier's cache and adds their jars to
+`scivolo` fetches transitive dependencies using Coursier's cache and adds their jars to
 the REPL's runtime and type checker. It keeps the interpreter's Scala standard library and
 Scala Native runtime versions. Dependencies remain available after `:reset`.
 
-Scripts run directly: `scalai FILE.sc` or `scalai [--main CLASS] [-O OPT]... FILE.scala`, also
-as a `#!/usr/bin/env scalai` shebang. `-O`/`--scala-opt` passes a Scala compiler option, as
+Scripts run directly: `scivolo FILE.sc` or `scivolo [--main CLASS] [-O OPT]... FILE.scala`, also
+as a `#!/usr/bin/env scivolo` shebang. `-O`/`--scala-opt` passes a Scala compiler option, as
 `//> using options` in the script does. The first run compiles a `.scala` file through the own
 frontend (parser, typer, lowering), printing its warnings on stderr. Of the compiler options it
 takes `-source` (no migration versions), `-no-indent`, `-indent`, `-old-syntax`, `-new-syntax`,
@@ -130,18 +130,18 @@ takes `-source` (no migration versions), `-no-indent`, `-indent`, `-old-syntax`,
 `reflectiveCalls`, `higherKinds` and `existentials`, `-Xkind-projector`, `-nowarn` and
 `-Wnonunit-statement`. Where the own frontend refuses a script, and for `.sc` files, `//> using`
 directives before the code other than `scala 3.9.0` and options, and any other compiler option
-(also `-Werror`), it compiles through scala-cli (`SCALAI_SCALA_CLI` names another binary),
-failing when scala-cli reports errors, with the line `scalai: FILE: falling back to scala-cli (reason)` on
-stderr; later runs of that result print `scalai: FILE: compiled by scala-cli (reason)`.
-`SCALAI_FRONTEND=strict` makes a refusal an error, printed with the syntax or type errors;
-`SCALAI_FRONTEND=jvm` always uses scala-cli. The NIR is cached in `SCALAI_CACHE`/`scripts`,
-keyed by the file's path and content, the `-O` options, the frontend mode and the `scalai` build; later runs
+(also `-Werror`), it compiles through scala-cli (`SCIVOLO_SCALA_CLI` names another binary),
+failing when scala-cli reports errors, with the line `scivolo: FILE: falling back to scala-cli (reason)` on
+stderr; later runs of that result print `scivolo: FILE: compiled by scala-cli (reason)`.
+`SCIVOLO_FRONTEND=strict` makes a refusal an error, printed with the syntax or type errors;
+`SCIVOLO_FRONTEND=jvm` always uses scala-cli. The NIR is cached in `SCIVOLO_CACHE`/`scripts`,
+keyed by the file's path and content, the `-O` options, the frontend mode and the `scivolo` build; later runs
 compile nothing. Files it pulls in with `//> using file` and changed
 dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
 days are removed when the next one is built, compiled scripts at most hourly.
 
 Exceptions carry stack traces with file and line from the interpreter's frames.
-`SCALAI_TRACE=1` traces exceptions, `SCALAI_PROFILE=1` counts calls, `SCALAI_TIMEOUT=N`
+`SCIVOLO_TRACE=1` traces exceptions, `SCIVOLO_PROFILE=1` counts calls, `SCIVOLO_TIMEOUT=N`
 stops a run after N seconds, compiling a script included.
 
 Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
@@ -172,3 +172,7 @@ CLAUDE.md           project rules (Rust style from rcui)
 
 Build folders and downloaded toolchains (`spikes/*/work/`, `target/`) are not
 checked in. Each spike's README says how to recreate them.
+
+## License
+
+Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).

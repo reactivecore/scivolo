@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //! Approximating references to local symbols away (dotty's `AvoidMap`).
 
 use super::Typer;

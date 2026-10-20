@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //! Whether an implicit conversion might turn one type into another (dotty's `viewExists`),
 //! decided without implicit search: by the result and parameter classes of the implicit methods
 //! the imports and the companions of both types offer.

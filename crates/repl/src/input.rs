@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/ParseResult.scala
 //! What an input is, as dotty's `ParseResult` tells: nothing, a command, syntax errors, or
 //! statements.
 

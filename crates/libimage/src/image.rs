@@ -11,7 +11,7 @@ use std::fs::File;
 use std::io;
 use std::path::{Path, PathBuf};
 
-pub const MAGIC: &[u8; 8] = b"SCALAI03";
+pub const MAGIC: &[u8; 8] = b"SCIVOL03";
 pub const ENTRY: usize = 48;
 pub const HEADER: usize = 12;
 

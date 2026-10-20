@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ExplicitOuter.scala
 //! dotty's `ExplicitOuter.referencesOuter`: whether a class definition refers to the instance of
 //! a class enclosing it that is not a static owner.
 

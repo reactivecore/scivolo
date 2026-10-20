@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! The mirror support of the anonymous classes the typer makes for mirrors (dotty's
 //! `addMirrorSupport` on an `ExtendsSumOrProductMirror` template): `Mirror.Product` with
 //! `fromProduct`, or `Mirror.Sum` with `ordinal`, of the class its `MirroredMonoType` names.

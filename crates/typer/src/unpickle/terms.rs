@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Terms (dotty's `readTree`): the tags of the subset read, each typed as `TypeAssigner` types
 //! it; the others refused.
 

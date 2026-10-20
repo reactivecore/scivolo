@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Constructors.scala
 //! dotty's `Constructors` for a trait with initialization: its constructor `$init$` calls the
 //! setter of each value with its initializer and runs the statements of the body, in order; and
 //! which traits of the unit have initialization.

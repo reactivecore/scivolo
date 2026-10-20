@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/ResolveSuper.scala
 //! dotty's `ResolveSuper`: a class implements the super accessors of the traits it mixes in,
 //! each calling the member it accesses in the first base class after the trait that has one.
 
@@ -99,7 +101,7 @@ fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: S
 
 /// The member named `name` super accessor `acc` calls in `base`: the first concrete one in the
 /// base classes of `base` after the accessor's trait whose type seen from `base` matches the
-/// accessor's, bridges left out.
+/// accessor's, bridges left out (dotty's `rebindSuper`).
 fn rebind_super(l: &mut Lower, base: SymbolId, acc: SymbolId, name: &str, span: Span) -> Result<SymbolId> {
     let owner = l.u.symbol(acc).owner;
     let site = l.u.this_type(base);

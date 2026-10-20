@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! The types of implicit candidates as their ranking compares them: givens with classes of their
 //! own and given objects as their parents (dotty's `widenGiven` and `prepare` in `compare`).
 

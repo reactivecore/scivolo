@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/SelectStatic.scala
 //! dotty's `SelectStatic` for enum cases: `qual.f` becomes `f` if `qual` is a path of static
 //! objects, else `{ qual; f }`, without a span; the enclosing tree is copied as dotty's tree
 //! copiers do, which gives it one.

@@ -19,9 +19,9 @@ name = argv[0]
 runs = int(argv[1]) if len(argv) > 1 else 10
 args = argv[2:]
 env = dict(os.environ)
-env.setdefault("SCALAI_LIBS", os.path.join(root, "ref/libs"))
-env.setdefault("SCALAI_CACHE", os.path.join(root, "tmp/cache"))
-binaries = {"": os.path.join(root, "target/release/scalai")}
+env.setdefault("SCIVOLO_LIBS", os.path.join(root, "ref/libs"))
+env.setdefault("SCIVOLO_CACHE", os.path.join(root, "tmp/cache"))
+binaries = {"": os.path.join(root, "target/release/scivolo")}
 if base:
     binaries = {"base ": base, "new  ": binaries[""]}
 times = {label: [] for label in binaries}

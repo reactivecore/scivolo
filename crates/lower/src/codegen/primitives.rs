@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenExpr.scala
 //! Operations of the primitive classes: arithmetic, comparisons, logic, shifts, `&&` and `||`,
 //! conversions (nscplugin's `genSimpleOp`, `genUnaryOp`, `genBinaryOp`).
 

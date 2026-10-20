@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
 //! Class types disjoint through the arguments of a common base class (dotty's
 //! `existsCommonBaseTypeWithDisjointArguments` and `provablyDisjointTypeArgs`).
 

@@ -673,7 +673,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "scalai"
+name = "scivolo"
 version = "0.1.0"
 dependencies = [
  "clap",

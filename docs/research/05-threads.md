@@ -205,7 +205,7 @@ group) [V]. The summary lines count methods: 3,117 skipped in total, 2,827 of th
   helper wraps `scala.sys.process` in `Await.result(Future(pb.!(logger)), 30.seconds)`
   (`ProcessTest.scala:1127-1156`) [V]. `sys.process` spawns threads to pump stdout/stderr, and
   `Thread.start` throws `UnsupportedFeature.threads()` [V/I]; the `Await` then runs the queue
-  until the 30/60 s timeout, which is why the group needs `SCALAI_TIMEOUT=300`. `waitFor` with
+  until the 30/60 s timeout, which is why the group needs `SCIVOLO_TIMEOUT=300`. `waitFor` with
   a timeout is a `waitpid`+`Thread.sleep(100)` loop (`process/UnixProcess.scala:68-85`) and
   the process watcher is a thread only when multithreading is enabled
   (`GenericProcessWatcher.scala:14, 89-101`) [V].
@@ -259,7 +259,7 @@ native-stack floor (`interp/mod.rs:52-62, 157-162`); `Vm` is a single owner pass
   stack pointer to the stack's high end (a suspended coroutine's callee-saved registers are
   on its stack at the switch point [I, standard for context switches]) and its frame stack
   `[low, top]`. `gc_glue.c` grows a small table of such ranges the VM keeps current; the
-  `Marker_MarkRoots` patch iterates it instead of the single `scalai_frame_stack`. For the
+  `Marker_MarkRoots` patch iterates it instead of the single `scivolo_frame_stack`. For the
   running coroutine, `currentThreadInfo.stackTop/stackBottom` and the mutator's `stackBottom`
   must be set to the coroutine's bounds at each switch (`MutatorThread.c:128-135` and the
   `SCALANATIVE_THREAD_ALT_STACK` branch of `Marker_markProgramStack` both read them) [V];
@@ -371,7 +371,7 @@ choices inside (a):
    `overflowing` and the trace stack from `Vm`/`Funcs` into a `GreenThread`; `Vm` keeps
    `threads` and `current`. Make `Frames::new` take its reservation size. `just gates` passes.
 2. **Coroutines + GC roots.** Add `corosensei`; run the main thread as a coroutine too. Replace
-   `scalai_frame_stack` in `gc_glue.c`/`Marker.c` with a table of `{native lo, native hi,
+   `scivolo_frame_stack` in `gc_glue.c`/`Marker.c` with a table of `{native lo, native hi,
    frames lo, frames top}` per thread, and set `currentThreadInfo` and the mutator's
    `stackBottom` at every switch. Per-coroutine `StackOverflowError` floor from the
    coroutine's bounds instead of `stack::bounds()`. `gcstress`, `overflow` and the language
@@ -430,7 +430,7 @@ Keep the decision; amend the consequences:
   `.../javalib/lang/{ProcessTest,StackOverflowTest}.scala`, `.../javalib/net/ServerSocketTest.scala`.
 - This repository: `crates/vm/src/{lib,stack,heap,linktime,layout}.rs`,
   `interp/{mod,exec,invoke,ops}.rs`, `natives/{mod,runtime,callback,llvm,ffi/mod}.rs`,
-  `crates/nir/src/nir.rs`, `crates/snrt/build.rs`, `native/scalai/gc_glue.c`,
+  `crates/nir/src/nir.rs`, `crates/snrt/build.rs`, `native/scivolo/gc_glue.c`,
   `native/nativelib/scala-native/gc/immix/Marker.c`, `docs/adr/000{2,3,4}*.md`,
   `docs/conformance.md`, `tmp/sn-report/*.txt`.
 - `corosensei` 0.3.4 documentation (docs.rs), fetched 2026-09-27.

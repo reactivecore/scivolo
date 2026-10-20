@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/ControlFlow.scala
 //! Blocks the entry does not reach, removed (NIR's `ControlFlow.removeDeadBlocks`).
 
 use super::buf::Buf;

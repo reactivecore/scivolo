@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //! The type a local class is approximated by when avoiding it (dotty's `classBound`).
 
 use super::Typer;

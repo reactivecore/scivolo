@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Checking.scala
+//   compiler/src/dotty/tools/dotc/typer/RefChecks.scala
 //! Base classes that the parents of a class give different type arguments (the base type part of
 //! dotty's `checkRealizableBounds`).
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
 //! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
@@ -33,7 +35,8 @@ impl Typer<'_> {
         }
     }
 
-    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`, `t` made fully defined.
+    /// `new ValueOf[t](v)` for the value `v` of singleton type `t`, `t` made fully defined (dotty's
+    /// `synthesizedValueOf`).
     fn synthesized_value_of(
         &mut self,
         class: SymbolId,

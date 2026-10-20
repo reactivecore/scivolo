@@ -1,3 +1,5 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Unmangle.scala
 //! Renders mangled member signatures (`Sig.mangle`, docs/contrib/mangling.md) as readable text.
 
 mod parts;

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/TailRec.scala
 //! dotty's `TailRec`: a method that cannot be overridden and calls itself in tail position
 //! becomes a loop, `{ var p$tailLocal1 = p; while true do tailLabel1: { return rhs } }`, its
 //! tail calls assignments of the variables and a jump to the label.

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //! What a symbol is (dotty's `SymDenotation` queries `isClass`, `is(Module)`, `isType`).
 
 use super::{Kind, SymbolId, Universe};

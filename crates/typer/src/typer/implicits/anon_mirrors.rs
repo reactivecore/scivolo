@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Anonymous mirrors (dotty's `anonymousMirror`): `new Object with Serializable { type
 //! MirroredMonoType = M }`, marked for the lowering to add the mirror's parent and methods.
 

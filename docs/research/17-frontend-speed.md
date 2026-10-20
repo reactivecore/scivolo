@@ -4,7 +4,7 @@ Date: 2026-10-14. Claims are [V] verified by measuring or reading the code, [I] 
 on a throwaway branch (`83-typer-f1` + `82-f-interpolator`, before their merge), release build, M4
 Pro under heavy load from other builds (load average 57–145 during every run; minima over 6–15
 runs are quoted, medians are noise). Paths: `T/` = `crates/tasty/src/`, `Y/` = `crates/typer/src/`,
-`L/` = `crates/lower/src/`, `S/` = `crates/scalai/src/`. The timing laps, call counters and the
+`L/` = `crates/lower/src/`, `S/` = `crates/scivolo/src/`. The timing laps, call counters and the
 in-process compile loop used below were throwaway instrumentation, not in the repository; the
 profiles are macOS `sample` runs of that loop (inclusive per function, recursion counted once).
 
@@ -12,12 +12,12 @@ profiles are macOS `sample` runs of that loop (inclusive per function, recursion
 costs (junk type variables, by-name member lookup, uncached member types, uncached erasure) plus
 fixed costs (whole-file TASTy decoding, eager `Definitions`, file writing). Four prototype fixes of
 345 lines cut the in-process compile of `moderate.scala` from 62.7 to 30.3 ms with every tasty,
-typer, lower and scalai test passing [V]; the MR plan in §5 carries that to an estimated edit-then-run
+typer, lower and scivolo test passing [V]; the MR plan in §5 carries that to an estimated edit-then-run
 of 45–50 ms. The VM's own 24 ms (cached run) is the other half of the budget and stays as it is.
 
 ## 1. Baseline (branch before any fix)
 
-Edit-then-run, `scalai FILE.scala` in strict mode with a private `SCALAI_CACHE`, each miss on a
+Edit-then-run, `scivolo FILE.scala` in strict mode with a private `SCIVOLO_CACHE`, each miss on a
 freshly edited copy, load 57–69 [V]:
 
 | program | miss min / median | hit min / median | miss − hit |
@@ -75,7 +75,7 @@ the junk variables they leave.
 ## 3. Prototype fixes and their measured effect
 
 Four fixes, 345 lines, not committed, each alone small enough for one MR; tests:
-`cargo test --release -p tasty -p typer -p lower -p scalai` all green (the lowered programs compare
+`cargo test --release -p tasty -p typer -p lower -p scivolo` all green (the lowered programs compare
 NIR byte for byte in strict mode) [V].
 
 | fix | where | moderate counters | in-process compile min (15 runs) |
@@ -129,7 +129,7 @@ What remains after A–D (4,280 samples, 29 ms per compile) [V]: TASTy loading 2
    without completing library bases). ~250 lines. −10 ms, caseclasses −4. Risk: medium (stale
    member type if a prefix mentions a script alias completed later; the typer golden tests and
    `just typer-checks` guard it).
-4. **scalai: the cache path** (`S/frontend.rs`, `S/script.rs`): one `create_dir_all` per package,
+4. **scivolo: the cache path** (`S/frontend.rs`, `S/script.rs`): one `create_dir_all` per package,
    main classes found in the in-memory NIR bytes instead of re-reading the files, prune only when
    the cache directory changed (a stamp file), `touch` skipped on a miss. ~120 lines. −3 to −4 ms
    on every script. Risk: low.

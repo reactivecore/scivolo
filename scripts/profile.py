@@ -15,9 +15,9 @@ name = sys.argv[1]
 seconds = sys.argv[2] if len(sys.argv) > 2 else "2"
 args = sys.argv[3:]
 env = dict(os.environ)
-env.setdefault("SCALAI_LIBS", os.path.join(root, "ref/libs"))
-env.setdefault("SCALAI_CACHE", os.path.join(root, "tmp/cache"))
-cmd = [os.path.join(root, "target/release/scalai"), "--cp", os.path.join(root, "tests/programs", name), name, *args]
+env.setdefault("SCIVOLO_LIBS", os.path.join(root, "ref/libs"))
+env.setdefault("SCIVOLO_CACHE", os.path.join(root, "tmp/cache"))
+cmd = [os.path.join(root, "target/release/scivolo"), "--cp", os.path.join(root, "tests/programs", name), name, *args]
 out = os.path.join(root, "tmp", f"{name}.sample")
 proc = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 time.sleep(0.05)

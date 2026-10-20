@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Contexts.scala
 //! The context of the arguments of a self-constructor call `this(...)`: the constructor's
 //! parameters, outside its class (dotty's `thisCallArgContext`).
 

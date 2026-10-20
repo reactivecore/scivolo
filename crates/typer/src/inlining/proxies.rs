@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! Proxies of inline arguments, and the trees standing for bound parameters in an expansion
 //! (dotty's `paramBindingDef`, and the parameter case of the inliner's tree map).
 

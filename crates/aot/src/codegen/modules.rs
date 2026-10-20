@@ -1,5 +1,5 @@
 //! Module load functions, which return a module's instance and construct it on first use, and
-//! the slots holding the instances: `scalai_aot_modules`, `scalai_aot_modules_count` of them.
+//! the slots holding the instances: `scivolo_aot_modules`, `scivolo_aot_modules_count` of them.
 
 use super::Decls;
 use crate::R;
@@ -12,7 +12,7 @@ use cranelift_object::ObjectModule;
 
 pub fn define_loads(module: &mut ObjectModule, reach: &mut Reach, decls: &mut Decls) -> R<()> {
     let ptr = decls.ptr;
-    let alloc = decls.import(module, "scalai_aot_alloc", &[ptr, ptr], Some(ptr))?;
+    let alloc = decls.import(module, "scivolo_aot_alloc", &[ptr, ptr], Some(ptr))?;
     let mut ctx = Context::new();
     let mut fb = FunctionBuilderContext::new();
     for slot in 0..reach.modules.len() {
@@ -56,7 +56,7 @@ pub fn define_loads(module: &mut ObjectModule, reach: &mut Reach, decls: &mut De
     slots.define_zeroinit(8 * count.max(1));
     module.define_data(decls.module_slots, &slots).map_err(|e| e.to_string())?;
     let id = module
-        .declare_data("scalai_aot_modules_count", Linkage::Export, false, false)
+        .declare_data("scivolo_aot_modules_count", Linkage::Export, false, false)
         .map_err(|e| e.to_string())?;
     let mut desc = DataDescription::new();
     desc.set_align(8);

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
+//   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! The operations of `scala.compiletime` that reduce without their bodies, and `error` (dotty's
 //! `InlineCall.expand` intrinsics, `Inliner.issueError`).
 

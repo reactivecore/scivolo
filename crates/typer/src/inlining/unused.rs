@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/Inliner.scala
 //! Dropping the bindings of an inline expansion that nothing uses, and inlining the elideable
 //! methods used once (dotty's `Inliner.dropUnusedDefs`, without type bindings, and
 //! `isElideableExpr`).

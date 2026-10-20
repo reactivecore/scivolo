@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //! What a class definition adds next to the class: the synthetic companion object and the
 //! conversion method of an implicit class (from dotty's `classDef`).
 

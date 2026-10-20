@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
+//   compiler/src/dotty/tools/dotc/transform/ProtectedAccessors.scala
 //! dotty's `ProtectedAccessors`, with the parts of `AccessProxies` it uses: a protected member
 //! used from a class outside its package that does not derive from its owner is reached through
 //! `protected$m`, a forwarder of the closest enclosing class that does.
@@ -171,7 +174,8 @@ fn use_setter(l: &mut Lower, t: TNodeId, lhs: TNodeId, rhs: TNodeId, made: &mut 
 }
 
 /// The getter or setter accessor of `accessed` named `name` in `host` of type `info`: the one in
-/// `made`, else a new one entered there, overriding a concrete one of a base class.
+/// `made`, else a new one entered there, overriding a concrete one of a base class
+/// (`AccessProxies.useAccessor`).
 fn accessor(
     l: &mut Lower,
     host: SymbolId,
@@ -224,7 +228,7 @@ fn reference(l: &mut Lower, class: SymbolId, sym: SymbolId, span: Span) -> TNode
 }
 
 /// The definition of accessor `a`, spanning the name in the definition of the member it accesses
-/// if the unit `root` has it, else at `end`.
+/// if the unit `root` has it, else at `end` (`AccessProxies.accessorDef`).
 fn accessor_def(l: &mut Lower, root: TNodeId, a: &Accessor, end: Span) -> TNodeId {
     let defined = walk::subtrees(l.tpd, root).into_iter().find(|&d| {
         l.tpd.sym(d) == Some(a.accessed) && matches!(l.tpd.tree(d), Tree::DefDef { .. } | Tree::ValDef { .. })

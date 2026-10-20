@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/core/SymDenotations.scala
 //! Classes whose construction runs no code (dotty's `NoInits` and `isNoInitsRealClass`), the
 //! unit's classes judged by their typed templates (dotty's `parentsKind` and `bodyKind`).
 

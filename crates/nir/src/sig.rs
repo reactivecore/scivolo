@@ -1,3 +1,6 @@
+// Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
+//   nir/src/main/scala/scala/scalanative/nir/Mangle.scala
+//   nir/src/main/scala/scala/scalanative/nir/Sig.scala
 //! Member signatures and their mangled form (Scala Native's `Sig` and `Mangle`).
 
 use crate::nir::{Global, GlobalId, StrId, Type, TypeId};

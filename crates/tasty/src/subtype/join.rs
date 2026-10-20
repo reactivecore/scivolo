@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The join of a union (dotty's `orDominator`): the intersection of the dominating common base
 //! classes of its parts, each applied to the parts' arguments merged.
 

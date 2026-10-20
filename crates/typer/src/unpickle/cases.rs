@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Matches, `try` and `throw`, and the patterns of their cases (dotty's `MATCH`, `TRY`, `THROW`,
 //! `CASEDEF`, `BIND`, `ALTERNATIVE`, `UNAPPLY`), typed as `TypeAssigner` types them.
 

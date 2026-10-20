@@ -1,4 +1,4 @@
-//! Exceptions as a flag (ADR 0028): a thrown object waits in `scalai_aot_exception`; after
+//! Exceptions as a flag (ADR 0028): a thrown object waits in `scivolo_aot_exception`; after
 //! each call the caller jumps to its handler or returns at once, leaving the slot set.
 
 use super::body::FnBuilder;

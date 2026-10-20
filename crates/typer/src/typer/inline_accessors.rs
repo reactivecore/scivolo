@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/inlines/PrepareInlineable.scala
+//   compiler/src/dotty/tools/dotc/transform/AccessProxies.scala
 //! Inline accessors: the members an inline method's body refers to that are not public where it
 //! expands, reached through public synthetic methods of a class that sees them (dotty's
 //! `PrepareInlineable.MakeInlineableDirect`, `AccessProxies`).

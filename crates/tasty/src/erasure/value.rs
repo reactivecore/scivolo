@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //! Semi-erasure (dotty's `valueErasure`): a value class's value as `Erased::Value`, its class
 //! with the erasure of its underlying value.
 

@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/tasty/TreePickler.scala
 //! The typer's side of script symbols: their dotty flags, what completes their infos, their
 //! annotations; and the TASTy modifiers the universe keeps for them.
 

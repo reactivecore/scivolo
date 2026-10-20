@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Constants.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Fitting a typed tree to what its context expects (dotty's `adapt`), as far as the subset
 //! goes: a tree that fits as it is, a numeric constant converted, a value discarded for `Unit`.
 

@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/SymUtils.scala
+//   compiler/src/dotty/tools/dotc/transform/SyntheticMembers.scala
 //! The mirror support dotty's `SyntheticMembers` gives objects (`addMirrorSupport`): the
 //! companion of a case class extends `Mirror.Product` with `fromProduct`, a case object extends
 //! `Mirror.Singleton`.

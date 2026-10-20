@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/RefinedPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/ReplPrinter.scala
 //! Paths and prefixes: the root and empty packages, `scala`, `java.lang`, `Predef` and REPL
 //! wrapper objects omitted as prefixes, of packages too (`collection.Seq`); package objects skipped.
 

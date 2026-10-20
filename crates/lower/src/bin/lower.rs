@@ -9,7 +9,7 @@ use tasty::Universe;
 /// unit. With `--cp`, they see the TASTy of those directories, and macro calls run in a VM over
 /// the library and their NIR.
 ///
-/// Environment: SCALAI_LIBS holds the library jars (default: ref/libs).
+/// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
 #[command(name = "lower")]
 struct Cli {
@@ -25,7 +25,7 @@ struct Cli {
 
 fn main() {
     let Cli { cp, files, out_dir: out } = Cli::parse();
-    let libs = std::env::var_os("SCALAI_LIBS")
+    let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = typer::dump::library_jars(&libs);
     let mut u = Universe::open(&[&jars[..], &cp].concat()).expect("opening the library");

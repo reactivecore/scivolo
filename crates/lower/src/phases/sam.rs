@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/config/JavaPlatform.scala
+//   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //! The abstract methods of a functional interface (dotty's `possibleSamMethods`), whether a
 //! class is one, and whether a closure implementing one needs an adapting method
 //! (`TypeErasure.additionalAdaptationNeeded`).

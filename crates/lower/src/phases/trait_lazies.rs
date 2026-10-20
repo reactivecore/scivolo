@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/LazyVals.scala
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! The lazy values and objects a class gets from its traits (dotty's `traitInits`, 4.2.1 and
 //! 4.2.2), each made a lazy value of the class, its members named as `LazyVals` names them on
 //! leaving the class.

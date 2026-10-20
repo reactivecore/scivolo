@@ -1,4 +1,6 @@
-//! Searching an implicit argument of a type (dotty's `inferImplicitArg`, `ImplicitSearch`):
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//! Searching an implicit argument of a type (dotty's `inferImplicitArg`, `ImplicitSearch`, `isCoherent`):
 //! the contextual implicits by nesting level, then the implicit scope, then synthesis; within
 //! one group a unique winner or the most specific one. A candidate that does not fit is skipped;
 //! any other failure of a candidate fails the search.

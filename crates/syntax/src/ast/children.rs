@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Trees.scala
+//   compiler/src/dotty/tools/dotc/ast/untpd.scala
 //! The positioned children of each tree, in the order of dotty's case class fields.
 
 use super::Ast;

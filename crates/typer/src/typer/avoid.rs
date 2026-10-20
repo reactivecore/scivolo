@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Types without references to local symbols (dotty's `ensureNoLocalRefs`, `TypeOps.avoid`).
 
 use super::avoid_map::Avoided;

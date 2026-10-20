@@ -1,11 +1,13 @@
-//! The natives of the REPL's value printer `scalai.repl.Show` in the overlay.
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/ReplBytecodeAnalysis.scala
+//! The natives of the REPL's value printer `scivolo.repl.Show` in the overlay.
 
 use super::NativeFn;
 use crate::Vm;
 use crate::interp::Flow;
 use nir::{DefnKind, Inst, Local, Op, Pool, StrId, Val, ValId};
 
-const SHOW: &str = "scalai.repl.Show$";
+const SHOW: &str = "scivolo.repl.Show$";
 const TO_STRING: &str = "D8toStringL16java.lang.StringEO";
 const RUNTIME_TO_STRING: &str = "D9_toStringL13scala.ProductL16java.lang.StringEO";
 const SCALA_RUN_TIME: &str = "scala.runtime.ScalaRunTime$";
@@ -37,7 +39,8 @@ fn has_user_to_string(vm: &mut Vm, args: &[u64]) -> Flow {
     Ok(!synthesized(&vm.world.pool, &body.insts) as u64)
 }
 
-/// Whether `insts` only return `ScalaRunTime._toString(this)`, `this` cast or not.
+/// Whether `insts` only return `ScalaRunTime._toString(this)`, `this` cast or not (dotty's
+/// `ReplBytecodeAnalysis.isSynthesizedToString`).
 fn synthesized(pool: &Pool, insts: &[Inst]) -> bool {
     let [Inst::Label(_, params), lets @ .., Inst::Ret(_)] = insts else { return false };
     let Some(this) = params.first() else { return false };

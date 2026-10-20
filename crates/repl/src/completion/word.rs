@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/JLineTerminal.scala
 //! The word under the cursor, as the REPL's JLine parser finds it (`JLineTerminal.Parser` in
 //! `ParseContext.COMPLETE`), and when Tab inserts a tab instead.
 

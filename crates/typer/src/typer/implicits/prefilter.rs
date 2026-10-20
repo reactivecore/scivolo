@@ -1,8 +1,11 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Rejecting an implicit candidate before it is referenced and typed: one with explicit
 //! parameters, as `try_implicit` does, or one whose declared result type cannot conform by the
 //! classes it and its type arguments refer to, type parameters and uninstantiated type
 //! variables taken as wildcards within their bounds (after dotty's `isCompatible` in
-//! `candidateKind`).
+//! `candidateKind`, `wildApprox`).
 
 use super::super::Typer;
 use crate::symbols::Completion;

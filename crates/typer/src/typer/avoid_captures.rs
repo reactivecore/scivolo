@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
 //! The type variables of a match type case avoided in its body's type (dotty's `TypeOps.avoid`
 //! of `bindTypeSymbols`): by their upper bound where they occur covariantly, their lower bound
 //! contravariantly, a wildcard of both as an invariant argument.

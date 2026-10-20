@@ -1,4 +1,4 @@
-//! `scalai-aot`: compiles Scala sources or NIR into a native executable with Cranelift.
+//! `scivolo-aot`: compiles Scala sources or NIR into a native executable with Cranelift.
 
 mod blob;
 mod classes;
@@ -19,7 +19,7 @@ pub type R<T> = Result<T, String>;
 
 /// Compile Scala sources, or the NIR of a classpath, into a native executable.
 #[derive(Parser)]
-#[command(name = "scalai-aot")]
+#[command(name = "scivolo-aot")]
 struct Args {
     /// Directory of `.nir` files to link, or jar whose TASTy and NIR the sources use.
     #[arg(long = "cp")]
@@ -129,7 +129,7 @@ fn run(args: &Args) -> R<()> {
 fn main() {
     let args = Args::parse();
     if let Err(e) = run(&args) {
-        eprintln!("scalai-aot: {e}");
+        eprintln!("scivolo-aot: {e}");
         std::process::exit(1);
     }
 }

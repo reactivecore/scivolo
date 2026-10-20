@@ -9,7 +9,7 @@ REPLs expect one history.
 
 ## Decision
 - The interactive REPL reads and appends `~/.dotty_history` in JLine's format and with
-  JLine's rules and size limits as `scala` 3.9.0 configures them (`crates/scalai/src/history.rs`):
+  JLine's rules and size limits as `scala` 3.9.0 configures them (`crates/scivolo/src/history.rs`):
   entries `<epoch millis>:<line>` with `\n`, `\r`, `\` escaped; an input starting with a space
   is not added, others are trimmed and not added after an equal entry; a file grown too long is
   trimmed to its last distinct entries.

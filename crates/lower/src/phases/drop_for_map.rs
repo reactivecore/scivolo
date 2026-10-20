@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/localopt/DropForMap.scala
 //! dotty's `DropForMap`: `r.map(x => x)` or `r.map(x => ())`, the trailing `map` of a `for`,
 //! becomes `r` (or the value `r` was converted from) when that has the type of the call.
 

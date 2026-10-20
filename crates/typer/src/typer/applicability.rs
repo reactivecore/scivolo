@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Whether an alternative applies to arguments of given types (dotty's `isApplicableMethodRef`,
 //! `isCompatible`): by subtyping and numeric widening, closures by their single abstract method,
 //! and with implicit conversions where nothing applies without.

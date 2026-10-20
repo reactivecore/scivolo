@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   repl/src/dotty/tools/repl/Rendering.scala
+//   repl/src/dotty/tools/repl/StackTraceOps.scala
+// StackTraceOps.scala: Copyright EPFL and Lightbend, Inc.
 //! An uncaught exception as dotty's `StackTraceOps` prints it: its header, then its frames up to
 //! the initialization of a wrapper object or the value printer and those not shared with the
 //! enclosing trace, then its cause and suppressed exceptions likewise.
@@ -6,7 +10,7 @@ use crate::line_names::PREFIX;
 use vm::{Frame, Thrown};
 
 /// The package of the value printer in the overlay.
-const PRINTER: &str = "scalai.repl.";
+const PRINTER: &str = "scivolo.repl.";
 
 /// The classes whose cause is reported instead (dotty's `Rendering.rootCause`).
 const WRAPPERS: [&str; 4] = [
@@ -104,8 +108,8 @@ mod tests {
             "E",
             vec![
                 frame("rs$line$2$C", "toString", Some("rs$line$2"), 1),
-                frame("scalai.repl.Renderer", "rec", Some("Renderer.scala"), 9),
-                frame("scalai.repl.Show$", "apply", Some("Show.scala"), 9),
+                frame("scivolo.repl.Renderer", "rec", Some("Renderer.scala"), 9),
+                frame("scivolo.repl.Show$", "apply", Some("Show.scala"), 9),
             ],
         );
         assert_eq!(lines(&t), ["E", "  at rs$line$2$C.toString(rs$line$2:1)", "  ... 2 elided"]);

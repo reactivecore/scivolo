@@ -1,5 +1,5 @@
 // The externs behind Scala Native's `EmbeddedResourceReader`, over the resources embedded in
-// `scalai_aot_resources`.
+// `scivolo_aot_resources`.
 #include <stdint.h>
 
 typedef struct {
@@ -9,14 +9,14 @@ typedef struct {
     int64_t content_length;
 } Resource;
 
-extern const Resource scalai_aot_resources[];
-extern const int64_t scalai_aot_resources_count;
+extern const Resource scivolo_aot_resources[];
+extern const int64_t scivolo_aot_resources_count;
 
 static const Resource *resource(int32_t id) {
-    return id >= 0 && id < scalai_aot_resources_count ? &scalai_aot_resources[id] : 0;
+    return id >= 0 && id < scivolo_aot_resources_count ? &scivolo_aot_resources[id] : 0;
 }
 
-int32_t scalanative_resource_get_embedded_size(void) { return (int32_t)scalai_aot_resources_count; }
+int32_t scalanative_resource_get_embedded_size(void) { return (int32_t)scivolo_aot_resources_count; }
 int32_t scalanative_resource_get_path_length(int32_t id) {
     return resource(id) ? (int32_t)resource(id)->path_length : 0;
 }

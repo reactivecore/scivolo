@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
+//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! How far evaluating a tree has effects (dotty's `exprPurity`, `statPurity`, `refPurity`), and
 //! the warnings about pure expressions in statement position (`checkStatementPurity`).
 

@@ -77,15 +77,15 @@ test:linux:
   variables:
     XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
-    - key: scalai-cargo-linux
+    - key: scivolo-cargo-linux
       paths: *cargo_cache_paths
     - key:
-        prefix: scalai-target-linux
+        prefix: scivolo-target-linux
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
-    - key: scalai-libs-linux
+    - key: scivolo-libs-linux
       paths: *libs_cache_paths
-    - key: scalai-coursier-linux
+    - key: scivolo-coursier-linux
       paths: [.cache/coursier]
   script:
     - rustc --version && cargo --version && just --version && clang --version && cs version
@@ -116,15 +116,15 @@ suite:linux:
   variables:
     XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
-    - key: scalai-cargo-linux
+    - key: scivolo-cargo-linux
       paths: *cargo_cache_paths
       policy: pull
     - key:
-        prefix: scalai-target-linux
+        prefix: scivolo-target-linux
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
       policy: pull
-    - key: scalai-suite-linux
+    - key: scivolo-suite-linux
       paths: [.cache/coursier, ref/libs]
   script:
     - rustc --version && clang --version && java -version && scala-cli version --cli-version
@@ -143,15 +143,15 @@ nir-stale:
   variables:
     XDG_CACHE_HOME: ${CI_PROJECT_DIR}/.cache
   cache:
-    - key: scalai-cargo-linux
+    - key: scivolo-cargo-linux
       paths: *cargo_cache_paths
       policy: pull
     - key:
-        prefix: scalai-target-linux
+        prefix: scivolo-target-linux
         files: [Cargo.lock, ci/Dockerfile]
       paths: [target]
       policy: pull
-    - key: scalai-suite-linux
+    - key: scivolo-suite-linux
       paths: [.cache/coursier]
       policy: pull
   artifacts:
@@ -179,7 +179,7 @@ suite:macos:
   tags: [ "macos" ]
   needs: []
   cache:
-    - key: scalai-suite-macos
+    - key: scivolo-suite-macos
       paths: [ref/libs, tmp/tools]
   script:
     - scripts/fetch-scala-cli.sh
@@ -198,9 +198,9 @@ test:macos:
     - *not_scheduled
     - when: on_success
   cache:
-    - key: scalai-cargo-macos
+    - key: scivolo-cargo-macos
       paths: *cargo_cache_paths
-    - key: scalai-libs-macos
+    - key: scivolo-libs-macos
       paths: *libs_cache_paths
   script:
     - rustc --version && cargo --version && just --version && clang --version

@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/config/Feature.scala
+//   compiler/src/dotty/tools/dotc/config/SourceVersion.scala
+//   compiler/src/dotty/tools/dotc/parsing/Scanners.scala
 //! What the compiler settings and language imports decide about syntax.
 
 mod options;

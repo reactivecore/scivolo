@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Patterns of sequence extractors `C(p1, ..., x*)` (dotty's `unapplySeq` in `typedUnApply` and
 //! `UnapplyArgs`): those of the product selectors before a sequence of their types, the others of
 //! the element type, a last `x*` of the sequence.
@@ -33,7 +35,7 @@ impl Typer<'_> {
     }
 
     /// The types of `n` patterns against `t` as a sequence, or as a product whose last selector is
-    /// a sequence (dotty's `unapplySeq` of `UnapplyArgs`).
+    /// a sequence (dotty's `unapplySeq` of `UnapplyArgs`, `isProductSeqMatch`).
     fn seq_match(&mut self, t: TypeId, n: usize) -> Result<Option<SeqArgs>, &'static str> {
         if let Some(elem) = self.seq_elem_type(t) {
             return Ok(Some(SeqArgs { types: vec![elem; n], leading: 0 }));

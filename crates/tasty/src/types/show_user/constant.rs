@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/printing/PlainPrinter.scala
+//   compiler/src/dotty/tools/dotc/printing/ReplPrinter.scala
 //! Constant types as their values print on the JVM: `1`, `true`, `()`, `1.0E10`.
 
 use crate::view::{Const, constant};

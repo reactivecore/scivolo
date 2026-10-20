@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! The result type a class member without one inherits from the members it overrides (the
 //! `inherited` of dotty's `Namer.inferredResultType`).
 

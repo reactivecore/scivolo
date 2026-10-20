@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! The expected types of the mirrors the compiler makes and the refined types it casts them to
 //! (dotty's `makeMirror`, `checkFormal`, `mirrorCore`, `checkRefinement`).
 

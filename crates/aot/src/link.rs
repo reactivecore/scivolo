@@ -33,7 +33,7 @@ pub fn executable(object: &[u8], shims: &str, stub: &str, output: &Path) -> Resu
         std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
     }
     let (obj, src, shim_obj) =
-        (beside(output, ".scalai-aot.o"), beside(output, ".scalai-aot.c"), beside(output, ".shims.o"));
+        (beside(output, ".scivolo-aot.o"), beside(output, ".scivolo-aot.c"), beside(output, ".shims.o"));
     std::fs::write(&obj, object).map_err(|e| format!("{}: {e}", obj.display()))?;
     std::fs::write(&src, shims).map_err(|e| format!("{}: {e}", src.display()))?;
     let c = Path::new(env!("CARGO_MANIFEST_DIR")).join("c");

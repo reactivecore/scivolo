@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/transform/Getters.scala
+//   compiler/src/dotty/tools/dotc/transform/Mixin.scala
 //! The accessors dotty's `Getters` and `Mixin` give the values of a library trait beyond its
 //! TASTy: each concrete value a getter, a `val` a trait setter.
 

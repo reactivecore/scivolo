@@ -1,3 +1,8 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/Positioned.scala
+//   compiler/src/dotty/tools/dotc/ast/tpd.scala
+//   compiler/src/dotty/tools/dotc/core/TypeOps.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Blocks and inlined trees made by the inliner, typed to avoid their local definitions (dotty's
 //! `seq`, `Positioned.envelope`, `TypeAssigner.avoid`).
 

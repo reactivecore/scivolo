@@ -1,3 +1,6 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/quoted/QuotePatterns.scala
+//   compiler/src/scala/quoted/runtime/impl/QuoteMatcher.scala
 //! Quote patterns as pickled for `QuoteMatching.ExprMatch` (dotty's `QuotePatterns`): a quote
 //! whose body is a term hole `patternHole[T]`, after the type definitions of its bindings.
 
@@ -37,7 +40,8 @@ impl Unpickler<'_> {
     }
 
     /// The body of the block at `id` after its type binding definitions, and the bindings
-    /// defined; `id` itself without bindings if it is not such a block.
+    /// defined; `id` itself without bindings if it is not such a block (dotty's
+    /// `instrumentTypeHoles`).
     fn type_bindings(&mut self, id: NodeId) -> Result<(NodeId, Vec<(SymbolId, bool)>), Refusal> {
         let k = self.kids(id);
         let all_bindings = k.len() >= 2

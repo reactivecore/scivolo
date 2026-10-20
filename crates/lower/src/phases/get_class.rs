@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/TreeInfo.scala
 //! `getClass` of a primitive value as its class constant (dotty's `constToLiteral` of
 //! `pre.getClass()`).
 #![allow(non_upper_case_globals)]

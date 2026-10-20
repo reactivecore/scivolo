@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! The paths of export clauses: typed ahead in their class, or in an extension an extension
 //! method of the same extension (dotty's `processExports`, `exportPathSym`).
 

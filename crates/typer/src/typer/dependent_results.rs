@@ -1,3 +1,7 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//   compiler/src/dotty/tools/dotc/typer/TypeAssigner.scala
 //! Parameter and result types of applications of dependent methods (dotty's
 //! `TermLambda.resultType`, `safeSubstParam` in `matchArgs` and `safeSubstParams` in `assignType`).
 

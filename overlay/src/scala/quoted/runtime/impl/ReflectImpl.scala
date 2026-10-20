@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); changed:
+//   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 package scala.quoted.runtime.impl
 
 import scala.quoted.{Expr, Type}

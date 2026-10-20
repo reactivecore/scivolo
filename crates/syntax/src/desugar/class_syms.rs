@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/ast/DesugarEnums.scala
 //! The classes the desugaring is inside: their full names, type parameters and companions, as
 //! far as enums need them (the oracle's class symbols).
 
