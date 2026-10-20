@@ -133,7 +133,8 @@ fn compacted_member(l: &mut Lower, class: SymbolId, name: &str) -> Option<Symbol
     if l.u.binary_name(class) == name {
         return Some(class);
     }
-    let nested: Vec<SymbolId> = l.u.symbol(class).decls.iter().copied().filter(|&c| l.u.is_class(c)).collect();
+    let nested: Vec<SymbolId> =
+        l.u.symbol(class).decls.iter().copied().filter(|&c| l.u.is_class(c)).collect();
     nested.into_iter().find_map(|c| compacted_member(l, c, name))
 }
 

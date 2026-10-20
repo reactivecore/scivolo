@@ -73,7 +73,8 @@ impl Universe {
                 let module = s.flags.has(MODULE).then(|| module_name(&name)).flatten();
                 let simple = module.unwrap_or(&name);
                 let sep = if flat.ends_with('$') { "" } else { "$" };
-                let flat = compactify(&format!("{flat}{sep}{simple}")) + if module.is_some() { "$" } else { "" };
+                let flat =
+                    compactify(&format!("{flat}{sep}{simple}")) + if module.is_some() { "$" } else { "" };
                 if pkg.is_empty() { flat } else { format!("{pkg}.{flat}") }
             }
             Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),
