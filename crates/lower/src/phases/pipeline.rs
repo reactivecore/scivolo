@@ -26,6 +26,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     if expand_sams::transform(l, root)? {
         classes = class_defs(l.tpd, root);
     }
+    bunched::refuse_xxl_parents(l, &classes)?;
     protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);

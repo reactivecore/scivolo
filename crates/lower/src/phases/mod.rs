@@ -10,6 +10,7 @@ mod array_literals;
 mod beta_reduce;
 mod bridges;
 mod build;
+mod bunched;
 mod by_name;
 mod calls;
 mod captured_vars;

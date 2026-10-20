@@ -16,10 +16,12 @@ use tasty::tags::{PRIVATE, STATIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// A lifted method: its symbol and the proxies of the captured values.
+/// A lifted method: its symbol, the proxies of the captured values and the parameter holding the
+/// arguments of a lambda of more parameters than the library's function arities.
 pub struct Method {
     pub sym: SymbolId,
     pub proxies: Vec<SymbolId>,
+    pub all_args: Option<SymbolId>,
 }
 
 /// The methods of `functions` of `class`, named as the functions until `lift`.
@@ -28,9 +30,15 @@ pub fn methods(l: &mut Lower, class: SymbolId, functions: &[Function]) -> Result
     for f in functions {
         let (params, result) = signature(l, f)?;
         let name = l.u.symbol(f.sym).name.clone();
-        let params: Vec<(String, TypeId)> =
-            params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect();
-        let method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.instance());
+        let bunched = super::bunched::is_bunched(l, f, params.len())?;
+        let params: Vec<(String, TypeId)> = match bunched {
+            true => vec![super::bunched::param(l)],
+            false => params.iter().map(|&(p, t)| (l.u.symbol(p).name.clone(), t)).collect(),
+        };
+        let mut method = define(l, home(l, class, f), &name, &f.captured, &params, result, f.instance());
+        if bunched {
+            method.all_args = Some(super::bunched::define(l, method.sym));
+        }
         if l.local_lazy_accessors.contains(&f.sym) {
             l.local_lazy_accessors.insert(method.sym);
         }
@@ -90,8 +98,11 @@ pub fn lift(
 ) -> Result<(Vec<TNodeId>, Vec<SymbolId>)> {
     let mut plans: Vec<Option<Plan>> = Vec::new();
     let mut deferred = Vec::new();
-    for f in functions {
-        let (params, result) = signature(l, f)?;
+    for (f, method) in functions.iter().zip(methods) {
+        let (mut params, result) = signature(l, f)?;
+        if let Some(all) = method.all_args {
+            params = vec![(all, l.u.info(all))];
+        }
         let prefix = prefix(l, class, functions, methods, f);
         let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
         plans.push(closure.transpose()?);
@@ -111,7 +122,7 @@ pub fn lift(
             f.captured.iter().copied().zip(methods[i].proxies.iter().copied()).collect();
         substitute(l, rhs, &map);
         retarget_returns(l, rhs, f.sym, methods[i].sym);
-        out.push(def(l, f.def, &methods[i], tpt, rhs));
+        out.push(def(l, f.def, &methods[i], tpt, rhs)?);
         if let Some(adapted) = plans[i].as_ref().and_then(|p| p.adapted.as_ref()) {
             let closure = f.closure.unwrap_or(f.def);
             out.push(super::adapted::adapted_def(l, closure, &methods[i], adapted, tpt));
@@ -150,7 +161,7 @@ pub fn define(
     let info =
         l.u.intern_type(Type::Method { binder, params: typed, result, implicit: false, contextual: false });
     l.u.set_info(sym, info);
-    Method { sym, proxies }
+    Method { sym, proxies, all_args: None }
 }
 
 /// Removes local method `f` from the block it is in.
@@ -200,13 +211,24 @@ fn retarget_returns(l: &mut Lower, t: TNodeId, function: SymbolId, method: Symbo
 }
 
 /// The definition of `method` from function definition `function`: its proxies, then its
-/// parameters.
-fn def(l: &mut Lower, function: TNodeId, method: &Method, tpt: TNodeId, rhs: TNodeId) -> TNodeId {
+/// parameters, or the array of them.
+fn def(l: &mut Lower, function: TNodeId, method: &Method, tpt: TNodeId, rhs: TNodeId) -> Result<TNodeId> {
     let span = l.tpd.span(function);
     let mut defs: Vec<TNodeId> = method.proxies.iter().map(|&p| l.param_def(p, span)).collect();
     let Tree::DefDef { paramss, .. } = *l.tpd.tree(function) else { unreachable!("a function") };
     let originals: Vec<TNodeId> =
         l.tpd.clause_items(paramss).iter().flat_map(|&c| l.tpd.items(c).to_vec()).collect();
-    defs.extend(originals.into_iter().filter(|&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })));
-    l.method_def(method.sym, &defs, tpt, rhs, span)
+    let originals: Vec<TNodeId> =
+        originals.into_iter().filter(|&p| matches!(l.tpd.tree(p), Tree::ValDef { .. })).collect();
+    let rhs = match method.all_args {
+        Some(all) => {
+            defs.push(l.param_def(all, span));
+            super::bunched::unpacked(l, (method.sym, all), &originals, rhs)?
+        }
+        None => {
+            defs.extend(originals);
+            rhs
+        }
+    };
+    Ok(l.method_def(method.sym, &defs, tpt, rhs, span))
 }

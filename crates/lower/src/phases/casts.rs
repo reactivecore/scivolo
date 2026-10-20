@@ -95,9 +95,14 @@ pub fn function_class_arity(l: &Lower, c: SymbolId) -> Option<(u32, bool)> {
     Some((rest.strip_prefix("Function")?.parse().ok()?, context))
 }
 
-/// Class `c` as erasure leaves it: `scala.FunctionN` for `scala.ContextFunctionN`.
+/// Class `c` as erasure leaves it: `scala.FunctionN` for `scala.ContextFunctionN`,
+/// `scala.runtime.FunctionXXL` for both above the library's arities (dotty's
+/// `functionTypeErasure`).
 pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     match function_class_arity(l, c) {
+        Some((n, _)) if n as usize > tasty::MAX_IMPLEMENTED_ARITY => {
+            class_named(l, "scala.runtime.FunctionXXL")
+        }
         Some((n, true)) => class_named(l, &format!("scala.Function{n}")),
         _ => Some(c),
     }

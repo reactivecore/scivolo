@@ -119,3 +119,4 @@ traitparams
 mirrors
 scala2mirrors
 deriving
+functionsxxl
