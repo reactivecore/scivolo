@@ -8,9 +8,11 @@ use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The type of the parameter default getter `getter` supplies, if it is one; references to the
-    /// method's type parameters become references to the getter's same-named ones.
-    pub fn default_param_type(&mut self, getter: SymbolId) -> Option<TypeId> {
+    /// The type of the parameter default getter `getter` supplies, if it is one, and that type
+    /// with references to the method's value parameters approximated (dotty's
+    /// `expectedDefaultArgType`); references to the method's type parameters become references
+    /// to the getter's same-named ones.
+    pub fn default_param_type(&mut self, getter: SymbolId) -> Option<(TypeId, TypeId)> {
         let name = self.u.symbol(getter).name.clone();
         let (method, index) = name.rsplit_once("$default$")?;
         let index: usize = index.parse().ok()?;
@@ -33,18 +35,22 @@ impl Typer<'_> {
                 continue;
             }
             let info = self.u.info(param);
-            return Some(self.with_getter_type_params(info, m, getter));
+            let exact = self.with_getter_type_params(info, m, getter);
+            let approx = value_params_approximated(self.u, exact, m);
+            let pt = if approx != exact && self.is_context_function_type(approx) { exact } else { approx };
+            return Some((exact, pt));
         }
         None
     }
 
-    /// `default_param_type` of `getter` as the expected type of its right-hand side, a by-name
-    /// type's result (dotty's `widenExpr`), and whether it was by-name.
-    pub fn default_param_proto(&mut self, getter: SymbolId) -> (Option<TypeId>, bool) {
-        let Some(d) = self.default_param_type(getter) else { return (None, false) };
-        match *self.u.types().get(d) {
-            Type::ByName(r) => (Some(r), true),
-            _ => (Some(d), false),
+    /// `default_param_type` of `getter` with by-name types replaced by their results (dotty's
+    /// `widenExpr`), and whether it was by-name.
+    pub fn default_param_proto(&mut self, getter: SymbolId) -> (Option<(TypeId, TypeId)>, bool) {
+        let Some((exact, pt)) = self.default_param_type(getter) else { return (None, false) };
+        let types = self.u.types();
+        match (types.get(exact), types.get(pt)) {
+            (&Type::ByName(e), &Type::ByName(p)) => (Some((e, p)), true),
+            _ => (Some((exact, pt)), false),
         }
     }
 
@@ -119,4 +125,22 @@ impl Typer<'_> {
             Some(u.intern_type(Type::Sym(None, *own)))
         })
     }
+}
+
+/// `t` with references to the value parameters of `method` made wildcards bounded by their types,
+/// and selections on such a wildcard made wildcards (dotty's `wildApprox` of a `TermParamRef`).
+fn value_params_approximated(u: &mut tasty::Universe, t: TypeId, method: SymbolId) -> TypeId {
+    u.map_type(t, &mut |u, x| match *u.types().get(x) {
+        Type::Sym(None, s) if u.symbol(s).owner == Some(method) && u.symbol(s).kind == Kind::Param => {
+            let info = u.info(s);
+            let hi = value_params_approximated(u, info, method);
+            let bounds = u.intern_type(Type::Bounds(tasty::NOTHING, hi));
+            Some(u.intern_type(Type::Wildcard(Some(bounds))))
+        }
+        Type::TypeRef(p, _) | Type::TermRef(p, _) | Type::Sym(Some(p), _) => {
+            let p1 = value_params_approximated(u, p, method);
+            matches!(u.types().get(p1), Type::Wildcard(_)).then(|| u.intern_type(Type::Wildcard(None)))
+        }
+        _ => None,
+    })
 }

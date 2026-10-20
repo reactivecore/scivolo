@@ -80,7 +80,9 @@ impl Typer<'_> {
         if inherited.is_none() {
             self.check_inferred_implicit(sym);
         }
-        let (raw_default, by_name) = self.default_param_proto(sym);
+        let (param_type, by_name) = self.default_param_proto(sym);
+        let raw_default = param_type.map(|(_, pt)| pt);
+        let exact = param_type.is_some_and(|(e, pt)| e == pt);
         let default = raw_default.filter(|&d| !self.mentions_own_type_params(d, sym));
         self.check_context_default(rhs, raw_default.filter(|_| default.is_none()));
         let lambda = matches!(self.ast.tree(rhs), Tree::Function { .. });
@@ -99,7 +101,7 @@ impl Typer<'_> {
             self.unsupported(rhs, what);
             tpe
         });
-        match (inherited, default.filter(|_| !by_name)) {
+        match (inherited, default.filter(|_| exact && !by_name)) {
             (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
