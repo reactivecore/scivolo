@@ -17,7 +17,7 @@ impl Typer<'_> {
         pt: TypeId,
         ctx: Ctx,
     ) -> Option<Result<TNodeId, &'static str>> {
-        let T::Ident { name } = *self.tpd.tree(tree) else { return None };
+        let (T::Ident { name } | T::Select { name, .. }) = *self.tpd.tree(tree) else { return None };
         let module = self.tpd.sym(tree).filter(|&m| self.u.is_module(m))?;
         let module_class = self.u.module_class(module)?;
         let class = self.u.companion_class(module_class)?;
@@ -31,9 +31,26 @@ impl Typer<'_> {
         {
             return None;
         }
-        let prefix = match *self.u.types().get(self.tpd.tpe(tree)) {
-            Type::Sym(Some(p), _) => self.shown_prefix(p),
-            _ => String::new(),
+        let this_qual = match *self.tpd.tree(tree) {
+            T::Select { qualifier, .. } => match *self.tpd.tree(qualifier) {
+                T::This { qual } => Some(qual),
+                _ => None,
+            },
+            _ => None,
+        };
+        let prefix = match this_qual {
+            Some(qual) => match *self.tpd.tree(qual) {
+                T::Ident { name }
+                    if !self.tpd.span(qual).is_synthetic() && !self.text(name.name).is_empty() =>
+                {
+                    format!("{}.this.", self.text(name.name))
+                }
+                _ => "this.".to_string(),
+            },
+            None => match *self.u.types().get(self.tpd.tpe(tree)) {
+                Type::Sym(Some(p), _) => self.shown_prefix(p),
+                _ => String::new(),
+            },
         };
         let msg = format!(
             "The method `apply` is inserted. The auto insertion will be deprecated, please write `{prefix}{}.apply` explicitly.",
