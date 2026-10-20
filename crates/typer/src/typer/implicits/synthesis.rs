@@ -24,6 +24,7 @@ impl Typer<'_> {
         if let Some(mirror) = self.synthesized_mirror(pt, at, ctx)? {
             return Ok(Some(mirror));
         }
+        let pt = self.u.dealias(pt);
         let Type::Applied(tycon, args) = self.u.types().get(pt).clone() else { return Ok(None) };
         let Some(class) = self.u.class_symbol(tycon) else { return Ok(None) };
         match (self.u.full_name(class).as_str(), &args[..]) {
