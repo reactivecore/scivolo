@@ -114,8 +114,27 @@ pub fn class_named(l: &mut Lower, name: &str) -> Option<SymbolId> {
         Some((pkg, rest)) => (l.u.package(pkg)?, rest),
         None => (l.u.package("")?, name),
     };
+    if let Some((prefix, _)) = rest.split_once("$$$$") {
+        let tops = l.u.symbol(pkg).decls.clone().into_iter().filter(|&c| l.u.is_class(c));
+        let tops: Vec<SymbolId> = tops
+            .filter(|&c| {
+                let n = tasty::encode(&l.u.symbol(c).name);
+                prefix.starts_with(&n) || n.starts_with(prefix)
+            })
+            .collect();
+        return tops.into_iter().find_map(|c| compacted_member(l, c, name));
+    }
     let found = member_named(l, pkg, rest)?;
     (l.u.binary_name(found) == name).then_some(found)
+}
+
+/// The class of `compactify`d binary name `name` among `class` and the classes nested in it.
+fn compacted_member(l: &mut Lower, class: SymbolId, name: &str) -> Option<SymbolId> {
+    if l.u.binary_name(class) == name {
+        return Some(class);
+    }
+    let nested: Vec<SymbolId> = l.u.symbol(class).decls.iter().copied().filter(|&c| l.u.is_class(c)).collect();
+    nested.into_iter().find_map(|c| compacted_member(l, c, name))
 }
 
 /// The class of binary name `rest` relative to `owner`: a member class `C`, or a class nested in
