@@ -152,11 +152,21 @@ impl Typer<'_> {
         Ok(lambda)
     }
 
-    /// How many type parameters the `i`th type parameter of class constructor `tycon` takes;
-    /// while that parameter is not completed, the number of type parameters of its tree in the
-    /// class's primary constructor if it has any, else `None`.
+    /// How many type parameters the `i`th type parameter of class or type lambda constructor
+    /// `tycon` takes; while a class's parameter is not completed, the number of type parameters
+    /// of its tree in the class's primary constructor if it has any, else `None`.
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
         let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
+        if matches!(self.u.symbol(c).kind, Kind::Type | Kind::TypeParam) {
+            self.complete(c);
+            let info = self.u.info(c);
+            let lambda = match *self.u.types().get(info) {
+                Type::Bounds(_, hi) => hi,
+                _ => info,
+            };
+            let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return None };
+            return Some(self.bounds_of(params.get(i)?.1).2);
+        }
         if self.u.symbol(c).kind != Kind::Class {
             return None;
         }
