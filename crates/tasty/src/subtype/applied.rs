@@ -33,7 +33,7 @@ impl Cmp<'_> {
                 }
             },
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
-                Some(Meaning::Alias(_)) => match self.u.expand(tycon, args) {
+                Some(Meaning::Alias(alias)) => match self.expanded(tycon, alias, args) {
                     Some(expanded) if expanded != b => self.recur(a, expanded),
                     _ => self.fourth_try(a, b),
                 },
@@ -109,7 +109,7 @@ impl Cmp<'_> {
                 self.recur(upper, b)
             }
             Type::TypeRef(..) | Type::Sym(..) => match self.named(tycon).map(|n| n.meaning) {
-                Some(Meaning::Alias(_)) => match self.u.expand(tycon, args) {
+                Some(Meaning::Alias(alias)) => match self.expanded(tycon, alias, args) {
                     Some(expanded) if expanded != a => self.recur(expanded, b),
                     _ => false,
                 },
@@ -180,6 +180,12 @@ impl Cmp<'_> {
             },
             None => vec![0; n],
         }
+    }
+
+    /// `tycon[args]` for alias `tycon` of `alias`, a refinement's type lambda if not a symbol's.
+    fn expanded(&mut self, tycon: TypeId, alias: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let lambda = matches!(self.u.types().get(alias), Type::Lambda { .. });
+        self.u.expand(tycon, args).or_else(|| lambda.then(|| self.apply(alias, args)))
     }
 
     /// `t` applied to `args`: a type lambda's body, `t` itself if it takes no arguments.

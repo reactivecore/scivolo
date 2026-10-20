@@ -16,26 +16,22 @@ impl Typer<'_> {
     /// entered in a scope of their own, its type a lambda over them, bounds of lambdas for bounds.
     pub fn typed_lambda_type(&mut self, id: NodeId, tparams: List, body: NodeId, ctx: Ctx) -> TNodeId {
         let derived = self.derived_lambdas.get(&id).and_then(|d| self.syms.by_tree.get(d)).copied();
-        let Some(owner) = self.type_def_with_rhs(id).or(derived) else {
-            return self.unsupported(id, "type lambda other than the right-hand side of a type definition");
-        };
+        let type_def = self.type_def_with_rhs(id).or(derived);
+        let owner = type_def.unwrap_or(ctx.owner);
         if matches!(self.ast.tree(body), Tree::TypeBoundsTree { alias: Some(_), .. }) {
             return self.unsupported(id, "opaque type");
         }
         let level = self.levels.push(Some(ctx.level), Level::Scope(Vec::new()));
-        let lctx = Ctx { level, ..ctx };
+        let lctx = Ctx { level, owner, ..ctx };
         let params = self.ast.items(tparams).to_vec();
         let mut syms: Vec<SymbolId> = Vec::new();
         for &p in &params {
-            let Tree::TypeDef { name, mods, rhs } = *self.ast.tree(p) else {
+            let Tree::TypeDef { name, mods, .. } = *self.ast.tree(p) else {
                 return self.unsupported(p, "type lambda parameter");
             };
             let flags = self.ast.modifiers(mods).flags;
             if flags.is(f::COVARIANT) || flags.is(f::CONTRAVARIANT) {
                 return self.unsupported(p, "type lambda parameter with a variance");
-            }
-            if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. }) {
-                return self.unsupported(p, "higher-kinded type lambda parameter");
             }
             let text = self.text(name.name).to_owned();
             let s = self.syms.define(
@@ -53,14 +49,6 @@ impl Typer<'_> {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
             let info = self.type_def_info(rhs, lctx);
             self.u.set_info(s, info);
-            let mut higher_kinded = false;
-            self.u.map_type(info, &mut |u, x| {
-                higher_kinded |= matches!(u.types().get(x), Type::Lambda { .. });
-                None
-            });
-            if higher_kinded {
-                return self.unsupported(p, "higher-kinded type lambda parameter");
-            }
             if let Type::Bounds(lo, _) = *self.u.types().get(info)
                 && self.refers_to(lo, &[s])
             {
@@ -95,7 +83,7 @@ impl Typer<'_> {
         if bounds && self.leaks_private_type(owner, body_tpe, &syms) {
             return self.unsupported(id, "private type in the bounds of a higher-kinded type");
         }
-        if !bounds && self.overrides_type_member(owner) {
+        if !bounds && type_def.is_some() && self.overrides_type_member(owner) {
             return self.unsupported(id, "higher-kinded type alias overriding a type member");
         }
         let tpe = match *self.u.types().get(body_tpe) {

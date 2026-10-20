@@ -16,7 +16,7 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
-mod approx;
+pub(crate) mod approx;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;

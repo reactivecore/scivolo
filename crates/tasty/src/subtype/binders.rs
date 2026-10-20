@@ -3,7 +3,7 @@
 
 use super::Cmp;
 use crate::types::{Binder, Type, TypeId};
-use crate::{FileId, Kind};
+use crate::{Kind, Universe};
 
 /// A binding type: its binder, its parameters' names and bounds, its body.
 pub type Binding<'a> = (Binder, &'a [(String, TypeId)], TypeId);
@@ -15,7 +15,7 @@ impl Cmp<'_> {
         if a.1.len() != b.1.len() {
             return false;
         }
-        let common = Binder(FileId(u32::MAX), self.depth);
+        let common = Binder(Universe::COMPARED_BINDERS, self.depth);
         let refs: Vec<TypeId> =
             (0..a.1.len() as u32).map(|i| self.u.intern_type(Type::Param(common, i))).collect();
         let bounds_ok = a.1.iter().zip(b.1).all(|(&(_, bound_a), &(_, bound_b))| {
