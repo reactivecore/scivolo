@@ -44,25 +44,28 @@ impl Typer<'_> {
             Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
-        let expr = self.typed(expr, pt, ctx);
         let throwable = match self.defn.throwable(self.u) {
             Ok(t) => crate::defn::type_ref(self.u, t),
             Err(e) => return self.unsupported(id, &e),
         };
-        let typed_cases: Vec<TNodeId> =
-            cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)).collect();
+        let before = self.before_harmonic();
+        let expr = self.typed(expr, pt, ctx);
+        let mut all = vec![expr];
+        all.extend(cases.iter().map(|&c| self.typed_case(c, throwable, pt, ctx)));
+        let all = match self.harmonic(all, pt, Some(before), ctx) {
+            Ok(h) => h,
+            Err(what) => return self.unsupported(id, what),
+        };
+        let (expr, typed_cases) = (all[0], &all[1..]);
         let mut types: Vec<TypeId> = vec![self.by_name_result(self.tpd.tpe(expr))];
-        for &c in &typed_cases {
+        for &c in typed_cases {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
             types.push(self.by_name_result(self.tpd.tpe(body)));
-        }
-        if matches!(pt, Pt::Any) && types.windows(2).any(|w| self.needs_harmonizing(w[0], w[1])) {
-            return self.unsupported(id, "numeric harmonization");
         }
         let tpe = types.iter().fold(NOTHING, |acc, &t| self.u.lub(acc, t));
         let unit = crate::defn::type_ref(self.u, self.defn.unit);
         let finalizer = finalizer.map(|f| self.typed(f, Pt::Type(unit), ctx));
-        let cases = self.tpd.list(&typed_cases);
+        let cases = self.tpd.list(typed_cases);
         let span = self.ast.span(id);
         self.tpd.node(T::Try { expr, cases, finalizer }, span, Some(tpe), None)
     }

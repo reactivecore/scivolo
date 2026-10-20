@@ -45,12 +45,13 @@ impl Typer<'_> {
             Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
-        let thenp = self.typed(thenp, branch_pt, ctx);
-        let elsep = self.typed(elsep, branch_pt, ctx);
+        let before = self.before_harmonic();
+        let branches = vec![self.typed(thenp, branch_pt, ctx), self.typed(elsep, branch_pt, ctx)];
+        let (thenp, elsep) = match self.harmonic(branches, branch_pt, Some(before), ctx) {
+            Ok(h) => (h[0], h[1]),
+            Err(what) => return self.unsupported(id, what),
+        };
         let (a, b) = (self.tpd.tpe(thenp), self.tpd.tpe(elsep));
-        if matches!(pt, Pt::Any) && self.needs_harmonizing(a, b) {
-            return self.unsupported(id, "numeric harmonization");
-        }
         let tpe = self.u.lub(a, b);
         self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None)
     }
