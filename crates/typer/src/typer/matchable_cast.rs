@@ -44,6 +44,13 @@ impl Typer<'_> {
         let Some(depth) = depth.checked_sub(1) else { return false };
         let t = self.zonk(t);
         let t = self.u.dealias(t);
+        match *self.u.types().get(t) {
+            Type::And(l, r) => return self.is_matchable_bound(l, depth) || self.is_matchable_bound(r, depth),
+            Type::Or(l, r, _) => {
+                return self.is_matchable_bound(l, depth) && self.is_matchable_bound(r, depth);
+            }
+            _ => {}
+        }
         let class = self.u.class_symbol(t);
         let hi = match *self.u.types().get(t) {
             Type::Var(v) => Some(self.constraint.bounds(v).1),
