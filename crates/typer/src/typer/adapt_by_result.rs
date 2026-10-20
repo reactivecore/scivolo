@@ -61,7 +61,7 @@ impl Typer<'_> {
                 .map(|r| if follow { self.context_result(r) } else { r }),
         };
         if let Some(value) = value {
-            self.conforms(value, p);
+            self.u.is_necessary_subtype_in(value, p, &mut self.constraint);
         }
         Ok(())
     }
@@ -175,6 +175,7 @@ impl Typer<'_> {
         }
         let fits = match *self.u.types().get(info) {
             Type::Method { result, .. } => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
+                Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => Some(true),
                 Some(value) => self.compatible(value, pt, views, ctx),
                 None => None,
             },

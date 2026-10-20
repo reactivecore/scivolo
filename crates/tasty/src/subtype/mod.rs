@@ -73,8 +73,20 @@ impl Universe {
     /// Whether `a` is a subtype of `b` under the constraint `vars`, which the comparison extends
     /// unless it is frozen; a failed comparison leaves `vars` as it was.
     pub fn is_subtype_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        self.compare_in(a, b, vars, false)
+    }
+
+    /// `is_subtype_in` keeping of two alternative constraints only one the other subsumes, else
+    /// neither (dotty's `necessarySubType`).
+    pub fn is_necessary_subtype_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars) -> bool {
+        self.compare_in(a, b, vars, true)
+    }
+
+    fn compare_in(&mut self, a: TypeId, b: TypeId, vars: &mut dyn TypeVars, necessary: bool) -> bool {
         let mark = vars.mark();
-        let result = Cmp::new(self, vars).recur(a, b);
+        let mut c = Cmp::new(self, vars);
+        c.necessary = necessary;
+        let result = c.recur(a, b);
         if !result {
             vars.rollback(mark);
         }
@@ -104,6 +116,8 @@ pub struct Cmp<'a> {
     pub u: &'a mut Universe,
     pub vars: &'a mut dyn TypeVars,
     frozen: bool,
+    /// Whether `either` keeps only necessary constraints.
+    necessary: bool,
     depth: u32,
     pending: FxHashSet<(TypeId, TypeId)>,
     /// Whether atoms computed since this was last cleared depend on the constraint, on symbols
@@ -127,6 +141,7 @@ impl<'a> Cmp<'a> {
             u,
             vars,
             frozen: false,
+            necessary: false,
             depth: 0,
             pending,
             provisional: false,

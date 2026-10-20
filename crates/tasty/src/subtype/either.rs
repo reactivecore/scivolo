@@ -1,14 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/ConstraintHandling.scala
 //   compiler/src/dotty/tools/dotc/core/TypeComparer.scala
-//! dotty's `sufficientEither`: one of two comparisons, keeping the weaker constraint.
+//! dotty's `sufficientEither` and `necessaryEither`: one of two comparisons, keeping the weaker
+//! constraint.
 
 use super::Cmp;
 use crate::types::{TypeId, VarId};
 
+type Snapshot = Vec<(VarId, (TypeId, TypeId))>;
+
 impl Cmp<'_> {
     /// Whether `first` holds, or else `second`; when both hold, the constraint of `second` is
-    /// kept if the one of `first` subsumes it, that of `first` otherwise (dotty's `tryAlso`).
+    /// kept if the one of `first` subsumes it, that of `first` otherwise (dotty's `tryAlso`), or
+    /// in a necessary comparison neither unless the one of `second` subsumes it.
     pub fn either(
         &mut self,
         first: impl FnOnce(&mut Self) -> bool,
@@ -23,19 +27,33 @@ impl Cmp<'_> {
         if left.vars.is_empty() {
             return true;
         }
-        let bounds: Vec<(VarId, (TypeId, TypeId))> =
-            left.vars.iter().map(|&v| (v, self.bounds_of(v))).collect();
+        let bounds = self.snapshot(&left.vars);
         self.vars.rollback(mark);
         if second(self) {
-            let mut vars = self.vars.changes_since(mark).vars;
+            let right = self.vars.changes_since(mark).vars;
+            let mut vars = right.clone();
             vars.extend(&left.vars);
-            if vars.iter().all(|&v| self.subsumes_bounds(&bounds, v)) {
+            if right.is_empty() || vars.iter().all(|&v| self.subsumes_bounds(&bounds, v)) {
+                return true;
+            }
+            if self.necessary {
+                let right_bounds = self.snapshot(&right);
+                self.vars.rollback(mark);
+                self.vars.redo(left);
+                if !vars.iter().all(|&v| self.subsumes_bounds(&right_bounds, v)) {
+                    self.vars.rollback(mark);
+                }
                 return true;
             }
         }
         self.vars.rollback(mark);
         self.vars.redo(left);
         true
+    }
+
+    /// The bounds of `vars`.
+    fn snapshot(&self, vars: &[VarId]) -> Snapshot {
+        vars.iter().map(|&v| (v, self.bounds_of(v))).collect()
     }
 
     /// The bounds of `v`, both its instance if it has one.
@@ -46,11 +64,11 @@ impl Cmp<'_> {
         }
     }
 
-    /// Whether the bounds of `v` in `left` lie within its current ones (dotty's `subsumes` for
-    /// one variable); false for a variable `left` leaves as it was.
-    fn subsumes_bounds(&mut self, left: &[(VarId, (TypeId, TypeId))], v: VarId) -> bool {
+    /// Whether the bounds of `v` in `earlier` lie within its current ones (dotty's `subsumes`
+    /// for one variable); false for a variable `earlier` does not hold.
+    fn subsumes_bounds(&mut self, earlier: &Snapshot, v: VarId) -> bool {
         let (lo2, hi2) = self.bounds_of(v);
-        let Some(&(_, (lo1, hi1))) = left.iter().find(|(w, _)| *w == v) else { return false };
+        let Some(&(_, (lo1, hi1))) = earlier.iter().find(|(w, _)| *w == v) else { return false };
         self.recur_frozen(lo2, lo1) && self.recur_frozen(hi1, hi2)
     }
 }
