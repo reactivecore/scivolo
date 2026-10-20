@@ -80,7 +80,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
         "classes in local classes calling local methods",
     ),
-    ("trait T { var x: Int }", "abstract variables"),
     (
         "sealed trait S[A]; object S { case class X[A](a: A) extends S[A] }",
         "companions of generic sealed classes",

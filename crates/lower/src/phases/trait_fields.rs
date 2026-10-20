@@ -7,7 +7,7 @@
 //! `Memoize` makes store fields.
 
 use super::accessor_names::{accessor_name, trait_setter_name};
-use super::getters::{is_const_final, is_param_accessor, is_setter};
+use super::getters::{is_abstract_var_setter, is_const_final, is_param_accessor, is_setter};
 use super::library_traits::define_setter;
 use super::mixin::has_body;
 use super::trait_lazies::{lazy_forwarder, module_forwarder};
@@ -100,6 +100,11 @@ pub fn mixed_in(
     let (call_span, args) = call.unwrap_or((Span::NONE, Vec::new()));
     let mut args = args.into_iter();
     let decls = l.u.decls(mixin).unwrap_or_default();
+    let setters: Vec<SymbolId> = decls
+        .iter()
+        .copied()
+        .filter(|&s| is_setter(l, s) && !is_abstract_var_setter(l, class, mixin, s))
+        .collect();
     for &getter in &decls {
         let library = l.u.symbol(getter).tree.is_some();
         if l.u.is_module(getter) && library {
@@ -131,11 +136,9 @@ pub fn mixed_in(
         let call = l.apply(fun, &[], unit, Span::NONE);
         out.push(l.positioned(call));
     }
-    for &setter in &decls {
-        if is_setter(l, setter) {
-            let unit = l.unit_literal(at);
-            out.push(forwarder(l, class, setter, Some(unit)));
-        }
+    for setter in setters {
+        let unit = l.unit_literal(at);
+        out.push(forwarder(l, class, setter, Some(unit)));
     }
     Ok(out)
 }
