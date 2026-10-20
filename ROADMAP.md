@@ -209,10 +209,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
    parameters of type Unit, Null or Nothing; sub matches, type tests of unions and generic
    arrays, generic local classes, inner classes' secondary constructors, sum mirrors, SAM
    bridges and trait parameters (2026-10-16).
-   Of dotty's `tests/run`, 990 pass through typer, lowering and VM on 2026-10-19 (964 on
-   2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 12 are refused by the lowering, 1 crashes
-   in the VM (i15618, a match type erased unreduced, #120); see
-   [docs/conformance.md](docs/conformance.md).
+   Of dotty's `tests/run`, 1138 pass through typer, lowering and VM on 2026-10-20 (990 on
+   2026-10-19, 964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 18 are refused by the
+   lowering; see [docs/conformance.md](docs/conformance.md).
 5. **Differential testing.** Run M2–M5 twice, through the own frontend and
    through dotc, and compare the results.
 6. **REPL.** Starts as soon as the own frontend runs simple programs. As in
@@ -277,15 +276,25 @@ several files (macro definitions compiled by dotty first) and dotty's `tests/run
   needs `invokedynamic`/LambdaMetafactory and JDK natives, and runs into the
   JDK's licence. Low priority.
 
-## Where we are and what's next (2026-10-19)
+## Where we are and what's next (2026-10-20)
 
 Phases 0–2 are done as far as planned; work is on phase 3, the own frontend, measured by
 dotty's `tests/run` through typer, lowering and VM (`just dotty-lower-report`, tests of several
-files included since 2026-10-19 evening): on 2026-10-19 evening, 1071 of 1711 pass (1043 in the
-afternoon, 990 in the morning, 964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 393 stop
-at the typer, 22 at the lowering, 1 gives a wrong output (i4947b), 1 crashes in the VM
-(transparentAccess, an inline accessor across groups) and 1 in the frontend (t8199). Phase 4 started: macros run in
+files included since 2026-10-19 evening): on 2026-10-20, 1138 of 1711 pass (1072 on 2026-10-19
+evening, 990 in the morning, 964 on 2026-10-16, 878 on 2026-10-15, 399 on 2026-10-11), 332 stop
+at the typer, 18 at the lowering, 1 gives a wrong output (i4947b) and 1 crashes in the VM
+(transparentAccess, an inline accessor across groups). Phase 4 started: macros run in
 the VM, always on (ADR 0029).
+
+Stacked on 2026-10-20 (one MR each, reviewed by a subagent, !349–!361): E042 for `new` of a
+trait or abstract class (#133); research 27 E (enum parents), F (functions over 22 parameters),
+L (lowering gaps: compacted class names, package-object selections, context results of
+overridden methods, JDK forwarders, abstract vars), Y (polymorphic function types), H
+(higher-kinded types), V1 (overloads tied by later clauses, SAM formals) and W (argument lists
+and extractors, tuple erasure as dotty's `tupleArity`); [research 28](docs/research/28-adaptation-members-implicits.md)
+on the clusters research 27 left to probe, with its G and D (default getters, implicit
+defaults), X (extension and inline extractors, `InlinePatterns`) and C, N (necessary
+constraints, subtyping singles).
 
 Batch of 2026-10-19 evening (one integration MR): research 26 T (tests of several files and
 `tests/run-macros` in the report) and L (macro positions and symbol names); missing-given errors
@@ -342,17 +351,19 @@ decoded with their cases); the lowering's outer tests of path and projection pre
 local methods and Unit, Null or Nothing class parameters (#34).
 
 Next, in order of the tests they unblock:
-1. **Typer groups** ([research 27](docs/research/27-typer-groups-after-23.md)): type-pattern
-   variables (with #127's pattern-bound type variables), enum-case parents, higher-kinded types,
-   functions over 22 parameters, polymorphic function types, overloads and arguments; mirrors
-   (#129); match-type leftovers (#120); typed-tree printing gaps (#122); type-mismatch errors
-   (#130).
+1. **Typer groups**: research 27's I (inline leftovers), V2 (applications) and U (structural
+   and small) and the rest of V1 (named arguments in overloads, `Array(a*)`, `Regex`
+   extractors); research 28's M (harmonization), A (adaptation singles), S (`TupledFunction`,
+   `Manifest`) and P (search singles); enums in packages (#134); poly function leftovers (#136);
+   mirrors (#129); match-type leftovers (#120); typed-tree printing gaps (#122, `RefinedTypeTree`).
 2. **Macros** (phase 4, #40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`,
    term extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
    measured on `tests/run-macros`.
 3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
 4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
-   overridable methods with context function results, traits nested in local traits.
+   traits nested in local traits; classes extending `FunctionN` above 22
+   (`FunctionXXLForwarders`), context results needing `Bridges` (implicitFuns), the rest of
+   `TupleOptimizations` (#138), JDK forwarders (#135).
 5. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
    polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
    inputs; the forward-reference check (#90).
