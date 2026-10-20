@@ -55,6 +55,7 @@ mod dispatch;
 mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
+mod enum_refs;
 mod equality;
 mod errors;
 mod escaping;

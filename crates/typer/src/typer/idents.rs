@@ -138,29 +138,6 @@ impl Typer<'_> {
         self.build().static_ident(s, span)
     }
 
-    /// The type of full name `full`, a class applied to `T:`-prefixed full names in brackets,
-    /// e.g. `List[T:scala.Nothing]`.
-    fn full_type(&mut self, full: &str, ctx: Ctx) -> Option<TypeId> {
-        let Some((tycon, rest)) = full.split_once('[') else {
-            let s = self.full_class(full, ctx)?;
-            return Some(crate::defn::type_ref(self.u, s));
-        };
-        let class = self.full_class(tycon, ctx)?;
-        let args = rest.strip_suffix(']')?.split(' ').map(|a| self.full_type(a.strip_prefix("T:")?, ctx));
-        let args = args.collect::<Option<Vec<TypeId>>>()?;
-        Some(crate::defn::applied(self.u, class, args))
-    }
-
-    /// The class of full name `full`; for an enum class the desugaring named without its packages
-    /// or with its local owners (`Outer._$E`), the class of its simple name visible in `ctx`.
-    fn full_class(&mut self, full: &str, ctx: Ctx) -> Option<SymbolId> {
-        if let Some(s) = self.resolve_full_name(full, true) {
-            return Some(s);
-        }
-        let simple = full.rsplit_once('.').map_or(full, |(_, s)| s).trim_start_matches("_$");
-        self.class_named(simple, ctx)
-    }
-
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.
     pub fn resolve_full_name(&mut self, full: &str, is_type: bool) -> Option<SymbolId> {
         let (outer, last) = full.rsplit_once('.').unwrap_or(("", full));
