@@ -54,7 +54,11 @@ impl Typer<'_> {
         }
         self.refinement_result(result, pt)?;
         let follow = !self.is_context_function_type(p);
-        let value = match defined && self.u.class_symbol(p) != Some(self.defn.unit) {
+        let unit = self.u.class_symbol(p) == Some(self.defn.unit);
+        if unit && defined {
+            return Ok(());
+        }
+        let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
             false => Some(result)
                 .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. }))
