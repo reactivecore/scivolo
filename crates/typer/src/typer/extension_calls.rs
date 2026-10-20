@@ -4,6 +4,7 @@
 //! Selections that call an extension method (dotty's `tryExtensionOrConversion` with
 //! `extMethodApply`): `qual.name` typed as `name(qual)` for an extension method `name` in scope.
 
+use super::implicits::conversions::{Goal, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::symbols::Completion;
@@ -21,7 +22,8 @@ impl Typer<'_> {
     }
 
     /// Selection `id` of `name` from typed qualifier `qual`, which has no such member, as a call
-    /// of the extension methods named `name` that `ctx` sees, if all it sees are such.
+    /// of the extension methods named `name` that `ctx` sees, if all it sees are such; if that
+    /// call fails, of the extension method an implicit view finds instead.
     pub fn extension_select(&mut self, id: NodeId, qual: TNodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
         let text = self.text(name.name).to_owned();
         let found = match self.find_ref(&text, false, ctx) {
@@ -46,7 +48,20 @@ impl Typer<'_> {
             return self.unsupported(id, "extension method on the statics of a Java class");
         }
         let fun = self.ast.node(Tree::Ident { name });
-        self.ext_method_apply(id, fun, qual, pt, ctx)
+        let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
+        let (diags, history) = (self.diags.items.len(), self.history.snapshot());
+        let app = self.ext_method_apply(id, fun, qual, pt, ctx);
+        let errors = self.diags.items[diags..].iter().any(|d| d.level == syntax::diag::Level::Error);
+        if self.unsupported == unsupported && !errors {
+            return app;
+        }
+        let (viewed, _, _) = self.speculatively(|t| t.viewed(qual, Goal::Member(&text), ctx));
+        let Ok(Some(Viewed::Extension(c))) = viewed else { return app };
+        self.constraint.abandon(before);
+        self.unsupported = unsupported;
+        self.history.restore(history);
+        self.diags.items.truncate(diags);
+        self.implicit_extension_select(id, qual, c, name, pt, ctx)
     }
 
     /// Selection `id` of an extension method from `qual` as `fun(qual)` (dotty's `extMethodApply`),
