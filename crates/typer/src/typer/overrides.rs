@@ -135,7 +135,7 @@ impl Typer<'_> {
                     if flags.is(f::DEFERRED) {
                         return self.unsupported_at(span, "abstract member overriding a concrete one");
                     }
-                    if !flags.is(f::OVERRIDE) {
+                    if !flags.is(f::OVERRIDE) && !flags.is(f::ABS_OVERRIDE) {
                         return self.unsupported_at(span, "override without override modifier");
                     }
                 }
