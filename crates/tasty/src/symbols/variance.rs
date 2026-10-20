@@ -3,7 +3,7 @@
 
 use super::{Flags, Kind, SymbolId, Universe};
 use crate::tags::{CONTRAVARIANT, COVARIANT, LAMBDAtpt, TYPEPARAM};
-use crate::{Ast, NodeId};
+use crate::{Ast, NodeId, TypeId};
 
 /// How deep below its definition a type's lambda is looked for.
 const LAMBDA_DEPTH: u32 = 3;
@@ -25,6 +25,18 @@ impl Universe {
         params
             .map(|&p| variance(ast.kids(p).iter().fold(Flags::default(), |f, &m| f.with(ast.tag(m)))))
             .collect()
+    }
+
+    /// The variances of the type parameters of type constructor `t`: an abstract or opaque
+    /// type's own, else those of its class.
+    pub fn constructor_variances(&mut self, t: TypeId) -> Vec<i8> {
+        if let Some(s) = self.referenced(t)
+            && matches!(self.symbol(s).kind, Kind::Type | Kind::TypeParam)
+            && self.alias_of(s).is_none()
+        {
+            return self.variances(s);
+        }
+        self.class_symbol(t).map(|c| self.variances(c)).unwrap_or_default()
     }
 }
 

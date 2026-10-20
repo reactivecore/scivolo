@@ -30,11 +30,20 @@ impl Universe {
                 },
                 None => self.erase(tycon),
             },
-            None => match self.expand(tycon, args) {
+            None => match self.expand(tycon, args).or_else(|| self.expand_opaque(tycon, args)) {
                 Some(t) => self.erase(t),
                 None => self.erase(tycon),
             },
         }
+    }
+
+    /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
+    /// side's body, arguments substituted.
+    fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
+        let Type::Lambda { binder, params, result } = self.types().get(alias).clone() else { return None };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        Some(self.subst(result, binder, &names, args))
     }
 
     /// The argument of `tycon[args]`, a value class whose underlying value has the type of one of
