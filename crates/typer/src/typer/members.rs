@@ -4,6 +4,7 @@
 
 use super::Typer;
 use crate::ctx::Ctx;
+use crate::symbols::Completion;
 use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 /// How many steps through bounds, aliases and parts finding a member may take.
@@ -150,7 +151,8 @@ impl Typer<'_> {
         classes
     }
 
-    /// The members named `name` of `classes`, base classes of `c` in linearization order.
+    /// The members named `name` of `classes`, base classes of `c` in linearization order, those
+    /// compared completed unless being completed.
     fn members_of_bases(&mut self, c: SymbolId, classes: &[SymbolId], name: &str) -> Vec<SymbolId> {
         let site = crate::defn::type_ref(self.u, c);
         let mut out: Vec<SymbolId> = Vec::new();
@@ -168,8 +170,16 @@ impl Typer<'_> {
                     continue;
                 }
                 let mut overridden = None;
-                for (k, &o) in out.iter().enumerate() {
-                    if !self.u.is_type_symbol(o) && self.same_member(site, o, m) {
+                for (k, o) in out.clone().into_iter().enumerate() {
+                    if self.u.is_type_symbol(o) {
+                        continue;
+                    }
+                    for s in [o, m] {
+                        if matches!(self.syms.completions.get(&s), Some(Completion::Pending { .. })) {
+                            self.complete(s);
+                        }
+                    }
+                    if self.same_member(site, o, m) {
                         overridden = Some(k);
                         break;
                     }
