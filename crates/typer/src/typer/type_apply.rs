@@ -46,7 +46,11 @@ impl Typer<'_> {
         };
         if class_of {
             let [arg] = arg_types[..] else { return self.unsupported(id, "classOf") };
-            if !self.is_class_type(arg, true) {
+            let module = match self.u.types().get(arg) {
+                Type::Sym(_, s) => self.u.symbol(*s).flags.has(tasty::tags::OBJECT),
+                _ => false,
+            };
+            if !module && !self.is_class_type(arg, true) {
                 return self.unsupported(id, "classOf of a type that is not a class");
             }
             tpe = self.u.intern_type(Type::Constant(tasty::tags::CLASSconst, i64::from(arg.0)));
