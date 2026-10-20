@@ -50,12 +50,9 @@ impl Gen<'_, '_> {
         let v = match *self.l.tpd.tree(fun) {
             Tree::TypeApply { .. } => return unsupported(span, "calls with type arguments"),
             Tree::Select { qualifier, .. } => match *self.l.tpd.tree(qualifier) {
-                Tree::Super { qual, .. } => {
+                Tree::Super { .. } => {
                     self.check_callee(sym, span)?;
-                    let this = match self.l.tpd.tree(qual) {
-                        Tree::This { .. } => self.m.this.expect("`this` of a method"),
-                        _ => self.gen_expr(qual)?,
-                    };
+                    let this = self.m.this.expect("`this` of a method");
                     let args = self.gen_args(sym, &args, span)?;
                     self.call_method(sym, true, this, args)
                 }

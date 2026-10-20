@@ -152,6 +152,7 @@ pub fn has_extension(l: &mut Lower, m: SymbolId) -> bool {
         return false;
     };
     !l.u.is_constructor(m)
+        && !l.super_accessors.contains_key(&m)
         && !has(l.u, m, INLINE)
         && !has(l.u, m, MACRO)
         && !l.u.is_trait(owner)

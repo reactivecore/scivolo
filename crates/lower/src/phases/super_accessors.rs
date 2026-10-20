@@ -1,30 +1,32 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/SuperAccessors.scala
-//! dotty's `SuperAccessors`: `C.super[M].m` in a trait `C` without `M`, or in a class nested in
-//! `C`, becomes `C.this.acc` of a super accessor `C` declares, as does `C.this.m` of a protected
-//! `m` whose protected accessor trait `C` would host. A trait's accessors have no body and the
-//! classes mixing the trait in implement them (`resolve_super.rs`); a class's call `m`
-//! (`transformSuperSelect`, `superAccessorCall`).
+//! dotty's `SuperAccessors`: `C.super[M].m` in a trait `C` without `M`, in a class nested in `C`
+//! or in a method of value class `C` with an extension method, becomes `C.this.acc` of a super
+//! accessor `C` declares, as does `C.this.m` of a protected `m` whose protected accessor trait `C`
+//! would host. A trait's accessors have no body and the classes mixing the trait in implement them
+//! (`resolve_super.rs`); a class's call `m` (`transformSuperSelect`, `superAccessorCall`).
 
 use super::mixin::{has_body, java_named};
 use super::protected_accessors::super_accessor_needed;
+use super::value_classes::has_extension;
 use super::walk;
 use crate::definitions::symbol;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::tags::{ABSTRACT, ARTIFACT, INLINE, OVERRIDE};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// A super selection: its tree, the class whose `super` it selects on, the mixin's name if
-/// given, the member it selects.
+/// given, the member it selects, whether it is in a method with an extension method.
 struct SuperSelect {
     sel: TNodeId,
     clazz: SymbolId,
     mix: String,
     member: SymbolId,
+    in_extension: bool,
 }
 
 pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
@@ -47,7 +49,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
             if !has_body(l, s.member) && !abstract_override {
                 return unsupported(span, "super calls of abstract members");
             }
-            if s.clazz == *current && !(s.mix.is_empty() && l.u.is_trait(s.clazz)) {
+            if s.clazz == *current && !s.in_extension && !(s.mix.is_empty() && l.u.is_trait(s.clazz)) {
                 continue;
             }
             let point = match l.u.is_trait(s.clazz) {
@@ -77,8 +79,16 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
 /// `PostTyper` visits them.
 fn super_selects(l: &mut Lower, td: TNodeId) -> Result<Vec<SuperSelect>> {
     let class = l.tpd.sym(td).expect("a class definition's symbol");
+    let order = post_typer_order(l, td);
+    let mut in_extension = FxHashSet::default();
+    for &t in &order {
+        let Some(m) = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::DefDef { .. })) else { continue };
+        if has_extension(l, m) {
+            in_extension.extend(walk::subtrees(l.tpd, t));
+        }
+    }
     let mut out = Vec::new();
-    for t in post_typer_order(l, td) {
+    for t in order {
         let Tree::Select { qualifier, name } = *l.tpd.tree(t) else { continue };
         let (Some(clazz), Some(member)) = (l.tpd.sym(qualifier), l.tpd.sym(t)) else { continue };
         if name.is_type || has(l.u, member, INLINE) {
@@ -95,7 +105,7 @@ fn super_selects(l: &mut Lower, td: TNodeId) -> Result<Vec<SuperSelect>> {
             },
             _ => continue,
         };
-        out.push(SuperSelect { sel: t, clazz, mix, member });
+        out.push(SuperSelect { sel: t, clazz, mix, member, in_extension: in_extension.contains(&t) });
     }
     Ok(out)
 }
