@@ -40,7 +40,7 @@ impl Typer<'_> {
         {
             return Err("extractor with type arguments");
         }
-        let (unapp, seq) = self.unapply_fun(fun, ctx)?;
+        let (unapp, seq) = self.unapply_fun(fun, sel_type, ctx)?;
         if with_targs && !self.is_new_instance(unapp) {
             return Err("extractor with type arguments");
         }
@@ -98,9 +98,9 @@ impl Typer<'_> {
     }
 
     /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
-    /// method, or `qual.unapplySeq` if it has neither (dotty's `trySelectUnapply`); whether it is
-    /// `unapplySeq`.
-    fn unapply_fun(&mut self, qual: NodeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
+    /// method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a value of
+    /// scrutinee type `sel` (dotty's `trySelectUnapply`); whether it is `unapplySeq`.
+    fn unapply_fun(&mut self, qual: NodeId, sel: TypeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
         let typed = self.typed(qual, Pt::Any, ctx);
@@ -125,7 +125,8 @@ impl Typer<'_> {
         let name = TName { name: self.name(if seq { "unapplySeq" } else { "unapply" }), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: splice, name });
         self.ast.with_span(select, Span::synthetic(span.start(), span.end()));
-        let unapp = self.typed_select(select, splice, name, Pt::Any, ctx);
+        let pt = self.scrutinee_proto(tpe, self.text(name.name).to_owned(), sel, ctx);
+        let unapp = self.typed_select(select, splice, name, pt, ctx);
         if self.unsupported != unsupported {
             return Err("extractor outside the subset");
         }

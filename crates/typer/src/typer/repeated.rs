@@ -90,9 +90,14 @@ impl Typer<'_> {
     }
 
     /// Sequence argument `a`, `xs*`, passed to a repeated parameter of element type `elem`:
-    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, ascribed `<repeated>[T]` with `T` its
-    /// element type.
-    pub fn sequence_arg(&mut self, a: syntax::ast::NodeId, elem: TypeId, ctx: crate::ctx::Ctx) -> TNodeId {
+    /// `xs` typed as a `Seq[elem] | Array[? <: elem]`, without an expected type if no `elem`,
+    /// ascribed `<repeated>[T]` with `T` its element type.
+    pub fn sequence_arg(
+        &mut self,
+        a: syntax::ast::NodeId,
+        elem: Option<TypeId>,
+        ctx: crate::ctx::Ctx,
+    ) -> TNodeId {
         let syntax::ast::Tree::Typed { expr, tpt } = *self.ast.tree(a) else {
             return self.unsupported(a, "sequence argument");
         };
@@ -102,13 +107,15 @@ impl Typer<'_> {
         ) else {
             return self.unsupported(a, "sequence argument");
         };
-        let seq = crate::defn::type_ref(self.u, seq_class);
-        let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
-        let array = crate::defn::type_ref(self.u, array_class);
-        let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
-        let array = self.u.intern_type(Type::Applied(array, vec![below]));
-        let pt = self.u.union(seq, array, false);
-        let expr = self.typed(expr, super::Pt::Type(pt), ctx);
+        let pt = elem.map_or(super::Pt::Any, |elem| {
+            let seq = crate::defn::type_ref(self.u, seq_class);
+            let seq = self.u.intern_type(Type::Applied(seq, vec![elem]));
+            let array = crate::defn::type_ref(self.u, array_class);
+            let below = self.u.intern_type(Type::Bounds(tasty::NOTHING, elem));
+            let array = self.u.intern_type(Type::Applied(array, vec![below]));
+            super::Pt::Type(self.u.union(seq, array, false))
+        });
+        let expr = self.typed(expr, pt, ctx);
         let converted = self.converted_result(expr);
         let expr_tpe = self.tpd.tpe(expr);
         let null = self.resolve_full_name("scala.Null", true);

@@ -81,7 +81,7 @@ impl Typer<'_> {
             .filter(|&a| repeated.is_some() && arg_ids.len() == params.len() + 1 && self.is_sequence_arg(a));
         let named_seq = seq_arg.is_some_and(|a| self.arg_name(a).is_some_and(|n| Some(&n) == names.last()));
         let unnamed = &arg_ids[..arg_ids.len() - usize::from(named_seq)];
-        let aligned = match self.aligned_args(unnamed, &params, repeated.is_some(), pretyped.is_some()) {
+        let aligned = match self.aligned_args(unnamed, &params, repeated.is_some()) {
             Ok(aligned) => aligned,
             Err(what) => return self.unsupported(id, what),
         };
@@ -101,15 +101,15 @@ impl Typer<'_> {
             Err(what) => return self.unsupported(id, what),
         };
         let misplaced = arg_ids.iter().any(|&a| self.is_sequence_arg(a) && Some(a) != seq_arg);
-        if misplaced || seq_arg.is_some() && pretyped.is_some() {
+        if misplaced {
             return self.unsupported(id, "sequence argument");
         }
         if let Type::Bounds(..) = self.u.types().get(result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
-        let aligned_args = aligned
-            .as_ref()
-            .map(|a| self.typed_aligned_args((f, method), (&arg_ids, a), (&params, &formals), ctx));
+        let aligned_args = aligned.as_ref().map(|a| {
+            self.typed_aligned_args((f, method), (&arg_ids, a, pretyped.as_deref()), (&params, &formals), ctx)
+        });
         let (f, mut typed_args, lifted) = match aligned_args {
             Some(Err(what)) => return self.unsupported(id, what),
             Some(Ok(parts)) => parts,
@@ -129,13 +129,8 @@ impl Typer<'_> {
             if param_dependent {
                 formal = self.dependent_formal(formal, clause, &typed_args);
             }
-            typed_args.push(match pretyped.as_ref().and_then(|typed| typed[i]) {
-                Some(typed) => {
-                    let arg = self.to_sam(typed, formal).unwrap_or(typed);
-                    self.adapt(arg, Pt::Type(formal), ctx)
-                }
-                None => self.typed(a, Pt::Type(formal), ctx),
-            });
+            let pre = pretyped.as_ref().and_then(|typed| typed[i]);
+            typed_args.push(self.arg_against(a, pre, formal, ctx));
         }
         let result = match dependent {
             true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),
@@ -150,7 +145,13 @@ impl Typer<'_> {
             let arg = match seq_arg {
                 Some(a) => {
                     let elem = self.from_java_object(meth, elem);
-                    self.named_sequence_arg(a, elem, ctx)
+                    match pretyped.as_ref().and_then(|typed| typed[arg_ids.len() - 1]) {
+                        Some(typed) => match self.repeated_elem(self.tpd.tpe(typed)) {
+                            Some(e) if self.conforms(e, elem) => typed,
+                            _ => return self.unsupported(id, "sequence argument of an overload"),
+                        },
+                        None => self.named_sequence_arg(a, elem, ctx),
+                    }
                 }
                 None => {
                     let elems = typed_args.split_off(params.len());
@@ -220,8 +221,10 @@ impl Typer<'_> {
 
     /// Sequence argument `a`, named or not, passed to a repeated parameter of element type `elem`.
     fn named_sequence_arg(&mut self, a: NodeId, elem: TypeId, ctx: Ctx) -> TNodeId {
-        let Tree::NamedArg { name, arg } = *self.ast.tree(a) else { return self.sequence_arg(a, elem, ctx) };
-        let arg = self.sequence_arg(arg, elem, ctx);
+        let Tree::NamedArg { name, arg } = *self.ast.tree(a) else {
+            return self.sequence_arg(a, Some(elem), ctx);
+        };
+        let arg = self.sequence_arg(arg, Some(elem), ctx);
         let tpe = self.tpd.get(arg).tpe;
         self.tpd.node(T::NamedArg { name, arg }, self.ast.span(a), tpe, None)
     }
