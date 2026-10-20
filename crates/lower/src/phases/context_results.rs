@@ -103,8 +103,8 @@ fn context_result_count(l: &mut Lower, mut tpt: TNodeId, mut rhs: TNodeId) -> us
 }
 
 /// Whether every member of the name of method `m` that `m` may override, or that may override
-/// `m`, is a method of the unit flattened by as many closures: those of its class's base
-/// classes, of `Object` and `Any`, and of the unit's classes deriving from its class.
+/// `m`, is a method of the unit flattened by as many closures: those of the base classes of its
+/// class and of the unit's classes deriving from it, and of `Object` and `Any`.
 fn overrides_alike(
     l: &mut Lower,
     m: SymbolId,
@@ -116,17 +116,17 @@ fn overrides_alike(
     };
     let count = counts.get(&m).map(|&(_, c)| c);
     let name = l.u.symbol(m).name.clone();
-    let mut related: Vec<SymbolId> = Vec::new();
-    for base in l.u.linearization(owner) {
-        related.extend(l.u.decl(base, &name).unwrap_or_default());
-    }
+    let mut classes = vec![owner];
     for &d in defs {
-        if l.u.symbol(d).name != name {
-            continue;
-        }
         let o = l.u.symbol(d).owner.filter(|&o| l.u.symbol(o).kind == Kind::Class);
-        if o.is_some_and(|o| l.u.derives_from(o, owner)) {
-            related.push(d);
+        if let Some(o) = o.filter(|&o| !classes.contains(&o) && l.u.derives_from(o, owner)) {
+            classes.push(o);
+        }
+    }
+    let mut related: Vec<SymbolId> = Vec::new();
+    for class in classes {
+        for base in l.u.linearization(class) {
+            related.extend(l.u.decl(base, &name).unwrap_or_default());
         }
     }
     let roots = [("java.lang", "Object"), ("scala", "Any")];

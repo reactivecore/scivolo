@@ -86,6 +86,10 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (
+        "trait U { def f: Int ?=> Int }; trait T { def f: Int ?=> Int = 1 }; class X extends U with T",
+        "overriding methods with context function results flattened otherwise",
+    ),
+    (
         "object O { def f(k: Int) = { object L { object M { val v = k } }; L.M.v } }",
         "classes in local classes capturing values",
     ),
