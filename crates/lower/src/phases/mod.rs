@@ -47,6 +47,7 @@ mod get_class;
 mod getters;
 mod hoist_super_args;
 mod initializers;
+mod inline_patterns;
 mod interpolators;
 mod lambda_lift;
 mod lazy_init;

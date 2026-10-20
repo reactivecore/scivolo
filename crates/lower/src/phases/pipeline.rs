@@ -45,6 +45,8 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         hoist_super_args::transform(l, root, td)?;
     }
     patmat::transform(l, root, unit_owner)?;
+    let placeholders = inline_patterns::transform(l, root, unit_owner)?;
+    classes.retain(|td| !placeholders.contains(td));
     extension_methods::forwarder_spans(l, &moved);
     for &td in &classes {
         captured_vars::transform(l, td)?;

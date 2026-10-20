@@ -45,7 +45,8 @@ impl Inlining<'_> {
         self.u.set_info(param, param_type);
         self.change_owner(fun, owner, unapply);
         let (arg_name, arg_type) = (self.term_name(param), self.u.intern_type(Type::Sym(None, param)));
-        let arg = self.tpd.node(T::Ident { name: arg_name }, span, Some(arg_type), Some(param));
+        let at = Span::at(span.end());
+        let arg = self.tpd.node(T::Ident { name: arg_name }, at, Some(arg_type), Some(param));
         let args = self.tpd.list(&[arg]);
         let call = self.tpd.node(T::Apply { fun, args }, span, Some(result), None);
         let body = match self.inline_method(call)? {

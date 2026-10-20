@@ -143,7 +143,7 @@ fn only_method(l: &Lower, def: TNodeId, expr: TNodeId) -> Option<TNodeId> {
 /// The body of method definition `def` with its parameters bound to `args` in `owner`, the
 /// bindings needed added to `bindings` (dotty's `reduceApplication`); `None` unless `args` fit
 /// the one parameter clause.
-fn application(
+pub fn application(
     l: &mut Lower,
     def: TNodeId,
     args: &[TNodeId],
