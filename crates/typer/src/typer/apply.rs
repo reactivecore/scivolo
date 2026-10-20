@@ -124,7 +124,9 @@ impl Typer<'_> {
             },
         };
         let positional = if aligned.is_some() { &[][..] } else { &arg_ids[..] };
+        let mut before_elems = None;
         for (i, &a) in positional.iter().enumerate().filter(|&(_, &a)| Some(a) != seq_arg) {
+            before_elems = before_elems.or((i == params.len()).then(|| self.before_harmonic()));
             let mut formal = self.from_java_object(meth, formals[i.min(formals.len() - 1)]);
             if param_dependent {
                 formal = self.dependent_formal(formal, clause, &typed_args);
@@ -154,10 +156,12 @@ impl Typer<'_> {
                     }
                 }
                 None => {
-                    let elems = typed_args.split_off(params.len());
-                    let types: Vec<TypeId> = elems.iter().map(|&e| self.tpd.tpe(e)).collect();
-                    if !self.is_fully_defined(elem) && self.harmonizes(&types) {
-                        return self.unsupported(id, "numeric harmonization");
+                    let mut elems = typed_args.split_off(params.len());
+                    if self.is_open(result) {
+                        elems = match self.harmonic(elems, Pt::Type(elem), before_elems, ctx) {
+                            Ok(h) => h,
+                            Err(what) => return self.unsupported(id, what),
+                        };
                     }
                     let before = typed_args.last().copied().unwrap_or(f);
                     let at = self.tpd.span(before).end_pos();

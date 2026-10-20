@@ -2,7 +2,8 @@
 //   compiler/src/dotty/tools/dotc/typer/Synthesizer.scala
 //! Implicit arguments the compiler makes instead of finding them (dotty's `Synthesizer`): a
 //! `CanEqual` (`can_equal.rs`), a `ClassTag` (`class_tags.rs`), a `Mirror`
-//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
+//! (`product_mirrors.rs`), a `TypeTest` (`type_test_synthesis.rs`), a `TupledFunction`
+//! (`tupled_functions.rs`), and a `ValueOf[T]` of a singleton `T`, `new ValueOf[T](v)`.
 
 use super::super::Typer;
 use super::super::constants::of_type;
@@ -24,6 +25,7 @@ impl Typer<'_> {
         if let Some(mirror) = self.synthesized_mirror(pt, at, ctx)? {
             return Ok(Some(mirror));
         }
+        let pt = self.u.dealias(pt);
         let Type::Applied(tycon, args) = self.u.types().get(pt).clone() else { return Ok(None) };
         let Some(class) = self.u.class_symbol(tycon) else { return Ok(None) };
         match (self.u.full_name(class).as_str(), &args[..]) {
@@ -31,6 +33,9 @@ impl Typer<'_> {
             ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth).map(Some),
             ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
             ("scala.reflect.TypeTest", &[from, to]) => self.synthesized_type_test(from, to, at, ctx),
+            ("scala.util.TupledFunction", &[fun, tupled]) => {
+                self.synthesized_tupled_function(fun, tupled, at)
+            }
             _ => Ok(None),
         }
     }

@@ -110,6 +110,9 @@ impl Typer<'_> {
                 tree
             });
         }
+        if let Some(cast) = self.matchable_cast(tree, pt) {
+            return self.adapt(cast, Pt::Type(pt), ctx);
+        }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
             Ok(None) if self.defined_further(tpe, pt) => tree,
