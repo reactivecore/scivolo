@@ -292,8 +292,8 @@ impl<'a> Typer<'a> {
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let v = cfg.source_version;
-        if !v.is_at_least(SourceVersion::V3_7) || v.requires_new_syntax() || v.migrating {
-            return Err("source versions other than 3.7 to 3.9".into());
+        if !v.is_at_least(SourceVersion::V3_7) || v.migrating {
+            return Err("source versions other than 3.7 to 3.9 and future".into());
         }
         let defn = Defn::new(u)?;
         let mut syms = std::mem::take(syms);
