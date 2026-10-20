@@ -27,6 +27,18 @@ impl Typer<'_> {
     /// not of a Java class.
     pub fn sam_parts(&mut self, t: TypeId, n: usize, open: bool) -> Result<Option<Sam>, &'static str> {
         let t = self.zonk(t);
+        let Some(sam) = self.sam_shape(t, n)? else { return Ok(None) };
+        let open = open && !self.u.class_symbol(sam.parent).is_some_and(|c| self.is_java_class_name(c));
+        if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
+            return Err("single abstract method type outside the subset");
+        }
+        Ok(Some(sam))
+    }
+
+    /// `sam_parts` of `t` with type variables in it, for applicability only (dotty's `SAMType`
+    /// in `SAMargOK`).
+    pub fn sam_shape(&mut self, t: TypeId, n: usize) -> Result<Option<Sam>, &'static str> {
+        let t = self.zonk(t);
         let dealiased = self.u.dealias(t);
         let Some(class) = self.u.class_symbol(dealiased) else { return Ok(None) };
         self.ensure_self(class);
@@ -36,10 +48,6 @@ impl Typer<'_> {
         let Some(method) = self.sam_method(class) else { return Ok(None) };
         if self.u.symbol(method).flags.has(tasty::tags::INLINE) {
             return Err("single abstract method type of an inline method");
-        }
-        let open = open && !self.is_java_class_name(class);
-        if !open && !self.is_fully_defined(t) && !self.is_partial_function(t) {
-            return Err("single abstract method type outside the subset");
         }
         if !self.no_args_needed(class)? {
             return Ok(None);
@@ -151,17 +159,6 @@ impl Typer<'_> {
                 usize::from(params.is_empty() && !matches!(self.u.types().get(result), Type::Method { .. }));
         }
         Ok(ctors.is_empty() || applicable == 1)
-    }
-
-    /// Whether `t` is a `PartialFunction` type.
-    pub fn is_partial_function(&mut self, t: TypeId) -> bool {
-        let t = self.zonk(t);
-        let t = self.u.dealias(t);
-        self.u.class_symbol(t).is_some_and(|c| self.is_partial_function_class(c))
-    }
-
-    fn is_partial_function_class(&self, c: SymbolId) -> bool {
-        self.u.full_name(c) == "scala.PartialFunction"
     }
 
     /// The abstract term members of class `c` that do not match members of `Object` (dotty's

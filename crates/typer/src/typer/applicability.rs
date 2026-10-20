@@ -59,7 +59,7 @@ impl Typer<'_> {
         if self.function_parts(param, n).is_some() || !views && self.is_partial_function(param) {
             return Ok(None);
         }
-        let Some(sam) = self.sam_parts(param, n, false)? else { return Ok(None) };
+        let Some(sam) = self.sam_shape(param, n)? else { return Ok(None) };
         let class = self.function_class(n).ok_or("function class")?;
         let mut args = sam.params;
         args.push(sam.result);
