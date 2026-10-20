@@ -69,12 +69,25 @@ impl Decoder<'_> {
         }
     }
 
-    /// `parent` refined by the member definitions `members`.
+    /// `parent` refined by the member definitions `members`, a method member's parameters
+    /// referred to as parameters of its type.
     pub fn refined(&mut self, parent: NodeId, members: &[NodeId]) -> TypeId {
         let mut t = self.ty(parent);
         for &m in members {
             if matches!(self.ast.tag(m), VALDEF | DEFDEF | TYPEDEF) {
+                let outer = self.captures.len();
+                if let View::DefDef { parts, .. } = view(self.ast, m) {
+                    for clause in param_tree_clauses(self.ast, parts.params) {
+                        let binder = Binder(self.file, self.ast.node(clause[0]).addr);
+                        let params =
+                            clause.into_iter().filter(|&p| matches!(self.ast.tag(p), PARAM | TYPEPARAM));
+                        let captured: Vec<_> =
+                            params.enumerate().map(|(i, p)| (p, binder, i as u32)).collect();
+                        self.captures.extend(captured);
+                    }
+                }
                 let mut info = self.definition_type(m);
+                self.captures.truncate(outer);
                 if self.ast.tag(m) == TYPEDEF && !self.is_bounds_or_alias(info) {
                     info = self.intern(Type::Alias(info));
                 }

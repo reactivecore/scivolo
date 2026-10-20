@@ -60,12 +60,19 @@ fn local_methods_and_closures_are_read_with_their_symbols() {
 }
 
 #[test]
+fn polymorphic_function_parameters_are_read() {
+    let Some(mut u) = universe() else { return };
+    let defs = inline_defs(&mut u, "scala", "Tuple", "map");
+    assert!(!defs.is_empty());
+    for d in defs {
+        assert!(read(&mut u, d).is_ok());
+    }
+}
+
+#[test]
 fn bodies_outside_the_subset_are_refused() {
     let Some(mut u) = universe() else { return };
-    let cases = [
-        ("scala", "Tuple", "map", "undecoded type in a library inline body"),
-        ("scala.util", "boundary$", "apply", "type tree of another kind in a library inline body"),
-    ];
+    let cases = [("scala.util", "boundary$", "apply", "type tree of another kind in a library inline body")];
     for (pkg, class, name, why) in cases {
         let defs = inline_defs(&mut u, pkg, class, name);
         assert!(!defs.is_empty(), "{class}.{name}");
