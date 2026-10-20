@@ -111,11 +111,15 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `ctx` is the parent call context of a class with parent class `c`.
+    /// Whether `ctx` is the parent call context of a class with parent class `c`, or of a class
+    /// whose parents are being typed.
     pub fn is_parent_call(&mut self, c: SymbolId, ctx: Ctx) -> bool {
         let Some(k) = self.u.symbol(ctx.owner).owner else { return false };
-        self.syms.primary_ctors.get(&k) == Some(&ctx.owner)
-            && self.u.parents(k).into_iter().any(|p| self.u.class_symbol(p) == Some(c))
+        if self.syms.primary_ctors.get(&k) != Some(&ctx.owner) {
+            return false;
+        }
+        let parents = self.u.parents(k);
+        parents.is_empty() || parents.into_iter().any(|p| self.u.class_symbol(p) == Some(c))
     }
 
     /// Refuses member `sym` selected through `prefix`, not a `this`, if its info refers through
