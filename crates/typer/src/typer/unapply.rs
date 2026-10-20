@@ -69,6 +69,7 @@ impl Typer<'_> {
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
         let result = self.applied_unapply_result(unapp, result, (binder, param), own)?;
+        let result = self.simplified(result);
         let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
             if named {
@@ -93,19 +94,24 @@ impl Typer<'_> {
         self.type_tested_unapply(id, tree, own, sel, ctx)
     }
 
-    /// `qual.unapply` for extractor `qual`, typed as an expression, or `qual.unapplySeq` if it
-    /// has no `unapply`; whether it is `unapplySeq`.
+    /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
+    /// method, or `qual.unapplySeq` if it has neither (dotty's `trySelectUnapply`); whether it is
+    /// `unapplySeq`.
     fn unapply_fun(&mut self, qual: NodeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
         let typed = self.typed(qual, Pt::Any, ctx);
         let tpe = self.tpd.tpe(typed);
         let tpe = self.widen_if_unstable(tpe);
-        let seq = self.members_found(tpe, "unapply", false).is_none()
-            && self.members_found(tpe, "unapplySeq", false).is_some();
-        if seq && self.extension_visible("unapply", ctx) {
+        let member = self.members_found(tpe, "unapply", false).is_some();
+        let extension = !member && self.extension_visible("unapply", ctx);
+        let seq_found = !member
+            && (self.members_found(tpe, "unapplySeq", false).is_some()
+                || self.extension_visible("unapplySeq", ctx));
+        if extension && seq_found {
             return Err("extension method");
         }
+        let seq = !extension && seq_found;
         let span = self.ast.span(qual);
         let splice = self.ast.node(Tree::TypeTree);
         self.ast.with_span(splice, span);
@@ -117,8 +123,9 @@ impl Typer<'_> {
         if self.unsupported != unsupported {
             return Err("extractor outside the subset");
         }
-        if !matches!(self.tpd.tree(unapp), crate::tpd::Tree::Select { .. }) {
-            return Err("extension method as an extractor");
+        let chosen = self.tpd.sym(self.tpd.meth_part(unapp)).map(|s| self.u.symbol(s).name.as_str());
+        if chosen != Some(self.text(name.name)) {
+            return Err("not an extractor");
         }
         Ok((unapp, seq))
     }
