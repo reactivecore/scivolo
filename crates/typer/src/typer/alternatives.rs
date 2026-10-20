@@ -11,7 +11,8 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type (dotty's `resolveOverloaded` without arguments).
+    /// unless that is a function type, else for a single abstract method type `pt` the only
+    /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
     fn parameterless_alternative(
         &mut self,
         syms: &[SymbolId],
@@ -21,21 +22,7 @@ impl Typer<'_> {
         if let Pt::Type(p) = pt
             && let Some((args, _)) = (0..=22).find_map(|n| self.function_parts(p, n))
         {
-            let mut fitting = Vec::new();
-            for &s in syms {
-                let Some((formals, false)) = self.param_types(s, prefix, false) else {
-                    return Err("overloaded reference against a function type");
-                };
-                if formals.len() == args.len()
-                    && args.iter().zip(&formals).all(|(&a, &f)| self.u.is_subtype(a, f))
-                {
-                    fitting.push(s);
-                }
-            }
-            return match fitting[..] {
-                [s] => Ok(s),
-                _ => Err("overloaded reference against a function type"),
-            };
+            return self.taking_params(syms, prefix, &args);
         }
         let mut found = Vec::new();
         for &s in syms {
@@ -64,9 +51,40 @@ impl Typer<'_> {
             }
             found.push(s);
         }
+        if let (Pt::Type(p), []) = (pt, &found[..])
+            && let Some(sam) = (0..=22).find_map(|n| self.sam_shape(p, n).ok().flatten())
+        {
+            return self.taking_params(syms, prefix, &sam.params);
+        }
         match found[..] {
             [s] => Ok(s),
             _ => Err("overloaded reference"),
+        }
+    }
+
+    /// The only method of `syms` whose parameters take arguments of types `args` (dotty's
+    /// `normalizedCompatible` against a function type and the `SAMType` case of
+    /// `resolveOverloaded1`).
+    fn taking_params(
+        &mut self,
+        syms: &[SymbolId],
+        prefix: Option<TypeId>,
+        args: &[TypeId],
+    ) -> Result<SymbolId, &'static str> {
+        let mut fitting = Vec::new();
+        for &s in syms {
+            let Some((formals, false)) = self.param_types(s, prefix, false) else {
+                return Err("overloaded reference against a function type");
+            };
+            if formals.len() == args.len()
+                && args.iter().zip(&formals).all(|(&a, &f)| self.u.is_subtype(a, f))
+            {
+                fitting.push(s);
+            }
+        }
+        match fitting[..] {
+            [s] => Ok(s),
+            _ => Err("overloaded reference against a function type"),
         }
     }
 
