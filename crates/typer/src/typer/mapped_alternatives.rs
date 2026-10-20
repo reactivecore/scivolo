@@ -33,7 +33,8 @@ impl Typer<'_> {
     }
 
     /// Method type `info` after its first parameter clause applied to arguments of types
-    /// `arg_types`, under its type parameters; none if `info` is no method.
+    /// `arg_types`, under its type parameters; none if `info` is no method or that type is a
+    /// value of a class without `apply` members.
     fn skip_param_clause(
         &mut self,
         info: TypeId,
@@ -49,7 +50,14 @@ impl Typer<'_> {
             }
             Type::Method { binder, params, result, .. } => {
                 let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
-                Ok(Some(self.u.subst(result, binder, &names, arg_types)))
+                let result = self.u.subst(result, binder, &names, arg_types);
+                if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+                    return Ok(Some(result));
+                }
+                match self.u.class_symbol(result) {
+                    Some(_) if self.type_members(result, "apply").is_empty() => Ok(None),
+                    _ => Err("ambiguous overload resolved by an apply method of a later clause"),
+                }
             }
             _ => Ok(None),
         }

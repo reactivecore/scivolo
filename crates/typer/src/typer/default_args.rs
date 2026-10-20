@@ -63,7 +63,7 @@ impl Typer<'_> {
                 targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
             let tpe = self.instantiated(getter, &types)?;
             let tpe = if ctor || !clauses.is_empty() { tpe } else { self.simplified(tpe) };
-            getter = self.build().type_apply(getter, &trees, tpe, span);
+            getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
         }
         for args in clauses.into_iter().rev() {
             let args: Vec<TNodeId> = args.into_iter().map(|a| self.copied_path(a)).collect();
