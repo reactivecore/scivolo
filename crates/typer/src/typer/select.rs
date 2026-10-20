@@ -7,7 +7,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{NodeId, TName};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
     pub fn typed_select(&mut self, id: NodeId, qualifier: NodeId, name: TName, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -69,6 +69,9 @@ impl Typer<'_> {
                 && let Some(proxy) = self.proxy_select(id, (qual, qual_tpe), name, pt, ctx)
             {
                 return proxy;
+            }
+            if let Some(element) = self.named_tuple_select(id, qual, name, ctx) {
+                return element;
             }
             if !tupled && let Some(q) = self.small_generic_tuple(qual) {
                 (qual, tupled) = (q, true);
@@ -145,61 +148,6 @@ impl Typer<'_> {
         let select = self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), Some(sym));
         self.fold_select(select, &text);
         select
-    }
-
-    /// Whether member `sym` of `Any` or `Object`, selected from `qual`, is one a JDK interface
-    /// the class of `qual` derives from declares.
-    pub fn jdk_redeclares(&mut self, sym: SymbolId, qual: TypeId) -> bool {
-        const REDECLARED: [(&str, &str); 22] = [
-            ("java.lang.CharSequence", "toString"),
-            ("java.util.Comparator", "equals"),
-            ("java.util.Collection", "equals"),
-            ("java.util.Collection", "hashCode"),
-            ("java.util.Map", "equals"),
-            ("java.util.Map", "hashCode"),
-            ("java.util.Map$.Entry", "equals"),
-            ("java.util.Map$.Entry", "hashCode"),
-            ("java.lang.annotation.Annotation", "equals"),
-            ("java.lang.annotation.Annotation", "hashCode"),
-            ("java.lang.annotation.Annotation", "toString"),
-            ("java.nio.file.Path", "equals"),
-            ("java.nio.file.Path", "hashCode"),
-            ("java.nio.file.Path", "toString"),
-            ("java.time.chrono.ChronoLocalDate", "equals"),
-            ("java.time.chrono.ChronoLocalDate", "hashCode"),
-            ("java.time.chrono.ChronoLocalDate", "toString"),
-            ("java.time.chrono.ChronoLocalDateTime", "equals"),
-            ("java.time.chrono.ChronoLocalDateTime", "hashCode"),
-            ("java.time.chrono.ChronoLocalDateTime", "toString"),
-            ("java.util.Set", "equals"),
-            ("java.util.List", "equals"),
-        ];
-        let b = self.u.builtins();
-        if !self.u.symbol(sym).owner.is_some_and(|o| o == b.any || o == b.object) {
-            return false;
-        }
-        let name = self.u.symbol(sym).name.clone();
-        let widened = self.u.widen(qual);
-        let Some(class) = self.u.class_symbol(widened) else { return false };
-        REDECLARED
-            .iter()
-            .filter(|(_, m)| *m == name)
-            .any(|(i, _)| self.resolve_full_name(i, true).is_some_and(|i| self.u.derives_from(class, i)))
-    }
-
-    /// The member of `Any` the JDK's `java.lang.Class` inherits where nativelib's `_Class`
-    /// overrides `sym` (`equals`, `hashCode`); `sym` otherwise.
-    fn jdk_inherited(&mut self, sym: SymbolId) -> SymbolId {
-        let s = self.u.symbol(sym);
-        let name = s.name.clone();
-        let Some(owner) = s.owner.filter(|_| matches!(name.as_str(), "equals" | "hashCode")) else {
-            return sym;
-        };
-        if self.u.full_name(owner) != "java.lang.Class" {
-            return sym;
-        }
-        let any = self.u.builtins().any;
-        self.u.decl(any, &name).unwrap_or_default().first().copied().unwrap_or(sym)
     }
 
     fn member_not_found(&mut self, id: NodeId, qual: TNodeId, name: TName, ctx: Ctx) -> TNodeId {

@@ -9,7 +9,7 @@ use super::Typer;
 use super::implicits::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::Tree as T;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// Whether an argument of type `arg` fits a parameter of type `param` in `ctx`, through an
@@ -77,6 +77,20 @@ impl Typer<'_> {
         views: bool,
         ctx: Ctx,
     ) -> Option<bool> {
+        let slots: Vec<Option<TypeId>> = args.iter().copied().map(Some).collect();
+        self.applicable_slots(alt, prefix, &slots, views, ctx)
+    }
+
+    /// `applicable` for arguments aligned with the parameters, `None` where a parameter gets
+    /// none and takes its default or an empty vararg.
+    pub fn applicable_slots(
+        &mut self,
+        alt: SymbolId,
+        prefix: Option<TypeId>,
+        args: &[Option<TypeId>],
+        views: bool,
+        ctx: Ctx,
+    ) -> Option<bool> {
         let before = self.constraint.attempt();
         let fits = self.applicable_with_vars(alt, prefix, args, views, ctx);
         self.constraint.abandon(before);
@@ -87,7 +101,7 @@ impl Typer<'_> {
         &mut self,
         alt: SymbolId,
         prefix: Option<TypeId>,
-        args: &[TypeId],
+        args: &[Option<TypeId>],
         views: bool,
         ctx: Ctx,
     ) -> Option<bool> {
@@ -96,14 +110,22 @@ impl Typer<'_> {
         if args.len() > params.len() && elem.is_none() {
             return Some(false);
         }
-        if args.len() < params.len() {
+        let missing =
+            (0..params.len()).filter(|&i| args.get(i).is_none_or(Option::is_none)).collect::<Vec<_>>();
+        if !missing.is_empty() {
             let defaults = self.default_params(alt);
-            if !(args.len()..params.len()).all(|i| defaults.get(i) == Some(&true)) {
+            if !missing.iter().all(|&i| defaults.get(i) == Some(&true)) {
                 return Some(false);
             }
         }
         let mut all = true;
         for (i, &a) in args.iter().enumerate() {
+            let Some(a) = a else { continue };
+            if let Some(e) = self.repeated_elem(a) {
+                let last = i == params.len() && i + 1 == args.len();
+                all &= last && elem.is_some_and(|p| self.conforms(e, p));
+                continue;
+            }
             let p = params.get(i).copied().or(elem)?;
             let by_name_result = |t: &Self, x: TypeId| match *t.u.types().get(x) {
                 Type::ByName(r) => r,
@@ -162,36 +184,5 @@ impl Typer<'_> {
             *types.last_mut().expect("a parameter") = e;
         }
         Some((types, elem.is_some()))
-    }
-
-    /// The result of polymorphic type `info` of `owner`, its type parameters replaced by fresh
-    /// abstract types within their bounds if `rigid`, else by fresh type variables within them;
-    /// `info` itself if not polymorphic.
-    pub fn poly_instance(&mut self, info: TypeId, owner: SymbolId, rigid: bool) -> TypeId {
-        let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else { return info };
-        let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        if let Some(args) = self.mapped_targs_of(owner, names.len()) {
-            return self.instantiate_poly(result, binder, &names, &args, Some(owner));
-        }
-        let mut args = Vec::new();
-        for n in &names {
-            args.push(if rigid {
-                let s = self.syms.define(self.u, n, Kind::TypeParam, owner, syntax::ast::flags::TYPE_PARAM);
-                self.u.unenter(s);
-                self.u.intern_type(Type::Sym(None, s))
-            } else {
-                self.constraint.fresh(self.u)
-            });
-        }
-        for (&(_, bounds), &a) in params.iter().zip(&args) {
-            let bounds = self.instantiate_poly(bounds, binder, &names, &args, Some(owner));
-            if let Type::Sym(_, s) = *self.u.types().get(a) {
-                self.u.set_info(s, bounds);
-            } else if let Type::Bounds(lo, hi) = *self.u.types().get(bounds) {
-                self.conforms(lo, a);
-                self.conforms(a, hi);
-            }
-        }
-        self.instantiate_poly(result, binder, &names, &args, Some(owner))
     }
 }

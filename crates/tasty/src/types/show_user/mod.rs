@@ -9,6 +9,7 @@
 mod applied;
 mod constant;
 mod def;
+mod named_tuple;
 mod prefix;
 
 use super::{Binder, Type, TypeId};

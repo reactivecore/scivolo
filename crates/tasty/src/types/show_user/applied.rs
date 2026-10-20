@@ -37,6 +37,9 @@ fn function_arity(full: &str) -> Option<(usize, bool)> {
 
 impl Printer<'_> {
     pub fn applied(&mut self, tycon: TypeId, args: &[TypeId], prec: u8) -> String {
+        if let Some(named) = self.named_tuple(tycon, args) {
+            return named;
+        }
         if let Some(elems) = self.tuple_elems(tycon, args)
             && elems.len() >= 2
         {
@@ -161,7 +164,7 @@ impl Printer<'_> {
     }
 
     /// The element types of tuple `tycon[args]`: `TupleN` or `*:` ending in `EmptyTuple`.
-    fn tuple_elems(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Vec<TypeId>> {
+    pub fn tuple_elems(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<Vec<TypeId>> {
         let name = self.full_name_of(tycon)?;
         if name.strip_prefix("scala.Tuple").is_some_and(|n| n.parse() == Ok(args.len())) {
             return Some(args.to_vec());

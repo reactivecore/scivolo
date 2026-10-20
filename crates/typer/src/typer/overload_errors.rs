@@ -127,4 +127,27 @@ impl Typer<'_> {
             _ => return None,
         })
     }
+
+    /// The tree for reference `id` when `choose` finds no alternative for `what`: an error tree
+    /// when `pt` is unusable for inference, else `what` unsupported.
+    pub fn unchosen(&mut self, id: NodeId, what: &str, pt: Pt) -> TNodeId {
+        if self.unusable_for_inference(pt) {
+            return self.error_tree(self.ast.span(id));
+        }
+        self.unsupported(id, what)
+    }
+
+    /// Whether a typed argument of `pt` has the error type in it and that error is reported
+    /// (dotty's `unusableForInference`).
+    pub fn unusable_for_inference(&mut self, pt: Pt) -> bool {
+        let Pt::Fun(proto) = pt else { return false };
+        let args = self.protos[proto].typed.clone().unwrap_or_default();
+        let reported = self.diags.has_errors() || self.unsupported.is_some();
+        reported
+            && args.into_iter().flatten().any(|a| {
+                let tpe = self.tpd.tpe(a);
+                let tpe = self.zonk(tpe);
+                self.type_parts(tpe).into_iter().any(|p| *self.u.types().get(p) == Type::Error)
+            })
+    }
 }

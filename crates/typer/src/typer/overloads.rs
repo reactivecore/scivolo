@@ -84,7 +84,7 @@ impl Typer<'_> {
             }
             let arg_types = self.proto_arg_types(proto, &narrowed, prefix)?;
             for &alt in &narrowed {
-                let fits = self.applicable(alt, prefix, &arg_types, views, ctx);
+                let fits = self.applicable_to_proto(alt, prefix, (proto, &arg_types), views, ctx);
                 let fits = match (fits, self.protos[proto].pt) {
                     (Some(true), Pt::Type(pt)) if self.protos[proto].deep => {
                         Some(self.result_conforms(alt, prefix, pt, (views, ctx)) != Some(false))
