@@ -74,6 +74,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         specialize_tuples::transform(l, td, &inits)?;
         repeated::transform(l, td)?;
         resolve_super::transform(l, td)?;
+        tuple_optimizations::transform(l, td);
         let_over_apply::transform(l, td);
         erasure::transform(l, td)?;
         bridges::transform(l, td, &deferred)?;

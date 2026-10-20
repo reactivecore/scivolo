@@ -40,7 +40,8 @@ impl Translator<'_, '_> {
         } else {
             let value = self.l.ident(scrutinee, Span::NONE);
             let arg = self.l.ensure_conforms(value, params[0].1);
-            let mut unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            let unapp = self.l.apply(fun, &[arg], result, Span::NONE);
+            let mut unapp = self.l.positioned(unapp);
             if !implicits.is_empty() {
                 let Type::Method { result, .. } = *self.l.u.types().get(result) else {
                     return unsupported(span, "extractors with implicit arguments");

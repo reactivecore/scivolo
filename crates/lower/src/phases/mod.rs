@@ -108,6 +108,7 @@ mod trait_init;
 mod trait_lazies;
 mod trait_params;
 mod tree_copy;
+mod tuple_optimizations;
 mod type_tests;
 mod uninitialized_defs;
 mod value_classes;
