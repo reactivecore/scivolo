@@ -208,6 +208,8 @@ pub struct Typer<'a> {
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
+    /// The `new`s of parent calls (dotty's `noCheckNews`).
+    pub parent_news: rustc_hash::FxHashSet<NodeId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
@@ -300,6 +302,7 @@ impl<'a> Typer<'a> {
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
+            parent_news: Default::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),

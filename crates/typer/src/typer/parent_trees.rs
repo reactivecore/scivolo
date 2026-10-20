@@ -105,6 +105,7 @@ impl Typer<'_> {
         self.splices.insert(splice, parent);
         let new = self.ast.node(Tree::New { tpt: splice });
         self.ast.with_span(new, synthetic);
+        self.parent_news.insert(new);
         let init = TName { name: self.name("<init>"), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(select, synthetic);

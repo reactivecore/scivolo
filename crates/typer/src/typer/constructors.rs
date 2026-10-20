@@ -37,7 +37,7 @@ impl Typer<'_> {
             return self.unsupported(id, "new of a parameterized type alias");
         }
         if let Some(c) = self.u.class_symbol(tpe)
-            && !self.is_parent_call(c, ctx)
+            && !self.parent_news.contains(&id)
         {
             let flags = self.u.symbol(c).flags;
             if flags.has(TRAIT) || flags.has(ABSTRACT) {
