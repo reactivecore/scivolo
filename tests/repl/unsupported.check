@@ -1,8 +1,8 @@
 scala> class A(private var p: Int) { def f = p }
 // defined class A
 
-scala> trait T { var x: Int }
--- unsupported: abstract variables
+scala> object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[Array[T]]] }
+-- unsupported: type tests of generic arrays of arrays
 
 scala> val y = 2
 val y: Int = 2

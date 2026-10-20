@@ -29,6 +29,7 @@ impl Features {
     pub const STRICT_EQUALITY: Features = Features(1 << 10);
     pub const GENERIC_NUMBER_LITERALS: Features = Features(1 << 11);
     pub const DYNAMICS: Features = Features(1 << 12);
+    pub const NO_AUTO_TUPLING: Features = Features(1 << 13);
 
     /// The feature a `-language:` option or `import scala.language.` path names.
     pub fn named(name: &str) -> Option<Features> {
@@ -48,6 +49,7 @@ impl Features {
             "strictEquality" => Features::STRICT_EQUALITY,
             "experimental.genericNumberLiterals" => Features::GENERIC_NUMBER_LITERALS,
             "dynamics" => Features::DYNAMICS,
+            "noAutoTupling" => Features::NO_AUTO_TUPLING,
             _ => return None,
         })
     }

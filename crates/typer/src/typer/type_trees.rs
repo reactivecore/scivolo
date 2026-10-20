@@ -118,6 +118,7 @@ impl Typer<'_> {
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
+            Tree::PolyFunction { targs, body } => self.typed_poly_function_type(id, targs, body, ctx),
             Tree::Tuple { trees } => self.typed_tuple_type(id, trees, ctx),
             Tree::MatchTypeTree { bound, selector, cases } => {
                 self.typed_match_type_tree(id, (bound, selector, cases), ctx)
@@ -126,32 +127,6 @@ impl Typer<'_> {
                 let what = format!("type tree {t:?}");
                 self.unsupported(id, what.split([' ', '{']).take(3).collect::<Vec<_>>().join(" ").trim())
             }
-        }
-    }
-
-    /// How many type parameters type constructor `t` takes: a class's, a type lambda's.
-    pub fn type_arity(&mut self, t: TypeId) -> usize {
-        self.type_arity_within(t, 32)
-    }
-
-    fn type_arity_within(&mut self, t: TypeId, depth: u32) -> usize {
-        let Some(depth) = depth.checked_sub(1) else { return 0 };
-        match self.u.types().get(t).clone() {
-            Type::Sym(_, s) => match self.u.symbol(s).kind {
-                Kind::Class => self.u.type_params(s).len(),
-                Kind::Type | Kind::TypeParam => {
-                    self.complete(s);
-                    let info = self.u.info(s);
-                    match self.u.types().get(info).clone() {
-                        Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
-                        Type::Lambda { params, .. } => params.len(),
-                        _ => 0,
-                    }
-                }
-                _ => 0,
-            },
-            Type::Lambda { params, .. } => params.len(),
-            _ => 0,
         }
     }
 

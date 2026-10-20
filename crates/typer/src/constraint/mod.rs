@@ -7,6 +7,7 @@
 
 mod attempt;
 mod avoid;
+mod lambda_params;
 mod unify;
 
 use attempt::Fate;
@@ -180,6 +181,7 @@ impl TypeVars for Constraint {
         if *u.types().get(lo) == Type::Var(v) {
             return true;
         }
+        let Some(lo) = lambda_params::avoid_lambda_params(u, lo, true) else { return false };
         let lo = match self.avoided(u, lo, e.born, 1) {
             Some(avoided) => avoided,
             None => {
@@ -215,6 +217,7 @@ impl TypeVars for Constraint {
         if *u.types().get(hi) == Type::Var(v) {
             return true;
         }
+        let Some(hi) = lambda_params::avoid_lambda_params(u, hi, false) else { return false };
         if let Type::Var(w) = *u.types().get(hi)
             && self.unifiable(v, w)
             && self.unify(u, v, w)

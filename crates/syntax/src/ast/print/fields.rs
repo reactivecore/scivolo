@@ -1,5 +1,5 @@
 use super::super::children::Child;
-use super::super::tree::{NumberKind, Tree};
+use super::super::tree::{DerivedKind, NumberKind, Tree};
 use super::{Printer, quote};
 use crate::names::to_utf16;
 use std::fmt::Write;
@@ -85,8 +85,10 @@ impl Printer<'_> {
                 let kind = if sym.is_type { "T" } else { "t" };
                 write!(self.out, " {kind}:{}", self.names.text(sym.name)).unwrap();
             }
-            DerivedTypeTree { watched, .. } => {
-                if let Some(watched) = watched {
+            DerivedTypeTree { kind, watched } => {
+                if let Some(watched) = watched
+                    && *kind != DerivedKind::FromEnumParam
+                {
                     self.out.push_str(" ~");
                     self.bare_name(*watched);
                 }

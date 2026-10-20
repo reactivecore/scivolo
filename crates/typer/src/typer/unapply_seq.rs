@@ -34,8 +34,9 @@ impl Typer<'_> {
         self.seq_match(get, n)?.ok_or("sequence extractor result type")
     }
 
-    /// The types of `n` patterns against `t` as a sequence, or as a product whose last selector is
-    /// a sequence (dotty's `unapplySeq` of `UnapplyArgs`, `isProductSeqMatch`).
+    /// The types of `n` patterns against `t` as a sequence, or as a product or a generic tuple whose
+    /// last element is a sequence (dotty's `unapplySeq` of `UnapplyArgs`, `isProductSeqMatch`,
+    /// `isNonEmptyTupleSeqMatch`).
     fn seq_match(&mut self, t: TypeId, n: usize) -> Result<Option<SeqArgs>, &'static str> {
         if let Some(elem) = self.seq_elem_type(t) {
             return Ok(Some(SeqArgs { types: vec![elem; n], leading: 0 }));
@@ -44,12 +45,23 @@ impl Typer<'_> {
             return Ok(None);
         }
         let selectors = self.product_selectors(t)?;
-        let Some((&last, leading)) = selectors.split_last() else { return Ok(None) };
-        let Some(elem) = self.seq_elem_type(last).filter(|_| selectors.len() <= n + 1) else {
+        if let Some(args) = self.seq_after(&selectors, n) {
+            return Ok(Some(args));
+        }
+        if !self.derives_from_named(t, "scala.NonEmptyTuple") {
             return Ok(None);
-        };
+        }
+        let widened = self.u.widen(t);
+        let elems = self.tuple_elements_within(widened, usize::MAX).unwrap_or_default();
+        Ok(self.seq_after(&elems, n))
+    }
+
+    /// The types of `n` patterns against `selectors`, the last of them a sequence.
+    fn seq_after(&mut self, selectors: &[TypeId], n: usize) -> Option<SeqArgs> {
+        let (&last, leading) = selectors.split_last()?;
+        let elem = self.seq_elem_type(last).filter(|_| selectors.len() <= n + 1)?;
         let types = (0..n).map(|i| leading.get(i).copied().unwrap_or(elem)).collect();
-        Ok(Some(SeqArgs { types, leading: leading.len() }))
+        Some(SeqArgs { types, leading: leading.len() })
     }
 
     /// The element type of sequence-like `t`, the result of its `apply(Int)`, if it also has

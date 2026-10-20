@@ -93,6 +93,12 @@ pub fn does_not_take_parameters(what: &str) -> Message {
     message(50, "Type", true, format!("{what} does not take parameters"))
 }
 
+/// `CantInstantiateAbstractClassOrTrait` for class `name`, a trait if `is_trait`.
+pub fn cannot_instantiate(name: &str, is_trait: bool) -> Message {
+    let what = if is_trait { "a trait" } else { "abstract" };
+    message(42, "Type", true, format!("{name} is {what}; it cannot be instantiated"))
+}
+
 /// `NotAMember` for member `name`, a type if `is_type`, of a type shown as `site`, followed by
 /// `hint`.
 pub fn not_a_member(name: &str, is_type: bool, site: &str, hint: &str) -> Message {

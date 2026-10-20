@@ -54,8 +54,16 @@ impl Universe {
             _ => return None,
         };
         if self.symbol(s).kind == Kind::Type && self.symbol(s).flags.has(OPAQUE) {
-            let underlying = self.opaque_underlying(s, prefix).filter(|_| args.is_empty())?;
-            return self.base_type_within(underlying, base, depth);
+            let underlying = self.opaque_underlying(s, prefix)?;
+            let applied = match (args.is_empty(), self.types().get(underlying)) {
+                (true, _) => underlying,
+                (false, Type::Lambda { .. }) => {
+                    let applied = self.intern_type(Type::Applied(underlying, args));
+                    self.beta_reduced(applied)
+                }
+                _ => return None,
+            };
+            return self.base_type_within(applied, base, depth);
         }
         if self.symbol(s).kind != Kind::Class {
             let term = self.symbol(s).kind.is_term();

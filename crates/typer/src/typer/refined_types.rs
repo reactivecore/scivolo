@@ -11,7 +11,7 @@ use tasty::{Type, TypeId};
 
 impl Typer<'_> {
     /// `tpt { type X = … }`: the parent, `Object` if none, refined by each member in turn; a
-    /// higher-kinded refinement and one that refines no type member of the parent refused.
+    /// refinement that refines no type member of the parent refused.
     pub fn typed_refined_type(
         &mut self,
         id: NodeId,
@@ -44,7 +44,7 @@ impl Typer<'_> {
                 }
                 continue;
             };
-            if matches!(self.ast.tree(rhs), Tree::LambdaTypeTree { .. } | Tree::Template { .. }) {
+            if matches!(self.ast.tree(rhs), Tree::Template { .. }) {
                 return self.unsupported(r, "higher-kinded refinement");
             }
             if self.refers_to_refinement(rhs, &items, tpe) {
@@ -55,9 +55,11 @@ impl Typer<'_> {
                 return self.unsupported(r, "refinement that refines no type member");
             }
             let info = self.type_def_info(rhs, ctx);
-            if matches!(self.u.types().get(info), Type::Error) {
-                return self.unsupported(r, "refinement of an unsupported type");
-            }
+            let info = match *self.u.types().get(info) {
+                Type::Error => return self.unsupported(r, "refinement of an unsupported type"),
+                Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
+                _ => info,
+            };
             if let Type::Bounds(lo, hi) = *self.u.types().get(info)
                 && !self.u.is_subtype(lo, hi)
             {

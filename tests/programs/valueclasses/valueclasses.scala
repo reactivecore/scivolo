@@ -17,6 +17,7 @@ trait Shows extends Any {
 
 class Name(val s: String) extends AnyVal with Shows {
   def text: String = s
+  override def shown: String = "[" + super.shown + "]"
 }
 
 class Secret(private val code: Int) extends AnyVal {

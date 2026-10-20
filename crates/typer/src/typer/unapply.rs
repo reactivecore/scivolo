@@ -3,6 +3,7 @@
 //! Extractor patterns `C(p1, ..., pn)` (dotty's `typedUnApply`): `C.unapply` applied to the
 //! matched value, its result's product selectors or `get` the expected types of the patterns.
 
+use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -62,13 +63,16 @@ impl Typer<'_> {
             return Err("not an extractor");
         };
         let [(ref param, arg_type)] = params[..] else { return Err("not an extractor") };
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+        let implicit = matches!(self.u.types().get(result), Type::Method { implicit: true, .. });
+        if !implicit && matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("extractor with more parameters");
         }
         let own = self.pattern_type(sel, arg_type, vars)?;
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
-        let result = self.applied_unapply_result(unapp, result, (binder, param), own)?;
+        let result = self.applied_unapply_result(unapp, result, (binder, param), own);
+        let (result, implicits) = self.unapply_implicits(unapp, result, own, ctx)?;
+        let result = self.simplified(result);
         let named = arg_ids.iter().any(|&a| self.is_named_pattern(a));
         let patterns: Vec<TNodeId> = if seq {
             if named {
@@ -84,7 +88,7 @@ impl Typer<'_> {
             let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
             arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed_pattern_arg(a, t, ctx)).collect()
         };
-        let (implicits, patterns) = (self.tpd.list(&[]), self.tpd.list(&patterns));
+        let (implicits, patterns) = (self.tpd.list(&implicits), self.tpd.list(&patterns));
         let span = self.ast.span(id);
         let tree = self.tpd.node(T::UnApply { fun: unapp, implicits, patterns }, span, Some(own), None);
         if !tested || self.is_bottom_type(sel) {
@@ -93,19 +97,27 @@ impl Typer<'_> {
         self.type_tested_unapply(id, tree, own, sel, ctx)
     }
 
-    /// `qual.unapply` for extractor `qual`, typed as an expression, or `qual.unapplySeq` if it
-    /// has no `unapply`; whether it is `unapplySeq`.
+    /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
+    /// method, or `qual.unapplySeq` if it has neither (dotty's `trySelectUnapply`); whether it is
+    /// `unapplySeq`.
     fn unapply_fun(&mut self, qual: NodeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
         let typed = self.typed(qual, Pt::Any, ctx);
         let tpe = self.tpd.tpe(typed);
         let tpe = self.widen_if_unstable(tpe);
-        let seq = self.members_found(tpe, "unapply", false).is_none()
-            && self.members_found(tpe, "unapplySeq", false).is_some();
-        if seq && self.extension_visible("unapply", ctx) {
+        let member = self.members_found(tpe, "unapply", false).is_some();
+        let extension = !member && self.extension_visible("unapply", ctx);
+        let seq_found = !member
+            && (self.members_found(tpe, "unapplySeq", false).is_some()
+                || self.extension_visible("unapplySeq", ctx));
+        if extension && seq_found {
             return Err("extension method");
         }
+        if seq_found && !extension && self.view_may_supply_unapply(typed, ctx) {
+            return Err("unapply of an implicit view beside unapplySeq");
+        }
+        let seq = !extension && seq_found;
         let span = self.ast.span(qual);
         let splice = self.ast.node(Tree::TypeTree);
         self.ast.with_span(splice, span);
@@ -117,10 +129,28 @@ impl Typer<'_> {
         if self.unsupported != unsupported {
             return Err("extractor outside the subset");
         }
-        if !matches!(self.tpd.tree(unapp), crate::tpd::Tree::Select { .. }) {
-            return Err("extension method as an extractor");
+        let chosen = self.tpd.sym(self.tpd.meth_part(unapp)).map(|s| self.u.symbol(s).name.as_str());
+        if chosen != Some(self.text(name.name)) {
+            return Err("not an extractor");
         }
         Ok((unapp, seq))
+    }
+
+    /// Whether an implicit conversion or an extension method of an implicit value may give `qual`
+    /// a member `unapply`.
+    fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
+        let reported = self.diags.items.len();
+        let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
+        self.diags.items.truncate(reported);
+        match found {
+            Ok(None) if clean => false,
+            Ok(Some(_)) => true,
+            _ => {
+                let site = self.u.widen(self.tpd.tpe(qual));
+                let q = self.u.class_symbol(site);
+                q.is_none_or(|q| self.may_view_to((q, site), "unapply", ctx) != Some(false))
+            }
+        }
     }
 
     /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.

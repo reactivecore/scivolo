@@ -24,6 +24,9 @@ impl Typer<'_> {
             return Ok(f);
         }
         let tpe = self.widen_if_unstable(tpe);
+        if let Some(apply) = self.poly_apply(f, tpe, self.tpd.span(f).to_synthetic()) {
+            return Ok(apply);
+        }
         let Some(found) = self.members_found(tpe, "apply", false) else {
             let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
             if let Some(proxy) = proxy {

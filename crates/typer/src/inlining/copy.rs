@@ -42,6 +42,11 @@ impl<'a> Inlining<'a> {
         })
     }
 
+    /// A copy of `t` with its local definitions given fresh symbols.
+    pub fn fresh_copy(&mut self, t: TNodeId) -> Result<TNodeId, Unsupported> {
+        self.copy(&mut TreeTypeMap::default(), t, &mut |_, _, _| None)
+    }
+
     /// A copy of `t` through `m`, each tree first offered to `hook`.
     pub fn copy(
         &mut self,

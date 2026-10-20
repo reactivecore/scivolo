@@ -21,8 +21,28 @@ impl Cmp<'_> {
         let members = self.u.member(class, name);
         members.into_iter().any(|m| {
             let have = self.u.member_info(t, m);
-            self.info_conforms(have, info)
+            self.info_conforms(have, info) || self.abstract_member_matches(a, m, have, info)
         })
+    }
+
+    /// Whether abstract type member `m` of path `a`, selected on `a`, lies within the bounds
+    /// `want` (dotty's `matchAbstractTypeMember`).
+    fn abstract_member_matches(&mut self, a: TypeId, m: crate::SymbolId, have: TypeId, want: TypeId) -> bool {
+        let abstract_member = matches!(*self.u.types().get(have), Type::Bounds(lo, hi) if lo != hi);
+        let (lo2, hi2) = match *self.u.types().get(want) {
+            Type::Bounds(lo, hi) => (lo, hi),
+            Type::Alias(x) => (x, x),
+            _ => return false,
+        };
+        if !abstract_member || !self.is_stable(a) {
+            return false;
+        }
+        let a = match *self.u.types().get(a) {
+            Type::ByName(r) => r,
+            _ => a,
+        };
+        let selected = self.u.intern_type(Type::Sym(Some(a), m));
+        self.recur(lo2, selected) && self.recur(selected, hi2)
     }
 
     /// Whether member info `have` conforms to refinement info `want`: type bounds within

@@ -17,9 +17,12 @@ impl Universe {
                 Some(&elem) => self.erase_array(elem),
                 None => object(),
             },
-            Some("scala.*:") => match self.tuple_arity(args) {
-                Some(n) => tuple(n),
-                None => Erased::Class("scala.Product".into()),
+            Some("scala.*:") => match args {
+                [_, tail] => match self.tuple_arity(*tail) {
+                    Some(n) => tuple(n + 1),
+                    None => Erased::Class("scala.Product".into()),
+                },
+                _ => Erased::Class("scala.Product".into()),
             },
             Some("scala.|") if args.len() == 2 => self.erase_or(args[0], args[1]),
             Some("scala.&") if args.len() == 2 => self.erase_and(args[0], args[1]),
@@ -30,11 +33,20 @@ impl Universe {
                 },
                 None => self.erase(tycon),
             },
-            None => match self.expand(tycon, args) {
+            None => match self.expand(tycon, args).or_else(|| self.expand_opaque(tycon, args)) {
                 Some(t) => self.erase(t),
                 None => self.erase(tycon),
             },
         }
+    }
+
+    /// `tycon[args]` with `tycon` an opaque type lambda defined outside TASTy: its right-hand
+    /// side's body, arguments substituted.
+    fn expand_opaque(&mut self, tycon: TypeId, args: &[TypeId]) -> Option<TypeId> {
+        let alias = self.referenced(tycon).and_then(|s| self.opaque_alias(s))?;
+        let Type::Lambda { binder, params, result } = self.types().get(alias).clone() else { return None };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        Some(self.subst(result, binder, &names, args))
     }
 
     /// The argument of `tycon[args]`, a value class whose underlying value has the type of one of
@@ -63,22 +75,28 @@ impl Universe {
         }))
     }
 
-    /// The number of elements of `h *: t` if `t` is a tuple of known length.
-    fn tuple_arity(&mut self, args: &[TypeId]) -> Option<usize> {
-        let [_, tail] = args else { return None };
-        match self.types().get(*tail).clone() {
-            Type::Applied(c, a) if self.class_name(c).as_deref() == Some("scala.*:") => {
-                Some(1 + self.tuple_arity(&a)?)
+    /// The number of elements of tuple type `t` if it is known: a `*:` chain ending in the type of
+    /// object `EmptyTuple`, not its alias, or a `TupleN` (dotty's `tupleArity`).
+    fn tuple_arity(&mut self, t: TypeId) -> Option<usize> {
+        let module = match self.types().get(t).clone() {
+            Type::Applied(c, a) if self.class_name(c).as_deref() == Some("scala.*:") && a.len() == 2 => {
+                return Some(1 + self.tuple_arity(a[1])?);
             }
-            _ if self.class_name(*tail).as_deref() == Some("scala.Tuple$package.EmptyTuple") => Some(1),
-            Type::TypeRef(_, n) if n == "EmptyTuple" => Some(1),
-            Type::Sym(_, s)
-                if self.symbol(s).name == "EmptyTuple" && self.full_name(s).starts_with("scala.") =>
-            {
-                Some(1)
+            Type::And(a, b) | Type::Or(a, b, _) => {
+                let n = self.tuple_arity(a)?;
+                return (self.tuple_arity(b)? == n).then_some(n);
             }
+            Type::Sym(_, s) => Some(s),
+            Type::TermRef(p, n) => self.resolve(p, &n, false),
             _ => None,
+        };
+        if let Some(s) = module.filter(|&s| self.is_module(s)) {
+            let empty = self.symbol(s).name == "EmptyTuple" && self.full_name(s).starts_with("scala.");
+            return empty.then_some(0);
         }
+        let d = self.dealias(t);
+        let Type::Applied(c, args) = self.types().get(d).clone() else { return None };
+        (self.class_name(c) == Some(format!("scala.Tuple{}", args.len()))).then_some(args.len())
     }
 
     /// `tycon[args]` with `tycon` an alias of a type lambda: its body as seen from the prefix of

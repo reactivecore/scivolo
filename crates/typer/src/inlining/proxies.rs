@@ -149,7 +149,7 @@ impl Inlining<'_> {
 
     /// `t` itself with the definitions owned by `old` given to `new` (dotty's `changeOwner`); the
     /// binding then shares `t` with the call the `Inlined` tree keeps, which the lowering drops.
-    fn change_owner(&mut self, t: TNodeId, old: SymbolId, new: SymbolId) -> TNodeId {
+    pub fn change_owner(&mut self, t: TNodeId, old: SymbolId, new: SymbolId) -> TNodeId {
         let mut stack = vec![t];
         while let Some(n) = stack.pop() {
             let defines = matches!(self.tpd.tree(n), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. });

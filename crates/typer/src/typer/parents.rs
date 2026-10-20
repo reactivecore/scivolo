@@ -10,14 +10,18 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
-    /// The type tree of a parent: the class of a constructor call, or the parent itself.
-    fn parent_tpt(&self, parent: NodeId) -> NodeId {
+    /// The type tree of a parent: the class of a constructor call, whose `new` it records as a
+    /// parent's, or the parent itself.
+    fn parent_tpt(&mut self, parent: NodeId) -> NodeId {
         match *self.ast.tree(parent) {
             Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } => self.parent_tpt(fun),
             Tree::Select { qualifier, name } if self.text(name.name) == "<init>" => {
                 self.parent_tpt(qualifier)
             }
-            Tree::New { tpt } => tpt,
+            Tree::New { tpt } => {
+                self.parent_news.insert(parent);
+                tpt
+            }
             _ => parent,
         }
     }

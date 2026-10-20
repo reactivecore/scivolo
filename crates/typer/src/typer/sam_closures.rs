@@ -37,7 +37,17 @@ impl Typer<'_> {
             return None;
         }
         let n = (0..=22).find(|&n| self.function_parts(tpe, n).is_some())?;
-        let parent = self.sam_parts(pt, n, false).ok()??.parent;
+        if !self.function_params(pt).is_empty() || self.function_parts(pt, 0).is_some() {
+            return None;
+        }
+        let sam = self.sam_shape(pt, n).ok()??;
+        let mut parts = sam.params;
+        parts.push(sam.result);
+        let fun = self.function_of(parts).ok()?;
+        if !self.conforms(tpe, fun) {
+            return None;
+        }
+        let parent = sam.parent;
         let span = self.tpd.span(expr);
         let tpt = Some(self.type_tree(parent, span.start_pos(), false));
         let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(parent), None);

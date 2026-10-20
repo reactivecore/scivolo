@@ -5,9 +5,8 @@
 
 use super::casts::function_class_arity;
 use super::walk::subtrees;
-use crate::symbols::is_effectively_final;
 use crate::{Lower, Result, unsupported};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -21,26 +20,29 @@ struct Flattened {
 
 /// Flattens the methods of unit `root` whose right-hand sides are context closures of their
 /// context function result types (dotty's `annotateContextResults`) and their calls; refuses
-/// those that may override or be overridden, other references to them, and references to
-/// library methods annotated `ContextResultCount`.
+/// those overriding or overridden in the unit by methods flattened otherwise, those overriding
+/// members of other units, other references to them, and references to library methods
+/// annotated `ContextResultCount`.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
-    let mut flattened = Vec::new();
-    let mut defined = FxHashSet::default();
+    let mut defs = Vec::new();
+    let mut counts = FxHashMap::default();
     for t in subtrees(l.tpd, root) {
         let Tree::DefDef { tpt, rhs, .. } = *l.tpd.tree(t) else { continue };
         let Some(m) = l.tpd.sym(t) else { continue };
-        defined.insert(m);
-        let Some(rhs) = rhs else { continue };
-        if l.u.symbol(m).name == "$anonfun"
-            || !is_context_function(l, l.tpd.tpe(tpt))
-            || closure_def(l, rhs).is_none()
-        {
-            continue;
+        defs.push(m);
+        let count = rhs.map_or(0, |rhs| context_result_count(l, tpt, rhs));
+        if count > 0 && l.u.symbol(m).name != "$anonfun" {
+            counts.insert(m, (t, count));
         }
-        if !is_alone(l, m) {
+    }
+    let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
+    let mut flattened = Vec::new();
+    for t in subtrees(l.tpd, root) {
+        let Some(m) = l.tpd.sym(t).filter(|m| counts.get(m).is_some_and(|&(d, _)| d == t)) else { continue };
+        if !overrides_alike(l, m, &defs, &counts) {
             return unsupported(
                 l.tpd.span(t),
-                "overridable or overloaded methods with context function results",
+                "overriding methods with context function results flattened otherwise",
             );
         }
         let info = l.u.info(m);
@@ -88,28 +90,48 @@ fn has_context_result(l: &mut Lower, s: SymbolId) -> bool {
     is_context_function(l, t)
 }
 
-/// Whether method `m` neither overrides nor can be overridden: local, or effectively final in a
-/// class whose parents are `Object` or `Any` only, without other members of its name there or
-/// in `Object` or `Any`.
-fn is_alone(l: &mut Lower, m: SymbolId) -> bool {
-    let Some(owner) = l.u.symbol(m).owner else { return false };
-    if l.u.symbol(owner).kind != Kind::Class {
+/// How many context closures the right-hand side `rhs` of a method of result type tree `tpt`
+/// nests (dotty's `contextResultCount`).
+fn context_result_count(l: &mut Lower, mut tpt: TNodeId, mut rhs: TNodeId) -> usize {
+    let mut n = 0;
+    while is_context_function(l, l.tpd.tpe(tpt)) {
+        let Some(anon_def) = closure_def(l, rhs) else { break };
+        let Tree::DefDef { tpt: at, rhs: Some(ar), .. } = *l.tpd.tree(anon_def) else { break };
+        (n, tpt, rhs) = (n + 1, at, ar);
+    }
+    n
+}
+
+/// Whether every member of the name of method `m` that `m` may override, or that may override
+/// `m`, is a method of the unit flattened by as many closures: those of the base classes of its
+/// class and of the unit's classes deriving from it, and of `Object` and `Any`.
+fn overrides_alike(
+    l: &mut Lower,
+    m: SymbolId,
+    defs: &[SymbolId],
+    counts: &FxHashMap<SymbolId, (TNodeId, usize)>,
+) -> bool {
+    let Some(owner) = l.u.symbol(m).owner.filter(|&o| l.u.symbol(o).kind == Kind::Class) else {
         return true;
-    }
-    if !is_effectively_final(l.u, owner, m) {
-        return false;
-    }
-    let parents = l.u.parents(owner);
-    let only_roots = parents.into_iter().all(|p| {
-        l.u.class_symbol(p)
-            .is_some_and(|c| matches!(l.u.full_name(c).as_str(), "java.lang.Object" | "scala.Any"))
-    });
+    };
+    let count = counts.get(&m).map(|&(_, c)| c);
     let name = l.u.symbol(m).name.clone();
-    only_roots
-        && l.u.decl(owner, &name).is_ok_and(|d| d.len() == 1)
-        && [("java.lang", "Object"), ("scala", "Any")]
-            .into_iter()
-            .all(|(p, c)| !root_declares(l, p, c, &name))
+    let mut classes = vec![owner];
+    for &d in defs {
+        let o = l.u.symbol(d).owner.filter(|&o| l.u.symbol(o).kind == Kind::Class);
+        if let Some(o) = o.filter(|&o| !classes.contains(&o) && l.u.derives_from(o, owner)) {
+            classes.push(o);
+        }
+    }
+    let mut related: Vec<SymbolId> = Vec::new();
+    for class in classes {
+        for base in l.u.linearization(class) {
+            related.extend(l.u.decl(base, &name).unwrap_or_default());
+        }
+    }
+    let roots = [("java.lang", "Object"), ("scala", "Any")];
+    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count)
+        && roots.into_iter().all(|(p, c)| !root_declares(l, p, c, &name))
 }
 
 /// Whether class `class` of package `package` declares a member `name`, or cannot be found.

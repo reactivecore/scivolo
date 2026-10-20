@@ -123,16 +123,18 @@ impl Typer<'_> {
 
     /// A reference desugaring made to the library symbol of full name `sym`: a type tree for a
     /// type (dotty's `TypeTree(sym.typeRef)`), else an identifier of its simple name (`ref(sym)`).
-    pub fn typed_full_ref(&mut self, id: NodeId, sym: TName) -> TNodeId {
+    pub fn typed_full_ref(&mut self, id: NodeId, sym: TName, ctx: Ctx) -> TNodeId {
         let full = self.text(sym.name).to_owned();
-        let Some(s) = self.resolve_full_name(&full, sym.is_type) else {
-            return self.unsupported(id, &format!("reference to {full}"));
-        };
         let span = self.ast.span(id);
         if sym.is_type {
-            let tpe = crate::defn::type_ref(self.u, s);
+            let Some(tpe) = self.full_type(&full, ctx) else {
+                return self.unsupported(id, &format!("reference to {full}"));
+            };
             return self.type_tree(tpe, span, false);
         }
+        let Some(s) = self.resolve_full_name(&full, false) else {
+            return self.unsupported(id, &format!("reference to {full}"));
+        };
         self.build().static_ident(s, span)
     }
 

@@ -16,13 +16,14 @@ mod anon_classes;
 mod applicability;
 mod apply;
 mod apply_insertion;
-mod approx;
+pub(crate) mod approx;
 mod arg_shapes;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
 mod avoid_map;
 mod avoid_select;
+mod by_name_repeated;
 mod call_types;
 mod case_companion;
 mod case_lambdas;
@@ -55,6 +56,7 @@ mod dispatch;
 mod dynamic;
 mod enum_case_refs;
 mod enum_cases;
+mod enum_refs;
 mod equality;
 mod errors;
 mod escaping;
@@ -86,6 +88,7 @@ mod lift;
 mod lift_app;
 mod linter;
 mod literals;
+mod mapped_alternatives;
 mod match_type_trees;
 mod matches;
 mod member_hint;
@@ -115,6 +118,8 @@ mod pattern_bounds;
 mod patterns;
 mod plain_trees;
 mod poly_alternatives;
+mod poly_function_values;
+mod poly_functions;
 mod pretyped_args;
 mod purity;
 mod qualifier_views;
@@ -134,6 +139,7 @@ mod selves;
 mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
+mod spliced_args;
 pub(crate) mod stability;
 mod stats;
 mod structural;
@@ -154,6 +160,7 @@ mod type_mismatch;
 mod type_tests;
 mod type_trees;
 mod unapply;
+mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
 mod unknown_params;
@@ -208,6 +215,8 @@ pub struct Typer<'a> {
     pub splices: FxHashMap<NodeId, TNodeId>,
     /// The owners of spliced trees, which their definitions leave when spliced (`TypedSplice.owner`).
     pub splice_owners: FxHashMap<NodeId, SymbolId>,
+    /// The `new`s of parent calls (dotty's `noCheckNews`).
+    pub parent_news: rustc_hash::FxHashSet<NodeId>,
     /// The imports of the unit, root imports first, by `Level::Import` index.
     pub imports: Vec<imports::ImportEntry>,
     /// The level each import tree opens.
@@ -226,6 +235,9 @@ pub struct Typer<'a> {
     pub poly_protos: Vec<poly_alternatives::PolyProto>,
     /// The alternatives being resolved with their type parameters instantiated, and the types.
     pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
+    /// The copies of alternatives resolved by a later clause: the original and how many clauses
+    /// the copy skips.
+    pub mapped_alts: FxHashMap<SymbolId, (SymbolId, usize)>,
     /// The applicable alternatives of the last overload resolution found ambiguous.
     pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
@@ -300,6 +312,7 @@ impl<'a> Typer<'a> {
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),
+            parent_news: Default::default(),
             imports: Vec::new(),
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),
@@ -309,6 +322,7 @@ impl<'a> Typer<'a> {
             protos: Vec::new(),
             poly_protos: Vec::new(),
             mapped_targs: None,
+            mapped_alts: FxHashMap::default(),
             ambiguous: Vec::new(),
             unsupported: None,
             reports: 0,

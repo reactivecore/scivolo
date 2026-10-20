@@ -181,6 +181,9 @@ impl Universe {
         }
     }
 
+    /// The file of the common binders of two type lambdas or polymorphic types being compared.
+    pub const COMPARED_BINDERS: FileId = FileId(u32::MAX - 5);
+
     /// The file of the binders of `fresh_binder`.
     pub const FRESH_BINDERS: FileId = FileId(u32::MAX - 1);
 

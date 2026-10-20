@@ -5,10 +5,12 @@
 
 use super::generic_arrays::runtime_op;
 use super::{typed, typed_qualifier};
+use crate::definitions::type_ref;
 use crate::phases::adapt::{array_op, from_start, is_synchronized, qualify_synchronized, synchronized_type};
 use crate::phases::casts::{erased_function_class, is_cast};
 use crate::{Lower, Result};
-use tasty::SymbolId;
+use syntax::ast::Span;
+use tasty::{Erased, SymbolId, Type};
 use typer::tpd::{List, TNodeId, Tree};
 
 /// Call `t` of `fun` to `args`, its argument lists flattened and its type arguments dropped; at
@@ -64,11 +66,32 @@ pub fn typed_apply(l: &mut Lower, t: TNodeId, mut fun: TNodeId, args: List) -> R
         (None, Some(e)) => vec![e],
         (None, None) => l.tpd.sym(fun).map(|m| l.u.erased_method_value(m).0).unwrap_or_default(),
     };
+    if is_bunched(&params, all.len()) {
+        all = vec![bunched_args(l, &all)];
+    }
     let mut typed_args = Vec::new();
     for (i, &a) in all.iter().enumerate() {
         typed_args.push(typed(l, a, params.get(i))?);
     }
     Ok(Tree::Apply { fun, args: l.tpd.list(&typed_args) })
+}
+
+/// Whether `n` arguments go to erased parameters `params` as one array: a `FunctionXXL`'s
+/// `apply` called with more arguments than the library's arities (dotty's `expandedMethodType`).
+fn is_bunched(params: &[Erased], n: usize) -> bool {
+    let [Erased::Array(elem)] = params else { return false };
+    n > tasty::MAX_IMPLEMENTED_ARITY && matches!(&**elem, Erased::Class(c) if c == "java.lang.Object")
+}
+
+/// `args` as the elements of an array of objects (dotty's `JavaSeqLiteral`).
+fn bunched_args(l: &mut Lower, args: &[TNodeId]) -> TNodeId {
+    let span = args.iter().fold(Span::NONE, |s, &a| s.union(l.tpd.span(a)));
+    let object = type_ref(l.u, l.defs.object);
+    let elemtpt = l.type_tree(object, Span::NONE);
+    let array = l.u.class_ref("scala.Array");
+    let tpe = l.u.intern_type(Type::Applied(array, vec![object]));
+    let elems = l.tpd.list(args);
+    l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
 }
 
 /// The member of `Any` that the JDK's `java.lang.Class` inherits where nativelib's `_Class`
@@ -82,8 +105,8 @@ pub fn inherited_by_class(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     l.u.decl(l.defs.any, &name).unwrap_or_default().first().copied()
 }
 
-/// The member of `FunctionN` that member `m` of `ContextFunctionN` becomes (dotty's
-/// `Erasure.Typer.mapOwner`).
+/// The member of `FunctionN` or `FunctionXXL` that member `m` of `ContextFunctionN` or of a
+/// `FunctionN` above the library's arities becomes (dotty's `Erasure.Typer.mapOwner`).
 pub fn function_member(l: &mut Lower, m: SymbolId) -> Option<SymbolId> {
     let owner = l.u.symbol(m).owner?;
     let erased = erased_function_class(l, owner).filter(|&c| c != owner)?;

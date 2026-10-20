@@ -6,6 +6,7 @@ use super::Typer;
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::NodeId;
+use tasty::tags::{ABSTRACT, TRAIT};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
@@ -36,8 +37,14 @@ impl Typer<'_> {
             return self.unsupported(id, "new of a parameterized type alias");
         }
         if let Some(c) = self.u.class_symbol(tpe)
-            && !self.is_parent_call(c, ctx)
+            && !self.parent_news.contains(&id)
         {
+            let flags = self.u.symbol(c).flags;
+            if flags.has(TRAIT) || flags.has(ABSTRACT) {
+                let name = self.u.symbol(c).name.clone();
+                let span = self.tpd.span(tpt);
+                self.error_at(span, super::errors::cannot_instantiate(&name, flags.has(TRAIT)));
+            }
             self.ensure_self(c);
             if self.u.given_self_type(c).is_some() {
                 return self.unsupported(id, "new of a class not conforming to its self type");

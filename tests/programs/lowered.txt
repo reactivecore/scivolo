@@ -119,3 +119,8 @@ traitparams
 mirrors
 scala2mirrors
 deriving
+functionsxxl
+lowergaps
+polyfunctions
+inlineextractors
+argclauses

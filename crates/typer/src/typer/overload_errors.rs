@@ -24,8 +24,8 @@ impl Typer<'_> {
     ) -> Option<TNodeId> {
         let Pt::Fun(proto) = pt else { return None };
         if !matches!(self.ast.tree(id), Tree::Ident { .. })
-            || self.protos[proto].applied
-            || ambiguous.is_some() && self.protos[proto].result.is_some()
+            || matches!(self.protos[proto].pt, Pt::Fun(_) | Pt::PolyFun(_))
+            || ambiguous.is_some() && matches!(self.protos[proto].pt, Pt::Type(_))
             || self.protos[proto].dual.is_some()
             || alts.iter().any(|&s| self.u.symbol(s).kind != Kind::Def)
         {

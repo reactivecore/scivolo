@@ -25,17 +25,36 @@ impl Typer<'_> {
         if kind == DerivedKind::TermRef {
             let ident = self.ast.node(Tree::Ident { name: TName { is_type: false, ..watched } });
             self.ast.with_span(ident, self.ast.span(id));
-            return self.typed(ident, Pt::Any, ctx);
+            let outside = self.outside_class(ctx);
+            return self.typed(ident, Pt::Any, outside);
         }
         let text = self.text(watched.name).to_owned();
         let tpe = match kind {
             DerivedKind::FromParam => self.derived_from_param(&text, watched.is_type, ctx),
+            DerivedKind::FromEnumParam => self.derived_from_enum_param(&text, ctx),
             DerivedKind::SetterParam => self.setter_param_type(&text, ctx),
             _ => self.class_named(&text, ctx).map(|c| type_ref(self.u, c)),
         };
         let Some(tpe) = tpe else { return self.unsupported(id, &format!("derived type {kind:?}")) };
         let span = self.ast.span(id);
         self.type_tree(tpe, span, false)
+    }
+
+    /// `ctx` with the scope just outside the members of the innermost class around it, where the
+    /// class's companion is visible unshadowed by its members.
+    fn outside_class(&self, ctx: Ctx) -> Ctx {
+        let mut level = Some(ctx.level);
+        while let Some(l) = level {
+            let outer = self.levels.outer(l);
+            if let &Level::Members(o) = self.levels.get(l)
+                && self.u.symbol(o).kind == Kind::Class
+                && let Some(outer) = outer
+            {
+                return Ctx { level: outer, ..ctx };
+            }
+            level = outer;
+        }
+        ctx
     }
 
     /// The constructor whose parameters the class members and companion methods of `ctx` copy:
@@ -72,6 +91,24 @@ impl Typer<'_> {
         let original = decls
             .into_iter()
             .find(|&p| self.u.symbol(p).name == name && self.u.is_type_symbol(p) == is_type)?;
+        self.relocated_info(original, ctor, ctx)
+    }
+
+    /// The info of type parameter `name` of the enum class whose case class is being typed in
+    /// `ctx`, relocated like `derived_from_param`'s (dotty's `derivedTypeParamWithVariance`).
+    fn derived_from_enum_param(&mut self, name: &str, ctx: Ctx) -> Option<TypeId> {
+        let case = self.enclosing_class(ctx.owner)?;
+        let module = self.u.symbol(case).owner?;
+        let enum_class = self.u.companion_class(module)?;
+        self.complete(enum_class);
+        let tparams = self.u.type_params(enum_class);
+        let original = tparams.into_iter().find(|&p| self.u.symbol(p).name == name)?;
+        self.relocated_info(original, enum_class, ctx)
+    }
+
+    /// The info of `original`, its references to other symbols of `owner` made to the same-named
+    /// parameters or accessors visible in `ctx`.
+    fn relocated_info(&mut self, original: SymbolId, owner: SymbolId, ctx: Ctx) -> Option<TypeId> {
         let info = match self.syms.repeated_params.get(&original) {
             Some(&written) => written,
             None => self.u.info(original),
@@ -79,7 +116,7 @@ impl Typer<'_> {
         let mut siblings = Vec::new();
         self.u.map_type(info, &mut |u, t| {
             if let Type::Sym(_, s) = *u.types().get(t)
-                && u.symbol(s).owner == Some(ctor)
+                && u.symbol(s).owner == Some(owner)
             {
                 siblings.push(s);
             }
@@ -142,7 +179,7 @@ impl Typer<'_> {
     }
 
     /// The class named `name` defined in the owner of `ctx` or around it.
-    fn class_named(&mut self, name: &str, ctx: Ctx) -> Option<SymbolId> {
+    pub fn class_named(&mut self, name: &str, ctx: Ctx) -> Option<SymbolId> {
         match self.find_ref(name, true, ctx) {
             Ok(Some(found)) => found.syms.into_iter().find(|&s| self.u.symbol(s).kind == Kind::Class),
             _ => None,

@@ -42,17 +42,32 @@ impl Typer<'_> {
         };
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
-        let mut args = Vec::new();
-        for (name, p) in &params {
-            let before: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let mut found: Vec<Option<TNodeId>> = Vec::new();
+        for (i, (name, p)) in params.iter().enumerate() {
+            if found.contains(&None) && self.mentions_clause_params(*p, (binder, &names), meth) {
+                return Err("implicit parameter depending on a defaulted one");
+            }
+            let before: Vec<TypeId> = found.iter().flatten().map(|&a| self.tpd.tpe(a)).collect();
             let formal = self.applied_result(*p, (binder, &names), meth, &before);
             match self.implicit_arg(formal, at, ctx, depth) {
+                Err("no implicit argument")
+                    if depth > 0 && meth.is_some_and(|m| self.may_default(tree, m, i)) =>
+                {
+                    return Err("nested implicit argument left to its default");
+                }
+                Err("no implicit argument") if depth == 0 && self.defaultable(tree, meth, i, formal) => {
+                    found.push(None)
+                }
                 Err(what @ "no implicit argument") if depth == 0 => {
                     return self.missing_given(tree, (name, formal), at, ctx).map(Some).ok_or(what);
                 }
-                arg => args.push(arg?),
+                arg => found.push(Some(arg?)),
             }
         }
+        if found.contains(&None) {
+            return Ok(Some(self.with_default_implicits(tree, &names, &found, ctx)));
+        }
+        let args: Vec<TNodeId> = found.into_iter().flatten().collect();
         let arg_types: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
         let result = self.applied_result(result, (binder, &names), meth, &arg_types);
         Ok(Some(self.build().apply(tree, &args, result, span)))

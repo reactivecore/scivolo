@@ -20,6 +20,9 @@ impl Typer<'_> {
         let bound = bound.map(|b| self.typed_type(b, ctx)).map(|b| self.tpd.tpe(b));
         let selector = self.typed_type(selector, ctx);
         let scrutinee = self.tpd.tpe(selector);
+        if self.type_arity(scrutinee) > 0 {
+            return self.unsupported(id, "higher-kinded match type scrutinee");
+        }
         let mut case_types = Vec::new();
         let mut lub = NOTHING;
         for c in self.ast.items(cases).to_vec() {

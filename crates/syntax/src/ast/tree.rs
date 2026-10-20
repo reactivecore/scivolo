@@ -426,6 +426,8 @@ pub enum DerivedKind {
     SetterParam,
     /// The type of a parameter copied from a class parameter.
     FromParam,
+    /// The bounds of a type parameter an enum case class takes over from its enum.
+    FromEnumParam,
     /// A reference to the class of a class definition.
     TypeRef,
     /// A reference to the value of an object.
@@ -437,7 +439,7 @@ impl DerivedKind {
     pub fn class_name(self) -> &'static str {
         match self {
             DerivedKind::SetterParam => "SetterParamTree",
-            DerivedKind::FromParam => "DerivedFromParamTree",
+            DerivedKind::FromParam | DerivedKind::FromEnumParam => "DerivedFromParamTree",
             DerivedKind::TypeRef => "TypeRefTree",
             DerivedKind::TermRef => "TermRefTree",
         }

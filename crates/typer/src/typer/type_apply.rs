@@ -36,10 +36,10 @@ impl Typer<'_> {
             Some(typed) => typed,
             None => arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect(),
         };
-        let arg_types: Vec<TypeId> = typed_args.iter().map(|&a| self.tpd.tpe(a)).collect();
-        if arg_types.iter().any(|&a| self.type_arity(a) > 0) {
-            return self.unsupported(id, "higher-kinded type argument of a method");
-        }
+        let arg_types = match typed_args.iter().map(|&a| self.adapted_type_arg(a)).collect() {
+            Ok::<Vec<TypeId>, _>(types) => types,
+            Err(what) => return self.unsupported(id, what),
+        };
         let mut tpe = match self.instantiated(f, &arg_types) {
             Ok(tpe) => tpe,
             Err(what) => return self.unsupported(id, what),

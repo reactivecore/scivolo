@@ -202,6 +202,6 @@ pub fn outer_accessor(l: &mut Lower, class: SymbolId) -> SymbolId {
 pub fn outer_accessor_name(l: &Lower, class: SymbolId) -> String {
     match in_term(l, class) {
         true => format!("{}$$$outer", super::local_outer::separated_name(l, class)),
-        false => format!("{}$$$outer", l.u.binary_name(class).replace('.', "$")),
+        false => format!("{}$$$outer", l.u.expanded_binary_name(class).replace('.', "$")),
     }
 }

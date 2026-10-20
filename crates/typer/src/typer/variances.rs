@@ -108,15 +108,9 @@ impl Typer<'_> {
                 }
             },
             Type::Applied(tycon, args) => {
-                let params = self.u.class_symbol(tycon).map(|c| self.u.type_params(c)).unwrap_or_default();
+                let variances = self.u.constructor_variances(tycon);
                 for (i, a) in args.into_iter().enumerate() {
-                    let flags = params.get(i).map(|&p| self.u.symbol(p).flags);
-                    let pv = match flags {
-                        Some(f) if f.has(tasty::tags::COVARIANT) => 1,
-                        Some(f) if f.has(tasty::tags::CONTRAVARIANT) => -1,
-                        _ => 0,
-                    };
-                    go(self, a, v * pv);
+                    go(self, a, v * variances.get(i).copied().unwrap_or(0));
                 }
                 go(self, tycon, v);
             }

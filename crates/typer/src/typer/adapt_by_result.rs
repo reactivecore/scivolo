@@ -18,14 +18,14 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
         proto: usize,
     ) -> SymbolId {
-        let (Some(pt), ctx) = (self.protos[proto].result, self.protos[proto].ctx) else { return chosen };
-        if self.result_conforms(chosen, prefix, pt, ctx) != Some(false) {
+        let (Pt::Type(pt), ctx) = (self.protos[proto].pt, self.protos[proto].ctx) else { return chosen };
+        if self.result_conforms(chosen, prefix, pt, (true, ctx)) != Some(false) {
             return chosen;
         }
         let conforming: Vec<SymbolId> = alts
             .iter()
             .copied()
-            .filter(|&a| a != chosen && self.result_conforms(a, prefix, pt, ctx) == Some(true))
+            .filter(|&a| a != chosen && self.result_conforms(a, prefix, pt, (true, ctx)) == Some(true))
             .collect();
         match conforming[..] {
             [] => chosen,
@@ -35,9 +35,9 @@ impl Typer<'_> {
     }
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
-    /// (dotty's `constrainResult`): normalized against a fully defined `pt` other than `Unit`,
-    /// else a value result only; `Err` for an implicit method whose result is a type variable
-    /// under a `pt` with type variables.
+    /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
+    /// defined `pt`, not at all against `Unit`, else a value result only; `Err` for an implicit
+    /// method whose result is a type variable under a `pt` with type variables.
     pub fn constrain_applied_result(
         &mut self,
         meth: Option<SymbolId>,
@@ -53,15 +53,18 @@ impl Typer<'_> {
             return Err("implicit method result under a type with type variables");
         }
         self.refinement_result(result, pt)?;
+        if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
+            return Ok(());
+        }
         let follow = !self.is_context_function_type(p);
-        let value = match defined && self.u.class_symbol(p) != Some(self.defn.unit) {
+        let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
             false => Some(result)
                 .filter(|&r| !matches!(self.u.types().get(r), Type::Method { .. } | Type::Poly { .. }))
                 .map(|r| if follow { self.context_result(r) } else { r }),
         };
         if let Some(value) = value {
-            self.conforms(value, p);
+            self.u.is_necessary_subtype_in(value, p, &mut self.constraint);
         }
         Ok(())
     }
@@ -152,14 +155,14 @@ impl Typer<'_> {
     }
 
     /// Whether the result of `alt` after its first parameter clause and its implicit clauses is
-    /// compatible with `pt` in `ctx`, its type parameters made type variables; the constraint
-    /// unchanged; `None` if undecided.
-    fn result_conforms(
+    /// compatible with `pt` in `ctx`, through an implicit conversion if `views`, its type
+    /// parameters made type variables; the constraint unchanged; `None` if undecided.
+    pub fn result_conforms(
         &mut self,
         alt: SymbolId,
         prefix: Option<TypeId>,
         pt: TypeId,
-        ctx: Ctx,
+        (views, ctx): (bool, Ctx),
     ) -> Option<bool> {
         if self.u.class_symbol(pt) == Some(self.defn.unit) {
             return Some(true);
@@ -175,7 +178,8 @@ impl Typer<'_> {
         }
         let fits = match *self.u.types().get(info) {
             Type::Method { result, .. } => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
-                Some(value) => self.compatible(value, pt, true, ctx),
+                Some(value) if self.u.is_necessary_subtype_in(value, pt, &mut self.constraint) => Some(true),
+                Some(value) => self.compatible(value, pt, views, ctx),
                 None => None,
             },
             _ => Some(true),

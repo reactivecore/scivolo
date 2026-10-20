@@ -7,15 +7,16 @@
 
 use super::adapt::from_start;
 use super::adapted::{adapted_types, specializable};
-use super::casts::erased_function_class;
+use super::casts::{erased_function_class, function_class_arity};
 use super::lambda_lift::Function;
 use super::lift_names::fresh;
 use super::lifted::{Method, define};
 use super::narrowed::home;
+use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::{procedure, specialized, type_ref};
 use crate::{Lower, Result, unsupported};
-use tasty::{Erased, SymbolId, TypeId};
+use tasty::{Erased, MAX_IMPLEMENTED_ARITY, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// How a lambda's closure is made: the interface it implements if not its function type, its
@@ -39,9 +40,15 @@ pub fn plan(
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(f.block);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
-    let function = tpt.is_none();
-    let declared = l.u.class_symbol(tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t)));
-    let interface = declared.and_then(|c| erased_function_class(l, c));
+    let tpe = tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t));
+    let (unrefined, _) = l.u.without_refinements(tpe);
+    let declared = l.u.class_symbol(unrefined);
+    let xxl = declared
+        .and_then(|c| function_class_arity(l, c))
+        .is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY);
+    let function = tpt.is_none() && !xxl;
+    let interface =
+        poly_function_class(l, tpe).or_else(|| declared.and_then(|c| erased_function_class(l, c)));
     let erased_context = interface.filter(|&c| Some(c) != declared);
     let Some(sam) = interface.and_then(|c| abstract_methods(l, c).first().copied()) else {
         return unsupported(span, "closures of a type without an abstract method");

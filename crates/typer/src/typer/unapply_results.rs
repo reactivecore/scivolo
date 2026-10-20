@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! The result types of extractors (dotty's `UnapplyArgs`, `extractorMemberType`): product
-//! selectors, `get` of an `isEmpty`/`get` result, Boolean results.
+//! selectors, `get` of an `isEmpty`/`get` result, Boolean results, generic tuples.
 
 use super::Typer;
 use super::dependent_params::applied_result;
@@ -19,7 +19,7 @@ impl Typer<'_> {
         t: TypeId,
         (binder, param): (Binder, &str),
         own: TypeId,
-    ) -> Result<TypeId, &'static str> {
+    ) -> TypeId {
         let method = self.tpd.sym(self.tpd.meth_part(unapp));
         let names = [param.to_owned()];
         let applied = applied_result(self.u, t, (binder, &names), method, &[own]);
@@ -35,15 +35,7 @@ impl Typer<'_> {
                 _ => None,
             }
         });
-        let mut skolems = false;
-        self.u.map_type(result, &mut |u, part| {
-            skolems |= skolem(u, part).is_some();
-            None
-        });
-        match skolems && result != t {
-            true => Err("extractor result depending on its unstable argument"),
-            false => Ok(self.zonk(result)),
-        }
+        self.zonk(result)
     }
 
     /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
@@ -63,6 +55,9 @@ impl Typer<'_> {
             if sels.len() == n { sels } else { vec![get] }
         } else if self.derives_from_named(result, "scala.Boolean") {
             Vec::new()
+        } else if self.derives_from_named(result, "scala.NonEmptyTuple") {
+            let widened = self.u.widen(result);
+            self.tuple_elements_within(widened, usize::MAX).unwrap_or_default()
         } else {
             return Err("extractor result type");
         };

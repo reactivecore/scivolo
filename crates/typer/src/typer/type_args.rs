@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! The kinds of type arguments: type constructors where higher-kinded parameters are, class
-//! constructors eta-expanded (dotty's `adaptType`).
+//! The arities of type constructors and the kinds of type arguments: type constructors where
+//! higher-kinded parameters are, class constructors eta-expanded (dotty's `adaptType`).
 
 use super::Typer;
 use crate::symbols::Completion;
@@ -10,9 +10,42 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
+    /// How many type parameters type constructor `t` takes: a class's, a type lambda's.
+    pub fn type_arity(&mut self, t: TypeId) -> usize {
+        self.type_arity_within(t, 32)
+    }
+
+    fn type_arity_within(&mut self, t: TypeId, depth: u32) -> usize {
+        let Some(depth) = depth.checked_sub(1) else { return 0 };
+        match self.u.types().get(t).clone() {
+            Type::Sym(_, s) => match self.u.symbol(s).kind {
+                Kind::Class => self.u.type_params(s).len(),
+                Kind::Type | Kind::TypeParam => {
+                    self.complete(s);
+                    let info = self.u.info(s);
+                    match self.u.types().get(info).clone() {
+                        Type::Alias(a) | Type::Bounds(_, a) => self.type_arity_within(a, depth),
+                        Type::Lambda { params, .. } => params.len(),
+                        _ => 0,
+                    }
+                }
+                _ => 0,
+            },
+            Type::Lambda { params, .. } => params.len(),
+            Type::Applied(tycon, _) => {
+                if let Type::Sym(_, s) = *self.u.types().get(tycon) {
+                    self.complete(s);
+                }
+                let reduced = self.u.dealias(t);
+                if reduced == t { 0 } else { self.type_arity_within(reduced, depth) }
+            }
+            _ => 0,
+        }
+    }
+
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
-    /// the subset: their number, a constructor where a parameter of another kind is, or a class
-    /// constructor where the parameters are unknown.
+    /// the subset: their number, `AnyKind` for a type other than a class, a constructor where a
+    /// parameter of another kind is, or a class constructor where the parameters are unknown.
     pub fn type_args_problem(
         &mut self,
         tycon: TypeId,
@@ -22,17 +55,23 @@ impl Typer<'_> {
         if arity != args.len() {
             return Some("wrong number of type arguments");
         }
+        let class_tycon =
+            matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
         for (i, &a) in args.iter().enumerate() {
+            if !class_tycon && self.u.class_symbol(a) == Some(self.u.builtins().any_kind) {
+                return Some("AnyKind argument of a type alias or abstract type");
+            }
             let n = self.type_arity(a);
             let wildcard = matches!(self.u.types().get(a), Type::Bounds(..));
             let class =
                 matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
-            match self.param_arity(tycon, i) {
+            let param_arity = self.param_arity(tycon, i);
+            match param_arity {
                 Some(m) if m > 0 && wildcard => {
                     return Some("wildcard argument of a higher-kinded type parameter");
                 }
                 Some(m) if m != n => return Some("type argument of another kind"),
-                None if n > 0 && self.has_bounded_params(a) => {
+                _ if n > 0 && (param_arity.is_none() || !class_tycon) && self.has_bounded_params(a) => {
                     return Some("type lambda argument with bounded parameters");
                 }
                 None if n > 0 && class => return Some("class type constructor argument"),
@@ -119,11 +158,21 @@ impl Typer<'_> {
         Ok(lambda)
     }
 
-    /// How many type parameters the `i`th type parameter of class constructor `tycon` takes;
-    /// while that parameter is not completed, the number of type parameters of its tree in the
-    /// class's primary constructor if it has any, else `None`.
+    /// How many type parameters the `i`th type parameter of class or type lambda constructor
+    /// `tycon` takes; while a class's parameter is not completed, the number of type parameters
+    /// of its tree in the class's primary constructor if it has any, else `None`.
     fn param_arity(&mut self, tycon: TypeId, i: usize) -> Option<usize> {
         let Type::Sym(_, c) = *self.u.types().get(tycon) else { return None };
+        if matches!(self.u.symbol(c).kind, Kind::Type | Kind::TypeParam) {
+            self.complete(c);
+            let info = self.u.info(c);
+            let lambda = match *self.u.types().get(info) {
+                Type::Bounds(_, hi) => hi,
+                _ => info,
+            };
+            let Type::Lambda { params, .. } = self.u.types().get(lambda).clone() else { return None };
+            return Some(self.bounds_of(params.get(i)?.1).2);
+        }
         if self.u.symbol(c).kind != Kind::Class {
             return None;
         }

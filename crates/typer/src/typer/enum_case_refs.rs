@@ -4,8 +4,7 @@
 
 use super::Typer;
 use syntax::ast::flags as f;
-use syntax::ast::{NodeId, Tree};
-use syntax::names::Name;
+use syntax::ast::{NodeId, TName, Tree};
 
 impl Typer<'_> {
     fn is_enum_case_def(&self, s: NodeId) -> bool {
@@ -25,12 +24,12 @@ impl Typer<'_> {
         if cases.is_empty() {
             return;
         }
-        let members: Vec<Name> = body
+        let members: Vec<TName> = body
             .iter()
             .filter(|&&s| !self.is_enum_case_def(s))
             .filter_map(|&s| match *self.ast.tree(s) {
                 Tree::ValDef { name, .. } | Tree::DefDef { name, .. } | Tree::TypeDef { name, .. } => {
-                    Some(name.name)
+                    Some(name)
                 }
                 _ => None,
             })
@@ -52,11 +51,11 @@ impl Typer<'_> {
                 }
                 _ => continue,
             };
-            let bound: Vec<Name> = roots
+            let bound: Vec<TName> = roots
                 .iter()
                 .flat_map(|&r| self.ast.subtrees(r, &|a, t| matches!(a.tree(t), Tree::ValDef { .. })))
                 .filter_map(|v| match *self.ast.tree(v) {
-                    Tree::ValDef { name, .. } => Some(name.name),
+                    Tree::ValDef { name, .. } => Some(name),
                     _ => None,
                 })
                 .collect();
@@ -90,9 +89,9 @@ impl Typer<'_> {
     }
 
     /// Whether tree `r` has `this` or an identifier naming one of `members` but none of `bound`.
-    fn refers_to_members(&self, r: NodeId, members: &[Name], bound: &[Name]) -> bool {
+    fn refers_to_members(&self, r: NodeId, members: &[TName], bound: &[TName]) -> bool {
         self.ast.exists_subtree(r, &|a, t| match *a.tree(t) {
-            Tree::Ident { name } => members.contains(&name.name) && !bound.contains(&name.name),
+            Tree::Ident { name } => members.contains(&name) && !bound.contains(&name),
             Tree::This { qual: None } => true,
             _ => false,
         })

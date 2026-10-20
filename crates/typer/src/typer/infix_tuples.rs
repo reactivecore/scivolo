@@ -2,13 +2,52 @@
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Tuple arguments of infix operations, `a op (b, c)`, passed as separate arguments unless every
-//! alternative of `op` is unary (dotty's `needsTupledDual`, `tupledDual`).
+//! alternative of `op` is unary, and several arguments of a unary method passed as one tuple
+//! (dotty's `needsTupledDual`, `tupledDual`).
 
 use super::Typer;
-use syntax::ast::{Attrs, NodeId, Tree};
-use tasty::SymbolId;
+use crate::ctx::Ctx;
+use syntax::ast::{Attrs, NodeId, Span, TName, Tree};
+use syntax::config::Features;
+use tasty::{SymbolId, TypeId};
 
 impl Typer<'_> {
+    /// Replaces the arguments of `proto`, more than one, by their tuple when `params`, those of
+    /// the applied clause, are one that is not repeated, unless `noAutoTupling` is enabled.
+    pub fn tuple_args_of_unary(
+        &mut self,
+        proto: usize,
+        params: &[(String, TypeId)],
+        ctx: Ctx,
+    ) -> Result<(), &'static str> {
+        let args = self.protos[proto].args.clone();
+        let &[(_, p)] = params else { return Ok(()) };
+        if args.len() < 2 || self.repeated_param_elem(p).is_some() {
+            return Ok(());
+        }
+        if self.feature_enabled(Features::NO_AUTO_TUPLING, "noAutoTupling", ctx) {
+            return Ok(());
+        }
+        if self.protos[proto].typed.is_some() {
+            return Err("auto-tupled arguments typed before tupling");
+        }
+        let (first, last) = (self.ast.span(args[0]), self.ast.span(args[args.len() - 1]));
+        let span = Span::synthetic(first.start(), last.end());
+        let trees = self.ast.list(&args);
+        let named = args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }));
+        let tuple = if named || args.len() > super::small_tuples::MAX_TUPLE_ARITY {
+            self.ast.node(Tree::Tuple { trees })
+        } else {
+            let module = TName { name: self.name(&format!("scala.Tuple{}", args.len())), is_type: false };
+            let fun = self.ast.node(Tree::TypedSplice { sym: module });
+            self.ast.with_span(fun, Span::synthetic(first.start(), first.start()));
+            self.ast.node(Tree::Apply { fun, args: trees })
+        };
+        self.ast.with_span(tuple, span);
+        self.protos[proto].args = vec![tuple];
+        Ok(())
+    }
+
     /// The elements of the tuple argument of infix application `id`, if it has more than one.
     pub fn infix_tuple_elems(&self, id: NodeId, args: &[NodeId]) -> Option<Vec<NodeId>> {
         if !self.ast.attrs(id).contains(Attrs::INFIX_TUPLE_APPLY) {
@@ -45,7 +84,7 @@ impl Typer<'_> {
         self.complete(s);
         let info = self.u.info(s);
         match self.u.param_clauses(info).first().map(|(_, ps)| ps.clone()).as_deref() {
-            Some(&[p]) => self.repeated_elem(p).is_none(),
+            Some(&[p]) => self.repeated_param_elem(p).is_none(),
             _ => false,
         }
     }

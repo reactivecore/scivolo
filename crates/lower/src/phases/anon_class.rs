@@ -18,7 +18,8 @@ pub fn class_symbol(l: &mut Lower, owner: SymbolId, parents: Vec<TypeId>) -> Sym
 }
 
 /// The block defining class `cls` of members `body`, at `span` if it exists, and creating an
-/// instance of it: its first parent a class whose constructor `parent_ctor` takes no arguments.
+/// instance of it: its first parent a class whose constructor `parent_ctor` takes no arguments or
+/// only repeated ones.
 pub fn instance(
     l: &mut Lower,
     cls: SymbolId,
@@ -123,8 +124,8 @@ pub fn wildcard(l: &mut Lower, tpe: TypeId) -> TNodeId {
     l.tpd.node(Tree::Ident { name }, Span::NONE, Some(tpe), class)
 }
 
-/// `new parent()` through constructor `ctor`, its type arguments those of `parent`, at `span` if
-/// it exists.
+/// `new parent()` through constructor `ctor`, its type arguments those of `parent`, an empty
+/// sequence for a repeated parameter, at `span` if it exists.
 fn super_call(l: &mut Lower, parent: TypeId, ctor: SymbolId, span: Span) -> TNodeId {
     let fun = new_select(l, parent, ctor, span);
     let fun = match l.u.types().get(parent).clone() {
@@ -136,8 +137,45 @@ fn super_call(l: &mut Lower, parent: TypeId, ctor: SymbolId, span: Span) -> TNod
         }
         _ => fun,
     };
-    let call = l.apply(fun, &[], parent, span);
+    let args = empty_varargs(l, parent, ctor);
+    let call = l.apply(fun, &args, parent, span);
     l.positioned(call)
+}
+
+/// No argument for constructor `ctor` of `parent`, or an empty sequence if it takes one repeated
+/// parameter.
+fn empty_varargs(l: &mut Lower, parent: TypeId, ctor: SymbolId) -> Vec<TNodeId> {
+    let mut info = l.u.info(ctor);
+    if let Type::Poly { binder, params, result } = l.u.types().get(info).clone() {
+        let Type::Applied(_, targs) = l.u.types().get(parent).clone() else { return Vec::new() };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        info = l.u.subst(result, binder, &names, &targs);
+    }
+    let Type::Method { params, .. } = l.u.types().get(info).clone() else { return Vec::new() };
+    let [(_, p)] = params[..] else { return Vec::new() };
+    let Some(elem) = repeated_elem(l, p) else { return Vec::new() };
+    let repeated = l.u.class_ref("scala.<repeated>");
+    let repeated = l.u.intern_type(Type::Applied(repeated, vec![elem]));
+    let elemtpt = l.type_tree(elem, Span::NONE);
+    let elems = l.tpd.list(&[]);
+    let literal = l.tpd.node(Tree::SeqLiteral { elems, elemtpt }, Span::NONE, None, None);
+    let tpt = l.type_tree(repeated, Span::NONE);
+    vec![l.tpd.node(Tree::Typed { expr: literal, tpt }, Span::NONE, Some(repeated), None)]
+}
+
+/// The element type of repeated parameter type `p`: `Seq[T] @Repeated` or `<repeated>[T]`.
+pub fn repeated_elem(l: &mut Lower, p: TypeId) -> Option<TypeId> {
+    let is =
+        |l: &mut Lower, t: TypeId, full: &str| l.u.class_symbol(t).is_some_and(|c| l.u.full_name(c) == full);
+    let seq = match l.u.types().get(p).clone() {
+        Type::Annotated(seq, annot) if is(l, annot, "scala.annotation.internal.Repeated") => seq,
+        Type::Applied(c, _) if is(l, c, "scala.<repeated>") => p,
+        _ => return None,
+    };
+    match l.u.types().get(seq) {
+        Type::Applied(_, elems) if elems.len() == 1 => Some(elems[0]),
+        _ => None,
+    }
 }
 
 /// The type of a method of one empty parameter list and result `result`.

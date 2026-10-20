@@ -12,6 +12,7 @@ license = "Apache-2.0"
 clap = { version = "4.6", features = ["derive"] }
 hashbrown = { version = "0.17", default-features = false }
 libimage = { path = "crates/libimage" }
+md-5 = "0.10"
 nir = { path = "crates/nir" }
 rustc-hash = "2"
 rustyline = { version = "18", default-features = false, features = ["with-file-history"] }

@@ -189,8 +189,8 @@ impl Universe {
             (Type::Applied(t1, xs), Type::Applied(t2, ys))
                 if xs.len() == ys.len() && (t1 == t2 || self.same_static_class(t1, t2).is_some()) =>
             {
-                let c = self.class_symbol(t1)?;
-                let variances = self.variances(c);
+                self.class_symbol(t1)?;
+                let variances = self.constructor_variances(t1);
                 let mut args = Vec::new();
                 for (i, (&p, &q)) in xs.iter().zip(&ys).enumerate() {
                     let interval = |u: &Self, t| match *u.types().get(t) {

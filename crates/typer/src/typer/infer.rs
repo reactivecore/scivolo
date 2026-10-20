@@ -77,19 +77,20 @@ impl Typer<'_> {
                 return Err("singleton instance below another type variable");
             }
         }
-        let (mut cyclic, mut lambda) = (false, false);
+        let mut cyclic = false;
         self.u.map_type(inst, &mut |u, part| {
             cyclic |= *u.types().get(part) == Type::Var(v);
-            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
             None
         });
         if cyclic {
             return Err("type variable instantiated to a type containing it");
         }
-        let script_hk = is_script_lambda(self.u, hi);
-        if script_hk && lambda {
-            return Err("type variable instantiated to a type lambda");
+        if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.types().get(inst)
+            && (self.type_arity(a) > 0 || self.type_arity(b) > 0)
+        {
+            return Err("type variable instantiated to an intersection or union of type constructors");
         }
+        let script_hk = is_script_lambda(self.u, hi);
         if script_hk && !from_below && self.type_arity(inst) > 0 {
             return Err("higher-kinded type variable instantiated to its upper bound");
         }
@@ -165,12 +166,6 @@ impl Typer<'_> {
                 let t = self.fully_defined(t)?;
                 self.tpd.get_mut(id).tpe = Some(t);
             }
-            if let T::TypeApply { fun, args } = *self.tpd.tree(id)
-                && self.tpd.sym(fun).is_some_and(|s| self.syms.is_script(s))
-                && self.tpd.items(args).to_vec().into_iter().any(|a| self.has_lambda(a))
-            {
-                return Err("type lambda inferred for a type parameter of a script method");
-            }
             let defines = matches!(self.tpd.tree(id), T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. });
             if let Some(s) = self.tpd.sym(id).filter(|_| defines)
                 && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
@@ -185,17 +180,5 @@ impl Typer<'_> {
             return Err("local type escaping through a type variable");
         }
         Ok(())
-    }
-
-    /// Whether the type of tree `id`, fully defined, has a type lambda in it.
-    fn has_lambda(&mut self, id: TNodeId) -> bool {
-        let Some(t) = self.tpd.get(id).tpe else { return false };
-        let t = self.zonk(t);
-        let mut lambda = false;
-        self.u.map_type(t, &mut |u, part| {
-            lambda |= matches!(u.types().get(part), Type::Lambda { .. });
-            None
-        });
-        lambda
     }
 }

@@ -6,8 +6,10 @@
 mod applied;
 mod bounds;
 mod bridges;
+mod compactify;
 mod generic;
 mod mangle;
+mod poly_functions;
 mod scala2;
 mod special;
 mod value;
@@ -16,6 +18,7 @@ use crate::symbols::{defined_name, encode, module_class_name, module_name};
 use crate::tags::{OBJECT as MODULE, PARAMsetter, TRAIT};
 use crate::types::{Type, TypeId};
 use crate::{Kind, SymbolId, Universe};
+use compactify::compactify;
 pub use special::PRIMITIVE_VALUE_CLASSES;
 use special::special;
 
@@ -44,20 +47,36 @@ fn object() -> Erased {
 
 impl Universe {
     /// The binary name of class `c`: `pkg.Name`, `Outer$Inner`, `Object$Inner`; names encoded,
-    /// a JDK class Scala Native renames under its defined name when outer.
+    /// a JDK class Scala Native renames under its defined name when outer; a nested name
+    /// `compactify`d.
     pub fn binary_name(&self, c: SymbolId) -> String {
+        self.class_name_with(c, compactify)
+    }
+
+    /// `binary_name` without `compactify`, the prefix of an expanded name (`C$$$outer`).
+    pub fn expanded_binary_name(&self, c: SymbolId) -> String {
+        self.class_name_with(c, str::to_owned)
+    }
+
+    fn class_name_with(&self, c: SymbolId, compactify: fn(&str) -> String) -> String {
         let s = self.symbol(c);
         let name = encode(&s.name);
         match s.owner {
             Some(o) if self.symbol(o).kind == Kind::Class => {
-                let outer = self.binary_name(o);
+                let outer = self.class_name_with(o, compactify);
                 let module = module_name(&outer);
                 let outer = match defined_name(module.unwrap_or(&outer)) {
                     Some(d) if module.is_some() => module_class_name(d),
                     Some(d) => d.to_owned(),
                     None => outer.clone(),
                 };
-                if outer.ends_with('$') { format!("{outer}{name}") } else { format!("{outer}${name}") }
+                let (pkg, flat) = outer.rsplit_once('.').map_or(("", outer.as_str()), |(p, f)| (p, f));
+                let module = s.flags.has(MODULE).then(|| module_name(&name)).flatten();
+                let simple = module.unwrap_or(&name);
+                let sep = if flat.ends_with('$') { "" } else { "$" };
+                let flat =
+                    compactify(&format!("{flat}{sep}{simple}")) + if module.is_some() { "$" } else { "" };
+                if pkg.is_empty() { flat } else { format!("{pkg}.{flat}") }
             }
             Some(o) if o != self.root() => format!("{}.{name}", self.full_name(o)),
             _ => name,
@@ -93,7 +112,11 @@ impl Universe {
                 Some(r) => self.erase(r),
                 None => self.erase(bound),
             },
-            Type::Refined(p, _, _) | Type::Skolem(_, p) => self.erase(p),
+            Type::Refined(p, _, _) => match self.poly_function_apply(t) {
+                Some(info) => self.erase_refined_function_apply(info),
+                None => self.erase(p),
+            },
+            Type::Skolem(_, p) => self.erase(p),
             Type::Lambda { result, .. } => self.erase(result),
             Type::ByName(_) => Erased::Class("scala.Function0".into()),
             Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),

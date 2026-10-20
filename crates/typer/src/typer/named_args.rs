@@ -15,7 +15,7 @@ pub type Aligned = Vec<Option<NodeId>>;
 
 impl Typer<'_> {
     /// The name of argument `a` if it is named.
-    fn arg_name(&self, a: NodeId) -> Option<String> {
+    pub fn arg_name(&self, a: NodeId) -> Option<String> {
         match *self.ast.tree(a) {
             Tree::NamedArg { name, .. } => Some(self.text(name.name).to_owned()),
             _ => None,
@@ -186,7 +186,7 @@ impl Typer<'_> {
     }
 
     /// Whether parameter `n` of the clause call `f` of `method` applies has a default argument.
-    fn may_default(&mut self, mut f: TNodeId, method: SymbolId, mut n: usize) -> bool {
+    pub fn may_default(&mut self, mut f: TNodeId, method: SymbolId, mut n: usize) -> bool {
         while let T::Apply { fun, args } = *self.tpd.tree(f) {
             n += self.tpd.items(args).len();
             f = fun;

@@ -160,4 +160,15 @@ impl Typer<'_> {
         let tycon = crate::defn::type_ref(self.u, class);
         Ok(self.u.intern_type(Type::Applied(tycon, vec![a, b])))
     }
+
+    /// Whether `t` is a `PartialFunction` type.
+    pub fn is_partial_function(&mut self, t: TypeId) -> bool {
+        let t = self.zonk(t);
+        let t = self.u.dealias(t);
+        self.u.class_symbol(t).is_some_and(|c| self.is_partial_function_class(c))
+    }
+
+    pub fn is_partial_function_class(&self, c: SymbolId) -> bool {
+        self.u.full_name(c) == "scala.PartialFunction"
+    }
 }

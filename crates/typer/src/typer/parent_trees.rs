@@ -85,6 +85,10 @@ impl Typer<'_> {
             return call;
         }
         let tpt = self.typed_type(parent, ctx);
+        if matches!(self.ast.tree(parent), Tree::TypedSplice { .. }) {
+            let start = self.tpd.span(tpt).start_pos().to_synthetic();
+            self.tpd.get_mut(tpt).span = start;
+        }
         self.ensure_constr_call(cls, tpt, ctx)
     }
 
@@ -105,6 +109,7 @@ impl Typer<'_> {
         self.splices.insert(splice, parent);
         let new = self.ast.node(Tree::New { tpt: splice });
         self.ast.with_span(new, synthetic);
+        self.parent_news.insert(new);
         let init = TName { name: self.name("<init>"), is_type: false };
         let select = self.ast.node(Tree::Select { qualifier: new, name: init });
         self.ast.with_span(select, synthetic);

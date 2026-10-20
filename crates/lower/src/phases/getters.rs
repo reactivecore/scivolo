@@ -53,9 +53,6 @@ pub fn transform(l: &mut Lower, td: TNodeId, retained: &FxHashSet<SymbolId>) -> 
             continue;
         }
         if rhs.is_none() && !is_param_accessor(l, sym) {
-            if has(l.u, sym, MUTABLE) {
-                return unsupported(span, "abstract variables");
-            }
             let flags = l.u.symbol(sym).flags.with(FIELDaccessor);
             l.u.set_flags(sym, flags);
             l.u.set_deferred(sym, true);
@@ -183,6 +180,15 @@ pub fn is_const_final(l: &mut Lower, s: SymbolId) -> bool {
     }
     let info = l.u.info(s);
     matches!(l.u.types().get(info), Type::Constant(..) | Type::Str(_))
+}
+
+/// Whether `setter` of trait `mixin` is a variable's whose getter `class` does not get from
+/// `mixin`, an abstract variable's.
+pub fn is_abstract_var_setter(l: &mut Lower, class: SymbolId, mixin: SymbolId, setter: SymbolId) -> bool {
+    let name = l.u.symbol(setter).name.clone();
+    let getters = l.u.decl(mixin, name.strip_suffix("_=").unwrap_or(&name)).unwrap_or_default();
+    let var = getters.into_iter().find(|&g| has(l.u, g, MUTABLE) && !is_setter(l, g));
+    var.is_some_and(|g| !super::trait_fields::implemented_by(l, class, g))
 }
 
 /// Whether `s` is the setter `x_=` of a variable.
