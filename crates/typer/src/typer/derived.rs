@@ -30,6 +30,7 @@ impl Typer<'_> {
         let text = self.text(watched.name).to_owned();
         let tpe = match kind {
             DerivedKind::FromParam => self.derived_from_param(&text, watched.is_type, ctx),
+            DerivedKind::FromEnumParam => self.derived_from_enum_param(&text, ctx),
             DerivedKind::SetterParam => self.setter_param_type(&text, ctx),
             _ => self.class_named(&text, ctx).map(|c| type_ref(self.u, c)),
         };
@@ -72,6 +73,24 @@ impl Typer<'_> {
         let original = decls
             .into_iter()
             .find(|&p| self.u.symbol(p).name == name && self.u.is_type_symbol(p) == is_type)?;
+        self.relocated_info(original, ctor, ctx)
+    }
+
+    /// The info of type parameter `name` of the enum class whose case class is being typed in
+    /// `ctx`, relocated like `derived_from_param`'s (dotty's `derivedTypeParamWithVariance`).
+    fn derived_from_enum_param(&mut self, name: &str, ctx: Ctx) -> Option<TypeId> {
+        let case = self.enclosing_class(ctx.owner)?;
+        let module = self.u.symbol(case).owner?;
+        let enum_class = self.u.companion_class(module)?;
+        self.complete(enum_class);
+        let tparams = self.u.type_params(enum_class);
+        let original = tparams.into_iter().find(|&p| self.u.symbol(p).name == name)?;
+        self.relocated_info(original, enum_class, ctx)
+    }
+
+    /// The info of `original`, its references to other symbols of `owner` made to the same-named
+    /// parameters or accessors visible in `ctx`.
+    fn relocated_info(&mut self, original: SymbolId, owner: SymbolId, ctx: Ctx) -> Option<TypeId> {
         let info = match self.syms.repeated_params.get(&original) {
             Some(&written) => written,
             None => self.u.info(original),
@@ -79,7 +98,7 @@ impl Typer<'_> {
         let mut siblings = Vec::new();
         self.u.map_type(info, &mut |u, t| {
             if let Type::Sym(_, s) = *u.types().get(t)
-                && u.symbol(s).owner == Some(ctor)
+                && u.symbol(s).owner == Some(owner)
             {
                 siblings.push(s);
             }

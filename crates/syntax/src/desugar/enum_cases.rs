@@ -73,8 +73,9 @@ impl Desugar<'_> {
         enum_tparams
             .into_iter()
             .map(|(name, variance)| {
-                let rhs =
-                    self.ast.node(Tree::DerivedTypeTree { kind: DerivedKind::FromParam, watched: None });
+                let rhs = self
+                    .ast
+                    .node(Tree::DerivedTypeTree { kind: DerivedKind::FromEnumParam, watched: Some(name) });
                 let flags = flags::TYPE_PARAM.or(flags::SYNTHETIC).or(variance).or(flags::PRIVATE_LOCAL);
                 let mods = self.ast.mods(Modifiers::with_flags(flags));
                 self.ast.node(Tree::TypeDef { name, rhs, mods })
