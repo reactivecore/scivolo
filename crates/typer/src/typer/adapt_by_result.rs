@@ -35,9 +35,9 @@ impl Typer<'_> {
     }
 
     /// Constrains the result type `result` of an application of `meth` to conform to `pt`
-    /// (dotty's `constrainResult`): normalized against a fully defined `pt` other than `Unit`,
-    /// else a value result only; `Err` for an implicit method whose result is a type variable
-    /// under a `pt` with type variables.
+    /// (dotty's `constrainResult`), only necessary constraints kept: normalized against a fully
+    /// defined `pt`, not at all against `Unit`, else a value result only; `Err` for an implicit
+    /// method whose result is a type variable under a `pt` with type variables.
     pub fn constrain_applied_result(
         &mut self,
         meth: Option<SymbolId>,
@@ -53,11 +53,10 @@ impl Typer<'_> {
             return Err("implicit method result under a type with type variables");
         }
         self.refinement_result(result, pt)?;
-        let follow = !self.is_context_function_type(p);
-        let unit = self.u.class_symbol(p) == Some(self.defn.unit);
-        if unit && defined {
+        if defined && self.u.class_symbol(p) == Some(self.defn.unit) {
             return Ok(());
         }
+        let follow = !self.is_context_function_type(p);
         let value = match defined {
             true => self.proto_normalized((result, meth), p, follow, 8),
             false => Some(result)
