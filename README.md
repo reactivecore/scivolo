@@ -1,178 +1,220 @@
 # Scivolo
 
-Research project at Reactive Core: a fast Scala 3.9 interpreter in Rust for
-scripting, with no JVM. Status: research and spikes are done; the plan is in
-[ROADMAP.md](ROADMAP.md) and the key decision in
-[ADR 0001](docs/adr/0001-nir-shaped-execution-ir.md) (proposed).
+A Scala 3.9 interpreter and native compiler for scripts, written in Rust, with no JVM.
 
-## What was done (2026-09-24)
+- Runs `.scala` and `.sc` scripts, a REPL, and builds native executables.
+- Executes Scala Native's NIR with Scala Native's precompiled libraries and C runtime.
+- Has its own frontend: dotty's parser, typer and lowering phases, ported to Rust.
 
-| Piece | Where | Outcome |
+## Status of the project
+
+- **Research and benchmarking project**, not a product. No releases, no stability guarantees;
+  not for production use. Build it from source.
+- **Written by AI agents** (Claude Code): an experiment in how far that approach carries a
+  project of this size.
+  - Humans chose the goals and the order of work, reviewed code style and tested behaviour.
+  - Most code has not been reviewed line by line; it has not been audited for security.
+  - Correctness rests on automated checks against upstream: the NIR the frontend writes is
+    compared byte for byte with Scala Native's, and the VM runs Scala Native's and dotty's test
+    suites (see Progress).
+- **The prior art belongs to the Scala and Scala Native teams.** Most of the code is a
+  mechanical translation of the Scala 3 compiler (dotty) and of Scala Native's compiler plugin
+  and runtime. Their designs and algorithms are kept; Scivolo changes the language and the
+  execution model.
+- **How translated code is marked:**
+  - each file with translated code starts with a license notice naming its upstream files
+    (`// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:`);
+  - patched Scala Native C files start with `// Changed for Scivolo` and mark their lines;
+  - [NOTICE](NOTICE) carries the upstream attributions, [acknowledges.md](acknowledges.md)
+    the projects, designs and ideas used.
+
+## Why
+
+- We want scripts that start fast, use little memory and are type-checked.
+- We love Scala and want it as a scripting language.
+- We want to find out how far an AI-driven port of a compiler and runtime carries.
+
+## Goals
+
+Simplified from [ROADMAP.md](ROADMAP.md), which holds the targets and their status.
+
+1. **Fast start:** edit-then-run of a small script ≤ 50 ms, about 3x python3's startup;
+   CPU-bound code within 3x of CPython.
+2. **Byte-exact translation and interpretation:** the own frontend writes the same NIR as
+   Scala Native's compiler, byte for byte; the VM prints what Scala Native binaries print.
+3. **Fast compilation:** no JVM, no compile server.
+4. **Macros without a JVM:** library macros run from their NIR in the VM.
+
+## Progress
+
+Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
+[docs/conformance.md](docs/conformance.md) and [ROADMAP.md](ROADMAP.md).
+
+- **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
+- **Own frontend:** 1,138 of dotty's 1,711 `tests/run` pass through parser, typer, lowering
+  and VM.
+- **Native executables:** 144 of 150 test programs, built from source.
+- **Startup:** hello 9.3 ms cached; `moderate.scala` 48 ms edit-then-run (scala-cli: 360–520 ms,
+  python3 startup: 18 ms).
+
+Features:
+
+- [x] NIR interpreter with Scala Native's libraries, Immix GC, exceptions with stack traces
+- [x] Java threads as green threads
+- [x] Own frontend for the scripting subset; scala-cli as the fallback for the rest
+- [x] Scripts with `//> using` directives, dependencies from Maven via Coursier
+- [x] REPL with completion, history and dependencies
+- [x] Native executables via Cranelift (single-threaded)
+- [x] Macros: a subset of `scala.quoted` (Circe's `derives Codec.AsObject` works)
+- [ ] Typer: the rest of Scala 3 (match types in part; GADTs, capture checking)
+- [ ] Macros: the rest of `Quotes`
+- [ ] Startup from a heap snapshot
+- [ ] OS threads
+- [ ] JIT compiler
+
+## Platforms
+
+- macOS arm64 (development)
+- Linux x86-64
+- Both tested in GitLab CI. Windows is not supported.
+
+## Usage
+
+Needs Rust 1.95+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
+frontend).
+
+```sh
+just fetch-libs                 # once: Scala Native's library jars into ref/libs
+cargo build --release -p scivolo -p aot
+```
+
+Outside `just`, set `SCIVOLO_LIBS` to `ref/libs`, or let `scivolo` find the jars in the
+Coursier cache.
+
+### Scripts
+
+```sh
+scivolo hello.scala ARGS        # compile through the own frontend (cached), then run
+scivolo --main Main app.scala   # choose the main class
+scivolo -O -Werror app.scala    # pass a Scala compiler option
+scivolo --dep io.circe::circe-parser::0.14.10 app.scala
+```
+
+- Also runs as a `#!/usr/bin/env scivolo` shebang.
+- The compiled NIR is cached; later runs compile nothing.
+- Code the own frontend refuses compiles through scala-cli, with a note on stderr.
+- Options, frontends, cache and diagnostics: [docs/scripts.md](docs/scripts.md).
+
+### REPL
+
+```sh
+scivolo                         # or: just repl
+scivolo --dep io.circe::circe-generic::0.14.10
+```
+
+```
+Welcome to Scivolo 0.1.0 (target Scala 3.9.0). Type in expressions for evaluation. Or try :help.
+> case class P(x: Int)
+// defined case class P
+> P(1)
+val res0: P = P(1)
+```
+
+### Native executables
+
+```sh
+scivolo-aot -o hello hello.scala       # from sources, through the own frontend
+scivolo-aot --cp DIR -o app Main       # from NIR files in DIR, main class Main
+./hello
+```
+
+## How it works
+
+```mermaid
+flowchart LR
+  src[script.scala] --> syntax[syntax: scanner, parser, desugar]
+  syntax --> typer[typer: types, implicits, inlining]
+  typer -->|macro calls| macros[macros: run in the VM]
+  macros --> typer
+  typer --> lower[lower: dotty's phases, NIR generation]
+  lower --> nir[(NIR files)]
+  libs[(Scala Native libraries: NIR + TASTy)] --> image[library image]
+  image -->|TASTy| typer
+  image -->|NIR| vm
+  nir --> vm[vm: interpreter] --> out[output]
+  nir --> aot[aot: Cranelift] --> exe[native executable]
+  libs -->|NIR| aot
+  rt[snrt: Scala Native's C runtime] --> vm
+  rt --> exe
+```
+
+1. **Parse:** dotty's `Scanners`, `Parsers` and `Desugar` produce untyped trees.
+2. **Type:** dotty's typing algorithms for the scripting subset, with symbols and types read
+   lazily from the libraries' TASTy. Inlining and macro expansion run inside the typer.
+3. **Lower:** dotty's phases after the typer, in dotty's order: FirstTransform, ExpandSAMs,
+   ProtectedAccessors, ExtensionMethods, Getters, PatternMatcher, CapturedVars, ElimOpaque,
+   ExplicitOuter, Erasure, LambdaLift, ElimRepeated, ResolveSuper, TailRec, Mixin, LazyVals,
+   Memoize, Constructors (`crates/lower/src/phases/pipeline.rs` has the full order). Then
+   Scala Native's NIR generation (nscplugin's `GenNIR`).
+4. **Interpret:** the VM lowers each method on its first call to closure-compiled SSA. Objects
+   use Scala Native's layout; the C runtime and Immix GC come from Scala Native, called through
+   FFI. Library NIR is read lazily from a memory-mapped library image.
+5. **Compile:** `scivolo-aot` translates the reachable NIR to Cranelift IR and links it with
+   Scala Native's C runtime into an executable.
+
+Decisions are in [docs/adr/](docs/adr/), research reports in [docs/research/](docs/research/).
+
+## Crates
+
+| Crate | Purpose |
+|---|---|
+| `scivolo` | The CLI: runs scripts and NIR programs, starts the REPL, caches compiled scripts. |
+| `aot` | `scivolo-aot`: compiles sources or NIR into a native executable with Cranelift. |
+| `syntax` | Port of dotty's scanner, parser and desugaring: untyped trees. |
+| `typer` | Port of dotty's typer for the scripting subset: typed trees, implicits, inlining. |
+| `tasty` | Reads TASTy files; models the libraries' symbols and types, subtyping and erasure. |
+| `lower` | Ports of dotty's post-typer phases and of Scala Native's NIR generation. |
+| `macros` | Runs macro implementations in the VM and unpickles their quotes into typed trees. |
+| `repl` | A REPL after dotty's: each input becomes a wrapper object run in one VM. |
+| `vm` | The NIR interpreter: lowering to closures, heap, dispatch, green threads, FFI. |
+| `nir` | Reader and writer of Scala Native 0.5 NIR. |
+| `libs` | Locates the library jars (`SCIVOLO_LIBS` or the Coursier cache) and fetches dependencies. |
+| `libimage` | The memory-mapped library image of NIR and TASTy, and the upkeep of its cache. |
+| `snrt` | Builds Scala Native's C runtime from `native/`: a shared library and a static archive. |
+| `nir-dump` | Prints NIR files as Scala Native's printer does; a development tool. |
+
+Outside the crates:
+
+- `overlay/src`: Scala sources that replace or add library members (javalib fixes, the REPL's
+  value printer), compiled to `overlay/nir` ([ADR 0009](docs/adr/0009-library-overlay.md)).
+- `native/`: Scala Native's C runtime sources.
+- `tests/`: test programs, REPL transcripts, AOT programs; `spikes/`: throwaway experiments.
+
+## Checked-in upstream artifacts
+
+| Path | What | Rebuilt by |
 |---|---|---|
-| Compiler pipeline, TASTy, macros | `docs/research/01-…` | TASTy = typed trees with givens/overloads resolved, written *before* inlining and macro expansion. The typer is ~71k lines; don't port it whole |
-| Scala Native / Scala.js IRs and test suites | `docs/research/02-…` | NIR is lowered; the whole stdlib + javalib ship precompiled as NIR; a conformance ladder of ~12k tests |
-| Interpreter architecture in Rust | `docs/research/03-…` | Closure-compiled IR, Scala Native object layout, Boehm → Immix-like GC, heap snapshots, Rust over C++ |
-| Baseline latency | `spikes/00-baseline` | scala-cli: 290 ms (unchanged), 360–520 ms (after an edit), 1–2 s (cold) |
-| TASTy reader (Rust) | `spikes/01-tasty-reader` | 941/941 stdlib files, 12.7 ms full decode, 2.3 ms index |
-| Parser evaluation (Rust) | `spikes/02-scala-parser` | tree-sitter-scala: 0 errors on the stdlib, but silent misparses → port dotty's parser |
-| Native dotc (scalino) | `spikes/03-native-frontend` | Source → TASTy in 60–198 ms without a JVM; macros mostly work; high-risk dependency |
-| NIR reader (Rust) | `spikes/04-nir-reader` | 9,677 library files; output matches Scala Native's own printer |
-| Minimal TASTy evaluator | `spikes/05-tasty-eval` | Loader only (3.9 ms per process); evaluator unfinished |
+| `native/` | Scala Native 0.5.12's C runtime (nativelib, javalib, posixlib, clib), copied; patched files marked | by hand |
+| `libs/javalib-tasty-0.5.12.jar` | TASTy of Scala Native's javalib, which the published jar lacks | `just javalib-tasty` |
+| `tests/programs/*/` | NIR and `.check` output of each test program, compiled by Scala Native 0.5.12: the byte oracle | `just program-update NAME` |
+| `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native's compiler | `just overlay` |
+| `tests/macros/lib/macros.jar`, `crates/*/tests/**` jars, `.nir`, `.tasty` | Test fixtures compiled by dotty or Scala Native | `just macro-fixture`, `just inline-fixture` |
 
-Every spike has a README with commands and numbers. The research reports
-label each claim as verified [V] or inferred [I], and list their sources.
+The library jars themselves are not checked in: `just fetch-libs` downloads them from Maven
+Central and checks their SHA-256.
 
-## Key facts gathered
-
-- **Versions.** Scala 3.9.0 is an LTS release (2026-09-03, TASTy 28.9). Scala
-  Native 0.5.12 supports it. scala-cli 1.14 defaults to 3.8.3 and to Scala
-  Native 0.5.11, so pin both.
-- **Artifacts.** Since 3.8 the stdlib is `scala-library-3.9.0.jar`: 941
-  `.tasty` files, 7.56 MB, compiled by Scala 3. `scala3-library_3` is an
-  empty stub. On Scala Native the stdlib is in `scalalib_native0.5_3`, and
-  `scala3lib_native0.5_3` is the stub.
-- **Latency budget.** A clear win is ≤ 50 ms end to end. The floors are 4 ms
-  for any process, 25 ms for a JVM hello world, and 18 ms for python3.
-  - Loading the user's TASTy costs microseconds.
-  - Library loading decides startup. Unzipping alone costs 27 ms for TASTy
-    and 130 ms for NIR.
-  - So we need an uncompressed, lazily read library image.
-- **What TASTy leaves undone.** Plain `inline` calls, macro calls, pattern
-  matching, lazy vals, mixins, erasure and `s""` are all unlowered. Most
-  expression types are missing too. Local symbols are referenced by address;
-  other members by name plus signature.
-- **What NIR provides.** It is post-erasure SSA with about 30 operations.
-  Exceptions are explicit `unwind` edges, closures are classes, `s""` becomes
-  StringBuilder calls, and `match` becomes a `switch`.
-  - Raw memory is used by 0.6% of javalib methods and 11% of nativelib.
-  - javalib calls 534 distinct external symbols.
-- **Macros.** dotc runs macros as JVM bytecode through a class loader.
-  scalino shows that a TASTy tree interpreter can replace that. Quote type
-  patterns are its known gap.
-- **Test suites.**
-
-  | Suite | Size |
-  |---|---|
-  | SN `unit-tests/shared` | 7,388 @Test (172 of them language tests) |
-  | dotty `tests/run` | 2,060 `.scala` files, 880 `.check` files |
-  | scala-partest-junit | 2,944 @Test |
-  | Scala.js shared suite | 2,713 @Test |
-
-- **Prior art.**
-  - scalino: dotc on Scala Native.
-  - sjsir-interpreter: an interpreter for Scala.js IR that compiles to
-    closures.
-  - tasty-query: a model of TASTy symbols and types.
-  - Rust JVMs, e.g. ristretto: none is documented to run Scala.
-
-## Status (2026-09-25): milestones M1, M2 and M3 reached
-
-The NIR VM (`crates/vm`, CLI `crates/scivolo`) runs Scala 3.9 programs compiled to NIR with
-Scala Native's precompiled libraries (scalalib, javalib, nativelib, posixlib, clib, auxlib)
-and its C runtime built from `native/`.
-
-- **M1:** hello, moderate, cpu, fib, loops and a runtime test (`tests/programs/`) print exactly
-  what their Scala Native builds print.
-- **M2:** all of Scala Native's language unit tests pass.
-- **M3:** 11,336 of Scala Native's unit tests pass, 3 fail, 21 skip. Per package and the known
-  gaps: [docs/conformance.md](docs/conformance.md).
-- **Threads:** Java threads run as green threads on coroutines, with monitors, parking,
-  timers and blocking C calls on helper OS threads ([ADR 0003](docs/adr/0003-green-threads-first.md));
-  `tests/programs/threads` covers `synchronized`, `wait`/`notify`, interrupts, executors and futures.
-- **GC:** Scala Native's Immix collector reclaims memory ([ADR 0004](docs/adr/0004-immix-garbage-collector.md));
-  `tests/programs/gcstress` allocates far more than it keeps. `GC_MAXIMUM_HEAP_SIZE` and the
-  other Immix settings apply.
-
-| Program | scivolo (M4 Pro) | scala-cli, unchanged source | Scala Native binary |
-|---|---:|---:|---:|
-| hello | 9.3 ms | 292 ms | 5 ms |
-| moderate | 17 ms | 329 ms | 5 ms |
-| cpu (fib 30 + sort 100k) | 0.26 s | 349 ms | 22 ms |
-
-Speed work and ideas: [docs/performance.md](docs/performance.md).
+## Development
 
 ```sh
-just fetch-libs                 # download the Scala Native jars into ref/libs once
-just libs                       # or copy them from the Coursier cache
-just gates                      # fmt, clippy, tests (incl. tests/programs/*)
-just run moderate               # run tests/programs/moderate in the release build
-just script FILE.scala ARGS     # run a script, compiled unless cached
-just repl                       # the REPL: `scivolo` without a target
+just gates                      # fmt, clippy, tests: must pass before every commit
 just check                      # every test program against its .check file, with timings
-just bench cpu                  # wall time; `just vm-profile cpu` counts calls and instructions
-just program-update NAME        # compile tests/programs/NAME with Scala Native (NIR + .check)
-just programs-stale             # programs whose committed NIR or .check a rebuild changes
-just overlay                    # compile the library overlay (javalib fixes in Scala, ADR 0009)
-just overlay-stale              # whether the committed overlay NIR differs from a rebuild
-just ci-suite                   # Scala Native's unit tests in the VM (CI: on main)
-just sn-run Name -Other         # selected Scala Native test classes
+just --list                     # all recipes: oracles, reports, benchmarks
 ```
 
-For REPL development with dependencies, install Coursier (`coursier` or `cs` on PATH, or
-`SCIVOLO_COURSIER`). `group::artifact::version` and `group::artifact:version` coordinates
-select Scala Native 0.5 / Scala 3 artifacts:
-
-```sh
-just repl --dep io.circe::circe-parser::0.14.10 --dep io.circe::circe-generic::0.14.10
-```
-
-Explicit Maven coordinates such as `io.circe:circe-parser_native0.5_3:0.14.10` also work.
-`scivolo` fetches transitive dependencies using Coursier's cache and adds their jars to
-the REPL's runtime and type checker. It keeps the interpreter's Scala standard library and
-Scala Native runtime versions. Dependencies remain available after `:reset`.
-
-Scripts run directly: `scivolo FILE.sc` or `scivolo [--main CLASS] [-O OPT]... FILE.scala`, also
-as a `#!/usr/bin/env scivolo` shebang. `-O`/`--scala-opt` passes a Scala compiler option, as
-`//> using options` in the script does. The first run compiles a `.scala` file through the own
-frontend (parser, typer, lowering), printing its warnings on stderr. Of the compiler options it
-takes `-source` (no migration versions), `-no-indent`, `-indent`, `-old-syntax`, `-new-syntax`,
-`-preview`, `-language:` with the features it implements or `implicitConversions`,
-`reflectiveCalls`, `higherKinds` and `existentials`, `-Xkind-projector`, `-nowarn` and
-`-Wnonunit-statement`. Where the own frontend refuses a script, and for `.sc` files, `//> using`
-directives before the code other than `scala 3.9.0` and options, and any other compiler option
-(also `-Werror`), it compiles through scala-cli (`SCIVOLO_SCALA_CLI` names another binary),
-failing when scala-cli reports errors, with the line `scivolo: FILE: falling back to scala-cli (reason)` on
-stderr; later runs of that result print `scivolo: FILE: compiled by scala-cli (reason)`.
-`SCIVOLO_FRONTEND=strict` makes a refusal an error, printed with the syntax or type errors;
-`SCIVOLO_FRONTEND=jvm` always uses scala-cli. The NIR is cached in `SCIVOLO_CACHE`/`scripts`,
-keyed by the file's path and content, the `-O` options, the frontend mode and the `scivolo` build; later runs
-compile nothing. Files it pulls in with `//> using file` and changed
-dependencies do not invalidate the cache. Compiled scripts and library images unused for 30
-days are removed when the next one is built, compiled scripts at most hourly.
-
-Exceptions carry stack traces with file and line from the interpreter's frames.
-`SCIVOLO_TRACE=1` traces exceptions, `SCIVOLO_PROFILE=1` counts calls, `SCIVOLO_TIMEOUT=N`
-stops a run after N seconds, compiling a script included.
-
-Decisions (see ROADMAP.md): ADR 0001 accepted; scala-cli compiles NIR until the own frontend
-exists; stay on NIR 0.5.x and port to 0.6; green threads first (ADR 0003), OS threads later;
-targets are macOS arm64 and Linux x86-64, both tested in GitLab CI (`just ci`). ADR 0002
-records the memory trust model.
-
-Next, by expected value:
-1. Interpreter speed beyond the phase 1 target: boxed equality, superinstructions,
-   polymorphic inlining (docs/performance.md, ADR 0006).
-2. Startup: a heap snapshot of the initialized runtime after a training run (hello 9.3 ms
-   today).
-3. Phase 3, the own frontend, starting with the parser.
-
-Work is tracked in the GitLab issues.
-
-Borrowed code and ideas are credited in [acknowledges.md](acknowledges.md).
-
-## Layout
-
-```
-ROADMAP.md          phases, milestones, next steps, open decisions
-docs/research/      numbered research reports
-docs/adr/           architectural decisions
-spikes/NN-*/        throwaway experiments, each with README.md
-CLAUDE.md           project rules (Rust style from rcui)
-```
-
-Build folders and downloaded toolchains (`spikes/*/work/`, `target/`) are not
-checked in. Each spike's README says how to recreate them.
+Rules for contributors (human or agent): [CLAUDE.md](CLAUDE.md). Work is tracked in GitLab
+issues.
 
 ## License
 
-Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+Apache-2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE). Translated code keeps its upstream
+license notices; JLine (BSD-3-Clause) and PPrint (MIT) in [licenses/](licenses/).

@@ -11,7 +11,7 @@ does not support falls back to the phase 1 path, never silently (research 09 §5
 ## Decision
 - On a cache miss the own frontend compiles the script first; anything it refuses, including
   errors and panics, goes to scala-cli with a notice on stderr, which a cached result repeats.
-  scala-cli then reports real errors. The user-facing rules are in the README.
+  scala-cli then reports real errors. The user-facing rules are in `docs/scripts.md`.
 - What the own frontend cannot honour falls back before it runs: `.sc` scripts (no wrapper
   yet), `//> using` directives other than the Scala version it compiles and compiler options,
   and compiler options (`-O`, `//> using options`) other than those `Config::checked` accepts.
