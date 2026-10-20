@@ -161,12 +161,12 @@ impl Cmp<'_> {
         }
     }
 
-    /// The bounds of a wildcard argument.
+    /// The bounds of a wildcard argument, annotated or not.
     pub fn arg_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match self.u.types().get(t).clone() {
             Type::Bounds(lo, hi) => Some((lo, hi)),
             Type::Wildcard(None) => Some((NOTHING, ANY)),
-            Type::Wildcard(Some(b)) => self.arg_bounds(b),
+            Type::Wildcard(Some(b)) | Type::Annotated(b, _) => self.arg_bounds(b),
             _ => None,
         }
     }
