@@ -148,6 +148,24 @@ fn contradictions_fail_and_either_rolls_back() {
 }
 
 #[test]
+fn necessary_either_keeps_neither_of_two_unrelated_constraints() {
+    let Some(mut u) = stdlib() else { return };
+    let (int, boolean) = (t(&mut u, "scala.Int", &[]), t(&mut u, "scala.Boolean", &[]));
+    let x = VarId(0);
+    let tx = u.intern_type(Type::Var(x));
+    let option_x = t(&mut u, "scala.Option", &[tx]);
+    let option_bool = t(&mut u, "scala.Option", &[boolean]);
+    let option_int = t(&mut u, "scala.Option", &[int]);
+    let union = u.intern_type(Type::Or(option_bool, option_int, false));
+    let mut vars = Bounds::default();
+    assert!(u.is_subtype_in(option_x, union, &mut vars));
+    assert_eq!(vars.added, [(x, boolean, true)]);
+    let mut vars = Bounds::default();
+    assert!(u.is_necessary_subtype_in(option_x, union, &mut vars));
+    assert_eq!(vars.added, []);
+}
+
+#[test]
 fn either_keeps_the_first_constraint_without_comparing_again() {
     let Some(mut u) = stdlib() else { return };
     let int = t(&mut u, "scala.Int", &[]);
