@@ -125,15 +125,30 @@ impl Typer<'_> {
     /// type (dotty's `TypeTree(sym.typeRef)`), else an identifier of its simple name (`ref(sym)`).
     pub fn typed_full_ref(&mut self, id: NodeId, sym: TName) -> TNodeId {
         let full = self.text(sym.name).to_owned();
-        let Some(s) = self.resolve_full_name(&full, sym.is_type) else {
-            return self.unsupported(id, &format!("reference to {full}"));
-        };
         let span = self.ast.span(id);
         if sym.is_type {
-            let tpe = crate::defn::type_ref(self.u, s);
+            let Some(tpe) = self.full_type(&full) else {
+                return self.unsupported(id, &format!("reference to {full}"));
+            };
             return self.type_tree(tpe, span, false);
         }
+        let Some(s) = self.resolve_full_name(&full, false) else {
+            return self.unsupported(id, &format!("reference to {full}"));
+        };
         self.build().static_ident(s, span)
+    }
+
+    /// The type of full name `full`, a class applied to `T:`-prefixed full names in brackets,
+    /// e.g. `List[T:scala.Nothing]`.
+    fn full_type(&mut self, full: &str) -> Option<TypeId> {
+        let Some((tycon, rest)) = full.split_once('[') else {
+            let s = self.resolve_full_name(full, true)?;
+            return Some(crate::defn::type_ref(self.u, s));
+        };
+        let class = self.resolve_full_name(tycon, true)?;
+        let args = rest.strip_suffix(']')?.split(' ').map(|a| self.full_type(a.strip_prefix("T:")?));
+        let args = args.collect::<Option<Vec<TypeId>>>()?;
+        Some(crate::defn::applied(self.u, class, args))
     }
 
     /// The symbol of full name `full`, e.g. `scala.Predef$.classOf`, a type if `is_type`.

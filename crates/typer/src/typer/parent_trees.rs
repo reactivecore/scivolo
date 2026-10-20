@@ -85,6 +85,10 @@ impl Typer<'_> {
             return call;
         }
         let tpt = self.typed_type(parent, ctx);
+        if matches!(self.ast.tree(parent), Tree::TypedSplice { .. }) {
+            let start = self.tpd.span(tpt).start_pos().to_synthetic();
+            self.tpd.get_mut(tpt).span = start;
+        }
         self.ensure_constr_call(cls, tpt, ctx)
     }
 
