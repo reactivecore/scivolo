@@ -3,6 +3,7 @@
 //! Extractor patterns `C(p1, ..., pn)` (dotty's `typedUnApply`): `C.unapply` applied to the
 //! matched value, its result's product selectors or `get` the expected types of the patterns.
 
+use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -111,6 +112,9 @@ impl Typer<'_> {
         if extension && seq_found {
             return Err("extension method");
         }
+        if seq_found && !extension && self.view_may_supply_unapply(typed, ctx) {
+            return Err("unapply of an implicit view beside unapplySeq");
+        }
         let seq = !extension && seq_found;
         let span = self.ast.span(qual);
         let splice = self.ast.node(Tree::TypeTree);
@@ -128,6 +132,23 @@ impl Typer<'_> {
             return Err("not an extractor");
         }
         Ok((unapp, seq))
+    }
+
+    /// Whether an implicit conversion or an extension method of an implicit value may give `qual`
+    /// a member `unapply`.
+    fn view_may_supply_unapply(&mut self, qual: TNodeId, ctx: Ctx) -> bool {
+        let reported = self.diags.items.len();
+        let (found, clean, _) = self.speculatively(|t| t.viewed(qual, Goal::Member("unapply"), ctx));
+        self.diags.items.truncate(reported);
+        match found {
+            Ok(None) if clean => false,
+            Ok(Some(_)) => true,
+            _ => {
+                let site = self.u.widen(self.tpd.tpe(qual));
+                let q = self.u.class_symbol(site);
+                q.is_none_or(|q| self.may_view_to((q, site), "unapply", ctx) != Some(false))
+            }
+        }
     }
 
     /// Whether a type argument of `t`, or a part of one, is a type parameter or an abstract type.

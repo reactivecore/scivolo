@@ -61,7 +61,7 @@ impl Typer<'_> {
     /// Whether an extension method visible in `ctx` or a view from the implicit scope of `site`,
     /// Predef or an object imported in `ctx` may give class `q` member `name`; `None` if those are
     /// not all known.
-    fn may_view_to(&mut self, (q, site): (SymbolId, TypeId), name: &str, ctx: Ctx) -> Option<bool> {
+    pub fn may_view_to(&mut self, (q, site): (SymbolId, TypeId), name: &str, ctx: Ctx) -> Option<bool> {
         let goal = Goal::Member(name);
         if self.extension_visible(name, ctx)
             || self

@@ -119,6 +119,12 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(p: S { def m(x: Int): Int }) = p.m(1) }",
         "structural call on a Selectable other than reflect.Selectable",
     ),
+    (
+        "class Ex { def unapply(x: Int): Option[Int] = Some(x) }\n\
+         object B { def unapplySeq(x: Int): Option[Seq[Int]] = None }\n\
+         object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
+        "unapply of an implicit view beside unapplySeq",
+    ),
 ];
 
 #[test]
