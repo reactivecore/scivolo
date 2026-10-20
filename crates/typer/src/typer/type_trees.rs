@@ -118,6 +118,7 @@ impl Typer<'_> {
             Tree::DerivedTypeTree { kind, watched } => self.typed_derived(id, kind, watched, ctx),
             Tree::ContextBoundTypeTree { .. } => self.typed_context_bound(id, ctx),
             Tree::RefinedTypeTree { tpt, refinements } => self.typed_refined_type(id, tpt, refinements, ctx),
+            Tree::PolyFunction { targs, body } => self.typed_poly_function_type(id, targs, body, ctx),
             Tree::Tuple { trees } => self.typed_tuple_type(id, trees, ctx),
             Tree::MatchTypeTree { bound, selector, cases } => {
                 self.typed_match_type_tree(id, (bound, selector, cases), ctx)

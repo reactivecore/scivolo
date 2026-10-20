@@ -61,6 +61,7 @@ impl Typer<'_> {
             Tree::Throw { expr } => self.typed_throw(id, expr, ctx),
             Tree::Bind { name, body, .. } => self.typed_bind(id, name, body, pt, ctx),
             Tree::Function { args, body, mods: None, .. } => self.typed_function(id, args, body, pt, ctx),
+            Tree::PolyFunction { targs, body } => self.typed_poly_function(id, targs, body, pt, ctx),
             Tree::TypeTree
             | Tree::AppliedTypeTree { .. }
             | Tree::SingletonTypeTree { .. }

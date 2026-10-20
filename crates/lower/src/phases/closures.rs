@@ -12,6 +12,7 @@ use super::lambda_lift::Function;
 use super::lift_names::fresh;
 use super::lifted::{Method, define};
 use super::narrowed::home;
+use super::poly_functions::poly_function_class;
 use super::sam::{abstract_methods, adaptation_needed};
 use crate::definitions::{procedure, specialized, type_ref};
 use crate::{Lower, Result, unsupported};
@@ -39,12 +40,14 @@ pub fn plan(
     let closure = f.closure.expect("a lambda's closure");
     let span = l.tpd.span(f.block);
     let Tree::Closure { tpt, .. } = *l.tpd.tree(closure) else { unreachable!("a closure") };
-    let declared = l.u.class_symbol(tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t)));
+    let tpe = tpt.map_or(l.tpd.tpe(closure), |t| l.tpd.tpe(t));
+    let declared = l.u.class_symbol(tpe);
     let xxl = declared
         .and_then(|c| function_class_arity(l, c))
         .is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY);
     let function = tpt.is_none() && !xxl;
-    let interface = declared.and_then(|c| erased_function_class(l, c));
+    let interface =
+        poly_function_class(l, tpe).or_else(|| declared.and_then(|c| erased_function_class(l, c)));
     let erased_context = interface.filter(|&c| Some(c) != declared);
     let Some(sam) = interface.and_then(|c| abstract_methods(l, c).first().copied()) else {
         return unsupported(span, "closures of a type without an abstract method");

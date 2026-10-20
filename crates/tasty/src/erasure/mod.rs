@@ -9,6 +9,7 @@ mod bridges;
 mod compactify;
 mod generic;
 mod mangle;
+mod poly_functions;
 mod scala2;
 mod special;
 mod value;
@@ -111,7 +112,11 @@ impl Universe {
                 Some(r) => self.erase(r),
                 None => self.erase(bound),
             },
-            Type::Refined(p, _, _) | Type::Skolem(_, p) => self.erase(p),
+            Type::Refined(p, _, _) => match self.poly_function_apply(t) {
+                Some(info) => self.erase_refined_function_apply(info),
+                None => self.erase(p),
+            },
+            Type::Skolem(_, p) => self.erase(p),
             Type::Lambda { result, .. } => self.erase(result),
             Type::ByName(_) => Erased::Class("scala.Function0".into()),
             Type::And(..) if self.scala2_erasure() => self.erase_scala2_and(t),

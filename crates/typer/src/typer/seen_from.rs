@@ -24,6 +24,9 @@ impl Typer<'_> {
     }
 
     fn method_info_found(&mut self, fun_tpe: TypeId) -> Option<TypeId> {
+        if let Some(info) = self.poly_apply_info(fun_tpe) {
+            return Some(info);
+        }
         let Type::Sym(prefix, s) = self.u.types().get(fun_tpe).clone() else { return None };
         self.complete(s);
         let seen_from_prefix = prefix.filter(|&p| !matches!(self.u.types().get(p), Type::Package(_)));

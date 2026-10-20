@@ -12,11 +12,20 @@ use crate::tpd::TNodeId;
 use tasty::{Binder, Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// Whether parameter type `p` is by-name or refers to a parameter.
+    /// Whether parameter type `p` is by-name or refers to a parameter it does not bind.
     pub fn is_special_param(&mut self, p: TypeId) -> bool {
         let mut special = matches!(self.u.types().get(p), Type::ByName(_));
+        let mut bound = Vec::new();
         self.u.map_type(p, &mut |u, part| {
-            special |= matches!(u.types().get(part), Type::Param(..));
+            if let Type::Poly { binder, .. } | Type::Method { binder, .. } | Type::Lambda { binder, .. } =
+                *u.types().get(part)
+            {
+                bound.push(binder);
+            }
+            None
+        });
+        self.u.map_type(p, &mut |u, part| {
+            special |= matches!(*u.types().get(part), Type::Param(b, _) if !bound.contains(&b));
             None
         });
         special

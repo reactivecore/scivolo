@@ -11,6 +11,7 @@ mod members;
 use super::adapt::{adapt, applied_to_none, ascription_type, erased_type, is_parameterless_ref};
 use super::casts::receiver_type;
 use super::erased_branches::{typed_branches, typed_switch, typed_try};
+use super::poly_functions::poly_function_member;
 use super::type_tests::{intercept, is_test_or_cast};
 use super::vc_elide::elided;
 use super::walk::map_children;
@@ -30,8 +31,10 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 /// class the selected member is called on; `sel`'s member retargeted by `inherited_by_class` or
 /// `function_member`.
 fn typed_qualifier(l: &mut Lower, sel: TNodeId, qualifier: TNodeId) -> Result<TNodeId> {
-    let retargeted =
-        l.tpd.sym(sel).and_then(|m| calls::inherited_by_class(l, m).or_else(|| calls::function_member(l, m)));
+    let retargeted = match l.tpd.sym(sel) {
+        Some(m) => calls::inherited_by_class(l, m).or_else(|| calls::function_member(l, m)),
+        None => poly_function_member(l, sel, qualifier),
+    };
     if let Some(m) = retargeted {
         l.tpd.get_mut(sel).sym = Some(m);
     }

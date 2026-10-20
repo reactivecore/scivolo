@@ -59,6 +59,9 @@ impl Typer<'_> {
                 defined = true;
                 continue;
             }
+            if let Some(apply) = self.poly_function_select(id, qual, qual_tpe, name) {
+                return apply;
+            }
             if let Some(structural) = self.structural_select(id, (qual, qual_tpe), name, pt, ctx) {
                 return structural;
             }

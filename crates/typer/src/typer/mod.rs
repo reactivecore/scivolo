@@ -116,6 +116,7 @@ mod pattern_bounds;
 mod patterns;
 mod plain_trees;
 mod poly_alternatives;
+mod poly_functions;
 mod pretyped_args;
 mod purity;
 mod qualifier_views;

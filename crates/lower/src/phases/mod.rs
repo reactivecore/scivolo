@@ -82,6 +82,7 @@ mod outer_traits;
 mod package_objects;
 mod patmat;
 mod pipeline;
+mod poly_functions;
 mod protected_accessors;
 mod pure_stats;
 mod references_outer;
