@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! The arities of type constructors and the kinds of type arguments: type constructors where higher-kinded parameters are, class
-//! constructors eta-expanded (dotty's `adaptType`).
+//! The arities of type constructors and the kinds of type arguments: type constructors where
+//! higher-kinded parameters are, class constructors eta-expanded (dotty's `adaptType`).
 
 use super::Typer;
 use crate::symbols::Completion;
@@ -44,8 +44,8 @@ impl Typer<'_> {
     }
 
     /// What about type arguments `args` of type constructor `tycon` taking `arity` is outside
-    /// the subset: their number, a constructor where a parameter of another kind is, or a class
-    /// constructor where the parameters are unknown.
+    /// the subset: their number, `AnyKind` for a type other than a class, a constructor where a
+    /// parameter of another kind is, or a class constructor where the parameters are unknown.
     pub fn type_args_problem(
         &mut self,
         tycon: TypeId,
@@ -55,17 +55,23 @@ impl Typer<'_> {
         if arity != args.len() {
             return Some("wrong number of type arguments");
         }
+        let class_tycon =
+            matches!(*self.u.types().get(tycon), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
         for (i, &a) in args.iter().enumerate() {
+            if !class_tycon && self.u.class_symbol(a) == Some(self.u.builtins().any_kind) {
+                return Some("AnyKind argument of a type alias or abstract type");
+            }
             let n = self.type_arity(a);
             let wildcard = matches!(self.u.types().get(a), Type::Bounds(..));
             let class =
                 matches!(*self.u.types().get(a), Type::Sym(_, s) if self.u.symbol(s).kind == Kind::Class);
-            match self.param_arity(tycon, i) {
+            let param_arity = self.param_arity(tycon, i);
+            match param_arity {
                 Some(m) if m > 0 && wildcard => {
                     return Some("wildcard argument of a higher-kinded type parameter");
                 }
                 Some(m) if m != n => return Some("type argument of another kind"),
-                None if n > 0 && self.has_bounded_params(a) => {
+                _ if n > 0 && (param_arity.is_none() || !class_tycon) && self.has_bounded_params(a) => {
                     return Some("type lambda argument with bounded parameters");
                 }
                 None if n > 0 && class => return Some("class type constructor argument"),

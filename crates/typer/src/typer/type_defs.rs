@@ -52,7 +52,13 @@ impl Typer<'_> {
             T::TypeBoundsTree { lo, hi, .. } => (self.tpd.tpe(lo), self.tpd.tpe(hi)),
             _ => (tasty::NOTHING, tasty::ANY),
         };
-        let lambda = matches!(self.u.types().get(alias), Type::Lambda { .. });
+        let (lambda, body) = match *self.u.types().get(alias) {
+            Type::Lambda { result, .. } => (true, result),
+            _ => (false, alias),
+        };
+        if self.is_context_function_type(body) {
+            self.error_at(self.ast.span(rhs), "context function type cannot have opaque aliases");
+        }
         if !lambda && self.type_arity(alias) > 0 {
             self.unsupported(rhs, "opaque alias of a type constructor");
             return error;

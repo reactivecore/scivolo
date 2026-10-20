@@ -43,10 +43,15 @@ impl Typer<'_> {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
             let info = self.type_def_info(rhs, lctx);
             self.u.set_info(s, info);
-            if let Type::Bounds(lo, _) = *self.u.types().get(info)
-                && self.refers_to(lo, &[s])
-            {
+            let Type::Bounds(lo, hi) = *self.u.types().get(info) else { continue };
+            if self.refers_to(lo, &[s]) {
                 return self.unsupported(p, "lower bound referring to its type parameter");
+            }
+            if let Type::Applied(tycon, _) = *self.u.types().get(hi)
+                && self.refers_to(tycon, &syms)
+                && self.refers_to(hi, &[s])
+            {
+                return self.unsupported(p, "bound applying a type lambda parameter to its type parameter");
             }
         }
         let typed_params: Vec<TNodeId> = params.iter().map(|&p| self.typed_type_def(p, lctx)).collect();
