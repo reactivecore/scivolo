@@ -5,7 +5,7 @@
 //! without the ordering between variables), with an undo log for `either` and failed
 //! comparisons and abandoned attempts.
 
-mod attempt;
+pub(crate) mod attempt;
 mod avoid;
 mod lambda_params;
 mod unify;
