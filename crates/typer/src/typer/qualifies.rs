@@ -49,8 +49,14 @@ impl Typer<'_> {
             if matches!(*self.levels.get(o), Level::Members(p) if self.u.symbol(p).kind == Kind::Package) {
                 return Ok(());
             }
+            let cls = match *self.levels.get(o) {
+                Level::Members(c) if self.u.symbol(c).kind == Kind::Class => Some(c),
+                _ => None,
+            };
             if let Some(outer) = self.defined(o, name)
-                && outer.syms.iter().any(|s| !found.syms.contains(s))
+                && outer.syms.iter().any(|&s| {
+                    !found.syms.contains(&s) && cls.is_none_or(|c| self.u.symbol(s).owner == Some(c))
+                })
             {
                 return Err("ambiguous reference: inherited and defined outside");
             }
