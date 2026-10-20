@@ -85,6 +85,11 @@ impl Typer<'_> {
         if cyclic {
             return Err("type variable instantiated to a type containing it");
         }
+        if let Type::And(a, b) | Type::Or(a, b, _) = *self.u.types().get(inst)
+            && (self.type_arity(a) > 0 || self.type_arity(b) > 0)
+        {
+            return Err("type variable instantiated to an intersection or union of type constructors");
+        }
         let script_hk = is_script_lambda(self.u, hi);
         if script_hk && !from_below && self.type_arity(inst) > 0 {
             return Err("higher-kinded type variable instantiated to its upper bound");
