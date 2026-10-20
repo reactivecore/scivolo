@@ -9,10 +9,13 @@ use crate::{Ast, NodeId};
 const LAMBDA_DEPTH: u32 = 3;
 
 impl Universe {
-    /// The variances of the type parameters of class or type `s`, +1, -1 or 0 each; none for a
-    /// type that takes no parameters or has no tree.
+    /// The variances of the type parameters of class or type `s`, +1, -1 or 0 each, those of
+    /// the parameters it declares for a type without a tree; none for a type that takes no
+    /// parameters.
     pub fn variances(&self, s: SymbolId) -> Vec<i8> {
-        if self.symbol(s).kind == Kind::Class {
+        let kind = self.symbol(s).kind;
+        let script_type = matches!(kind, Kind::Type | Kind::TypeParam) && self.symbol(s).tree.is_none();
+        if kind == Kind::Class || script_type {
             return self.type_params(s).into_iter().map(|p| variance(self.symbol(p).flags)).collect();
         }
         let Some((file, id)) = self.symbol(s).tree else { return Vec::new() };

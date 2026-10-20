@@ -2,6 +2,7 @@ object Utils:
   type Id[t] = t
   type Const[c] = [t] =>> c
   type Ap[F[_], T] = F[T]
+  type Cov[+T] = Option[T]
 
 import Utils.*
 
@@ -16,3 +17,5 @@ object Main:
   val k: Functor[Const[Int]] = Functor.functorConst[Int]
   val t: Functor[[T] =>> Tuple1[T]] = Functor.tuple1
   val a: Ap[List, Int] = List(1)
+  def widen(c: Cov[Int]): Cov[Any] = c
+  def widenF[F[+_]](f: F[Int]): F[Any] = f

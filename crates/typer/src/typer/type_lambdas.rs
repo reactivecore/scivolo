@@ -30,9 +30,6 @@ impl Typer<'_> {
                 return self.unsupported(p, "type lambda parameter");
             };
             let flags = self.ast.modifiers(mods).flags;
-            if flags.is(f::COVARIANT) || flags.is(f::CONTRAVARIANT) {
-                return self.unsupported(p, "type lambda parameter with a variance");
-            }
             let text = self.text(name.name).to_owned();
             let s = self.syms.define(
                 self.u,
