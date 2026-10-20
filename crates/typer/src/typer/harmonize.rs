@@ -110,13 +110,14 @@ impl Typer<'_> {
     /// The value of `tree` if its type is an `Int` constant type, also through a reference to a
     /// constant; a case by its body.
     fn int_constant(&mut self, tree: TNodeId) -> Option<i32> {
-        match *self.tpd.tree(tree) {
-            T::CaseDef { body, .. } => self.int_constant(body),
-            T::Typed { .. } => None,
-            _ => match self.constant_of(tree)? {
-                C::Int(i) => Some(i),
-                _ => None,
-            },
+        let constant = match *self.tpd.tree(tree) {
+            T::CaseDef { body, .. } => return self.int_constant(body),
+            T::Typed { .. } => self.constant_of_type(self.tpd.tpe(tree)),
+            _ => self.constant_of(tree),
+        };
+        match constant? {
+            C::Int(i) => Some(i),
+            _ => None,
         }
     }
 

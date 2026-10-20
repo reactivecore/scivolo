@@ -11,6 +11,7 @@ object Harmonize {
   val l6 = List(5.toByte, 300)
   val l7: List[AnyVal] = List(1.0f, 0)
   val l8 = List[Any](1.0f, 0)
+  val l9 = List((1: 1), 2.0)
   val a1: collection.mutable.ArrayBuffer[AnyVal] = collection.mutable.ArrayBuffer(1.0f, 0)
   val o1 = Option(if (c) 1 else 2.0)
 
