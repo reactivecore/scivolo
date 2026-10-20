@@ -90,6 +90,7 @@ mod linter;
 mod literals;
 mod mapped_alternatives;
 mod match_type_trees;
+mod matchable_cast;
 mod matches;
 mod member_hint;
 mod member_views;
