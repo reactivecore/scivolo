@@ -149,6 +149,11 @@ fn rewire_body(l: &mut Lower, class: SymbolId, m: SymbolId, ext: SymbolId, this:
         let sym = l.tpd.sym(t);
         let rewired = sym.filter(|&s| l.u.symbol(s).owner == Some(class) && has_extension(l, s));
         match (l.tpd.tree(t), rewired) {
+            (&Tree::Super { qual, .. }, _) if l.tpd.sym(qual) == Some(class) => {
+                let this_ref = l.ident(this, span);
+                let boxed = boxed_this(l, class, this_ref);
+                l.copy_node(qual, boxed);
+            }
             (Tree::This { .. }, _) if sym == Some(class) => {
                 let this_ref = l.ident(this, span);
                 l.copy_node(t, this_ref);
@@ -191,6 +196,17 @@ fn rewired_call(l: &mut Lower, module: SymbolId, m: SymbolId, qualifier: TNodeId
     let tpe = l.u.result_type(info);
     let span = l.tpd.span(qualifier);
     l.apply(fun, &[qualifier], tpe, span)
+}
+
+/// `new C(this_ref)` for value class `class`, the receiver of a super call.
+fn boxed_this(l: &mut Lower, class: SymbolId, this_ref: TNodeId) -> TNodeId {
+    let span = l.tpd.span(this_ref);
+    let new = l.new_(class, span);
+    let ctor = l.u.decl(class, "<init>").unwrap_or_default();
+    let ctor = *ctor.first().expect("a value class's constructor");
+    let fun = l.select(new, ctor, span);
+    let tpe = type_ref(l.u, class);
+    l.apply(fun, &[this_ref], tpe, span)
 }
 
 /// Whether `s` is a term member of `class`.
