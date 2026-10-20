@@ -33,8 +33,9 @@ impl Typer<'_> {
         let at = at.to_synthetic();
         if self.u.is_subtype(from, to) {
             let module = self.resolve_full_name("scala.reflect.TypeTest", false).ok_or("TypeTest")?;
-            let qualifier = self.module_splice(module, at);
-            let identity = self.ast_select(qualifier, "identity", at);
+            let module_class = self.u.module_class(module).ok_or("TypeTest")?;
+            let decl = self.u.decl(module_class, "identity").ok().and_then(|d| d.first().copied());
+            let identity = self.ref_splice(decl.ok_or("TypeTest.identity")?, at);
             let targ = self.type_splice(to, at);
             let tree = self.ast_apply(identity, targ, true, at);
             return Ok(Some(self.typed(tree, Pt::Type(pt), ctx)));
@@ -62,10 +63,10 @@ impl Typer<'_> {
         let cast = self.ast_select(reference, "asInstanceOf", at);
         let cast = self.ast_apply(cast, both, true, at);
         let some = self.resolve_full_name("scala.Some", false).ok_or("Some")?;
-        let some = self.module_splice(some, at);
+        let some = self.ref_splice(some, at);
         let thenp = self.ast_apply(some, cast, false, at);
         let none = self.resolve_full_name("scala.None", false).ok_or("None")?;
-        let elsep = Some(self.module_splice(none, at));
+        let elsep = Some(self.ref_splice(none, at));
         let body = self.ast_node(Tree::If { cond, thenp, elsep, inline: false }, at);
         let args = self.ast.list(&[param]);
         let function = self.ast_node(Tree::Function { args, body, mods: None, wildcard: false }, at);
@@ -97,9 +98,9 @@ impl Typer<'_> {
         id
     }
 
-    fn module_splice(&mut self, module: SymbolId, at: Span) -> NodeId {
-        let tpe = crate::defn::type_ref(self.u, module);
-        let typed = self.build().ident(module, tpe, at);
+    fn ref_splice(&mut self, sym: SymbolId, at: Span) -> NodeId {
+        let tpe = crate::defn::type_ref(self.u, sym);
+        let typed = self.build().ident(sym, tpe, at);
         let id = self.ast_node(Tree::TypeTree, at);
         self.splices.insert(id, typed);
         id

@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Control flow: `if`, `while`, assignments, `return`, `throw` (dotty's `typedIf`,
-//! `typedWhileDo`, `typedAssign`, `typedReturn`, `typedThrow`).
+//! Control flow: `if`, `while`, assignments, `return` (dotty's `typedIf`, `typedWhileDo`,
+//! `typedAssign`, `typedReturn`).
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
@@ -9,7 +9,7 @@ use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
 use syntax::ast::{NodeId, Span, TName};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, TypeId};
 
 impl Typer<'_> {
     pub fn boolean(&mut self) -> TypeId {
@@ -45,12 +45,13 @@ impl Typer<'_> {
             Pt::Fun(_) | Pt::PolyFun(_) => Pt::Any,
             pt => pt,
         };
-        let thenp = self.typed(thenp, branch_pt, ctx);
-        let elsep = self.typed(elsep, branch_pt, ctx);
+        let before = self.before_harmonic();
+        let branches = vec![self.typed(thenp, branch_pt, ctx), self.typed(elsep, branch_pt, ctx)];
+        let (thenp, elsep) = match self.harmonic(branches, branch_pt, Some(before), ctx) {
+            Ok(h) => (h[0], h[1]),
+            Err(what) => return self.unsupported(id, what),
+        };
         let (a, b) = (self.tpd.tpe(thenp), self.tpd.tpe(elsep));
-        if matches!(pt, Pt::Any) && self.needs_harmonizing(a, b) {
-            return self.unsupported(id, "numeric harmonization");
-        }
         let tpe = self.u.lub(a, b);
         self.tpd.node(T::If { cond, thenp, elsep, inline }, span, Some(tpe), None)
     }
@@ -180,28 +181,5 @@ impl Typer<'_> {
 
     fn has_declared_result(&self, method: SymbolId) -> bool {
         self.syms.declared_results.contains(&method)
-    }
-
-    /// dotty's `<special-ops>.throw(x: Throwable): Nothing`, defined on first use.
-    fn throw_method(&mut self) -> SymbolId {
-        let throw = self.syms.throw_method.unwrap_or_else(|| crate::defn::throw_method(self.u));
-        self.syms.throw_method = Some(throw);
-        throw
-    }
-
-    /// `throw e`: a call of dotty's `<special-ops>.throw`.
-    pub fn typed_throw(&mut self, id: NodeId, expr: NodeId, ctx: Ctx) -> TNodeId {
-        let throwable = match self.defn.throwable(self.u) {
-            Ok(t) => type_ref(self.u, t),
-            Err(e) => return self.unsupported(id, &e),
-        };
-        let expr = self.typed(expr, Pt::Type(throwable), ctx);
-        let throw = self.throw_method();
-        let span = self.ast.span(id);
-        let fun_tpe = self.u.intern_type(Type::Sym(None, throw));
-        let at = self.tpd.span(expr).start_pos();
-        let fun = self.build().ident(throw, fun_tpe, at);
-        let nothing = type_ref(self.u, self.u.builtins().nothing);
-        self.build().apply(fun, &[expr], nothing, span)
     }
 }

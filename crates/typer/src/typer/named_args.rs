@@ -24,24 +24,20 @@ impl Typer<'_> {
 
     /// `args` aligned with `params`, the non-repeated parameters, if some are named or parameters
     /// are left to defaults, `None` if they are positional and as many as the parameters take;
-    /// `Err` for named or missing arguments of a method with a `repeated` parameter, and for named
-    /// arguments of `overloaded` alternatives.
+    /// `Err` for named or missing arguments of a method with a `repeated` parameter.
     pub fn aligned_args(
         &self,
         args: &[NodeId],
         params: &[(String, TypeId)],
         repeated: bool,
-        overloaded: bool,
     ) -> Result<Option<Aligned>, &'static str> {
         let named = args.iter().any(|&a| self.arg_name(a).is_some());
         let fits = if repeated { args.len() >= params.len() } else { args.len() == params.len() };
         if !named && fits {
             return Ok(None);
         }
-        if repeated || overloaded && named || !named && args.len() > params.len() {
-            return Err(
-                "named or default arguments of a repeated method, named ones of an overloaded one, or wrong arity",
-            );
+        if repeated || !named && args.len() > params.len() {
+            return Err("named or default arguments of a repeated method, or wrong arity");
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
         self.ordered_args(args, &names).map(Some)
@@ -125,10 +121,11 @@ impl Typer<'_> {
     pub fn typed_aligned_args(
         &mut self,
         (mut f, method): (TNodeId, Option<SymbolId>),
-        (args, aligned): (&[NodeId], &Aligned),
+        (args, aligned, pretyped): (&[NodeId], &Aligned, Option<&[Option<TNodeId>]>),
         (params, formals): (&[(String, TypeId)], &[TypeId]),
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
+        let pre = |a: NodeId| pretyped.and_then(|p| args.iter().position(|&b| b == a).and_then(|i| p[i]));
         let method = method.or_else(|| self.tpd.sym(self.tpd.meth_part(f)));
         let complex = method.is_some_and(|m| self.has_defaults(m));
         let contextual = self.takes_using(f);
@@ -145,11 +142,11 @@ impl Typer<'_> {
             let arg = match *slot {
                 Some(a) => match *self.ast.tree(a) {
                     Tree::NamedArg { name, arg } => {
-                        let arg = self.typed(arg, Pt::Type(formal), ctx);
+                        let arg = self.arg_against(arg, pre(a), formal, ctx);
                         let tpe = self.tpd.get(arg).tpe;
                         self.tpd.node(T::NamedArg { name, arg }, self.ast.span(a), tpe, None)
                     }
-                    _ => self.typed(a, Pt::Type(formal), ctx),
+                    _ => self.arg_against(a, pre(a), formal, ctx),
                 },
                 None => {
                     let method = method.ok_or("default argument")?;

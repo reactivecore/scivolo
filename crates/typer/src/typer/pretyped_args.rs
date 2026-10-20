@@ -6,6 +6,7 @@
 //! `pretypeArgs`, `FunProto.typedArgs`).
 
 use super::{Pt, Typer};
+use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::{NodeId, Tree};
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId};
@@ -26,15 +27,32 @@ impl Typer<'_> {
         let (args, ctx) = (self.protos[proto].args.clone(), self.protos[proto].ctx);
         let mut typed = Vec::new();
         for (i, &a) in args.iter().enumerate() {
-            typed.push(match self.unknown_param_function(a) {
-                Some(f) => {
+            let inner = match *self.ast.tree(a) {
+                Tree::NamedArg { arg, .. } => Some(arg),
+                _ => None,
+            };
+            typed.push(match (self.unknown_param_function(a), inner) {
+                (Some(_), Some(_)) => None,
+                (Some(f), None) => {
                     self.common_formal(f, i, alts, prefix)?.map(|p| self.typed_unmapped(a, Pt::Type(p), ctx))
                 }
-                None => Some(self.typed_unmapped(a, Pt::Any, ctx)),
+                (None, None) if self.is_sequence_arg(a) => Some(self.sequence_arg(a, None, ctx)),
+                (None, inner) => Some(self.typed_unmapped(inner.unwrap_or(a), Pt::Any, ctx)),
             });
         }
         self.protos[proto].typed = Some(typed.clone());
         Ok(typed)
+    }
+
+    /// Argument `a` against `formal`: `pretyped` adapted if typed before, else typed now.
+    pub fn arg_against(&mut self, a: NodeId, pretyped: Option<TNodeId>, formal: TypeId, ctx: Ctx) -> TNodeId {
+        match pretyped {
+            Some(typed) => {
+                let arg = self.to_sam(typed, formal).unwrap_or(typed);
+                self.adapt(arg, Pt::Type(formal), ctx)
+            }
+            None => self.typed(a, Pt::Type(formal), ctx),
+        }
     }
 
     /// For function `f` without parameter types at position `i`, the function or partial
