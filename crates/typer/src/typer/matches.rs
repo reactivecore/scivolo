@@ -44,18 +44,20 @@ impl Typer<'_> {
             pt => pt,
         };
         let case_ids = self.ast.items(cases).to_vec();
+        let before = self.before_harmonic();
         let typed_cases: Vec<TNodeId> =
             case_ids.iter().map(|&c| self.typed_case(c, sel_tpe, case_pt, ctx)).collect();
         if typed_cases.is_empty() {
             return self.unsupported(id, "match without cases");
         }
+        let typed_cases = match self.harmonic(typed_cases, case_pt, Some(before), ctx) {
+            Ok(h) => h,
+            Err(what) => return self.unsupported(id, what),
+        };
         let mut bodies: Vec<TypeId> = Vec::new();
         for &c in &typed_cases {
             let T::CaseDef { body, .. } = *self.tpd.tree(c) else { return self.unsupported(id, "case") };
             bodies.push(self.tpd.tpe(body));
-        }
-        if matches!(pt, Pt::Any) && bodies.windows(2).any(|w| self.needs_harmonizing(w[0], w[1])) {
-            return self.unsupported(id, "numeric harmonization");
         }
         let tpe = bodies.iter().fold(NOTHING, |acc, &b| self.u.lub(acc, b));
         let attrs = self.ast.attrs(selector);
