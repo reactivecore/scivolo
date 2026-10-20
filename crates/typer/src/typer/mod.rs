@@ -87,6 +87,7 @@ mod lift;
 mod lift_app;
 mod linter;
 mod literals;
+mod mapped_alternatives;
 mod match_type_trees;
 mod matches;
 mod member_hint;
@@ -231,6 +232,9 @@ pub struct Typer<'a> {
     pub poly_protos: Vec<poly_alternatives::PolyProto>,
     /// The alternatives being resolved with their type parameters instantiated, and the types.
     pub mapped_targs: Option<(Vec<SymbolId>, Vec<tasty::TypeId>)>,
+    /// The copies of alternatives resolved by a later clause: the original and how many clauses
+    /// the copy skips.
+    pub mapped_alts: FxHashMap<SymbolId, (SymbolId, usize)>,
     /// The applicable alternatives of the last overload resolution found ambiguous.
     pub ambiguous: Vec<SymbolId>,
     /// The first construct outside the subset, and where.
@@ -315,6 +319,7 @@ impl<'a> Typer<'a> {
             protos: Vec::new(),
             poly_protos: Vec::new(),
             mapped_targs: None,
+            mapped_alts: FxHashMap::default(),
             ambiguous: Vec::new(),
             unsupported: None,
             reports: 0,

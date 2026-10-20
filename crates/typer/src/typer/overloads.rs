@@ -30,10 +30,11 @@ pub struct FunProto {
     pub args: Vec<NodeId>,
     pub ctx: Ctx,
     pub typed: Option<Vec<Option<TNodeId>>>,
-    /// Whether the application is applied to further arguments.
-    pub applied: bool,
-    /// The type the application's result is expected to conform to, if any.
-    pub result: Option<TypeId>,
+    /// What the application's result is expected to be (dotty's `resultType`).
+    pub pt: Pt,
+    /// Whether an expected result type takes part in the applicability of alternatives, not
+    /// only ignored (dotty's `deepenProto` of an `IgnoredProto`).
+    pub deep: bool,
     /// The elements of an infix operation's tuple argument, until it is untupled.
     pub dual: Option<Vec<NodeId>>,
 }
@@ -81,19 +82,16 @@ impl Typer<'_> {
                 }
                 break;
             }
-            let args = self.pretyped_args(proto, &narrowed, prefix)?;
-            let mut arg_types = Vec::new();
-            for (&a, &id) in args.iter().zip(&self.protos[proto].args.clone()) {
-                arg_types.push(match a {
-                    Some(a) => {
-                        let t = self.tpd.tpe(a);
-                        self.zonk(t)
-                    }
-                    None => self.untyped_arg_type(id)?,
-                });
-            }
+            let arg_types = self.proto_arg_types(proto, &narrowed, prefix)?;
             for &alt in &narrowed {
-                match self.applicable(alt, prefix, &arg_types, views, ctx) {
+                let fits = self.applicable(alt, prefix, &arg_types, views, ctx);
+                let fits = match (fits, self.protos[proto].pt) {
+                    (Some(true), Pt::Type(pt)) if self.protos[proto].deep => {
+                        Some(self.result_conforms(alt, prefix, pt, (views, ctx)) != Some(false))
+                    }
+                    _ => fits,
+                };
+                match fits {
                     Some(true) => applicable.push(alt),
                     Some(false) => {}
                     None => return Err("overload resolution with implicit conversions"),
@@ -120,8 +118,10 @@ impl Typer<'_> {
         if tied.len() == 1 {
             return Ok(self.adapted_by_result(best, alts, prefix, proto));
         }
-        if self.protos[proto].applied {
-            return Err("ambiguous overload resolved by further arguments");
+        match self.protos[proto].pt {
+            Pt::Fun(next) => return self.resolve_by_next_clause(&applicable, prefix, (proto, next)),
+            Pt::PolyFun(_) => return Err("ambiguous overload resolved by further arguments"),
+            _ => {}
         }
         for preferred in [false, true] {
             let kept: Vec<SymbolId> = alts
@@ -136,8 +136,35 @@ impl Typer<'_> {
                 return self.resolve_overloaded(&kept, prefix, proto);
             }
         }
+        if matches!(self.protos[proto].pt, Pt::Type(_)) && !self.protos[proto].deep {
+            self.protos[proto].deep = true;
+            let deeper = self.resolve_overloaded(alts, prefix, proto);
+            self.protos[proto].deep = false;
+            return deeper;
+        }
         self.ambiguous = applicable;
         Err("ambiguous overload")
+    }
+
+    /// The types of the arguments of `proto`, typed once for alternatives `alts` of `prefix`.
+    pub fn proto_arg_types(
+        &mut self,
+        proto: usize,
+        alts: &[SymbolId],
+        prefix: Option<TypeId>,
+    ) -> Result<Vec<TypeId>, &'static str> {
+        let args = self.pretyped_args(proto, alts, prefix)?;
+        let mut arg_types = Vec::new();
+        for (&a, &id) in args.iter().zip(&self.protos[proto].args.clone()) {
+            arg_types.push(match a {
+                Some(a) => {
+                    let t = self.tpd.tpe(a);
+                    self.zonk(t)
+                }
+                None => self.untyped_arg_type(id)?,
+            });
+        }
+        Ok(arg_types)
     }
 
     /// Whether the first parameter clause of method `s` is followed by another that is not

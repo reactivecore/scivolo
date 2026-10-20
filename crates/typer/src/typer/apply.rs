@@ -16,17 +16,9 @@ impl Typer<'_> {
         let ctx = self.arg_ctx(fun, fun_ctx);
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
-        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun(_));
-        let result = if let Pt::Type(p) = pt { Some(p) } else { None };
         let dual = self.infix_tuple_elems(id, &arg_ids);
-        self.protos.push(super::overloads::FunProto {
-            args: arg_ids,
-            ctx,
-            typed: None,
-            applied,
-            result,
-            dual,
-        });
+        let fun_proto = super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual };
+        self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
             Ok(f) if self.is_pending_dynamic(f) => return self.dynamic_apply(id, f, proto, pt, fun_ctx),

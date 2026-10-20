@@ -18,14 +18,14 @@ impl Typer<'_> {
         prefix: Option<TypeId>,
         proto: usize,
     ) -> SymbolId {
-        let (Some(pt), ctx) = (self.protos[proto].result, self.protos[proto].ctx) else { return chosen };
-        if self.result_conforms(chosen, prefix, pt, ctx) != Some(false) {
+        let (Pt::Type(pt), ctx) = (self.protos[proto].pt, self.protos[proto].ctx) else { return chosen };
+        if self.result_conforms(chosen, prefix, pt, (true, ctx)) != Some(false) {
             return chosen;
         }
         let conforming: Vec<SymbolId> = alts
             .iter()
             .copied()
-            .filter(|&a| a != chosen && self.result_conforms(a, prefix, pt, ctx) == Some(true))
+            .filter(|&a| a != chosen && self.result_conforms(a, prefix, pt, (true, ctx)) == Some(true))
             .collect();
         match conforming[..] {
             [] => chosen,
@@ -152,14 +152,14 @@ impl Typer<'_> {
     }
 
     /// Whether the result of `alt` after its first parameter clause and its implicit clauses is
-    /// compatible with `pt` in `ctx`, its type parameters made type variables; the constraint
-    /// unchanged; `None` if undecided.
-    fn result_conforms(
+    /// compatible with `pt` in `ctx`, through an implicit conversion if `views`, its type
+    /// parameters made type variables; the constraint unchanged; `None` if undecided.
+    pub fn result_conforms(
         &mut self,
         alt: SymbolId,
         prefix: Option<TypeId>,
         pt: TypeId,
-        ctx: Ctx,
+        (views, ctx): (bool, Ctx),
     ) -> Option<bool> {
         if self.u.class_symbol(pt) == Some(self.defn.unit) {
             return Some(true);
@@ -175,7 +175,7 @@ impl Typer<'_> {
         }
         let fits = match *self.u.types().get(info) {
             Type::Method { result, .. } => match self.proto_normalized((result, Some(alt)), pt, follow, 8) {
-                Some(value) => self.compatible(value, pt, true, ctx),
+                Some(value) => self.compatible(value, pt, views, ctx),
                 None => None,
             },
             _ => Some(true),
