@@ -64,19 +64,19 @@ impl Gen<'_, '_> {
         let d = &self.l.defs;
         let plain = [d.object, d.any, d.any_ref];
         let bases = self.l.u.linearization(module_class);
-        let classes: Vec<SymbolId> = bases
-            .into_iter()
-            .filter(|&b| {
-                let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
-                !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait
-            })
-            .collect();
-        let jdk_class = |c: &SymbolId| {
-            let name = self.l.u.full_name(*c);
-            !self.l.u.is_trait(*c) && (name.starts_with("java.") || name.starts_with("javax."))
+        let is_jdk = |l: &crate::Lower, c: SymbolId| {
+            let name = l.u.full_name(c);
+            name.starts_with("java.") || name.starts_with("javax.")
         };
-        if classes.iter().any(jdk_class) {
-            return unsupported(Span::NONE, "forwarders of objects extending JDK classes");
+        let jdk: Vec<SymbolId> = bases.iter().copied().filter(|&b| is_jdk(self.l, b)).collect();
+        let mut classes = Vec::new();
+        for b in bases {
+            let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
+            let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
+            if !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait && !behind_jdk
+            {
+                classes.push(b);
+            }
         }
         let mut seen = Vec::new();
         let mut out = Vec::new();

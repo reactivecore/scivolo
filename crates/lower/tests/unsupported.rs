@@ -81,7 +81,6 @@ const CASES: &[(&str, &str)] = &[
         "classes in local classes calling local methods",
     ),
     ("trait T { var x: Int }", "abstract variables"),
-    ("object E extends Exception(\"e\")", "forwarders of objects extending JDK classes"),
     (
         "sealed trait S[A]; object S { case class X[A](a: A) extends S[A] }",
         "companions of generic sealed classes",
