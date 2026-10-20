@@ -31,6 +31,9 @@ impl Typer<'_> {
             ("scala.reflect.ClassTag", &[arg]) => self.synthesized_class_tag(arg, at, ctx, depth).map(Some),
             ("scala.ValueOf", &[arg]) => self.synthesized_value_of(class, arg, at),
             ("scala.reflect.TypeTest", &[from, to]) => self.synthesized_type_test(from, to, at, ctx),
+            ("scala.util.TupledFunction", &[fun, tupled]) => {
+                self.synthesized_tupled_function(fun, tupled, at)
+            }
             _ => Ok(None),
         }
     }

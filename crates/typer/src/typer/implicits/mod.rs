@@ -33,6 +33,7 @@ mod sum_mirrors;
 mod synthesis;
 mod too_late;
 mod tuple_mirrors;
+mod tupled_functions;
 mod type_test_synthesis;
 mod unsettled;
 mod view_kinds;
