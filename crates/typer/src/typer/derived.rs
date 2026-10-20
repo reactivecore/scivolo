@@ -25,7 +25,8 @@ impl Typer<'_> {
         if kind == DerivedKind::TermRef {
             let ident = self.ast.node(Tree::Ident { name: TName { is_type: false, ..watched } });
             self.ast.with_span(ident, self.ast.span(id));
-            return self.typed(ident, Pt::Any, ctx);
+            let outside = self.outside_class(ctx);
+            return self.typed(ident, Pt::Any, outside);
         }
         let text = self.text(watched.name).to_owned();
         let tpe = match kind {
@@ -37,6 +38,23 @@ impl Typer<'_> {
         let Some(tpe) = tpe else { return self.unsupported(id, &format!("derived type {kind:?}")) };
         let span = self.ast.span(id);
         self.type_tree(tpe, span, false)
+    }
+
+    /// `ctx` with the scope just outside the members of the innermost class around it, where the
+    /// class's companion is visible unshadowed by its members.
+    fn outside_class(&self, ctx: Ctx) -> Ctx {
+        let mut level = Some(ctx.level);
+        while let Some(l) = level {
+            let outer = self.levels.outer(l);
+            if let &Level::Members(o) = self.levels.get(l)
+                && self.u.symbol(o).kind == Kind::Class
+                && let Some(outer) = outer
+            {
+                return Ctx { level: outer, ..ctx };
+            }
+            level = outer;
+        }
+        ctx
     }
 
     /// The constructor whose parameters the class members and companion methods of `ctx` copy:
@@ -161,7 +179,7 @@ impl Typer<'_> {
     }
 
     /// The class named `name` defined in the owner of `ctx` or around it.
-    fn class_named(&mut self, name: &str, ctx: Ctx) -> Option<SymbolId> {
+    pub fn class_named(&mut self, name: &str, ctx: Ctx) -> Option<SymbolId> {
         match self.find_ref(name, true, ctx) {
             Ok(Some(found)) => found.syms.into_iter().find(|&s| self.u.symbol(s).kind == Kind::Class),
             _ => None,
