@@ -116,7 +116,7 @@ impl<'i, 'a> Expansion<'i, 'a> {
                     t = fun;
                 }
                 T::TypeApply { fun, args } => {
-                    targs = self.i.tpd.items(args).to_vec();
+                    targs.splice(0..0, self.i.tpd.items(args).iter().copied());
                     t = fun;
                 }
                 _ => break,

@@ -32,6 +32,7 @@ mod this_proxy;
 mod transparent;
 mod tuple_intrinsics;
 mod type_eval;
+mod unapply_fun;
 mod unused;
 
 pub use erased::is_erased_value;
@@ -174,6 +175,10 @@ impl Inlining<'_> {
         self.fold_constants(t);
         if changed {
             self.retype_inlined(t);
+        }
+        if let T::UnApply { fun, implicits, patterns } = *self.tpd.tree(t) {
+            let fun = self.inlined_unapply_fun(fun, owner)?;
+            self.tpd.get_mut(t).tree = T::UnApply { fun, implicits, patterns };
         }
         match self.inline_method(t)? {
             Some(def) => self.inline_call(t, def, owner),
