@@ -70,7 +70,7 @@ impl Typer<'_> {
         if depth > MAX_DEPTH {
             return Err("implicit search too deep");
         }
-        if depth == 0 {
+        if depth == 0 && self.history.open.is_empty() {
             self.implicit_budget = MAX_TRIES;
         }
         if let Some(found) = self.recursive_ref(pt, by_name, at)? {

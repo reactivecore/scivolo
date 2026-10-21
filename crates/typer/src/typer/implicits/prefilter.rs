@@ -38,7 +38,7 @@ impl Typer<'_> {
                 Type::Poly { result, .. }
                 | Type::Method { result, implicit: true, .. }
                 | Type::ByName(result) => result,
-                Type::Method { .. } => return self.function_arity(pt).is_none(),
+                Type::Method { .. } => return !self.is_function_type(pt),
                 _ => break,
             };
         }

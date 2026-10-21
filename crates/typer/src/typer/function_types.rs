@@ -35,6 +35,11 @@ impl Typer<'_> {
         self.applied_function(t, "scala.Function").filter(|(params, _)| params.len() == n)
     }
 
+    /// Whether `t` is a `FunctionN` type.
+    pub fn is_function_type(&mut self, t: TypeId) -> bool {
+        self.applied_function(t, "scala.Function").is_some()
+    }
+
     /// The parameter and result types of `t` if it is a `ContextFunctionN`.
     pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
         self.applied_function(t, "scala.ContextFunction")

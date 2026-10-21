@@ -42,3 +42,29 @@ object ValueAndMethod {
   def f[T](t: T)(implicit g: T => Int) = g(t)
   def a = (f("abc"), f(List(1, 2)))
 }
+
+object InlineCandidate {
+  implicit inline def uhOh[A](value: A): A = compiletime.error("not eta-expanded")
+  def a = summon[Function1[Int, Int]]
+}
+
+class Ev
+object MisfitInClosure {
+  implicit def needsEv(s: String)(implicit e: Ev): Int = 0
+  implicit def size(s: String): Int = s.length
+  def f(implicit g: String => Int) = g("abc")
+  def a = f
+}
+
+class Cap[T]
+object Cap { implicit def any[T]: Cap[T] = new Cap[T] }
+class Wrap[T](val x: List[T])
+object ConversionResult {
+  implicit def conv[T](x: List[T])(implicit e: Cap[T]): Wrap[T] = new Wrap(x)
+  def a: Wrap[Any] = List(1, 2)
+}
+
+object OpenValueWinner {
+  def viewed[B](x: Int)(implicit ev: Int => B): B = ev(x)
+  def a = viewed(3)
+}

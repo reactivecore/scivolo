@@ -232,8 +232,8 @@ pub struct Typer<'a> {
     pub package_levels: FxHashMap<NodeId, LevelId>,
     /// The bounds and instances of the type variables.
     pub constraint: crate::constraint::Constraint,
-    /// How many type variables the expression being adapted found, which its implicit clauses
-    /// do not instantiate (dotty's `locked`).
+    /// Type variables numbered below this are not instantiated before implicit searches (dotty's
+    /// `locked`).
     pub locked_vars: usize,
     /// How many more candidates the implicit search in progress may try.
     pub implicit_budget: u32,

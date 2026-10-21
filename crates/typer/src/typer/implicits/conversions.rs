@@ -51,7 +51,9 @@ impl Typer<'_> {
         {
             return Ok(None);
         }
-        self.implicit_budget = super::search::MAX_TRIES;
+        if self.history.open.is_empty() {
+            self.implicit_budget = super::search::MAX_TRIES;
+        }
         let contextual = self.contextual_implicits(ctx, &mut |t, c| {
             t.view_kind(c) != ViewKind::None
                 || matches!(goal, Goal::Member(name) if t.offers_extension(c, name).unwrap_or(false))
@@ -182,8 +184,15 @@ impl Typer<'_> {
         };
         let converted = self.build().apply(fun, &[arg], result, span.to_synthetic());
         if let Type::Method { params, implicit: true, .. } = self.u.types().get(result).clone() {
+            if let Goal::Conform(pt) = goal {
+                let value = self.strip_implicit(result);
+                self.u.is_necessary_subtype_in(value, pt, &mut self.constraint);
+            }
             let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
-            self.instantiate_param_vars(converted, &formals)?;
+            let locked = std::mem::replace(&mut self.locked_vars, from);
+            let instantiated = self.instantiate_param_vars(converted, &formals);
+            self.locked_vars = locked;
+            instantiated?;
         }
         let spans = (span.end_pos(), span.to_synthetic());
         let converted = self.viewing(c, |t| t.with_implicit_args(converted, spans, ctx, 1))?;

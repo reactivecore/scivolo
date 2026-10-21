@@ -33,7 +33,7 @@ impl Typer<'_> {
     }
 
     /// N if `t` is a `FunctionN` type.
-    pub fn function_arity(&mut self, t: TypeId) -> Option<usize> {
+    fn function_arity(&mut self, t: TypeId) -> Option<usize> {
         (0..=22).find(|&n| self.function_parts(t, n).is_some())
     }
 
