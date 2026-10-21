@@ -164,6 +164,11 @@ fn unit_compared_as_object_and_methods_of_null() {
 }
 
 #[test]
+fn link_time_methods_computed_from_others() {
+    assert_eq!(run_main("linktime"), check("linktime"));
+}
+
+#[test]
 fn fib_runs_as_executable() {
     assert_eq!(run("fib", "fibo", "25"), "75025\n");
 }

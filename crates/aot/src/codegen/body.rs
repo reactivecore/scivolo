@@ -87,7 +87,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
             self.blocks.insert(l.0, block);
             self.param_types.insert(l.0, params.iter().map(|p| p.ty).collect());
         }
-        let reachable = super::blocks::reachable(&self.reach.world.pool, body)?;
+        let reachable = super::blocks::reachable(self.reach.world, body)?;
         let (mut open, mut check) = (false, self.decls.stack_checks && super::stack_check::calls(body));
         for (n, inst) in body.insts.iter().enumerate() {
             let pos = body.positions.get(n).map_or(SourceLoc::default(), |p| SourceLoc::new(p.0));
@@ -161,7 +161,7 @@ impl<'a, 'w> FnBuilder<'a, 'w> {
                 self.b.ins().trap(TrapCode::unwrap_user(1));
             }
             Inst::LinktimeIf(cond, then, els) => {
-                let taken = super::linktime::decide(&self.reach.world.pool, cond)?;
+                let taken = super::linktime::decide(self.reach.world, cond)?;
                 self.jump(if taken { then } else { els })?;
             }
             Inst::Label(..) => {

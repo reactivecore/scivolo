@@ -158,7 +158,7 @@ impl FnBuilder<'_, '_> {
         if kind == Kind::Module || !is_virtual(self.reach.world.pool.str(sig)) {
             let target = self.reach.classes.resolve(self.reach.world, cls, sig);
             let g = target?.ok_or_else(|| format!("no method {}", self.reach.world.pool.str(sig)))?;
-            if self.is_linktime_resolved(g) {
+            if super::linktime::is_linktime(self.reach.world, g) {
                 self.linktime_methods.insert(id, g);
             } else if kind != Kind::Module {
                 let o = self.val(obj)?;
