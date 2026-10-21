@@ -153,6 +153,7 @@ impl Typer<'_> {
         }
         let typed = self.typed(apply, Pt::Any, ctx);
         let tpe = self.tpd.tpe(typed);
+        // Forces the result type defined; temporary, until #146.
         match self.fully_defined(tpe) {
             Ok(t) => self.tpd.get_mut(typed).tpe = Some(t),
             Err(what) => return self.unsupported(id, what),
