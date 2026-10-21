@@ -119,13 +119,7 @@ impl Typer<'_> {
 
     /// The names and value types of named tuple `t` (dotty's `namedTupleElementTypes`).
     pub fn named_tuple_parts(&mut self, t: TypeId) -> Option<(Vec<String>, Vec<TypeId>)> {
-        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let [names, values] = args[..] else { return None };
-        if self.referenced(tycon) != Some(nt) {
-            return None;
-        }
+        let (names, values) = self.named_tuple_args(t)?;
         let names = self.elements_of(names)?;
         let names: Option<Vec<String>> = names
             .iter()
@@ -136,6 +130,22 @@ impl Typer<'_> {
             .collect();
         let values = self.elements_of(values)?;
         names.filter(|n| n.len() == values.len()).map(|n| (n, values))
+    }
+
+    /// The values tuple of `t` widened if that is a named tuple, else `t` (dotty's
+    /// `stripNamedTuple`).
+    pub fn strip_named_tuple(&mut self, t: TypeId) -> TypeId {
+        let widened = self.u.widen(t);
+        self.named_tuple_args(widened).map_or(t, |(_, values)| values)
+    }
+
+    /// The names and values type arguments of named tuple `t`.
+    fn named_tuple_args(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
+        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
+        let t = self.u.dealias(t);
+        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        let [names, values] = args[..] else { return None };
+        (self.referenced(tycon) == Some(nt)).then_some((names, values))
     }
 
     /// `NamedTuple[(names…), (values…)]` with the names as string constant types.

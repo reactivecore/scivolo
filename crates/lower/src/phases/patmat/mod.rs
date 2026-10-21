@@ -145,6 +145,7 @@ impl<'t, 'a> Translator<'t, 'a> {
         tpe: Option<TypeId>,
         body: impl FnOnce(&mut Self, SymbolId) -> Result<PlanId>,
     ) -> Result<PlanId> {
+        let rhs = self.drop_named_tuple(rhs);
         let tpe = tpe.unwrap_or_else(|| self.l.tpd.tpe(rhs));
         let name = self.l.fresh.next(self.l.names, "x");
         let name = self.l.names.text(name).to_owned();

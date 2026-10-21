@@ -28,11 +28,9 @@ impl Typer<'_> {
     ) -> Result<TNodeId, &'static str> {
         let Pt::Type(sel) = pt else { return Err("extractor without expected type") };
         let mut arg_ids = self.ast.items(args).to_vec();
-        let sel_type = self.zonk(sel);
-        let widened = self.u.widen(sel_type);
-        if self.named_tuple_parts(widened).is_some() {
-            return Err("extractor pattern on a named tuple");
-        }
+        let zonked = self.zonk(sel);
+        let sel_type = self.strip_named_tuple(zonked);
+        let sel = if sel_type == zonked { sel } else { sel_type };
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs
@@ -85,11 +83,16 @@ impl Typer<'_> {
             let types = self.unapply_seq_arg_types(result, arg_ids.len())?;
             self.typed_seq_patterns(&arg_ids, types, ctx)?
         } else {
+            let mut values = None;
             if named {
-                let target = self.named_patterns_type(result, arg_ids.len())?;
-                arg_ids = self.adapt_pattern_args(&arg_ids, target)?;
+                let names;
+                (names, values) = self.named_pattern_elements(result, &arg_ids)?;
+                arg_ids = self.adapt_pattern_args(&arg_ids, &names)?;
             }
-            let arg_types = self.unapply_arg_types(result, arg_ids.len())?;
+            let arg_types = match values {
+                Some(values) => values,
+                None => self.unapply_arg_types(result, arg_ids.len())?,
+            };
             arg_ids.iter().zip(arg_types).map(|(&a, t)| self.typed_pattern_arg(a, t, ctx)).collect()
         };
         let (implicits, patterns) = (self.tpd.list(&implicits), self.tpd.list(&patterns));

@@ -2,7 +2,8 @@
 //   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Plans of extractor patterns (dotty's `unapplyPlan`, `matchArgsPlan`): the case accessors of a
 //! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, the elements of a
-//! generic tuple (`generic_tuples.rs`), or the `get` of an option-like one, each component then
+//! generic tuple (`generic_tuples.rs`), or the `get` of an option-like one (its `_1` for a named
+//! pattern of a named tuple of one element), each component then
 //! matched against its argument pattern, after the extractor's implicit arguments; the sequence an
 //! `unapplySeq` returns (`sequences.rs`).
 
@@ -105,9 +106,11 @@ impl Translator<'_, '_> {
         let accessors =
             self.l.u.companion_class(owner).map(|c| case_accessors(self.l, c)).unwrap_or_default();
         let unapp_type = self.l.tpd.tpe(unapp);
+        let named_field = self.is_named_field_of_get(unapp_type, args);
         if self.l.u.is_scala2(extractor)
             && has(self.l.u, extractor, SYNTHETIC)
             && accessors.len() == args.len()
+            && !named_field
         {
             let components: Vec<TNodeId> = accessors
                 .iter()
@@ -145,7 +148,7 @@ impl Translator<'_, '_> {
             let get = t.select_member(value, get);
             let args_plan = t.let_abstract(get, None, |t, get_result| {
                 let components = match arity {
-                    1 => vec![t.l.ident(get_result, Span::NONE)],
+                    1 if !named_field => vec![t.l.ident(get_result, Span::NONE)],
                     _ => {
                         let get_type = t.l.u.info(get_result);
                         let selectors = t.product_selectors(get_type, false)?;
