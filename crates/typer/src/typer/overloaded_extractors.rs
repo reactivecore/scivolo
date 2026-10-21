@@ -22,7 +22,15 @@ impl Typer<'_> {
         self.splices.insert(arg, dummy);
         let proto = self.protos.len();
         let typed = Some(vec![Some(dummy)]);
-        self.protos.push(FunProto { args: vec![arg], ctx, typed, pt: Pt::Any, deep: false, dual: None });
+        self.protos.push(FunProto {
+            args: vec![arg],
+            ctx,
+            typed,
+            pt: Pt::Any,
+            deep: false,
+            dual: None,
+            using: false,
+        });
         Pt::Fun(proto)
     }
 }

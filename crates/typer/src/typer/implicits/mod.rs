@@ -16,6 +16,7 @@ mod defaults;
 mod dictionary;
 mod divergence;
 mod extension_views;
+mod function_goals;
 mod history;
 mod measures;
 mod mirror_sources;

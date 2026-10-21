@@ -3,6 +3,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
 //! Entering the symbols of definitions before their statements are typed (dotty's `Namer`).
 
+mod annotation_trees;
 mod annotations;
 mod base_types;
 mod check_static;

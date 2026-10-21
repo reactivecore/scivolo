@@ -68,7 +68,7 @@ impl Typer<'_> {
         if !restricted
             || self.u.is_type_symbol(sym)
             || s.kind == tasty::Kind::Def && flags.has(INLINE)
-            || self.u.is_annotated(sym, "publicInBinary")
+            || self.u.is_annotated(sym, "scala.annotation.publicInBinary")
         {
             return false;
         }

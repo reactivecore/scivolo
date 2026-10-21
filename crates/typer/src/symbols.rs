@@ -4,6 +4,7 @@
 //! annotations; and the TASTy modifiers the universe keeps for them.
 
 use crate::ctx::Ctx;
+use crate::tpd::TNodeId;
 use rustc_hash::FxHashMap;
 use syntax::ast::flags::{self as f, FlagSet};
 use syntax::ast::{NodeId, Span};
@@ -35,6 +36,8 @@ pub struct Syms {
     pub main_annotations: FxHashMap<SymbolId, Span>,
     /// The annotations of the unit's symbols still to be typed, each with its context.
     pub annotation_trees: Vec<(SymbolId, NodeId, Ctx)>,
+    /// The typed annotations of the unit's symbols, in order (dotty's `Symbol.annotations`).
+    pub annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The symbol each definition tree defines.
     pub by_tree: FxHashMap<NodeId, SymbolId>,
     /// The definition tree of each member and local of the unit.
@@ -125,6 +128,7 @@ impl Syms {
         self.def_trees.clear();
         self.closure_syms.clear();
         self.annotation_trees.clear();
+        self.annotations.clear();
     }
 
     /// Whether `s` is defined by the script.

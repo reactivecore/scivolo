@@ -42,6 +42,14 @@ impl Typer<'_> {
         self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| self.u.symbol(s).name == "<init>")
     }
 
+    /// Whether `tree` refers to an inline implicit method, which is not eta-expanded.
+    pub fn is_inline_implicit_ref(&mut self, tree: TNodeId) -> bool {
+        self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| {
+            let flags = &self.u.symbol(s).flags;
+            flags.has(tasty::tags::INLINE) && flags.has(tasty::tags::IMPLICIT)
+        })
+    }
+
     /// Method reference `tree` eta-expanded against `pt` to a function of arity `xarity`.
     pub fn eta_expansion(
         &mut self,

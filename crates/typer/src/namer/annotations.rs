@@ -1,40 +1,43 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
-//   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
-//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Annotations of definitions: their classes resolved when the definitions are completed
-//! (dotty's `Namer.addAnnotations`), the annotations typed as `new` expressions once the unit
-//! is typed (`Typer.typedAnnotation`, `Checking.checkAnnotArgs`).
+//! (dotty's `Namer.addAnnotations`), those refused, and the checks of those the typer acts on.
 
 use crate::ctx::Ctx;
-use crate::typer::{Pt, Typer};
+use crate::typer::Typer;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
-/// The annotation classes accepted: `@main`, `@targetName`, `@static` (its member kept a member
-/// of the object), and those that change nothing a program run by the VM does.
-const ACCEPTED: [&str; 18] = [
-    "scala.main",
-    "scala.annotation.targetName",
-    STATIC,
-    "scala.noinline",
-    "scala.inline",
-    "scala.annotation.tailrec",
-    "scala.annotation.unused",
-    "scala.annotation.switch",
-    "scala.specialized",
-    "scala.deprecated",
-    "scala.throws",
-    "scala.transient",
-    "scala.volatile",
-    "scala.annotation.experimental",
-    "scala.annotation.publicInBinary",
-    "scala.annotation.unroll",
-    "scala.annotation.elidable",
-    "scala.annotation.implicitNotFound",
+/// The annotation classes refused: Scala Native's code-generation annotations, and those whose
+/// meaning dotty's later phases implement and the lowering does not.
+const REFUSED: [&str; 24] = [
+    "scala.native",
+    "scala.deprecatedName",
+    "scala.annotation.compileTimeOnly",
+    "scala.annotation.threadUnsafe",
+    "scala.beans.BeanProperty",
+    "scala.beans.BooleanBeanProperty",
+    "scala.scalanative.annotation.align",
+    "scala.scalanative.annotation.alwaysinline",
+    "scala.scalanative.annotation.nonExtern",
+    "scala.scalanative.annotation.nooptimize",
+    "scala.scalanative.annotation.nospecialize",
+    "scala.scalanative.annotation.safePublish",
+    "scala.scalanative.annotation.stub",
+    "scala.scalanative.reflect.annotation.EnableReflectiveInstantiation",
+    "scala.scalanative.runtime.struct",
+    "scala.scalanative.unsafe.define",
+    "scala.scalanative.unsafe.exportAccessors",
+    "scala.scalanative.unsafe.exported",
+    "scala.scalanative.unsafe.link",
+    "scala.scalanative.unsafe.linkCppRuntime",
+    "scala.scalanative.unsafe.name",
+    "scala.scalanative.unsafe.package$.blocking",
+    "scala.scalanative.unsafe.package$.extern",
+    "scala.scalanative.unsafe.resolvedAtLinktime",
 ];
 
 pub const STATIC: &str = "scala.annotation.static";
@@ -49,14 +52,18 @@ impl Typer<'_> {
             return;
         };
         let annots = self.ast.items(self.ast.modifiers(mods).annotations).to_vec();
+        if annots.is_empty() {
+            return;
+        }
+        let ctx = self.annot_ctx(sym, ctx);
         for annot in annots {
             let Some(class) = self.annotation_class(annot, ctx) else {
                 self.unsupported(annot, "annotation");
                 continue;
             };
             let name = self.u.full_name(class);
-            if !ACCEPTED.contains(&name.as_str()) {
-                self.unsupported(annot, "annotation");
+            if REFUSED.contains(&name.as_str()) {
+                self.unsupported(annot, &format!("annotation @{name}"));
                 continue;
             }
             match name.as_str() {
@@ -71,7 +78,7 @@ impl Typer<'_> {
             if self.defn.main_annot(self.u) == Ok(class) {
                 self.syms.main_annotations.insert(sym, self.ast.span(annot));
             }
-            if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {
+            if !self.syms.annotation_trees.iter().any(|&(s, a, _)| (s, a) == (sym, annot)) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
             }
         }
@@ -134,19 +141,5 @@ impl Typer<'_> {
         if !(has_default && unrollable) {
             self.unsupported(annot, "@unroll other than on a defaulted parameter of a final method");
         }
-    }
-
-    /// Types the annotations of the unit's definitions in their contexts.
-    pub fn typed_annotations(&mut self) {
-        let mut i = 0;
-        while let Some(&(sym, annot, ctx)) = self.syms.annotation_trees.get(i) {
-            i += 1;
-            let typed = self.typed(annot, Pt::Any, ctx);
-            let tpe = self.tpd.tpe(typed);
-            if self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == STATIC) {
-                self.check_static(sym, annot);
-            }
-        }
-        self.syms.annotation_trees.clear();
     }
 }

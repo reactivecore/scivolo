@@ -8,9 +8,9 @@ use crate::tpd::{TNodeId, Tree as T};
 use tasty::{ANY, NOTHING, Type, TypeId, TypeVars, VarId};
 
 impl Typer<'_> {
-    /// Instantiates the type variables that type applications in `tree`'s prefixes bind and
-    /// the parameters of its applications mention, where they occur in `params`: minimized if
-    /// they have a lower bound, else maximized if they have an upper bound.
+    /// Instantiates the type variables other than locked ones that type applications in `tree`'s
+    /// prefixes bind and the parameters of its applications mention, where they occur in
+    /// `params`: minimized if they have a lower bound, else maximized if they have an upper bound.
     pub fn instantiate_param_vars(&mut self, tree: TNodeId, params: &[TypeId]) -> Result<(), &'static str> {
         let mut bound = Vec::new();
         self.bound_vars(tree, &mut bound);
@@ -81,6 +81,7 @@ impl Typer<'_> {
                     let tpe = self.zonk(self.tpd.tpe(a));
                     if matches!(self.tpd.tree(a), T::TypeTree { inferred: true })
                         && let Type::Var(v) = *self.u.types().get(tpe)
+                        && v.0 as usize >= self.locked_vars
                     {
                         let lo = match bounds.get(i).map(|&b| self.u.types().get(b).clone()) {
                             Some(Type::Bounds(lo, _))

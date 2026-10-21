@@ -50,6 +50,7 @@ impl Typer<'_> {
         if let Some(Type::Method { params, result, implicit: false, .. }) = &method {
             if let Some(arity) = self.eta_arity(tree, pt)
                 && !self.is_constructor_ref(tree)
+                && !self.is_inline_implicit_ref(tree)
                 && !ctx.mode.is(Mode::PATTERN)
             {
                 return match self.eta_expansion(tree, pt, arity, ctx) {

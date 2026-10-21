@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Checks of references: access, values, `Local` members.
 
-use super::Typer;
+use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::flags as f;
 use tasty::tags::PRIVATE;
@@ -26,22 +26,23 @@ impl Typer<'_> {
         self.unset_local(sym, prefix)
     }
 
-    /// Checks that term `name` for `sym`, outside a qualifier, is a value: no package, nor a Java
-    /// class's object unless `applied` (dotty's `checkValue`).
+    /// Checks that term `name` for `sym`, neither a qualifier nor applied to (type) arguments by
+    /// `pt`, is a value: no package, nor a Java class's object (dotty's `checkValue`).
     pub fn check_value(
         &mut self,
         sym: SymbolId,
         name: syntax::ast::TName,
-        applied: bool,
+        pt: Pt,
         ctx: Ctx,
     ) -> Result<(), &'static str> {
-        if name.is_type || ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
+        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun(_));
+        if name.is_type || applied || ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
             return Ok(());
         }
         if self.u.symbol(sym).kind == tasty::Kind::Package {
             return Err("package used as a value");
         }
-        if !applied && self.u.symbol(sym).flags.has(tasty::tags::OBJECT) && self.is_java_class_name(sym) {
+        if self.u.symbol(sym).flags.has(tasty::tags::OBJECT) && self.is_java_class_name(sym) {
             return Err("object of a Java class used as a value");
         }
         Ok(())

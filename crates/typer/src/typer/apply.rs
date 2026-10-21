@@ -5,7 +5,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, Tree};
+use syntax::ast::{Attrs, List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -17,7 +17,9 @@ impl Typer<'_> {
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         let dual = self.infix_tuple_elems(id, &arg_ids);
-        let fun_proto = super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual };
+        let using = self.ast.attrs(id).contains(Attrs::USING_APPLY);
+        let fun_proto =
+            super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {
@@ -43,7 +45,8 @@ impl Typer<'_> {
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
-        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, id, fun_ctx)) {
+        let using = self.protos[proto].using;
+        let f = match self.with_type_vars(f).and_then(|f| self.with_using_args(f, using, fun_ctx)) {
             Ok(f) => f,
             Err(what) => return self.unsupported(id, what),
         };

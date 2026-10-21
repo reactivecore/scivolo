@@ -88,7 +88,8 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` without its leading implicit parameter clauses (dotty's `stripImplicit`).
+    /// The type after the leading implicit parameter clauses of `t`, references to their
+    /// parameters kept (dotty's `stripInferrable` of a method type).
     pub fn strip_implicit(&self, mut t: TypeId) -> TypeId {
         while let Type::Method { result, implicit: true, .. } = *self.u.types().get(t) {
             t = result;
@@ -101,7 +102,7 @@ impl Typer<'_> {
     /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);
     /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
     /// the result refers to are approximated by their types (dotty's `resultTypeApprox`).
-    fn proto_normalized(
+    pub fn proto_normalized(
         &mut self,
         (t, meth): (TypeId, Option<SymbolId>),
         pt: TypeId,

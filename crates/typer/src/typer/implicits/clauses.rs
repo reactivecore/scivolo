@@ -6,7 +6,7 @@
 use super::super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{Attrs, NodeId, Span};
+use syntax::ast::Span;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
@@ -107,10 +107,15 @@ impl Typer<'_> {
         }
     }
 
-    /// Function `f` of application `id` applied to the arguments of its leading `using` clauses
-    /// if `id` does not pass them (dotty's `adaptToArgs` without a `matchingApply`).
-    pub fn with_using_args(&mut self, mut f: TNodeId, id: NodeId, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        while self.takes_using(f) && !self.ast.attrs(id).contains(Attrs::USING_APPLY) {
+    /// Function `f` applied to the arguments of its leading `using` clauses unless the
+    /// application of `f` passes them, `using` (dotty's `adaptToArgs` without a `matchingApply`).
+    pub fn with_using_args(
+        &mut self,
+        mut f: TNodeId,
+        using: bool,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        while !using && self.takes_using(f) {
             f = self.implicit_clause_applied(f, ctx)?;
             f = self.with_type_vars(f)?;
         }

@@ -18,6 +18,18 @@ object LaterClauses {
   def ab(x: Byte): Array[Byte] = Array(x)
   def ab(x: Int): Array[Int] = Array(x)
 
+  trait Rp[T, V]
+  object Rp { implicit def rp[T]: Rp[T, Seq[T]] = new Rp[T, Seq[T]] {} }
+  class Px[+T]
+  extension [T](p: Px[T]) def rep[V](using r: Rp[T, V]): Px[V] = new Px[V]
+  extension [T](p: => Px[T]) def rep[V](min: Int)(using r: Rp[T, V]): Px[V] = new Px[V]
+  def u(using x: Rp[Int, Seq[Int]]): Int = 1
+  def u(s: String): Int = 2
+  extension [T](p: Px[T]) def rep2[V, W <: Seq[V]](using r: Rp[T, W]): Px[W] = new Px[W]
+  extension [T](p: => Px[T]) def rep2[V](min: Int): Px[V] = new Px[V]
+  def v(using x: Rp[Int, Seq[Int]])(i: Int): Int = i
+  def v(s: String): Int = 2
+
   def test(): Unit = {
     f(1)(2)
     f(1)("two")
@@ -30,5 +42,9 @@ object LaterClauses {
     val a: A = fr(new C)
     val b: B = fr(new C)
     val bytes: Array[Byte] = ab(1)
+    val reps: Px[Seq[Int]] = new Px[Int].rep(1)
+    val us = u("s")
+    val reps2: Px[Int] = new Px[Int].rep2(1)
+    val vs = v(1) + v(using Rp.rp[Int])(2)
   }
 }

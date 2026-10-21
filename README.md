@@ -51,9 +51,9 @@ Headline numbers (macOS arm64, M4 Pro); every suite, date and gap is in
 [docs/conformance.md](docs/conformance.md) and [ROADMAP.md](ROADMAP.md).
 
 - **VM:** 11,336 of Scala Native's 11,360 unit tests pass (NIR compiled by Scala Native).
-- **Own frontend:** 1,169 of dotty's 1,709 `tests/run` pass through parser, typer, lowering
+- **Own frontend:** 1,170 of dotty's 1,709 `tests/run` pass through parser, typer, lowering
   and VM.
-- **Native executables:** 144 of 150 test programs, built from source.
+- **Native executables:** 149 of 156 test programs, built from source.
 - **Startup:** hello 9.3 ms cached; `moderate.scala` 48 ms edit-then-run (scala-cli: 360–520 ms,
   python3 startup: 18 ms).
 

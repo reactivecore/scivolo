@@ -124,7 +124,7 @@ impl Typer<'_> {
         if self.jdk_redeclares(sym, qual_tpe) {
             return self.unsupported(id, "Object member a JDK interface redeclares");
         }
-        if let Err(what) = self.check_value(sym, name, matches!(pt, Pt::Fun(_)), ctx) {
+        if let Err(what) = self.check_value(sym, name, pt, ctx) {
             return self.unsupported(id, what);
         }
         let new = matches!(self.tpd.tree(qual), T::New { .. });

@@ -64,7 +64,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,169 of 1,709 pass (2026-10-21); 300 stop at the typer, 18 at
+(`just dotty-lower-report`): 1,170 of 1,709 pass (2026-10-21); 298 stop at the typer, 18 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -75,7 +75,8 @@ the lowering.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report`: tests/pos 1,359 typed as dotty, 32 differ, 1,618 refused. Unsupported
+   `just typer-report` (2026-10-21): tests/pos 1,701 typed as dotty, 197 differ (20 only in
+   warnings), 1,127 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -95,7 +96,7 @@ typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 144 of 150
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 149 of 156
   test programs from source (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
@@ -115,17 +116,20 @@ In order of the tests they unblock:
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
    extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
    measured on `tests/run-macros`.
-3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
-4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
+3. **com-lihaoyi toolkit** (#144, [research 30](docs/research/30-lihaoyi-toolkit.md)): small
+   typer and AOT fixes for os-lib and fastparse, then the macro steps for sourcecode, fastparse,
+   upickle and mainargs, each measured by its library's test program.
+4. **Startup** (#9): the VM's `run_main` from a heap snapshot.
+5. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    traits nested in local traits; classes extending `FunctionN` above 22
    (`FunctionXXLForwarders`), context results needing `Bridges` (implicitFuns), the rest of
    `TupleOptimizations` (#138), JDK forwarders (#135).
-5. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
+6. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
    polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
    inputs; the forward-reference check (#90).
-6. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
+7. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
-7. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+8. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just

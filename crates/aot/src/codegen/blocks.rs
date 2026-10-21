@@ -1,11 +1,13 @@
 //! The blocks of a body reachable from its entry, with `linktime if`s decided.
 
+use super::linktime::Linktime;
 use crate::R;
-use nir::{Body, Inst, Next, Pool};
+use nir::{Body, Inst, Next};
 use std::collections::{HashMap, HashSet};
+use vm::World;
 
 /// The labels of `body` that control can reach from its first block.
-pub fn reachable(pool: &Pool, body: &Body) -> R<HashSet<u64>> {
+pub fn reachable(world: &mut World, linktime: &mut Linktime, body: &Body) -> R<HashSet<u64>> {
     let mut succ: HashMap<u64, Vec<u64>> = HashMap::new();
     let mut first = None;
     let mut current = 0;
@@ -17,7 +19,7 @@ pub fn reachable(pool: &Pool, body: &Body) -> R<HashSet<u64>> {
                 first.get_or_insert(l.0);
             }
             Inst::LinktimeIf(cond, then, els) => {
-                if let Next::Label(l, _) = if super::linktime::decide(pool, cond)? { then } else { els } {
+                if let Next::Label(l, _) = if linktime.decide(world, cond)? { then } else { els } {
                     next.push(l.0);
                 }
             }
