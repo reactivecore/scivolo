@@ -161,7 +161,7 @@ impl Cmp<'_> {
         }
     }
 
-    /// The bounds of a bounds argument, annotated or not; a `Wildcard` compares as a type.
+    /// The bounds of a `?` argument, annotated or not; a `Wildcard` compares as a type.
     fn written_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         match self.u.types().get(t).clone() {
             Type::Bounds(lo, hi) => Some((lo, hi)),
