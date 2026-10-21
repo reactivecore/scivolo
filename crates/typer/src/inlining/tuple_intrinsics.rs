@@ -50,6 +50,10 @@ impl Inlining<'_> {
     fn unrolled_tuple(&mut self, t: TypeId, depth: usize) -> Option<Vec<TypeId>> {
         let depth = depth.checked_sub(1)?;
         let d = self.u.dealias(t);
+        if let Type::Match { .. } = self.u.types().get(d) {
+            let n = self.u.try_normalize(d)?;
+            return self.unrolled_tuple(n, depth);
+        }
         if let Type::Applied(tycon, args) = self.u.types().get(d).clone() {
             let name = self.u.class_symbol(tycon).map(|c| self.u.full_name(c));
             return match name.as_deref() {

@@ -51,12 +51,15 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
         let (pre, cls) = match source {
-            MirrorSource::Tuple(elems) => return self.tuple_mirror(formal, &elems, at),
+            MirrorSource::Tuple(elems) => return self.tuple_mirror(formal, &elems, None, at),
+            MirrorSource::NamedTuple(names, elems) => {
+                return self.tuple_mirror(formal, &elems, Some(&names), at);
+            }
             MirrorSource::Singleton(s, path) => return self.singleton_mirror(formal, s, path, at).map(Some),
             MirrorSource::Class(pre, cls) => (pre, cls),
         };
         if let Some(args) = self.tuple_class_args(formal.mirrored).filter(|a| !a.is_empty()) {
-            return self.tuple_mirror(formal, &args, at);
+            return self.tuple_mirror(formal, &args, None, at);
         }
         if !self.is_generic_product(cls, ctx) {
             return Ok(None);

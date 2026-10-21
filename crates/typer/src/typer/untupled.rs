@@ -38,14 +38,20 @@ impl Typer<'_> {
         if matches!(self.u.types().get(formal), Type::Bounds(..)) {
             return Some(self.unsupported(id, "untupled parameters of a wildcard formal"));
         }
-        let tuple = self.u.dealias(formal);
-        let Type::Applied(tycon, args) = self.u.types().get(tuple).clone() else { return None };
-        let class = self.u.class_symbol(tycon)?;
-        let class = self.u.full_name(class);
-        let (elems, generic) = match class.as_str() {
-            "scala.*:" => (self.tuple_elements_within(formal, usize::MAX)?, true),
-            _ if class == format!("scala.Tuple{}", args.len()) => (args, false),
-            _ => return None,
+        let named = self.named_tuple_parts(formal).map(|(_, values)| values);
+        let tuple = if named.is_some() { formal } else { self.u.dealias(formal) };
+        let (elems, generic) = match named {
+            Some(values) => (values, true),
+            None => {
+                let Type::Applied(tycon, args) = self.u.types().get(tuple).clone() else { return None };
+                let class = self.u.class_symbol(tycon)?;
+                let class = self.u.full_name(class);
+                match class.as_str() {
+                    "scala.*:" => (self.tuple_elements_within(formal, usize::MAX)?, true),
+                    _ if class == format!("scala.Tuple{}", args.len()) => (args, false),
+                    _ => return None,
+                }
+            }
         };
         if elems.len() != params.len() {
             return None;

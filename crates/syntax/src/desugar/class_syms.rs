@@ -42,10 +42,10 @@ pub struct Scope {
 }
 
 impl Desugar<'_> {
-    /// The full name of a class named `name` defined in the current scope (dotty's `fullName`,
-    /// with packages left out as the oracle's owners leave them out).
+    /// The full name of a class named `name` defined in the current scope (dotty's `fullName`).
     pub fn child_full_name(&self, name: &str) -> String {
-        let class = self.scope.class.map(|c| self.classes[c].full_name.as_str());
+        let package = Some(self.package.as_str()).filter(|p| !p.is_empty());
+        let class = self.scope.class.map(|c| self.classes[c].full_name.as_str()).or(package);
         match (class, self.scope.terms) {
             (None, 0) => name.to_string(),
             (Some(c), 0) => format!("{c}.{name}"),

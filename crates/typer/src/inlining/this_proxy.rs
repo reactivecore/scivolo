@@ -12,7 +12,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
-    /// put first: none if the method is a static object's or the call is inside its class, nor
+    /// put first: none if the method is local, a static object's or the call is inside its class, nor
     /// for its class if the body does not refer to its `this` and the prefix is idempotent.
     pub fn bind_this(
         &mut self,
@@ -29,8 +29,11 @@ impl Expansion<'_, '_> {
         if self.i.is_static_owner(cls) {
             return if impure { Err(self.err("inline call of an impure prefix")) } else { Ok(Vec::new()) };
         }
+        if self.i.u.symbol(cls).kind.is_term() {
+            return Ok(Vec::new());
+        }
         if self.i.u.symbol(cls).kind != Kind::Class {
-            return Err(self.err("local inline method"));
+            return Err(self.err("inline method of a type"));
         }
         if self.i.u.is_module_class(cls) {
             return Err(self.err("inline method of a nested object"));

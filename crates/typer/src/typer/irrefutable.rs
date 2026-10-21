@@ -95,10 +95,11 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `pt`, or a type it widens to, conforms to the type of pattern `pat`.
+    /// Whether `pt` stripped of names, or a type it widens to, conforms to the type of pattern
+    /// `pat`.
     fn check_conforms(&mut self, pat: TNodeId, pt: TypeId) -> Result<(), Refutable> {
         let pat_tpe = self.tpd.tpe(pat);
-        let mut t = pt;
+        let mut t = self.strip_named_tuple(pt);
         loop {
             if self.u.is_subtype(t, pat_tpe) {
                 return Ok(());

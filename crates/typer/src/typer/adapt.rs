@@ -8,8 +8,8 @@ use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
 use syntax::ast::constant::Constant;
+use syntax::ast::{Span, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
@@ -113,6 +113,9 @@ impl Typer<'_> {
         if let Some(cast) = self.matchable_cast(tree, pt) {
             return self.adapt(cast, Pt::Type(pt), ctx);
         }
+        if let Some(values) = self.named_tuple_values(tree, pt, ctx) {
+            return self.adapt(values, Pt::Type(pt), ctx);
+        }
         match self.converted(tree, Goal::Conform(pt), ctx) {
             Ok(Some(converted)) => converted,
             Ok(None) if self.defined_further(tpe, pt) => tree,
@@ -125,6 +128,19 @@ impl Typer<'_> {
                 tree
             }
         }
+    }
+
+    /// `tree.toTuple` if `tree` is a named tuple and `pt` derives from `Tuple`.
+    fn named_tuple_values(&mut self, tree: TNodeId, pt: TypeId, ctx: Ctx) -> Option<TNodeId> {
+        let tuple = self.resolve_full_name("scala.Tuple", true)?;
+        if !self.is_named_tuple_type(self.tpd.tpe(tree)) || self.u.base_type(pt, tuple).is_none() {
+            return None;
+        }
+        let name = TName { name: self.name("toTuple"), is_type: false };
+        let qualifier = self.spliced(tree);
+        let select = self.ast.node(Tree::Select { qualifier, name });
+        self.ast.with_span(select, self.tpd.span(tree).to_synthetic());
+        Some(self.typed(select, Pt::Any, ctx))
     }
 
     /// `{ tree; () }` (dotty's `Block(tree :: Nil, unitLiteral)`).

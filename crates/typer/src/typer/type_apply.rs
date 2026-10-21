@@ -118,7 +118,7 @@ impl Typer<'_> {
             return Err("wrong number of type arguments");
         }
         let names: Vec<String> = params.iter().map(|(n, _)| n.clone()).collect();
-        let method = self.tpd.sym(f);
+        let method = self.tpd.sym(self.tpd.meth_part(f));
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);

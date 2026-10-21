@@ -27,6 +27,7 @@ pub fn transform(l: &mut Lower, td: TNodeId, inits: &FxHashSet<SymbolId>) {
     walk_class_up(l, td, &mut |_, _, _| Walk::Children, &mut |l, t, _| {
         if let Tree::NamedArg { arg, .. } = *l.tpd.tree(t) {
             l.copy_node(t, arg);
+            l.was_named_args.insert(t);
         }
         super::fold_condition::fold(l, t);
         const_to_literal(l, t, inits);

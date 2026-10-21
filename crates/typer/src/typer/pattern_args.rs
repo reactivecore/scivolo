@@ -2,14 +2,18 @@
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //! Argument patterns of extractors before they are typed: the type trees `typedUnApply` types
-//! against a tuple selector, named patterns reordered by the case accessors (dotty's
-//! `adaptPatternArgs`).
+//! against a tuple selector, named patterns reordered by the case accessors or named tuple
+//! elements (dotty's `adaptPatternArgs`).
 
+use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{NodeId, TName, Tree};
+use syntax::ast::{List, NodeId, TName, Tree};
 use tasty::{Kind, Type, TypeId};
+
+/// The element names named patterns select, with the element types of a named tuple.
+type NamedElements = Result<(Vec<String>, Option<Vec<TypeId>>), &'static str>;
 
 impl Typer<'_> {
     /// Types the applied type trees of typed patterns `args` against tuple type `sel` of their
@@ -44,28 +48,84 @@ impl Typer<'_> {
         self.tpd.node(T::NamedArg { name, arg }, self.ast.span(a), Some(tpe), None)
     }
 
-    /// The type whose case accessors `n` named patterns of an extractor with result type `result`
-    /// name: the result if a product of at least `n` selectors, else its `get` if one of more
-    /// than one.
-    pub fn named_patterns_type(&mut self, result: TypeId, n: usize) -> Result<TypeId, &'static str> {
-        if self.derives_from_named(result, "scala.Product") && n <= self.product_selectors(result)?.len() {
-            return Ok(result);
+    /// The element names named patterns `args` of an extractor with result type `result` select,
+    /// with the element types if those are a named tuple's (dotty's `productUnapplySelectors`):
+    /// those of the result if a named tuple, or a product of at least as many selectors unless
+    /// its only selector is a named tuple and a name is no case accessor; else those of its `get`.
+    pub fn named_pattern_elements(&mut self, result: TypeId, args: &[NodeId]) -> NamedElements {
+        let widened = self.u.widen(result);
+        if let Some((names, values)) = self.named_tuple_parts(widened) {
+            return Ok((names, Some(values)));
+        }
+        let product = self.derives_from_named(result, "scala.Product");
+        let selectors = if product { self.product_selectors(result)? } else { Vec::new() };
+        if product && args.len() <= selectors.len() {
+            let names = self.pattern_element_names(result)?;
+            let single_named = match selectors[..] {
+                [s] => {
+                    let widened = self.u.widen(s);
+                    self.named_tuple_parts(widened).is_some()
+                }
+                _ => false,
+            };
+            if !single_named || args.iter().all(|&a| self.arg_name(a).is_none_or(|n| names.contains(&n))) {
+                return Ok((names, None));
+            }
         }
         let get = self.get_match(result)?.ok_or("named patterns of an extractor without a product")?;
+        let widened = self.u.widen(get);
+        if let Some((names, values)) = self.named_tuple_parts(widened) {
+            return Ok((names, Some(values)));
+        }
         let arity = self.product_selectors(get)?.len();
         let product = self.derives_from_named(get, "scala.Product");
-        if !product || self.derives_from_named(get, "scala.collection.Seq") || n > arity {
+        if !product || self.derives_from_named(get, "scala.collection.Seq") || args.len() > arity {
             return Err("named patterns of an extractor without a product");
         }
         if arity < 2 {
             return Err("named pattern of a `get` with one selector");
         }
-        Ok(get)
+        Ok((self.pattern_element_names(get)?, None))
     }
 
-    /// Named patterns `args` placed at the case accessors of case class type `pt` they name, a
-    /// wildcard at the others.
-    pub fn adapt_pattern_args(&mut self, args: &[NodeId], pt: TypeId) -> Result<Vec<NodeId>, &'static str> {
+    /// Named tuple pattern `id` of elements `trees`: the patterns placed at the elements of named
+    /// tuple `pt` they name, unnamed, as the `TupleN(…)` extractor pattern (dotty's
+    /// `desugar.tuple` in pattern mode).
+    pub fn typed_named_tuple_pattern(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
+        let names = match pt {
+            Pt::Type(t) => {
+                let zonked = self.zonk(t);
+                let widened = self.u.widen(zonked);
+                self.named_tuple_parts(widened).map(|(names, _)| names)
+            }
+            _ => None,
+        };
+        let Some(names) = names else {
+            return self.unsupported(id, "named pattern of a type that is no named tuple");
+        };
+        let args = self.ast.items(trees).to_vec();
+        let placed = match self.adapt_pattern_args(&args, &names) {
+            Ok(placed) if placed.len() <= MAX_TUPLE_ARITY => placed,
+            Ok(_) => return self.unsupported(id, "named tuple pattern of more than 22 elements"),
+            Err(what) => return self.unsupported(id, what),
+        };
+        let values: Vec<NodeId> = (placed.into_iter())
+            .map(|a| match *self.ast.tree(a) {
+                Tree::NamedArg { arg, .. } => arg,
+                _ => a,
+            })
+            .collect();
+        let span = self.ast.span(id);
+        let app = self.tuple_apply(&values, span.start_pos(), span);
+        self.typed(app, pt, ctx)
+    }
+
+    /// The element names of named tuple `pt`, else the case accessors of case class `pt`.
+    fn pattern_element_names(&mut self, pt: TypeId) -> Result<Vec<String>, &'static str> {
+        let widened = self.u.widen(pt);
+        if let Some((names, _)) = self.named_tuple_parts(widened) {
+            return Ok(names);
+        }
         let class = self.u.class_symbol(pt).ok_or("named pattern of a type that is no case class")?;
         let tuple =
             self.u.full_name(class).strip_prefix("scala.Tuple").is_some_and(|n| n.parse::<usize>().is_ok());
@@ -73,20 +133,24 @@ impl Typer<'_> {
             return Err("named pattern of a type that is no case class");
         }
         self.complete(class);
-        let accessors: Vec<String> = (self.u.decls(class).unwrap_or_default().into_iter())
+        Ok((self.u.decls(class).unwrap_or_default().into_iter())
             .filter(|&d| matches!(self.u.symbol(d).kind, Kind::Val | Kind::Param))
             .filter(|&d| self.u.symbol(d).flags.has(tasty::tags::CASEaccessor))
             .map(|d| self.u.symbol(d).name.clone())
-            .collect();
-        let mut placed = vec![None; accessors.len()];
+            .collect())
+    }
+
+    /// Named patterns `args` placed at the elements `names` they name, a wildcard at the others
+    /// (dotty's `adaptPatternArgs`).
+    pub fn adapt_pattern_args(
+        &mut self,
+        args: &[NodeId],
+        names: &[String],
+    ) -> Result<Vec<NodeId>, &'static str> {
+        let mut placed = vec![None; names.len()];
         for &a in args {
-            let Tree::NamedArg { name, .. } = *self.ast.tree(a) else {
-                return Err("named and unnamed patterns");
-            };
-            let i = accessors
-                .iter()
-                .position(|n| n == self.text(name.name))
-                .ok_or("named pattern of no element")?;
+            let Some(name) = self.arg_name(a) else { return Err("named and unnamed patterns") };
+            let i = names.iter().position(|n| *n == name).ok_or("named pattern of no element")?;
             if placed[i].replace(a).is_some() {
                 return Err("duplicate named pattern");
             }

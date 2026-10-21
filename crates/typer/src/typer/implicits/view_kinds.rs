@@ -11,7 +11,7 @@ use super::conversions::Goal;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use tasty::tags::EXTENSION;
-use tasty::{SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum ViewKind {
@@ -73,14 +73,14 @@ impl Typer<'_> {
     }
 
     /// The extension methods `name` of a value of type `value`; `Err` for a type that is not a
-    /// class's, or if other members are named so too.
+    /// class's, or if members other than methods are named so too.
     pub fn extension_members(&mut self, value: TypeId, name: &str) -> Result<Vec<SymbolId>, &'static str> {
         let value = self.u.widen(value);
         let k = self.u.class_symbol(value).ok_or("implicit value of a type other than a class")?;
         let members = self.class_members(k, name);
         let extensions: Vec<SymbolId> =
             members.iter().copied().filter(|&e| self.u.symbol(e).flags.has(EXTENSION)).collect();
-        if !extensions.is_empty() && extensions.len() < members.len() {
+        if !extensions.is_empty() && members.iter().any(|&m| self.u.symbol(m).kind != Kind::Def) {
             return Err("extension method of an implicit value among other members");
         }
         Ok(extensions)

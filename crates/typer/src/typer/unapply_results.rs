@@ -41,6 +41,7 @@ impl Typer<'_> {
     /// The expected types of `n` patterns of an extractor with result type `result` (dotty's
     /// `UnapplyArgs.argTypes` for `unapply`).
     pub fn unapply_arg_types(&mut self, result: TypeId, n: usize) -> Result<Vec<TypeId>, &'static str> {
+        let result = self.strip_named_tuple(result);
         let types = if n > 0
             && self.derives_from_named(result, "scala.Product")
             && self.product_selectors(result)?.len() == n
@@ -48,7 +49,8 @@ impl Typer<'_> {
             self.product_selectors(result)?
         } else if let Some(get) = self.get_match(result)? {
             let sels = if n > 1 && !self.derives_from_named(get, "scala.collection.Seq") {
-                self.product_selectors(get)?
+                let stripped = self.strip_named_tuple(get);
+                self.product_selectors(stripped)?
             } else {
                 Vec::new()
             };

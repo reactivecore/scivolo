@@ -127,6 +127,23 @@ impl Cmp<'_> {
                         .zip(&variances)
                         .all(|((p, &a), &v)| self.match_pattern(p, a, v, widened, inst))
             }
+            Pattern::AbstractTypeConstructor { tycon, sym, args } => {
+                let dealiased = self.u.dealias(scrut);
+                let Type::Applied(t, scrut_args) = self.u.types().get(dealiased).clone() else {
+                    return false;
+                };
+                let (Some(n1), Some(n2)) = (self.named(t), self.named(*tycon)) else { return false };
+                let variances = self.u.variances(*sym);
+                n1.sym == Some(*sym)
+                    && self.sub_prefix(n1.prefix, n2.prefix)
+                    && self.sub_prefix(n2.prefix, n1.prefix)
+                    && args.len() == scrut_args.len()
+                    && args
+                        .iter()
+                        .zip(&scrut_args)
+                        .zip(&variances)
+                        .all(|((p, &a), &v)| self.match_pattern(p, a, v, widened, inst))
+            }
             Pattern::CompileTimeS(arg) => match self.nat_value(scrut) {
                 Some(n) if n > 0 => {
                     let pred = self.u.intern_type(Type::Constant(INTconst, n - 1));

@@ -52,6 +52,24 @@ impl Universe {
         self.with_decoder(file, |d| d.opaque_bounds(id))
     }
 
+    /// The upper bound of `t`, an opaque type lambda applied to arguments, when its definition
+    /// states bounds.
+    pub fn applied_opaque_upper(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Applied(tycon, args) = self.types().get(t).clone() else { return None };
+        let (prefix, s) = match *self.types().get(tycon) {
+            Type::Sym(p, s) => (p, s),
+            _ => (None, self.referenced(tycon)?),
+        };
+        let (_, hi) = self.opaque_bounds(s)?;
+        let hi = match (prefix, self.symbol(s).owner) {
+            (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(hi, p, o),
+            _ => hi,
+        };
+        let Type::Lambda { binder, params, result } = self.types().get(hi).clone() else { return None };
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        Some(self.subst(result, binder, &names, &args))
+    }
+
     /// The type of the type, type tree or path at `id` of loaded file `file`.
     pub fn type_at(&mut self, file: FileId, id: NodeId) -> TypeId {
         self.with_decoder(file, |d| d.ty(id))

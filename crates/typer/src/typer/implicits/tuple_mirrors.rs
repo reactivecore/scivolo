@@ -12,20 +12,26 @@ use syntax::ast::constant::Constant;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// The mirror of a tuple of `elems` for `formal`.
+    /// The mirror of a tuple of `elems` for `formal`, of a named tuple if `names` are given
+    /// (dotty's `makeNamedTupleProductMirror`).
     pub fn tuple_mirror(
         &mut self,
         formal: &MirrorFormal,
         elems: &[TypeId],
+        names: Option<&[String]>,
         at: Span,
     ) -> Result<Option<TNodeId>, &'static str> {
         if matches!(self.u.types().get(formal.mirrored), Type::Lambda { .. }) {
             return Err("Mirror of a tuple type lambda");
         }
-        let labels: Vec<String> = (1..=elems.len()).map(|i| format!("_{i}")).collect();
+        let labels: Vec<String> = match names {
+            Some(names) => names.to_vec(),
+            None => (1..=elems.len()).map(|i| format!("_{i}")).collect(),
+        };
         let elem_types = self.nested_pairs(elems)?;
         let elem_labels = self.label_pairs(&labels)?;
         let label = match elems.len() {
+            _ if names.is_some() => "NamedTuple".to_owned(),
             n if n <= MAX_TUPLE_ARITY => format!("Tuple{n}"),
             _ => "Tuple".to_owned(),
         };

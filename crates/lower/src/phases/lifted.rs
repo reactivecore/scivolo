@@ -70,7 +70,7 @@ fn signature(l: &mut Lower, f: &Function) -> Result<(Vec<(SymbolId, TypeId)>, Ty
     if let Type::ByName(r) = *l.u.types().get(result) {
         result = r;
     }
-    while let Type::Method { result: r, .. } = *l.u.types().get(result) {
+    while let Type::Method { result: r, .. } | Type::Poly { result: r, .. } = *l.u.types().get(result) {
         result = r;
     }
     let params = params(l, f.def).into_iter().map(|p| (p, l.u.info(p))).collect();

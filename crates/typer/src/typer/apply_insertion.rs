@@ -2,9 +2,11 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`).
 
+use super::implicits::conversions::{Goal, Viewed};
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
+use syntax::ast::{Span, TName, Tree};
 use tasty::Type;
 
 impl Typer<'_> {
@@ -32,6 +34,11 @@ impl Typer<'_> {
             if let Some(proxy) = proxy {
                 return Ok(proxy);
             }
+            if let Pt::Fun(_) = pt
+                && let Some(apply) = self.extension_apply(f, pt, ctx)
+            {
+                return Ok(apply);
+            }
             let dynamic = if let Pt::Fun(_) | Pt::PolyFun(_) = pt {
                 self.dynamic_apply_insertion(f, ctx)?
             } else {
@@ -48,5 +55,26 @@ impl Typer<'_> {
         let apply_tpe = self.ref_type(Some(tpe), sym);
         let span = self.tpd.span(f).to_synthetic();
         Ok(self.tpd.node(T::Select { qualifier: f, name }, span, Some(apply_tpe), Some(sym)))
+    }
+
+    /// `f.apply` as a call of an extension method `apply` in scope or in the implicit scope of
+    /// `f`'s type, if there is one.
+    fn extension_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
+        let name = TName { name: self.name("apply"), is_type: false };
+        let span = self.tpd.span(f);
+        let qualifier = self.spliced(f);
+        let id = self.ast.node(Tree::Select { qualifier, name });
+        self.ast.with_span(id, Span::synthetic(span.start(), span.end()));
+        if self.extension_visible("apply", ctx) {
+            return Some(self.extension_select(id, f, name, pt, ctx));
+        }
+        let unsupported = self.unsupported.clone();
+        match self.viewed(f, Goal::Member("apply"), ctx) {
+            Ok(Some(Viewed::Extension(c))) => Some(self.implicit_extension_select(id, f, c, name, pt, ctx)),
+            _ => {
+                self.unsupported = unsupported;
+                None
+            }
+        }
     }
 }

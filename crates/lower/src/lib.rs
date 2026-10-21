@@ -117,6 +117,8 @@ pub struct Lower<'a> {
     erasure_owner: Option<SymbolId>,
     /// The values type tests of unions and intersections evaluate once, with their spans.
     tested_values: Vec<(SymbolId, Span)>,
+    /// The trees `FirstTransform` made of named arguments (dotty's `WasNamedArg`).
+    was_named_args: FxHashSet<TNodeId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -180,6 +182,7 @@ pub fn lower_sources(
         impure_modules: FxHashSet::default(),
         erasure_owner: None,
         tested_values: Vec::new(),
+        was_named_args: FxHashSet::default(),
     };
     let files = phases::run(&mut l, root).and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);

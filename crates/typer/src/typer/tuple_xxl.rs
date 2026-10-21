@@ -14,7 +14,9 @@ use tasty::{Type, TypeId};
 impl Typer<'_> {
     pub fn typed_tuple_xxl(&mut self, id: NodeId, trees: List, pt: Pt, ctx: Ctx) -> TNodeId {
         match self.named_elements(trees) {
-            Some(Ok(_)) if ctx.mode.is(Mode::PATTERN) => return self.unsupported(id, "named tuple pattern"),
+            Some(Ok(_)) if ctx.mode.is(Mode::PATTERN) => {
+                return self.typed_named_tuple_pattern(id, trees, pt, ctx);
+            }
             Some(Ok(named)) => return self.typed_named_tuple(id, named, pt, ctx),
             Some(Err(what)) => return self.unsupported(id, what),
             None => {}

@@ -1,7 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! Type patterns: `x @ (p: T)` brought to `(x @ p): T`, the test `scrutinee.$isInstanceOf[T]`
-//! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches.
+//! and the cast `scrutinee.asInstanceOf[T]` the pattern then matches; named tuples cast to their
+//! values.
 
 use super::Translator;
 use crate::phases::explicit_outer::outer_accessor;
@@ -9,7 +10,7 @@ use crate::phases::lazy_trees::dup;
 use crate::phases::outer_tests::{OuterTest, outer_test};
 use crate::phases::type_tests::singletons::{is_instance, singleton};
 use syntax::ast::Span;
-use tasty::{SymbolId, TypeId};
+use tasty::{SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 impl Translator<'_, '_> {
@@ -28,6 +29,26 @@ impl Translator<'_, '_> {
     /// `value.asInstanceOf[target]`.
     pub fn cast(&mut self, value: TNodeId, target: TypeId) -> TNodeId {
         self.type_apply(value, self.l.defs.as_instance_of, target, target)
+    }
+
+    /// `value.asInstanceOf[V]` if `value` is a named tuple `NamedTuple[N, V]`, else `value`
+    /// (dotty's `dropNamedTuple`).
+    pub fn drop_named_tuple(&mut self, value: TNodeId) -> TNodeId {
+        let tpe = self.l.tpd.tpe(value);
+        match self.named_tuple_values(tpe) {
+            Some(values) => self.cast(value, values),
+            None => value,
+        }
+    }
+
+    /// The values tuple `V` of `t` widened if that is a named tuple `NamedTuple[N, V]`.
+    pub fn named_tuple_values(&mut self, t: TypeId) -> Option<TypeId> {
+        let widened = self.l.u.widen(t);
+        let dealiased = self.l.u.dealias(widened);
+        let Type::Applied(tycon, args) = self.l.u.types().get(dealiased).clone() else { return None };
+        let [_, values] = args[..] else { return None };
+        let nt = self.l.u.referenced(tycon)?;
+        (self.l.u.full_name(nt) == "scala.NamedTuple$.NamedTuple").then_some(values)
     }
 
     /// The condition `scrutinee.$isInstanceOf[T]` of type pattern type `tpt`, for `p.C` of a class

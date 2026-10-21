@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PatternMatcher.scala
 //! The member selections plans make: `qual.m` typed as seen from `qual`, the selectors `_1`…
-//! of a product, the test `!x.isEmpty`.
+//! of a product, the test `!x.isEmpty`, the named field of a named tuple `get`.
 
 use super::Translator;
 use crate::Result;
@@ -23,14 +23,32 @@ impl Translator<'_, '_> {
     /// `qual.m`, typed as `m` is seen from `qual`'s type, a parameterless method's result.
     pub fn select_member(&mut self, qual: TNodeId, m: SymbolId) -> TNodeId {
         let prefix = self.l.tpd.tpe(qual);
-        let info = self.l.u.member_info(prefix, m);
-        let tpe = match self.l.u.types().get(info).clone() {
-            Type::Method { params, result, .. } if params.is_empty() => result,
-            _ => info,
-        };
+        let tpe = self.member_type(prefix, m);
         let select = self.l.select(qual, m, Span::NONE);
         self.l.tpd.get_mut(select).tpe = Some(tpe);
         self.l.positioned(select)
+    }
+
+    /// The type of `m` as seen from `prefix`, a parameterless method's result.
+    fn member_type(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
+        let info = self.l.u.member_info(prefix, m);
+        match self.l.u.types().get(info).clone() {
+            Type::Method { params, result, .. } if params.is_empty() => result,
+            _ => info,
+        }
+    }
+
+    /// Whether `args` is one pattern that was a named argument and an extractor result of type
+    /// `result` has a `get` of a named tuple, whose field it then matches (dotty's
+    /// `wasUnaryNamedTupleSelectArgForNamedTuple`).
+    pub fn is_named_field_of_get(&mut self, result: TypeId, args: &[TNodeId]) -> bool {
+        let [arg] = args else { return false };
+        if !self.l.was_named_args.contains(arg) {
+            return false;
+        }
+        let Some(get) = self.member_named(result, "get") else { return false };
+        let get_type = self.member_type(result, get);
+        self.named_tuple_values(get_type).is_some()
     }
 
     /// The selectors `_1`, `_2`… of type `tpe`, none unless it is a product if `product` (dotty's

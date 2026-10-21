@@ -28,7 +28,9 @@ impl Typer<'_> {
             Ok(Some(found)) => found.syms,
             _ => Vec::new(),
         };
-        if found.is_empty() || !found.iter().all(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION)) {
+        let extension = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::EXTENSION);
+        let method = |t: &Self, s: SymbolId| extension(t, s) || t.u.symbol(s).kind == Kind::Def;
+        if !found.iter().any(|&s| extension(self, s)) || !found.iter().all(|&s| method(self, s)) {
             return self.unsupported(id, "extension method among other definitions");
         }
         if found.iter().any(|&s| self.u.symbol(s).name != text) {
@@ -65,9 +67,12 @@ impl Typer<'_> {
         if using_next && !matches!(pt, Pt::Fun(_)) {
             return self.unsupported(id, "extension method with a using clause after the receiver");
         }
-        let typed = match self.with_type_vars(typed) {
-            Ok(t) => t,
-            Err(what) => return self.unsupported(id, what),
+        let typed = match pt {
+            Pt::PolyFun(_) => typed,
+            _ => match self.with_type_vars(typed) {
+                Ok(t) => t,
+                Err(what) => return self.unsupported(id, what),
+            },
         };
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
         self.tpd.get_mut(typed).span = span;

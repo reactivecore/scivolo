@@ -35,9 +35,17 @@ impl Typer<'_> {
         self.view_exists(arg, param, ctx)
     }
 
-    /// Whether an implicit conversion takes a value of type `arg` to `param` (dotty's
-    /// `viewExists`): `None` if the search is outside the subset.
+    /// Whether an implicit conversion takes a value of type `arg` to `param`, or `arg` is a named
+    /// tuple whose values conform to `param`, a `Tuple` (dotty's `viewExists`): `None` if the
+    /// search is outside the subset.
     fn view_exists(&mut self, arg: TypeId, param: TypeId, ctx: Ctx) -> Option<bool> {
+        let tuple = self.resolve_full_name("scala.Tuple", true);
+        if let (Some(values), Some(tuple)) = (self.stripped_named_tuple(arg), tuple)
+            && self.u.base_type(param, tuple).is_some()
+            && self.conforms(values, param)
+        {
+            return Some(true);
+        }
         let (before, unsupported) = (self.constraint.attempt(), self.unsupported.clone());
         let dummy = self.tpd.node(T::TypeTree { inferred: true }, syntax::ast::Span::NONE, Some(arg), None);
         let found = self.converted(dummy, Goal::Conform(param), ctx);

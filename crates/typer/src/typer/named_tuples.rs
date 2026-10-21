@@ -1,22 +1,21 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
-//   compiler/src/dotty/tools/dotc/core/TypeUtils.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Named tuples `(a: A, b: B)` as `NamedTuple.NamedTuple[("a", "b"), (A, B)]`: types, literals
-//! cast from their values tuple, and element selection `x.a` as `._1` on the values tuple.
+//! cast from their values tuple, and element selection `x.a` as `._1` on the values tuple, above
+//! 22 elements as `x.apply(i)`.
 
 use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, TName, Tree};
-use tasty::{Type, TypeId};
-
-const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
+use syntax::ast::constant::Constant;
+use syntax::ast::{List, NodeId, Span, TName, Tree};
+use tasty::TypeId;
 
 impl Typer<'_> {
     /// The names and values of tuple `trees` if any element is a named argument; `Err` if only
-    /// some are, a name repeats or there are more than 22.
+    /// some are or a name repeats.
     pub fn named_elements(&self, trees: List) -> Option<Result<Vec<(String, NodeId)>, &'static str>> {
         let elems = self.ast.items(trees);
         let named: Vec<(String, NodeId)> = elems
@@ -29,12 +28,18 @@ impl Typer<'_> {
         match named.len() {
             0 => None,
             n if n < elems.len() => Some(Err("tuple of named and unnamed elements")),
-            n if n > MAX_TUPLE_ARITY => Some(Err("named tuple of more than 22 elements")),
             _ if named.iter().enumerate().any(|(i, (n, _))| named[..i].iter().any(|(m, _)| m == n)) => {
                 Some(Err("duplicate tuple element name"))
             }
             _ => Some(Ok(named)),
         }
+    }
+
+    /// Whether pattern `id` is a tuple with named elements and `pt` a named tuple (dotty's
+    /// `isNamedTuplePattern`).
+    pub fn is_named_tuple_pattern(&mut self, id: NodeId, pt: TypeId) -> bool {
+        let Tree::Tuple { trees } = *self.ast.tree(id) else { return false };
+        self.named_elements(trees).is_some() && self.is_named_tuple_type(pt)
     }
 
     /// Named tuple type `id` (dotty's `desugar.tuple` of a type).
@@ -53,8 +58,9 @@ impl Typer<'_> {
         }
     }
 
-    /// Named tuple literal `id`: `TupleN(…)` typed against `pt` stripped of its names, cast to the
-    /// named tuple of its element types (dotty's `NamedTuple.build` after inlining).
+    /// Named tuple literal `id`: `TupleN(…)`, above 22 elements the tuple without names, typed
+    /// against `pt` stripped of its names, cast to the named tuple of its element types (dotty's
+    /// `NamedTuple.build` after inlining).
     pub fn typed_named_tuple(
         &mut self,
         id: NodeId,
@@ -65,18 +71,20 @@ impl Typer<'_> {
         let names: Vec<String> = elems.iter().map(|(n, _)| n.clone()).collect();
         let args: Vec<NodeId> = elems.iter().map(|&(_, e)| e).collect();
         let span = self.ast.span(id);
-        let module = TName { name: self.name(&format!("scala.Tuple{}", args.len())), is_type: false };
-        let fun = self.ast.node(Tree::TypedSplice { sym: module });
-        self.ast.with_span(fun, self.ast.span(args[0]).start_pos());
-        let args = self.ast.list(&args);
-        let app = self.ast.node(Tree::Apply { fun, args });
-        self.ast.with_span(app, span);
+        let values = if args.len() > MAX_TUPLE_ARITY {
+            let trees = self.ast.list(&args);
+            let values = self.ast.node(Tree::Tuple { trees });
+            self.ast.with_span(values, span);
+            values
+        } else {
+            self.tuple_apply(&args, self.ast.span(args[0]).start_pos(), span)
+        };
         let named_pt = match pt {
             Pt::Type(t) => self.named_tuple_parts(t).filter(|(n, _)| *n == names).map(|(_, v)| (t, v)),
             _ => None,
         };
-        let values_pt = named_pt.as_ref().and_then(|(_, v)| self.tuple_class_type(v));
-        let typed = self.typed(app, values_pt.map_or(Pt::Any, Pt::Type), ctx);
+        let values_pt = named_pt.as_ref().and_then(|(_, v)| self.values_type(v));
+        let typed = self.typed(values, values_pt.map_or(Pt::Any, Pt::Type), ctx);
         if let Some((t, _)) = named_pt {
             return self.type_cast(typed, t);
         }
@@ -91,8 +99,19 @@ impl Typer<'_> {
         }
     }
 
-    /// `qual.name` as `qual.$asInstanceOf$[V]._i` if `qual` is a named tuple with element `name`
-    /// (dotty's `tryNamedTupleSelection`).
+    /// `scala.TupleN(args…)` at `span`, its function at `fun_at`.
+    pub fn tuple_apply(&mut self, args: &[NodeId], fun_at: Span, span: Span) -> NodeId {
+        let module = TName { name: self.name(&format!("scala.Tuple{}", args.len())), is_type: false };
+        let fun = self.ast.node(Tree::TypedSplice { sym: module });
+        self.ast.with_span(fun, fun_at);
+        let args = self.ast.list(args);
+        let app = self.ast.node(Tree::Apply { fun, args });
+        self.ast.with_span(app, span);
+        app
+    }
+
+    /// `qual.name` as `qual.$asInstanceOf$[V]._i`, above 22 elements as `qual.apply(i)`, if `qual`
+    /// is a named tuple with element `name` (dotty's `tryNamedTupleSelection`).
     pub fn named_tuple_select(
         &mut self,
         id: NodeId,
@@ -107,7 +126,15 @@ impl Typer<'_> {
         let widened = self.u.widen(tpe);
         let (names, values) = self.named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
-        let values = self.tuple_class_type(&values)?;
+        if names.iter().any(|n| n == "apply") {
+            return Some(
+                self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
+            );
+        }
+        if values.len() > MAX_TUPLE_ARITY {
+            return Some(self.indexed_element(id, qual, i, ctx));
+        }
+        let values = self.values_type(&values)?;
         let cast = self.type_cast(qual, values);
         let field = format!("_{}", i + 1);
         let sym =
@@ -117,58 +144,25 @@ impl Typer<'_> {
         Some(self.tpd.node(T::Select { qualifier: cast, name }, self.ast.span(id), Some(tpe), Some(sym)))
     }
 
-    /// The names and value types of named tuple `t` (dotty's `namedTupleElementTypes`).
-    pub fn named_tuple_parts(&mut self, t: TypeId) -> Option<(Vec<String>, Vec<TypeId>)> {
-        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
-        let t = self.u.dealias(t);
-        let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
-        let [names, values] = args[..] else { return None };
-        if self.referenced(tycon) != Some(nt) {
-            return None;
+    /// Selection `id` of element `i` of named tuple `qual` as `qual.apply(i)`.
+    fn indexed_element(&mut self, id: NodeId, qual: TNodeId, i: usize, ctx: Ctx) -> TNodeId {
+        let span = self.ast.span(id);
+        let qualifier = self.spliced(qual);
+        let name = TName { name: self.name("apply"), is_type: false };
+        let fun = self.ast.node(Tree::Select { qualifier, name });
+        let index = self.ast.node(Tree::Literal { value: Constant::Int(i as i32) });
+        let args = self.ast.list(&[index]);
+        let apply = self.ast.node(Tree::Apply { fun, args });
+        for node in [fun, index, apply] {
+            self.ast.with_span(node, span.to_synthetic());
         }
-        let names = self.elements_of(names)?;
-        let names: Option<Vec<String>> = names
-            .iter()
-            .map(|&n| match self.u.types().get(n) {
-                Type::Str(s) => Some(s.clone()),
-                _ => None,
-            })
-            .collect();
-        let values = self.elements_of(values)?;
-        names.filter(|n| n.len() == values.len()).map(|n| (n, values))
-    }
-
-    /// `NamedTuple[(names…), (values…)]` with the names as string constant types.
-    fn named_tuple_type(&mut self, names: &[String], values: &[TypeId]) -> Option<TypeId> {
-        let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
-        let nt = crate::defn::type_ref(self.u, nt);
-        let names: Vec<TypeId> = names.iter().map(|n| self.u.intern_type(Type::Str(n.clone()))).collect();
-        let names = self.tuple_class_type(&names)?;
-        let values = self.tuple_class_type(values)?;
-        Some(self.u.intern_type(Type::Applied(nt, vec![names, values])))
-    }
-
-    /// The element types of tuple type `t`: a `TupleN` or a `*:` chain.
-    fn elements_of(&mut self, t: TypeId) -> Option<Vec<TypeId>> {
-        let d = self.u.dealias(t);
-        if let Type::Applied(c, args) = self.u.types().get(d).clone()
-            && self
-                .u
-                .class_symbol(c)
-                .is_some_and(|c| self.u.full_name(c) == format!("scala.Tuple{}", args.len()))
-        {
-            return Some(args);
+        let typed = self.typed(apply, Pt::Any, ctx);
+        let tpe = self.tpd.tpe(typed);
+        // Forces the result type defined; temporary, until #146.
+        match self.fully_defined(tpe) {
+            Ok(t) => self.tpd.get_mut(typed).tpe = Some(t),
+            Err(what) => return self.unsupported(id, what),
         }
-        self.tuple_elements(t)
-    }
-
-    /// `TupleN[elems…]`.
-    fn tuple_class_type(&mut self, elems: &[TypeId]) -> Option<TypeId> {
-        if elems.is_empty() || elems.len() > MAX_TUPLE_ARITY {
-            return None;
-        }
-        let class = self.resolve_full_name(&format!("scala.Tuple{}", elems.len()), true)?;
-        let class = crate::defn::type_ref(self.u, class);
-        Some(self.u.intern_type(Type::Applied(class, elems.to_vec())))
+        typed
     }
 }
