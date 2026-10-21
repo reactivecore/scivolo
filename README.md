@@ -85,7 +85,7 @@ frontend).
 
 ```sh
 just fetch-libs                 # once: Scala Native's library jars into ref/libs
-cargo build --release -p scivolo -p aot
+cargo build --release -p scivolo -p scivolo-aot
 ```
 
 Outside `just`, set `SCIVOLO_LIBS` to `ref/libs`, or let `scivolo` find the jars in the
@@ -166,7 +166,10 @@ Decisions are in [docs/adr/](docs/adr/), research reports in [docs/research/](do
 
 ## Crates
 
-| Crate | Purpose |
+The package in `crates/<dir>` is `scivolo-<dir>` (`crates/scivolo` is `scivolo`); a library
+keeps the short name (`use vm::…`).
+
+| Dir | Purpose |
 |---|---|
 | `scivolo` | The CLI: runs scripts and NIR programs, starts the REPL, caches compiled scripts. |
 | `aot` | `scivolo-aot`: compiles sources or NIR into a native executable with Cranelift. |

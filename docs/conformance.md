@@ -135,7 +135,7 @@ Results (2026-09-29):
 just dotty-lower-report   # typer, lowering and VM; lower-report.md and lower-results.tsv under tmp/dotty
 ```
 
-Each single-file test is lowered by `lower` and run in the VM. Tests failing in the VM when
+Each single-file test is lowered by `scivolo-lower` and run in the VM. Tests failing in the VM when
 compiled by Scala Native (`dotty-report`) are counted apart; refusals are grouped by the reason
 the typer or the lowering gives. The programs `tests/programs/lowered.txt` lists run as
 `scivolo FILE.scala` with `SCIVOLO_FRONTEND=strict` (`crates/scivolo/tests/lowered.rs`).
@@ -169,7 +169,7 @@ evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before 
   missing implicit arguments (11) and overloaded references with type arguments (10); see
   research 23.
 - **Crashed:** i15618, a match type erased unreduced (#120).
-- **Frontend crashed:** t8199, `lower` panics writing a NIR file.
+- **Frontend crashed:** t8199, `scivolo-lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
 

@@ -16,7 +16,7 @@ import dotty.tools.io.AbstractFile
 import java.nio.file.{Files, Path, Paths}
 import scala.jdk.CollectionConverters.*
 
-/** Prints what dotty 3.9.0 makes of Scala files, in the format of `syntax-dump` (crates/syntax):
+/** Prints what dotty 3.9.0 makes of Scala files, in the format of `scivolo-syntax-dump` (crates/syntax):
  *  tokens, parsed trees, or parsed trees after the desugaring that precedes typing (`Expander`).
  *  Usage: Oracle tokens|trees|desugar --list LIST, one `path<TAB>options` per line.
  */

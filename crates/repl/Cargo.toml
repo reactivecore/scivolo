@@ -1,22 +1,25 @@
 [package]
-name = "repl"
+name = "scivolo-repl"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "repl"
+
 [dependencies]
 libimage.workspace = true
-lower = { path = "../lower" }
-macros = { path = "../macros" }
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
-typer = { path = "../typer" }
-vm = { path = "../vm" }
+lower.workspace = true
+macros.workspace = true
+syntax.workspace = true
+tasty.workspace = true
+typer.workspace = true
+vm.workspace = true
 
 [dev-dependencies]
 libc = "0.2"
-libs = { path = "../libs" }
+libs.workspace = true
 
 [lints]
 workspace = true

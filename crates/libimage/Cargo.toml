@@ -1,9 +1,12 @@
 [package]
-name = "libimage"
+name = "scivolo-libimage"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[lib]
+name = "libimage"
 
 [dependencies]
 rustc-hash.workspace = true

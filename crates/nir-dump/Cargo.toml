@@ -1,5 +1,5 @@
 [package]
-name = "nir-dump"
+name = "scivolo-nir-dump"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

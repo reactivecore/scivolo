@@ -28,7 +28,7 @@ which the lowering cannot report (research 12 §2 e).
 
 ## Consequences
 - Inline expansion errors and missing implicits fall back as type errors or typer refusals;
-  `typer-dump --inlined` and the lowering see the same expanded trees.
+  `scivolo-typer-dump --inlined` and the lowering see the same expanded trees.
 - The plain typer output is unchanged.
 - Rejected: expanding all calls that summon in the typer (dotty expands non-transparent calls
   after the typer, so trees and positions would differ), and making `Inlining` a view of

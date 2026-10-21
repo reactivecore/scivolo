@@ -7,7 +7,7 @@ use syntax::names::Names;
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
 
-/// The tree of `text` and its diagnostics, as `syntax-dump trees` prints them.
+/// The tree of `text` and its diagnostics, as `scivolo-syntax-dump trees` prints them.
 fn parse(text: &str) -> String {
     parse_with(text, &[])
 }

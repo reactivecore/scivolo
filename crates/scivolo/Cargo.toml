@@ -8,19 +8,19 @@ publish = false
 [dependencies]
 clap.workspace = true
 libimage.workspace = true
-libs = { path = "../libs" }
-lower = { path = "../lower" }
-macros = { path = "../macros" }
+libs.workspace = true
+lower.workspace = true
+macros.workspace = true
 nir.workspace = true
-repl = { path = "../repl" }
+repl.workspace = true
 rustyline.workspace = true
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
-vm = { path = "../vm" }
+syntax.workspace = true
+tasty.workspace = true
+vm.workspace = true
 
 [dev-dependencies]
 libc = "0.2"
-typer = { path = "../typer" }
+typer.workspace = true
 
 [lints]
 workspace = true

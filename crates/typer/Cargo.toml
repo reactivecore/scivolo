@@ -1,15 +1,18 @@
 [package]
-name = "typer"
+name = "scivolo-typer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "typer"
+
 [dependencies]
 clap.workspace = true
 rustc-hash.workspace = true
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
+syntax.workspace = true
+tasty.workspace = true
 
 [lints]
 workspace = true
