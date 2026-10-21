@@ -26,7 +26,7 @@ from dotty_sources import compile_groups, tests
 SCALA, NATIVE = "3.9.0", "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/dotty" / f"{SCALA}-{NATIVE}"
-LOWER, SCIVOLO = ROOT / "target/release/lower", ROOT / "target/release/scivolo"
+LOWER, SCIVOLO = ROOT / "target/release/scivolo-lower", ROOT / "target/release/scivolo"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 TIMEOUT = int(os.environ.get("SCIVOLO_TIMEOUT", "60"))
 OUTCOMES = ["passed", "wrong output", "crashed", "timeout", "lowering refused", "typer refused",

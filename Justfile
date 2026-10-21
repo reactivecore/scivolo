@@ -149,7 +149,7 @@ programs-stale-since ref:
 # Print NIR file, directory or jar `path` as text; `?` may stand for `$` (a glob).
 nir-dump path *args:
     cargo build -q --release -p scivolo-nir-dump
-    target/release/nir-dump {{ args }} {{ path }}
+    target/release/scivolo-nir-dump {{ args }} {{ path }}
 
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
 # the lowering compile it, definitions sorted, with positions; Scala Native's from the test
@@ -167,8 +167,8 @@ nir-cmp file class:
             scala-cli --power compile --native --native-version 0.5.12 -S 3.9.0 --server=false -d "$sn" '{{ file }}' > /dev/null
         fi
     fi
-    target/release/lower '{{ file }}' "tmp/lowered/$base" > /dev/null
-    dump() { target/release/nir-dump --debug --sorted "$1" | grep -v '^// \|^# '; }
+    target/release/scivolo-lower '{{ file }}' "tmp/lowered/$base" > /dev/null
+    dump() { target/release/scivolo-nir-dump --debug --sorted "$1" | grep -v '^// \|^# '; }
     if diff <(dump $sn/{{ class }}.nir) <(dump tmp/lowered/$base/{{ class }}.nir); then
         echo "same: {{ class }}"
     fi
@@ -399,12 +399,12 @@ typer-dump +files:
     cargo build -q --release -p scivolo-typer
     mkdir -p tmp
     printf '%s\n' {{ files }} > tmp/typer-dump.list
-    target/release/typer-dump --list tmp/typer-dump.list
+    target/release/scivolo-typer-dump --list tmp/typer-dump.list
 
 # Lower a Scala file through the Rust frontend into NIR files in tmp/lowered/<file name>.
 lower file:
     cargo build -q --release -p scivolo-lower
-    target/release/lower {{ file }} tmp/lowered/$(basename {{ file }} .scala)
+    target/release/scivolo-lower {{ file }} tmp/lowered/$(basename {{ file }} .scala)
 
 # Lower a Scala file through the Rust frontend and run its `main` (default: the file name) in
 # the release VM, stopped after `SCIVOLO_TIMEOUT` seconds (default 60).

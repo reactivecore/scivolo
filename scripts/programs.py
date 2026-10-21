@@ -25,7 +25,7 @@ NATIVE = "0.5.12"
 ROOT = Path(__file__).resolve().parent.parent
 PROGRAMS = ROOT / "tests/programs"
 WORK = ROOT / "tmp/programs"
-NIR_DUMP = ROOT / "target/release/nir-dump"
+NIR_DUMP = ROOT / "target/release/scivolo-nir-dump"
 JOBS = max(2, (os.cpu_count() or 4) // 2)
 # Changing these changes every program's Scala Native build.
 BUILD_FILES = {"scripts/programs.py", "ci/Dockerfile"}

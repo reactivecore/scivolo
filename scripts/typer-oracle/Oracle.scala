@@ -12,7 +12,7 @@ import dotty.tools.io.AbstractFile
 import java.nio.file.{Files, Paths}
 import scala.jdk.CollectionConverters.*
 
-/** Prints what dotty 3.9.0's typer makes of Scala files, in the format of `typer-dump`
+/** Prints what dotty 3.9.0's typer makes of Scala files, in the format of `scivolo-typer-dump`
  *  (crates/typer): per file its typed tree, its diagnostics and its feature counts.
  *  Usage: Oracle [--inlined] --list LIST, one `path[;path...]<TAB>options` per line, the paths of a
  *  line typed in one run; `--fresh` among the options types them with a compiler of their own.

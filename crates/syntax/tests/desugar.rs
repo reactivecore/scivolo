@@ -12,7 +12,7 @@ use syntax::names::{Names, to_utf16};
 use syntax::parse::Parser;
 use syntax::source::SourceFile;
 
-/// The desugared tree of the file at `path` and its diagnostics, as `syntax-dump desugar`
+/// The desugared tree of the file at `path` and its diagnostics, as `scivolo-syntax-dump desugar`
 /// prints them.
 fn desugar(path: &Path) -> String {
     let text = std::fs::read_to_string(path).expect("a test input");

@@ -15,7 +15,7 @@ use syntax::token::Token;
 /// Prints what the scanner, parser or desugaring makes of Scala files, in the format of
 /// `scripts/syntax-oracle`.
 #[derive(clap::Parser)]
-#[command(name = "syntax-dump")]
+#[command(name = "scivolo-syntax-dump")]
 struct Cli {
     /// What to print.
     mode: Mode,

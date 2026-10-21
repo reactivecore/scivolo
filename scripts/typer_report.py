@@ -90,7 +90,7 @@ def report(filter_):
         out = subprocess.run([str(DUMP), "--list", str(lst)], capture_output=True, text=True, encoding="utf-8",
                              errors="replace", timeout=REPORT_TIMEOUT)
     except subprocess.TimeoutExpired:
-        sys.exit(f"typer-dump did not finish within {REPORT_TIMEOUT} s: a unit hangs")
+        sys.exit(f"scivolo-typer-dump did not finish within {REPORT_TIMEOUT} s: a unit hangs")
     actual = split(out.stdout)
     for rel, _ in runnable:
         got = actual.get(rel, "== crash no output")

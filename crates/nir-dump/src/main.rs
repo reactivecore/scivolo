@@ -9,7 +9,7 @@ use std::time::{Duration, Instant};
 
 /// Prints, parses, indexes or counts NIR files.
 #[derive(Parser)]
-#[command(name = "nir-dump")]
+#[command(name = "scivolo-nir-dump")]
 struct Args {
     #[command(flatten)]
     mode: ModeFlags,

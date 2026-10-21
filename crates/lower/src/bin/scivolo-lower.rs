@@ -11,7 +11,7 @@ use tasty::Universe;
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
-#[command(name = "lower")]
+#[command(name = "scivolo-lower")]
 struct Cli {
     /// A directory of TASTy and NIR files compiled before.
     #[arg(long)]

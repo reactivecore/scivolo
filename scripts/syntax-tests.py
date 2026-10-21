@@ -17,7 +17,7 @@ TESTS = ROOT / "ref/dotty/tests"
 CORPORA = ("pos", "neg")
 WORK = ROOT / "tmp/syntax/3.9.0"
 MODE = "tokens"
-DUMP = ROOT / "target/release/syntax-dump"
+DUMP = ROOT / "target/release/scivolo-syntax-dump"
 OUTCOMES = ["passed", "differ", "errors differ", "messages differ", "warnings differ", "crashed", "skipped"]
 USING = re.compile(r"^//> using options (.*)$", re.M)
 

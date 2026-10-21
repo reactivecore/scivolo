@@ -10,7 +10,7 @@ use typer::dump::{dump, library_jars};
 ///
 /// Environment: SCIVOLO_LIBS holds the library jars (default: ref/libs).
 #[derive(Parser)]
-#[command(name = "typer-dump")]
+#[command(name = "scivolo-typer-dump")]
 struct Cli {
     /// The files, one `path<TAB>options` per line.
     #[arg(long, value_name = "LIST")]

@@ -1,4 +1,4 @@
-"""The typer test files, their lists for typer-dump and the oracle, and the records both print."""
+"""The typer test files, their lists for scivolo-typer-dump and the oracle, and the records both print."""
 import re
 import sys
 from pathlib import Path
@@ -6,7 +6,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 TESTS = ROOT / "ref/dotty/tests"
 WORK = ROOT / "tmp/typer/3.9.0"
-DUMP = ROOT / "target/release/typer-dump"
+DUMP = ROOT / "target/release/scivolo-typer-dump"
 CORPORA = ("programs", "pos", "neg")
 USING = re.compile(r"^//> using options (.*)$", re.M)
 

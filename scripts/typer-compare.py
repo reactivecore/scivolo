@@ -16,7 +16,7 @@ from typer_corpus import USING
 
 ROOT = Path(__file__).resolve().parent.parent
 WORK = ROOT / "tmp/typer/compare"
-DUMP = ROOT / "target/release/typer-dump"
+DUMP = ROOT / "target/release/scivolo-typer-dump"
 
 
 def records(text):

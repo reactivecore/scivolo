@@ -5,10 +5,6 @@ edition.workspace = true
 license.workspace = true
 publish = false
 
-[[bin]]
-name = "nir-dump"
-path = "src/main.rs"
-
 [dependencies]
 clap.workspace = true
 nir.workspace = true
