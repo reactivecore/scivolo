@@ -12,10 +12,10 @@ path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true
-cranelift-codegen = "0.135"
-cranelift-frontend = "0.135"
-cranelift-module = "0.135"
-cranelift-object = "0.135"
+cranelift-codegen = "0.137"
+cranelift-frontend = "0.137"
+cranelift-module = "0.137"
+cranelift-object = "0.137"
 libimage.workspace = true
 libs.workspace = true
 lower.workspace = true
