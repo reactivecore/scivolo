@@ -75,7 +75,8 @@ the lowering.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report`: tests/pos 1,359 typed as dotty, 32 differ, 1,618 refused. Unsupported
+   `just typer-report` (2026-10-21): tests/pos 1,701 typed as dotty, 197 differ (20 only in
+   warnings), 1,127 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
