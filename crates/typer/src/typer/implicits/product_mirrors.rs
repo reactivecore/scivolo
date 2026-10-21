@@ -23,11 +23,8 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<Option<TNodeId>, &'static str> {
         let Some(mut formal) = self.mirror_formal(pt) else { return Ok(None) };
-        let mirrored = self.zonk(formal.mirrored);
-        if !self.is_fully_defined(mirrored) {
-            return Err("Mirror of a type with type variables");
-        }
-        formal.mirrored = mirrored;
+        formal.mirrored = self.fully_defined_as(formal.mirrored, true)?;
+        let mirrored = formal.mirrored;
         let Some(source) = self.mirror_source(mirrored)? else { return Ok(None) };
         match formal.kind {
             MirrorKind::Product => self.product_mirror(&formal, source, at, ctx),
