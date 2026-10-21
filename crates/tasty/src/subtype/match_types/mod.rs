@@ -6,6 +6,7 @@
 mod concrete;
 mod disjoint;
 mod disjoint_args;
+mod named_from;
 mod ops;
 mod reduce;
 mod spec;
@@ -62,7 +63,7 @@ impl Cmp<'_> {
                 Type::Annotated(inner, _) => inner,
                 Type::Var(v) => self.vars.instance(v)?,
                 Type::Applied(tycon, args) => {
-                    if self.compiletime_op(tycon).is_some() {
+                    if self.compiletime_op(tycon).is_some() || self.is_named_tuple_from(tycon) {
                         return Some(t);
                     }
                     self.applied_super_type(tycon, &args)?

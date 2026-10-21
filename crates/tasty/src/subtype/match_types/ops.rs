@@ -42,6 +42,11 @@ impl Cmp<'_> {
     /// The constant type operation application `t` folds to.
     pub fn fold_compiletime(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
+        if let [arg] = args[..]
+            && self.is_named_tuple_from(tycon)
+        {
+            return self.fields_of(tycon, arg);
+        }
         let (module, name) = self.compiletime_op(tycon)?;
         let mut values = Vec::new();
         for a in args {

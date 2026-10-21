@@ -32,6 +32,7 @@ impl Typer<'_> {
     /// The names and values type arguments of named tuple `t`.
     fn named_tuple_args(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
         let nt = self.resolve_full_name(NAMED_TUPLE, true)?;
+        let t = self.u.normalized(t);
         let t = self.u.dealias(t);
         let Type::Applied(tycon, args) = self.u.types().get(t).clone() else { return None };
         let [names, values] = args[..] else { return None };

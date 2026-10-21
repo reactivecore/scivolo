@@ -4,6 +4,8 @@ type Address = (city: String, zip: Int)
 val bob: Person = (name = "Bob", age = 33)
 val addr = (city = "Lausanne", zip = 1003)
 
+case class City(name: String, pop: Int)
+
 def ageOf(p: Person) = p.age
 def first(t: (String, Int)) = t._1
 
@@ -29,3 +31,5 @@ def first(t: (String, Int)) = t._1
   println(bob == (name = "Bob", age = 33))
   val m = summon[deriving.Mirror.Of[Person]]
   println(m.fromProduct(("Ann", 7)).name)
+  val city: NamedTuple.From[City] = (name = "Lausanne", pop = 140000)
+  println(city.pop)
