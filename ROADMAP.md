@@ -64,7 +64,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,157 of 1,709 pass (2026-10-20); 312 stop at the typer, 18 at
+(`just dotty-lower-report`): 1,169 of 1,709 pass (2026-10-21); 300 stop at the typer, 18 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -109,9 +109,8 @@ In order of the tests they unblock:
 1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s I (inline
    leftovers), V2 (applications) and U (structural and small) and V1's singles (tuples, i4364a,
    i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A
-   leftovers (extension fallback, i16065), S's `Manifest` and P (search singles); named tuples
-   (#139, [research 29](docs/research/29-named-tuples.md) C: `build`, conversions, untupling); enums in
-   packages (#134); poly function leftovers (#136); mirrors (#129); match-type leftovers (#120);
+   leftovers (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple
+   leftovers (#139: patterns over 22, `map[F]`, ordering; #146); poly function leftovers (#136); mirrors (#129); match-type leftovers (#120);
    typed-tree printing gaps (#122, `RefinedTypeTree`).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
    extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
