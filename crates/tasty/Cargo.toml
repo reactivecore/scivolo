@@ -1,9 +1,12 @@
 [package]
-name = "tasty"
+name = "scivolo-tasty"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[lib]
+name = "tasty"
 
 [dependencies]
 libimage.workspace = true

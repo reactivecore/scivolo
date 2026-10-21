@@ -1,18 +1,21 @@
 [package]
-name = "macros"
+name = "scivolo-macros"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "macros"
+
 [dependencies]
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
-typer = { path = "../typer" }
-vm = { path = "../vm" }
+syntax.workspace = true
+tasty.workspace = true
+typer.workspace = true
+vm.workspace = true
 
 [dev-dependencies]
-libs = { path = "../libs" }
+libs.workspace = true
 
 [lints]
 workspace = true

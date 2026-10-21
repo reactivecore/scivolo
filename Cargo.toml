@@ -11,12 +11,21 @@ license = "Apache-2.0"
 [workspace.dependencies]
 clap = { version = "4.6", features = ["derive"] }
 hashbrown = { version = "0.17", default-features = false }
-libimage = { path = "crates/libimage" }
 md-5 = "0.10"
-nir = { path = "crates/nir" }
 rustc-hash = "2"
 rustyline = { version = "18", default-features = false, features = ["with-file-history"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
+libimage = { package = "scivolo-libimage", path = "crates/libimage" }
+libs = { package = "scivolo-libs", path = "crates/libs" }
+lower = { package = "scivolo-lower", path = "crates/lower" }
+macros = { package = "scivolo-macros", path = "crates/macros" }
+nir = { package = "scivolo-nir", path = "crates/nir" }
+repl = { package = "scivolo-repl", path = "crates/repl" }
+snrt = { package = "scivolo-snrt", path = "crates/snrt" }
+syntax = { package = "scivolo-syntax", path = "crates/syntax" }
+tasty = { package = "scivolo-tasty", path = "crates/tasty" }
+typer = { package = "scivolo-typer", path = "crates/typer" }
+vm = { package = "scivolo-vm", path = "crates/vm" }
 
 [workspace.lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
@@ -24,13 +33,13 @@ unsafe_op_in_unsafe_fn = "deny"
 [workspace.lints.clippy]
 undocumented_unsafe_blocks = "deny"
 
-[profile.dev.package.vm]
+[profile.dev.package.scivolo-vm]
 opt-level = 2
 
-[profile.dev.package.nir]
+[profile.dev.package.scivolo-nir]
 opt-level = 2
 
-[profile.dev.package.aot]
+[profile.dev.package.scivolo-aot]
 opt-level = 2
 
 [profile.dev.package.cranelift-codegen]

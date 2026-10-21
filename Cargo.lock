@@ -71,28 +71,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
-name = "aot"
-version = "0.1.0"
-dependencies = [
- "clap",
- "cranelift-codegen",
- "cranelift-frontend",
- "cranelift-module",
- "cranelift-object",
- "libimage",
- "libs",
- "lower",
- "macros",
- "nir",
- "rustc-hash",
- "snrt",
- "syntax",
- "target-lexicon",
- "tasty",
- "vm",
-]
-
-[[package]]
 name = "arbitrary"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -521,60 +499,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "65cd87c9a6d60536580b316ad985726104730a5151c99845f2490428ef91240a"
 
 [[package]]
-name = "libimage"
-version = "0.1.0"
-dependencies = [
- "libc",
- "rustc-hash",
- "zip",
-]
-
-[[package]]
 name = "libm"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
-name = "libs"
-version = "0.1.0"
-dependencies = [
- "libimage",
- "tasty",
- "vm",
-]
-
-[[package]]
 name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
-
-[[package]]
-name = "lower"
-version = "0.1.0"
-dependencies = [
- "clap",
- "libs",
- "macros",
- "nir",
- "rustc-hash",
- "syntax",
- "tasty",
- "typer",
- "vm",
-]
-
-[[package]]
-name = "macros"
-version = "0.1.0"
-dependencies = [
- "libs",
- "syntax",
- "tasty",
- "typer",
- "vm",
-]
 
 [[package]]
 name = "md-5"
@@ -600,23 +534,6 @@ checksum = "b63fbc4a50860e98e7b2aa7804ded1db5cbc3aff9193adaff57a6931bf7c4b4c"
 dependencies = [
  "adler2",
  "simd-adler32",
-]
-
-[[package]]
-name = "nir"
-version = "0.1.0"
-dependencies = [
- "rustc-hash",
-]
-
-[[package]]
-name = "nir-dump"
-version = "0.1.0"
-dependencies = [
- "clap",
- "nir",
- "rustc-hash",
- "zip",
 ]
 
 [[package]]
@@ -682,21 +599,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "repl"
-version = "0.1.0"
-dependencies = [
- "libc",
- "libimage",
- "libs",
- "lower",
- "macros",
- "syntax",
- "tasty",
- "typer",
- "vm",
-]
-
-[[package]]
 name = "rustc-hash"
 version = "2.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -727,17 +629,163 @@ version = "0.1.0"
 dependencies = [
  "clap",
  "libc",
- "libimage",
- "libs",
- "lower",
- "macros",
- "nir",
- "repl",
  "rustyline",
- "syntax",
- "tasty",
- "typer",
- "vm",
+ "scivolo-libimage",
+ "scivolo-libs",
+ "scivolo-lower",
+ "scivolo-macros",
+ "scivolo-nir",
+ "scivolo-repl",
+ "scivolo-syntax",
+ "scivolo-tasty",
+ "scivolo-typer",
+ "scivolo-vm",
+]
+
+[[package]]
+name = "scivolo-aot"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "cranelift-codegen",
+ "cranelift-frontend",
+ "cranelift-module",
+ "cranelift-object",
+ "rustc-hash",
+ "scivolo-libimage",
+ "scivolo-libs",
+ "scivolo-lower",
+ "scivolo-macros",
+ "scivolo-nir",
+ "scivolo-snrt",
+ "scivolo-syntax",
+ "scivolo-tasty",
+ "scivolo-vm",
+ "target-lexicon",
+]
+
+[[package]]
+name = "scivolo-libimage"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "rustc-hash",
+ "zip",
+]
+
+[[package]]
+name = "scivolo-libs"
+version = "0.1.0"
+dependencies = [
+ "scivolo-libimage",
+ "scivolo-tasty",
+ "scivolo-vm",
+]
+
+[[package]]
+name = "scivolo-lower"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "rustc-hash",
+ "scivolo-libs",
+ "scivolo-macros",
+ "scivolo-nir",
+ "scivolo-syntax",
+ "scivolo-tasty",
+ "scivolo-typer",
+ "scivolo-vm",
+]
+
+[[package]]
+name = "scivolo-macros"
+version = "0.1.0"
+dependencies = [
+ "scivolo-libs",
+ "scivolo-syntax",
+ "scivolo-tasty",
+ "scivolo-typer",
+ "scivolo-vm",
+]
+
+[[package]]
+name = "scivolo-nir"
+version = "0.1.0"
+dependencies = [
+ "rustc-hash",
+]
+
+[[package]]
+name = "scivolo-nir-dump"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "rustc-hash",
+ "scivolo-nir",
+ "zip",
+]
+
+[[package]]
+name = "scivolo-repl"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "scivolo-libimage",
+ "scivolo-libs",
+ "scivolo-lower",
+ "scivolo-macros",
+ "scivolo-syntax",
+ "scivolo-tasty",
+ "scivolo-typer",
+ "scivolo-vm",
+]
+
+[[package]]
+name = "scivolo-snrt"
+version = "0.1.0"
+
+[[package]]
+name = "scivolo-syntax"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "hashbrown 0.17.1",
+ "rustc-hash",
+ "unicode-general-category",
+]
+
+[[package]]
+name = "scivolo-tasty"
+version = "0.1.0"
+dependencies = [
+ "md-5",
+ "rustc-hash",
+ "scivolo-libimage",
+ "scivolo-nir",
+ "zip",
+]
+
+[[package]]
+name = "scivolo-typer"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "rustc-hash",
+ "scivolo-syntax",
+ "scivolo-tasty",
+]
+
+[[package]]
+name = "scivolo-vm"
+version = "0.1.0"
+dependencies = [
+ "corosensei",
+ "libc",
+ "rustc-hash",
+ "scivolo-libimage",
+ "scivolo-nir",
+ "scivolo-snrt",
+ "zip",
 ]
 
 [[package]]
@@ -788,10 +836,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5b3dc8af474f516a851ff4bd12db780f948b9250ad37211e4eec0bccea54e01b"
 
 [[package]]
-name = "snrt"
-version = "0.1.0"
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -826,31 +870,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "syntax"
-version = "0.1.0"
-dependencies = [
- "clap",
- "hashbrown 0.17.1",
- "rustc-hash",
- "unicode-general-category",
-]
-
-[[package]]
 name = "target-lexicon"
 version = "0.13.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "adb6935a6f5c20170eeceb1a3835a49e12e19d792f6dd344ccc76a985ca5a6ca"
-
-[[package]]
-name = "tasty"
-version = "0.1.0"
-dependencies = [
- "libimage",
- "md-5",
- "nir",
- "rustc-hash",
- "zip",
-]
 
 [[package]]
 name = "thiserror"
@@ -877,16 +900,6 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
-
-[[package]]
-name = "typer"
-version = "0.1.0"
-dependencies = [
- "clap",
- "rustc-hash",
- "syntax",
- "tasty",
-]
 
 [[package]]
 name = "unicode-general-category"
@@ -923,19 +936,6 @@ name = "version_check"
 version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
-
-[[package]]
-name = "vm"
-version = "0.1.0"
-dependencies = [
- "corosensei",
- "libc",
- "libimage",
- "nir",
- "rustc-hash",
- "snrt",
- "zip",
-]
 
 [[package]]
 name = "wasmtime-internal-core"

@@ -1,20 +1,23 @@
 [package]
-name = "lower"
+name = "scivolo-lower"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "lower"
+
 [dependencies]
 clap.workspace = true
-libs = { path = "../libs" }
-macros = { path = "../macros" }
+libs.workspace = true
+macros.workspace = true
 nir.workspace = true
 rustc-hash.workspace = true
-syntax = { path = "../syntax" }
-tasty = { path = "../tasty" }
-typer = { path = "../typer" }
-vm = { path = "../vm" }
+syntax.workspace = true
+tasty.workspace = true
+typer.workspace = true
+vm.workspace = true
 
 [lints]
 workspace = true

@@ -1,9 +1,12 @@
 [package]
-name = "nir"
+name = "scivolo-nir"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[lib]
+name = "nir"
 
 [dependencies]
 rustc-hash.workspace = true

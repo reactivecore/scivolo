@@ -1,14 +1,17 @@
 [package]
-name = "vm"
+name = "scivolo-vm"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 
+[lib]
+name = "vm"
+
 [dependencies]
 nir.workspace = true
 libimage.workspace = true
-snrt = { path = "../snrt" }
+snrt.workspace = true
 rustc-hash.workspace = true
 zip.workspace = true
 libc = "0.2"

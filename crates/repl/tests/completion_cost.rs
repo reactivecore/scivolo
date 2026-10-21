@@ -1,6 +1,6 @@
 //! The cost of a wrapper object per completion (#70): an evaluation, 1000 completions of each
 //! input, twice, then the evaluation again; `x.toString.` stops at its JDK class. Run with
-//! `cargo test --release -p repl --test completion_cost -- --ignored --nocapture`.
+//! `cargo test --release -p scivolo-repl --test completion_cost -- --ignored --nocapture`.
 
 use repl::Session;
 use std::time::Instant;

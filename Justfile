@@ -32,7 +32,7 @@ script file *args: release
 # Build method `entry` (an `(Int) => Int`) of test program `name` as the native executable
 # tmp/aot/<name>, which prints the method's result for its first argument.
 aot-build name entry:
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot --cp tests/programs/{{ name }} --entry {{ entry }} -o tmp/aot/{{ name }}
 
 # Build test program `name` (main class `name`) as the native executable tmp/aot/<name> and
@@ -40,7 +40,7 @@ aot-build name entry:
 aot-check name:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot --cp tests/programs/{{ name }} -o tmp/aot/{{ name }} {{ name }}
     perl -e 'alarm 20; exec @ARGV' tmp/aot/{{ name }} > tmp/aot/{{ name }}.out
     diff tmp/aot/{{ name }}.out tests/programs/{{ name }}/{{ name }}.check
@@ -51,7 +51,7 @@ aot-check name:
 # `timeout (compile)` / `timeout (run)`, go to tmp/aot/failures.txt.
 aot-check-all:
     #!/usr/bin/env bash
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     mkdir -p tmp/aot
     : > tmp/aot/failures.txt
     pass=0; fail=0
@@ -78,7 +78,7 @@ aot-check-all:
 # executable tmp/aot/src/<main> through the own frontend, and run it with `args`; compile and run
 # stop after 20 s each.
 aot-src dir main *args:
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     mkdir -p tmp/aot/src
     perl -e 'alarm 20; exec @ARGV' target/release/scivolo-aot -o tmp/aot/src/{{ main }} --main {{ main }} {{ dir }}
     perl -e 'alarm 20; exec @ARGV' tmp/aot/src/{{ main }} {{ args }}
@@ -88,7 +88,7 @@ aot-src dir main *args:
 # the frontend's refusals grouped by reason to tmp/aot/src/refusals.txt.
 aot-src-all:
     #!/usr/bin/env bash
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     mkdir -p tmp/aot/src
     : > tmp/aot/src/failures.txt
     pass=0; fail=0
@@ -116,7 +116,7 @@ aot-src-all:
 # `n`; else the comma-separated names `n`) as native executables and compare them with their
 # `.check`, 20 s per compile and run; results in tmp/aot/dotty/results.tsv.
 aot-dotty n="0":
-    cargo build -q --release -p aot
+    cargo build -q --release -p scivolo-aot
     python3 scripts/aot-dotty.py '{{ n }}'
 
 # Build as aot-build does and run the executable with `args`, stopped after 20 s.
@@ -138,17 +138,17 @@ program-update name:
 
 # List test programs (default: all) whose committed NIR or `.check` differs from a rebuild.
 programs-stale *names:
-    cargo build -q --release -p nir-dump
+    cargo build -q --release -p scivolo-nir-dump
     python3 scripts/programs.py stale {{ names }}
 
 # The same for the test programs changed since commit `ref` (all if their build changed).
 programs-stale-since ref:
-    cargo build -q --release -p nir-dump
+    cargo build -q --release -p scivolo-nir-dump
     python3 scripts/programs.py stale-since '{{ ref }}'
 
 # Print NIR file, directory or jar `path` as text; `?` may stand for `$` (a glob).
 nir-dump path *args:
-    cargo build -q --release -p nir-dump
+    cargo build -q --release -p scivolo-nir-dump
     target/release/nir-dump {{ args }} {{ path }}
 
 # Diff the NIR of class `class` (`?` standing for `$`) of Scala file `file` as Scala Native and
@@ -157,7 +157,7 @@ nir-dump path *args:
 nir-cmp file class:
     #!/usr/bin/env bash
     set -euo pipefail
-    cargo build -q --release -p nir-dump -p lower
+    cargo build -q --release -p scivolo-nir-dump -p scivolo-lower
     base=$(basename '{{ file }}' .scala)
     sn="tests/programs/$base"
     if [ ! -d "$sn" ]; then
@@ -189,7 +189,7 @@ overlay:
 
 # Whether the committed overlay NIR differs from a rebuild.
 overlay-stale:
-    cargo build -q --release -p nir-dump
+    cargo build -q --release -p scivolo-nir-dump
     python3 scripts/overlay.py stale
 
 # Compile Scala Native's unit tests (`all`, or directories) and tests/junit into NIR.
@@ -246,7 +246,7 @@ dotty-report filter="": release
 # another directory of dotty's tests (run-macros: `just dotty-macros`), reported in
 # lower-report-<dir>.md and lower-results-<dir>.tsv.
 dotty-lower-report filter="" dir="run": release
-    cargo build -q --release -p lower
+    cargo build -q --release -p scivolo-lower
     python3 scripts/dotty-lower.py '{{ filter }}' '{{ dir }}'
 
 # Link the dotty tests failing in the VM as Scala Native binaries and run them, for dotty-report.
@@ -277,12 +277,12 @@ syntax-oracle mode="trees" filter="": syntax-fetch
 # Compare the Rust scanner, parser or desugaring with the recorded output; report.md and results.tsv
 # under tmp/syntax/3.9.0/<mode>.
 syntax-report mode="trees" filter="":
-    cargo build -q --release -p syntax
+    cargo build -q --release -p scivolo-syntax
     python3 scripts/syntax-tests.py {{ mode }} report {{ filter }}
 
 # The difference between dotty's and the Rust output of `mode` for one file.
 syntax-diff mode path:
-    cargo build -q --release -p syntax
+    cargo build -q --release -p scivolo-syntax
     python3 scripts/syntax-tests.py {{ mode }} diff {{ path }}
 
 # Record dotty's desugared trees of the golden tests in crates/syntax/tests/desugar (JVM).
@@ -296,7 +296,7 @@ typer-oracle filter="": syntax-fetch
 # Compare the Rust typer with the recorded typed trees; report.md and results.tsv under
 # tmp/typer/3.9.0.
 typer-report filter="":
-    cargo build -q --release -p typer
+    cargo build -q --release -p scivolo-typer
     python3 scripts/typer-tests.py report {{ filter }}
 
 # Type tests/programs, tests/pos and tests/neg (those whose paths contain `filter`) with errors
@@ -305,7 +305,7 @@ typer-report filter="":
 # Not in `ci`, which lacks ref/dotty and the oracle output: about 1.5 min for tests/pos and
 # 2.5 min for all on 12 cores.
 typer-stress filter="":
-    cargo build -q --release -p typer
+    cargo build -q --release -p scivolo-typer
     python3 scripts/typer-tests.py stress {{ filter }}
 
 # Save the typer report's results (default: the latest) as the baseline of typer-progress.
@@ -322,20 +322,20 @@ typer-progress: typer-report
 # release VM against its `.check` file, as `just check` runs it, with a hash of its output.
 # An oracle whose recorded dotty output or checkout is missing is skipped; its old snapshot stays.
 snapshot *oracles: release
-    cargo build -q --release -p typer -p lower -p syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
     python3 scripts/snapshot.py record {{ oracles }}
 
 # After the refactor: rerun the oracles, list the rows that differ from the snapshot as worsened,
 # improved and other changes, and fail on any of them, on a skipped oracle that has a snapshot,
 # and when no oracle was compared.
 snapshot-check *oracles: release
-    cargo build -q --release -p typer -p lower -p syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
     python3 scripts/snapshot.py check {{ oracles }}
 
 # After a feature: list the rows that differ from the snapshot like `snapshot-check`, without
 # failing on them.
 snapshot-diff *oracles: release
-    cargo build -q --release -p typer -p lower -p syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
     python3 scripts/snapshot.py diff {{ oracles }}
 
 # In a linked worktree (e.g. an agent's): link the main checkout's ref/ and copy the oracle data
@@ -386,24 +386,24 @@ typer-checks:
 
 # The difference between dotty's and the Rust typed trees of one file.
 typer-diff path:
-    cargo build -q --release -p typer
+    cargo build -q --release -p scivolo-typer
     python3 scripts/typer-tests.py diff {{ path }}
 
 # Type Scala files with dotty's oracle and the Rust typer, and compare the typed trees.
 typer-compare +files:
-    cargo build -q --release -p typer
+    cargo build -q --release -p scivolo-typer
     python3 scripts/typer-compare.py {{ files }}
 
 # The Rust typer's typed trees of Scala files, or why they fall back.
 typer-dump +files:
-    cargo build -q --release -p typer
+    cargo build -q --release -p scivolo-typer
     mkdir -p tmp
     printf '%s\n' {{ files }} > tmp/typer-dump.list
     target/release/typer-dump --list tmp/typer-dump.list
 
 # Lower a Scala file through the Rust frontend into NIR files in tmp/lowered/<file name>.
 lower file:
-    cargo build -q --release -p lower
+    cargo build -q --release -p scivolo-lower
     target/release/lower {{ file }} tmp/lowered/$(basename {{ file }} .scala)
 
 # Lower a Scala file through the Rust frontend and run its `main` (default: the file name) in

@@ -1,9 +1,13 @@
 [package]
-name = "nir-dump"
+name = "scivolo-nir-dump"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
+
+[[bin]]
+name = "nir-dump"
+path = "src/main.rs"
 
 [dependencies]
 clap.workspace = true

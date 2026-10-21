@@ -1,5 +1,5 @@
 [package]
-name = "aot"
+name = "scivolo-aot"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -16,16 +16,16 @@ cranelift-frontend = "0.135"
 cranelift-module = "0.135"
 cranelift-object = "0.135"
 libimage.workspace = true
-libs = { path = "../libs" }
-lower = { path = "../lower" }
-macros = { path = "../macros" }
+libs.workspace = true
+lower.workspace = true
+macros.workspace = true
 nir.workspace = true
 rustc-hash.workspace = true
-snrt = { path = "../snrt" }
-syntax = { path = "../syntax" }
+snrt.workspace = true
+syntax.workspace = true
 target-lexicon = "0.13"
-tasty = { path = "../tasty" }
-vm = { path = "../vm" }
+tasty.workspace = true
+vm.workspace = true
 
 [lints]
 workspace = true

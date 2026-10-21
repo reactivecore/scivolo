@@ -1,10 +1,13 @@
 [package]
-name = "snrt"
+name = "scivolo-snrt"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish = false
 build = "build.rs"
+
+[lib]
+name = "snrt"
 
 [lints]
 workspace = true
