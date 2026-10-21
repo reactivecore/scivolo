@@ -40,9 +40,9 @@ impl Typer<'_> {
         Some(crate::defn::applied(self.u, class, args))
     }
 
-    /// The class of full name `full`; for an enum class the desugaring named without its packages
-    /// or with its local owners (`Outer._$E`), the class of its simple name visible in `ctx` if
-    /// the desugaring gives it that name.
+    /// The class of full name `full`; for an enum class the desugaring named with its local owners
+    /// (`Outer._$E`), the class of its simple name visible in `ctx` if the desugaring gives it
+    /// that name.
     fn full_class(&mut self, full: &str, ctx: Ctx) -> Option<SymbolId> {
         if let Some(s) = self.resolve_full_name(full, true) {
             return Some(s);

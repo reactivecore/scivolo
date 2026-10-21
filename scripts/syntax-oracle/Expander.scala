@@ -106,9 +106,18 @@ class Expander extends untpd.UntypedTreeMap:
       cpy.Quote(tree)(transform(body)(using if body.isType then typeCtx else exprCtx), transform(tags))
     case SplicePattern(body, targs, args) =>
       cpy.SplicePattern(tree)(transform(body)(using patCtx), transform(targs), transform(args))
+    case PackageDef(pid, stats) =>
+      cpy.PackageDef(tree)(transformSub(pid), transformStats(stats, NoSymbol)(using ctx.fresh.setOwner(packageClass(pid))))
     case Import(expr, selectors) => cpy.Import(tree)(transform(expr), transformSelectors(selectors))
     case Export(expr, selectors) => cpy.Export(tree)(transform(expr), transformSelectors(selectors))
     case _ => super.transform(tree)
+
+  /** The package class that package clause name `pid` enters, as `Namer.createPackageSymbol` does. */
+  private def packageClass(pid: Tree)(using Context): Symbol = pid match
+    case Select(qual, name) => newCompletePackageSymbol(packageClass(qual), name.toTermName).moduleClass
+    case Ident(nme.EMPTY_PACKAGE) => defn.EmptyPackageClass
+    case Ident(name) => newCompletePackageSymbol(ctx.owner, name.toTermName).moduleClass
+    case _ => ctx.owner
 
   /** Import selectors with their bounds typed as types, as `Typer.typedSelectors` does. */
   private def transformSelectors(selectors: List[ImportSelector])(using Context): List[ImportSelector] =
