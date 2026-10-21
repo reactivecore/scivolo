@@ -37,6 +37,8 @@ pub struct FunProto {
     pub deep: bool,
     /// The elements of an infix operation's tuple argument, until it is untupled.
     pub dual: Option<Vec<NodeId>>,
+    /// Whether the arguments are a `using` clause.
+    pub using: bool,
 }
 
 impl Typer<'_> {

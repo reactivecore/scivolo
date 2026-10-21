@@ -32,7 +32,7 @@ issue and go last, each measured by its library's test program.
 | os-lib | `osl`: `/` with strings, `write.over`, `read`, `list`, `proc(...).call()`, `call(stdin = "piped")` | "adaptation" at the data argument of `os.write.over(p, "hi")` (`String` → `os.Source`) [V] | `osl3`: without `Source`/`ProcessInput` conversions the typer passes; `scivolo --dep` runs all of it (files and `os.proc`) correctly [V]; aot stops in codegen: "link-time property …GenericProcessWatcher$…isEnabled" [V]; `osl6` (files only) runs as an executable [V] | 2.2, 2.7 |
 | os-lib | `osl5a–f`: `os.pwd / "tmp"` | types: the typer picks `PathChunk.StringPathChunkInternal`, a `private[os]` conversion dotty rejects (`osl5e` compiles for us, not for dotty); dotty picks the macro `stringPathChunkValidated` [V dump] | with the macro imported (`osl5c/d`): "no method …ReflectImpl::InlinedTypeTest" [V] | 2.3, 2.8 |
 | upickle | `upk`: `case class P … derives ReadWriter`, `sealed trait Shape derives ReadWriter`, `write`/`read` | "Mirror of a type with type variables" at `write(P(…))` [V] | `upk-a/b/c`: the same for `summon[ReadWriter[P]]`, `macroRW`, and `summon[Writer[P]]` with a plain `implicit val` in `P`'s companion — the cause is the candidate `superTypeWriter` of `upickle.default`, not the derivation [V] | 2.1 |
-| fastparse | `fp`: `def num[$: P] = P(CharIn("0-9").rep(1).!.map(_.toInt))`, `~`, `End`, `parse` | "adaptation" at `"0-9"`: an inline repeated parameter [V col, I cause] | `fp2` (`CharPred`): "ambiguous overload resolved by type arguments of a later clause" at `.rep(1)` [V]; `fp3` (`CharsWhileIn`): "adaptation" at `parse("123", …)` (`String` → `ParserInputSource`) [V]; then the macros `P`, `~`, `rep`, `LiteralStr`, `CharIn` (research 26) [I] | 2.2, 2.4, 2.5 |
+| fastparse | `fp`: `def num[$: P] = P(CharIn("0-9").rep(1).!.map(_.toInt))`, `~`, `End`, `parse` | "adaptation" at `"0-9"`: an inline repeated parameter [V col, I cause] | `fp2` (`CharPred`): "default argument" at `.rep(1)` after O1 [V]; `fp3` (`CharsWhileIn`): "adaptation" at `parse("123", …)` (`String` → `ParserInputSource`) [V]; then the macros `P`, `~`, `rep`, `LiteralStr`, `CharIn` (research 26) [I] | 2.2, 2.4, 2.5 |
 | mainargs | `ma`: `@main def run(@arg(short = 'f', doc = …) foo: String, …)`, `ParserForMethods(this).runOrExit` | "annotation" at `@main` [V] | `ParserForMethods.apply` is a macro over `Symbol.annotations`, `paramSymss`, `Symbol.tree`, `Expr.summon`, `Type.show` [V sources] | 2.9 |
 
 Backends: `scivolo --dep COORD file.scala` compiles through the own frontend with the
@@ -101,7 +101,12 @@ P[T]) inline def rep[V](inline min: Int = 0, …)(using …)`: both alternatives
 (`T/Applications.scala:2717-2732`) flattens the outer and inner `PolyType`s into one
 (`derivedLambdaType(resType = rt).flatten`) and goes on with `resolveMapped` (`:2811`) [V].
 **Fix (O1):** merge the binders (`Type::Poly` with the inner parameters appended, references
-rebased) instead of the refusal. ~30 lines.
+rebased) instead of the refusal. ~30 lines. Done; the mapped copies then lead with a `using`
+clause (`(using Rp[T, V]): P[V]`), which `choose` refused ("overloads with a leading implicit
+parameter clause"); dotty's `resolve` maps them with `stripImplicit` (`:2483`, `:504`), now
+`resolve_without_implicits` (FunProto `using` flag from `USING_APPLY`). Next fp2 failure: the
+default getter of `rep(min = 0, …)`, whose type clause follows a value clause (`TypeApply`
+over `Apply`), "default argument" at `Y/default_args.rs:47`.
 
 ### 2.5 Inline repeated parameters (fastparse) — `Y/adapt.rs:116-120`
 

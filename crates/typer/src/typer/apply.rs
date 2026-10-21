@@ -5,7 +5,7 @@
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, Tree};
+use syntax::ast::{Attrs, List, NodeId, Tree};
 use tasty::{Kind, Type, TypeId};
 
 impl Typer<'_> {
@@ -17,7 +17,9 @@ impl Typer<'_> {
         let arg_ids = self.ast.items(args).to_vec();
         let proto = self.protos.len();
         let dual = self.infix_tuple_elems(id, &arg_ids);
-        let fun_proto = super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual };
+        let using = self.ast.attrs(id).contains(Attrs::USING_APPLY);
+        let fun_proto =
+            super::overloads::FunProto { args: arg_ids, ctx, typed: None, pt, deep: false, dual, using };
         self.protos.push(fun_proto);
         let f = self.typed(fun, Pt::Fun(proto), fun_ctx);
         let f = match self.with_apply(f, Pt::Fun(proto), fun_ctx) {

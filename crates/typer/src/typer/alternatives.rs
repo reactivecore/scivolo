@@ -119,12 +119,36 @@ impl Typer<'_> {
         if let [s] = methods[..] {
             return Ok(s);
         }
+        if self.protos[proto].using {
+            let implicit: Vec<SymbolId> =
+                methods.iter().copied().filter(|&s| self.leading_implicit(s).is_some()).collect();
+            if implicit.len() < methods.len() {
+                return self.choose(&implicit, prefix, pt);
+            }
+        } else if methods.iter().any(|&s| self.leading_implicit(s) == Some(true)) {
+            return self.resolve_without_implicits(&methods, prefix, pt);
+        }
         self.untuple_unless_unary(proto, &methods)?;
         let n = self.protos[proto].args.len();
         let mut fitting = Vec::new();
         for s in methods {
             let info = self.u.info(s);
-            let Some((implicit, ps)) = self.u.param_clauses(info).into_iter().next() else { continue };
+            let Some((implicit, ps)) = self.u.param_clauses(info).into_iter().next() else {
+                let value = match *self.u.types().get(info) {
+                    Type::Poly { result, .. } | Type::ByName(result) => result,
+                    _ => info,
+                };
+                for apply in self.type_members(value, "apply") {
+                    self.complete(apply);
+                    let apply_info = self.u.info(apply);
+                    if let Some((_, aps)) = self.u.param_clauses(apply_info).into_iter().next()
+                        && self.size_fits(apply, &aps, n)
+                    {
+                        return Err("overloaded method whose result has an apply method");
+                    }
+                }
+                continue;
+            };
             if implicit {
                 return Err("overloads with a leading implicit parameter clause");
             }
