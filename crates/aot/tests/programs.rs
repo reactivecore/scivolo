@@ -90,6 +90,17 @@ fn circe_codec_derives_through_its_macros() {
     check_expanded("circe", &[]);
 }
 
+#[test]
+fn ujson_and_pprint_run() {
+    let deps = ["com.lihaoyi:ujson_native0.5_3:4.4.3", "com.lihaoyi:pprint_native0.5_3:0.9.6"];
+    if !in_coursier_cache(&deps) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: ujson 4.4.3 or pprint 0.9.6 is not in the Coursier cache");
+        return;
+    }
+    check_expanded("ujson", &[]);
+    check_expanded("pprint", &[]);
+}
+
 /// Whether Coursier finds `coordinates` without going online.
 fn in_coursier_cache(coordinates: &[&str]) -> bool {
     let chosen = std::env::var_os("SCIVOLO_COURSIER").map(|c| vec![c]);

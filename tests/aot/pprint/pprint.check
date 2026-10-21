@@ -1,0 +1,11 @@
+Pt(x = 1, y = 2)
+Box(
+  name = "b",
+  pts = List(
+    Pt(x = 1, y = 2),
+    Pt(x = 3, y = 4)
+  ),
+  extra = Some(Map("k" -> 1))
+)
+List(1, 2, 3)
+Vector(("a", 1))
