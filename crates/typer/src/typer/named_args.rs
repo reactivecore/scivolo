@@ -184,9 +184,15 @@ impl Typer<'_> {
 
     /// Whether parameter `n` of the clause call `f` of `method` applies has a default argument.
     pub fn may_default(&mut self, mut f: TNodeId, method: SymbolId, mut n: usize) -> bool {
-        while let T::Apply { fun, args } = *self.tpd.tree(f) {
-            n += self.tpd.items(args).len();
-            f = fun;
+        loop {
+            f = match *self.tpd.tree(f) {
+                T::Apply { fun, args } => {
+                    n += self.tpd.items(args).len();
+                    fun
+                }
+                T::TypeApply { fun, .. } => fun,
+                _ => break,
+            };
         }
         self.has_default_at(method, n)
     }

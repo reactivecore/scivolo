@@ -9,6 +9,12 @@ use syntax::ast::TName;
 use tasty::tags::{OBJECT, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type};
 
+/// A clause a call applies: its value or type arguments.
+enum Clause {
+    Values(Vec<TNodeId>),
+    Types(Vec<TNodeId>),
+}
+
 impl Typer<'_> {
     /// The default argument for parameter `n` of `method`, which call `f` applies (dotty's
     /// `defaultArgument` in `tryDefault`).
@@ -20,20 +26,26 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let mut clauses = Vec::new();
-        let mut fun = f;
-        while let T::Apply { fun: inner, args } = *self.tpd.tree(fun) {
-            let args = self.tpd.items(args).to_vec();
-            clauses.push(self.spliced_args(inner, &args)?);
-            fun = inner;
+        let mut mref = f;
+        loop {
+            match *self.tpd.tree(mref) {
+                T::Apply { fun, args } => {
+                    let args = self.tpd.items(args).to_vec();
+                    clauses.push(Clause::Values(self.spliced_args(fun, &args)?));
+                    mref = fun;
+                }
+                T::TypeApply { fun, args } => {
+                    clauses.push(Clause::Types(self.tpd.items(args).to_vec()));
+                    mref = fun;
+                }
+                _ => break,
+            }
         }
-        let (mref, targs) = match *self.tpd.tree(fun) {
-            T::TypeApply { fun, args } => (fun, Some(args)),
-            _ => (fun, None),
-        };
         let span = self.tpd.span(f);
         let sym = self.u.symbol(method);
         let ctor = sym.name == "<init>";
-        let n = n + clauses.iter().map(Vec::len).sum::<usize>();
+        let values = clauses.iter().map(|c| if let Clause::Values(args) = c { args.len() } else { 0 });
+        let n = n + values.sum::<usize>();
         let base = if ctor || sym.name == "apply" && sym.flags.has(SYNTHETIC) {
             "$lessinit$greater"
         } else {
@@ -54,16 +66,22 @@ impl Typer<'_> {
         let name = TName { name: self.name(&getter_name), is_type: false };
         let mut getter =
             self.tpd.node(T::Select { qualifier: receiver, name }, span, Some(tpe), Some(getter));
-        if let Some(targs) = targs {
-            let targs = self.tpd.items(targs).to_vec();
-            let types: Vec<_> = targs.iter().map(|&a| self.tpd.tpe(a)).collect();
-            let trees: Vec<TNodeId> =
-                targs.iter().zip(&types).map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true)).collect();
-            let tpe = self.instantiated(getter, &types)?;
-            let tpe = if ctor || !clauses.is_empty() { tpe } else { self.simplified(tpe) };
-            getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
-        }
-        for args in clauses.into_iter().rev() {
+        for (i, clause) in clauses.into_iter().enumerate().rev() {
+            let args = match clause {
+                Clause::Values(args) => args,
+                Clause::Types(targs) => {
+                    let types: Vec<_> = targs.iter().map(|&a| self.tpd.tpe(a)).collect();
+                    let trees: Vec<TNodeId> = targs
+                        .iter()
+                        .zip(&types)
+                        .map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true))
+                        .collect();
+                    let tpe = self.instantiated(getter, &types)?;
+                    let tpe = if ctor || i > 0 { tpe } else { self.simplified(tpe) };
+                    getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
+                    continue;
+                }
+            };
             let t = self.tpd.tpe(getter);
             let info = self.method_info(t).unwrap_or(t);
             let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
