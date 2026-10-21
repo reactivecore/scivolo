@@ -42,9 +42,13 @@ impl Translator<'_, '_> {
     /// `result` has a `get` of a named tuple, whose field it then matches (dotty's
     /// `wasUnaryNamedTupleSelectArgForNamedTuple`).
     pub fn is_named_field_of_get(&mut self, result: TypeId, args: &[TNodeId]) -> bool {
-        let ([arg], Some(get)) = (args, self.member_named(result, "get")) else { return false };
+        let [arg] = args else { return false };
+        if !self.l.was_named_args.contains(arg) {
+            return false;
+        }
+        let Some(get) = self.member_named(result, "get") else { return false };
         let get_type = self.member_type(result, get);
-        self.l.was_named_args.contains(arg) && self.named_tuple_values(get_type).is_some()
+        self.named_tuple_values(get_type).is_some()
     }
 
     /// The selectors `_1`, `_2`… of type `tpe`, none unless it is a product if `product` (dotty's

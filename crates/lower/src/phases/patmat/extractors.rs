@@ -3,9 +3,9 @@
 //! Plans of extractor patterns (dotty's `unapplyPlan`, `matchArgsPlan`): the case accessors of a
 //! Scala 2 case class, a Boolean `unapply`, the `_1`… of a product `unapply`, the elements of a
 //! generic tuple (`generic_tuples.rs`), or the `get` of an option-like one (its `_1` for a named
-//! pattern of a named tuple of one element), each component then
-//! matched against its argument pattern, after the extractor's implicit arguments; the sequence an
-//! `unapplySeq` returns (`sequences.rs`).
+//! pattern of a named tuple of one element), each component then matched against its argument
+//! pattern, after the extractor's implicit arguments; the sequence an `unapplySeq` returns
+//! (`sequences.rs`).
 
 use super::Translator;
 use super::plan::{Plan, PlanId, Test};

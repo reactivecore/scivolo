@@ -110,7 +110,7 @@ In order of the tests they unblock:
    leftovers), V2 (applications) and U (structural and small) and V1's singles (tuples, i4364a,
    i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A
    leftovers (extension fallback, i16065), S's `Manifest` and P (search singles); named tuples
-   (#139, [research 29](docs/research/29-named-tuples.md) B and C: patterns, `build`); enums in
+   (#139, [research 29](docs/research/29-named-tuples.md) C: `build`, conversions, untupling); enums in
    packages (#134); poly function leftovers (#136); mirrors (#129); match-type leftovers (#120);
    typed-tree printing gaps (#122, `RefinedTypeTree`).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
