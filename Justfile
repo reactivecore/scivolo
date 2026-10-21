@@ -359,6 +359,24 @@ ship msg: fmt gates lint-msrv
     git commit -q -m {{ quote(msg) }}
     git push -q -u origin HEAD
 
+# On a clean main: set the workspace version to `version`, commit it and tag it `v<version>`.
+# Pushes nothing.
+new-release version:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    v={{ quote(version) }}
+    [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "not a version: $v"; exit 1; }
+    [ "$(git branch --show-current)" = main ] || { echo "not on main"; exit 1; }
+    [ -z "$(git status --porcelain)" ] || { echo "the working tree is not clean"; exit 1; }
+    if git rev-parse -q --verify "refs/tags/v$v" > /dev/null; then echo "tag v$v exists"; exit 1; fi
+    perl -pi -e 's/^version = "[^"]*"/version = "'"$v"'"/' Cargo.toml
+    grep -q "^version = \"$v\"$" Cargo.toml || { echo "no workspace version in Cargo.toml"; exit 1; }
+    perl -pi -e 's/^Welcome to Scivolo \S+/Welcome to Scivolo '"$v"'/' README.md
+    cargo update -q --workspace
+    git commit -q -am "Release $v"
+    git tag -a "v$v" -m "scivolo $v"
+    echo "tagged v$v; push: git push origin main v$v && git push github main v$v"
+
 # Print REPL transcripts (default: tests/repl) as Scala 3.9's REPL answers their inputs (JVM).
 repl-oracle *files:
     f="{{ files }}"; [ -z "$f" ] && f=$(ls tests/repl/*.check); \
