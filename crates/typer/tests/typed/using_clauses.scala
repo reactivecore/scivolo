@@ -30,4 +30,8 @@ object UsingClauses {
     (implicitly[Foo[Int]].value, implicitly[Foo[String]].value)
   }
   def g = (1 to 10 drop 9) == Seq(10)
+  extension [L](lhs: L)(using TC)
+    def minus(rhs: Int): Int = rhs
+    def combine[R](rhs: R)(using TC): R = rhs
+  def h = "a".minus(1) + "b".combine(2) + "c".combine(using tc)(3)
 }

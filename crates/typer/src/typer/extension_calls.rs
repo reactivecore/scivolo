@@ -63,16 +63,24 @@ impl Typer<'_> {
         self.ast.with_span(apply, Span::synthetic(span.start(), span.end()));
         let typed = self.typed_apply(apply, fun, args, pt, ctx);
         let tpe = self.tpd.tpe(typed);
+        let tpe = match *self.u.types().get(tpe) {
+            tasty::Type::Poly { result, .. } => result,
+            _ => tpe,
+        };
         let using_next = matches!(self.u.types().get(tpe), tasty::Type::Method { implicit: true, .. });
         if using_next && !matches!(pt, Pt::Fun(_)) {
             return self.unsupported(id, "extension method with a using clause after the receiver");
         }
         let typed = match pt {
-            Pt::PolyFun(_) => typed,
-            _ => match self.with_type_vars(typed) {
-                Ok(t) => t,
-                Err(what) => return self.unsupported(id, what),
-            },
+            Pt::PolyFun(_) => Ok(typed),
+            Pt::Fun(proto) if !self.protos[proto].using => {
+                self.with_type_vars(typed).and_then(|t| self.with_using_args(t, false, ctx))
+            }
+            _ => self.with_type_vars(typed),
+        };
+        let typed = match typed {
+            Ok(t) => t,
+            Err(what) => return self.unsupported(id, what),
         };
         let typed = self.inlined_transparent(typed, pt, ctx).unwrap_or(typed);
         self.tpd.get_mut(typed).span = span;
