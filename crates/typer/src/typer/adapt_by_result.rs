@@ -102,7 +102,7 @@ impl Typer<'_> {
     /// type, a context function's result unless `t` itself is one and not `follow` (`followIFT`);
     /// `None` where outside the subset (dependent methods). The parameters of `meth`'s implicit clauses that
     /// the result refers to are approximated by their types (dotty's `resultTypeApprox`).
-    fn proto_normalized(
+    pub fn proto_normalized(
         &mut self,
         (t, meth): (TypeId, Option<SymbolId>),
         pt: TypeId,

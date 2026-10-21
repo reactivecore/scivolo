@@ -74,10 +74,20 @@ for a `pt` that `isFunctionNType`, every eligible implicit is a `Candidate.Value
 [V]. Ours: `is_eligible` rejects any candidate whose type after the implicit clauses is a
 `Method`, and `try_implicit` (`search.rs:149-153`) does the same, so no candidate fits and
 `adapt` refuses "adaptation" [V shape `view_function.scala`, V probes osl, fp3]. Research 28 §3
-saw the same shape in dotty's t3346g (MR P). **Fix (F1):** when `pt` is a `FunctionN` class type,
-a candidate with one explicit clause of N parameters is eligible, and `try_implicit` adapts its
-reference against `Pt::Type(pt)` through `adapt` (`Y/adapt.rs:50-62` eta-expands a method
-against a function type) before the conformance check. ~40 lines.
+saw the same shape in dotty's t3346g (MR P). **Fix (F1, done):** for a `FunctionN` `pt`, a
+method candidate is compared as dotty's `normalize` makes it a function type
+(`Y/implicits/function_goals.rs`), and `try_implicit` eta-expands it through `adapt`; a misfit
+inside the closure is a misfit of the candidate. It also needed: eligibility before the
+divergence check for function goals (t3346g's `toA` is open as a view); inline implicit methods
+not eta-expanded (dotty `InlineImplicitMethod`, i19862); type variables locked while an
+expression's implicit clauses are searched (dotty's `locked` in `tvarsInParams`) and a
+conversion's own ones instantiated before its implicit clause, so that the eta-expanded
+closures match dotty's; the "type variables" refusal of several fitting candidates ignores
+method rivals of a value winner, which dotty's `isAsGood` ranks below it (`$conforms` for `Int
+=> ?B`). ~90 lines. After it, `os.write.over(p, "hi")` and fastparse's `parse("123", …)` type;
+`call(stdin = "piped")` stops at geny's `WritableTraversable[M[_], T]`, whose nested search for
+`?M[String] => IterableOnce[String]` refuses "implicit search for a type with a higher-kinded
+type variable" (`Y/implicits/unsettled.rs`) where dotty searches and fails the candidate [V].
 
 ### 2.3 Accessibility of library implicits (os-lib) — `Y/implicits/candidates.rs:122-124`
 

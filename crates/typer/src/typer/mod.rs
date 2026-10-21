@@ -232,6 +232,9 @@ pub struct Typer<'a> {
     pub package_levels: FxHashMap<NodeId, LevelId>,
     /// The bounds and instances of the type variables.
     pub constraint: crate::constraint::Constraint,
+    /// How many type variables the expression being adapted found, which its implicit clauses
+    /// do not instantiate (dotty's `locked`).
+    pub locked_vars: usize,
     /// How many more candidates the implicit search in progress may try.
     pub implicit_budget: u32,
     /// The implicit searches in progress and their by-name implicits.
@@ -324,6 +327,7 @@ impl<'a> Typer<'a> {
             import_levels: FxHashMap::default(),
             package_levels: FxHashMap::default(),
             constraint: Default::default(),
+            locked_vars: 0,
             implicit_budget: 0,
             history: Default::default(),
             protos: Vec::new(),
@@ -374,7 +378,9 @@ impl<'a> Typer<'a> {
             self.unsupported(id, what);
         }
         self.settle_type(tree, inner);
+        let locked = std::mem::replace(&mut self.locked_vars, vars);
         let adapted = self.adapt(tree, pt, ctx);
+        self.locked_vars = locked;
         if let Err(what) = self.reinterpolate((tree, adapted), pt, vars) {
             self.unsupported(id, what);
         }

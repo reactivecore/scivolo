@@ -20,7 +20,7 @@ pub const MAX_TRIES: u32 = 400;
 const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
-const MISFITS: [&str; 8] = [
+pub const MISFITS: [&str; 8] = [
     "implicit of another type",
     "diverging implicit",
     "not an implicit value",
@@ -107,7 +107,7 @@ impl Typer<'_> {
                 [c, ..] if coherent => *c,
                 _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
-            if found.len() > 1 && !self.is_fully_defined(pt) {
+            if self.has_rivals(winner, &found) && !self.is_fully_defined(pt) {
                 let tpe = self.alt_type(winner);
                 if matches!(self.u.types().get(tpe), Type::Poly { .. }) {
                     return Err(OPEN);
@@ -132,7 +132,8 @@ impl Typer<'_> {
     }
 
     /// Candidate `c`, an implicit that may fit, as an argument of type `pt`: referenced, applied
-    /// to type variables and to its own implicit arguments.
+    /// to type variables and to its own implicit arguments, eta-expanded if it is a method and
+    /// `pt` a function type.
     pub fn try_implicit(
         &mut self,
         c: Candidate,
@@ -145,17 +146,18 @@ impl Typer<'_> {
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
-        let result = self.strip_implicit(info);
-        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. })
-            || !self.conforms(result, pt)
-        {
-            return Err("implicit of another type");
+        let stripped = self.strip_implicit(info);
+        let method = matches!(self.u.types().get(stripped), Type::Method { .. });
+        match self.implicit_value_type(info, c.sym, pt) {
+            Some(value) if self.conforms(value, pt) => {}
+            _ => return Err("implicit of another type"),
         }
         if self.implicit_budget == 0 {
             return Err("implicit search too costly");
         }
         self.implicit_budget -= 1;
         let tree = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
+        let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {

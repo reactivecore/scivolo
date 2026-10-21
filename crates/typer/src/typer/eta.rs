@@ -33,13 +33,21 @@ impl Typer<'_> {
     }
 
     /// N if `t` is a `FunctionN` type.
-    fn function_arity(&mut self, t: TypeId) -> Option<usize> {
+    pub fn function_arity(&mut self, t: TypeId) -> Option<usize> {
         (0..=22).find(|&n| self.function_parts(t, n).is_some())
     }
 
     /// Whether `tree` refers to a constructor.
     pub fn is_constructor_ref(&mut self, tree: TNodeId) -> bool {
         self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| self.u.symbol(s).name == "<init>")
+    }
+
+    /// Whether `tree` refers to an inline implicit method, which is not eta-expanded.
+    pub fn is_inline_implicit_ref(&mut self, tree: TNodeId) -> bool {
+        self.tpd.sym(self.tpd.meth_part(tree)).is_some_and(|s| {
+            let flags = &self.u.symbol(s).flags;
+            flags.has(tasty::tags::INLINE) && flags.has(tasty::tags::IMPLICIT)
+        })
     }
 
     /// Method reference `tree` eta-expanded against `pt` to a function of arity `xarity`.

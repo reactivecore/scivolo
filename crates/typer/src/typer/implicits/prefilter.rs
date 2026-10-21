@@ -2,10 +2,10 @@
 //   compiler/src/dotty/tools/dotc/typer/Implicits.scala
 //   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
 //! Rejecting an implicit candidate before it is referenced and typed: one with explicit
-//! parameters, as `try_implicit` does, or one whose declared result type cannot conform by the
-//! classes it and its type arguments refer to, type parameters and uninstantiated type
-//! variables taken as wildcards within their bounds (after dotty's `isCompatible` in
-//! `candidateKind`, `wildApprox`).
+//! parameters for a goal other than a function type, as `try_implicit` does, or one whose
+//! declared result type cannot conform by the classes it and its type arguments refer to, type
+//! parameters and uninstantiated type variables taken as wildcards within their bounds (after
+//! dotty's `isCompatible` in `candidateKind`, `wildApprox`).
 
 use super::super::Typer;
 use crate::symbols::Completion;
@@ -27,9 +27,10 @@ const SPECIAL: [&str; 9] = [
 ];
 
 impl Typer<'_> {
-    /// Whether the value of implicit `sym` cannot conform to `pt`: it takes explicit parameters,
-    /// or the class of its declared result type does not derive from that of `pt`, or a type
-    /// argument of its base type at that class cannot conform to the corresponding one of `pt`.
+    /// Whether the value of implicit `sym` cannot conform to `pt`: it takes explicit parameters
+    /// and `pt` is no function type, or the class of its declared result type does not derive
+    /// from that of `pt`, or a type argument of its base type at that class cannot conform to the
+    /// corresponding one of `pt`.
     pub fn cannot_fit(&mut self, sym: SymbolId, pt: TypeId) -> bool {
         let mut t = self.u.info(sym);
         loop {
@@ -37,7 +38,7 @@ impl Typer<'_> {
                 Type::Poly { result, .. }
                 | Type::Method { result, implicit: true, .. }
                 | Type::ByName(result) => result,
-                Type::Method { .. } => return true,
+                Type::Method { .. } => return self.function_arity(pt).is_none(),
                 _ => break,
             };
         }

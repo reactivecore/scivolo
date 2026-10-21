@@ -181,6 +181,10 @@ impl Typer<'_> {
             return Err("conversion of another type");
         };
         let converted = self.build().apply(fun, &[arg], result, span.to_synthetic());
+        if let Type::Method { params, implicit: true, .. } = self.u.types().get(result).clone() {
+            let formals: Vec<TypeId> = params.iter().map(|&(_, p)| p).collect();
+            self.instantiate_param_vars(converted, &formals)?;
+        }
         let spans = (span.end_pos(), span.to_synthetic());
         let converted = self.viewing(c, |t| t.with_implicit_args(converted, spans, ctx, 1))?;
         let result = self.tpd.tpe(converted);

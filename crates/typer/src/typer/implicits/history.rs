@@ -95,7 +95,7 @@ impl Typer<'_> {
         if !self.is_implicit(c.sym) {
             return Err("not an implicit value");
         }
-        if self.cannot_fit(c.sym, pt) {
+        if self.cannot_fit(c.sym, pt) || self.function_arity(pt).is_some() && !self.is_eligible(c, pt) {
             return Err("implicit of another type");
         }
         if self.diverges(c, pt, by_name)? {

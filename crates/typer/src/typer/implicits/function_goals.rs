@@ -1,0 +1,64 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Implicits.scala
+//! Implicit methods as values of a function type (dotty's `candidateKind` for a `FunctionN`
+//! goal, and `typedImplicit` adapting the reference).
+
+use super::super::{Pt, Typer};
+use super::candidates::Candidate;
+use super::search::MISFITS;
+use crate::ctx::Ctx;
+use crate::tpd::TNodeId;
+use tasty::{SymbolId, Type, TypeId};
+
+impl Typer<'_> {
+    /// Type `t` of implicit `sym` as a value compared with `pt`: its implicit clauses stripped, a
+    /// method as a function type if `pt` is a `FunctionN` type (dotty's `normalize`); `None` if
+    /// it stays a method.
+    pub fn implicit_value_type(&mut self, t: TypeId, sym: SymbolId, pt: TypeId) -> Option<TypeId> {
+        let t = self.strip_implicit(t);
+        let method = matches!(self.u.types().get(t), Type::Method { .. });
+        let t = match method && self.function_arity(pt).is_some() {
+            true => self.proto_normalized((t, Some(sym)), pt, true, 8)?,
+            false => t,
+        };
+        (!matches!(self.u.types().get(t), Type::Method { .. } | Type::Poly { .. })).then_some(t)
+    }
+
+    /// Whether `found` has a candidate other than `winner` that does not rank below it by
+    /// taking explicit parameters where `winner` does not.
+    pub fn has_rivals(&mut self, winner: Candidate, found: &[Candidate]) -> bool {
+        let winner_method = self.takes_explicit_params(winner);
+        found.iter().any(|&c| c != winner && (winner_method || !self.takes_explicit_params(c)))
+    }
+
+    /// Whether candidate `c` takes explicit parameters after its implicit clauses.
+    fn takes_explicit_params(&mut self, c: Candidate) -> bool {
+        let mut t = self.alt_type(c);
+        if let Type::Poly { result, .. } = *self.u.types().get(t) {
+            t = result;
+        }
+        let t = self.strip_implicit(t);
+        matches!(self.u.types().get(t), Type::Method { .. })
+    }
+
+    /// Method reference `tree` eta-expanded to function type `pt`; a misfit if it refers to an
+    /// inline implicit method or typing the function fails by one.
+    pub fn eta_expanded_implicit(
+        &mut self,
+        tree: TNodeId,
+        pt: TypeId,
+        ctx: Ctx,
+    ) -> Result<TNodeId, &'static str> {
+        if self.is_inline_implicit_ref(tree) {
+            return Err("implicit of another type");
+        }
+        let outer = self.unsupported.take();
+        let adapted = self.adapt(tree, Pt::Type(pt), ctx);
+        let Some((span, what)) = std::mem::replace(&mut self.unsupported, outer) else { return Ok(adapted) };
+        if let Some(misfit) = MISFITS.iter().find(|&&m| m == what) {
+            return Err(misfit);
+        }
+        self.unsupported.get_or_insert((span, what));
+        Err("implicit method as a function value")
+    }
+}

@@ -112,9 +112,7 @@ impl Typer<'_> {
         let before = self.constraint.attempt();
         let t = self.alt_type(c);
         let t = self.poly_instance(t, c.sym, false);
-        let t = self.strip_implicit(t);
-        let fits = !matches!(self.u.types().get(t), Type::Method { .. } | Type::Poly { .. })
-            && self.relaxed_conforms(t, pt);
+        let fits = self.implicit_value_type(t, c.sym, pt).is_some_and(|t| self.relaxed_conforms(t, pt));
         self.constraint.abandon(before);
         fits
     }
