@@ -124,3 +124,4 @@ lowergaps
 polyfunctions
 inlineextractors
 argclauses
+localinline
