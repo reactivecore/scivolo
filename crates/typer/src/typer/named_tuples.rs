@@ -35,6 +35,13 @@ impl Typer<'_> {
         }
     }
 
+    /// Whether pattern `id` is a tuple with named elements and `pt` a named tuple (dotty's
+    /// `isNamedTuplePattern`).
+    pub fn is_named_tuple_pattern(&mut self, id: NodeId, pt: TypeId) -> bool {
+        let Tree::Tuple { trees } = *self.ast.tree(id) else { return false };
+        self.named_elements(trees).is_some() && self.is_named_tuple_type(pt)
+    }
+
     /// Named tuple type `id` (dotty's `desugar.tuple` of a type).
     pub fn typed_named_tuple_type(&mut self, id: NodeId, elems: Vec<(String, NodeId)>, ctx: Ctx) -> TNodeId {
         let names: Vec<String> = elems.iter().map(|(n, _)| n.clone()).collect();

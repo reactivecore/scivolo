@@ -61,6 +61,7 @@ impl Typer<'_> {
             self.ast.tree(body),
             Tree::Ident { .. } | Tree::Select { .. } | Tree::Literal { .. } | Tree::Number { .. }
         );
+        let named_tuple = matches!(pt, Pt::Type(p) if self.is_named_tuple_pattern(body, p));
         let given =
             matches!(*self.ast.tree(id), Tree::Bind { mods, .. } if self.ast.modifiers(mods).is(GIVEN));
         let given_tpt = match *self.ast.tree(body) {
@@ -91,7 +92,7 @@ impl Typer<'_> {
         let info = match pt {
             _ if !ref_or_literal && self.is_error(body) => body_tpe,
             _ if implicit => body_tpe,
-            Pt::Type(p) if stable_or_literal => p,
+            Pt::Type(p) if stable_or_literal || named_tuple => p,
             Pt::Type(p) if self.binds_tuple_pt(body_tpe, p) => p,
             Pt::Type(p) if !self.is_bottom_type(p) && !self.u.is_subtype(body_tpe, p) => {
                 self.u.glb(body_tpe, p)
@@ -104,8 +105,7 @@ impl Typer<'_> {
         self.u.set_info(sym, info);
         self.levels.enter(ctx.level, &text, sym);
         let tpe = self.u.intern_type(Type::Sym(None, sym));
-        let span = self.ast.span(id);
-        self.tpd.node(T::Bind { name, body }, span, Some(tpe), Some(sym))
+        self.tpd.node(T::Bind { name, body }, self.ast.span(id), Some(tpe), Some(sym))
     }
 
     /// Whether `t` is `Nothing` or `Null` (dotty's `isBottomType`).
