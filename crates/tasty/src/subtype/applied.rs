@@ -143,8 +143,8 @@ impl Cmp<'_> {
     }
 
     fn sub_arg(&mut self, x: TypeId, y: TypeId, variance: i8) -> bool {
-        match (self.arg_bounds(x), self.arg_bounds(y)) {
-            (_, Some((lo2, hi2))) => match self.arg_bounds(x) {
+        match (self.written_bounds(x), self.written_bounds(y)) {
+            (_, Some((lo2, hi2))) => match self.written_bounds(x) {
                 Some((lo1, hi1)) => self.recur(lo2, lo1) && self.recur(hi1, hi2),
                 None => self.recur(lo2, x) && self.recur(x, hi2),
             },
@@ -158,6 +158,15 @@ impl Cmp<'_> {
                 -1 => self.recur(y, x),
                 _ => self.recur(x, y) && self.recur(y, x),
             },
+        }
+    }
+
+    /// The bounds of a bounds argument, annotated or not; a `Wildcard` compares as a type.
+    fn written_bounds(&mut self, t: TypeId) -> Option<(TypeId, TypeId)> {
+        match self.u.types().get(t).clone() {
+            Type::Bounds(lo, hi) => Some((lo, hi)),
+            Type::Annotated(b, _) => self.written_bounds(b),
+            _ => None,
         }
     }
 

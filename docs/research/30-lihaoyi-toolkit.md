@@ -55,10 +55,12 @@ instantiates `V := P`; `P` is no sum, the candidate fails, the search goes on to
 [V dotty]. **Fix (M1):** `fully_defined_as(mirrored, true)` (`Y/infer.rs:123`, already dotty's
 `fullyDefinedType`) in place of the `is_fully_defined` check, inside the attempt's constraint
 snapshot (`Y/implicits/attempts.rs:69-79` restores it). ~10 lines. Not in #129's list; it is
-mirror work and should be noted there. M1 also needs the divergence check
-(`Y/implicits/divergence.rs`) to compare wildcards like dotty's `WildcardType`
-(`ref/scala3/compiler/src/dotty/tools/dotc/core/TypeComparer.scala:362, :484`), else the search
-stops with "implicit search too deep" [V].
+mirror work and should be noted there. M1 also needs wildcard arguments to compare like dotty's
+`WildcardType` (`isSubArg`; `ref/scala3/compiler/src/dotty/tools/dotc/core/TypeComparer.scala:362,
+:484`) in `Cmp::sub_arg` (`crates/tasty/src/subtype/applied.rs`), else the divergence check's
+`wildTp =:= wildPt` fails and the search stops with "implicit search too deep" [V]; and
+`wild_approx` (`Y/wild_approx.rs`) approximates bounds with variables recursively, as dotty's
+`wildApproxBounds`.
 
 ### 2.2 Implicit parameters of function type (os-lib, fastparse) — `Y/implicits/contextual.rs:111-120`
 
@@ -238,7 +240,7 @@ Coursier cache, `crates/aot/tests/programs.rs:104-115`), and through `scivolo --
 | step | scope | files | size | test | after |
 |---|---|---|---|---|---|
 | T0 tests | `tests/aot/ujson`, `tests/aot/pprint` (`PPrinter.BlackWhite`), their `#[test]`s; `crates/scivolo/tests/libraries.rs` running the same (and circe) through `scivolo --dep` | `crates/aot/tests/programs.rs`, `crates/scivolo/tests/` | ~70 | the two programs | — |
-| M1 mirror of a variable | §2.1 `fully_defined_as` in `synthesized_mirror`; wildcards in the divergence check | `Y/implicits/product_mirrors.rs`, `Y/implicits/divergence.rs` | ~10 | `shapes/mirror_var.scala`; upk-c | — |
+| M1 mirror of a variable | §2.1 `fully_defined_as` in `synthesized_mirror`; wildcard arguments like dotty's `WildcardType`; recursive `wild_approx` | `Y/implicits/product_mirrors.rs`, `crates/tasty/src/subtype/applied.rs`, `Y/wild_approx.rs` | ~30 | `shapes/mirror_var.scala`; upk-c | — |
 | P0 package apply | §2.11 an applied package object gets `.apply` | `Y/access.rs`, apply insertion | ~20 | `pprint(x)` in `tests/aot/pprint` | — |
 | F1 function-typed implicits | §2.2 method candidates for `FunctionN` goals, eta-expanded | `Y/implicits/contextual.rs`, `search.rs` | ~40 | `shapes/view_function.scala`, dotty t3346g; os-lib `write.over`, fastparse `parse` | — |
 | O1 poly after the receiver clause | §2.4 flattened `Poly` in `skip_param_clause` | `Y/mapped_alternatives.rs` | ~30 | `shapes/rep_overload.scala`; fp2 | — |
