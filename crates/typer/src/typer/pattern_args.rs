@@ -68,8 +68,7 @@ impl Typer<'_> {
                 }
                 _ => false,
             };
-            if !single_named || args.iter().all(|&a| self.pattern_name(a).is_none_or(|n| names.contains(&n)))
-            {
+            if !single_named || args.iter().all(|&a| self.arg_name(a).is_none_or(|n| names.contains(&n))) {
                 return Ok((names, None));
             }
         }
@@ -116,12 +115,8 @@ impl Typer<'_> {
                 _ => a,
             })
             .collect();
-        let module = TName { name: self.name(&format!("scala.Tuple{}", values.len())), is_type: false };
-        let fun = self.ast.node(Tree::TypedSplice { sym: module });
-        self.ast.with_span(fun, self.ast.span(id).start_pos());
-        let args = self.ast.list(&values);
-        let app = self.ast.node(Tree::Apply { fun, args });
-        self.ast.with_span(app, self.ast.span(id));
+        let span = self.ast.span(id);
+        let app = self.tuple_apply(&values, span.start_pos(), span);
         self.typed(app, pt, ctx)
     }
 
@@ -145,13 +140,6 @@ impl Typer<'_> {
             .collect())
     }
 
-    fn pattern_name(&self, a: NodeId) -> Option<String> {
-        match *self.ast.tree(a) {
-            Tree::NamedArg { name, .. } => Some(self.text(name.name).to_owned()),
-            _ => None,
-        }
-    }
-
     /// Named patterns `args` placed at the elements `names` they name, a wildcard at the others
     /// (dotty's `adaptPatternArgs`).
     pub fn adapt_pattern_args(
@@ -161,7 +149,7 @@ impl Typer<'_> {
     ) -> Result<Vec<NodeId>, &'static str> {
         let mut placed = vec![None; names.len()];
         for &a in args {
-            let Some(name) = self.pattern_name(a) else { return Err("named and unnamed patterns") };
+            let Some(name) = self.arg_name(a) else { return Err("named and unnamed patterns") };
             let i = names.iter().position(|n| *n == name).ok_or("named pattern of no element")?;
             if placed[i].replace(a).is_some() {
                 return Err("duplicate named pattern");

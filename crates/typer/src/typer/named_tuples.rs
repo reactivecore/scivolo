@@ -9,7 +9,7 @@ use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::{List, NodeId, TName, Tree};
+use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::{Type, TypeId};
 
 const NAMED_TUPLE: &str = "scala.NamedTuple$.NamedTuple";
@@ -64,13 +64,7 @@ impl Typer<'_> {
     ) -> TNodeId {
         let names: Vec<String> = elems.iter().map(|(n, _)| n.clone()).collect();
         let args: Vec<NodeId> = elems.iter().map(|&(_, e)| e).collect();
-        let span = self.ast.span(id);
-        let module = TName { name: self.name(&format!("scala.Tuple{}", args.len())), is_type: false };
-        let fun = self.ast.node(Tree::TypedSplice { sym: module });
-        self.ast.with_span(fun, self.ast.span(args[0]).start_pos());
-        let args = self.ast.list(&args);
-        let app = self.ast.node(Tree::Apply { fun, args });
-        self.ast.with_span(app, span);
+        let app = self.tuple_apply(&args, self.ast.span(args[0]).start_pos(), self.ast.span(id));
         let named_pt = match pt {
             Pt::Type(t) => self.named_tuple_parts(t).filter(|(n, _)| *n == names).map(|(_, v)| (t, v)),
             _ => None,
@@ -89,6 +83,17 @@ impl Typer<'_> {
             Some(to) => self.type_cast(typed, to),
             None => self.unsupported(id, "named tuple classes missing from the library"),
         }
+    }
+
+    /// `scala.TupleN(args…)` at `span`, its function at `fun_at`.
+    pub fn tuple_apply(&mut self, args: &[NodeId], fun_at: Span, span: Span) -> NodeId {
+        let module = TName { name: self.name(&format!("scala.Tuple{}", args.len())), is_type: false };
+        let fun = self.ast.node(Tree::TypedSplice { sym: module });
+        self.ast.with_span(fun, fun_at);
+        let args = self.ast.list(args);
+        let app = self.ast.node(Tree::Apply { fun, args });
+        self.ast.with_span(app, span);
+        app
     }
 
     /// `qual.name` as `qual.$asInstanceOf$[V]._i` if `qual` is a named tuple with element `name`
