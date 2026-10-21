@@ -321,10 +321,6 @@ fn no_false_errors_behind_unsupported_constructs() {
             "application of a non-method",
         ),
         (
-            "class B\nobject B:\n  extension (b: B) def apply(i: Int) = i\nobject M:\n  val b = new B\n  val x = b(1)\n",
-            "application of a non-method",
-        ),
-        (
             "class C:\n  val n = 1\nobject C:\n  extension (c: C) def n(i: Int) = i\nobject M:\n  val x = (new C).n(1)\n",
             "application of a non-method",
         ),

@@ -4,6 +4,7 @@
 //! `tryConvertToSpecPattern`).
 
 use super::super::Cmp;
+use super::super::refs::Meaning;
 use crate::types::{Binder, Type, TypeId};
 use crate::{Kind, SymbolId};
 
@@ -18,6 +19,11 @@ pub enum Pattern {
         needs_concrete: bool,
     },
     CompileTimeS(Box<Pattern>),
+    /// An abstract or opaque type constructor applied to argument patterns.
+    AbstractTypeConstructor {
+        tycon: SymbolId,
+        args: Vec<Pattern>,
+    },
 }
 
 impl Pattern {
@@ -113,19 +119,14 @@ impl Cmp<'_> {
                 if !matches!(self.u.types().get(tycon), Type::Sym(..) | Type::TypeRef(..)) {
                     return Some(Pattern::TypeTest);
                 }
-                let s = self.named(tycon)?.sym?;
+                let named = self.named(tycon)?;
+                let s = named.sym?;
                 if self.u.symbol(s).kind == Kind::Class {
                     if let Some(pairs) = self.nested_pairs(s, &args) {
                         return self.spec_pattern(pairs, variance, captures, unaccounted);
                     }
                     let variances = self.u.variances(s);
-                    if variances.len() != args.len() {
-                        return None;
-                    }
-                    let mut pats = Vec::new();
-                    for (&a, &v) in args.iter().zip(&variances) {
-                        pats.push(self.spec_pattern(a, v, captures, unaccounted)?);
-                    }
+                    let pats = self.arg_patterns(&args, &variances, captures, unaccounted)?;
                     if pats.iter().all(|p| matches!(p, Pattern::TypeTest)) {
                         return Some(Pattern::TypeTest);
                     }
@@ -141,6 +142,14 @@ impl Cmp<'_> {
                         p => Some(Pattern::CompileTimeS(Box::new(p))),
                     };
                 }
+                if let Meaning::Abstract(..) = named.meaning {
+                    let variances = self.u.variances(s);
+                    let pats = self.arg_patterns(&args, &variances, captures, unaccounted)?;
+                    if pats.iter().all(|p| matches!(p, Pattern::TypeTest)) {
+                        return Some(Pattern::TypeTest);
+                    }
+                    return Some(Pattern::AbstractTypeConstructor { tycon: s, args: pats });
+                }
                 None
             }
             Type::Refined(_, _, info) if variance == 1 => match *self.u.types().get(info) {
@@ -151,5 +160,19 @@ impl Cmp<'_> {
             },
             _ => Some(Pattern::TypeTest),
         }
+    }
+
+    /// The patterns of type arguments `args` at `variances` (dotty's `recArgPatterns`).
+    fn arg_patterns(
+        &mut self,
+        args: &[TypeId],
+        variances: &[i8],
+        captures: (Binder, &[String]),
+        unaccounted: &mut [bool],
+    ) -> Option<Vec<Pattern>> {
+        if variances.len() != args.len() {
+            return None;
+        }
+        args.iter().zip(variances).map(|(&a, &v)| self.spec_pattern(a, v, captures, unaccounted)).collect()
     }
 }

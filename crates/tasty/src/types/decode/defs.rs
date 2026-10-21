@@ -106,12 +106,27 @@ impl Decoder<'_> {
         }
     }
 
-    /// The bounds of the opaque type defined at `id`, when it states them.
+    /// The bounds of the opaque type defined at `id`, when it states them; type lambdas over
+    /// both bounds for a parameterised one.
     pub fn opaque_bounds(&mut self, id: NodeId) -> Option<(TypeId, TypeId)> {
         let ast = self.ast;
         let rhs = ast.deref(*ast.kids(id).first()?);
-        let kids: Vec<NodeId> = ast.kids(rhs).iter().copied().filter(|&k| !is_modifier(ast.tag(k))).collect();
-        match (ast.tag(rhs), &kids[..]) {
+        if ast.tag(rhs) != LAMBDAtpt {
+            return self.bounds_with_alias(rhs);
+        }
+        let (body, params) = ast.kids(rhs).split_last()?;
+        let (lo, hi) = self.bounds_with_alias(*body)?;
+        let binder = self.binder(rhs);
+        let params: Vec<_> = params.iter().map(|&p| (self.name(p), self.kid(p, 0))).collect();
+        let lambda = |d: &mut Self, result| d.intern(Type::Lambda { binder, params: params.clone(), result });
+        Some((lambda(self, lo), lambda(self, hi)))
+    }
+
+    /// The bounds of `TYPEBOUNDStpt` node `id` if it also states an alias.
+    fn bounds_with_alias(&mut self, id: NodeId) -> Option<(TypeId, TypeId)> {
+        let ast = self.ast;
+        let kids: Vec<NodeId> = ast.kids(id).iter().copied().filter(|&k| !is_modifier(ast.tag(k))).collect();
+        match (ast.tag(id), &kids[..]) {
             (TYPEBOUNDStpt, [lo, hi, _, ..]) => Some((self.ty(*lo), self.ty(*hi))),
             _ => None,
         }

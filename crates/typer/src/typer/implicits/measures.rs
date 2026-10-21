@@ -39,7 +39,9 @@ impl Typer<'_> {
             Type::Applied(c, args) => [vec![c], args].concat(),
             Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
             Type::ByName(r) | Type::Annotated(r, _) => vec![r],
-            Type::NoPrefix | Type::Package(_) | Type::PackageName(_) => Vec::new(),
+            Type::NoPrefix | Type::Package(_) | Type::PackageName(_) | Type::Str(_) | Type::Constant(..) => {
+                Vec::new()
+            }
             _ => return Err(OUTSIDE),
         })
     }

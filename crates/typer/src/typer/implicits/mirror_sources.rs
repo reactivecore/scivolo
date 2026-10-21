@@ -18,6 +18,8 @@ pub enum MirrorSource {
     Singleton(SymbolId, TypeId),
     /// The elements of a `*:` chain.
     Tuple(Vec<TypeId>),
+    /// The names and value types of a named tuple.
+    NamedTuple(Vec<String>, Vec<TypeId>),
 }
 
 impl Typer<'_> {
@@ -61,7 +63,8 @@ impl Typer<'_> {
                     return Ok(Some(MirrorSource::Tuple(elems)));
                 }
                 if self.is_named_tuple(tycon) {
-                    return Err("Mirror of a named tuple");
+                    let (names, values) = self.named_tuple_parts(t).ok_or("Mirror of a named tuple")?;
+                    return Ok(Some(MirrorSource::NamedTuple(names, values)));
                 }
                 match self.u.dealias(t) {
                     d if d != t => Some(d),

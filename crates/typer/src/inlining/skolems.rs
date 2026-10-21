@@ -69,7 +69,8 @@ impl Inlining<'_> {
     }
 
     /// The skolem of argument `arg`: none if it applies a method to inferred type arguments and
-    /// then to more arguments or defines a class, refused if it has inferred types elsewhere.
+    /// then to more arguments or defines a class, refused if it has inferred types elsewhere than
+    /// in the synthetic ascription of a block's result or in an inline expansion.
     pub fn arg_skolem(&self, arg: TNodeId, skolem: Option<TypeId>) -> Result<Option<TypeId>, Unsupported> {
         let Some(skolem) = skolem.filter(|_| !self.defines_class(arg)) else { return Ok(None) };
         let is_inferred = |c: &TNodeId| matches!(self.tpd.tree(*c), T::TypeTree { inferred: true });
@@ -77,13 +78,17 @@ impl Inlining<'_> {
         let mut stack = vec![arg];
         while let Some(t) = stack.pop() {
             let children = self.tpd.children(t);
+            if let T::Inlined { .. } = self.tpd.tree(t) {
+                continue;
+            }
             if let T::TypeApply { args, .. } = *self.tpd.tree(t) {
                 let targs = self.tpd.items(args);
                 stack.extend(children.into_iter().filter(|c| !targs.contains(c)));
                 dropped |= targs.iter().any(is_inferred)
                     && matches!(self.u.types().get(self.tpd.tpe(t)), Type::Method { .. });
             } else {
-                other |= children.iter().any(is_inferred);
+                let avoided = matches!(self.tpd.tree(t), T::Typed { .. }) && self.tpd.span(t).is_synthetic();
+                other |= !avoided && children.iter().any(is_inferred);
                 stack.extend(children);
             }
         }

@@ -3,7 +3,7 @@
 //! The parts of a type whose companions make up its implicit scope (dotty's `collectParts`).
 
 use super::super::Typer;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId, TypeVars};
 
 /// The classes and the abstract and opaque types of a type's parts, each with the prefix it is
 /// referenced through if it is referenced directly.
@@ -29,6 +29,11 @@ impl Typer<'_> {
             Type::TypeRef(p, _) | Type::TermRef(p, _) => Some(p),
             Type::This(c) => return self.collect_parts(c, seen, parts),
             Type::Match { bound, .. } => return self.collect_parts(bound, seen, parts),
+            Type::Var(v) => {
+                let (lo, hi) = self.constraint.bounds(v);
+                self.collect_parts(lo, seen, parts);
+                return self.collect_parts(hi, seen, parts);
+            }
             _ => {
                 for part in self.children(t) {
                     self.collect_parts(part, seen, parts);
@@ -43,7 +48,12 @@ impl Typer<'_> {
         let class = match self.u.symbol(sym).kind.is_term() {
             true => {
                 let widened = self.u.widen(t);
-                if let Some(w) = self.referenced(widened)
+                let dealiased = self.u.dealias(widened);
+                let head = match *self.u.types().get(dealiased) {
+                    Type::Applied(tycon, _) => tycon,
+                    _ => dealiased,
+                };
+                if let Some(w) = self.referenced(head)
                     && self.u.symbol(w).kind == Kind::Type
                     && self.u.alias_of(w).is_none()
                 {

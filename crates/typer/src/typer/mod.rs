@@ -102,6 +102,7 @@ mod mismatch_text;
 mod name_clashes;
 mod named_args;
 mod named_overloads;
+mod named_tuple_types;
 mod named_tuples;
 mod names;
 mod no_inits;

@@ -103,7 +103,10 @@ impl Typer<'_> {
             },
             _ => match self.u.class_symbol(t) {
                 Some(c) => self.class_members(c, name),
-                None => Vec::new(),
+                None => match self.u.applied_opaque_upper(t) {
+                    Some(hi) => self.members_within(hi, name, within),
+                    None => Vec::new(),
+                },
             },
         }
     }
