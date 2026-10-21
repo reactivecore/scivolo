@@ -365,15 +365,20 @@ new-release version:
     #!/usr/bin/env bash
     set -euo pipefail
     v={{ quote(version) }}
-    [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "not a version: $v"; exit 1; }
+    num='(0|[1-9][0-9]*)'
+    pre="($num|[0-9]*[A-Za-z-][0-9A-Za-z-]*)"
+    [[ "$v" =~ ^$num\.$num\.$num(-$pre(\.$pre)*)?$ ]] || { echo "not a version: $v"; exit 1; }
     [ "$(git branch --show-current)" = main ] || { echo "not on main"; exit 1; }
     [ -z "$(git status --porcelain)" ] || { echo "the working tree is not clean"; exit 1; }
     if git rev-parse -q --verify "refs/tags/v$v" > /dev/null; then echo "tag v$v exists"; exit 1; fi
-    perl -pi -e 's/^version = "[^"]*"/version = "'"$v"'"/' Cargo.toml
-    grep -q "^version = \"$v\"$" Cargo.toml || { echo "no workspace version in Cargo.toml"; exit 1; }
+    trap 'git checkout -q -- Cargo.toml Cargo.lock README.md; echo "release failed; files restored"' ERR
+    perl -pi -e '$s = /^\[workspace\.package\]/ ? 1 : /^\[/ ? 0 : $s;
+        s/^version = "[^"]*"/version = "'"$v"'"/ if $s' Cargo.toml
+    grep -q "^version = \"$v\"$" Cargo.toml || { echo "no workspace version in Cargo.toml"; false; }
     perl -pi -e 's/^Welcome to Scivolo \S+/Welcome to Scivolo '"$v"'/' README.md
     cargo update -q --workspace
     git commit -q -am "Release $v"
+    trap - ERR
     git tag -a "v$v" -m "scivolo $v"
     echo "tagged v$v; push: git push origin main v$v && git push github main v$v"
 
