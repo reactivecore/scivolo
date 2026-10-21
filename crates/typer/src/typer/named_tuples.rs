@@ -126,6 +126,11 @@ impl Typer<'_> {
         let widened = self.u.widen(tpe);
         let (names, values) = self.named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
+        if names.iter().any(|n| n == "apply") {
+            return Some(
+                self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
+            );
+        }
         if values.len() > MAX_TUPLE_ARITY {
             return Some(self.indexed_element(id, qual, i, ctx));
         }
