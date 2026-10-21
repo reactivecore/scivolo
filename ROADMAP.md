@@ -64,7 +64,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,169 of 1,709 pass (2026-10-21); 300 stop at the typer, 18 at
+(`just dotty-lower-report`): 1,170 of 1,709 pass (2026-10-21); 298 stop at the typer, 18 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -95,7 +95,7 @@ typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 144 of 150
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 149 of 156
   test programs from source (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
