@@ -3,7 +3,7 @@
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Checks of references: access, values, `Local` members.
 
-use super::Typer;
+use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use syntax::ast::flags as f;
 use tasty::tags::PRIVATE;
@@ -26,15 +26,16 @@ impl Typer<'_> {
         self.unset_local(sym, prefix)
     }
 
-    /// Checks that term `name` for `sym`, neither a qualifier nor applied to (type) arguments, is a
-    /// value: no package, nor a Java class's object (dotty's `checkValue`).
+    /// Checks that term `name` for `sym`, neither a qualifier nor applied to (type) arguments by
+    /// `pt`, is a value: no package, nor a Java class's object (dotty's `checkValue`).
     pub fn check_value(
         &mut self,
         sym: SymbolId,
         name: syntax::ast::TName,
-        applied: bool,
+        pt: Pt,
         ctx: Ctx,
     ) -> Result<(), &'static str> {
+        let applied = matches!(pt, Pt::Fun(_) | Pt::PolyFun(_));
         if name.is_type || applied || ctx.mode.is(crate::ctx::Mode::QUALIFIER) {
             return Ok(());
         }
