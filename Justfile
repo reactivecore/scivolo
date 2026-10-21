@@ -380,7 +380,7 @@ new-release version:
     git commit -q -am "Release $v"
     trap - ERR
     git tag -a "v$v" -m "scivolo $v"
-    echo "tagged v$v; push: git push origin main v$v && git push github main v$v"
+    echo "created commit \"Release $v\" and tag v$v"
 
 # Print REPL transcripts (default: tests/repl) as Scala 3.9's REPL answers their inputs (JVM).
 repl-oracle *files:
