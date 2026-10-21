@@ -26,6 +26,7 @@ impl Typer<'_> {
             }
         };
         let mut typed = self.typed_stats(&stat_ids, pctx);
+        self.typed_annotations();
         let proxies = self.main_proxies(&typed, pctx);
         typed.extend(proxies);
         let stats = self.tpd.list(&typed);

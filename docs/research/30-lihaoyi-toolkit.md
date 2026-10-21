@@ -181,13 +181,16 @@ noDefaultName, positional, hidden)` (mainargs `Annotations.scala`) [V source]. T
 `addAnnotations` (`T/Namer.scala:943`), `typedAheadAnnotationClass` (`:1882`) and
 `typedAnnotation` (`T/Typer.scala:3049`) type any annotation as a `new C(args)` with named and
 default arguments and keep it on the symbol; phases react to the classes they know. **Fix (A1):**
-replace the allowlist by (1) typing every annotation whose class is a `StaticAnnotation`
-subclass as an application (named and default arguments included) and keeping the typed tree
+replace the allowlist by (1) typing every annotation whose class extends
+`scala.annotation.Annotation` (dotty's `checkAnnotClass`, `T/Checking.scala:1534`; any other is
+an error) as an application (named and default arguments included) and keeping the typed tree
 on the symbol — the source of `Symbol.annotations` for macros later (research 26 W2) — and (2)
 a *denylist* of annotations with code-generation semantics the lowering does not implement
-(`scala.scalanative.annotation.*` and `unsafe.*`: `extern`, `exported`, `stub`, `link`,
-`define`, `name`, `resolvedAtLinktime`, `alwaysinline`, `nooptimize`, `nospecialize`,
-`safePublish`; `scala.native`), refused as today. ~60 lines. After it, mainargs is a macro:
+(Scala Native's `NirDefinitions` annotations: `extern`, `blocking`, `exported`,
+`exportAccessors`, `stub`, `link`, `linkCppRuntime`, `define`, `name`, `resolvedAtLinktime`,
+`alwaysinline`, `nooptimize`, `nospecialize`, `safePublish`, `align`, `nonExtern`, `struct`,
+`EnableReflectiveInstantiation`; `scala.native`, `compileTimeOnly`, `threadUnsafe`, `scala.beans.BeanProperty`/
+`BooleanBeanProperty` and subclasses of `MainAnnotation`), refused as today. ~60 lines. After it, mainargs is a macro:
 `parserForMethods` (`mainargs/src-3/Macros.scala`) uses `Symbol.requiredClass`,
 `memberMethods`, `getAnnotation`/`annotations`, `paramSymss`, `primaryConstructor`,
 `companionModule`, `Symbol.tree` as `DefDef`/`ValDef`/`ClassDef`, `Expr.summon`, `Expr.ofList`,
