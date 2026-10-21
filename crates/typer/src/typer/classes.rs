@@ -161,10 +161,7 @@ impl Typer<'_> {
                     continue;
                 }
                 _ => {
-                    let name = format!("<local {}>", self.u.symbol(cls).name);
-                    let d = *dummy.get_or_insert_with(|| {
-                        self.syms.define(self.u, &name, Kind::Val, cls, syntax::ast::flags::EMPTY)
-                    });
+                    let d = *dummy.get_or_insert_with(|| self.local_dummy(cls));
                     ctx.with_owner(d)
                 }
             };
@@ -174,6 +171,14 @@ impl Typer<'_> {
         }
         self.finalize_derived(&out, &ctxs);
         (out, dummy)
+    }
+
+    /// The owner of the expressions in `owner` that belong to no member of it (dotty's
+    /// `newLocalDummy`), defined if no one has.
+    pub fn local_dummy(&mut self, owner: SymbolId) -> SymbolId {
+        let name = format!("<local {}>", self.u.symbol(owner).name);
+        crate::defn::entered(self.u, owner, &name, Kind::Val)
+            .unwrap_or_else(|| self.syms.define(self.u, &name, Kind::Val, owner, syntax::ast::flags::EMPTY))
     }
 
     /// Whether script class `c` may have members its declarations lack: one its self type

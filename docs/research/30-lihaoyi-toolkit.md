@@ -189,8 +189,8 @@ a *denylist* of annotations with code-generation semantics the lowering does not
 (Scala Native's `NirDefinitions` annotations: `extern`, `blocking`, `exported`,
 `exportAccessors`, `stub`, `link`, `linkCppRuntime`, `define`, `name`, `resolvedAtLinktime`,
 `alwaysinline`, `nooptimize`, `nospecialize`, `safePublish`, `align`, `nonExtern`, `struct`,
-`EnableReflectiveInstantiation`; `scala.native`, `compileTimeOnly`, `threadUnsafe`, `scala.beans.BeanProperty`/
-`BooleanBeanProperty` and subclasses of `MainAnnotation`), refused as today. ~60 lines. After it, mainargs is a macro:
+`EnableReflectiveInstantiation`; `scala.native`, `deprecatedName`, `compileTimeOnly`,
+`threadUnsafe`, `scala.beans.BeanProperty`/`BooleanBeanProperty`), refused as today. ~60 lines. After it, mainargs is a macro:
 `parserForMethods` (`mainargs/src-3/Macros.scala`) uses `Symbol.requiredClass`,
 `memberMethods`, `getAnnotation`/`annotations`, `paramSymss`, `primaryConstructor`,
 `companionModule`, `Symbol.tree` as `DefDef`/`ValDef`/`ClassDef`, `Expr.summon`, `Expr.ofList`,

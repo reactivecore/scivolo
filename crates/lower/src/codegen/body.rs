@@ -41,7 +41,7 @@ impl Gen<'_, '_> {
 
     /// The attributes the `@inline` and `@noinline` annotations of method `m` give.
     fn annotation_attrs(&self, m: SymbolId) -> Vec<Attr> {
-        let annotations = [("noinline", Attr::NoInline), ("inline", Attr::InlineHint)];
+        let annotations = [("scala.noinline", Attr::NoInline), ("scala.inline", Attr::InlineHint)];
         annotations.into_iter().filter(|(name, _)| self.l.u.is_annotated(m, name)).map(|(_, a)| a).collect()
     }
 

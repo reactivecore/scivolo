@@ -1,15 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/PostTyper.scala
-//   compiler/src/dotty/tools/dotc/typer/Checking.scala
 //   compiler/src/dotty/tools/dotc/typer/Namer.scala
-//   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Annotations of definitions: their classes resolved when the definitions are completed
-//! (dotty's `Namer.addAnnotations`), the annotations typed as `new` expressions once their
-//! package's statements are typed (`Typer.typedAnnotation`, `Checking.checkAnnotClass`).
+//! (dotty's `Namer.addAnnotations`), those refused, and the checks of those the typer acts on.
 
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
-use crate::typer::{Pt, Typer};
+use crate::typer::Typer;
 use syntax::ast::constant::Constant;
 use syntax::ast::flags as f;
 use syntax::ast::{NodeId, Tree};
@@ -17,8 +13,9 @@ use tasty::{Kind, SymbolId};
 
 /// The annotation classes refused: Scala Native's code-generation annotations, and those whose
 /// meaning dotty's later phases implement and the lowering does not.
-const REFUSED: [&str; 23] = [
+const REFUSED: [&str; 24] = [
     "scala.native",
+    "scala.deprecatedName",
     "scala.annotation.compileTimeOnly",
     "scala.annotation.threadUnsafe",
     "scala.beans.BeanProperty",
@@ -43,9 +40,6 @@ const REFUSED: [&str; 23] = [
     "scala.scalanative.unsafe.resolvedAtLinktime",
 ];
 
-/// The class whose subclasses' annotations are refused as well.
-const MAIN_ANNOTATION: &str = "scala.annotation.MainAnnotation";
-
 pub const STATIC: &str = "scala.annotation.static";
 
 impl Typer<'_> {
@@ -58,6 +52,10 @@ impl Typer<'_> {
             return;
         };
         let annots = self.ast.items(self.ast.modifiers(mods).annotations).to_vec();
+        if annots.is_empty() {
+            return;
+        }
+        let ctx = self.annot_ctx(sym, ctx);
         for annot in annots {
             let Some(class) = self.annotation_class(annot, ctx) else {
                 self.unsupported(annot, "annotation");
@@ -80,7 +78,7 @@ impl Typer<'_> {
             if self.defn.main_annot(self.u) == Ok(class) {
                 self.syms.main_annotations.insert(sym, self.ast.span(annot));
             }
-            if !self.syms.annotation_trees.iter().any(|&(_, a, _)| a == annot) {
+            if !self.syms.annotation_trees.iter().any(|&(s, a, _)| (s, a) == (sym, annot)) {
                 self.syms.annotation_trees.push((sym, annot, ctx));
             }
         }
@@ -143,43 +141,5 @@ impl Typer<'_> {
         if !(has_default && unrollable) {
             self.unsupported(annot, "@unroll other than on a defaulted parameter of a final method");
         }
-    }
-
-    /// Types the annotations of the unit's definitions not typed yet in their contexts and keeps
-    /// them on their symbols.
-    pub fn typed_annotations(&mut self) {
-        let mut i = 0;
-        while let Some(&(sym, annot, ctx)) = self.syms.annotation_trees.get(i) {
-            i += 1;
-            let typed = self.typed(annot, Pt::Any, ctx);
-            if self.is_error(typed) || !self.check_annot_class(annot, typed) {
-                continue;
-            }
-            let tpe = self.tpd.tpe(typed);
-            if self.u.class_symbol(tpe).is_some_and(|c| self.u.full_name(c) == STATIC) {
-                self.check_static(sym, annot);
-            }
-            self.syms.annotations.entry(sym).or_default().push(typed);
-        }
-        self.syms.annotation_trees.clear();
-    }
-
-    /// Whether typed annotation `typed` of tree `annot` is of a class that extends
-    /// `scala.annotation.Annotation` and no `MainAnnotation`; reports it if not.
-    fn check_annot_class(&mut self, annot: NodeId, typed: TNodeId) -> bool {
-        let tpe = self.tpd.tpe(typed);
-        let name = self.u.class_symbol(tpe).map(|c| self.u.full_name(c)).unwrap_or_default();
-        if self.derives_from_named(tpe, MAIN_ANNOTATION) {
-            self.unsupported(annot, &format!("annotation @{name}"));
-            return false;
-        }
-        if !self.derives_from_named(tpe, "scala.annotation.Annotation") {
-            let msg = format!(
-                "class {name} is not a valid Scala annotation: it does not extend `scala.annotation.Annotation`"
-            );
-            self.error(annot, msg);
-            return false;
-        }
-        true
     }
 }

@@ -30,7 +30,7 @@ pub fn needs_accessor_if_not_in_subclass(l: &Lower, sym: SymbolId, class: Symbol
     matches!(s.kind, Kind::Def | Kind::Val)
         && (s.flags.has(PROTECTED) || s.flags.has(PROTECTEDqualified))
         && !l.u.is_constructor(sym)
-        && !l.u.is_annotated(sym, "publicInBinary")
+        && !l.u.is_annotated(sym, "scala.annotation.publicInBinary")
         && s.owner.is_some_and(|o| !l.u.is_trait(o))
         && !is_java_static(l.u, sym)
         && !within(l, class, package_of(l, sym))

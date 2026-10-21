@@ -77,10 +77,12 @@ impl Typer<'_> {
         if widened != t && self.conforms(widened, bound) { widened } else { t }
     }
 
-    /// `t` with its singletons widened, also in intersections and, unless `skip_soft_unions`,
-    /// soft unions, whose parts then join if one contains the others (dotty's `widenSingletons`).
+    /// `t`, dealiased, with its singletons widened, also in intersections and, unless
+    /// `skip_soft_unions`, soft unions, whose parts then join if one contains the others; `t` if
+    /// nothing widens (dotty's `widenSingletons`).
     pub fn widen_singletons(&mut self, t: TypeId, skip_soft_unions: bool) -> TypeId {
-        match self.u.types().get(t).clone() {
+        let d = self.u.dealias(t);
+        match self.u.types().get(d).clone() {
             Type::Or(a, b, true) if !skip_soft_unions => {
                 let (wa, wb) = (self.widen_singletons(a, false), self.widen_singletons(b, false));
                 if (wa, wb) == (a, b) { t } else { self.u.lub(wa, wb) }
@@ -90,8 +92,8 @@ impl Typer<'_> {
                     (self.widen_singletons(a, skip_soft_unions), self.widen_singletons(b, skip_soft_unions));
                 if (wa, wb) == (a, b) { t } else { self.u.glb(wa, wb) }
             }
-            _ if self.is_singleton(t) => {
-                let widened = self.widened(t);
+            _ if self.is_singleton(d) => {
+                let widened = self.widened(d);
                 if self.is_singleton_bounded(widened) { t } else { widened }
             }
             _ => t,
