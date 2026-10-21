@@ -95,7 +95,7 @@ impl Typer<'_> {
         if let Err(what) = self.check_reference(sym, found.prefix, ctx) {
             return self.unsupported(id, what);
         }
-        if let Err(what) = self.check_value(sym, name, matches!(pt, Pt::Fun(_)), ctx) {
+        if let Err(what) = self.check_value(sym, name, matches!(pt, Pt::Fun(_) | Pt::PolyFun(_)), ctx) {
             return self.unsupported(id, what);
         }
         if found.prefix.is_some_and(|p| self.jdk_redeclares(sym, p)) {

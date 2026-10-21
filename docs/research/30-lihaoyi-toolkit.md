@@ -214,13 +214,16 @@ refuses a package as a value even when it is applied [V]. dotty's `checkValue`
 (`T/Typer.scala:773-779`) skips the check for a `FunOrPolyProto` or `SelectionProto`, and
 `tryInsertApplyOrImplicit` (`:4218-4243`) inserts `.apply` [V]. **Fix (P0):** no package check
 when `applied`, and the apply insertion resolves `apply` in the package object. ~20 lines [I].
+**Done:** no value check when applied to arguments or type arguments; the existing apply
+insertion finds `apply` among the package object's members (golden
+`typed/package_object_apply.scala`) [V].
 
 ## 3. Per library: what remains
 
 | library | typer / lowering | aot runtime | macros |
 |---|---|---|---|
 | ujson | — | — | — |
-| pprint | P0 (`pprint(x)`) | — | `TPrint` only (not in the test program) |
+| pprint | — (P0 done) | — | `TPrint` only (not in the test program) |
 | sourcecode | — | — | S1 (flags, predicates, `defn`); `Args` also `Symbol.tree` (left out) |
 | os-lib | F1; X1 (correctness, then E needed) | L1; threads for `os.proc` (open, ADR 0028) | E (path literals; only once X1 lands) |
 | fastparse | I1, O1, F1 | — [I] | S1 (`P`), E, literal patterns `case '{-1}` (P1 subset), `Match` construction (W4 subset), `=:=` (W1 subset) |
