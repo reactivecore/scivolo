@@ -115,17 +115,20 @@ In order of the tests they unblock:
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
    extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
    measured on `tests/run-macros`.
-3. **Startup** (#9): the VM's `run_main` from a heap snapshot.
-4. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
+3. **com-lihaoyi toolkit** (#144, [research 30](docs/research/30-lihaoyi-toolkit.md)): small
+   typer and AOT fixes for os-lib and fastparse, then the macro steps for sourcecode, fastparse,
+   upickle and mainargs, each measured by its library's test program.
+4. **Startup** (#9): the VM's `run_main` from a heap snapshot.
+5. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
    traits nested in local traits; classes extending `FunctionN` above 22
    (`FunctionXXLForwarders`), context results needing `Bridges` (implicitFuns), the rest of
    `TupleOptimizations` (#138), JDK forwarders (#135).
-5. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
+6. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
    polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
    inputs; the forward-reference check (#90).
-6. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
+7. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
    catches up.
-7. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+8. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just
