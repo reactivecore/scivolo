@@ -4,7 +4,8 @@
 //! `wildApprox`), as transparent inline methods constrain their results.
 
 use super::Typer;
-use tasty::{SymbolId, Type, TypeId, TypeVars};
+use crate::constraint::Constraint;
+use tasty::{SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 impl Typer<'_> {
     /// The type that constrains the result of method `meth`: `pt`, approximated by wildcards if
@@ -16,22 +17,28 @@ impl Typer<'_> {
         }
     }
 
-    /// `t` with its uninstantiated type variables replaced by wildcards of their bounds.
+    /// `t` with its uninstantiated type variables replaced by wildcards of their bounds, those
+    /// approximated in turn; a variable within its own bounds by an unbounded wildcard.
     pub fn wild_approx(&mut self, t: TypeId) -> TypeId {
         let t = self.zonk(t);
-        let constraint = &self.constraint;
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Var(v) = *u.types().get(part) else { return None };
-            let (lo, hi) = constraint.bounds(v);
-            let mut open = false;
-            for b in [lo, hi] {
-                u.map_type(b, &mut |u, x| {
-                    open |= matches!(u.types().get(x), Type::Var(_));
-                    None
-                });
-            }
-            let bounds = (!open).then(|| u.intern_type(Type::Bounds(lo, hi)));
-            Some(u.intern_type(Type::Wildcard(bounds)))
-        })
+        approx(self.u, &self.constraint, t, &mut Vec::new())
     }
+}
+
+fn approx(u: &mut Universe, constraint: &Constraint, t: TypeId, seen: &mut Vec<VarId>) -> TypeId {
+    u.map_type(t, &mut |u, part| {
+        let Type::Var(v) = *u.types().get(part) else { return None };
+        if let Some(inst) = constraint.instance(v) {
+            return Some(approx(u, constraint, inst, seen));
+        }
+        if seen.contains(&v) {
+            return Some(u.intern_type(Type::Wildcard(None)));
+        }
+        seen.push(v);
+        let (lo, hi) = constraint.bounds(v);
+        let (lo, hi) = (approx(u, constraint, lo, seen), approx(u, constraint, hi, seen));
+        seen.pop();
+        let bounds = u.intern_type(Type::Bounds(lo, hi));
+        Some(u.intern_type(Type::Wildcard(Some(bounds))))
+    })
 }
