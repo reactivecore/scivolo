@@ -26,7 +26,8 @@ impl Desugar<'_> {
                 return if mapped == trees { id } else { self.ast.node(Thicket { trees: mapped }) };
             }
             PackageDef { pid, stats } => {
-                PackageDef { pid: self.transform(pid), stats: self.transform_stats(stats) }
+                let new_pid = self.transform(pid);
+                PackageDef { pid: new_pid, stats: self.in_package(pid, |d| d.transform_stats(stats)) }
             }
             Select { qualifier, name } => Select { qualifier: self.transform(qualifier), name },
             Super { qual, mix } => Super { qual: self.transform(qual), mix },

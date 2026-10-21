@@ -50,6 +50,25 @@ impl Desugar<'_> {
         self.ast.derived(pdef, Tree::PackageDef { pid, stats })
     }
 
+    /// Run `f` inside the package that package clause name `pid` names.
+    pub fn in_package<T>(&mut self, pid: NodeId, f: impl FnOnce(&mut Self) -> T) -> T {
+        let package = self.package_name(pid);
+        let saved = std::mem::replace(&mut self.package, package);
+        let result = f(self);
+        self.package = saved;
+        result
+    }
+
+    fn package_name(&self, pid: NodeId) -> String {
+        let (prefix, name) = match *self.ast.tree(pid) {
+            Tree::Ident { name } if self.text(name) == "<empty>" => return String::new(),
+            Tree::Ident { name } => (self.package.clone(), name),
+            Tree::Select { qualifier, name } => (self.package_name(qualifier), name),
+            _ => return self.package.clone(),
+        };
+        if prefix.is_empty() { self.text(name).to_string() } else { format!("{prefix}.{}", self.text(name)) }
+    }
+
     /// `def <init>()` with no parameters (dotty's `emptyConstructor`).
     pub fn empty_constructor(&mut self) -> NodeId {
         let name = self.term("<init>");

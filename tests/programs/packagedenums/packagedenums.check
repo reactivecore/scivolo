@@ -1,0 +1,4 @@
+Red
+Green
+Failure(java.lang.IllegalArgumentException: enum shapes.Color has no case with name: Blue)
+Failure(java.util.NoSuchElementException: enum shapes.Color has no case with ordinal: 2)

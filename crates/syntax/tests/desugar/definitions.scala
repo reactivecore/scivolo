@@ -4,3 +4,8 @@ extension [A](a: A) def +:(b: List[A]): List[A] = b
 trait C:
   type T: Ordering
 class D
+enum E:
+  case A
+package q.r:
+  enum F:
+    case B

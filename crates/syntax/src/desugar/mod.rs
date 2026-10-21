@@ -85,6 +85,8 @@ pub struct Desugar<'a> {
     /// The class of each class definition met.
     class_ids: FxHashMap<NodeId, usize>,
     scope: Scope,
+    /// The full name of the enclosing package, empty for the empty package.
+    package: String,
 }
 
 impl<'a> Desugar<'a> {
@@ -108,6 +110,7 @@ impl<'a> Desugar<'a> {
             classes: Vec::new(),
             class_ids: FxHashMap::default(),
             scope: Scope::default(),
+            package: String::new(),
         }
     }
 
