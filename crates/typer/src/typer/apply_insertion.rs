@@ -68,9 +68,13 @@ impl Typer<'_> {
         if self.extension_visible("apply", ctx) {
             return Some(self.extension_select(id, f, name, pt, ctx));
         }
+        let unsupported = self.unsupported.clone();
         match self.viewed(f, Goal::Member("apply"), ctx) {
             Ok(Some(Viewed::Extension(c))) => Some(self.implicit_extension_select(id, f, c, name, pt, ctx)),
-            _ => None,
+            _ => {
+                self.unsupported = unsupported;
+                None
+            }
         }
     }
 }

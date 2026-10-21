@@ -19,9 +19,11 @@ pub enum Pattern {
         needs_concrete: bool,
     },
     CompileTimeS(Box<Pattern>),
-    /// An abstract or opaque type constructor applied to argument patterns.
+    /// An abstract or opaque type constructor, its reference and symbol, applied to argument
+    /// patterns.
     AbstractTypeConstructor {
-        tycon: SymbolId,
+        tycon: TypeId,
+        sym: SymbolId,
         args: Vec<Pattern>,
     },
 }
@@ -148,7 +150,7 @@ impl Cmp<'_> {
                     if pats.iter().all(|p| matches!(p, Pattern::TypeTest)) {
                         return Some(Pattern::TypeTest);
                     }
-                    return Some(Pattern::AbstractTypeConstructor { tycon: s, args: pats });
+                    return Some(Pattern::AbstractTypeConstructor { tycon, sym: s, args: pats });
                 }
                 None
             }
