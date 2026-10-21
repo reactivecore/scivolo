@@ -132,23 +132,23 @@ Abstract, Trait, Enum, HasDefault, Implicit, Lazy — the ones the six libraries
 ~80 Rust, ~80 Scala. Unblocks sourcecode `Name`/`FullName`/`Enclosing`/`Pkg`, fastparse's `P`
 (takes a `sourcecode.Name`), and the `flags` reads of upickle, mainargs and pprint's `TPrint`.
 
-### 2.7 AOT: link-time accessors computed from others (os.proc) — `A/codegen/linktime.rs:122-126`
+### 2.7 AOT: link-time accessors computed from others (os.proc) — `A/codegen/linktime/eval.rs`
 
 `GenericProcessWatcher.isEnabled` is `@resolvedAtLinktime def isEnabled = LinktimeInfo.
 isMultithreadingEnabled` (`ref/scala-native/javalib/src/main/scala/java/lang/process/
 GenericProcessWatcher.scala:13-14`) and `watchForTermination` tests it in a `linktime if` whose
 property *name* is the accessor's mangled name [V]. The VM resolves such a name by calling the
 accessor (`crates/vm/src/linktime.rs:128-141` `property_or_accessor`) [V]; the AOT's `decide`
-knows the `LinktimeInfo` accessors by name only (`A/codegen/linktime.rs:89-105`) and fails on
-any other [V]. **Fix (L1, done):** as Scala Native's `LinktimeValueResolver`
-(`interpretLinktimeDefn`), `decide` evaluates the body of the accessor a mangled property name
-names: `resolveProperty` reads, `linktime if`s and jumps to a `ret`, with the executable's
-property values (multithreading `false`, so `isEnabled` is `false` and no watcher thread
-starts); calls of such accessors become the constant. This replaces the table of `LinktimeInfo`
-accessors; test `tests/programs/linktime` (user accessors computed from others) [V]. After it,
-osl3 compiles as an executable and runs up to `os.proc(…).call()`, which stops in
-`Thread.startInternal` ("no definition of …UnsupportedFeature") [V]: `os.proc(…).call()` still starts pumper threads for stdout/stderr and a shutdown
-hook thread (os-lib `ProcessOps.scala` `spawn`) [V source] — executables are single-threaded (ADR
+knows the `LinktimeInfo` accessors by name only (before L1) and fails on any other [V].
+**Fix (L1, done):** as Scala Native's `LinktimeValueResolver` (`interpretLinktimeDefn`),
+`decide` evaluates the body of the accessor a mangled property name names: `resolveProperty`
+reads, `linktime if`s and jumps to a `ret`, with the executable's property values
+(multithreading `false`, so `isEnabled` is `false` and no watcher thread starts), once per
+accessor, refusing cycles; calls of such accessors become the constant. This replaces the table
+of `LinktimeInfo` accessors; test `tests/programs/linktime` (user accessors computed from
+others) [V]. After it, osl3 compiles as an executable and runs up to `os.proc(…).call()`,
+which stops in `Thread.startInternal` ("no definition of …UnsupportedFeature") [V]. The reason:
+`os.proc(…).call()` starts pumper threads for stdout/stderr and a shutdown hook thread (os-lib `ProcessOps.scala` `spawn`) [V source] — executables are single-threaded (ADR
 0028), so `call()` in an executable is open until #115 grows threads; the `os.proc` part of the
 test program runs through `scivolo --dep` (green threads), where it passes today.
 
@@ -252,7 +252,7 @@ Coursier cache, `crates/aot/tests/programs.rs:104-115`), and through `scivolo --
 | O1 poly after the receiver clause | §2.4 flattened `Poly` in `skip_param_clause` | `Y/mapped_alternatives.rs` | ~30 | `shapes/rep_overload.scala`; fp2 | — |
 | A1 annotations | §2.9 any `StaticAnnotation` typed and kept, denylist for native code-generation annotations | `Yn/annotations.rs`, `Y/` (typed annotation trees on symbols) | ~60 | a golden with a user annotation class with defaults and named arguments; ma's `@main`/`@arg` type | — |
 | I1 inline repeated parameters | §2.5 | `crates/typer/src/inlining/`, `Y/adapt.rs` | ~40 | dotty inline-param-semantics; fp `CharIn` | — (#82, one coder with the inliner) |
-| L1 aot link-time accessors | §2.7 accessor bodies evaluated in `decide` | `A/codegen/linktime.rs`, `blocks.rs` | ~40 | `tests/programs/linktime` | — (#115) |
+| L1 aot link-time accessors | §2.7 accessor bodies evaluated in `decide` | `A/codegen/linktime/`, `blocks.rs` | +260/−150 | `tests/programs/linktime` | — (#115) |
 | T1 os-lib program | `tests/aot/oslib` (files, `os.walk`, `os.copy`) + `os.proc` through `scivolo --dep` in `libraries.rs` | tests | ~40 | osl | F1, L1 |
 | S1 symbol flags | §2.6 `flags`, `kind`, `moduleClass` ops; `Flags`, `FlagsMethods`, `isX`, `defn` in the overlay | `M/positions.rs` (or a new `M/symbols.rs`), `O/ReflectSymbols.scala`, `O/ReflectImpl.scala`, `overlay/nir` rebuilt | ~80 + ~80 | `tests/aot/sourcecode` (`Line`, `File`, `Name`, `Enclosing`, `Pkg`, `Text`); fixture macro in `tests/macros/lib` | — |
 | E term extractors | §2.8, research 26 §3.3 | `M/reflect.rs` split by subject, `O/ReflectImpl.scala`, `crates/typer/src/tpd/build.rs` | ~150 + ~180 | fixture macros matching `Inlined`/`Literal`/`Typed`; os-lib `stringPathChunkValidated` via import (osl5c) | S1 (shared files) |

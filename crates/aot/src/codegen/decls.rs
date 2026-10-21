@@ -48,6 +48,7 @@ pub struct Decls {
     pub globals: FxHashMap<GlobalId, DataId>,
     /// Global variables and their sizes, which the collector scans.
     pub roots: Vec<(DataId, usize)>,
+    pub linktime: super::linktime::Linktime,
 }
 
 impl Decls {
@@ -79,6 +80,7 @@ impl Decls {
             shims: Vec::new(),
             globals: FxHashMap::default(),
             roots: Vec::new(),
+            linktime: Default::default(),
         })
     }
 
