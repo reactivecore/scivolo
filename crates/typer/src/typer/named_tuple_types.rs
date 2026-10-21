@@ -15,15 +15,18 @@ const MAX_ELEMENTS: usize = 256;
 impl Typer<'_> {
     /// Whether `t` widened is a named tuple (dotty's `isNamedTupleType`).
     pub fn is_named_tuple_type(&mut self, t: TypeId) -> bool {
-        let widened = self.u.widen(t);
-        self.named_tuple_args(widened).is_some()
+        self.stripped_named_tuple(t).is_some()
     }
 
-    /// The values tuple of `t` widened if that is a named tuple, else `t` (dotty's
-    /// `stripNamedTuple`).
-    pub fn strip_named_tuple(&mut self, t: TypeId) -> TypeId {
+    /// The values tuple of `t` widened if it is a named tuple (dotty's `stripNamedTuple`).
+    pub fn stripped_named_tuple(&mut self, t: TypeId) -> Option<TypeId> {
         let widened = self.u.widen(t);
-        self.named_tuple_args(widened).map_or(t, |(_, values)| values)
+        self.named_tuple_args(widened).map(|(_, values)| values)
+    }
+
+    /// The values tuple of `t` widened if that is a named tuple, else `t`.
+    pub fn strip_named_tuple(&mut self, t: TypeId) -> TypeId {
+        self.stripped_named_tuple(t).unwrap_or(t)
     }
 
     /// The names and values type arguments of named tuple `t`.

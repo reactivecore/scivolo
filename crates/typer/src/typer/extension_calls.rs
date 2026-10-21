@@ -28,7 +28,9 @@ impl Typer<'_> {
             Ok(Some(found)) => found.syms,
             _ => Vec::new(),
         };
-        if found.is_empty() || !found.iter().all(|&s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION)) {
+        let extension = |t: &Self, s: SymbolId| t.u.symbol(s).flags.has(tasty::tags::EXTENSION);
+        let method = |t: &Self, s: SymbolId| extension(t, s) || t.u.symbol(s).kind == Kind::Def;
+        if !found.iter().any(|&s| extension(self, s)) || !found.iter().all(|&s| method(self, s)) {
             return self.unsupported(id, "extension method among other definitions");
         }
         if found.iter().any(|&s| self.u.symbol(s).name != text) {
