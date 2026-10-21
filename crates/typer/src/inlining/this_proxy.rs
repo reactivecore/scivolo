@@ -12,7 +12,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Expansion<'_, '_> {
     /// The classes and proxies of the `this`es the call needs, innermost first, their bindings
-    /// put first: none if the method is a static object's or the call is inside its class, nor
+    /// put first: none if the method is local, a static object's or the call is inside its class, nor
     /// for its class if the body does not refer to its `this` and the prefix is idempotent.
     pub fn bind_this(
         &mut self,
