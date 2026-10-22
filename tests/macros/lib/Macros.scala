@@ -198,6 +198,10 @@ object Checks:
     report.error("flagged", x.asTerm.pos)
     x
 
+  inline def aborted(inline x: Int): Int = ${ abortedImpl('x) }
+  def abortedImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    throw new scala.quoted.runtime.StopMacroExpansion
+
   inline def sameType[A, B]: Boolean = ${ sameTypeImpl[A, B] }
   def sameTypeImpl[A: Type, B: Type](using Quotes): Expr[Boolean] =
     import quotes.reflect.*

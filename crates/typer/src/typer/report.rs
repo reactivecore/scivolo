@@ -28,9 +28,13 @@ impl Typer<'_> {
         self.error_tree(span)
     }
 
-    /// Reports an error at `span`, with its point as the position.
+    /// Reports an error at `span`, with its point as the position; without a position if `span`
+    /// does not exist or is in another source.
     pub fn error_at(&mut self, span: Span, msg: impl Into<Message>) {
-        self.diags.error_at(span.start(), span.end(), span.point(), msg);
+        match span.exists() && !span.is_in_other_source() {
+            true => self.diags.error_at(span.start(), span.end(), span.point(), msg),
+            false => self.diags.error_unpositioned(msg),
+        }
     }
 
     pub fn error_tree(&mut self, span: Span) -> TNodeId {

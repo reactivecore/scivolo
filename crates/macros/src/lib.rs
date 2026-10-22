@@ -46,6 +46,9 @@ impl Macros for VmMacros<'_> {
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             _ if !host.reported.is_empty() => Err(MacroError::Reported(std::mem::take(&mut host.reported))),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),
+            (Err(VmError::Uncaught(thrown)), None) if thrown.classes.iter().any(|c| c == STOP) => {
+                Err(MacroError::Aborted)
+            }
             (Err(VmError::Uncaught(thrown)), None) => Err(failure(&thrown)),
             (Err(e), None) => {
                 Err(MacroError::Unsupported(format!("a macro implementation the VM cannot run: {e}")))
@@ -53,6 +56,8 @@ impl Macros for VmMacros<'_> {
         }
     }
 }
+
+const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";
 
 /// The error dotty reports for exception `thrown`.
 fn failure(thrown: &Thrown) -> MacroError {

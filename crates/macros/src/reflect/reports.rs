@@ -12,12 +12,8 @@ impl Host {
             "error" => {
                 let tree = arg(args, 0)?;
                 let span = match tree {
-                    t if t >= 0 => self.tpd.span(self.tree(t as u32)?),
+                    t if t >= 0 => self.tpd.span(self.tree(t as u32)?).without_inlined_call(),
                     _ => self.expansion,
-                };
-                let span = match span.exists() && !span.is_in_other_source() {
-                    true => span,
-                    false => self.expansion,
                 };
                 self.reported.push((span, text.to_owned()));
                 numbers(Vec::new())

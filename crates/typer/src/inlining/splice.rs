@@ -13,6 +13,8 @@ use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
 const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
+const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
+                       errors to end-users when aborting a macro expansion with StopMacroExpansion.";
 
 impl Inlining<'_> {
     /// The expansion of `t`, owned by `owner`, if it is a splice: the macro's result, retyped
@@ -32,6 +34,12 @@ impl Inlining<'_> {
             Err(MacroError::Reported(errors)) => {
                 for (at, msg) in errors {
                     self.error(at, msg);
+                }
+                return Ok(Some(t));
+            }
+            Err(MacroError::Aborted) => {
+                if !self.host.has_errors() {
+                    self.error(span, ABORTED.to_owned());
                 }
                 return Ok(Some(t));
             }

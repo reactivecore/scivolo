@@ -55,6 +55,9 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   filled with a tree of the call's source takes the hole's span (`PickledQuotes.spliceTerms`).
 - **`report`**: errors are recorded on the host with their spans and reported for the expansion
   (`errorAndAbort` throws `StopMacroExpansion` after recording); warnings and infos are refused.
+  Type checks (`=:=`, `<:<`, `isExprOf`) run without type variables; a `false` on types the
+  universe may not decide (type variables, wildcards, match types, unresolved references) is
+  refused.
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.
