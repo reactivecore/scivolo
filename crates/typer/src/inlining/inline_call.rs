@@ -32,6 +32,9 @@ impl Inlining<'_> {
                 self.ctx = self.host.call_ctx(call);
             }
         }
+        if self.depth > 0 && self.tpd.sym(def).is_some_and(|m| self.u.within_opaques(m)) {
+            return Err((span, "inline call of an object with opaque types in an inline expansion"));
+        }
         let op = self.compiletime_op(call);
         if let Some(reduced) = self.intrinsic(op.as_deref(), call, owner)? {
             return Ok(reduced);
@@ -65,8 +68,11 @@ impl Inlining<'_> {
         let tpe = self.tpd.tpe(expansion);
         let tpe =
             self.avoid(tpe, &locals).ok_or((span, "inline expansion of a type referring to a binding"))?;
+        let expanded = self.tpd.tpe(expansion);
         let expansion = self.sealed(&locals, expansion, tpe)?;
         let bindings = self.tpd.list(&bindings);
-        Ok(self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None))
+        let inlined =
+            self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None);
+        self.sealed_opaques(inlined, call, &locals, expanded)
     }
 }
