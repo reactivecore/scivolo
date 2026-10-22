@@ -122,9 +122,7 @@ impl Vm {
                 None => u,
             })
         };
-        let ran = self.run_threads(main);
-        self.heap.end_training(false);
-        match ran {
+        match self.run_threads(main) {
             Ok(()) => Ok(()),
             Err(u) => match u.into_inner() {
                 interp::Unwound::Throw(exc) => Err(VmError::Uncaught(Box::new(self.thrown(exc)))),
@@ -136,9 +134,10 @@ impl Vm {
     /// The program's arguments array after initializing the runtime with C `argc` and `argv`.
     fn init_runtime(&mut self, argc: usize, argv: usize) -> Flow {
         let runtime = self.world.top(RUNTIME);
-        let module = self.module(runtime)? as u64;
         let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
-        let args = self.call_global(init, &[module, argc as u64, argv as u64]);
+        let args = self
+            .module(runtime)
+            .and_then(|module| self.call_global(init, &[module as u64, argc as u64, argv as u64]));
         self.heap.end_training(args.is_ok());
         args
     }

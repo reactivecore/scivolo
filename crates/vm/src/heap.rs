@@ -39,7 +39,6 @@ impl Heap {
         if STARTED.swap(true, Ordering::SeqCst) {
             return Err("the collector serves one VM per process".into());
         }
-        let region = Region::map();
         let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
         // SAFETY: each address is the named C runtime function, whose C signature the type the
         // result is assigned to spells out.
@@ -57,6 +56,7 @@ impl Heap {
         };
         // SAFETY: as above.
         let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scivolo_GC_init")?) };
+        let region = Region::map();
         init(stack.0, stack.1);
         Ok(Self { cur: 0, end: 0, allocated: 0, region, gc })
     }
