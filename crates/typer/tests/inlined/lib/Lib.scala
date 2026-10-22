@@ -33,3 +33,11 @@ object Lib:
   inline def firstOr(o: Option[Int]): Int = inline o match
     case Some(v) => v
     case _ => 0
+  inline def sepOr(inline min: Int = 0, inline sep: => String = null): String =
+    if sep == null then "none " + min else sep
+  inline def elemCount[T](using m: deriving.Mirror.Of[T]): Int = inline m match
+    case p: deriving.Mirror.ProductOf[T] => size[p.MirroredElemTypes]
+    case s: deriving.Mirror.SumOf[T] => size[s.MirroredElemTypes]
+  inline def size[T <: Tuple]: Int = inline compiletime.erasedValue[T] match
+    case _: EmptyTuple => 0
+    case _: (t *: ts) => 1 + size[ts]

@@ -5,7 +5,6 @@
 //! goal, and `typedImplicit` adapting the reference).
 
 use super::super::{Pt, Typer};
-use super::candidates::Candidate;
 use super::search::MISFITS;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -24,23 +23,6 @@ impl Typer<'_> {
             false => t,
         };
         (!matches!(self.u.types().get(t), Type::Method { .. } | Type::Poly { .. })).then_some(t)
-    }
-
-    /// Whether `found` has a candidate other than `winner` that does not rank below it by
-    /// taking explicit parameters where `winner` does not.
-    pub fn has_rivals(&mut self, winner: Candidate, found: &[Candidate]) -> bool {
-        let winner_method = self.takes_explicit_params(winner);
-        found.iter().any(|&c| c != winner && (winner_method || !self.takes_explicit_params(c)))
-    }
-
-    /// Whether candidate `c` takes explicit parameters after its implicit clauses.
-    fn takes_explicit_params(&mut self, c: Candidate) -> bool {
-        let mut t = self.alt_type(c);
-        if let Type::Poly { result, .. } = *self.u.types().get(t) {
-            t = result;
-        }
-        let t = self.strip_implicit(t);
-        matches!(self.u.types().get(t), Type::Method { .. })
     }
 
     /// Method reference `tree` eta-expanded to function type `pt`; a misfit if it refers to an

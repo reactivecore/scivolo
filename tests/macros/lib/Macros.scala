@@ -26,6 +26,18 @@ object Macros:
 
   inline def plusOneTwice(inline x: Int): Int = ${ twiceImpl('{ x + 1 }) }
 
+  inline def orNull(x: String): String = ${ orNullImpl('x, null, true, 2, "?") }
+  def orNullImpl(x: Expr[String], fallback: String, on: Boolean, n: Int, suffix: String)(using
+      Quotes
+  ): Expr[String] =
+    if fallback == null && on && n == 2 && suffix == "?" then '{ $x + "?" } else '{ "unexpected" }
+
+  inline def boxed(x: String): String = ${ boxedImpl('x, 2, 'c', 3L, 1.5, ()) }
+  def boxedImpl[T](x: Expr[String], n: Any, c: T, l: AnyVal, d: Matchable, u: Unit)(using
+      Quotes
+  ): Expr[String] =
+    if n == 2 && c == 'c' && l == 3L && d == 1.5 && u == () then '{ $x + "!" } else '{ "unexpected" }
+
   inline def wrapped[T](x: T): List[T] = ${ wrappedImpl('x) }
   def wrappedImpl[T: Type](x: Expr[T])(using Quotes): Expr[List[T]] = typed('{ List($x) })(using Type.of[List[T]])
   def typed[U: Type](e: Expr[U])(using Quotes): Expr[U] = '{ identity[U]($e) }

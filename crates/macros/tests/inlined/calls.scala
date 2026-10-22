@@ -9,3 +9,5 @@ object Calls:
   val e = incremented(41)
   def f(n: Int) = plusOneTwice(n)
   val g = wrapped(1L)
+  val h = orNull("x")
+  val i = boxed("x")

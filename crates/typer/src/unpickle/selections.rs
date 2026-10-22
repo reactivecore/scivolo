@@ -40,6 +40,12 @@ impl Unpickler<'_> {
             Type::Package(p) => self.u.decl(p, &name).unwrap_or_default(),
             _ => self.u.member_of_type(prefix, &name),
         };
+        let refined = is_type && !found.iter().any(|&s| self.u.is_type_symbol(s));
+        if refined && self.u.refinement_named(prefix, &name).is_some() {
+            let tpe = self.u.intern_type(Type::TypeRef(prefix, name));
+            let name = self.tname(id, true);
+            return Ok(self.bare(T::Select { qualifier: qual, name }, Some(tpe), None));
+        }
         let sym = self.at_signature(found, id, is_type)?;
         Ok(self.selection(id, qual, prefix, sym, is_type))
     }

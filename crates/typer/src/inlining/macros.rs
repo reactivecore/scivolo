@@ -3,14 +3,16 @@
 use super::Lent;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
+use syntax::ast::constant::Constant;
 use tasty::{SymbolId, TypeId};
 
-/// An argument of a macro implementation: a quoted expression, a type or the `Quotes`.
-#[derive(Clone, Copy, Debug)]
+/// An argument of a macro implementation: a quoted expression, a type, the `Quotes` or a literal.
+#[derive(Clone, Debug)]
 pub enum MacroArg {
     Expr(TNodeId),
     Type(TypeId),
     Quotes,
+    Literal(Constant),
 }
 
 /// A call of macro implementation `method` with `args`, from a splice owned by `owner`.

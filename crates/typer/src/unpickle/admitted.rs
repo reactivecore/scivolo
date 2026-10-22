@@ -25,6 +25,7 @@ impl Unpickler<'_> {
                     let is_type = matches!(u.types().get(part), Type::TypeRef(..));
                     match u.resolve(p, &n, is_type) {
                         Some(_) => None,
+                        None if is_type && u.refinement_named(p, &n).is_some() => None,
                         None => Some("unresolved reference in a library inline body"),
                     }
                 }

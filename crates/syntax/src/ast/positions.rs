@@ -34,6 +34,16 @@ impl Ast {
         self.get_mut(id).span = span;
     }
 
+    /// Records `span`, the parentheses around `id` that desugaring drops.
+    pub fn set_parens_span(&mut self, id: NodeId, span: Span) {
+        self.parens.insert(id, span);
+    }
+
+    /// The span of the parentheses desugaring dropped around `id` (dotty's `Parens`), if any.
+    pub fn parens_span(&self, id: NodeId) -> Option<Span> {
+        self.parens.get(&id).copied()
+    }
+
     /// Position `id` at `span` unless it already has a source-derived span (dotty's `atSpan`).
     pub fn at_span(&mut self, id: NodeId, span: Span) -> NodeId {
         let old = self.span(id);
