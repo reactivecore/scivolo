@@ -8,6 +8,7 @@
 //! after the class's own.
 
 mod accessor;
+mod thread_unsafe;
 
 use super::lazy_init::init_method;
 use super::lazy_trees::object;
@@ -58,6 +59,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         }
         if is_eager_module(l, accessor) {
             stats.extend(eager_module(l, accessor, stat, rhs));
+            continue;
+        }
+        if thread_unsafe::is_thread_unsafe(l, accessor) {
+            let lazy = define(l, class, accessor);
+            stats.extend(thread_unsafe::members(l, &lazy, stat, rhs)?);
             continue;
         }
         let defs = l.lazy_vals()?;
@@ -125,7 +131,7 @@ pub fn name_members(l: &mut Lower, accessor: SymbolId) {
     let members = l.lazy_members[&accessor];
     let field_name = fresh(l, &format!("{name}$lzy"));
     l.u.rename(members.field, &field_name);
-    if is_eager_module(l, accessor) {
+    if is_eager_module(l, accessor) || thread_unsafe::is_thread_unsafe(l, accessor) {
         return;
     }
     let init_name = fresh(l, &format!("{name}$lzyINIT"));

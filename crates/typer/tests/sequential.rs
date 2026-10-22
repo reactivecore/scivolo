@@ -401,10 +401,6 @@ fn constructs_diverging_from_dotty_are_refused() {
             "no implicit argument",
         ),
         (
-            "class B[T](val t: T) { def this() = this(null.asInstanceOf[T]) }",
-            "secondary constructor call of a polymorphic class",
-        ),
-        (
             "class A(x: Int) { def this(s: String) = this(); def this() = this(0) }",
             "secondary constructor calling a later constructor",
         ),

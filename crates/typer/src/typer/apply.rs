@@ -191,10 +191,7 @@ impl Typer<'_> {
             Type::Sym(Some(class), s)
                 if self.u.symbol(s).name == "<init>" && self.u.symbol(s).kind == Kind::Def =>
             {
-                if let Type::This(c) = *self.u.types().get(class) {
-                    if self.u.class_symbol(c).is_some_and(|c| !self.u.type_params(c).is_empty()) {
-                        return self.unsupported(id, "secondary constructor call of a polymorphic class");
-                    }
+                if let Type::This(_) = *self.u.types().get(class) {
                     result
                 } else if partial {
                     result
