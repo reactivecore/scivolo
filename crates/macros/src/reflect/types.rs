@@ -5,6 +5,7 @@
 use super::constants::encoded;
 use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
+use tasty::tags::CLASSconst;
 use tasty::{Type, TypeId};
 use typer::tpd::constant_of;
 
@@ -29,6 +30,9 @@ impl Host {
             }
             "constantType" => {
                 let t = self.type_of(arg(0)? as u32)?;
+                if matches!(*self.u.types().get(t), Type::Constant(tag, _) if tag == CLASSconst) {
+                    return Err("ConstantType of a class constant");
+                }
                 Ok(constant_of(&self.u, t).map_or((Vec::new(), None), encoded))
             }
             "typeConstructorOf" => {

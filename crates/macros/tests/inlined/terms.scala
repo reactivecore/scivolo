@@ -23,3 +23,4 @@ object Terms:
   val q = segments("a/b")
   val r = segments(n)
   val s = words("x y")
+  val t = shapeUnderlying { val x = 1; x }
