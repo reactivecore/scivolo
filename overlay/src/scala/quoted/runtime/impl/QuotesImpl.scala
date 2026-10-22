@@ -8,7 +8,7 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
 /** The `Quotes` a macro runs with: quotes unpickled into the frontend's trees, quote patterns of
  *  a typed term hole, the subset of `reflect` of `ReflectImpl`; everything else `Unsupported`.
  */
-final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTermSupport,
+final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTreeSupport, ReflectTermSupport,
     ReflectTypeSupport, ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
@@ -16,7 +16,8 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   extension [T](self: Expr[T]) {
     def show: String = throw new Unsupported("Expr.show")
     def matches(that: Expr[Any]): Boolean = throw new Unsupported("Expr.matches")
-    def valueOrAbort(using fromExpr: FromExpr[T]): T = throw new Unsupported("Expr.valueOrAbort")
+    def valueOrAbort(using fromExpr: FromExpr[T]): T =
+      fromExpr.unapply(self)(using this).getOrElse(throw new Unsupported("Expr.valueOrAbort of no known value"))
   }
 
   extension (self: Expr[Any]) {

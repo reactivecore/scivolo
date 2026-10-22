@@ -13,7 +13,7 @@ trait ReflectSupport { this: QuotesImpl =>
  *  method of the class, which refuses the expansion.
  */
 abstract class ReflectImpl
-    extends reflectModule, ReflectTerms, ReflectTypes, ReflectConstants, ReflectSymbols, ReflectFlags {
+    extends reflectModule, ReflectTrees, ReflectTerms, ReflectTypes, ReflectConstants, ReflectSymbols, ReflectFlags {
   self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]

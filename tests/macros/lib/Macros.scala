@@ -131,6 +131,58 @@ object Symbols:
     ).collect { case (n, true) => n }
     s"${s.name}: ${kinds.mkString(" ")}; ${flags.mkString(" ")}"
 
+object Terms:
+  inline def shape(inline x: Any): String = ${ shapeImpl('x) }
+  def shapeImpl(x: Expr[Any])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(show(x.asTerm))
+
+  inline def shapeUnderlying(inline x: Any): String = ${ shapeUnderlyingImpl('x) }
+  def shapeUnderlyingImpl(x: Expr[Any])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(show(x.asTerm.underlyingArgument))
+
+  inline def known(inline x: Int): String = ${ knownImpl('x) }
+  def knownImpl(x: Expr[Int])(using Quotes): Expr[String] = Expr(x.value.fold("unknown")(v => s"known $v"))
+
+  inline def knownText(inline x: String): String = ${ knownTextImpl('x) }
+  def knownTextImpl(x: Expr[String])(using Quotes): Expr[String] = Expr(x.valueOrAbort.reverse)
+
+  inline def count(inline xs: Int*): Int = ${ countImpl('xs) }
+  def countImpl(xs: Expr[Seq[Int]])(using Quotes): Expr[Int] = xs match
+    case Varargs(es) => Expr(es.size)
+    case _           => Expr(-1)
+
+  inline def segments(s: String): Array[String] = ${ segmentsImpl('s) }
+  def segmentsImpl(s: Expr[String])(using Quotes): Expr[Array[String]] =
+    import quotes.reflect.*
+    s.asTerm match
+      case Inlined(_, _, Literal(StringConstant(l))) => Expr(l.split('/'))
+      case _                                         => '{ $s.split('/') }
+
+  inline def words(inline s: String): List[String] = ${ wordsImpl('s) }
+  def wordsImpl(s: Expr[String])(using Quotes): Expr[List[String]] = Expr(s.valueOrAbort.split(' ').toList)
+
+  private def show(using Quotes)(t: quotes.reflect.Tree): String =
+    import quotes.reflect.*
+    def all(ts: List[Tree]) = ts.map(show).mkString(", ")
+    t match
+      case Inlined(call, bindings, e) => s"Inlined(${call.isDefined}, [${all(bindings)}], ${show(e)})"
+      case Literal(c)                 => s"Literal(${c.value})"
+      case Typed(e, tpt)              => s"Typed(${show(e)}, ${show(tpt)})"
+      case Block(stats, e)            => s"Block([${all(stats)}], ${show(e)})"
+      case Apply(f, args)             => s"Apply(${show(f)}, [${all(args)}])"
+      case TypeApply(f, args)         => s"TypeApply(${show(f)}, [${all(args)}])"
+      case Select(q, n)               => s"Select(${show(q)}, $n)"
+      case Ident(n)                   => s"Ident($n)"
+      case Repeated(es, tpt)          => s"Repeated([${all(es)}], ${show(tpt)})"
+      case NamedArg(n, a)             => s"NamedArg($n, ${show(a)})"
+      case ValDef(n, tpt, rhs)        => s"ValDef($n, ${show(tpt)}, ${rhs.map(show)})"
+      case Inferred()                 => "Inferred"
+      case tpt: TypeTree              => s"TypeTree(${tpt.tpe.typeSymbol.name})"
+      case t: Term                    => "Term"
+      case _                          => "Tree"
+
 object Tuples:
   import scala.compiletime.{constValue, erasedValue}
 

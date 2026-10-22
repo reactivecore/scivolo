@@ -6,6 +6,7 @@ mod constants;
 mod positions;
 mod symbols;
 mod terms;
+mod trees;
 mod types;
 
 pub use symbols::Made;
@@ -25,8 +26,14 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 5] =
-            [Host::run_term, Host::run_type, Host::run_constant, Host::run_symbol, Host::run_position];
+        let subjects: [Run; 6] = [
+            Host::run_tree,
+            Host::run_term,
+            Host::run_type,
+            Host::run_constant,
+            Host::run_symbol,
+            Host::run_position,
+        ];
         for run in subjects {
             match run(self, op, args, text) {
                 Err(e) if e == UNKNOWN => continue,
@@ -37,7 +44,8 @@ impl Host {
     }
 
     fn reflect(&mut self) -> Reflect<'_> {
-        Reflect { u: &mut self.u, tpd: &mut self.tpd, names: &mut self.names }
+        let span = self.expansion;
+        Reflect { u: &mut self.u, tpd: &mut self.tpd, names: &mut self.names, span }
     }
 }
 

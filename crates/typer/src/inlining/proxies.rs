@@ -25,7 +25,10 @@ impl Expansion<'_, '_> {
     ) -> Result<TypeId, Unsupported> {
         let i = &mut *self.i;
         if matches!(i.tpd.tree(arg), T::Typed { .. }) {
-            return Err(self.err("repeated inline argument"));
+            let t = i.tpd.tpe(arg);
+            if i.u.class_symbol(t).is_some_and(|c| i.u.full_name(c) == "scala.<repeated>") {
+                return Err(self.err("repeated inline argument"));
+            }
         }
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
         let inline = i.is_inline_param_type(formal);

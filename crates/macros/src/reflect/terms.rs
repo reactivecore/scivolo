@@ -15,6 +15,27 @@ impl Host {
                 let u = self.reflect().underlying(t);
                 numbers(vec![self.add_tree(u) as i32])
             }
+            "underlyingArgument" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let u = self.reflect().underlying_argument(t);
+                numbers(vec![self.add_tree(u) as i32])
+            }
+            "tpe" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let tpe = self.tpd.get(t).tpe.ok_or("the type of a tree without one")?;
+                numbers(vec![self.add_type(tpe) as i32])
+            }
+            "typeTree" => {
+                let tpe = self.type_of(arg(0)? as u32)?;
+                let t = self.reflect().type_tree(tpe);
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "repeated" => {
+                let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
+                let (&elemtpt, elems) = trees.split_last().ok_or("Repeated without its element type")?;
+                let t = self.reflect().repeated(elems, elemtpt);
+                numbers(vec![self.add_tree(t) as i32])
+            }
             "ref" => {
                 let t = self.reflect().ref_(symbol(arg(0)?)?)?;
                 numbers(vec![self.add_tree(t) as i32])

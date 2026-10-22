@@ -135,6 +135,7 @@ impl Printer<'_> {
         match tree {
             Tree::ClassLiteral { tpe } => write!(self.out, " :#Class:{}", types::tpe(self.u, tpe)).unwrap(),
             Tree::Alternative { .. } | Tree::NamedArg { .. } | Tree::SeqLiteral { .. } => {}
+            Tree::Inlined { expansion, .. } if !self.is_term_or_type(expansion) => {}
             _ => {
                 if let Some(t) = node.tpe {
                     write!(self.out, " :{}", types::tpe(self.u, t)).unwrap();
@@ -143,6 +144,16 @@ impl Printer<'_> {
         }
         self.fields(&mut tree);
         self.out.push(')');
+    }
+
+    /// Whether `t` is a term or a type tree for dotty (`isTerm`, `isType`): an `Inlined` tree is
+    /// what its expansion is.
+    fn is_term_or_type(&self, t: TNodeId) -> bool {
+        match *self.tpd.tree(t) {
+            Tree::Alternative { .. } | Tree::NamedArg { .. } | Tree::SeqLiteral { .. } => false,
+            Tree::Inlined { expansion, .. } => self.is_term_or_type(expansion),
+            _ => true,
+        }
     }
 }
 

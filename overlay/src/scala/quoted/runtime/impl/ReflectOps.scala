@@ -31,7 +31,22 @@ object ReflectOps {
     case _            => throw new Unsupported("flags the frontend does not know")
   }
 
+  /** The kind of tree `x`: 1 `Ident`, 2 `Select`, 3 `Literal`, 4 `Typed`, 5 `Apply`, 6 `TypeApply`,
+   *  7 `Block`, 8 `Inlined`, 9 `Repeated`, 10 `TypeTree`, 11 `Inferred`, 12 `ValDef`, 13 `NamedArg`,
+   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 0 another tree.
+   */
+  def kind(x: Any): Int = one("treeKind", id(x))
+
+  /** The kind of tree `x`, its children in the extractor's order and its name. */
+  def shape(x: Any): Shape = {
+    val n = run("tree", Array(id(x)), null)
+    new Shape(QuoteHost.result(0), List.tabulate(n - 1)(i => QuoteHost.result(i + 1)), QuoteHost.resultText())
+  }
+
   def term(id: Int): Any = QuoteHost.expr(id)
+
+  /** Expression `id`, if there is one. */
+  def opt(id: Int): Option[Any] = if (id < 0) None else Some(term(id))
 
   def id(x: Any): Int = x match {
     case e: ExprImpl   => QuoteHost.exprId(e)
@@ -39,6 +54,18 @@ object ReflectOps {
     case s: SymbolImpl => s.id
     case _             => throw new Unsupported("a quotes.reflect value made outside the frontend")
   }
+}
+
+final class Shape(val kind: Int, val children: List[Int], val name: String) {
+  def child(i: Int): Any = ReflectOps.term(children(i))
+
+  /** The children from the `i`th on. */
+  def from(i: Int): List[Any] = children.drop(i).map(ReflectOps.term)
+}
+
+/** The type test of trees of kinds `kinds`. */
+final class KindTest(kinds: Int*) extends scala.reflect.TypeTest[Any, Any] {
+  def unapply(x: Any): Option[x.type & Any] = if (kinds.contains(ReflectOps.kind(x))) Some(x) else None
 }
 
 final class SymbolImpl(val id: Int) {

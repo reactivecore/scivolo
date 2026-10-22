@@ -2,6 +2,8 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 package scala.quoted.runtime.impl
 
+import scala.reflect.TypeTest
+
 /** The constants of `quotes.reflect`. */
 trait ReflectConstantSupport { this: QuotesImpl =>
 
@@ -10,6 +12,18 @@ trait ReflectConstants extends reflectModule { self: reflect.type =>
   given ConstantMethods: ConstantMethods =
     QuoteHost.allocate("scala.quoted.runtime.impl.ReflectConstantSupport$ReflectConstants$ConstantMethodsImpl")
       .asInstanceOf[ConstantMethods]
+
+  given BooleanConstantTypeTest: TypeTest[Constant, BooleanConstant] = test(3)
+  given ByteConstantTypeTest: TypeTest[Constant, ByteConstant] = test(10)
+  given ShortConstantTypeTest: TypeTest[Constant, ShortConstant] = test(11)
+  given IntConstantTypeTest: TypeTest[Constant, IntConstant] = test(1)
+  given LongConstantTypeTest: TypeTest[Constant, LongConstant] = test(2)
+  given FloatConstantTypeTest: TypeTest[Constant, FloatConstant] = test(6)
+  given DoubleConstantTypeTest: TypeTest[Constant, DoubleConstant] = test(5)
+  given CharConstantTypeTest: TypeTest[Constant, CharConstant] = test(4)
+  given StringConstantTypeTest: TypeTest[Constant, StringConstant] = test(7)
+  given UnitConstantTypeTest: TypeTest[Constant, UnitConstant] = test(9)
+  given NullConstantTypeTest: TypeTest[Constant, NullConstant] = test(8)
 
   object Constant extends ConstantModule
   object BooleanConstant extends BooleanConstantModule {
@@ -68,5 +82,15 @@ trait ReflectConstants extends reflectModule { self: reflect.type =>
 
   private def constant(kind: Int, bits: Long): Constant =
     new ConstantImpl(kind, bits.toInt, (bits >>> 32).toInt, null).asInstanceOf[Constant]
+
+  private def test[T](kind: Int): T = new ConstantKindTest(kind).asInstanceOf[T]
 }
+}
+
+/** The type test of constants of kind `kind`. */
+final class ConstantKindTest(kind: Int) extends TypeTest[Any, Any] {
+  def unapply(x: Any): Option[x.type & Any] = x match {
+    case c: ConstantImpl if c.kind == kind => Some(x)
+    case _                                 => None
+  }
 }
