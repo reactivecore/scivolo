@@ -21,6 +21,10 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> TNodeId {
         let fun = self.normalized_poly_body(body);
+        let (targs, fun, span) = match self.poly_value_without_context_bounds(id, targs, fun) {
+            Ok(eliminated) => eliminated,
+            Err(what) => return self.unsupported(id, what),
+        };
         let Tree::Function { args, body: fbody, mods: None, .. } = *self.ast.tree(fun) else {
             return self.unsupported(id, "polymorphic function value of another form");
         };
@@ -62,7 +66,6 @@ impl Typer<'_> {
         let mut clauses = vec![self.tpd.list(&typed_tparams)];
         clauses.extend_from_slice(self.tpd.clause_items(paramss));
         let paramss = self.tpd.clauses(&clauses);
-        let span = self.ast.span(id);
         if let (true, Some(&last)) = (self.ast.items(args).is_empty(), typed_tparams.last()) {
             self.tpd.get_mut(tpt).span = self.tpd.span(last).end_pos();
         }

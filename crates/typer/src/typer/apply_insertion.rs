@@ -25,6 +25,19 @@ impl Typer<'_> {
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
         }
+        let dynamic = self.tpd.sym(self.tpd.meth_part(f)).is_some_and(|m| {
+            matches!(
+                self.u.symbol(m).name.as_str(),
+                "applyDynamic" | "selectDynamic" | "updateDynamic" | "applyDynamicNamed"
+            )
+        });
+        if let Pt::Fun(p) = pt
+            && !self.protos[p].using
+            && !dynamic
+            && let Some(applied) = self.context_function_applied(f, Pt::Any, ctx)
+        {
+            return self.with_apply(applied?, pt, ctx);
+        }
         let tpe = self.widen_if_unstable(tpe);
         if let Some(apply) = self.poly_apply(f, tpe, self.tpd.span(f).to_synthetic()) {
             return Ok(apply);

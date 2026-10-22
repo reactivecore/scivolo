@@ -40,8 +40,18 @@ impl Typer<'_> {
         self.applied_function(t, "scala.Function").is_some()
     }
 
-    /// The parameter and result types of `t` if it is a `ContextFunctionN`.
+    /// The parameter and result types of `t` if it is a `ContextFunctionN`, possibly refined by
+    /// an `apply` whose result does not refer to its parameters (dotty's `dropDependentRefinement`).
     pub fn context_function_parts(&mut self, t: TypeId) -> Option<Parts> {
+        let z = self.zonk(t);
+        let d = self.u.dealias(z);
+        if let Type::Refined(parent, name, info) = self.u.types().get(d).clone()
+            && name == "apply"
+            && let Type::Method { binder, result, .. } = *self.u.types().get(info)
+            && !self.mentions_params(result, binder, None)
+        {
+            return self.applied_function(parent, "scala.ContextFunction");
+        }
         self.applied_function(t, "scala.ContextFunction")
     }
 

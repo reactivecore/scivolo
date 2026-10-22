@@ -5,6 +5,7 @@
 //! functions (dotty's `typedPolyFunction`, `makePolyFunctionType`).
 
 use super::Typer;
+use super::poly_context_bounds::Fit;
 use crate::ctx::{Ctx, Level};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
@@ -19,6 +20,10 @@ impl Typer<'_> {
         let Tree::Function { args, body: result, mods: None, .. } = *self.ast.tree(body) else {
             return self.unsupported(id, "polymorphic function type of another form");
         };
+        let (targs, evidence) = self.poly_evidence(targs);
+        if !evidence.is_empty() && !matches!(self.evidence_fit(&evidence, args), Fit::After) {
+            return self.unsupported(id, "polymorphic function type with evidence among its parameters");
+        }
         let owner = self.poly_apply_owner(ctx);
         let (tparams, lctx) = match self.poly_type_params(targs, owner, ctx) {
             Ok(entered) => entered,
@@ -47,10 +52,13 @@ impl Typer<'_> {
         if self.is_error(result) {
             return result;
         }
+        let result = match self.evidence_function_type(&evidence, self.tpd.tpe(result), lctx) {
+            Ok(result) => result,
+            Err(refused) => return refused,
+        };
         let binder = self.syms.fresh_binder();
         let names: Vec<(String, TypeId)> =
             params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
-        let result = self.tpd.tpe(result);
         let result = self.param_refs(result, &params, binder);
         let method = self.u.intern_type(Type::Method {
             binder,
