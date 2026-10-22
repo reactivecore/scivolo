@@ -76,15 +76,18 @@ impl Reflect<'_> {
         self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
     }
 
-    /// The right-hand side of the definition of `s` if it is a value owned by a term.
+    /// The right-hand side of the definition of `s` if it is a value or parameterless method
+    /// owned by a term.
     fn local_rhs(&self, s: SymbolId) -> Option<TNodeId> {
         let sym = self.u.symbol(s);
         let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-        if sym.kind != Kind::Val || !local {
+        if !matches!(sym.kind, Kind::Val | Kind::Def) || !local {
             return None;
         }
         (0..self.tpd.len()).rev().map(TNodeId::new).find_map(|d| match *self.tpd.tree(d) {
-            T::ValDef { rhs: Some(rhs), .. } if self.tpd.sym(d) == Some(s) => Some(rhs),
+            _ if self.tpd.sym(d) != Some(s) => None,
+            T::ValDef { rhs: Some(rhs), .. } => Some(rhs),
+            T::DefDef { paramss, rhs: Some(rhs), .. } if paramss.is_empty() => Some(rhs),
             _ => None,
         })
     }

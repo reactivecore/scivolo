@@ -5,6 +5,7 @@
 
 use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
+use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree as T};
 
 /// The kinds of trees, as the overlay's `ReflectOps.TreeKind` numbers them.
@@ -37,8 +38,29 @@ impl Host {
         match op {
             "treeKind" => numbers(vec![self.kind(self.tree(t()?)?) as i32]),
             "tree" => self.shape(self.tree(t()?)?),
-            "treeSymbol" => numbers(vec![self.tpd.sym(self.tree(t()?)?).map_or(-1, |s| s.0 as i32)]),
+            "treeSymbol" => {
+                let t = self.tree(t()?)?;
+                numbers(vec![self.tree_symbol(t).map_or(-1, |s| s.0 as i32)])
+            }
             _ => Err(UNKNOWN),
+        }
+    }
+
+    /// `Tree.symbol`: the tree's own symbol, else the symbol a type tree's named or `this`
+    /// type denotes (dotty's `DenotingTree.denot`).
+    fn tree_symbol(&mut self, t: TNodeId) -> Option<SymbolId> {
+        if let Some(s) = self.tpd.sym(t) {
+            return Some(s);
+        }
+        if !matches!(self.kind(t), Kind::TypeTree | Kind::Inferred) {
+            return None;
+        }
+        let tpe = self.tpd.get(t).tpe?;
+        match *self.u.types().get(tpe) {
+            Type::Sym(_, s) => Some(s),
+            Type::TypeRef(..) | Type::TermRef(..) => self.u.resolve_ref(tpe),
+            Type::This(c) => self.u.class_symbol(c),
+            _ => None,
         }
     }
 

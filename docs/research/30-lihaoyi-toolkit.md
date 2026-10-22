@@ -186,6 +186,12 @@ the first `InlinedTypeTest` is a missing method [V osl5c]. fastparse's `literalS
 `children` over `tpd::Tree`, the `TypeTest`s and `unapply`s of `Inlined`, `Literal`, `Typed`,
 `Block`, `Apply`, `TypeApply`, `Select`, `Ident`, `Repeated` in the overlay; `Varargs`,
 `Expr.ofSeq`/`ofList` and `ToExpr[Seq[T]]` through `Build`. ~150 Rust, ~180 Scala.
+**Done** (`M/reflect/trees.rs`, `O/ReflectTrees.scala`, ADR 0029): those extractors and
+`ValDef`, `NamedArg`, `TypeTree`/`Inferred`; `Term.tpe`, `underlyingArgument`,
+`widenTermRefByName`, `ConstantType` (so `Expr.value`/`valueOrAbort` work), `Repeated.apply`
+(`Varargs`, `Expr.ofSeq`/`ofList`), `defn.Predef_classOf` and `typeConstructorOf` (`ToExpr` of
+arrays); golden `crates/macros/tests/inlined/terms.scala`. `os.PathChunk.stringPathChunkValidated("tmp/x")`
+expands and runs through `scivolo --dep`; `os.pwd / "tmp"` picks it only after X1.
 
 ### 2.9 Annotations of library classes (mainargs) — `Yn/annotations.rs:19-38,53-61`
 

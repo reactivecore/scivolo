@@ -48,6 +48,10 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   does not carry (`Deferred`, `ParamAccessor`, `NoInits`) are refused by name. dotty's symbols the
   universe lacks are made per expansion and entered in no scope: the splice's owner `macro`
   (`Splicer.splice`) and the empty package, owner of the root's definitions.
+- **Term extractors** read a tree through one host operation, its kind and the numbers of its
+  children in the extractor's order; the overlay's `TypeTest`s and `unapply`s are written over
+  it. Trees a macro builds take the expansion's span (dotty's `withDefaultPos`), and a hole
+  filled with a tree of the call's source takes the hole's span (`PickledQuotes.spliceTerms`).
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.
