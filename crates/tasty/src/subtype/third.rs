@@ -42,7 +42,7 @@ impl Cmp<'_> {
                 match self.u.types().get(a).clone() {
                     Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
                         if p1.len() != p2.len()
-                            || !(i1 || !i2)
+                            || !i1 && i2
                             || !p1
                                 .iter()
                                 .zip(&p2)

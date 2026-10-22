@@ -64,7 +64,7 @@ impl Typer<'_> {
                     }
                     let lifted = self.lift(defs, qualifier, "", complex, ctx);
                     let site = self.tpd.tpe(lifted);
-                    return Ok(self.poly_apply(lifted, site, span).expect("a polymorphic function"));
+                    return self.poly_apply(lifted, site, span).ok_or("lifting");
                 };
                 let defaults = self.has_defaults(sym);
                 let keep = match *self.tpd.tree(qualifier) {

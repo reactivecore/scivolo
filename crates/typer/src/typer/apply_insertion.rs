@@ -1,5 +1,4 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
-//   compiler/src/dotty/tools/dotc/typer/Dynamic.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`).
 
@@ -13,8 +12,7 @@ use tasty::Type;
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or
     /// type arguments; a context function value applied to its implicit arguments first unless
-    /// the arguments are `using` ones or it is a dynamic call's result (dotty's `adaptToArgs`,
-    /// `isDynamicExpansion`).
+    /// the arguments are `using` ones (dotty's `adaptToArgs`).
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
@@ -28,15 +26,8 @@ impl Typer<'_> {
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
         }
-        let dynamic = self.tpd.sym(self.tpd.meth_part(f)).is_some_and(|m| {
-            matches!(
-                self.u.symbol(m).name.as_str(),
-                "applyDynamic" | "selectDynamic" | "updateDynamic" | "applyDynamicNamed"
-            )
-        });
         if let Pt::Fun(p) = pt
             && !self.protos[p].using
-            && !dynamic
             && let Some(applied) = self.context_function_applied(f, Pt::Any, ctx)
         {
             return self.with_apply(applied?, pt, ctx);
