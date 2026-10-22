@@ -5,6 +5,7 @@
 //! method it inherits from a trait of the unit or the library, a forwarder calling that method
 //! on `super`.
 
+use super::function_classes::erased_linearization;
 use super::trait_fields::{mixed_in, trait_defs};
 use crate::definitions::specialized_applies;
 use crate::symbols::has;
@@ -98,7 +99,7 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 
 /// The traits `class` mixes in, from the last one linearized to the first.
 pub fn mixins(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
-    let linearization = l.u.linearization(class);
+    let linearization = erased_linearization(l, class);
     let mut out: Vec<SymbolId> =
         linearization[1..].iter().copied().take_while(|&b| l.u.is_trait(b)).collect();
     out.reverse();
@@ -139,7 +140,7 @@ fn needs_forwarder(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
     let name = m.name.clone();
     let signature = l.u.erased_method(meth);
     let site = l.u.this_type(class);
-    for base in l.u.linearization(class) {
+    for base in erased_linearization(l, class) {
         for other in l.u.decl(base, &name).unwrap_or_default() {
             let s = l.u.symbol(other);
             let member = matches!(s.kind, Kind::Def | Kind::Val)

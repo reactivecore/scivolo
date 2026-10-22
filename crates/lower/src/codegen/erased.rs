@@ -4,7 +4,8 @@
 
 use super::Gen;
 use super::names::mapped;
-use crate::symbols::is_java_static;
+use crate::phases::casts::class_named;
+use crate::symbols::{is_java_static, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Type, TypeId, Val, ValId};
 use syntax::ast::Span;
@@ -94,11 +95,19 @@ impl Gen<'_, '_> {
     pub fn method_sig(&mut self, m: SymbolId, statically: bool) -> TypeId {
         let mut args = Vec::new();
         if !statically && !is_java_static(self.l.u, m) {
-            let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+            let owner = self.method_owner(m);
             args.push(self.class_ref(owner));
         }
         args.extend(self.param_types(m));
         let ret = if self.l.u.is_constructor(m) { self.ty(Type::Unit) } else { self.result_type(m) };
         self.ty(Type::Function(args, ret))
+    }
+
+    /// The class method `m` is a member of in NIR: its owner, or the JDK class it stands for in
+    /// the JDK API.
+    pub fn method_owner(&mut self, m: SymbolId) -> SymbolId {
+        let owner = self.l.u.symbol(m).owner.expect("a method's owner");
+        let jdk = jdk_api_owner(self.l.u, m).and_then(|c| class_named(self.l, c));
+        jdk.unwrap_or(owner)
     }
 }

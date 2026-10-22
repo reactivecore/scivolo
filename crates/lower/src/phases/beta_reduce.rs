@@ -72,7 +72,7 @@ fn expanded_without_bindings(l: &Lower, t: TNodeId) -> bool {
 /// Whether the type of `t` is a `FunctionN` or `ContextFunctionN` type.
 fn is_function_type(l: &mut Lower, t: TNodeId) -> bool {
     let tpe = l.u.widen(l.tpd.tpe(t));
-    l.u.class_symbol(tpe).and_then(|c| super::casts::function_class_arity(l, c)).is_some()
+    l.u.class_symbol(tpe).and_then(|c| super::function_classes::function_class_arity(l, c)).is_some()
 }
 
 /// The reduction of the call of function `fun` to `args`, past ascriptions and blocks of pure

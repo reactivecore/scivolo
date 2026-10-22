@@ -126,3 +126,5 @@ inlineextractors
 argclauses
 localinline
 tupleops
+xxlclasses
+jdkapi

@@ -5,6 +5,7 @@
 //! the class a call's receiver is adapted to.
 
 use super::adapt::from_start;
+use super::function_classes::{erased_derives, erased_function_class};
 use crate::Lower;
 use crate::definitions::type_ref;
 use crate::symbols::has;
@@ -67,7 +68,7 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
         }
         (Erased::Class(f), Erased::Class(t)) => match (class_named(l, f), class_named(l, t)) {
             (Some(f), Some(t)) => {
-                l.u.derives_from(f, t) && (!l.u.is_trait(f) || erased_trait_derives(l, f, t))
+                erased_derives(l, f, t) && (!l.u.is_trait(f) || erased_trait_derives(l, f, t))
             }
             _ => false,
         },
@@ -78,34 +79,11 @@ pub fn conforms(l: &mut Lower, from: &Erased, to: &Erased) -> bool {
 /// Whether trait `f` is or derives from `t` through its trait parents, the only ones erasure
 /// keeps besides `Object` (dotty's `TypeErasure.eraseInfo`).
 fn erased_trait_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
-    if f == t {
+    if f == t || erased_function_class(l, f) == Some(t) {
         return true;
     }
     let parents: Vec<SymbolId> = l.u.parents(f).into_iter().filter_map(|p| l.u.class_symbol(p)).collect();
-    parents.into_iter().any(|p| l.u.is_trait(p) && l.u.derives_from(p, t) && erased_trait_derives(l, p, t))
-}
-
-/// The arity of class `c` if it is `scala.FunctionN`, and whether it is `scala.ContextFunctionN`.
-pub fn function_class_arity(l: &Lower, c: SymbolId) -> Option<(u32, bool)> {
-    let full = l.u.full_name(c);
-    let (rest, context) = match full.strip_prefix("scala.Context") {
-        Some(rest) => (rest, true),
-        None => (full.strip_prefix("scala.")?, false),
-    };
-    Some((rest.strip_prefix("Function")?.parse().ok()?, context))
-}
-
-/// Class `c` as erasure leaves it: `scala.FunctionN` for `scala.ContextFunctionN`,
-/// `scala.runtime.FunctionXXL` for both above the library's arities (dotty's
-/// `functionTypeErasure`).
-pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
-    match function_class_arity(l, c) {
-        Some((n, _)) if n as usize > tasty::MAX_IMPLEMENTED_ARITY => {
-            class_named(l, "scala.runtime.FunctionXXL")
-        }
-        Some((n, true)) => class_named(l, &format!("scala.Function{n}")),
-        _ => Some(c),
-    }
+    parents.into_iter().any(|p| l.u.is_trait(p) && erased_derives(l, p, t) && erased_trait_derives(l, p, t))
 }
 
 /// The class of binary name `name`, through the classes and objects it is nested in.
