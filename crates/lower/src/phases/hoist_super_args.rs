@@ -38,6 +38,16 @@ pub fn transform(l: &mut Lower, root: TNodeId, td: TNodeId) -> Result<()> {
     let (local, nested) = (is_term(l, owner), l.u.symbol(owner).kind != Kind::Package);
     let mut h = Hoister { class, constr, local, nested, defs: Vec::new(), refused: None };
     from_call(l, &mut h, parent, &mut Vec::new());
+    for stat in l.tpd.items(body).to_vec() {
+        let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(stat) else { continue };
+        if !l.tpd.sym(stat).is_some_and(|s| l.u.is_constructor(s)) {
+            continue;
+        }
+        let Tree::Block { stats, .. } = *l.tpd.tree(rhs) else { continue };
+        let Some(&self_call) = l.tpd.items(stats).first() else { continue };
+        h.constr = stat;
+        from_call(l, &mut h, self_call, &mut Vec::new());
+    }
     if let Some(span) = h.refused {
         return unsupported(span, "hoisting superclass constructor arguments with methods the call defines");
     }
