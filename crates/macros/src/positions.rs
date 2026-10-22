@@ -1,8 +1,7 @@
-//! The positions and symbol names of `quotes.reflect`: a position is the number of its source
-//! file and its two offsets in that file.
+//! The positions of `quotes.reflect`: a position is the number of its source file and its two
+//! offsets in that file.
 
 use crate::host::Host;
-use crate::reflect::symbol;
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile, Sources};
 use vm::Reflected;
@@ -11,7 +10,7 @@ type Answer = Result<Reflected, &'static str>;
 
 impl Host {
     /// Runs position or symbol operation `op` on `args`.
-    pub fn run_position(&self, op: &str, args: &[i32]) -> Answer {
+    pub fn run_position(&mut self, op: &str, args: &[i32]) -> Answer {
         let arg = |i: usize| args.get(i).copied().ok_or("a quotes.reflect operation without its arguments");
         let file = |n: i32| self.sources.get(n as usize).ok_or("a position in no source file");
         let text = |s: String| Ok((Vec::new(), Some(s)));
@@ -34,22 +33,7 @@ impl Host {
             }
             "sourcePath" => text(file(arg(0)?)?.name.clone()),
             "sourceContent" => text(file(arg(0)?)?.text.clone()),
-            "spliceOwner" => Ok((vec![self.owner.0 as i32], None)),
-            "owner" => {
-                let owner = self.u.symbol(symbol(arg(0)?)?).owner;
-                Ok((vec![owner.map_or(-1, |o| o.0 as i32)], None))
-            }
-            "name" => {
-                let s = symbol(arg(0)?)?;
-                let name = self.u.symbol(s).name.to_string();
-                match name.is_empty() {
-                    true if s == self.u.root() => text("<root>".into()),
-                    true => text("<empty>".into()),
-                    false => text(name),
-                }
-            }
-            "fullName" => text(self.u.full_name(symbol(arg(0)?)?)),
-            _ => Err("a quotes.reflect operation the frontend does not know"),
+            _ => self.run_symbol(op, args),
         }
     }
 

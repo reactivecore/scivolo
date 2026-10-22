@@ -1,3 +1,5 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); changed:
+//   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 package scala.quoted.runtime.impl
 
 /** The symbols and positions of `quotes.reflect`. */
@@ -42,6 +44,43 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     def ofMacroExpansion: Position = ReflectOps.position("expansionPos").asInstanceOf[Position]
     def apply(sourceFile: SourceFile, start: Int, end: Int): Position =
       new PositionImpl(sourceFile.asInstanceOf[SourceFileImpl].file, start, end).asInstanceOf[Position]
+  }
+
+  given SymbolMethods: SymbolMethods = methods("SymbolMethodsImpl")
+
+  /** Kinds are numbered 0 to 6: package, class, type, type parameter, parameter, value, method;
+   *  a package is its package class.
+   */
+  abstract class SymbolMethodsImpl extends SymbolMethods {
+    extension (self: Symbol) {
+      def companionModule: Symbol = sym(ReflectOps.one("companionModule", ReflectOps.id(self)))
+      def declaredMethod(name: String): List[Symbol] = {
+        val n = ReflectOps.run("declaredMethod", Array(ReflectOps.id(self)), name)
+        List.tabulate(n)(i => sym(QuoteHost.result(i)))
+      }
+      def owner: Symbol = sym(ReflectOps.one("owner", ReflectOps.id(self)))
+      def name: String = ReflectOps.text("name", ReflectOps.id(self))
+      def fullName: String = ReflectOps.text("fullName", ReflectOps.id(self))
+      def flags: Flags = ReflectOps.flags(ReflectOps.id(self)).asInstanceOf[Flags]
+      def moduleClass: Symbol = sym(ReflectOps.one("moduleClass", ReflectOps.id(self)))
+      def isNoSymbol: Boolean = ReflectOps.id(self) < 0
+      def exists: Boolean = ReflectOps.id(self) >= 0
+      def isPackageDef: Boolean = kind(self) == 0
+      def isClassDef: Boolean = kind(self) == 0 || kind(self) == 1
+      def isTypeDef: Boolean = (kind(self) == 2 || kind(self) == 3) && !isCase(self)
+      def isValDef: Boolean = (kind(self) == 4 || kind(self) == 5) && !isCase(self)
+      def isDefDef: Boolean = kind(self) == 6
+      def isType: Boolean = kind(self) >= 0 && kind(self) <= 3
+      def isTerm: Boolean = kind(self) >= 4
+      def isClassConstructor: Boolean = self.exists && self.name == "<init>"
+      def isLocalDummy: Boolean = self.isTerm && self.name.startsWith("<local ") && self.name.endsWith(">")
+    }
+
+    private def sym(id: Int): Symbol = new SymbolImpl(id).asInstanceOf[Symbol]
+
+    private def kind(s: Symbol): Int = if (ReflectOps.id(s) < 0) -1 else ReflectOps.one("kind", ReflectOps.id(s))
+
+    private def isCase(s: Symbol): Boolean = (ReflectOps.flags(ReflectOps.id(s)).bits & 1L << 12) != 0
   }
 
   given PositionMethods: PositionMethods = methods("PositionMethodsImpl")

@@ -102,6 +102,35 @@ object Source:
   private def synthetic(name: String): Boolean =
     name == "<init>" || name.startsWith("<local ") && name.endsWith(">") || name == "$anonfun" || name == "macro"
 
+object Symbols:
+  inline def flagsOf[T]: String = ${ flagsOfImpl[T] }
+  def flagsOfImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(describe(TypeRepr.of[T].typeSymbol))
+
+  inline def owners: String = ${ ownersImpl }
+  def ownersImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val root = Set(defn.RootPackage, defn.RootClass)
+    val chain = Iterator.iterate(Symbol.spliceOwner)(_.owner).takeWhile(s => !root(s))
+    Expr(chain.map(describe).mkString(" < "))
+
+  private def describe(using Quotes)(s: quotes.reflect.Symbol): String =
+    import quotes.reflect.*
+    val flags = List(
+      "Abstract" -> Flags.Abstract, "Case" -> Flags.Case, "Enum" -> Flags.Enum, "Final" -> Flags.Final,
+      "Given" -> Flags.Given, "Implicit" -> Flags.Implicit, "Inline" -> Flags.Inline, "Lazy" -> Flags.Lazy,
+      "Macro" -> Flags.Macro, "Method" -> Flags.Method, "Module" -> Flags.Module, "Mutable" -> Flags.Mutable,
+      "Package" -> Flags.Package, "Param" -> Flags.Param, "Private" -> Flags.Private, "Sealed" -> Flags.Sealed,
+      "Synthetic" -> Flags.Synthetic, "Trait" -> Flags.Trait, "Scala2x" -> Flags.Scala2x
+    ).collect { case (n, f) if s.flags.is(f) => n }
+    val kinds = List(
+      "package" -> s.isPackageDef, "class" -> s.isClassDef, "type" -> s.isTypeDef, "val" -> s.isValDef,
+      "def" -> s.isDefDef, "term" -> s.isTerm, "constructor" -> s.isClassConstructor,
+      "dummy" -> s.isLocalDummy, "moduleClass" -> (s.moduleClass != Symbol.noSymbol)
+    ).collect { case (n, true) => n }
+    s"${s.name}: ${kinds.mkString(" ")}; ${flags.mkString(" ")}"
+
 object Tuples:
   import scala.compiletime.{constValue, erasedValue}
 

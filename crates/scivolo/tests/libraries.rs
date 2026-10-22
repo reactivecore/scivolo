@@ -5,16 +5,17 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-/// Checks the output of program `name` run as a script with its dependencies passed as `--dep`.
+/// Checks the output of program `name` run as a script with its dependencies passed as `--dep`,
+/// its directives blanked.
 fn check_script(name: &str) {
     let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/aot").join(name);
     let program = std::fs::read_to_string(src.join(format!("{name}.scala"))).unwrap();
-    let (directives, code): (Vec<&str>, Vec<&str>) = program.lines().partition(|l| l.starts_with("//>"));
-    let deps: Vec<String> = directives
-        .iter()
+    let deps: Vec<String> = program
+        .lines()
         .filter_map(|l| l.strip_prefix("//> using dep "))
         .map(|d| d.trim().to_owned())
         .collect();
+    let code: Vec<&str> = program.lines().map(|l| if l.starts_with("//>") { "" } else { l }).collect();
     if let Err(e) = libs::jars().and_then(|_| libs::deps::fetch(&deps).map_err(|e| e.to_string()))
         && std::env::var_os("CI").is_none()
     {
@@ -51,4 +52,9 @@ fn ujson_runs_in_a_script() {
 #[test]
 fn pprint_runs_in_a_script() {
     check_script("pprint");
+}
+
+#[test]
+fn sourcecode_macros_expand_in_a_script() {
+    check_script("sourcecode");
 }

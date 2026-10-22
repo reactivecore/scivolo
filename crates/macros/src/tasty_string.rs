@@ -2,6 +2,18 @@
 //   compiler/src/dotty/tools/dotc/quoted/TastyString.scala
 //! The TASTy of a pickled quote from its string form (dotty's `TastyString.unpickle`): Base64.
 
+use crate::host::Host;
+use tasty::TypeId;
+
+impl Host {
+    /// The bytes of `pickled` and the types numbered `types`.
+    pub fn decoded(&self, pickled: &str, types: &[u32]) -> Result<(Vec<u8>, Vec<TypeId>), &'static str> {
+        let bytes = decode(pickled).ok_or("a quote not in Base64")?;
+        let types: Result<Vec<TypeId>, _> = types.iter().map(|&t| self.type_of(t)).collect();
+        Ok((bytes, types.map_err(|_| "a quote of an unknown type")?))
+    }
+}
+
 /// The bytes Base64 text `text` encodes; `None` if it is not Base64.
 pub fn decode(text: &str) -> Option<Vec<u8>> {
     let value = |c: u8| match c {

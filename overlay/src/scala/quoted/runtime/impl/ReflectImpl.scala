@@ -12,7 +12,7 @@ trait ReflectSupport { this: QuotesImpl =>
  *  `...MethodsImpl` classes without running a constructor; a member not implemented here is no
  *  method of the class, which refuses the expansion.
  */
-abstract class ReflectImpl extends reflectModule, ReflectSymbols { self: reflect.type =>
+abstract class ReflectImpl extends reflectModule, ReflectSymbols, ReflectFlags { self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = termOf(QuoteHost.exprId(expr))
 
@@ -20,7 +20,6 @@ abstract class ReflectImpl extends reflectModule, ReflectSymbols { self: reflect
   given TermMethods: TermMethods = methods("TermMethodsImpl")
   given LiteralMethods: LiteralMethods = methods("LiteralMethodsImpl")
   given TypeReprMethods: TypeReprMethods = methods("TypeReprMethodsImpl")
-  given SymbolMethods: SymbolMethods = methods("SymbolMethodsImpl")
   given ConstantMethods: ConstantMethods = methods("ConstantMethodsImpl")
 
   object Ref extends RefModule {
@@ -124,22 +123,6 @@ abstract class ReflectImpl extends reflectModule, ReflectSymbols { self: reflect
       def typeSymbol: Symbol = new SymbolImpl(ReflectOps.one("typeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
       def typeArgs: List[TypeRepr] =
         ReflectOps.results("typeArgs", ReflectOps.id(self)).map(t => QuoteHost.tpe(t).asInstanceOf[TypeRepr])
-    }
-  }
-
-  abstract class SymbolMethodsImpl extends SymbolMethods {
-    extension (self: Symbol) {
-      def companionModule: Symbol =
-        new SymbolImpl(ReflectOps.one("companionModule", ReflectOps.id(self))).asInstanceOf[Symbol]
-      def declaredMethod(name: String): List[Symbol] = {
-        val n = ReflectOps.run("declaredMethod", Array(ReflectOps.id(self)), name)
-        List.tabulate(n)(i => new SymbolImpl(QuoteHost.result(i)).asInstanceOf[Symbol])
-      }
-      def owner: Symbol = new SymbolImpl(ReflectOps.one("owner", ReflectOps.id(self))).asInstanceOf[Symbol]
-      def name: String = ReflectOps.text("name", ReflectOps.id(self))
-      def fullName: String = ReflectOps.text("fullName", ReflectOps.id(self))
-      def isNoSymbol: Boolean = ReflectOps.id(self) < 0
-      def exists: Boolean = ReflectOps.id(self) >= 0
     }
   }
 

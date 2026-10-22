@@ -25,6 +25,12 @@ object ReflectOps {
     case _                      => throw new Unsupported("a position the frontend does not know")
   }
 
+  /** The flags of symbol `sym`. */
+  def flags(sym: Int): FlagsImpl = results("flags", sym) match {
+    case List(lo, hi) => new FlagsImpl((lo.toLong & 0xffffffffL) | (hi.toLong << 32))
+    case _            => throw new Unsupported("flags the frontend does not know")
+  }
+
   def term(id: Int): Any = QuoteHost.expr(id)
 
   def id(x: Any): Int = x match {
