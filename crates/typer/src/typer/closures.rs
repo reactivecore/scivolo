@@ -180,7 +180,8 @@ impl Typer<'_> {
         let meth = self.build().ident(anonfun, meth_tpe, span.start_pos());
         let env = self.tpd.list(&[]);
         let tpt = sam.then(|| self.type_tree(fun_tpe, span.start_pos(), false));
-        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(fun_tpe), None);
+        let tpe = if sam { fun_tpe } else { self.simplified(fun_tpe) };
+        let closure = self.tpd.node(T::Closure { env, meth, tpt }, span, Some(tpe), None);
         let stats = self.tpd.list(&[def]);
         self.build().block(stats, closure, span.to_synthetic())
     }
