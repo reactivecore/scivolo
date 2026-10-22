@@ -130,6 +130,9 @@ impl Unpickler<'_> {
     /// The span enclosing `t`'s children from `start` on, a child without a span given the end
     /// of the spans before it (dotty's `Positioned.envelope`).
     fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
+        if let T::Inlined { call, .. } = self.tpd.tree(t) {
+            return call.map_or(Span::NONE, |c| self.tpd.span(c));
+        }
         let children = self.tpd.children(t);
         let mut span = start;
         let mut left = false;
