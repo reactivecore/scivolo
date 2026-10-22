@@ -46,6 +46,10 @@ pub enum MacroError {
     Unsupported(String),
     /// The macro failed, with the message dotty reports.
     Failed(String),
+    /// The macro reported errors (`report.error`, `errorAndAbort`): their spans and messages.
+    Reported(Vec<(Span, String)>),
+    /// The macro threw `StopMacroExpansion` without reporting an error.
+    Aborted,
 }
 
 /// Runs macro implementations.

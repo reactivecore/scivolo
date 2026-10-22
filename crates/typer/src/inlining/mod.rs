@@ -24,6 +24,7 @@ mod quote_match;
 mod quoted;
 mod reduce;
 mod reflect;
+mod reflect_trees;
 mod reselect;
 mod retype;
 mod skolems;

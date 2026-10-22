@@ -7,63 +7,42 @@ use crate::defn::type_ref;
 use crate::tpd::{Build, TNodeId, Tpd, Tree as T};
 use crate::typer::type_apply::instantiate_poly;
 use syntax::ast::Span;
-use syntax::ast::constant::Constant;
 use syntax::names::Names;
+use tasty::tags::CLASSconst;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 pub struct Reflect<'a> {
     pub u: &'a mut Universe,
     pub tpd: &'a mut Tpd,
     pub names: &'a mut Names,
+    /// The span of the trees it builds: the macro expansion's (dotty's `withDefaultPos`).
+    pub span: Span,
 }
 
 impl Reflect<'_> {
-    fn build(&mut self) -> Result<Build<'_>, &'static str> {
+    pub fn build(&mut self) -> Result<Build<'_>, &'static str> {
         let scala = self.u.package("scala").ok_or("a library without package scala")?;
         let unit = self.u.decl(scala, "Unit").ok().and_then(|d| d.into_iter().find(|&s| self.u.is_class(s)));
         Ok(Build::new(self.tpd, self.u, self.names, unit.ok_or("a library without scala.Unit")?))
     }
 
-    /// `Term.underlying` (dotty's `underlyingArgument` at the top of `t`): `t` without the
-    /// inlined trees without bindings, empty blocks and argument names around it, a reference to
-    /// a local value replaced by the value's right-hand side.
-    pub fn underlying(&self, t: TNodeId) -> TNodeId {
-        match *self.tpd.tree(t) {
-            T::Inlined { bindings, expansion, .. } if bindings.is_empty() => self.underlying(expansion),
-            T::Block { stats, expr } if stats.is_empty() => self.underlying(expr),
-            T::NamedArg { arg, .. } => self.underlying(arg),
-            T::Ident { .. } => match self.tpd.sym(t).and_then(|s| self.local_rhs(s)) {
-                Some(rhs) => self.underlying(rhs),
-                None => t,
-            },
-            _ => t,
+    /// `TypeRepr.widenTermRefByName` (dotty's `widenTermRefExpr`): `t` with term references
+    /// widened, a by-name type's result for a by-name type a term reference widens to.
+    pub fn widen_term_ref_by_name(&mut self, mut t: TypeId) -> TypeId {
+        loop {
+            let term_ref = match *self.u.types().get(t) {
+                Type::TermRef(..) => true,
+                Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
+                _ => false,
+            };
+            let Some(w) = term_ref.then(|| self.u.widen_once(t)).flatten().filter(|&w| w != t) else {
+                return t;
+            };
+            t = match *self.u.types().get(w) {
+                Type::ByName(r) => r,
+                _ => w,
+            };
         }
-    }
-
-    /// The right-hand side of the definition of `s` if it is a value owned by a term.
-    fn local_rhs(&self, s: SymbolId) -> Option<TNodeId> {
-        let sym = self.u.symbol(s);
-        let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-        if sym.kind != Kind::Val || !local {
-            return None;
-        }
-        (0..self.tpd.len()).rev().map(TNodeId::new).find_map(|d| match *self.tpd.tree(d) {
-            T::ValDef { rhs: Some(rhs), .. } if self.tpd.sym(d) == Some(s) => Some(rhs),
-            _ => None,
-        })
-    }
-
-    /// `Literal.constant`, if `t` is a literal.
-    pub fn constant(&self, t: TNodeId) -> Option<Constant> {
-        match self.tpd.tree(t) {
-            T::Literal { value } => Some(value.clone()),
-            _ => None,
-        }
-    }
-
-    /// `Literal(constant)`.
-    pub fn literal(&mut self, constant: Constant) -> Result<TNodeId, &'static str> {
-        Ok(self.build()?.literal(constant, Span::NONE))
     }
 
     /// `TypeRepr.typeSymbol`: the symbol a type reference names, an alias's own; through the
@@ -116,21 +95,30 @@ impl Reflect<'_> {
 
     /// `Ref(s)` of a static object or value `s`.
     pub fn ref_(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
+        let span = self.span;
         if !self.u.symbol(s).kind.is_term() || !self.u.is_static_symbol(s) {
             return Err("Ref of a symbol other than a static term");
         }
         let tpe = type_ref(self.u, s);
-        Ok(self.build()?.ident(s, tpe, Span::NONE))
+        Ok(self.build()?.ident(s, tpe, span))
     }
 
     /// `Term.select(m)`.
     pub fn select(&mut self, qual: TNodeId, m: SymbolId) -> Result<TNodeId, &'static str> {
-        Ok(self.build()?.select(qual, m, Span::NONE))
+        let span = self.span;
+        Ok(self.build()?.select(qual, m, span))
     }
 
     /// `Term.appliedToTypes(args)`.
     pub fn applied_to_types(&mut self, fun: TNodeId, args: &[TypeId]) -> Result<TNodeId, &'static str> {
+        let span = self.span;
         let refused = "appliedToTypes of a term that takes no such type arguments";
+        if let (Some(f), &[arg]) = (self.tpd.sym(fun), args)
+            && self.u.full_name(f) == "scala.Predef$.classOf"
+        {
+            let tpe = self.u.intern_type(Type::Constant(CLASSconst, i64::from(arg.0)));
+            return Ok(self.tpd.node(T::ClassLiteral { tpe: arg }, span, Some(tpe), None));
+        }
         let info = self.u.widen(self.tpd.tpe(fun));
         let Type::Poly { binder, params, result } = self.u.types().get(info).clone() else {
             return Err(refused);
@@ -142,8 +130,8 @@ impl Reflect<'_> {
         let tpe = instantiate_poly(self.u, result, (binder, &names), args, self.tpd.sym(fun));
         let tpts: Vec<TNodeId> = args
             .iter()
-            .map(|&a| self.tpd.node(T::TypeTree { inferred: false }, Span::NONE, Some(a), None))
+            .map(|&a| self.tpd.node(T::TypeTree { inferred: false }, span, Some(a), None))
             .collect();
-        Ok(self.build()?.type_apply(fun, &tpts, tpe, Span::NONE))
+        Ok(self.build()?.type_apply(fun, &tpts, tpe, span))
     }
 }

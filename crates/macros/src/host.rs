@@ -1,7 +1,6 @@
 //! The frontend's side of a running macro: the typer's trees and tables, lent for the run, and
 //! the expressions and types the macro holds by number.
 
-use crate::tasty_string;
 use syntax::ast::Span;
 use syntax::names::Names;
 use syntax::source::SourceFile;
@@ -45,6 +44,9 @@ pub struct Host {
     matched: Vec<Result<u32, u32>>,
     /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
+    pub made: crate::reflect::Made,
+    /// The errors the macro reported, with their spans.
+    pub reported: Vec<(Span, String)>,
 }
 
 impl Host {
@@ -66,6 +68,8 @@ impl Host {
             patterns: Vec::new(),
             matched: Vec::new(),
             refusal: None,
+            made: Default::default(),
+            reported: Vec::new(),
         }
     }
 
@@ -112,13 +116,6 @@ impl Host {
             }
         };
         self.exprs.iter().map(quoted).collect()
-    }
-
-    /// The bytes of `pickled` and the types numbered `types`.
-    fn decoded(&self, pickled: &str, types: &[u32]) -> Result<(Vec<u8>, Vec<TypeId>), &'static str> {
-        let bytes = tasty_string::decode(pickled).ok_or("a quote not in Base64")?;
-        let types: Option<Vec<TypeId>> = types.iter().map(|&t| self.types.get(t as usize).copied()).collect();
-        Ok((bytes, types.ok_or("a quote of an unknown type")?))
     }
 }
 

@@ -20,8 +20,9 @@ pub const MAX_TRIES: u32 = 400;
 const OPEN: &str = "implicit search for a type with type variables";
 
 /// The failures that only mean a candidate does not fit.
-pub const MISFITS: [&str; 8] = [
+pub const MISFITS: [&str; 9] = [
     "implicit of another type",
+    "inaccessible implicit",
     "diverging implicit",
     "not an implicit value",
     "no implicit argument",

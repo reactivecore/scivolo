@@ -114,6 +114,177 @@ object Source:
   private def synthetic(name: String): Boolean =
     name == "<init>" || name.startsWith("<local ") && name.endsWith(">") || name == "$anonfun" || name == "macro"
 
+object Symbols:
+  inline def flagsOf[T]: String = ${ flagsOfImpl[T] }
+  def flagsOfImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(describe(TypeRepr.of[T].typeSymbol))
+
+  inline def owners: String = ${ ownersImpl }
+  def ownersImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val root = Set(defn.RootPackage, defn.RootClass)
+    val chain = Iterator.iterate(Symbol.spliceOwner)(_.owner).takeWhile(s => !root(s))
+    Expr(chain.map(describe).mkString(" < "))
+
+  private def describe(using Quotes)(s: quotes.reflect.Symbol): String =
+    import quotes.reflect.*
+    val flags = List(
+      "Abstract" -> Flags.Abstract, "Case" -> Flags.Case, "Enum" -> Flags.Enum, "Final" -> Flags.Final,
+      "Given" -> Flags.Given, "Implicit" -> Flags.Implicit, "Inline" -> Flags.Inline, "Lazy" -> Flags.Lazy,
+      "Macro" -> Flags.Macro, "Method" -> Flags.Method, "Module" -> Flags.Module, "Mutable" -> Flags.Mutable,
+      "Package" -> Flags.Package, "Param" -> Flags.Param, "Private" -> Flags.Private, "Sealed" -> Flags.Sealed,
+      "Synthetic" -> Flags.Synthetic, "Trait" -> Flags.Trait, "Scala2x" -> Flags.Scala2x, "JavaDefined" -> Flags.JavaDefined
+    ).collect { case (n, f) if s.flags.is(f) => n }
+    val kinds = List(
+      "package" -> s.isPackageDef, "class" -> s.isClassDef, "type" -> s.isTypeDef, "val" -> s.isValDef,
+      "def" -> s.isDefDef, "term" -> s.isTerm, "constructor" -> s.isClassConstructor,
+      "dummy" -> s.isLocalDummy, "moduleClass" -> (s.moduleClass != Symbol.noSymbol)
+    ).collect { case (n, true) => n }
+    s"${s.name}: ${kinds.mkString(" ")}; ${flags.mkString(" ")}"
+
+object Terms:
+  inline def shape(inline x: Any): String = ${ shapeImpl('x) }
+  def shapeImpl(x: Expr[Any])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(show(x.asTerm))
+
+  inline def shapeUnderlying(inline x: Any): String = ${ shapeUnderlyingImpl('x) }
+  def shapeUnderlyingImpl(x: Expr[Any])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(show(x.asTerm.underlyingArgument))
+
+  inline def known(inline x: Int): String = ${ knownImpl('x) }
+  def knownImpl(x: Expr[Int])(using Quotes): Expr[String] = Expr(x.value.fold("unknown")(v => s"known $v"))
+
+  inline def knownText(inline x: String): String = ${ knownTextImpl('x) }
+  def knownTextImpl(x: Expr[String])(using Quotes): Expr[String] = Expr(x.valueOrAbort.reverse)
+
+  inline def count(inline xs: Int*): Int = ${ countImpl('xs) }
+  def countImpl(xs: Expr[Seq[Int]])(using Quotes): Expr[Int] = xs match
+    case Varargs(es) => Expr(es.size)
+    case _           => Expr(-1)
+
+  inline def segments(s: String): Array[String] = ${ segmentsImpl('s) }
+  def segmentsImpl(s: Expr[String])(using Quotes): Expr[Array[String]] =
+    import quotes.reflect.*
+    s.asTerm match
+      case Inlined(_, _, Literal(StringConstant(l))) => Expr(l.split('/'))
+      case _                                         => '{ $s.split('/') }
+
+  inline def words(inline s: String): List[String] = ${ wordsImpl('s) }
+  def wordsImpl(s: Expr[String])(using Quotes): Expr[List[String]] = Expr(s.valueOrAbort.split(' ').toList)
+
+  private def show(using Quotes)(t: quotes.reflect.Tree): String =
+    import quotes.reflect.*
+    def all(ts: List[Tree]) = ts.map(show).mkString(", ")
+    t match
+      case Inlined(call, bindings, e) => s"Inlined(${call.isDefined}, [${all(bindings)}], ${show(e)})"
+      case Literal(c)                 => s"Literal(${c.value})"
+      case Typed(e, tpt)              => s"Typed(${show(e)}, ${show(tpt)})"
+      case Block(stats, e)            => s"Block([${all(stats)}], ${show(e)})"
+      case Apply(f, args)             => s"Apply(${show(f)}, [${all(args)}])"
+      case TypeApply(f, args)         => s"TypeApply(${show(f)}, [${all(args)}])"
+      case Select(q, n)               => s"Select(${show(q)}, $n)"
+      case Ident(n)                   => s"Ident($n)"
+      case Repeated(es, tpt)          => s"Repeated([${all(es)}], ${show(tpt)})"
+      case NamedArg(n, a)             => s"NamedArg($n, ${show(a)})"
+      case ValDef(n, tpt, rhs)        => s"ValDef($n, ${show(tpt)}, ${rhs.map(show)})"
+      case Inferred()                 => "Inferred"
+      case tpt: TypeTree              => s"TypeTree(${tpt.tpe.typeSymbol.name})"
+      case t: Term                    => "Term"
+      case _                          => "Tree"
+
+object Checks:
+  inline def positive(inline x: Int): Int = ${ positiveImpl('x) }
+  def positiveImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    x.value match
+      case Some(v) if v < 0 => report.errorAndAbort(s"negative: $v", x)
+      case Some(v)          => Expr(v)
+      case None             => report.errorAndAbort("not a constant")
+
+  inline def flagged(inline x: Int): Int = ${ flaggedImpl('x) }
+  def flaggedImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    report.error("flagged", x.asTerm.pos)
+    x
+
+  inline def aborted(inline x: Int): Int = ${ abortedImpl('x) }
+  def abortedImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    throw new scala.quoted.runtime.StopMacroExpansion
+
+  inline def sameType[A, B]: Boolean = ${ sameTypeImpl[A, B] }
+  def sameTypeImpl[A: Type, B: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[A] =:= TypeRepr.of[B])
+
+  inline def subType[A, B]: Boolean = ${ subTypeImpl[A, B] }
+  def subTypeImpl[A: Type, B: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[A] <:< TypeRepr.of[B])
+
+  inline def isInt(inline x: Any): Boolean = ${ isIntImpl('x) }
+  def isIntImpl(x: Expr[Any])(using Quotes): Expr[Boolean] = Expr(x.isExprOf[Int])
+
+  inline def asInt(inline x: Any): Int = ${ asIntImpl('x) }
+  def asIntImpl(x: Expr[Any])(using Quotes): Expr[Int] = '{ ${ x.asExprOf[Int] } + 1 }
+
+  inline def widened(inline x: Any): Boolean = ${ widenedImpl('x) }
+  def widenedImpl(x: Expr[Any])(using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(x.asTerm.tpe.widen =:= TypeRepr.of[Int])
+
+object Members:
+  inline def structure[T]: String = ${ structureImpl[T] }
+  def structureImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = TypeRepr.of[T].typeSymbol
+    def names(l: List[Symbol]) = l.map(_.name).mkString(",")
+    val ctor = s.primaryConstructor
+    val parts = List(
+      s"ctor=${ctor.name}${ctor.paramSymss.map(names).mkString("(", ")(", ")")}",
+      s"case=${names(s.caseFields)}",
+      s"companion=${s.companionClass.name}",
+      s"children=${if s.flags.is(Flags.Sealed) then names(s.children) else "-"}",
+      s"class=${TypeRepr.of[T].classSymbol.map(_.name)}"
+    )
+    Expr(parts.mkString("; "))
+
+  inline def methods[T]: String = ${ methodsImpl[T] }
+  def methodsImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = TypeRepr.of[T].typeSymbol
+    val own = s.memberMethods.filter(_.owner == s).sortBy(_.pos.map(_.start))
+    val described = own.map { m =>
+      val p = m.pos.get
+      s"${m.name}${m.paramSymss.map(_.map(_.name).mkString(",")).mkString("[", "][", "]")}@${p.startLine}:${p.startColumn}"
+    }
+    Expr(described.mkString(" "))
+
+  inline def inherited[T](inline name: String): Int = ${ inheritedImpl[T]('name) }
+  def inheritedImpl[T: Type](name: Expr[String])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[T].typeSymbol.methodMember(name.valueOrAbort).size)
+
+  inline def required: String = ${ requiredImpl }
+  def requiredImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(Symbol.requiredClass("scala.collection.immutable.List").fullName)
+
+class Chunk(val parts: List[String])
+
+trait ChunkMacros:
+  inline implicit def validated(s: String): Chunk = ${ Chunk.validatedImpl('s) }
+
+object Chunk extends ChunkMacros:
+  private[macrolib] implicit def internal(s: String): Chunk = Chunk(List(s))
+  def validatedImpl(s: Expr[String])(using Quotes): Expr[Chunk] =
+    import quotes.reflect.*
+    s.asTerm match
+      case Inlined(_, _, Literal(StringConstant(l))) => '{ Chunk(${ Expr(l.split('/').toList) }) }
+      case _                                         => '{ Chunk(List($s)) }
+
 object Tuples:
   import scala.compiletime.{constValue, erasedValue}
 

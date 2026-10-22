@@ -90,8 +90,8 @@ the lowering.
 Status (2026-10-19, #40, ADR 0029): macro calls expand in scripts, the REPL and native
 executables. A library macro runs from its NIR in the VM; its quotes are unpickled into the
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
-`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject` works. dotty's
-`tests/run-macros`: 7 of 321 pass (`just dotty-macros`).
+`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject` and sourcecode 0.4.4 work.
+dotty's `tests/run-macros`: 18 of 321 pass (2026-10-22, `just dotty-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
@@ -113,8 +113,7 @@ In order of the tests they unblock:
    leftovers (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple
    leftovers (#139: patterns over 22, `map[F]`, ordering; #146); poly function leftovers (#136); mirrors (#129); match-type leftovers (#120);
    typed-tree printing gaps (#122, `RefinedTypeTree`).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
-   extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `ValDef.let`, `asType`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
    measured on `tests/run-macros`.
 3. **com-lihaoyi toolkit** (#144, [research 30](docs/research/30-lihaoyi-toolkit.md)): small
    typer and AOT fixes for os-lib and fastparse, then the macro steps for sourcecode, fastparse,

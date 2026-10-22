@@ -36,6 +36,25 @@ pub fn constant_type_of(u: &mut Universe, c: &Constant) -> TypeId {
     u.intern_type(t)
 }
 
+/// The constant of constant type `t` (dotty's `ConstantType.unapply`).
+pub fn constant_of(u: &Universe, t: TypeId) -> Option<Constant> {
+    Some(match *u.types().get(t) {
+        Type::Constant(UNITconst, _) => Constant::Unit,
+        Type::Constant(TRUEconst, _) => Constant::Boolean(true),
+        Type::Constant(FALSEconst, _) => Constant::Boolean(false),
+        Type::Constant(BYTEconst, b) => Constant::Byte(b as i8),
+        Type::Constant(SHORTconst, s) => Constant::Short(s as i16),
+        Type::Constant(CHARconst, c) => Constant::Char(c as u16),
+        Type::Constant(INTconst, i) => Constant::Int(i as i32),
+        Type::Constant(LONGconst, l) => Constant::Long(l),
+        Type::Constant(FLOATconst, f) => Constant::Float(f32::from_bits(f as u32)),
+        Type::Constant(DOUBLEconst, d) => Constant::Double(f64::from_bits(d as u64)),
+        Type::Constant(NULLconst, _) => Constant::Null,
+        Type::Str(ref s) => Constant::String(s.encode_utf16().collect()),
+        _ => return None,
+    })
+}
+
 impl<'a> Build<'a> {
     pub fn new(tpd: &'a mut Tpd, u: &'a mut Universe, names: &'a mut Names, unit: SymbolId) -> Build<'a> {
         Build { tpd, u, names, unit }
