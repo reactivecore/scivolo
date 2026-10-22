@@ -84,7 +84,7 @@ impl Vm {
         let bounds =
             stack::bounds().ok_or_else(|| VmError::Unsupported("unknown thread stack bounds".into()))?;
         let mut heap = Heap::new(natives::symbol, bounds).map_err(VmError::Unsupported)?;
-        let thread = heap.permanent(16, crate::heap::Blob::Words);
+        let thread = heap.permanent(16, heap::Blob::Words);
         let mut vm = Self {
             world: World::new(classpath),
             heap,
