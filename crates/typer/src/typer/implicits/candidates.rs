@@ -118,8 +118,7 @@ impl Typer<'_> {
     }
 
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
-    /// selection from `this`; a misfit if `c` is inaccessible, but for javalib's, whose
-    /// conversions between its renamed classes dotty's JDK lacks.
+    /// selection from `this`; a misfit if `c` is inaccessible and not javalib's.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let javalib = !self.syms.is_script(c.sym) && is_jdk(&self.u.full_name(c.sym));
         if !javalib && !self.is_accessible_from(c.sym, c.prefix, ctx) {
