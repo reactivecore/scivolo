@@ -22,7 +22,7 @@ impl Vm {
     ) -> Flow<()> {
         let cell = match self.threads.cells.pop() {
             Some(c) => c,
-            None => self.heap.permanent(16),
+            None => self.heap.permanent(16, heap::Blob::Words),
         };
         heap::write(cell, [0u64, native as u64]);
         self.spawn_thread(THREAD_STACK, cell, true, native, body)?;

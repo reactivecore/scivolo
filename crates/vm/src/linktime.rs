@@ -11,7 +11,7 @@ const MULTITHREADING: &str = "scala.scalanative.meta.linktimeinfo.isMultithreadi
 /// Evaluated properties and conditions.
 #[derive(Default)]
 pub struct Linktime {
-    props: FxHashMap<String, u64>,
+    pub props: FxHashMap<String, u64>,
     conds: FxHashMap<usize, bool>,
 }
 

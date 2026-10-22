@@ -42,6 +42,21 @@ fn lookup(name: &str) -> Option<usize> {
     (addr != 0).then_some(addr)
 }
 
+/// The name of the C symbol at exactly `addr`, which `symbol` finds again.
+pub fn symbol_at(addr: usize) -> Option<String> {
+    // SAFETY: `Dl_info` is plain data; `dladdr` only reads the loaded images' symbol tables and
+    // fills `info`, whose `dli_sname` is null or a C string the image keeps loaded.
+    let name = unsafe {
+        let mut info: libc::Dl_info = std::mem::zeroed();
+        let found = libc::dladdr(addr as *const libc::c_void, &mut info) != 0;
+        if !found || info.dli_sname.is_null() || info.dli_saddr as usize != addr {
+            return None;
+        }
+        CStr::from_ptr(info.dli_sname).to_str().ok()?.to_owned()
+    };
+    (lookup(&name) == Some(addr)).then_some(name)
+}
+
 /// The C functions the VM implements itself: `dlerror`, returning a copy of the message.
 pub fn extern_fn(name: &str) -> Option<crate::natives::NativeFn> {
     match name {

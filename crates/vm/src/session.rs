@@ -15,10 +15,10 @@ impl Vm {
     /// shutdown, which runs queued tasks. Interpreted calls throw `StackOverflowError` within
     /// `STACK_RESERVE` of the end of their thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
-        let argv = self.c_argv(entry, args);
-        let (entry, argc) = (entry.to_owned(), args.len() + 1);
-        self.run_main_thread(move |vm| {
-            let args = vm.init_runtime(argc, argv)?;
+        let init = self.initializer(entry, args);
+        let entry = entry.to_owned();
+        self.run_training(move |vm| {
+            let args = init(vm)?;
             let top = vm.world.top(&entry);
             let main = vm.world.member(top, "D4mainLAL16java.lang.String_uEo");
             vm.call_global(main, &[args])?;
@@ -28,9 +28,30 @@ impl Vm {
 
     /// Initializes the runtime for program `program` with arguments `args`.
     pub fn start_runtime(&mut self, program: &str, args: &[String]) -> Result<(), VmError> {
-        let argv = self.c_argv(program, args);
+        let init = self.initializer(program, args);
+        self.run_training(move |vm| init(vm).map(drop))
+    }
+
+    /// What initializes the runtime for `program` with `args` on the main thread, returning
+    /// the arguments array: `init`, or in a restored VM the effects of `init` that depend on the
+    /// process.
+    fn initializer(&mut self, program: &str, args: &[String]) -> impl FnOnce(&mut Vm) -> Flow + 'static {
+        let restored = self.restored.map(|info| (info, program.to_owned(), args.to_vec()));
+        let argv = if restored.is_none() { self.c_argv(program, args) } else { 0 };
         let argc = args.len() + 1;
-        self.run_main_thread(move |vm| vm.init_runtime(argc, argv).map(drop))
+        move |vm: &mut Vm| {
+            let args = match restored {
+                Some((info, program, args)) => vm.start_restored(info, &program, &args)?,
+                None => vm.init_runtime(argc, argv)?,
+            };
+            if let Some(path) = vm.snapshot_to.take()
+                && let Err(e) = vm.save_snapshot(&path)
+                && vm.funcs.trace
+            {
+                eprintln!("no snapshot: {e}");
+            }
+            Ok(args)
+        }
     }
 
     /// Adds NIR file `data` defining top-level `top`, which must not have been looked up yet.
@@ -102,6 +123,12 @@ impl Vm {
         &mut self,
         body: impl FnOnce(&mut Vm) -> Flow<()> + 'static,
     ) -> Result<(), VmError> {
+        self.heap.end_training(false);
+        self.run_training(body)
+    }
+
+    /// Runs `body` as `run_main_thread` does, in training until `init_runtime` returns.
+    fn run_training(&mut self, body: impl FnOnce(&mut Vm) -> Flow<()> + 'static) -> Result<(), VmError> {
         let vm: *mut Vm = self;
         let _running = self.callbacks.enter(vm);
         let main = move |vm: &mut Vm| {
@@ -122,9 +149,12 @@ impl Vm {
     /// The program's arguments array after initializing the runtime with C `argc` and `argv`.
     fn init_runtime(&mut self, argc: usize, argv: usize) -> Flow {
         let runtime = self.world.top(RUNTIME);
-        let module = self.module(runtime)? as u64;
         let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
-        self.call_global(init, &[module, argc as u64, argv as u64])
+        let args = self
+            .module(runtime)
+            .and_then(|module| self.call_global(init, &[module as u64, argc as u64, argv as u64]));
+        self.heap.end_training(args.is_ok());
+        args
     }
 
     fn shutdown_runtime(&mut self) -> Flow<()> {

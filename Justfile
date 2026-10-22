@@ -204,6 +204,18 @@ bench name runs="10" *args: release
 bench-base base name runs="10" *args: release
     python3 scripts/bench.py --base {{ base }} {{ name }} {{ runs }} {{ args }}
 
+# Like bench, alternating cold runs and runs from a fresh heap snapshot (tmp/bench-snapshot.bin).
+bench-snapshot name runs="10" *args: release
+    rm -f tmp/bench-snapshot.bin
+    python3 scripts/bench.py --snapshot tmp/bench-snapshot.bin {{ name }} {{ runs }} {{ args }}
+
+# The test programs started from a heap snapshot; `snapshot-diff programs` with it compares them
+# with a cold baseline.
+check-snapshot *names: release
+    rm -f tmp/check-snapshot.bin
+    SCIVOLO_SNAPSHOT=tmp/check-snapshot.bin target/release/scivolo --cp tests/programs/hello hello > /dev/null
+    SCIVOLO_SNAPSHOT=$(pwd)/tmp/check-snapshot.bin python3 scripts/program_runs.py check {{ names }}
+
 # Edit-then-run time of Scala script `file` with the strict frontend, cache miss and hit.
 bench-edit file runs="10": release
     python3 scripts/bench_edit.py {{ file }} {{ runs }}

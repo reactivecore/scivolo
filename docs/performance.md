@@ -67,8 +67,10 @@ or two `java.lang` boxes of one class directly (`Instr::BoxedEquals`), which mad
    straight from the file to 10 ms; member tables in the image (no index decoding) and files
    read from the mapping without copying to 9.3 ms. What remains: ~2 ms process start,
    ~1.4 ms decoding the 1,093 definitions hello uses, ~1.6 ms lowering 736 methods, ~1 ms
-   laying out classes, and running the runtime's initialization. Next: a heap snapshot of the
-   initialized runtime, taken after a training run (#9).
+   laying out classes, and running the runtime's initialization. The heap snapshot of the
+   initialized runtime (ADR 0034) removes the initialization: hello 12.5 → 8.9 ms, moderate
+   21.8 → 18.1 ms (2026-10-22, M4 under load, minima). Next: decoded definitions and lowered
+   code in the snapshot too.
 8. **Allocation:** boxing in generic collections allocates an `Integer` per element. Cache
    small boxed values the way `Integer.valueOf` does on the JVM (javalib may already do it;
    check).

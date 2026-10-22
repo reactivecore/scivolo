@@ -45,7 +45,7 @@ struct InstanceLayout {
 #[derive(Default)]
 pub struct Classes {
     pub all: Vec<Class>,
-    by_name: FxHashMap<GlobalId, ClassId>,
+    pub by_name: FxHashMap<GlobalId, ClassId>,
     pub vtables: FxHashMap<(ClassId, nir::StrId), crate::interp::FuncId>,
 }
 
