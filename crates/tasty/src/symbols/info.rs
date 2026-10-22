@@ -18,7 +18,8 @@ impl Universe {
             (Kind::Package | Kind::Class, _) | (_, None) => self.types.intern(Type::Other(TEMPLATE)),
             (_, Some((file, id))) => {
                 let t = self.with_decoder(file, |d| d.definition_type(id));
-                self.with_java_varargs(sym, t)
+                let t = self.with_java_varargs(sym, t);
+                self.with_java_strings(sym, t)
             }
         };
         self.infos.insert(sym, t);

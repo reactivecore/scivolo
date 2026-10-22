@@ -13,6 +13,7 @@ mod function_classes;
 mod impure_functions;
 mod info;
 mod inits;
+mod java_strings;
 mod java_stubs;
 mod jdk;
 mod loaded;
