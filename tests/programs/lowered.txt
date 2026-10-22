@@ -131,3 +131,4 @@ viewapply
 setterassign
 handlerexprs
 usercopy
+inheritedresult

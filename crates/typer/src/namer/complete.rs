@@ -77,8 +77,10 @@ impl Typer<'_> {
         }
         let Some(rhs) = rhs else { return self.u.intern_type(Type::Error) };
         let inherited = self.inherited_result(sym);
-        if inherited.is_none() {
-            self.check_inferred_implicit(sym);
+        match inherited {
+            Some(i) if !self.keeps_rhs_type(sym) => return i,
+            Some(_) => {}
+            None => self.check_inferred_implicit(sym),
         }
         let (param_type, by_name) = self.default_param_proto(sym);
         let raw_default = param_type.map(|(_, pt)| pt);
@@ -102,7 +104,6 @@ impl Typer<'_> {
             tpe
         });
         match (inherited, default.filter(|_| exact && !by_name)) {
-            (Some(i), _) if !self.keeps_rhs_type(sym) => i,
             (None, Some(d)) if self.u.is_subtype(tpe, d) => self.default_getter_type(d),
             _ => {
                 let mut wildcard = false;
