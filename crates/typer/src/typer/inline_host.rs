@@ -82,6 +82,10 @@ impl Host for Typer<'_> {
         self.error_at(at, msg);
     }
 
+    fn has_errors(&self) -> bool {
+        self.diags.has_errors()
+    }
+
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
         let expanded = match self.macros.as_deref_mut() {
             Some(macros) => macros.expand(lent, call),

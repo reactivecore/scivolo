@@ -26,6 +26,8 @@ pub trait Host {
     ) -> Result<Option<TNodeId>, &'static str>;
     /// Reports error `msg` at `at`.
     fn error(&mut self, at: Span, msg: String);
+    /// Whether an error has been reported.
+    fn has_errors(&self) -> bool;
     /// What macro call `call` expands to (dotty's `Splicer.splice`).
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
 }

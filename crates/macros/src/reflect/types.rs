@@ -39,7 +39,7 @@ impl Host {
                     "isSubtype" => self.u.is_subtype_in(a, b, &mut NoVars),
                     _ => self.u.is_same_type_in(a, b, &mut NoVars),
                 };
-                numbers(vec![holds as i32])
+                self.decided(holds, [a, b])
             }
             "constantType" => {
                 let t = self.type_of(arg(0)? as u32)?;
@@ -55,6 +55,28 @@ impl Host {
                 numbers(vec![self.add_type(t) as i32])
             }
             _ => Err(UNKNOWN),
+        }
+    }
+
+    /// The answer `holds` of a type check of `types`; a `false` is refused if a type has a part
+    /// the universe may not decide: a type variable, a wildcard, an unresolved reference, a match
+    /// type, a lambda's type parameter or a type not represented.
+    pub fn decided(&mut self, holds: bool, types: [TypeId; 2]) -> Answer {
+        let mut undecided = false;
+        for t in types {
+            self.u.map_type(t, &mut |u, part| {
+                undecided |= match *u.types().get(part) {
+                    Type::Var(_) | Type::Wildcard(_) | Type::Match { .. } | Type::Local(..) => true,
+                    Type::Other(_) | Type::PackageName(_) => true,
+                    Type::TypeRef(..) | Type::TermRef(..) => u.resolve_ref(part).is_none(),
+                    _ => false,
+                };
+                None
+            });
+        }
+        match !holds && undecided {
+            true => Err("a type check the frontend cannot decide"),
+            false => numbers(vec![holds as i32]),
         }
     }
 

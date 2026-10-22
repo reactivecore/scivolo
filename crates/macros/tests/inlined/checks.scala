@@ -7,3 +7,4 @@ object Checks:
   val b = positive(-2)
   val c = positive(n)
   val d = flagged(4)
+  val e = aborted(5)
