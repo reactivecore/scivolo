@@ -95,8 +95,8 @@ impl Universe {
         false
     }
 
-    /// Whether class `c` declares opaque types defined outside TASTy.
-    fn has_opaques(&self, c: SymbolId) -> bool {
+    /// Whether class `c` declares opaque types defined outside TASTy (dotty's `containsOpaques`).
+    pub fn has_opaques(&self, c: SymbolId) -> bool {
         self.symbol(c).flags.has(OPAQUE)
             && self.symbol(c).decls.iter().any(|&d| {
                 let s = self.symbol(d);

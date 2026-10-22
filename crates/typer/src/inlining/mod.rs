@@ -17,6 +17,7 @@ mod host;
 mod inline_call;
 mod macros;
 mod no_inits;
+mod opaque_proxies;
 mod outer_this;
 mod proxies;
 mod purity;

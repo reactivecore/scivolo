@@ -69,7 +69,8 @@ impl<'i, 'a> Expansion<'i, 'a> {
         for (params, &apply) in vclauses.iter().zip(&applies) {
             self.bind_clause(params, apply)?;
         }
-        let this = self.bind_this(fun, meth, rhs)?;
+        let mut this = self.bind_this(fun, meth, rhs)?;
+        this.extend(self.bind_opaque_this(meth, rhs, this.len())?);
         let this_tpe =
             this.iter().map(|&(cls, proxy)| (cls, self.i.u.intern_type(Type::Sym(None, proxy)))).collect();
         let mut m = TreeTypeMap {

@@ -67,6 +67,12 @@ impl Inlining<'_> {
     /// `tpe` widened until it refers to none of `locals`; `None` if it cannot be.
     pub fn avoid(&mut self, mut tpe: TypeId, locals: &[SymbolId]) -> Option<TypeId> {
         while locals.iter().any(|&s| self.mentions(tpe, s)) {
+            if let Type::Sym(Some(_), s) = *self.u.types().get(tpe)
+                && let Some(alias) = self.u.opaque_alias(s)
+            {
+                tpe = alias;
+                continue;
+            }
             let widened = self.u.widen_once(tpe).unwrap_or(tpe);
             let widened = match *self.u.types().get(widened) {
                 Type::ByName(r) => r,
