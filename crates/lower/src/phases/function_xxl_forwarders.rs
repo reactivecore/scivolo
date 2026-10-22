@@ -54,7 +54,7 @@ fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool 
     }
     let site = l.u.this_type(class);
     for base in l.u.linearization(class) {
-        if !function_class_arity(l, base).is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY) {
+        if function_class_arity(l, base).is_none_or(|(n, _)| n as usize <= MAX_IMPLEMENTED_ARITY) {
             continue;
         }
         let applies = l.u.decl(base, "apply").unwrap_or_default();
