@@ -2,7 +2,7 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 package scala.quoted.runtime.impl
 
-import scala.quoted.Expr
+import scala.quoted.{Expr, Type}
 
 /** The trees and terms of `quotes.reflect`. */
 trait ReflectTermSupport { this: QuotesImpl =>
@@ -44,6 +44,11 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
   abstract class TreeMethodsImpl extends TreeMethods {
     extension (self: Tree) {
       def asExpr: Expr[Any] = self.asInstanceOf[Expr[Any]]
+      def asExprOf[T](using t: Type[T]): Expr[T] = {
+        if (ReflectOps.one("isExprOf", ReflectOps.id(self), QuoteHost.typeId(t)) == 0)
+          throw new Unsupported("Tree.asExprOf of a term of another type")
+        self.asInstanceOf[Expr[T]]
+      }
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
       def symbol: Symbol = new SymbolImpl(ReflectOps.one("treeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
     }

@@ -12,8 +12,15 @@ trait ReflectTreeSupport { this: QuotesImpl =>
 
 trait ReflectTrees extends reflectModule { self: reflect.type =>
 
-  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14)
-  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17)
+  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18)
+  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18)
+  given ThisTypeTest: TypeTest[Tree, This] = test(18)
+
+  object This extends ThisModule {
+    def apply(cls: Symbol): This = refused("This.apply")
+    def copy(original: Tree)(qual: Option[String]): This = refused("This.copy")
+    def unapply(x: This): Some[Option[String]] = Some(Option(ReflectOps.shape(x).name))
+  }
   given DefinitionTypeTest: TypeTest[Tree, Definition] = test(12, 15, 16)
   given IdentTypeTest: TypeTest[Tree, Ident] = test(1)
   given SelectTypeTest: TypeTest[Tree, Select] = test(2)

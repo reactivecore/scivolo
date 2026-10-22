@@ -93,6 +93,11 @@ impl Reflect<'_> {
         decls.into_iter().filter(|&d| self.u.symbol(d).kind == Kind::Def).collect()
     }
 
+    /// `Symbol.typeRef`, `Symbol.termRef`: the type of a reference to `s`.
+    pub fn symbol_ref(&mut self, s: SymbolId) -> TypeId {
+        type_ref(self.u, s)
+    }
+
     /// `Ref(s)` of a static object or value `s`.
     pub fn ref_(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
         let span = self.span;

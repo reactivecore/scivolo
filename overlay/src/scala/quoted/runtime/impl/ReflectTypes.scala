@@ -35,10 +35,20 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
   }
 
   abstract class TypeReprMethodsImpl extends TypeReprMethods {
+    private def repr(id: Int): TypeRepr = QuoteHost.tpe(id).asInstanceOf[TypeRepr]
+
     extension (self: TypeRepr) {
       def =:=(that: TypeRepr): Boolean = ReflectOps.one("isSameType", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def <:<(that: TypeRepr): Boolean = ReflectOps.one("isSubtype", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def asType: Type[?] = self.asInstanceOf[Type[?]]
+      def dealias: TypeRepr = repr(ReflectOps.one("dealias", ReflectOps.id(self)))
+      def isSingleton: Boolean = ReflectOps.one("isSingleton", ReflectOps.id(self)) != 0
+      def baseClasses: List[Symbol] =
+        ReflectOps.results("baseClasses", ReflectOps.id(self)).map(s => new SymbolImpl(s).asInstanceOf[Symbol])
+      def memberType(member: Symbol): TypeRepr = repr(ReflectOps.one("memberType", ReflectOps.id(self), ReflectOps.id(member)))
+      def appliedTo(targ: TypeRepr): TypeRepr = TypeShapes.appliedTo(self, List(targ)).asInstanceOf[TypeRepr]
+      def appliedTo(targs: List[TypeRepr]): TypeRepr = TypeShapes.appliedTo(self, targs).asInstanceOf[TypeRepr]
+      def derivesFrom(cls: Symbol): Boolean = baseClasses.contains(cls)
       def classSymbol: Option[Symbol] = {
         val c = ReflectOps.one("classSymbol", ReflectOps.id(self))
         if (c < 0) None else Some(new SymbolImpl(c).asInstanceOf[Symbol])

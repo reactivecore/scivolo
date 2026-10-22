@@ -63,6 +63,10 @@ impl Host {
                     _ => Err("Symbol.requiredClass of a class the frontend lacks"),
                 }
             }
+            "requiredPackage" => match self.u.package(text) {
+                Some(p) => numbers(vec![p.0 as i32]),
+                None => Err("Symbol.requiredPackage of a package the frontend lacks"),
+            },
             "symbolPos" => {
                 let s = sym()?;
                 let span = self.def_name_span(s).ok_or("Symbol.pos of a symbol defined outside the unit")?;

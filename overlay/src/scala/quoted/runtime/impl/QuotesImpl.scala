@@ -9,7 +9,7 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
  *  a typed term hole, the subset of `reflect` of `ReflectImpl`; everything else `Unsupported`.
  */
 final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTreeSupport, ReflectTermSupport,
-    ReflectTypeSupport, ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport {
+    ReflectTypeSupport, ReflectTypeShapeSupport,ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 
@@ -82,8 +82,11 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   }
 
   object TypeMatch extends TypeMatchModule {
-    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Type[?])(using pattern: Type[?]): Option[Tup] =
-      throw new Unsupported("a quoted type pattern")
+    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Type[?])(using pattern: Type[?]): Option[Tup] = {
+      val n = ReflectOps.one("matchType", QuoteHost.typeId(scrutinee), QuoteHost.typeId(pattern))
+      if (n < 0) None
+      else Some(Tuple.fromArray(Array.tabulate[Object](n)(i => QuoteHost.tpe(-1 - QuoteHost.matched(i)).asInstanceOf[Object])).asInstanceOf[Tup])
+    }
   }
 
   private def text(pickled: String | List[String]): String = pickled match {

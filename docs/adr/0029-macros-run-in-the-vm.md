@@ -36,7 +36,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
 - **Quote patterns** of a typed term hole (`'{ $m: T { type L = l } }`, dotty's `QuoteMatcher`
   hole cases) are matched by the typer (`inlining::quote_match`): the pattern's type bindings
   become type variables of a subtype check of the scrutinee's type against the hole's, and are
-  approximated after it; other pattern shapes are refused by name.
+  approximated after it; type patterns `'[P]` the same way with `P` as the hole's type; other
+  pattern shapes are refused by name.
 - **`quotes.reflect`** is the overlay's abstract `ReflectImpl` with the members macros such as
   Circe's use (terms as `ExprImpl`s, `TypeRepr`s as `TypeImpl`s, symbols by number), each a
   named operation the typer runs (`inlining::Reflect`). `reflect`'s getter and the `given`

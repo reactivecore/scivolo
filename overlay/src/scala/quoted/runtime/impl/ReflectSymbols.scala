@@ -10,7 +10,10 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
   object Symbol extends SymbolModule {
     def spliceOwner: Symbol = symbol(ReflectOps.one("spliceOwner"))
     def noSymbol: Symbol = symbol(-1)
-    def requiredPackage(path: String): Symbol = refused("Symbol.requiredPackage")
+    def requiredPackage(path: String): Symbol = {
+      ReflectOps.run("requiredPackage", new Array[Int](0), path)
+      symbol(QuoteHost.result(0))
+    }
     def requiredClass(path: String): Symbol = {
       ReflectOps.run("requiredClass", new Array[Int](0), path)
       symbol(QuoteHost.result(0))
@@ -67,6 +70,12 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       def flags: Flags = ReflectOps.flags(ReflectOps.id(self)).asInstanceOf[Flags]
       def moduleClass: Symbol = sym(ReflectOps.one("moduleClass", ReflectOps.id(self)))
       def companionClass: Symbol = sym(ReflectOps.one("companionClass", ReflectOps.id(self)))
+      def typeRef: TypeRef =
+        if (!self.isType) throw new Unsupported("Symbol.typeRef of a term")
+        else QuoteHost.tpe(ReflectOps.one("symbolRef", ReflectOps.id(self))).asInstanceOf[TypeRef]
+      def termRef: TermRef =
+        if (!self.isTerm) throw new Unsupported("Symbol.termRef of a type")
+        else QuoteHost.tpe(ReflectOps.one("symbolRef", ReflectOps.id(self))).asInstanceOf[TermRef]
       def primaryConstructor: Symbol = sym(ReflectOps.one("primaryConstructor", ReflectOps.id(self)))
       def caseFields: List[Symbol] = ReflectOps.results("caseFields", ReflectOps.id(self)).map(sym)
       def children: List[Symbol] = ReflectOps.results("children", ReflectOps.id(self)).map(sym)

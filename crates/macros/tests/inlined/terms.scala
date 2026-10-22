@@ -24,3 +24,5 @@ object Terms:
   val r = segments(n)
   val s = words("x y")
   val t = shapeUnderlying { val x = 1; x }
+  val u = shape(this)
+  val v = shape(Terms.this.one)

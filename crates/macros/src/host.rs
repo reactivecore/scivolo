@@ -25,8 +25,8 @@ enum Expr {
     Quote(Unpickled),
 }
 
-/// The bit that marks the number of a quote pattern among those of expressions.
-const PATTERN: u32 = 1 << 30;
+/// The bit that marks the number of a quote pattern among those of expressions and types.
+pub const PATTERN: u32 = 1 << 30;
 
 pub struct Host {
     pub u: Universe,
@@ -39,9 +39,9 @@ pub struct Host {
     pub sources: Vec<SourceFile>,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
-    patterns: Vec<QuotePattern>,
+    pub patterns: Vec<QuotePattern>,
     /// What the last quote pattern matched: expressions `Ok`, types `Err`.
-    matched: Vec<Result<u32, u32>>,
+    pub matched: Vec<Result<u32, u32>>,
     /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
     pub made: crate::reflect::Made,
@@ -90,6 +90,11 @@ impl Host {
         self.types.len() as u32 - 1
     }
 
+    fn add_pattern(&mut self, p: QuotePattern) -> u32 {
+        self.patterns.push(p);
+        PATTERN | (self.patterns.len() as u32 - 1)
+    }
+
     /// The tree of expression `expr`, a quote's with its holes open.
     pub fn tree(&self, expr: u32) -> Result<TNodeId, &'static str> {
         match self.exprs.get(expr as usize) {
@@ -127,10 +132,7 @@ impl vm::QuoteHost for Host {
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
         let Quote { root, spliced, holes } = match quote(lent, bytes, self.owner, &types)? {
             typer::unpickle::Unpickled::Quote(q) => q,
-            typer::unpickle::Unpickled::Pattern(p) => {
-                self.patterns.push(p);
-                return Ok(PATTERN | (self.patterns.len() as u32 - 1));
-            }
+            typer::unpickle::Unpickled::Pattern(p) => return Ok(self.add_pattern(p)),
         };
         let holes = holes
             .into_iter()
@@ -143,15 +145,15 @@ impl vm::QuoteHost for Host {
     fn unpickle_type(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
         let (bytes, types) = self.decoded(pickled, types)?;
         let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        let t = quoted_type(lent, bytes, self.owner, &types)?;
-        Ok(self.add_type(t))
+        Ok(match quoted_type(lent, bytes, self.owner, &types)? {
+            Ok(t) => self.add_type(t),
+            Err(p) => self.add_pattern(p),
+        })
     }
 
     fn hole_count(&self, quote: u32) -> u32 {
-        match self.exprs.get(quote as usize) {
-            Some(Expr::Quote(q)) => q.holes.len() as u32,
-            _ => 0,
-        }
+        let Some(Expr::Quote(q)) = self.exprs.get(quote as usize) else { return 0 };
+        q.holes.len() as u32
     }
 
     fn hole(&self, quote: u32, hole: u32) -> Option<vm::Hole> {
@@ -178,8 +180,8 @@ impl vm::QuoteHost for Host {
         let pattern = (pattern & PATTERN != 0).then_some(pattern & !PATTERN).ok_or(unknown)?;
         let pattern = self.patterns.get(pattern as usize).ok_or(unknown)?;
         let Some(types) = quote_match(&mut self.u, tpe, pattern) else { return Ok(u32::MAX) };
-        let types: Vec<u32> = types.into_iter().map(|t| self.add_type(t)).collect();
-        self.matched = types.into_iter().map(Err).chain([Ok(scrutinee)]).collect();
+        let types: Vec<_> = types.into_iter().map(|t| Err(self.add_type(t))).collect();
+        self.matched = types.into_iter().chain([Ok(scrutinee)]).collect();
         Ok(self.matched.len() as u32)
     }
 

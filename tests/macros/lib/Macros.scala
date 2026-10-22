@@ -190,6 +190,7 @@ object Terms:
       case Repeated(es, tpt)          => s"Repeated([${all(es)}], ${show(tpt)})"
       case NamedArg(n, a)             => s"NamedArg($n, ${show(a)})"
       case ValDef(n, tpt, rhs)        => s"ValDef($n, ${show(tpt)}, ${rhs.map(show)})"
+      case This(q)                    => s"This($q)"
       case Inferred()                 => "Inferred"
       case tpt: TypeTree              => s"TypeTree(${tpt.tpe.typeSymbol.name})"
       case t: Term                    => "Term"
@@ -234,6 +235,51 @@ object Checks:
   def widenedImpl(x: Expr[Any])(using Quotes): Expr[Boolean] =
     import quotes.reflect.*
     Expr(x.asTerm.tpe.widen =:= TypeRepr.of[Int])
+
+object TypePatterns:
+  inline def kind[T]: String = ${ kindImpl[T] }
+  def kindImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    def isInt[X: Type] = TypeRepr.of[X] =:= TypeRepr.of[Int]
+    Type.of[T] match
+      case '[List[t]]   => Expr(s"list of ${if isInt[t] then "Int" else "other"}")
+      case '[Map[k, v]] => Expr(s"map ${isInt[k]} ${isInt[v]}")
+      case '[Int]       => Expr("int")
+      case _            => Expr("other")
+
+  inline def emptyOf[T]: Any = ${ emptyOfImpl[T] }
+  def emptyOfImpl[T: Type](using Quotes): Expr[Any] =
+    import quotes.reflect.*
+    TypeRepr.of[T].asType match
+      case '[Option[t]] => '{ List.empty[t] }
+      case '[t]         => '{ Option.empty[t] }
+
+object TypeShapes:
+  inline def describe[T]: String = ${ describeImpl[T] }
+  def describeImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    def show(t: TypeRepr): String = t match
+      case AppliedType(tycon, args) => s"Applied(${show(tycon)}, ${args.map(show).mkString(",")})"
+      case t: TermRef               => s"TermRef(${t.name})"
+      case TypeRef(_, n)            => s"TypeRef($n)"
+      case _: AnnotatedType         => "Annotated"
+      case _                        => "Other"
+    val t = TypeRepr.of[T]
+    val bases = t.baseClasses.map(_.name).filterNot(Set("Any", "Object", "Matchable", "Product", "Serializable", "Equals"))
+    Expr(s"${show(t)}; ${show(t.dealias)}; ${t.isSingleton}; ${bases.mkString(",")}")
+
+  inline def facts: String = ${ factsImpl }
+  def factsImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val listOfInt = TypeRepr.of[List].appliedTo(TypeRepr.of[Int]) =:= TypeRepr.of[List[Int]]
+    val applied = TypeRepr.of[Option[String]] match
+      case AppliedType(tycon, _) => tycon.appliedTo(TypeRepr.of[Int]) =:= TypeRepr.of[Option[Int]]
+      case _                     => false
+    val some = TypeRepr.of[Some[Int]]
+    val value = some.memberType(some.typeSymbol.caseFields.head) =:= TypeRepr.of[Int]
+    val ref = some.typeSymbol.typeRef.typeSymbol == some.typeSymbol
+    val tuple = defn.isTupleClass(TypeRepr.of[(Int, String)].typeSymbol) && !defn.isTupleClass(some.typeSymbol)
+    Expr(List(listOfInt, applied, value, ref, tuple, defn.ScalaPackage.name, defn.RepeatedParamClass.name).mkString(" "))
 
 object Members:
   inline def structure[T]: String = ${ structureImpl[T] }
