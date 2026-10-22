@@ -20,5 +20,14 @@ object Test {
     println(Lib.sepOr())
     println(Lib.sepOr(n))
     println(Lib.sepOr(sep = "x"))
+    println(Lib.elemCount[Point])
+    println(Lib.elemCount[Shape])
   }
 }
+
+case class Point(x: Int, y: Int)
+sealed trait Shape
+object Shape
+case class Circle() extends Shape
+case class Square() extends Shape
+case class Line() extends Shape

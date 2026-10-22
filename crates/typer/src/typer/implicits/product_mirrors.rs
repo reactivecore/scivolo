@@ -73,6 +73,7 @@ impl Typer<'_> {
         let elems: Vec<TypeId> = accessors
             .iter()
             .map(|&a| {
+                self.complete(a);
                 let t = self.u.member_info(site, a);
                 match *self.u.types().get(t) {
                     Type::ByName(r) => r,
