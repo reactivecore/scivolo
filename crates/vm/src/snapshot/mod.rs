@@ -13,7 +13,7 @@ pub use start::{ExecInfo, INIT_PORTED_FROM};
 use crate::Vm;
 
 /// How a VM starts: cold, from a snapshot file's contents, or cold writing one to the path
-/// once `run_main` has initialized the runtime.
+/// once `run_main` or `start_runtime` has initialized the runtime.
 pub enum Snapshot {
     Cold,
     Restore(Vec<u8>),

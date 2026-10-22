@@ -46,6 +46,7 @@ snapshot whose objects move corrupts every identity-keyed table built during `in
 - 2026-10-22, M4 under load: restoring with `init` run again saved 2 ms of hello and 3.8 ms
   of moderate (wall minima); without the re-run `init` takes 8 µs instead of 4.4 ms in
   process.
-- The REPL still starts cold.
+- The REPL starts from the same cache file (empty input: 14.6 → 8.8 ms wall minimum). Classes a
+  script compiles into a package of the snapshot are not checked for shadowing.
 - Rejected: a position-independent dump with relocations and an identity-hash side table
   (kept in reserve if a hint is ever refused in practice).

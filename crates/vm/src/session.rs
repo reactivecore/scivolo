@@ -19,12 +19,6 @@ impl Vm {
         let entry = entry.to_owned();
         self.run_training(move |vm| {
             let args = init(vm)?;
-            if let Some(path) = vm.snapshot_to.take()
-                && let Err(e) = vm.save_snapshot(&path)
-                && vm.funcs.trace
-            {
-                eprintln!("no snapshot: {e}");
-            }
             let top = vm.world.top(&entry);
             let main = vm.world.member(top, "D4mainLAL16java.lang.String_uEo");
             vm.call_global(main, &[args])?;
@@ -45,9 +39,18 @@ impl Vm {
         let restored = self.restored.map(|info| (info, program.to_owned(), args.to_vec()));
         let argv = if restored.is_none() { self.c_argv(program, args) } else { 0 };
         let argc = args.len() + 1;
-        move |vm: &mut Vm| match restored {
-            Some((info, program, args)) => vm.start_restored(info, &program, &args),
-            None => vm.init_runtime(argc, argv),
+        move |vm: &mut Vm| {
+            let args = match restored {
+                Some((info, program, args)) => vm.start_restored(info, &program, &args)?,
+                None => vm.init_runtime(argc, argv)?,
+            };
+            if let Some(path) = vm.snapshot_to.take()
+                && let Err(e) = vm.save_snapshot(&path)
+                && vm.funcs.trace
+            {
+                eprintln!("no snapshot: {e}");
+            }
+            Ok(args)
         }
     }
 

@@ -76,7 +76,7 @@ pub struct Vm {
     scratch: Vec<usize>,
     /// The macro expansions run, and the frontend's side of the one running.
     quotes: natives::Expansions,
-    /// Where `run_main` writes a snapshot once the runtime is initialized.
+    /// Where a snapshot is written once the runtime is initialized.
     snapshot_to: Option<std::path::PathBuf>,
     /// Set when the VM was restored from a snapshot: where `init`'s own effects go.
     restored: Option<snapshot::ExecInfo>,
