@@ -16,6 +16,15 @@ class Service(val id: Int) extends Named:
 
 object Service
 
+trait Box[T]:
+  def put(t: T): Unit
+
+class IntBox extends Box[Int] with Named:
+  def put(t: Int): Unit = ()
+  override val name = "v"
+  private def q(x: Int): Int = x
+  private def q(x: String): Int = 0
+
 object Members:
   val a = structure[Shape]
   val b = structure[Circle]
@@ -26,3 +35,6 @@ object Members:
   val g = inherited[Service]("toString")
   val h = required
   val i = structure[Service.type]
+  val j = inherited[IntBox]("put")
+  val k = inherited[IntBox]("name")
+  val l = inherited[IntBox]("q")
