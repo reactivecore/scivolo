@@ -58,10 +58,11 @@ impl Typer<'_> {
         if self.is_error(result_tree) {
             return result_tree;
         }
-        let result = match self.evidence_function_type(&evidence, self.tpd.tpe(result_tree), lctx) {
-            Ok(result) => result,
+        let result_tree = match self.evidence_function_tree(&evidence, result_tree, lctx) {
+            Ok(tree) => tree,
             Err(refused) => return refused,
         };
+        let result = self.tpd.tpe(result_tree);
         let binder = self.syms.fresh_binder();
         let names: Vec<(String, TypeId)> =
             params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();

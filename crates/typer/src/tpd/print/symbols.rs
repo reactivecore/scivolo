@@ -8,7 +8,8 @@ use tasty::{Kind, SymbolId, Universe};
 
 /// dotty's `fullName`: owners joined by `.`, each term owner between `s` and its enclosing class
 /// as a `_$` before the name, the root and the empty package left out; the module class of `<:<`
-/// as dotty gives it, `$:$$`; a context function parameter `contextual$N` as an empty name.
+/// as dotty gives it, `$:$$`; a context function parameter `contextual$N` as an empty name; the
+/// owners of evidence `evidence$N` with `$` for `<` and `>`.
 pub fn full_name(u: &Universe, s: SymbolId) -> String {
     let name = &u.symbol(s).name;
     let digits = |n: &str| !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit());
@@ -29,10 +30,15 @@ pub fn full_name(u: &Universe, s: SymbolId) -> String {
         encl = u.symbol(e).owner;
         filler.push_str("_$");
     }
-    match encl {
-        Some(e) if e != u.root() => format!("{}.{filler}{name}", full_name(u, e)),
-        _ => format!("{filler}{name}"),
-    }
+    let prefix = match encl {
+        Some(e) if e != u.root() => format!("{}.", full_name(u, e)),
+        _ => String::new(),
+    };
+    let prefix = match name.strip_prefix("evidence$").is_some_and(digits) {
+        true => prefix.replace(['<', '>'], "$"),
+        false => prefix,
+    };
+    format!("{prefix}{filler}{name}")
 }
 
 /// `s` quoted, a method with its signature, as in `"scala.Predef$.println#(java.lang.Object)"`.
