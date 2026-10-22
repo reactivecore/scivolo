@@ -126,6 +126,7 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Result<(TNodeId, Vec<TNodeId>, Vec<TNodeId>), &'static str> {
         let pre = |a: NodeId| pretyped.and_then(|p| args.iter().position(|&b| b == a).and_then(|i| p[i]));
+        let args_typed = pretyped.map_or(args.is_empty(), |p| p.iter().all(Option::is_some));
         let method = method.or_else(|| self.tpd.sym(self.tpd.meth_part(f)));
         let complex = method.is_some_and(|m| self.has_defaults(m));
         let contextual = self.takes_using(f);
@@ -154,7 +155,7 @@ impl Typer<'_> {
                         typed.push(self.implicit_arg(formal, at, ctx, 0)?);
                         continue;
                     }
-                    let getter = self.default_arg(f, method, i, ctx)?;
+                    let getter = self.default_arg(f, (method, i), args_typed, ctx)?;
                     typed.push(self.adapt(getter, Pt::Type(formal), ctx));
                     continue;
                 }
