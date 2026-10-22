@@ -33,7 +33,13 @@ impl Typer<'_> {
             DerivedKind::FromParam => self.derived_from_param(&text, watched.is_type, ctx),
             DerivedKind::FromEnumParam => self.derived_from_enum_param(&text, ctx),
             DerivedKind::SetterParam => self.setter_param_type(&text, ctx),
-            _ => self.class_named(&text, ctx).map(|c| type_ref(self.u, c)),
+            _ => self.class_named(&text, ctx).map(|c| {
+                let inline_owner = self.u.symbol(ctx.owner).flags.has(tasty::tags::INLINE);
+                if inline_owner && self.u.symbol(c).flags.has(tasty::tags::GIVEN) {
+                    self.complete(c);
+                }
+                type_ref(self.u, c)
+            }),
         };
         let Some(tpe) = tpe else { return self.unsupported(id, &format!("derived type {kind:?}")) };
         let span = self.ast.span(id);
