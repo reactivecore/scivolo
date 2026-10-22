@@ -17,7 +17,7 @@ impl Vm {
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
         let argv = self.c_argv(entry, args);
         let (entry, argc) = (entry.to_owned(), args.len() + 1);
-        self.run_main_thread(move |vm| {
+        self.run_training(move |vm| {
             let args = vm.init_runtime(argc, argv)?;
             let top = vm.world.top(&entry);
             let main = vm.world.member(top, "D4mainLAL16java.lang.String_uEo");
@@ -30,7 +30,7 @@ impl Vm {
     pub fn start_runtime(&mut self, program: &str, args: &[String]) -> Result<(), VmError> {
         let argv = self.c_argv(program, args);
         let argc = args.len() + 1;
-        self.run_main_thread(move |vm| vm.init_runtime(argc, argv).map(drop))
+        self.run_training(move |vm| vm.init_runtime(argc, argv).map(drop))
     }
 
     /// Adds NIR file `data` defining top-level `top`, which must not have been looked up yet.
@@ -102,6 +102,12 @@ impl Vm {
         &mut self,
         body: impl FnOnce(&mut Vm) -> Flow<()> + 'static,
     ) -> Result<(), VmError> {
+        self.heap.end_training();
+        self.run_training(body)
+    }
+
+    /// Runs `body` as `run_main_thread` does, in training until `init_runtime` returns.
+    fn run_training(&mut self, body: impl FnOnce(&mut Vm) -> Flow<()> + 'static) -> Result<(), VmError> {
         let vm: *mut Vm = self;
         let _running = self.callbacks.enter(vm);
         let main = move |vm: &mut Vm| {
@@ -110,7 +116,9 @@ impl Vm {
                 None => u,
             })
         };
-        match self.run_threads(main) {
+        let ran = self.run_threads(main);
+        self.heap.end_training();
+        match ran {
             Ok(()) => Ok(()),
             Err(u) => match u.into_inner() {
                 interp::Unwound::Throw(exc) => Err(VmError::Uncaught(Box::new(self.thrown(exc)))),
@@ -124,7 +132,9 @@ impl Vm {
         let runtime = self.world.top(RUNTIME);
         let module = self.module(runtime)? as u64;
         let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
-        self.call_global(init, &[module, argc as u64, argv as u64])
+        let args = self.call_global(init, &[module, argc as u64, argv as u64]);
+        self.heap.end_training();
+        args
     }
 
     fn shutdown_runtime(&mut self) -> Flow<()> {

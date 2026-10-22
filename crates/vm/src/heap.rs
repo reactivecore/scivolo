@@ -8,6 +8,14 @@
 //! The collector finds live objects from the native stack, the frame stack and the permanent
 //! heap, all scanned conservatively; see ADR 0004.
 
+mod collector;
+mod region;
+
+pub use collector::{GcIds, ThreadRoots};
+
+use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
+use collector::Collector;
+use region::Region;
 use std::alloc::{Layout, alloc_zeroed};
 use std::sync::atomic::{AtomicBool, Ordering};
 
@@ -18,53 +26,21 @@ pub struct Heap {
     cur: usize,
     end: usize,
     pub allocated: usize,
+    region: Option<Region>,
+    /// Whether objects and arrays go to the region instead of the collected heap.
+    training: bool,
     gc: Collector,
 }
 
-/// The collector's entry points in the C runtime.
-struct Collector {
-    alloc: extern "C" fn(usize, usize) -> usize,
-    alloc_array: extern "C" fn(usize, usize, usize) -> usize,
-    add_roots: extern "C" fn(usize, usize),
-    set_ids: extern "C" fn(*const GcIds),
-    watch_weak_refs: extern "C" fn(),
-    set_threads: extern "C" fn(*const ThreadRoots, i32),
-    switch_stack: extern "C" fn(usize, usize),
-    /// The `int` the collector sets when it has cleared weak references.
-    weak_refs_collected: usize,
-}
-
-/// The roots of one green thread: its frame stack's `[low, top]` bounds, and `low..high` of its
-/// native stack while suspended (empty while it runs).
-#[repr(C)]
-pub struct ThreadRoots {
-    pub frames: *const usize,
-    pub low: usize,
-    pub high: usize,
-}
-
-/// Class ids the collector needs to tell arrays, blobs, boxed pointers and weak references
-/// apart, and where a weak reference keeps its referent; `scivolo_GC_set_ids` reads it.
-#[repr(C)]
-pub struct GcIds {
-    pub object_array: i32,
-    pub blob_array: i32,
-    pub arrays_min: i32,
-    pub arrays_max: i32,
-    pub boxed_ptr: i32,
-    pub weak_refs_min: i32,
-    pub weak_refs_max: i32,
-    pub weak_referent_offset: i32,
-}
-
 impl Heap {
-    /// Starts the collector on the calling thread, whose stack spans `stack`. `symbol` finds C
-    /// runtime functions.
+    /// Starts the collector on the calling thread, whose stack spans `stack`, in training if
+    /// the region is mapped. `symbol` finds C runtime functions.
     pub fn new(symbol: impl Fn(&str) -> Option<usize>, stack: (usize, usize)) -> Result<Self, String> {
         static STARTED: AtomicBool = AtomicBool::new(false);
         if STARTED.swap(true, Ordering::SeqCst) {
             return Err("the collector serves one VM per process".into());
         }
+        let region = Region::map();
         let find = |name: &str| symbol(name).ok_or_else(|| format!("C runtime lacks {name}"));
         // SAFETY: each address is the named C runtime function, whose C signature the type the
         // result is assigned to spells out.
@@ -83,45 +59,37 @@ impl Heap {
         // SAFETY: as above.
         let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scivolo_GC_init")?) };
         init(stack.0, stack.1);
-        Ok(Self { cur: 0, end: 0, allocated: 0, gc })
+        let training = region.is_some();
+        Ok(Self { cur: 0, end: 0, allocated: 0, region, training, gc })
     }
 
-    pub fn set_ids(&self, ids: &GcIds) {
-        (self.gc.set_ids)(ids);
-    }
-
-    /// Makes the collector scan `threads`, which must stay in place until the next call.
-    pub fn set_threads(&self, threads: &[ThreadRoots]) {
-        (self.gc.set_threads)(threads.as_ptr(), threads.len() as i32);
-    }
-
-    /// Makes the collector scan the running code's native stack within `low..high`.
-    pub fn switch_stack(&self, (low, high): (usize, usize)) {
-        (self.gc.switch_stack)(low, high);
-    }
-
-    /// Makes collections that clear weak references raise a flag instead of calling back.
-    pub fn watch_weak_refs(&self) {
-        (self.gc.watch_weak_refs)()
-    }
-
-    /// Whether a collection cleared weak references since the last call.
-    pub fn take_weak_refs_collected(&mut self) -> bool {
-        let flag = self.gc.weak_refs_collected;
-        let raised = read::<i32>(flag) != 0;
-        if raised {
-            write(flag, 0i32);
-        }
-        raised
+    /// Sends objects and arrays to the collected heap from now on.
+    pub fn end_training(&mut self) {
+        self.training = false;
     }
 
     /// A zeroed object of `size` bytes whose header points to `rtti`; may collect first.
     pub fn object(&mut self, rtti: usize, size: usize) -> usize {
+        if self.training
+            && let Some(obj) = self.in_region(size.next_multiple_of(ALIGN))
+        {
+            write(obj, rtti);
+            return obj;
+        }
         (self.gc.alloc)(rtti, size)
     }
 
     /// A zeroed array of `len` elements of `stride` bytes; may collect first.
     pub fn array(&mut self, rtti: usize, len: usize, stride: usize) -> usize {
+        if self.training {
+            let size = ARRAY_HEADER as usize + len * stride;
+            if let Some(arr) = self.in_region(size.next_multiple_of(ALIGN)) {
+                write(arr, rtti);
+                write(arr + ARRAY_LENGTH, len as i32);
+                write(arr + ARRAY_STRIDE, stride as i32);
+                return arr;
+            }
+        }
         (self.gc.alloc_array)(rtti, len, stride)
     }
 
@@ -129,6 +97,9 @@ impl Heap {
     pub fn permanent(&mut self, size: usize) -> usize {
         let size = size.max(1).next_multiple_of(ALIGN);
         self.allocated += size;
+        if let Some(addr) = self.in_region(size) {
+            return addr;
+        }
         if size > CHUNK / 4 {
             return self.chunk(size);
         }
@@ -141,6 +112,11 @@ impl Heap {
         addr
     }
 
+    fn in_region(&mut self, size: usize) -> Option<usize> {
+        let add_roots = self.gc.add_roots;
+        self.region.as_mut()?.alloc(size, |low, high| add_roots(low, high))
+    }
+
     fn chunk(&mut self, size: usize) -> usize {
         let layout = Layout::from_size_align(size, ALIGN).expect("allocation size overflows");
         // SAFETY: `layout` has a non-zero size.
@@ -149,6 +125,28 @@ impl Heap {
         (self.gc.add_roots)(ptr, ptr + size);
         ptr
     }
+}
+
+/// `len` zeroed bytes of fresh address space, at `hint` if that is free.
+fn map(hint: usize, len: usize) -> Option<usize> {
+    // SAFETY: an anonymous private mapping without `MAP_FIXED` touches no existing memory.
+    let addr = unsafe {
+        libc::mmap(
+            hint as *mut libc::c_void,
+            len,
+            libc::PROT_READ | libc::PROT_WRITE,
+            libc::MAP_PRIVATE | libc::MAP_ANON | libc::MAP_NORESERVE,
+            -1,
+            0,
+        )
+    };
+    (addr != libc::MAP_FAILED).then_some(addr as usize)
+}
+
+/// Releases `len` bytes `map` returned at `addr`, of which nothing was handed out.
+fn unmap(addr: usize, len: usize) {
+    // SAFETY: the caller's contract; nothing refers to the mapping.
+    unsafe { libc::munmap(addr as *mut libc::c_void, len) };
 }
 
 /// The C function at `addr` as the function pointer type `F`.
