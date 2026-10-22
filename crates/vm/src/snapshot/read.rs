@@ -1,7 +1,7 @@
 //! Rebuilding the VM's tables from a snapshot file whose region is mapped back in place.
 
 use super::Target;
-use super::format::In;
+use super::format::{Image, In, holds};
 use super::names::{get_global, get_target, get_type};
 use crate::class::{Class, Field, Kind};
 use crate::interp::{Unwound, func_ref};
@@ -9,28 +9,36 @@ use crate::{Vm, VmError, heap, natives};
 use rustc_hash::{FxHashMap, FxHashSet};
 
 impl Vm {
-    /// Fills the tables of a VM whose region holds the snapshot at `start`, in place of
-    /// `bootstrap`.
-    pub fn restore(&mut self, start: usize, input: &mut In) -> Result<(), VmError> {
+    /// Fills the tables of a VM whose region holds `image`, in place of `bootstrap`.
+    pub fn restore(&mut self, image: &mut Image) -> Result<(), VmError> {
         let fail = |e: String| VmError::Unsupported(format!("snapshot: {e}"));
+        let region = image.start..image.start + image.region.len();
+        let input = &mut image.tables;
         let targets = input.list(|i| Ok((i.u64()? as usize, get_target(i)?))).map_err(fail)?;
-        self.restore_tables(input).map_err(fail)?;
+        let mut addrs = self.restore_tables(input).map_err(fail)?;
+        addrs.extend(targets.iter().map(|(offset, _)| region.start.saturating_add(*offset)));
+        if let Some(a) = addrs.into_iter().find(|&a| !holds(&region, a, 8)) {
+            return Err(fail(format!("{a:#x} is outside the region")));
+        }
         for (offset, target) in targets {
             let value = self.resolve_target(&target)?;
-            heap::write(start + offset, value);
+            heap::write(region.start + offset, value);
         }
         Ok(())
     }
 
-    fn restore_tables(&mut self, input: &mut In) -> Result<(), String> {
+    /// Fills the tables; the addresses they hold, unchecked.
+    fn restore_tables(&mut self, input: &mut In) -> Result<Vec<usize>, String> {
         let n = input.u32()?;
         for id in 0..n {
             let class = self.read_class(input, id)?;
             self.classes.by_name.insert(class.name, id);
             self.classes.all.push(class);
         }
+        let mut addrs: Vec<usize> = self.classes.all.iter().map(|c| c.rtti).collect();
         for globals in [false, true] {
             for (g, addr) in input.list(|i| Ok((get_global(i, &mut self.world)?, i.u64()? as usize)))? {
+                addrs.push(addr);
                 match globals {
                     false => self.modules.insert(g, addr),
                     true => self.funcs.globals.insert(g, addr),
@@ -38,6 +46,7 @@ impl Vm {
             }
         }
         for (s, addr) in input.list(|i| Ok((i.str()?.to_owned(), i.u64()? as usize)))? {
+            addrs.push(addr);
             let id = nir::StrId(self.world.pool.strings.intern_str(&s));
             self.strings.insert(id, addr);
         }
@@ -58,7 +67,7 @@ impl Vm {
             let f = self.resolve_target(&handler).map_err(|e| e.to_string())?;
             self.set_weak_handler(f);
         }
-        Ok(())
+        Ok(addrs)
     }
 
     fn read_class(&mut self, input: &mut In, id: u32) -> Result<Class, String> {

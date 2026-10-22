@@ -85,13 +85,11 @@ impl Region {
     /// Copies `bytes`, a snapshot of a region at `start`, to the start of this unused one, and
     /// ends training; whether the region is that one.
     pub fn restore(&mut self, start: usize, bytes: &[u8], add_roots: impl FnOnce(usize, usize)) -> bool {
-        if start != self.start || self.cur != start {
+        if start != self.start || self.cur != start || bytes.len() > self.end - start {
             return false;
         }
         self.training = Training::Off;
-        if self.alloc(bytes.len().next_multiple_of(16), Blob::Data, add_roots).is_none() {
-            return false;
-        }
+        self.alloc(bytes.len().next_multiple_of(16), Blob::Data, add_roots).expect("checked size");
         super::copy(bytes.as_ptr() as usize, start, bytes.len());
         true
     }

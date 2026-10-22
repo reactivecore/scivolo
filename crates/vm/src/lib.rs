@@ -136,7 +136,7 @@ impl Vm {
         let ptr: *mut Vm = &mut vm;
         let running = vm.callbacks.enter(ptr);
         let booted = match &mut image {
-            Some(i) => vm.restore(i.start, &mut i.tables),
+            Some(i) => vm.restore(i),
             None => vm.bootstrap(),
         };
         drop(running);
