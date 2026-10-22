@@ -43,6 +43,11 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   method objects are allocated by a native without a constructor, since the traits' other
   members stay unimplemented; calling one is a VM error naming the member, which refuses the
   expansion.
+- **Symbol flags** are the TASTy modifier bits as dotty's `TreeUnpickler` reads them, with a few
+  bits for flags from the kind (`Method`, `Package`, `Param`) or the file (`Scala2x`); flags TASTy
+  does not carry (`Deferred`, `ParamAccessor`, `NoInits`) are refused by name. dotty's symbols the
+  universe lacks are made per expansion and entered in no scope: the splice's owner `macro`
+  (`Splicer.splice`) and the empty package, owner of the root's definitions.
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.

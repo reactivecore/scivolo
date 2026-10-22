@@ -148,6 +148,11 @@ Abstract, Trait, Enum, HasDefault, Implicit, Lazy — the ones the six libraries
 `kind` and `moduleClass`, the `isX` predicates over `kind`, `defn.RootPackage/RootClass`.
 ~80 Rust, ~80 Scala. Unblocks sourcecode `Name`/`FullName`/`Enclosing`/`Pkg`, fastparse's `P`
 (takes a `sourcecode.Name`), and the `flags` reads of upickle, mainargs and pprint's `TPrint`.
+**Done** (`M/symbols.rs`, `O/ReflectFlags.scala`, ADR 0029): flags as `TreeUnpickler` reads them
+(`Scala2x` for classes of the standard library's TASTy), `Deferred`/`ParamAccessor`/`NoInits`
+refused; dotty's splice owner `macro` and the empty package are made per expansion, so owner
+chains match dotty's (golden `crates/macros/tests/inlined/symbols.scala`); `tests/aot/sourcecode`
+passes in both backends.
 
 ### 2.7 AOT: link-time accessors computed from others (os.proc) — `A/codegen/linktime/eval.rs`
 
@@ -247,7 +252,7 @@ insertion finds `apply` among the package object's members (golden
 |---|---|---|---|
 | ujson | — | — | — |
 | pprint | — (P0 done) | — | `TPrint` only (not in the test program) |
-| sourcecode | — | — | S1 (flags, predicates, `defn`); `Args` also `Symbol.tree` (left out) |
+| sourcecode | — | — | S1 done; `Args` needs `Symbol.tree` (left out) |
 | os-lib | F1; X1 (correctness, then E needed) | L1; threads for `os.proc` (open, ADR 0028) | E (path literals; only once X1 lands) |
 | fastparse | I1, O1, F1 | — [I] | S1 (`P`), E, literal patterns `case '{-1}` (P1 subset), `Match` construction (W4 subset), `=:=` (W1 subset) |
 | upickle | M1; member view on `ReadWriter.type` [I] | — [I] | P3, S, W1, W2, W4, W6 (§2.10) |
