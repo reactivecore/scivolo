@@ -3,7 +3,7 @@
 //! Methods whose results are context closures take the closures' parameters as their own, and
 //! their calls the closures' arguments (dotty's `ContextFunctionResults`).
 
-use super::casts::function_class_arity;
+use super::function_classes::function_class_arity;
 use super::walk::subtrees;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};

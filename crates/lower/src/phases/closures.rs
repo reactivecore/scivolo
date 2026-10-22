@@ -7,7 +7,7 @@
 
 use super::adapt::from_start;
 use super::adapted::{adapted_types, specializable};
-use super::casts::{erased_function_class, function_class_arity};
+use super::function_classes::{erased_function_class, function_class_arity};
 use super::lambda_lift::Function;
 use super::lift_names::fresh;
 use super::lifted::{Method, define};
