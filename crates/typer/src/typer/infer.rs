@@ -171,7 +171,7 @@ impl Typer<'_> {
                 && !self.u.symbol(s).flags.has(tasty::tags::INLINEPROXY)
             {
                 let info = self.u.info(s);
-                if super::deskolemize::has_skolem(self.u, info) {
+                if super::deskolemize::has_skolem(self.u, info) && !self.only_qual_skolems(info) {
                     return Err("skolem in the type of a definition");
                 }
             }
