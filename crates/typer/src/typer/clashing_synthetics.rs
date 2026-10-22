@@ -51,6 +51,7 @@ impl Typer<'_> {
             }
             if clashes {
                 self.u.unenter(d);
+                self.syms.retracted.insert(d);
                 out.insert(d);
             }
         }

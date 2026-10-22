@@ -46,6 +46,8 @@ pub struct Syms {
     pub no_inits: FxHashMap<SymbolId, bool>,
     /// The package a package-level `private` definition is private to (dotty's `privateWithin`).
     pub private_within: FxHashMap<SymbolId, SymbolId>,
+    /// The synthetic case-class methods that members of the user replaced, unentered.
+    pub retracted: rustc_hash::FxHashSet<SymbolId>,
     /// The script methods whose definitions state their result types.
     pub declared_results: rustc_hash::FxHashSet<SymbolId>,
     /// dotty's `<special-ops>.throw`, once defined.
