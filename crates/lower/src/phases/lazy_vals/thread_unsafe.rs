@@ -7,9 +7,10 @@
 use super::{Lazy, fresh};
 use crate::definitions::symbol;
 use crate::phases::lazy_trees::{block, call, dup, eq, field_ref, if_, unit};
+use crate::symbols::has;
 use crate::{Lower, Result};
 use syntax::ast::Span;
-use tasty::tags::{MUTABLE, PRIVATE, SYNTHETIC};
+use tasty::tags::{LAZY, MUTABLE, PRIVATE, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
@@ -42,9 +43,20 @@ pub fn members(l: &mut Lower, lazy: &Lazy, stat: TNodeId, rhs: TNodeId) -> Resul
     Ok(out)
 }
 
-/// Whether lazy value `accessor` is annotated `@threadUnsafe`.
-pub fn is_thread_unsafe(l: &Lower, accessor: SymbolId) -> bool {
-    l.u.is_annotated(accessor, "scala.annotation.threadUnsafe")
+/// Whether lazy value `accessor` is annotated `@threadUnsafe`, or the trait's it is taken from.
+pub fn is_thread_unsafe(l: &mut Lower, accessor: SymbolId) -> bool {
+    let annotated = |l: &Lower, s| l.u.is_annotated(s, "scala.annotation.threadUnsafe");
+    if !l.mixed_in.contains(&accessor) {
+        return annotated(l, accessor);
+    }
+    let (Some(class), name) = (l.u.symbol(accessor).owner, l.u.symbol(accessor).name.clone()) else {
+        return false;
+    };
+    let bases: Vec<SymbolId> =
+        l.u.linearization(class).into_iter().skip(1).filter(|&b| l.u.is_trait(b)).collect();
+    let getters: Vec<SymbolId> =
+        bases.into_iter().flat_map(|b| l.u.decl(b, &name).unwrap_or_default()).collect();
+    getters.into_iter().any(|m| has(l.u, m, LAZY) && annotated(l, m))
 }
 
 /// The flag of lazy value `lazy` of type `tpe`, defined in its class, unless an object's type

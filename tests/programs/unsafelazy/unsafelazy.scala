@@ -3,7 +3,11 @@ import scala.annotation.threadUnsafe
 
 object Marker
 
-class Holder(n: Int) {
+trait Mixed {
+  @threadUnsafe lazy val mixed: Int = { println("mixed"); 5 }
+}
+
+class Holder(n: Int) extends Mixed {
   @threadUnsafe lazy val twice: Int = { println("twice"); n * 2 }
   @threadUnsafe lazy val text: String = { println("text"); "n=" + n }
   @threadUnsafe lazy val marker: Marker.type = { println("marker"); Marker }
@@ -21,5 +25,6 @@ object unsafelazy {
     println(h.text + h.text)
     println(h.marker eq h.marker)
     println(local(3))
+    println(h.mixed + h.mixed)
   }
 }

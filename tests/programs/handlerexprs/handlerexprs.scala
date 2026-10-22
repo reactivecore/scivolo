@@ -16,5 +16,7 @@ object handlerexprs {
     println(try raise(7) catch handle)
     println(risky(true))
     try println(risky(false)) catch { case o: Other => println("rethrown " + o.getMessage) }
+    val inferred = try raise(1) catch (e => e.getMessage.length + 41)
+    println(inferred + 1)
   }
 }

@@ -19,7 +19,7 @@ impl Typer<'_> {
         let throwable = type_ref(self.u, throwable);
         let result = match pt {
             Pt::Type(t) => t,
-            _ => self.u.class_ref("scala.Any"),
+            _ => self.u.intern_type(Type::Wildcard(None)),
         };
         let function = self.function_class(1).ok_or("scala.Function1")?;
         let function = self.u.intern_type(Type::Applied(function, vec![throwable, result]));
