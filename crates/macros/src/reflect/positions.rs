@@ -1,17 +1,15 @@
 //! The positions of `quotes.reflect`: a position is the number of its source file and its two
 //! offsets in that file.
 
+use super::{Answer, UNKNOWN, arg};
 use crate::host::Host;
 use syntax::ast::Span;
 use syntax::source::{Offset, SourceFile, Sources};
-use vm::Reflected;
-
-type Answer = Result<Reflected, &'static str>;
 
 impl Host {
-    /// Runs position or symbol operation `op` on `args`.
-    pub fn run_position(&mut self, op: &str, args: &[i32]) -> Answer {
-        let arg = |i: usize| args.get(i).copied().ok_or("a quotes.reflect operation without its arguments");
+    /// Runs position operation `op` on `args`.
+    pub fn run_position(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+        let arg = |i: usize| arg(args, i);
         let file = |n: i32| self.sources.get(n as usize).ok_or("a position in no source file");
         let text = |s: String| Ok((Vec::new(), Some(s)));
         match op {
@@ -33,7 +31,7 @@ impl Host {
             }
             "sourcePath" => text(file(arg(0)?)?.name.clone()),
             "sourceContent" => text(file(arg(0)?)?.text.clone()),
-            _ => self.run_symbol(op, args),
+            _ => Err(UNKNOWN),
         }
     }
 

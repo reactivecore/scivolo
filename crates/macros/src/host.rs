@@ -44,7 +44,7 @@ pub struct Host {
     matched: Vec<Result<u32, u32>>,
     /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
-    pub made: crate::symbols::Made,
+    pub made: crate::reflect::Made,
 }
 
 impl Host {

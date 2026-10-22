@@ -4,15 +4,12 @@
 //! TASTy modifier tags, with bits 2 to 5 for `Method`, `Package`, `Param` and `AbsOverride` and
 //! bit 51 for `Scala2x`.
 
+use super::{Answer, UNKNOWN, arg, symbol, text};
 use crate::host::Host;
-use crate::reflect::symbol;
 use tasty::tags::{
     ABSTRACT, FINAL, LAZY, MACRO, OBJECT, OVERRIDE, PROTECTED, PROTECTEDqualified, STABLE, SYNTHETIC,
 };
 use tasty::{Flags, Kind, Symbol, SymbolId, Universe};
-use vm::Reflected;
-
-type Answer = Result<Reflected, &'static str>;
 
 const METHOD: u32 = 2;
 const PACKAGE: u32 = 3;
@@ -42,12 +39,19 @@ impl Host {
         *made.get_or_insert_with(|| local(&mut self.u, "<empty>", Kind::Package, root, Flags::default()))
     }
 
-    /// Runs symbol operation `op` on `args`.
-    pub fn run_symbol(&mut self, op: &str, args: &[i32]) -> Answer {
-        let arg = |i: usize| args.get(i).copied().ok_or("a quotes.reflect operation without its arguments");
-        let text = |s: String| Ok((Vec::new(), Some(s)));
+    /// Runs symbol operation `op` on `args` and `name`.
+    pub fn run_symbol(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
+        let arg = |i: usize| arg(args, i);
         let one = |s: Option<SymbolId>| Ok((vec![s.map_or(-1, |s| s.0 as i32)], None));
         match op {
+            "companionModule" => {
+                let Ok(s) = symbol(arg(0)?) else { return one(None) };
+                one(self.reflect().companion_module(s))
+            }
+            "declaredMethod" => {
+                let Ok(s) = symbol(arg(0)?) else { return Ok((Vec::new(), None)) };
+                Ok((self.reflect().declared_methods(s, name).into_iter().map(|s| s.0 as i32).collect(), None))
+            }
             "spliceOwner" => one(Some(self.macro_owner())),
             "root" => one(Some(self.u.root())),
             "owner" => {
@@ -98,7 +102,7 @@ impl Host {
                 };
                 one(class)
             }
-            _ => Err("a quotes.reflect operation the frontend does not know"),
+            _ => Err(UNKNOWN),
         }
     }
 

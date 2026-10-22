@@ -2,9 +2,7 @@
 //! their quotes unpickled into the typer's trees (ADR 0029).
 
 mod host;
-mod positions;
 mod reflect;
-mod symbols;
 mod tasty_string;
 
 pub use typer::inlining::Macros;
