@@ -126,3 +126,4 @@ inlineextractors
 argclauses
 localinline
 unsafelazy
+selfoverrides
