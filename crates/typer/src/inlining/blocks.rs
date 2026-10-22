@@ -67,8 +67,8 @@ impl Inlining<'_> {
     /// `tpe` widened until it refers to none of `locals`; `None` if it cannot be.
     pub fn avoid(&mut self, mut tpe: TypeId, locals: &[SymbolId]) -> Option<TypeId> {
         while locals.iter().any(|&s| self.mentions(tpe, s)) {
-            if let Type::Sym(Some(_), s) = *self.u.types().get(tpe)
-                && let Some(alias) = self.u.opaque_alias(s)
+            if let Type::Sym(Some(pre), s) = *self.u.types().get(tpe)
+                && let Some(alias) = self.proxy_alias(pre, s, locals)
             {
                 tpe = alias;
                 continue;
@@ -87,6 +87,27 @@ impl Inlining<'_> {
             tpe = widened;
         }
         Some(tpe)
+    }
+
+    /// The alias of type member `s` that prefix `pre`, a chain of `locals` ending in a refined
+    /// type, exposes (an opaque proxy's refinement).
+    fn proxy_alias(&mut self, mut pre: TypeId, s: SymbolId, locals: &[SymbolId]) -> Option<TypeId> {
+        while let Type::Sym(None, p) = *self.u.types().get(pre)
+            && locals.contains(&p)
+        {
+            pre = self.u.info(p);
+        }
+        let name = &self.u.symbol(s).name;
+        while let Type::Refined(parent, ref n, info) = *self.u.types().get(pre) {
+            if n == name {
+                return match *self.u.types().get(info) {
+                    Type::Alias(alias) => Some(alias),
+                    _ => None,
+                };
+            }
+            pre = parent;
+        }
+        None
     }
 
     /// `tpe` with its parts that refer to `locals` replaced: a type selected from a path through

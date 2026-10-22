@@ -117,15 +117,18 @@ impl Inlining<'_> {
         locals: &[SymbolId],
         expanded: TypeId,
     ) -> Result<TNodeId, Unsupported> {
-        let proxied = locals.iter().copied().find(|&s| {
-            let info = self.u.info(s);
-            self.u.symbol(s).flags.has(SYNTHETIC) && matches!(self.u.types().get(info), Type::Refined(..))
+        let proxied = locals.iter().copied().find_map(|s| {
+            let mut module_ref = self.u.info(s);
+            while let Type::Refined(parent, ..) = *self.u.types().get(module_ref) {
+                module_ref = parent;
+            }
+            let Type::Sym(_, m) = *self.u.types().get(module_ref) else { return None };
+            let class = self.u.module_class(m)?;
+            let refined = module_ref != self.u.info(s);
+            (self.u.symbol(s).flags.has(SYNTHETIC) && refined && self.u.has_opaques(class))
+                .then_some((s, module_ref))
         });
-        let Some(opaque) = proxied else { return Ok(inlined) };
-        let mut module_ref = self.u.info(opaque);
-        while let Type::Refined(parent, ..) = *self.u.types().get(module_ref) {
-            module_ref = parent;
-        }
+        let Some((opaque, module_ref)) = proxied else { return Ok(inlined) };
         let opaque_ref = self.u.intern_type(Type::Sym(None, opaque));
         let proxies: Vec<SymbolId> =
             locals.iter().copied().filter(|&s| s == opaque || self.u.info(s) == opaque_ref).collect();
