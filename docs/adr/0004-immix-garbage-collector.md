@@ -45,6 +45,7 @@ Where the implementation differs from the plan above:
 - Module instances, string literals, link-time strings, class metadata, global variables and
   constants live in a never-freed permanent heap whose chunks are registered as conservative
   roots, so `__modules` stays empty and the VM's hash maps may hold those addresses.
+  2026-10-22: the permanent heap fills a fixed-address region first (ADR 0034).
 - Frames, `stackalloc` memory and escaping `var`s share one mmap'd frame stack (`stack.rs`),
   freed when a call returns. Aggregate values built by `insert` are blob arrays in the collected
   heap, kept alive by the interior pointers in frames.

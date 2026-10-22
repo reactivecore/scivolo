@@ -96,6 +96,6 @@ fn function_erasure(l: &mut Lower, f: TNodeId) -> Option<Erased> {
     let info = l.u.info(s);
     let tpe = l.u.widen(info);
     let class = l.u.class_symbol(tpe)?;
-    super::casts::function_class_arity(l, class)?;
+    super::function_classes::function_class_arity(l, class)?;
     Some(l.u.erase(tpe))
 }

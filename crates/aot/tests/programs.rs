@@ -101,6 +101,24 @@ fn ujson_and_pprint_run() {
     check_expanded("pprint", &[]);
 }
 
+#[test]
+fn oslib_file_operations_run() {
+    if !in_coursier_cache(&["com.lihaoyi:os-lib_native0.5_3:0.11.9-M8"]) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: os-lib 0.11.9-M8 is not in the Coursier cache");
+        return;
+    }
+    check_expanded("oslib", &[]);
+}
+
+#[test]
+fn sourcecode_macros_expand() {
+    if !in_coursier_cache(&["com.lihaoyi:sourcecode_native0.5_3:0.4.4"]) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: sourcecode 0.4.4 is not in the Coursier cache");
+        return;
+    }
+    check_expanded("sourcecode", &[]);
+}
+
 /// Whether Coursier finds `coordinates` without going online.
 fn in_coursier_cache(coordinates: &[&str]) -> bool {
     let chosen = std::env::var_os("SCIVOLO_COURSIER").map(|c| vec![c]);

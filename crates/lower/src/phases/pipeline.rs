@@ -7,6 +7,7 @@ use typer::tpd::TNodeId;
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
+    refined_trees::transform(l, root);
     retained_bodies::transform(l, root)?;
     drop_for_map::transform(l, root)?;
     drop_inlined::transform(l, root)?;
@@ -26,7 +27,6 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     if expand_sams::transform(l, root)? {
         classes = class_defs(l.tpd, root);
     }
-    bunched::refuse_xxl_parents(l, &classes)?;
     protected_accessors::transform(l, root, &classes)?;
     let moved = extension_methods::transform(l, &classes)?;
     let deferred = mixin::methods_with_body(l, &classes, false);
@@ -74,6 +74,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         specialize_tuples::transform(l, td, &inits)?;
         repeated::transform(l, td)?;
         resolve_super::transform(l, td)?;
+        function_xxl_forwarders::transform(l, td)?;
         tuple_optimizations::transform(l, td);
         let_over_apply::transform(l, td);
         erasure::transform(l, td)?;

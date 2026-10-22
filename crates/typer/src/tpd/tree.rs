@@ -210,6 +210,11 @@ pub enum Tree {
         tparams: List,
         body: TNodeId,
     },
+    /// `tpt { refinements }`, the refinements members of a synthetic `<refinement>` class.
+    RefinedTypeTree {
+        tpt: TNodeId,
+        refinements: List,
+    },
     Bind {
         name: TName,
         body: TNodeId,
@@ -352,7 +357,7 @@ impl Tree {
             Tree::TypeTree { .. } => {}
             Tree::SingletonTypeTree { reference } => f(N(reference)),
             Tree::ByNameTypeTree { result } => f(N(result)),
-            Tree::AppliedTypeTree { tpt, args } => {
+            Tree::AppliedTypeTree { tpt, args } | Tree::RefinedTypeTree { tpt, refinements: args } => {
                 f(N(tpt));
                 f(L(args));
             }

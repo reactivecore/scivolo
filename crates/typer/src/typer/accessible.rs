@@ -42,16 +42,17 @@ impl Typer<'_> {
     /// The class, package or term up to which `sym` is accessible, `None` if it is public
     /// (dotty's `accessBoundary(owner)`).
     fn access_boundary(&mut self, sym: SymbolId) -> Option<SymbolId> {
-        let s = self.u.symbol(sym);
-        let owner = s.owner?;
-        if s.flags.has(PRIVATE) {
+        let (owner, flags) = (self.u.symbol(sym).owner?, self.u.symbol(sym).flags);
+        if flags.has(PRIVATE) {
             return Some(owner);
         }
         if let Some(&within) = self.syms.private_within.get(&sym) {
             return Some(within);
         }
-        let restricted = [PRIVATEqualified, PROTECTED, PROTECTEDqualified].iter().any(|&t| s.flags.has(t));
-        restricted.then_some(owner)
+        if flags.has(PRIVATEqualified) || flags.has(PROTECTEDqualified) {
+            return Some(self.u.access_qualifier(sym).unwrap_or(owner));
+        }
+        flags.has(PROTECTED).then_some(owner)
     }
 
     /// Whether `ctx`'s owner is `boundary` or inside it (dotty's `accessWithin`).

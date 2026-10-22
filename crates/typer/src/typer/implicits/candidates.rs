@@ -3,6 +3,7 @@
 //! Implicit members of classes and imports, and references to them.
 
 use super::super::Typer;
+use super::super::did_you_mean::is_jdk;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
 use syntax::ast::Span;
@@ -117,9 +118,10 @@ impl Typer<'_> {
     }
 
     /// A reference to candidate `c` at `span` from `ctx` (dotty's `tpd.ref`): an identifier, or a
-    /// selection from `this`.
+    /// selection from `this`; a misfit if `c` is inaccessible and not javalib's.
     pub fn candidate_ref(&mut self, c: Candidate, span: Span, ctx: Ctx) -> Result<TNodeId, &'static str> {
-        if self.syms.is_script(c.sym) && !self.is_accessible_from(c.sym, c.prefix, ctx) {
+        let javalib = !self.syms.is_script(c.sym) && is_jdk(&self.u.full_name(c.sym));
+        if !javalib && !self.is_accessible_from(c.sym, c.prefix, ctx) {
             return Err("inaccessible implicit");
         }
         if self.needs_inline_accessor(c.sym, ctx) {

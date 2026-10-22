@@ -154,14 +154,14 @@ impl Typer<'_> {
         }
     }
 
-    /// Warns about pure statement `tree`.
-    pub fn check_statement_purity(&mut self, tree: TNodeId) {
+    /// Warns about pure statement `tree`, at `parens` if it was parenthesized.
+    pub fn check_statement_purity(&mut self, tree: TNodeId, parens: Option<u32>) {
         let callee = self.tpd.meth_part(tree);
         let constr_call = self.tpd.sym(callee).is_some_and(|s| self.u.symbol(s).name == "<init>")
             && matches!(*self.tpd.tree(callee), T::Select { qualifier, .. }
                 if matches!(self.tpd.tree(qualifier), T::This { .. } | T::Super { .. }));
         if self.is_pure_expr(tree) && !constr_call {
-            let at = self.tpd.span(tree).point();
+            let at = parens.unwrap_or_else(|| self.tpd.span(tree).point());
             self.diags.warning(at, "A pure expression does nothing in statement position");
         }
     }

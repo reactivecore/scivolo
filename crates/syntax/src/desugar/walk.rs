@@ -21,6 +21,8 @@ impl Desugar<'_> {
             }
             Tree::Parens { t } => {
                 let t = self.transform(t);
+                let span = self.ast.span(id);
+                self.ast.set_parens_span(t, span);
                 for check in [Attrs::CHECK_PAT_DEF, Attrs::CHECK_GEN_FROM] {
                     if self.ast.attrs(id).contains(check) {
                         self.ast.add_attrs(t, check);

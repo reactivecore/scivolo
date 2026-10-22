@@ -1,0 +1,12 @@
+28
+true sourcecode.scala
+myName
+shopName
+label
+demo.trace
+demo.trace.run
+demo.trace.Shop.inside
+37 demo.trace.run: 1 + 2 = 3
+19 demo.trace.Shop#total: sum * 2 = 12
+6
+List(1).map(_ + 1)

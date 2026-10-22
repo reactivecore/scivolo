@@ -59,22 +59,25 @@ pub fn quote(
     Ok(Unpickled::Quote(Quote { root, spliced, holes: p.holes.take().unwrap_or_default() }))
 }
 
-/// The type whose TASTy is `bytes`, its type holes filled with `types`.
+/// The type whose TASTy is `bytes`, its type holes filled with `types`; `Err` for a type pattern.
 pub fn quoted_type(
     (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     bytes: Vec<u8>,
     owner: SymbolId,
     types: &[TypeId],
-) -> Result<TypeId, Refusal> {
+) -> Result<Result<TypeId, QuotePattern>, Refusal> {
     let (mut p, root) = unpickler((u, tpd, names), bytes, owner)?;
     let (body, spliced) = p.spliced_types(root, types)?;
+    if let Some(pattern) = p.type_pattern(body, &spliced)? {
+        return Ok(Err(pattern));
+    }
     let tpt = p.tpt(body)?;
     let tpe = p.tpd.tpe(tpt);
     p.check(tpe)?;
-    Ok(p.u.map_type(tpe, &mut |u, part| match *u.types().get(part) {
+    Ok(Ok(p.u.map_type(tpe, &mut |u, part| match *u.types().get(part) {
         Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
         _ => None,
-    }))
+    })))
 }
 
 fn unpickler<'a>(

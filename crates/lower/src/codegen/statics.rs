@@ -5,7 +5,7 @@
 
 use super::Gen;
 use super::method::Method;
-use crate::symbols::{has, is_extern, is_static, is_static_module};
+use crate::symbols::{has, is_extern, is_static, is_static_module, jdk_api_owner};
 use crate::{Result, unsupported};
 use nir::{Attr, Body, Defn, DefnKind, GlobalId, LexicalScope, Op, Param, PosId, Type, Val};
 use syntax::ast::Span;
@@ -69,19 +69,19 @@ impl Gen<'_, '_> {
             name.starts_with("java.") || name.starts_with("javax.")
         };
         let jdk: Vec<SymbolId> = bases.iter().copied().filter(|&b| is_jdk(self.l, b)).collect();
-        let mut classes = Vec::new();
+        let mut members = Vec::new();
         for b in bases {
             let library_trait = self.l.u.is_trait(b) && self.l.u.symbol(b).tree.is_some();
             let behind_jdk = !is_jdk(self.l, b) && jdk.iter().any(|&j| self.l.u.derives_from(j, b));
-            if !plain.contains(&b) && self.l.u.symbol(b).name != "Matchable" && !library_trait && !behind_jdk
-            {
-                classes.push(b);
+            if plain.contains(&b) || self.l.u.symbol(b).name == "Matchable" || library_trait {
+                continue;
             }
+            let decls = self.l.u.decls(b).unwrap_or_default();
+            members
+                .extend(decls.into_iter().filter(|&m| !behind_jdk || jdk_api_owner(self.l.u, m).is_some()));
         }
         let mut seen = Vec::new();
         let mut out = Vec::new();
-        let members: Vec<SymbolId> =
-            classes.into_iter().flat_map(|c| self.l.u.decls(c).unwrap_or_default()).collect();
         for m in members {
             let excluded = [PROTECTED, STATIC, PRIVATE, MACRO, INLINE, PROTECTEDqualified];
             let library = self.l.u.symbol(m).tree.is_some();

@@ -125,3 +125,14 @@ polyfunctions
 inlineextractors
 argclauses
 localinline
+tupleops
+xxlclasses
+jdkapi
+unsafelazy
+selfoverrides
+viewapply
+setterassign
+handlerexprs
+usercopy
+inheritedresult
+polyctors

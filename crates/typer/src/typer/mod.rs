@@ -18,6 +18,7 @@ mod apply;
 mod apply_insertion;
 pub(crate) mod approx;
 mod arg_shapes;
+mod assign;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
@@ -27,6 +28,7 @@ mod by_name_repeated;
 mod call_types;
 mod case_companion;
 mod case_lambdas;
+mod clashing_synthetics;
 mod class_bound;
 mod classes;
 mod closures;
@@ -124,6 +126,7 @@ mod pattern_bounds;
 mod patterns;
 mod plain_trees;
 mod poly_alternatives;
+mod poly_context_bounds;
 mod poly_function_values;
 mod poly_functions;
 mod poly_instances;
@@ -132,6 +135,7 @@ mod purity;
 mod qualifier_views;
 mod qualifies;
 mod refined_types;
+mod refinement_members;
 mod refutable_warnings;
 mod repeated;
 mod report;
@@ -158,6 +162,7 @@ mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
+mod try_handlers;
 mod tuple_xxl;
 pub(crate) mod type_apply;
 mod type_args;
@@ -276,6 +281,9 @@ pub struct Typer<'a> {
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
+    /// The functions of polymorphic function values, whose results may refer to their
+    /// parameters, with the binder and parameter names of an expected `apply` whose result does.
+    pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -348,6 +356,7 @@ impl<'a> Typer<'a> {
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
+            poly_closures: FxHashMap::default(),
             depth: 0,
             file_starts: Vec::new(),
             macros: None,
@@ -369,7 +378,8 @@ impl<'a> Typer<'a> {
         self.depth += 1;
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
-        let inner = ctx.with_mode(ctx.mode.without(crate::ctx::Mode::APPLY_QUALIFIER));
+        let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
+        let inner = ctx.with_mode(ctx.mode.without(top_only));
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, inner),

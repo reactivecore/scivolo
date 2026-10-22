@@ -50,7 +50,10 @@ impl Typer<'_> {
             Some(Tree::Match { selector: None, cases, kind: MatchKind::Plain }) => {
                 self.ast.items(cases).to_vec()
             }
-            Some(_) => return self.unsupported(id, "handler expression"),
+            Some(_) => match self.handler_case(handler.expect("a handler"), pt, ctx) {
+                Ok(case) => vec![case],
+                Err(e) => return self.unsupported(id, &e),
+            },
         };
         self.typed_try(id, expr, &cases, finalizer, pt, ctx)
     }

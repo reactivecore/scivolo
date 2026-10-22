@@ -3,6 +3,7 @@
 //! Classes, modules and traits with their methods (nscplugin's `genClass` and `genMethods`).
 
 use super::Gen;
+use crate::phases::function_classes::erased_classes;
 use crate::symbols::is_static_module;
 use crate::{Result, unsupported};
 use nir::{Attr, Defn, DefnKind};
@@ -59,7 +60,7 @@ impl Gen<'_, '_> {
         let parents = self.l.u.parents(c);
         let classes: Vec<_> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
         let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s)).collect();
-        traits.into_iter().map(|t| self.type_name(t)).collect()
+        erased_classes(self.l, traits).into_iter().map(|t| self.type_name(t)).collect()
     }
 
     fn gen_methods(&mut self, td: TNodeId) -> Result<()> {

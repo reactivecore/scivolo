@@ -74,8 +74,7 @@ impl Typer<'_> {
     /// and is not itself a dynamic call; an error where an extension method or an implicit
     /// conversion may supply `apply` (dotty's `tryExt` before `tryDynamic`).
     pub fn dynamic_apply_insertion(&mut self, f: TNodeId, ctx: Ctx) -> Result<Option<TNodeId>, &'static str> {
-        let callee = self.tpd.sym(self.tpd.meth_part(f));
-        if callee.is_some_and(|m| is_dynamic_method(&self.u.symbol(m).name)) || !self.derives_dynamic(f) {
+        if self.is_dynamic_call(f) || !self.derives_dynamic(f) {
             return Ok(None);
         }
         if self.supplied_otherwise(f, "apply", ctx)? {
@@ -89,6 +88,20 @@ impl Typer<'_> {
             method: None,
         };
         Ok(Some(self.pending_dynamic(call)))
+    }
+
+    /// Whether `f` is a dynamic call, possibly applied to the implicit arguments of the context
+    /// functions it results in (dotty's `isDynamicExpansion`).
+    fn is_dynamic_call(&self, f: TNodeId) -> bool {
+        let callee = self.tpd.meth_part(f);
+        let Some(m) = self.tpd.sym(callee) else { return false };
+        let contextual =
+            self.u.symbol(m).owner.is_some_and(|c| self.u.full_name(c).starts_with("scala.ContextFunction"));
+        match *self.tpd.tree(callee) {
+            _ if is_dynamic_method(&self.u.symbol(m).name) => true,
+            T::Select { qualifier, .. } if contextual => self.is_dynamic_call(qualifier),
+            _ => false,
+        }
     }
 
     /// Whether a visible extension method or an implicit conversion may supply member `name` of

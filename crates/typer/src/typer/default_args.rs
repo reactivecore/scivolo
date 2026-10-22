@@ -17,12 +17,14 @@ enum Clause {
 
 impl Typer<'_> {
     /// The default argument for parameter `n` of `method`, which call `f` applies (dotty's
-    /// `defaultArgument` in `tryDefault`).
+    /// `defaultArgument` in `tryDefault`); its type keeps `@uncheckedVariance` if the call's
+    /// arguments were all typed before (`ApplyToTyped`), else is simplified as dotty's `typedArg`
+    /// simplifies the getter call in `ApplyToUntyped`.
     pub fn default_arg(
         &mut self,
         f: TNodeId,
-        method: SymbolId,
-        n: usize,
+        (method, n): (SymbolId, usize),
+        args_typed: bool,
         ctx: Ctx,
     ) -> Result<TNodeId, &'static str> {
         let mut clauses = Vec::new();
@@ -77,7 +79,7 @@ impl Typer<'_> {
                         .map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true))
                         .collect();
                     let tpe = self.instantiated(getter, &types)?;
-                    let tpe = if ctor || i > 0 { tpe } else { self.simplified(tpe) };
+                    let tpe = if i == 0 && !args_typed { self.simplified(tpe) } else { tpe };
                     getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
                     continue;
                 }

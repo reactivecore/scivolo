@@ -1,5 +1,7 @@
 //! Finds the `.nir` file of a top-level name in directories, jars and the library image.
 
+mod shadow;
+
 use crate::member_table::Table;
 use libimage::Image;
 use std::borrow::Cow;
@@ -144,13 +146,6 @@ impl Classpath {
             })
         })
     }
-}
-
-/// The member table the library image keeps for NIR file `rel` with contents `data`; empty for
-/// other files and files without one.
-pub fn nir_table(rel: &str, data: &[u8]) -> Vec<u8> {
-    let Some(top) = rel.strip_suffix(".nir") else { return Vec::new() };
-    crate::member_table::build(data, &top.replace('/', ".")).unwrap_or_default()
 }
 
 /// `f`, leaving C's `errno` as it was.

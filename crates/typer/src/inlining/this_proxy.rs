@@ -126,7 +126,7 @@ impl Inlining<'_> {
 
     /// Notes in `uses` whether the leaves of `t` refer to the `this` of class `cls`, and adds to
     /// `outer` the other classes that are no static owners whose `this` they refer to.
-    fn this_refs(&mut self, t: TNodeId, cls: SymbolId, uses: &mut bool, outer: &mut Vec<SymbolId>) {
+    pub fn this_refs(&mut self, t: TNodeId, cls: SymbolId, uses: &mut bool, outer: &mut Vec<SymbolId>) {
         let leaf = matches!(self.tpd.tree(t), T::This { .. } | T::Ident { .. } | T::TypeTree { .. });
         if leaf && let Some(tpe) = self.tpd.get(t).tpe {
             let mut classes = Vec::new();

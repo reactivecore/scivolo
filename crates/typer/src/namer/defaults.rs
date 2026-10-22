@@ -11,15 +11,20 @@ impl Typer<'_> {
     /// The type of the parameter default getter `getter` supplies, if it is one, and that type
     /// with references to the method's value parameters approximated (dotty's
     /// `expectedDefaultArgType`); references to the method's type parameters become references
-    /// to the getter's same-named ones.
+    /// to the getter's same-named ones; none unless one method of the name has defaults, a
+    /// retracted synthetic one counted for a getter of the user, which dotty completes first.
     pub fn default_param_type(&mut self, getter: SymbolId) -> Option<(TypeId, TypeId)> {
         let name = self.u.symbol(getter).name.clone();
         let (method, index) = name.rsplit_once("$default$")?;
         let index: usize = index.parse().ok()?;
         let owner = self.u.symbol(getter).owner?;
         let mut candidates: Vec<SymbolId> = self.u.symbol(owner).decls.clone();
+        if !self.syms.flags.get(&getter).is_some_and(|fl| fl.is(f::SYNTHETIC)) {
+            candidates.extend(self.syms.retracted.iter().filter(|&&d| self.u.symbol(d).owner == Some(owner)));
+        }
         candidates.retain(|&d| self.u.symbol(d).kind == Kind::Def && self.u.symbol(d).name == method);
         candidates.extend(self.constructor_of_companion(owner, method));
+        let mut with_defaults = Vec::new();
         for m in candidates {
             self.complete(m);
             let params: Vec<SymbolId> = self
@@ -30,17 +35,17 @@ impl Typer<'_> {
                 .copied()
                 .filter(|&p| self.u.symbol(p).kind == Kind::Param)
                 .collect();
-            let Some(&param) = params.get(index.checked_sub(1)?) else { continue };
-            if !self.syms.flags.get(&param).is_some_and(|fl| fl.is(f::HAS_DEFAULT)) {
-                continue;
+            if params.iter().any(|p| self.syms.flags.get(p).is_some_and(|fl| fl.is(f::HAS_DEFAULT))) {
+                with_defaults.push((m, params));
             }
-            let info = self.u.info(param);
-            let exact = self.with_getter_type_params(info, m, getter);
-            let approx = value_params_approximated(self.u, exact, m);
-            let pt = if approx != exact && self.is_context_function_type(approx) { exact } else { approx };
-            return Some((exact, pt));
         }
-        None
+        let [(m, params)] = &with_defaults[..] else { return None };
+        let &param = params.get(index.checked_sub(1)?)?;
+        let info = self.u.info(param);
+        let exact = self.with_getter_type_params(info, *m, getter);
+        let approx = value_params_approximated(self.u, exact, *m);
+        let pt = if approx != exact && self.is_context_function_type(approx) { exact } else { approx };
+        Some((exact, pt))
     }
 
     /// `default_param_type` of `getter` with by-name types replaced by their results (dotty's

@@ -11,7 +11,8 @@ use tasty::Type;
 
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or
-    /// type arguments.
+    /// type arguments; a context function value applied to its implicit arguments first unless
+    /// the arguments are `using` ones (dotty's `adaptToArgs`).
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
@@ -24,6 +25,12 @@ impl Typer<'_> {
         }
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
+        }
+        if let Pt::Fun(p) = pt
+            && !self.protos[p].using
+            && let Some(applied) = self.context_function_applied(f, Pt::Any, ctx)
+        {
+            return self.with_apply(applied?, pt, ctx);
         }
         let tpe = self.widen_if_unstable(tpe);
         if let Some(apply) = self.poly_apply(f, tpe, self.tpd.span(f).to_synthetic()) {
@@ -58,7 +65,7 @@ impl Typer<'_> {
     }
 
     /// `f.apply` as a call of an extension method `apply` in scope or in the implicit scope of
-    /// `f`'s type, if there is one.
+    /// `f`'s type, or of the `apply` of `f` converted by an implicit view, if there is one.
     fn extension_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
         let name = TName { name: self.name("apply"), is_type: false };
         let span = self.tpd.span(f);
@@ -71,6 +78,7 @@ impl Typer<'_> {
         let unsupported = self.unsupported.clone();
         match self.viewed(f, Goal::Member("apply"), ctx) {
             Ok(Some(Viewed::Extension(c))) => Some(self.implicit_extension_select(id, f, c, name, pt, ctx)),
+            Ok(Some(Viewed::Converted(converted))) => self.with_apply(converted, pt, ctx).ok(),
             _ => {
                 self.unsupported = unsupported;
                 None

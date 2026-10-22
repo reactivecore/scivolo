@@ -3,6 +3,7 @@ mod history;
 mod mains;
 mod repl;
 mod script;
+mod snapshot;
 mod tab;
 
 use clap::{CommandFactory, Parser, error::ErrorKind};
@@ -150,7 +151,7 @@ fn run(
             Classpath::with_jars(&cp, &jars).map_err(|e| e.to_string())?
         }
     };
-    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    let mut vm = Vm::with_snapshot(classpath, snapshot::choose(known)).map_err(|e| e.to_string())?;
     let main_class = match script::is_source(&target) {
         true => {
             let (classes, main) = script::main_of(&target, chosen, (known, &cp), options, &mut vm)?;

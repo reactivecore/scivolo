@@ -2,7 +2,7 @@
 //! arrays, boxed pointers and weak references; and the program's weak reference handler.
 
 use crate::class::{self, ClassId};
-use crate::heap::{self, GcIds};
+use crate::heap::{self, Blob, GcIds};
 use crate::interp::Flow;
 use crate::{Vm, VmError};
 use nir::Type;
@@ -15,12 +15,12 @@ pub const FIRST_ARRAY: i32 = 13;
 const FIRST_WEAK: i32 = 1 << 24;
 
 pub struct GcClasses {
-    boxed_ptr: i32,
-    weak: Option<ClassId>,
-    next_weak: i32,
-    weak_referent: i32,
+    pub boxed_ptr: i32,
+    pub weak: Option<ClassId>,
+    pub next_weak: i32,
+    pub weak_referent: i32,
     /// The program's function to run after a collection cleared weak references.
-    weak_handler: Option<u64>,
+    pub weak_handler: Option<u64>,
 }
 
 impl Default for GcClasses {
@@ -84,7 +84,7 @@ impl Vm {
             .collect();
         offsets.sort_unstable();
         offsets.push(-1);
-        let addr = self.heap.permanent(4 * offsets.len());
+        let addr = self.heap.permanent(4 * offsets.len(), Blob::Data);
         for (i, o) in offsets.iter().enumerate() {
             heap::write(addr + 4 * i, *o);
         }

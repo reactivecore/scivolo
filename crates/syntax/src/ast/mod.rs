@@ -93,6 +93,7 @@ pub struct Ast {
     lists: Vec<NodeId>,
     clauses: Vec<List>,
     mods: Vec<Modifiers>,
+    parens: rustc_hash::FxHashMap<NodeId, Span>,
 }
 
 impl Ast {
@@ -105,6 +106,7 @@ impl Ast {
             lists: Vec::with_capacity(source_len / 12),
             clauses: Vec::with_capacity(source_len / 128),
             mods: Vec::with_capacity(source_len / 20),
+            ..Ast::default()
         }
     }
 

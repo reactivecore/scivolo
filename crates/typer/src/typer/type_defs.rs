@@ -105,7 +105,7 @@ impl Typer<'_> {
                 return self.unsupported(id, "type member with conflicting bounds");
             }
         }
-        let rhs = self.typed_type(rhs, ctx);
+        let rhs = self.typed_type(rhs, sym.map_or(ctx, |s| ctx.with_owner(s)));
         let span = self.ast.span(id);
         self.tpd.node(T::TypeDef { name, rhs }, span, None, sym)
     }

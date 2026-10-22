@@ -38,6 +38,7 @@ impl Typer<'_> {
         if matches!(self.u.types().get(formal), Type::Bounds(..)) {
             return Some(self.unsupported(id, "untupled parameters of a wildcard formal"));
         }
+        let Ok(formal) = self.fully_defined(formal) else { return None };
         let named = self.named_tuple_parts(formal).map(|(_, values)| values);
         let tuple = if named.is_some() { formal } else { self.u.dealias(formal) };
         let (elems, generic) = match named {
@@ -58,9 +59,6 @@ impl Typer<'_> {
         }
         if formal != tuple {
             return Some(self.unsupported(id, "untupled parameters of a tuple alias"));
-        }
-        if !self.is_fully_defined(formal) {
-            return Some(self.unsupported(id, "untupled parameters with type variables"));
         }
         let at = |s: Span| Span::synthetic(s.start(), s.start());
         for (&q, &elem) in params.iter().zip(&elems) {

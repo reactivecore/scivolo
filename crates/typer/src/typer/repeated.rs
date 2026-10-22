@@ -18,13 +18,14 @@ impl Typer<'_> {
     }
 
     /// The element type `T` of repeated parameter type `p`: `<repeated>[T]`, or `Seq[T] @Repeated`
-    /// as TASTy and parameter type trees give it.
+    /// as TASTy and parameter type trees give it, also annotated `@InlineParam`.
     pub fn repeated_elem(&mut self, p: TypeId) -> Option<TypeId> {
         match self.u.types().get(p).clone() {
             Type::Annotated(seq, annot) if self.is_repeated_annot(annot) => match self.u.types().get(seq) {
                 Type::Applied(_, args) if args.len() == 1 => Some(args[0]),
                 _ => None,
             },
+            Type::Annotated(t, _) if self.is_inline_param_type(p) => self.repeated_elem(t),
             Type::Applied(c, args) if args.len() == 1 => {
                 let class = self.u.class_symbol(c);
                 (class.is_some() && class == self.syms.repeated_class).then_some(args[0])

@@ -33,7 +33,13 @@ impl Typer<'_> {
             DerivedKind::FromParam => self.derived_from_param(&text, watched.is_type, ctx),
             DerivedKind::FromEnumParam => self.derived_from_enum_param(&text, ctx),
             DerivedKind::SetterParam => self.setter_param_type(&text, ctx),
-            _ => self.class_named(&text, ctx).map(|c| type_ref(self.u, c)),
+            _ => self.class_named(&text, ctx).map(|c| {
+                let inline_owner = self.u.symbol(ctx.owner).flags.has(tasty::tags::INLINE);
+                if inline_owner && self.u.symbol(c).flags.has(tasty::tags::GIVEN) {
+                    self.complete(c);
+                }
+                type_ref(self.u, c)
+            }),
         };
         let Some(tpe) = tpe else { return self.unsupported(id, &format!("derived type {kind:?}")) };
         let span = self.ast.span(id);
@@ -169,7 +175,11 @@ impl Typer<'_> {
 
     /// The type of the variable `name` whose setter's parameter is being typed in `ctx`.
     fn setter_param_type(&mut self, name: &str, ctx: Ctx) -> Option<TypeId> {
-        let owner = self.u.symbol(ctx.owner).owner?;
+        let setter = match self.u.symbol(ctx.owner).kind {
+            Kind::Param => self.u.symbol(ctx.owner).owner?,
+            _ => ctx.owner,
+        };
+        let owner = self.u.symbol(setter).owner?;
         let decls = self.u.symbol(owner).decls.clone();
         let var = decls
             .into_iter()

@@ -13,11 +13,10 @@ use tasty::{Kind, SymbolId};
 
 /// The annotation classes refused: Scala Native's code-generation annotations, and those whose
 /// meaning dotty's later phases implement and the lowering does not.
-const REFUSED: [&str; 24] = [
+const REFUSED: [&str; 23] = [
     "scala.native",
     "scala.deprecatedName",
     "scala.annotation.compileTimeOnly",
-    "scala.annotation.threadUnsafe",
     "scala.beans.BeanProperty",
     "scala.beans.BooleanBeanProperty",
     "scala.scalanative.annotation.align",

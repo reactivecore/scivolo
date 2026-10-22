@@ -54,7 +54,7 @@ impl Gen<'_, '_> {
     }
 
     pub fn method_name(&mut self, m: SymbolId) -> GlobalId {
-        let owner_sym = self.l.u.symbol(m).owner.expect("a method's owner");
+        let owner_sym = self.method_owner(m);
         let owner = self.type_name(owner_sym);
         let (static_, private) = (is_java_static(self.l.u, m), is_private(self.l.u, m));
         let scope = match (private, static_) {

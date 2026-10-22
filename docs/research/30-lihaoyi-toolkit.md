@@ -101,6 +101,10 @@ conversion `stringPathChunkValidated` (`PathChunkMacros`, which derives from
 (osl5f, osl6) without the literal validation, and `import os.PathChunk.StringPathChunkInternal`
 (osl5e) compiles where dotty errors. **Fix (X1):** `is_accessible_from` for every candidate, an
 inaccessible one a misfit. ~15 lines; after E (§2.8), since then the macro is chosen.
+**Done**: but for javalib's implicits (`java.lang.Class$._class2class`, which bridge its renamed
+`_Class`; dotty's JDK has none). `os.pwd / "tmp" / "a/b"` picks the macro and prints what dotty
+prints; osl5e compiles and runs in dotty too (the import is legal, the conversion skipped).
+Library `private[q]` reads `q` from TASTy's `PRIVATEqualified`.
 
 ### 2.4 Overloads with type parameters after the receiver clause (fastparse) — `Y/mapped_alternatives.rs:44-50`
 
@@ -129,7 +133,12 @@ inline-param-semantics row, `42 → <repeated>[Int]`]; `CharsWhileIn(inline s: S
 (`typedArgs` for `RepeatedParamClass`) and the inliner binds the sequence. This is #82's I
 (research 27 §2.2, research 28 MR I). **Fix (I1):** in the inliner's argument typing, a repeated
 inline parameter takes a `SeqLiteral` of the arguments like a non-inline one; ~40 lines in
-`Y/` and `crates/typer/src/inlining/`.
+`Y/` and `crates/typer/src/inlining/`. **Done:** `repeated_elem` looks through `@InlineParam`;
+the proxy of a repeated argument keeps its `Typed` tree, typed `Seq[T]` (`paramBindingDef`);
+an unstable repeated parameter widens to `Seq[T] @Repeated`; a selection from a by-name proxy
+takes its result type as prefix (`cpy.Select`). An `Array` passed as `xs*` is still refused
+(dotty's `wrapArray`, i6858). Golden `inlined/repeated.scala`; inline-param-semantics and i5188
+pass; fp's `CharIn("0-9")` reaches its macro (`Varargs`, E) [V].
 
 ### 2.6 Symbol flags and predicates in `quotes.reflect` (sourcecode) — `O/ReflectImpl.scala:130-144`, `M/positions.rs:19-51`
 
@@ -148,6 +157,11 @@ Abstract, Trait, Enum, HasDefault, Implicit, Lazy — the ones the six libraries
 `kind` and `moduleClass`, the `isX` predicates over `kind`, `defn.RootPackage/RootClass`.
 ~80 Rust, ~80 Scala. Unblocks sourcecode `Name`/`FullName`/`Enclosing`/`Pkg`, fastparse's `P`
 (takes a `sourcecode.Name`), and the `flags` reads of upickle, mainargs and pprint's `TPrint`.
+**Done** (`M/symbols.rs`, `O/ReflectFlags.scala`, ADR 0029): flags as `TreeUnpickler` reads them
+(`Scala2x` for classes of the standard library's TASTy), `Deferred`/`ParamAccessor`/`NoInits`/`StableRealizable`
+refused; dotty's splice owner `macro` and the empty package are made per expansion, so owner
+chains match dotty's (golden `crates/macros/tests/inlined/symbols.scala`); `tests/aot/sourcecode`
+passes in both backends.
 
 ### 2.7 AOT: link-time accessors computed from others (os.proc) — `A/codegen/linktime/eval.rs`
 
@@ -181,6 +195,12 @@ the first `InlinedTypeTest` is a missing method [V osl5c]. fastparse's `literalS
 `children` over `tpd::Tree`, the `TypeTest`s and `unapply`s of `Inlined`, `Literal`, `Typed`,
 `Block`, `Apply`, `TypeApply`, `Select`, `Ident`, `Repeated` in the overlay; `Varargs`,
 `Expr.ofSeq`/`ofList` and `ToExpr[Seq[T]]` through `Build`. ~150 Rust, ~180 Scala.
+**Done** (`M/reflect/trees.rs`, `O/ReflectTrees.scala`, ADR 0029): those extractors and
+`ValDef`, `NamedArg`, `TypeTree`/`Inferred`; `Term.tpe`, `underlyingArgument`,
+`widenTermRefByName`, `ConstantType` (so `Expr.value`/`valueOrAbort` work), `Repeated.apply`
+(`Varargs`, `Expr.ofSeq`/`ofList`), `defn.Predef_classOf` and `typeConstructorOf` (`ToExpr` of
+arrays); golden `crates/macros/tests/inlined/terms.scala`. `os.PathChunk.stringPathChunkValidated("tmp/x")`
+expands and runs through `scivolo --dep`; `os.pwd / "tmp"` picks it only after X1.
 
 ### 2.9 Annotations of library classes (mainargs) — `Yn/annotations.rs:19-38,53-61`
 
@@ -247,7 +267,7 @@ insertion finds `apply` among the package object's members (golden
 |---|---|---|---|
 | ujson | — | — | — |
 | pprint | — (P0 done) | — | `TPrint` only (not in the test program) |
-| sourcecode | — | — | S1 (flags, predicates, `defn`); `Args` also `Symbol.tree` (left out) |
+| sourcecode | — | — | S1 done; `Args` needs `Symbol.tree` (left out) |
 | os-lib | F1; X1 (correctness, then E needed) | L1; threads for `os.proc` (open, ADR 0028) | E (path literals; only once X1 lands) |
 | fastparse | I1, O1, F1 | — [I] | S1 (`P`), E, literal patterns `case '{-1}` (P1 subset), `Match` construction (W4 subset), `=:=` (W1 subset) |
 | upickle | M1; member view on `ReadWriter.type` [I] | — [I] | P3, S, W1, W2, W4, W6 (§2.10) |

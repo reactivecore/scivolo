@@ -5,7 +5,7 @@
 
 use super::lambda_lift::Function;
 use super::lift_names::Pending;
-use super::walk::children;
+use super::walk::{children, is_type_tree};
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::FxHashMap;
@@ -52,13 +52,7 @@ pub fn dependencies(
             }
         };
         let enclosure = defs.get(&t).copied().or(enclosure);
-        let skipped = matches!(
-            l.tpd.tree(t),
-            Tree::TypeDef { .. }
-                | Tree::SingletonTypeTree { .. }
-                | Tree::AppliedTypeTree { .. }
-                | Tree::TypeTree { .. }
-        );
+        let skipped = matches!(l.tpd.tree(t), Tree::TypeDef { .. }) || is_type_tree(l, t);
         if !skipped {
             todo.extend(steps(l, t, pending).into_iter().rev().map(|s| (s, enclosure)));
         }

@@ -54,13 +54,13 @@ pub fn java_name(name: &str) -> &str {
 
 #[derive(Default)]
 pub struct Rtti {
-    meta: Option<ClassId>,
-    meta_size: usize,
+    pub meta: Option<ClassId>,
+    pub meta_size: usize,
     pending: Vec<ClassId>,
     unnamed: Vec<ClassId>,
-    strings_ready: bool,
-    next_class: i32,
-    next_trait: i32,
+    pub strings_ready: bool,
+    pub next_class: i32,
+    pub next_trait: i32,
 }
 
 impl Vm {
@@ -97,7 +97,7 @@ impl Vm {
             return Ok(());
         };
         let meta_size = self.class(meta).size as usize;
-        let addr = self.heap.permanent(meta_size + 8);
+        let addr = self.heap.permanent(meta_size + 8, heap::Blob::Object);
         self.classes.all[id as usize].rtti = addr;
         heap::write(addr, self.class(meta).rtti);
         heap::write(addr + meta_size, id);
@@ -136,7 +136,7 @@ impl Vm {
             .map(|t| self.class(t).rtti)
             .collect();
         let rtti = c.rtti;
-        let interfaces = self.heap.permanent(8 * traits.len());
+        let interfaces = self.heap.permanent(8 * traits.len(), heap::Blob::Words);
         for (i, t) in traits.iter().enumerate() {
             heap::write(interfaces + 8 * i, *t);
         }

@@ -54,8 +54,9 @@ Measurements and the ranked list of speed ideas: [docs/performance.md](docs/perf
 Done: the library image (ADR 0005), per-site caches, fused instructions, tier-up with guarded
 inlining (ADR 0006).
 
-- **Heap snapshot** (#9). Pre-initialize the stdlib modules and serialize them into the
-  library image, the way Dart AppJIT, Julia's sysimage and GraalVM's image heap do.
+- **Heap snapshot** (done, #9, ADR 0034): the initialized runtime's heap, written after a
+  training run and restored at start, also for the REPL; hello 10.2 → 7.5 ms, moderate 18.6 →
+  16.6 ms (2026-10-22, minima). Next: decoded definitions and lowered code in the snapshot.
 - **Precise roots.** Typed slot maps would make frame scanning precise (ADR 0004); MMTk stays
   the alternative collector.
 - **Optional JIT.** A Cranelift baseline tier for hot methods.
@@ -64,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,170 of 1,709 pass (2026-10-21); 298 stop at the typer, 18 at
+(`just dotty-lower-report`): 1,196 of 1,711 pass (2026-10-22); 278 stop at the typer, 15 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -75,8 +76,8 @@ the lowering.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-10-21): tests/pos 1,701 typed as dotty, 197 differ (20 only in
-   warnings), 1,127 refused. Unsupported
+   `just typer-report` (2026-10-22): tests/pos 1,803 typed as dotty, 141 differ (20 only in
+   warnings), 1,081 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -90,13 +91,13 @@ the lowering.
 Status (2026-10-19, #40, ADR 0029): macro calls expand in scripts, the REPL and native
 executables. A library macro runs from its NIR in the VM; its quotes are unpickled into the
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
-`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject` works. dotty's
-`tests/run-macros`: 7 of 321 pass (`just dotty-macros`).
+`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject` and sourcecode 0.4.4 work.
+dotty's `tests/run-macros`: 23 of 321 pass (2026-10-22, `just dotty-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 149 of 156
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 160 of 167
   test programs from source (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
@@ -107,23 +108,24 @@ typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the
 ## Next
 
 In order of the tests they unblock:
-1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s I (inline
-   leftovers), V2 (applications) and U (structural and small) and V1's singles (tuples, i4364a,
-   i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A
-   leftovers (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple
-   leftovers (#139: patterns over 22, `map[F]`, ordering; #146); poly function leftovers (#136); mirrors (#129); match-type leftovers (#120);
-   typed-tree printing gaps (#122, `RefinedTypeTree`).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.flags`, term
-   extractors and `Varargs`, `'[t]` patterns, `Type.show`, quote matcher, reflect slices,
-   measured on `tests/run-macros`.
-3. **com-lihaoyi toolkit** (#144, [research 30](docs/research/30-lihaoyi-toolkit.md)): small
-   typer and AOT fixes for os-lib and fastparse, then the macro steps for sourcecode, fastparse,
-   upickle and mainargs, each measured by its library's test program.
-4. **Startup** (#9): the VM's `run_main` from a heap snapshot.
+1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s V1 singles
+   (tuples, i4364a, i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A leftovers
+   (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple leftovers
+   (#139: patterns over 22, `map[F]`, ordering; #146); mirrors (#129); match-type leftovers
+   (#120); typed-tree printing gap 2 (#122). Done 2026-10-22: poly function leftovers (#136),
+   #122 gaps 1 and 3 (#156), research 27's I1 (#82 opaque proxies, transparent givens), V2 and U
+   (#152).
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `ValDef.let`, `Type.show`,
+   quote matcher, further reflect slices, measured on `tests/run-macros`.
+3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): the
+   remaining macro steps for fastparse, upickle and mainargs, each measured by its library's
+   test program. Done 2026-10-22: os-lib test programs, T1, S1 (sourcecode), E, X1, R1, R3, R4
+   (`quotes.reflect` slices), FP0 (fastparse in the typer).
+4. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 5. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
-   traits nested in local traits; classes extending `FunctionN` above 22
-   (`FunctionXXLForwarders`), context results needing `Bridges` (implicitFuns), the rest of
-   `TupleOptimizations` (#138), JDK forwarders (#135).
+   traits nested in local traits, context results needing `Bridges` (implicitFuns). Done
+   2026-10-22: `FunctionXXLForwarders` (#150), JDK forwarders (#135), `TupleOptimizations`
+   (#138).
 6. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
    polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
    inputs; the forward-reference check (#90).

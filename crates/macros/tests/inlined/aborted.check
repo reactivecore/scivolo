@@ -1,0 +1,2 @@
+[ (Inlined 117..127@124 :T:scala.Int (Apply 117..127@124 :T:scala.Int (Ident 117..124@117 sym="macrolib.Checks$.aborted#(scala.Int)" :t:macrolib.Checks.t:aborted t:aborted) [ (Literal 125..126@125 :#Int:"5" #Int:"5")]) [] (Typed 129..129 :T:scala.Int (Ident 129..129@129 :<error> t:???) (Ident 129..129@129 sym="scala.Int" :T:scala.Int T:Int)))]
+== E - "Macro expansion was aborted by the macro without any errors reported. Macros should issue errors to end-users when aborting a macro expansion with StopMacroExpansion."

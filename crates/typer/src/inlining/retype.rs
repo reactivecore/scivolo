@@ -57,6 +57,7 @@ impl Inlining<'_> {
             | T::AppliedTypeTree { .. }
             | T::TypeBoundsTree { .. }
             | T::LambdaTypeTree { .. }
+            | T::RefinedTypeTree { .. }
             | T::Annotated { .. } => Ok(t),
             T::If { cond, thenp, elsep, inline } => {
                 let cond = self.retype_forced(inline, cond, args, owner)?;
@@ -88,12 +89,11 @@ impl Inlining<'_> {
                 if self.reselects_override(t, qualifier, self.names.text(name.name).to_owned()) {
                     return Err((span, "inline expansion selecting an overriding member"));
                 }
-                if let Some(b) = before
-                    && self.is_stable_ref(b)
+                if let Some(prefix) = before.and_then(|b| self.local_prefix(b))
                     && let Some(tpe) = self.tpd.get(t).tpe
                     && let Type::Sym(Some(_), s) = *self.u.types().get(tpe)
                 {
-                    self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(b), s)));
+                    self.tpd.get_mut(t).tpe = Some(self.u.intern_type(Type::Sym(Some(prefix), s)));
                 }
                 self.retyped(t, owner)
             }

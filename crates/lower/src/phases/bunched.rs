@@ -2,10 +2,9 @@
 //   compiler/src/dotty/tools/dotc/core/TypeErasure.scala
 //   compiler/src/dotty/tools/dotc/transform/Erasure.scala
 //! Lambdas of more parameters than the library's function arities: their methods take the
-//! arguments as one array `$allArgs`, which the body unpacks into the parameters. Classes
-//! extending such function types are refused.
+//! arguments as one array `$allArgs`, which the body unpacks into the parameters.
 
-use super::casts::{class_named, function_class_arity};
+use super::casts::class_named;
 use super::lambda_lift::Function;
 use super::lazy_trees::{local, method};
 use super::lifted::substitute;
@@ -29,23 +28,6 @@ pub fn is_bunched(l: &Lower, f: &Function, n: usize) -> Result<bool> {
         return unsupported(l.tpd.span(f.def), "lambdas of more than 22 parameters outside closures");
     }
     Ok(true)
-}
-
-/// Refuses class definitions `classes` that extend a function class above the library's arities.
-pub fn refuse_xxl_parents(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
-    for &td in classes {
-        let Some(c) = l.tpd.sym(td) else { continue };
-        let xxl = |l: &Lower, b| {
-            function_class_arity(l, b).is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY)
-        };
-        if l.u.linearization(c).into_iter().any(|b| xxl(l, b)) {
-            return unsupported(
-                l.tpd.span(td),
-                "classes extending function types of more than 22 parameters",
-            );
-        }
-    }
-    Ok(())
 }
 
 /// The parameter `$allArgs: Array[Object]` by name and type.

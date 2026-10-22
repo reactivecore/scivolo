@@ -69,6 +69,7 @@ impl Tree {
             Tree::Apply { fun: a, args: l }
             | Tree::TypeApply { fun: a, args: l }
             | Tree::AppliedTypeTree { tpt: a, args: l }
+            | Tree::RefinedTypeTree { tpt: a, refinements: l }
             | Tree::Import { expr: a, selectors: l, export: _ }
             | Tree::PackageDef { pid: a, stats: l } => s(&[N(a), L(l)]),
             Tree::SeqLiteral { elems: l, elemtpt: a }
@@ -154,6 +155,7 @@ mod tests {
             Tree::UnApply { fun: a, implicits: l, patterns: m },
             Tree::Annotated { arg: a, annot: b },
             Tree::AppliedTypeTree { tpt: a, args: l },
+            Tree::RefinedTypeTree { tpt: a, refinements: l },
             Tree::TypeBoundsTree { lo: a, hi: b, alias: Some(c) },
             Tree::LambdaTypeTree { tparams: l, body: a },
             Tree::ValDef { name, tpt: a, rhs: Some(b) },

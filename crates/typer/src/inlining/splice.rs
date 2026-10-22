@@ -13,6 +13,8 @@ use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
 const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
+const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
+                       errors to end-users when aborting a macro expansion with StopMacroExpansion.";
 
 impl Inlining<'_> {
     /// The expansion of `t`, owned by `owner`, if it is a splice: the macro's result, retyped
@@ -27,6 +29,18 @@ impl Inlining<'_> {
             Err(MacroError::Unsupported(_)) => return Err((span, "a macro expansion the frontend refuses")),
             Err(MacroError::Failed(msg)) => {
                 self.error(self.outermost_span, msg);
+                return Ok(Some(t));
+            }
+            Err(MacroError::Reported(errors)) => {
+                for (at, msg) in errors {
+                    self.error(at, msg);
+                }
+                return Ok(Some(t));
+            }
+            Err(MacroError::Aborted) => {
+                if !self.host.has_errors() {
+                    self.error(span, ABORTED.to_owned());
+                }
                 return Ok(Some(t));
             }
         };
@@ -161,6 +175,9 @@ impl Inlining<'_> {
         let arg = self.unwrapped(arg);
         if self.tpd.sym(arg) == Some(quotes) && matches!(self.tpd.tree(arg), T::Ident { .. }) {
             return Some(MacroArg::Quotes);
+        }
+        if let T::Literal { value } = self.tpd.tree(arg) {
+            return Some(MacroArg::Literal(value.clone()));
         }
         let T::Apply { fun, args } = *self.tpd.tree(arg) else { return None };
         let [q] = self.tpd.items(args)[..] else { return None };

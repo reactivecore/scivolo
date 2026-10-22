@@ -24,18 +24,28 @@ impl Expansion<'_, '_> {
         skolem: Option<TypeId>,
     ) -> Result<TypeId, Unsupported> {
         let i = &mut *self.i;
-        if matches!(i.tpd.tree(arg), T::Typed { .. }) {
-            return Err(self.err("repeated inline argument"));
+        let mut arg_tpe = i.tpd.tpe(arg);
+        if let T::Typed { expr, .. } = *i.tpd.tree(arg)
+            && let Some(seq) = i.seq_of_repeated(arg_tpe)
+        {
+            let array = i.scala_member("Array", Kind::Class);
+            match i.tpd.get(expr).tpe.map(|t| i.u.widen(t)) {
+                Some(t) if i.u.class_symbol(t).is_some_and(|c| Some(c) == array) => {
+                    return Err(self.err("array passed to a repeated parameter of an inline method"));
+                }
+                Some(_) => {}
+                None if matches!(i.tpd.tree(expr), T::SeqLiteral { .. }) => {
+                    i.tpd.get_mut(expr).tpe = Some(seq)
+                }
+                None => return Err(self.err("untyped repeated inline argument")),
+            }
+            arg_tpe = seq;
         }
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
         let inline = i.is_inline_param_type(formal);
-        let arg_tpe = i.tpd.tpe(arg);
         let mut widened = i.u.widen(arg_tpe);
         let builtins = i.u.builtins();
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
-        if bottom && inline {
-            return Err(self.err("inline argument of type Nothing"));
-        }
         let skolem = skolem.filter(|_| !bottom);
         if let Some(sk) = skolem {
             widened = sk;
@@ -81,6 +91,11 @@ impl Expansion<'_, '_> {
         };
         if let Some(sk) = skolem {
             rhs = i.cast(rhs, sk)?;
+        }
+        if bottom && inline {
+            let at = i.tpd.span(rhs);
+            let tpt = i.tpd.node(T::TypeTree { inferred: false }, at.end_pos(), Some(widened), None);
+            rhs = i.tpd.node(T::Typed { expr: rhs, tpt }, at.to_synthetic(), Some(widened), None);
         }
         let span = i.tpd.span(self.call);
         let tpt_span = Span::at(i.tpd.span(arg).start());
@@ -161,6 +176,16 @@ impl Inlining<'_> {
             stack.extend(self.tpd.children(n));
         }
         t
+    }
+
+    /// `Seq[T]` if `t` is `<repeated>[T]` (dotty's `translateFromRepeated(toArray = false)`).
+    fn seq_of_repeated(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Applied(c, args) = self.u.types().get(t).clone() else { return None };
+        if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
+            return None;
+        }
+        let seq = self.u.class_ref("scala.collection.immutable.Seq");
+        Some(self.u.intern_type(Type::Applied(seq, args)))
     }
 
     /// Whether parameter type `p` is annotated `@InlineParam`, also inside a by-name type.

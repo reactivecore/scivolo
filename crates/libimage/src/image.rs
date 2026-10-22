@@ -45,6 +45,8 @@ pub struct Image {
     map: *const u8,
     len: usize,
     count: usize,
+    /// The key that names the image's file.
+    pub key: u64,
 }
 
 // SAFETY: the mapping is read-only, image files are never written after they are renamed into
@@ -56,9 +58,10 @@ unsafe impl Sync for Image {}
 impl Image {
     /// The image of `spec` in directory `dir`, built there first if missing.
     pub fn open(spec: &Spec, dir: &Path) -> io::Result<Self> {
-        let path = dir.join(format!("libs-{:016x}.img", key(spec)?));
+        let key = key(spec)?;
+        let path = dir.join(format!("libs-{key:016x}.img"));
         if path.exists()
-            && let Ok(image) = Self::map(&path)
+            && let Ok(image) = Self::map(&path, key)
         {
             cache::touch(&path);
             return Ok(image);
@@ -68,10 +71,10 @@ impl Image {
         cache::prune(dir, cache::IMAGE_UNUSED, |n| {
             n.strip_prefix("libs-").and_then(|n| n.strip_suffix(".img")).is_some_and(cache::is_key)
         });
-        Self::map(&path)
+        Self::map(&path, key)
     }
 
-    fn map(path: &Path) -> io::Result<Self> {
+    fn map(path: &Path, key: u64) -> io::Result<Self> {
         let file = File::open(path)?;
         let len = file.metadata()?.len() as usize;
         if len < HEADER {
@@ -87,7 +90,7 @@ impl Image {
         if map == libc::MAP_FAILED {
             return Err(io::Error::last_os_error());
         }
-        let mut image = Self { map: map as *const u8, len, count: 0 };
+        let mut image = Self { map: map as *const u8, len, count: 0, key };
         let bytes = image.bytes();
         if &bytes[..8] != MAGIC {
             return Err(io::Error::other("not a library image"));

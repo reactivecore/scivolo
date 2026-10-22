@@ -46,7 +46,7 @@ impl Typer<'_> {
             "modifier incompatible with the definition"
         } else if combinations.iter().any(|&(a, b)| flags.is_all_of(a.or(b))) {
             "illegal combination of modifiers"
-        } else if let Some(problem) = self.inline_problem(tree, kind, owner, flags) {
+        } else if let Some(problem) = self.inline_problem(kind, owner, flags) {
             problem
         } else if flags.is(f::OPAQUE) && !self.u.symbol(owner).flags.has(tasty::tags::OBJECT) {
             "opaque type outside an object"
