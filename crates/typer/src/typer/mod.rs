@@ -277,6 +277,9 @@ pub struct Typer<'a> {
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
+    /// The functions of polymorphic function values, whose results may refer to their
+    /// parameters, with the binder and parameter names of an expected `apply` whose result does.
+    pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -349,6 +352,7 @@ impl<'a> Typer<'a> {
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
+            poly_closures: FxHashMap::default(),
             depth: 0,
             file_starts: Vec::new(),
             macros: None,

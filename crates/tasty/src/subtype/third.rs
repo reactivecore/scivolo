@@ -38,16 +38,23 @@ impl Cmp<'_> {
                 Some(decided) => decided,
                 None => self.below_union(a, b, x, y),
             },
-            Type::Method { params: p2, result: r2, implicit: i2, .. } => {
+            Type::Method { binder: b2, params: p2, result: r2, implicit: i2, .. } => {
                 match self.u.types().get(a).clone() {
-                    Type::Method { params: p1, result: r1, implicit: i1, .. } => {
-                        p1.len() == p2.len()
-                            && (i1 || !i2)
-                            && p1
+                    Type::Method { binder: b1, params: p1, result: r1, implicit: i1, .. } => {
+                        if p1.len() != p2.len()
+                            || !(i1 || !i2)
+                            || !p1
                                 .iter()
                                 .zip(&p2)
                                 .all(|(&(_, x), &(_, y))| self.recur_frozen(x, y) && self.recur_frozen(y, x))
-                            && self.recur(r1, r2)
+                        {
+                            return false;
+                        }
+                        let names: Vec<String> = p2.iter().map(|(n, _)| n.clone()).collect();
+                        let refs: Vec<TypeId> =
+                            (0..p1.len() as u32).map(|i| self.u.intern_type(Type::Param(b1, i))).collect();
+                        let r2 = self.u.subst(r2, b2, &names, &refs);
+                        self.recur(r1, r2)
                     }
                     _ => false,
                 }

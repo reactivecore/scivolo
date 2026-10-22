@@ -33,13 +33,15 @@ impl Typer<'_> {
             Ok(entered) => entered,
             Err(refused) => return refused,
         };
-        let fun_pt = match self.instantiated_poly_pt(pt, &tparams, self.ast.items(args).len()) {
+        self.poly_closures.insert(fun, None);
+        let fun_pt = match self.instantiated_poly_pt(pt, &tparams, (fun, self.ast.items(args).len())) {
             Ok(fun_pt) => fun_pt,
             Err(what) => return self.unsupported(id, what),
         };
         let typed_tparams: Vec<TNodeId> =
             self.ast.items(targs).to_vec().into_iter().map(|p| self.typed_type_def(p, lctx)).collect();
         let block = self.typed_function(fun, args, fbody, fun_pt, lctx);
+        self.poly_closures.remove(&fun);
         let T::Block { stats, expr: closure } = *self.tpd.tree(block) else {
             return if self.is_error(block) {
                 block
@@ -79,9 +81,16 @@ impl Typer<'_> {
         block
     }
 
-    /// The function type a polymorphic function value of `n` parameters is typed against: the
-    /// `apply` of polymorphic function type `pt` instantiated to `tparams`, else none.
-    fn instantiated_poly_pt(&mut self, pt: Pt, tparams: &[SymbolId], n: usize) -> Result<Pt, &'static str> {
+    /// The function type function `fun` of `n` parameters of a polymorphic function value is
+    /// typed against: the `apply` of polymorphic function type `pt` instantiated to `tparams`,
+    /// else none; a result referring to the parameters is noted in `poly_closures` (dotty's
+    /// `InLambdaTypeTree`).
+    fn instantiated_poly_pt(
+        &mut self,
+        pt: Pt,
+        tparams: &[SymbolId],
+        (fun, n): (NodeId, usize),
+    ) -> Result<Pt, &'static str> {
         let Pt::Type(t) = pt else { return Ok(Pt::Any) };
         let dealiased = self.u.dealias(t);
         let Some(info) = self.u.poly_function_apply(dealiased) else { return Ok(Pt::Any) };
@@ -96,13 +105,9 @@ impl Typer<'_> {
         if params.len() != tparams.len() || formals.len() != n {
             return Err("polymorphic function value of other arities than its expected type");
         }
-        let mut dependent = false;
-        self.u.map_type(restpe, &mut |u, x| {
-            dependent |= matches!(*u.types().get(x), Type::Param(b, _) if b == mb);
-            None
-        });
-        if dependent {
-            return Err("polymorphic function value of a dependent function type");
+        let param_names: Vec<String> = formals.iter().map(|(n, _)| n.clone()).collect();
+        if self.mentions_clause_params(restpe, (mb, &param_names), None) {
+            self.poly_closures.insert(fun, Some((mb, param_names)));
         }
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         let args: Vec<TypeId> = tparams.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
