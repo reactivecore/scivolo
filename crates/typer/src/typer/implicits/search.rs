@@ -158,6 +158,7 @@ impl Typer<'_> {
         self.implicit_budget -= 1;
         let tree = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
+        let tree = self.inlined_transparent(tree, super::super::Pt::Type(pt), ctx).unwrap_or(tree);
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {

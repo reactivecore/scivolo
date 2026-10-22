@@ -6,8 +6,8 @@ use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
     /// What about a definition of `kind` with `flags` in `owner` is outside the subset as far as
-    /// inlining goes: macros, erased definitions, case classes in an inline method, nested
-    /// inline methods and transparent inline givens.
+    /// inlining goes: macros, erased definitions, case classes in an inline method and nested
+    /// inline methods.
     pub fn inline_problem(&self, kind: Kind, owner: SymbolId, flags: FlagSet) -> Option<&'static str> {
         let mut outer = Some(owner);
         let mut nested = false;
@@ -30,8 +30,6 @@ impl Typer<'_> {
         }
         Some(if nested {
             "inline definition nested in an inline method"
-        } else if flags.is_all_of(f::TRANSPARENT.or(f::GIVEN)) {
-            "transparent inline given"
         } else if flags.is_one_of(f::MUTABLE.or(f::PARAM_ACCESSOR).or(f::TERM_PARAM)) {
             "inline variable or class parameter"
         } else if kind != Kind::Def && kind != Kind::Val {
