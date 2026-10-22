@@ -117,15 +117,39 @@ impl Unpickler<'_> {
             }
             .in_other_source()
         });
+        let envelope = self.envelope(t, Span::NONE);
         let span = match pickled {
             Some(s) => s,
             None if self.tpd.span(t).exists() => return t,
-            None => {
-                let children = self.tpd.children(t);
-                children.iter().fold(Span::NONE, |s, &c| s.union(self.tpd.span(c))).to_synthetic()
-            }
+            None => envelope,
         };
         self.tpd.get_mut(t).span = span;
         t
+    }
+
+    /// The span enclosing `t`'s children from `start` on, a child without a span given the end
+    /// of the spans before it (dotty's `Positioned.envelope`).
+    fn envelope(&mut self, t: TNodeId, start: Span) -> Span {
+        let children = self.tpd.children(t);
+        let mut span = start;
+        let mut left = false;
+        for pass in 0..2 {
+            for c in children.clone() {
+                let s = self.tpd.span(c);
+                if s.exists() {
+                    span = span.union(s);
+                } else if span.exists() {
+                    let placed = self.envelope(c, span.end_pos());
+                    self.tpd.get_mut(c).span = placed;
+                } else {
+                    left = true;
+                }
+            }
+            if pass > 0 || !left || !span.exists() {
+                break;
+            }
+            span = span.start_pos();
+        }
+        span.to_synthetic()
     }
 }

@@ -33,9 +33,6 @@ impl Expansion<'_, '_> {
         let mut widened = i.u.widen(arg_tpe);
         let builtins = i.u.builtins();
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);
-        if bottom && inline {
-            return Err(self.err("inline argument of type Nothing"));
-        }
         let skolem = skolem.filter(|_| !bottom);
         if let Some(sk) = skolem {
             widened = sk;
@@ -81,6 +78,11 @@ impl Expansion<'_, '_> {
         };
         if let Some(sk) = skolem {
             rhs = i.cast(rhs, sk)?;
+        }
+        if bottom && inline {
+            let at = i.tpd.span(rhs);
+            let tpt = i.tpd.node(T::TypeTree { inferred: false }, at.end_pos(), Some(widened), None);
+            rhs = i.tpd.node(T::Typed { expr: rhs, tpt }, at.to_synthetic(), Some(widened), None);
         }
         let span = i.tpd.span(self.call);
         let tpt_span = Span::at(i.tpd.span(arg).start());

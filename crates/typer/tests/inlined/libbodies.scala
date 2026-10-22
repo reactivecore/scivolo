@@ -17,5 +17,8 @@ object Test {
     println(Lib.sign(-4))
     println(Lib.typeName[Int])
     println(Lib.firstOr(Some(n)))
+    println(Lib.sepOr())
+    println(Lib.sepOr(n))
+    println(Lib.sepOr(sep = "x"))
   }
 }
