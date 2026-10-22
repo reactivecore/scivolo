@@ -158,7 +158,11 @@ impl Typer<'_> {
         ctx: Ctx,
     ) -> Option<Result<TNodeId, &'static str>> {
         let type_tree = self.tpd.sym(tree).is_some_and(|s| self.u.is_type_symbol(s));
-        if ctx.mode.is(Mode::PATTERN) || type_tree || self.is_closure_tree(tree) {
+        if ctx.mode.is(Mode::PATTERN)
+            || ctx.mode.is(Mode::ASSIGNMENT_LHS)
+            || type_tree
+            || self.is_closure_tree(tree)
+        {
             return None;
         }
         let tpe = self.tpd.tpe(tree);

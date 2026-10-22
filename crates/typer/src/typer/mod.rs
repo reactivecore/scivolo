@@ -18,6 +18,7 @@ mod apply;
 mod apply_insertion;
 pub(crate) mod approx;
 mod arg_shapes;
+mod assign;
 mod auto_apply;
 mod avoid;
 mod avoid_captures;
@@ -369,7 +370,8 @@ impl<'a> Typer<'a> {
         self.depth += 1;
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
         let vars = self.constraint.count();
-        let inner = ctx.with_mode(ctx.mode.without(crate::ctx::Mode::APPLY_QUALIFIER));
+        let top_only = crate::ctx::Mode::APPLY_QUALIFIER.with(crate::ctx::Mode::ASSIGNMENT_LHS);
+        let inner = ctx.with_mode(ctx.mode.without(top_only));
         let tree = match self.contextual_function(id, pt, inner).or_else(|| self.ready(id, inner)) {
             Some(t) => t,
             None => self.typed_unadapted(id, pt, inner),

@@ -128,3 +128,4 @@ localinline
 unsafelazy
 selfoverrides
 viewapply
+setterassign
