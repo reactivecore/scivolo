@@ -32,6 +32,9 @@ impl Inlining<'_> {
                 self.ctx = self.host.call_ctx(call);
             }
         }
+        if self.tpd.sym(def).is_some_and(|m| self.u.within_opaques(m)) {
+            return Err((span, "inline method of an object with opaque types"));
+        }
         let op = self.compiletime_op(call);
         if let Some(reduced) = self.intrinsic(op.as_deref(), call, owner)? {
             return Ok(reduced);

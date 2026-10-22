@@ -54,16 +54,19 @@ fn sig_name(u: &mut Universe, t: TypeId, e: &Erased) -> String {
         Erased::Null => "scala.Null".into(),
         Erased::Array(elem) => format!("{}[]", sig_name(u, t, elem)),
         Erased::Value(_, underlying) => sig_name(u, t, underlying),
-        Erased::Class(binary) => match u.erased_class(t).or_else(|| {
-            let widened = u.widen(t);
-            u.erased_class(widened).or_else(|| alias_class(u, widened)).or_else(|| {
-                let r = u.class_ref(binary);
-                u.class_symbol(r)
-            })
-        }) {
-            Some(c) if u.binary_name(c) == *binary => full_name(u, c),
-            _ => binary.clone(),
-        },
+        Erased::Class(binary) => {
+            let found = u.erased_class(t).or_else(|| {
+                let widened = u.widen(t);
+                u.erased_class(widened).or_else(|| alias_class(u, widened)).or_else(|| {
+                    let r = u.class_ref(binary);
+                    u.class_symbol(r)
+                })
+            });
+            match found.filter(|&c| u.binary_name(c) == *binary).or_else(|| class_in(u, t, binary, 8)) {
+                Some(c) => full_name(u, c),
+                None => binary.clone(),
+            }
+        }
     }
 }
 
@@ -76,6 +79,30 @@ fn alias_class(u: &mut Universe, t: TypeId) -> Option<SymbolId> {
         result = parent;
     }
     u.class_symbol(result)
+}
+
+/// The class of binary name `binary` that type `t` mentions, through aliases and opaque types.
+fn class_in(u: &mut Universe, t: TypeId, binary: &str, depth: u32) -> Option<SymbolId> {
+    let depth = depth.checked_sub(1)?;
+    let mut syms = Vec::new();
+    u.map_type(t, &mut |u, x| {
+        if let Type::Sym(_, s) = *u.types().get(x) {
+            syms.push(s);
+        }
+        None
+    });
+    for s in syms {
+        if u.is_class(s) && u.binary_name(s) == binary {
+            return Some(s);
+        }
+        if u.is_type_symbol(s) && !u.is_class(s) {
+            let info = u.opaque_alias(s).unwrap_or_else(|| u.info(s));
+            if let Some(c) = class_in(u, info, binary, depth) {
+                return Some(c);
+            }
+        }
+    }
+    None
 }
 
 fn prim_name(c: char) -> &'static str {

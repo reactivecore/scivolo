@@ -33,9 +33,6 @@ impl Typer<'_> {
         if flags.has(INLINE) && self.u.is_deferred(sym) && self.enclosing_inline(ctx.owner).is_none() {
             return Err("call of a deferred inline method");
         }
-        if flags.has(INLINE) && self.u.within_opaques(sym) {
-            return Err("inline method of an object with opaque types");
-        }
         let full = self.u.full_name(sym);
         if flags.has(INLINE)
             && full.starts_with("scala.compiletime.")
