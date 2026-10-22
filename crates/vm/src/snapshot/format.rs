@@ -1,6 +1,8 @@
 //! The snapshot file: a header with the region's address and bytes, then the VM's tables, in
 //! little-endian fields.
 
+use std::ops::Range;
+
 const MAGIC: &[u8; 8] = b"SCIVSNAP";
 const VERSION: u32 = 1;
 
@@ -38,7 +40,8 @@ pub struct In<'a> {
 
 impl<'a> In<'a> {
     fn take(&mut self, n: usize) -> Result<&'a [u8], String> {
-        let bytes = self.data.get(self.pos..self.pos + n).ok_or("the snapshot is truncated")?;
+        let end = self.pos.checked_add(n).ok_or("the snapshot is truncated")?;
+        let bytes = self.data.get(self.pos..end).ok_or("the snapshot is truncated")?;
         self.pos += n;
         Ok(bytes)
     }
@@ -122,7 +125,15 @@ pub fn parse(data: &[u8]) -> Result<Image<'_>, String> {
     let len = input.u64()? as usize;
     let region = input.take(len)?;
     let packages = input.list(In::str)?;
-    Ok(Image { start, region, thread, packages, tables: input })
+    match holds(&(start..start.saturating_add(len)), thread, 16) {
+        true => Ok(Image { start, region, thread, packages, tables: input }),
+        false => Err("the thread cell is outside the region".into()),
+    }
+}
+
+/// Whether `size` bytes at `addr`, 8-byte aligned, lie inside `range`.
+pub fn holds(range: &Range<usize>, addr: usize, size: usize) -> bool {
+    addr.is_multiple_of(8) && addr >= range.start && addr.checked_add(size).is_some_and(|e| e <= range.end)
 }
 
 #[cfg(test)]
@@ -131,15 +142,16 @@ mod tests {
 
     #[test]
     fn files_round_trip_and_corruption_is_found() {
+        let bytes = [3u8; 32];
         let mut body = Out::default();
-        region(&mut body, 0x2000_0000_0000, &[1, 2, 3], 0x2000_0000_0010, &["java/lang".into()]);
+        region(&mut body, 0x2000_0000_0000, &bytes, 0x2000_0000_0010, &["java/lang".into()]);
         body.str("tables");
         body.opt(None);
         let mut data = file(body);
         let mut image = parse(&data).unwrap();
         assert_eq!(
             (image.start, image.region, image.thread),
-            (0x2000_0000_0000, &[1, 2, 3][..], 0x2000_0000_0010)
+            (0x2000_0000_0000, &bytes[..], 0x2000_0000_0010)
         );
         assert_eq!(image.packages, ["java/lang"]);
         assert_eq!((image.tables.str(), image.tables.opt()), (Ok("tables"), Ok(None)));
@@ -148,5 +160,16 @@ mod tests {
         data[last] ^= 1;
         assert!(parse(&data).is_err());
         assert!(parse(&data[..20]).is_err());
+        let mut body = Out::default();
+        region(&mut body, 0x2000_0000_0000, &bytes, 0x2000_0000_0018, &[]);
+        assert!(parse(&file(body)).is_err());
+    }
+
+    #[test]
+    fn addresses_must_lie_inside_the_region() {
+        let region = 0x1000..0x1020;
+        assert!(holds(&region, 0x1018, 8) && holds(&region, 0x1000, 32));
+        assert!(!holds(&region, 0x1020, 8) && !holds(&region, 0x1004, 8) && !holds(&region, 0x0ff8, 8));
+        assert!(!holds(&region, usize::MAX - 7, 8));
     }
 }

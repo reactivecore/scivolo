@@ -137,7 +137,7 @@ impl Vm {
         vm.start_threads(bounds);
         let ptr: *mut Vm = &mut vm;
         let running = vm.callbacks.enter(ptr);
-        let restored = image.as_mut().map(|i| vm.restore(i.start, &mut i.tables));
+        let restored = image.as_mut().map(|i| vm.restore(i));
         if let Some(Err(e)) = &restored {
             if vm.funcs.trace {
                 eprintln!("{e}");
