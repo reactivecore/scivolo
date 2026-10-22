@@ -141,3 +141,20 @@ fn the_frontend_mode_chooses_the_compiler() {
     assert!(!r.out.status.success());
     assert!(r.stderr.contains("SCIVOLO_FRONTEND=fast: expected strict or jvm"), "{}", r.stderr);
 }
+
+#[test]
+fn shutdown_hooks_run_after_main() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    if !typer::dump::library_jars(&root.join("ref/libs"))[0].exists() && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: the library jars are not in ref/libs");
+        return;
+    }
+    let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("hooks");
+    let _ = std::fs::remove_dir_all(dir.join("cache/scripts"));
+    std::fs::create_dir_all(&dir).unwrap();
+    let hook = "@main def hook(): Unit =\n  Runtime.getRuntime.addShutdownHook(new Thread(() => println(\"hook\")))\n  println(\"main\")\n";
+    std::fs::write(dir.join("hook.scala"), hook).unwrap();
+    let r = scivolo(&dir, "hook.scala", "strict");
+    assert!(r.out.status.success(), "{}", r.stderr);
+    assert_eq!(r.stdout, "main\nhook\n");
+}

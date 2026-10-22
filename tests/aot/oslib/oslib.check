@@ -1,0 +1,11 @@
+one
+more
+
+2
+ArraySeq(a/b, a/one.txt)
+ArraySeq(a, a/b, a/b/two.txt, a/one.txt)
+ArraySeq(c/b/two.txt, c/one.txt)
+(false,true)
+9
+true
+false

@@ -116,10 +116,10 @@ impl Vm {
         booted.map(|()| vm)
     }
 
-    /// Exits the process with `code`, keeping the VM available to exit handlers C registered.
+    /// Exits the process with `code` from a main green thread, on which the exit handlers C
+    /// registered (`Runtime`'s shutdown hooks) run with the VM and its threads.
     pub fn exit(&mut self, code: i32) -> ! {
-        let vm: *mut Vm = self;
-        let _running = self.callbacks.enter(vm);
+        let _ = self.run_main_thread(move |_| -> interp::Flow<()> { std::process::exit(code) });
         std::process::exit(code)
     }
 

@@ -52,3 +52,9 @@ fn ujson_runs_in_a_script() {
 fn pprint_runs_in_a_script() {
     check_script("pprint");
 }
+
+#[test]
+fn oslib_runs_in_a_script() {
+    check_script("oslib");
+    check_script("osproc");
+}

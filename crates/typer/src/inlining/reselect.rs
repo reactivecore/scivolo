@@ -26,12 +26,23 @@ impl Inlining<'_> {
         false
     }
 
-    /// Whether `t` is a reference to a stable local term or a `this`.
-    pub fn is_stable_ref(&mut self, t: TypeId) -> bool {
+    /// The prefix of a selection from a qualifier of type `t` (dotty's `cpy.Select`): `t` if it is
+    /// a reference to a stable local term or a `this`, the result type if it is one to a by-name
+    /// local term.
+    pub fn local_prefix(&mut self, t: TypeId) -> Option<TypeId> {
         match *self.u.types().get(t) {
-            Type::This(_) => true,
-            Type::Sym(None, s) => self.u.symbol(s).kind.is_term() && self.is_stable_member(s),
-            _ => false,
+            Type::This(_) => Some(t),
+            Type::Sym(None, s) if self.u.symbol(s).kind.is_term() => {
+                if self.is_stable_member(s) {
+                    return Some(t);
+                }
+                let info = self.u.info(s);
+                match *self.u.types().get(info) {
+                    Type::ByName(r) => Some(r),
+                    _ => None,
+                }
+            }
+            _ => None,
         }
     }
 }

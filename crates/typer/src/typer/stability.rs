@@ -27,6 +27,9 @@ impl Typer<'_> {
         match self.u.types().get(t).clone() {
             Type::ByName(r) => self.widen_if_unstable(r),
             Type::Sym(_, s) if !self.u.is_type_symbol(s) && !self.is_stable_member(s) => {
+                if let Some(&annotated) = self.syms.repeated_params.get(&s) {
+                    return annotated;
+                }
                 match self.method_info(t) {
                     Some(info) if info != t => self.widen_if_unstable(info),
                     _ => t,
