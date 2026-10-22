@@ -98,7 +98,7 @@ impl Vm {
         image = image.filter(|i| heap.restore(i.start, i.region));
         let thread = match &image {
             Some(i) => i.thread,
-            None => heap.permanent(16, crate::heap::Blob::Words),
+            None => heap.permanent(16, heap::Blob::Words),
         };
         let mut vm = Self {
             world: World::new(classpath),
