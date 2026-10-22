@@ -129,3 +129,4 @@ unsafelazy
 selfoverrides
 viewapply
 setterassign
+handlerexprs

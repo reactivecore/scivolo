@@ -159,6 +159,7 @@ mod trait_params;
 mod transparent;
 mod transparent_traits;
 mod tries;
+mod try_handlers;
 mod tuple_xxl;
 pub(crate) mod type_apply;
 mod type_args;
