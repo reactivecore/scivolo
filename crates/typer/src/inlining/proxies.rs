@@ -34,7 +34,10 @@ impl Expansion<'_, '_> {
                     return Err(self.err("array passed to a repeated parameter of an inline method"));
                 }
                 Some(_) => {}
-                None => i.tpd.get_mut(expr).tpe = Some(seq),
+                None if matches!(i.tpd.tree(expr), T::SeqLiteral { .. }) => {
+                    i.tpd.get_mut(expr).tpe = Some(seq)
+                }
+                None => return Err(self.err("untyped repeated inline argument")),
             }
             arg_tpe = seq;
         }
@@ -176,8 +179,7 @@ impl Inlining<'_> {
     /// `Seq[T]` if `t` is `<repeated>[T]` (dotty's `translateFromRepeated(toArray = false)`).
     fn seq_of_repeated(&mut self, t: TypeId) -> Option<TypeId> {
         let Type::Applied(c, args) = self.u.types().get(t).clone() else { return None };
-        let class = self.u.class_symbol(c)?;
-        if args.len() != 1 || class != self.scala_member("<repeated>", Kind::Class)? {
+        if args.len() != 1 || self.u.class_symbol(c) != Some(self.scala_member("<repeated>", Kind::Class)?) {
             return None;
         }
         let seq = self.u.class_ref("scala.collection.immutable.Seq");
