@@ -183,6 +183,19 @@ object Terms:
       case t: Term                    => "Term"
       case _                          => "Tree"
 
+class Chunk(val parts: List[String])
+
+trait ChunkMacros:
+  inline implicit def validated(s: String): Chunk = ${ Chunk.validatedImpl('s) }
+
+object Chunk extends ChunkMacros:
+  private[macrolib] implicit def internal(s: String): Chunk = Chunk(List(s))
+  def validatedImpl(s: Expr[String])(using Quotes): Expr[Chunk] =
+    import quotes.reflect.*
+    s.asTerm match
+      case Inlined(_, _, Literal(StringConstant(l))) => '{ Chunk(${ Expr(l.split('/').toList) }) }
+      case _                                         => '{ Chunk(List($s)) }
+
 object Tuples:
   import scala.compiletime.{constValue, erasedValue}
 
