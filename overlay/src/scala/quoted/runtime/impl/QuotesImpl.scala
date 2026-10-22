@@ -9,7 +9,7 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
  *  a typed term hole, the subset of `reflect` of `ReflectImpl`; everything else `Unsupported`.
  */
 final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTreeSupport, ReflectTermSupport,
-    ReflectTypeSupport, ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport {
+    ReflectTypeSupport, ReflectTypeShapeSupport,ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 

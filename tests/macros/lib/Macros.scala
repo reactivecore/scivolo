@@ -241,6 +241,32 @@ object TypePatterns:
       case '[Option[t]] => '{ List.empty[t] }
       case '[t]         => '{ Option.empty[t] }
 
+object TypeShapes:
+  inline def describe[T]: String = ${ describeImpl[T] }
+  def describeImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    def show(t: TypeRepr): String = t match
+      case AppliedType(tycon, args) => s"Applied(${show(tycon)}, ${args.map(show).mkString(",")})"
+      case t: TermRef               => s"TermRef(${t.name})"
+      case TypeRef(_, n)            => s"TypeRef($n)"
+      case _: AnnotatedType         => "Annotated"
+      case _                        => "Other"
+    val t = TypeRepr.of[T]
+    val bases = t.baseClasses.map(_.name).filterNot(Set("Any", "Object", "Matchable", "Product", "Serializable", "Equals"))
+    Expr(s"${show(t)}; ${show(t.dealias)}; ${t.isSingleton}; ${bases.mkString(",")}")
+
+  inline def facts: String = ${ factsImpl }
+  def factsImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val listOfInt = TypeRepr.of[List].appliedTo(TypeRepr.of[Int]) =:= TypeRepr.of[List[Int]]
+    val applied = TypeRepr.of[Option[String]] match
+      case AppliedType(tycon, _) => tycon.appliedTo(TypeRepr.of[Int]) =:= TypeRepr.of[Option[Int]]
+      case _                     => false
+    val some = TypeRepr.of[Some[Int]]
+    val value = some.memberType(some.typeSymbol.caseFields.head) =:= TypeRepr.of[Int]
+    val ref = some.typeSymbol.typeRef.typeSymbol == some.typeSymbol
+    Expr(List(listOfInt, applied, value, ref, defn.ScalaPackage.name, defn.RepeatedParamClass.name).mkString(" "))
+
 object Members:
   inline def structure[T]: String = ${ structureImpl[T] }
   def structureImpl[T: Type](using Quotes): Expr[String] =
