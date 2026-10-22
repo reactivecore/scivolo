@@ -113,7 +113,7 @@ scivolo --dep io.circe::circe-generic::0.14.10
 ```
 
 ```
-Welcome to Scivolo 0.1.1 (target Scala 3.9.0). Type in expressions for evaluation. Or try :help.
+Welcome to Scivolo 0.1.2 (target Scala 3.9.0). Type in expressions for evaluation. Or try :help.
 > case class P(x: Int)
 // defined case class P
 > P(1)
