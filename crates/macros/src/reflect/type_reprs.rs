@@ -6,7 +6,7 @@
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
 use crate::host::Host;
-use tasty::{Kind, Type, TypeId};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Host {
     /// Runs type operation `op` on `args`.
@@ -22,13 +22,8 @@ impl Host {
                 let parts = match self.u.types().get(t).clone() {
                     Type::Applied(tycon, args) => [tycon].into_iter().chain(args).collect(),
                     Type::Annotated(inner, _) => vec![inner],
-                    Type::Sym(prefix, s) => {
-                        let owner =
-                            self.u.symbol(s).owner.filter(|&o| self.u.symbol(o).kind == Kind::Package);
-                        let qualifier =
-                            prefix.or_else(|| owner.map(|o| self.u.intern_type(Type::Package(o))));
-                        vec![qualifier.unwrap_or_else(|| self.u.intern_type(Type::NoPrefix))]
-                    }
+                    Type::Sym(Some(prefix), _) => vec![prefix],
+                    Type::Sym(None, s) => vec![self.qualifier(s)?],
                     Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![prefix],
                     _ => return Err("the parts of a type of another kind"),
                 };
@@ -83,6 +78,22 @@ impl Host {
             }
             _ => Err(UNKNOWN),
         }
+    }
+
+    /// The qualifier of a reference to `s` without a prefix: its package, the `this` of its
+    /// static owner, or no prefix for a local; `Err` for a member of another class.
+    fn qualifier(&mut self, s: SymbolId) -> Result<TypeId, &'static str> {
+        let t = match self.u.symbol(s).owner {
+            Some(o) if self.u.symbol(o).kind == Kind::Package => Type::Package(o),
+            Some(o) if self.u.is_class(o) && self.u.is_static_symbol(s) => {
+                Type::This(self.u.intern_type(Type::Sym(None, o)))
+            }
+            Some(o) if self.u.is_class(o) => {
+                return Err("the qualifier of a class member without its prefix");
+            }
+            _ => Type::NoPrefix,
+        };
+        Ok(self.u.intern_type(t))
     }
 
     fn type_kind(&self, t: TypeId) -> i32 {

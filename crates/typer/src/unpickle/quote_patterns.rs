@@ -52,6 +52,7 @@ impl Unpickler<'_> {
         }
         let tpt = self.tpt(inner)?;
         let hole = self.tpd.tpe(tpt);
+        self.check(hole)?;
         let hole = self.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
             Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,

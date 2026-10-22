@@ -10,3 +10,4 @@ object TypePatterns:
   val f = kind[Nil.type]
   val g = emptyOf[Option[Long]]
   val h = emptyOf[String]
+  val i = kind[List[Int] & Serializable]
