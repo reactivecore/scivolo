@@ -129,7 +129,12 @@ inline-param-semantics row, `42 → <repeated>[Int]`]; `CharsWhileIn(inline s: S
 (`typedArgs` for `RepeatedParamClass`) and the inliner binds the sequence. This is #82's I
 (research 27 §2.2, research 28 MR I). **Fix (I1):** in the inliner's argument typing, a repeated
 inline parameter takes a `SeqLiteral` of the arguments like a non-inline one; ~40 lines in
-`Y/` and `crates/typer/src/inlining/`.
+`Y/` and `crates/typer/src/inlining/`. **Done:** `repeated_elem` looks through `@InlineParam`;
+the proxy of a repeated argument keeps its `Typed` tree, typed `Seq[T]` (`paramBindingDef`);
+an unstable repeated parameter widens to `Seq[T] @Repeated`; a selection from a by-name proxy
+takes its result type as prefix (`cpy.Select`). An `Array` passed as `xs*` is still refused
+(dotty's `wrapArray`, i6858). Golden `inlined/repeated.scala`; inline-param-semantics and i5188
+pass; fp's `CharIn("0-9")` reaches its macro (`Varargs`, E) [V].
 
 ### 2.6 Symbol flags and predicates in `quotes.reflect` (sourcecode) — `O/ReflectImpl.scala:130-144`, `M/positions.rs:19-51`
 
