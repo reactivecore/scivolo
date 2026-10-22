@@ -2,7 +2,7 @@
 //! right-hand sides.
 
 use super::{FileId, Kind, SymbolId, Universe};
-use crate::tags::{OPAQUE, TEMPLATE};
+use crate::tags::{OPAQUE, PRIVATEqualified, PROTECTEDqualified, TEMPLATE};
 use crate::types::{Decoder, Type, TypeId};
 use crate::{NodeId, View, view};
 
@@ -68,6 +68,25 @@ impl Universe {
         let Type::Lambda { binder, params, result } = self.types().get(hi).clone() else { return None };
         let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
         Some(self.subst(result, binder, &names, &args))
+    }
+
+    /// The class or package `q` of `sym`'s `private[q]` or `protected[q]` (dotty's
+    /// `privateWithin`).
+    pub fn access_qualifier(&mut self, sym: SymbolId) -> Option<SymbolId> {
+        let (file, id) = self.symbol(sym).tree?;
+        let (ast, _) = self.file(file);
+        let mods = match view(ast, id) {
+            View::TypeDef { mods, .. } | View::ValDef { mods, .. } | View::Param { mods, .. } => mods,
+            View::DefDef { parts, .. } => parts.mods,
+            _ => return None,
+        };
+        let m = *mods.iter().find(|&&m| matches!(ast.tag(m), PRIVATEqualified | PROTECTEDqualified))?;
+        let q = *ast.kids(m).first()?;
+        let t = self.type_at(file, q);
+        match *self.types.get(t) {
+            Type::Package(p) => Some(p),
+            _ => self.class_symbol(t),
+        }
     }
 
     /// The type of the type, type tree or path at `id` of loaded file `file`.
