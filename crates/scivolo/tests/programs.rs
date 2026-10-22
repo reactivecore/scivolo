@@ -5,17 +5,21 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-fn command(dir: &Path, main: &str, snapshot: Option<&Path>) -> Command {
+fn command(cp: &[&Path], main: &str, snapshot: Option<&Path>) -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_scivolo"));
-    command.args(["--cp", dir.to_str().unwrap(), main]);
-    if let Some(file) = snapshot {
-        command.env("SCIVOLO_SNAPSHOT", file);
+    for dir in cp {
+        command.arg("--cp").arg(dir);
     }
+    command.arg(main);
+    match snapshot {
+        Some(file) => command.env("SCIVOLO_SNAPSHOT", file),
+        None => command.env("SCIVOLO_NO_SNAPSHOT", "1"),
+    };
     command
 }
 
 fn run(dir: &Path, main: &str, snapshot: Option<&Path>) -> Result<String, String> {
-    let out = command(dir, main, snapshot).output().map_err(|e| e.to_string())?;
+    let out = command(&[dir], main, snapshot).output().map_err(|e| e.to_string())?;
     match out.status.success() {
         true => Ok(String::from_utf8_lossy(&out.stdout).into_owned()),
         false => Err(String::from_utf8_lossy(&out.stderr).into_owned()),
@@ -61,7 +65,14 @@ fn programs_from_a_snapshot() {
     if run(&hello, "hello", Some(&file)).is_err_and(|e| e.contains("or the Coursier cache")) {
         return;
     }
-    let traced = command(&hello, "hello", Some(&file)).env("SCIVOLO_TRACE", "1").output().unwrap();
-    assert!(String::from_utf8_lossy(&traced.stderr).contains("snapshot restored"));
+    let traced = |cp: &[&Path]| {
+        let out = command(cp, "hello", Some(&file)).env("SCIVOLO_TRACE", "1").output().unwrap();
+        (String::from_utf8_lossy(&out.stderr).into_owned(), String::from_utf8_lossy(&out.stdout).into_owned())
+    };
+    assert!(traced(&[&hello]).0.contains("snapshot restored"));
+    let shadowing = Path::new(env!("CARGO_TARGET_TMPDIR")).join("shadowing");
+    std::fs::create_dir_all(shadowing.join("java/lang")).unwrap();
+    let (trace, out) = traced(&[&hello, &shadowing]);
+    assert!(trace.contains("snapshot not used") && out == "Hello, world!\n", "{trace}");
     run_all(Some(&file));
 }

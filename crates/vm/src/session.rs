@@ -15,10 +15,10 @@ impl Vm {
     /// shutdown, which runs queued tasks. Interpreted calls throw `StackOverflowError` within
     /// `STACK_RESERVE` of the end of their thread's stack.
     pub fn run_main(&mut self, entry: &str, args: &[String]) -> Result<(), VmError> {
-        let argv = self.c_argv(entry, args);
-        let (entry, argc) = (entry.to_owned(), args.len() + 1);
+        let init = self.initializer(entry, args);
+        let entry = entry.to_owned();
         self.run_training(move |vm| {
-            let args = vm.init_runtime(argc, argv)?;
+            let args = init(vm)?;
             if let Some(path) = vm.snapshot_to.take()
                 && let Err(e) = vm.save_snapshot(&path)
                 && vm.funcs.trace
@@ -34,9 +34,21 @@ impl Vm {
 
     /// Initializes the runtime for program `program` with arguments `args`.
     pub fn start_runtime(&mut self, program: &str, args: &[String]) -> Result<(), VmError> {
-        let argv = self.c_argv(program, args);
+        let init = self.initializer(program, args);
+        self.run_training(move |vm| init(vm).map(drop))
+    }
+
+    /// What initializes the runtime for `program` with `args` on the main thread, returning
+    /// the arguments array: `init`, or in a restored VM the effects of `init` that depend on the
+    /// process.
+    fn initializer(&mut self, program: &str, args: &[String]) -> impl FnOnce(&mut Vm) -> Flow + 'static {
+        let restored = self.restored.map(|info| (info, program.to_owned(), args.to_vec()));
+        let argv = if restored.is_none() { self.c_argv(program, args) } else { 0 };
         let argc = args.len() + 1;
-        self.run_training(move |vm| vm.init_runtime(argc, argv).map(drop))
+        move |vm: &mut Vm| match restored {
+            Some((info, program, args)) => vm.start_restored(info, &program, &args),
+            None => vm.init_runtime(argc, argv),
+        }
     }
 
     /// Adds NIR file `data` defining top-level `top`, which must not have been looked up yet.

@@ -16,7 +16,13 @@ impl Vm {
         heap::copy(range.start, region.as_mut_ptr() as usize, range.len());
         let pool = &self.world.pool;
         let mut out = Out::default();
-        format::region(&mut out, range.start, &region, self.thread);
+        self.exec_info().ok_or("ExecInfo is not constructed as the restored start expects")?;
+        let mut packages: Vec<String> = (self.classes.all.iter())
+            .filter_map(|c| pool.top_name(c.name).rsplit_once('.').map(|(p, _)| p.replace('.', "/")))
+            .collect();
+        packages.sort();
+        packages.dedup();
+        format::region(&mut out, range.start, &region, self.thread, &packages);
         out.u32(walk.targets.len() as u32);
         for (offset, target) in &walk.targets {
             out.u64(*offset as u64);

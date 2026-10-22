@@ -96,6 +96,13 @@ impl Region {
         true
     }
 
+    /// Zeroes what `restore` copied and trains again, as a freshly mapped region does.
+    pub fn forget(&mut self) {
+        super::zero(self.start, self.cur - self.start);
+        self.cur = self.start;
+        self.training = Training::On(Vec::new());
+    }
+
     /// An object of `size` bytes as `alloc` makes it, while training.
     pub fn train(&mut self, size: usize, add_roots: impl FnOnce(usize, usize)) -> Option<usize> {
         match self.training {
@@ -139,6 +146,13 @@ impl Heap {
     pub fn restore(&mut self, start: usize, bytes: &[u8]) -> bool {
         let add_roots = self.gc.add_roots;
         self.region.as_mut().is_some_and(|r| r.restore(start, bytes, |low, high| add_roots(low, high)))
+    }
+
+    /// Takes back a restored snapshot.
+    pub fn forget_snapshot(&mut self) {
+        if let Some(region) = &mut self.region {
+            region.forget();
+        }
     }
 }
 

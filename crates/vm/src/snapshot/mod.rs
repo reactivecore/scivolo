@@ -3,10 +3,12 @@
 mod format;
 mod names;
 mod read;
+mod start;
 mod walk;
 mod write;
 
 pub use format::parse;
+pub use start::{ExecInfo, INIT_PORTED_FROM};
 
 use crate::Vm;
 

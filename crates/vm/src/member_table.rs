@@ -10,6 +10,13 @@ use nir::{Caches, Global, Pool, Reader};
 
 const RECORD: usize = 16;
 
+/// The member table the library image keeps for NIR file `rel` with contents `data`; empty for
+/// other files and files without one.
+pub fn nir_table(rel: &str, data: &[u8]) -> Vec<u8> {
+    let Some(top) = rel.strip_suffix(".nir") else { return Vec::new() };
+    build(data, &top.replace('/', ".")).unwrap_or_default()
+}
+
 /// The table of NIR file `data` defining top-level `top`, or `None` if it defines a member of
 /// another owner.
 pub fn build(data: &[u8], top: &str) -> Option<Vec<u8>> {

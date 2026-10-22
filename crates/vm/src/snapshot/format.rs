@@ -75,20 +75,23 @@ impl<'a> In<'a> {
 }
 
 /// A snapshot file's parts: where its region starts, the region's bytes, the address of the
-/// thread cell, and the tables.
+/// thread cell, the packages of its classes as directories (`java/lang`), and the tables.
 pub struct Image<'a> {
     pub start: usize,
     pub region: &'a [u8],
     pub thread: usize,
+    pub packages: Vec<&'a str>,
     pub tables: In<'a>,
 }
 
-/// The start of a snapshot body: the region at `start` and the thread cell.
-pub fn region(out: &mut Out, start: usize, region: &[u8], thread: usize) {
+/// The start of a snapshot body: the region at `start`, the thread cell and the packages.
+pub fn region(out: &mut Out, start: usize, region: &[u8], thread: usize, packages: &[String]) {
     out.u64(start as u64);
     out.u64(thread as u64);
     out.u64(region.len() as u64);
     out.0.extend_from_slice(region);
+    out.u32(packages.len() as u32);
+    packages.iter().for_each(|p| out.str(p));
 }
 
 /// The file of snapshot `body`: the format and program version and a hash of the body first.
@@ -118,7 +121,8 @@ pub fn parse(data: &[u8]) -> Result<Image<'_>, String> {
     let thread = input.u64()? as usize;
     let len = input.u64()? as usize;
     let region = input.take(len)?;
-    Ok(Image { start, region, thread, tables: input })
+    let packages = input.list(In::str)?;
+    Ok(Image { start, region, thread, packages, tables: input })
 }
 
 #[cfg(test)]
@@ -128,7 +132,7 @@ mod tests {
     #[test]
     fn files_round_trip_and_corruption_is_found() {
         let mut body = Out::default();
-        region(&mut body, 0x2000_0000_0000, &[1, 2, 3], 0x2000_0000_0010);
+        region(&mut body, 0x2000_0000_0000, &[1, 2, 3], 0x2000_0000_0010, &["java/lang".into()]);
         body.str("tables");
         body.opt(None);
         let mut data = file(body);
@@ -137,6 +141,7 @@ mod tests {
             (image.start, image.region, image.thread),
             (0x2000_0000_0000, &[1, 2, 3][..], 0x2000_0000_0010)
         );
+        assert_eq!(image.packages, ["java/lang"]);
         assert_eq!((image.tables.str(), image.tables.opt()), (Ok("tables"), Ok(None)));
         assert!(image.tables.u8().is_err());
         let last = data.len() - 1;

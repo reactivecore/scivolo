@@ -19,7 +19,24 @@ impl Vm {
             let value = self.resolve_target(&target)?;
             heap::write(start + offset, value);
         }
+        self.restored = Some(self.exec_info().ok_or_else(|| fail("no ExecInfo to start".into()))?);
         Ok(())
+    }
+
+    /// Drops what a failed `restore` left, for a cold start.
+    pub fn forget_snapshot(&mut self) {
+        let funcs = std::mem::take(&mut self.funcs);
+        (self.funcs.trace, self.funcs.no_inline, self.funcs.profile.on) =
+            (funcs.trace, funcs.no_inline, funcs.profile.on);
+        self.classes = Default::default();
+        self.modules.clear();
+        self.strings.clear();
+        self.linktime = Default::default();
+        self.rtti = Default::default();
+        self.gc_classes = Default::default();
+        self.restored = None;
+        self.heap.forget_snapshot();
+        self.thread = self.heap.permanent(16, heap::Blob::Words);
     }
 
     fn restore_tables(&mut self, input: &mut In) -> Result<(), String> {

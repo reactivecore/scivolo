@@ -27,7 +27,7 @@ binaries = {"": (release, env)}
 if option and option[0] == "--base":
     binaries = {"base ": (option[1], env), "new  ": (release, env)}
 if option and option[0] == "--snapshot":
-    binaries = {"cold ": (release, env), "snap ": (release, dict(env, SCIVOLO_SNAPSHOT=os.path.abspath(option[1])))}
+    binaries = {"cold ": (release, dict(env, SCIVOLO_NO_SNAPSHOT="1")), "snap ": (release, dict(env, SCIVOLO_SNAPSHOT=os.path.abspath(option[1])))}
 times = {label: [] for label in binaries}
 for i in range(runs + 1):
     for label, (binary, run_env) in binaries.items():

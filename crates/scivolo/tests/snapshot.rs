@@ -19,6 +19,11 @@ fn run() -> Result<(), String> {
 }
 
 #[test]
+fn restored_start_ports_the_runtime_in_use() {
+    assert_eq!(vm::INIT_PORTED_FROM, libs::NATIVE, "port `init`'s effects in snapshot/start.rs anew");
+}
+
+#[test]
 fn initialized_runtime_walks_without_refusal() {
     let run = std::thread::Builder::new().stack_size(1 << 30).spawn(run).unwrap().join().unwrap();
     match run {

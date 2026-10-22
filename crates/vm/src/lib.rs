@@ -20,19 +20,20 @@ mod throwable;
 mod world;
 
 pub use class::{FieldSlot, array_names, instance_fields};
-pub use classpath::{Classpath, nir_table};
+pub use classpath::Classpath;
 pub use error::VmError;
 pub use gcinfo::FIRST_ARRAY;
 pub use interp::{box_method, bridge, lookup_order};
 pub use layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE, align_of, size_of, struct_layout};
 pub use linktime::{Prop, accessor_property, method_name, parse_member, property};
+pub use member_table::nir_table;
 pub use natives::{
     Hole, MacroArg, QuoteHost, Reflected, constructible, element_names, element_position, embedded_content,
     embedded_resources, exit_immediately, is_element_method, is_load, may_build_throwable, provider_error,
     provider_names,
 };
 pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, interfaces, java_name};
-pub use snapshot::{Snapshot, Target, Walk};
+pub use snapshot::{INIT_PORTED_FROM, Snapshot, Target, Walk};
 pub use throwable::{Frame, Thrown};
 pub use world::{LoadError, World};
 
@@ -77,6 +78,8 @@ pub struct Vm {
     quotes: natives::Expansions,
     /// Where `run_main` writes a snapshot once the runtime is initialized.
     snapshot_to: Option<std::path::PathBuf>,
+    /// Set when the VM was restored from a snapshot: where `init`'s own effects go.
+    restored: Option<snapshot::ExecInfo>,
 }
 
 impl Vm {
@@ -91,11 +94,12 @@ impl Vm {
         let bounds =
             stack::bounds().ok_or_else(|| VmError::Unsupported("unknown thread stack bounds".into()))?;
         let mut heap = Heap::new(natives::symbol, bounds).map_err(VmError::Unsupported)?;
+        let mut classpath = classpath;
         let mut image = match &snapshot {
             Snapshot::Restore(data) => snapshot::parse(data).ok(),
             _ => None,
         };
-        image = image.filter(|i| heap.restore(i.start, i.region));
+        image = image.filter(|i| !classpath.shadows(&i.packages) && heap.restore(i.start, i.region));
         let thread = match &image {
             Some(i) => i.thread,
             None => heap.permanent(16, heap::Blob::Words),
@@ -125,18 +129,26 @@ impl Vm {
                 Snapshot::Write(path) => Some(path.clone()),
                 _ => None,
             },
+            restored: None,
         };
         vm.funcs.trace = std::env::var_os("SCIVOLO_TRACE").is_some();
         vm.funcs.no_inline = std::env::var_os("SCIVOLO_NO_INLINE").is_some();
         vm.funcs.profile.on = std::env::var_os("SCIVOLO_PROFILE").is_some();
-        if vm.funcs.trace && matches!(snapshot, Snapshot::Restore(_)) {
-            eprintln!("snapshot {}", if image.is_some() { "restored" } else { "not used" });
-        }
         vm.start_threads(bounds);
         let ptr: *mut Vm = &mut vm;
         let running = vm.callbacks.enter(ptr);
-        let booted = match &mut image {
-            Some(i) => vm.restore(i.start, &mut i.tables),
+        let restored = image.as_mut().map(|i| vm.restore(i.start, &mut i.tables));
+        if let Some(Err(e)) = &restored {
+            if vm.funcs.trace {
+                eprintln!("{e}");
+            }
+            vm.forget_snapshot();
+        }
+        if vm.funcs.trace && matches!(snapshot, Snapshot::Restore(_)) {
+            eprintln!("snapshot {}", if vm.restored.is_some() { "restored" } else { "not used" });
+        }
+        let booted = match vm.restored {
+            Some(_) => Ok(()),
             None => vm.bootstrap(),
         };
         drop(running);
