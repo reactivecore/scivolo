@@ -10,7 +10,7 @@ use super::Inlining;
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::tags::{INLINE, PARAMsetter, TRAIT};
+use tasty::tags::{FINAL, INLINE, MUTABLE, PARAMsetter, TRAIT};
 use tasty::{Const, Kind, SymbolId, Type, TypeId, constant};
 
 impl Inlining<'_> {
@@ -23,7 +23,7 @@ impl Inlining<'_> {
         let pre = self.dropped_op(t);
         let inline_val = self.tpd.sym(pre.unwrap_or(t)).is_some_and(|s| {
             let s = self.u.symbol(s);
-            s.kind != Kind::Def && s.flags.has(INLINE)
+            s.kind != Kind::Def && (s.flags.has(INLINE) || s.flags.has(FINAL)) && !s.flags.has(MUTABLE)
         });
         let counts_as_pure = if inline_val { self.is_idempotent_expr(t) } else { self.is_pure_expr(t) };
         let span = self.tpd.span(t);
@@ -40,7 +40,11 @@ impl Inlining<'_> {
     /// The prefix of `t` if it is a unary operation of a constant type or a `getClass` call.
     fn dropped_op(&mut self, t: TNodeId) -> Option<TNodeId> {
         match *self.tpd.tree(t) {
-            T::Select { qualifier, .. } => Some(qualifier),
+            T::Select { qualifier, .. }
+                if matches!(self.u.types().get(self.tpd.tpe(t)), Type::Constant(..) | Type::Str(_)) =>
+            {
+                Some(qualifier)
+            }
             T::Apply { fun, args } if args.is_empty() => {
                 let T::TypeApply { fun, .. } = *self.tpd.tree(fun) else { return None };
                 let T::Select { qualifier, name } = *self.tpd.tree(fun) else { return None };
