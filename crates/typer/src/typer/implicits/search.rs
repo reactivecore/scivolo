@@ -5,7 +5,7 @@
 //! one group a unique winner or the most specific one. A candidate that does not fit is skipped;
 //! any other failure of a candidate fails the search.
 
-use super::super::Typer;
+use super::super::{Pt, Typer};
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -107,12 +107,6 @@ impl Typer<'_> {
                 [c, ..] if coherent => *c,
                 _ => self.most_specific(&found, ctx).ok_or("ambiguous implicit arguments")?,
             };
-            if self.has_rivals(winner, &found) && !self.is_fully_defined(pt) {
-                let tpe = self.alt_type(winner);
-                if matches!(self.u.types().get(tpe), Type::Poly { .. }) {
-                    return Err(OPEN);
-                }
-            }
             return self.tried(winner, (pt, by_name), at, ctx, depth);
         }
         match self.synthesized(pt, at, ctx, depth)? {
@@ -142,6 +136,7 @@ impl Typer<'_> {
         ctx: Ctx,
         depth: u32,
     ) -> Result<TNodeId, &'static str> {
+        let from = self.constraint.count();
         let tree = self.candidate_ref(c, at, ctx)?;
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
@@ -156,7 +151,11 @@ impl Typer<'_> {
             return Err("implicit search too costly");
         }
         self.implicit_budget -= 1;
-        let tree = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
+        let applied = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
+        if applied != tree {
+            self.interpolate(applied, Pt::Type(pt), from)?;
+        }
+        let tree = applied;
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);

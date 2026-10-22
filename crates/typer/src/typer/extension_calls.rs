@@ -60,7 +60,11 @@ impl Typer<'_> {
         self.ast.with_span(fun, name_span);
         let args = self.ast.list(&[receiver]);
         let apply = self.ast.node(Tree::Apply { fun, args });
-        self.ast.with_span(apply, Span::synthetic(span.start(), span.end()));
+        let inner = match self.tpd.span(qual) {
+            q if q.exists() => q.union(name_span),
+            _ => span,
+        };
+        self.ast.with_span(apply, Span::synthetic(inner.start(), inner.end()));
         let typed = self.typed_apply(apply, fun, args, pt, ctx);
         let typed = match pt {
             Pt::PolyFun(_) => Ok(typed),
