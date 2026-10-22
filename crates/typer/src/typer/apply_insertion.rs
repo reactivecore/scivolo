@@ -58,7 +58,7 @@ impl Typer<'_> {
     }
 
     /// `f.apply` as a call of an extension method `apply` in scope or in the implicit scope of
-    /// `f`'s type, if there is one.
+    /// `f`'s type, or of the `apply` of `f` converted by an implicit view, if there is one.
     fn extension_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Option<TNodeId> {
         let name = TName { name: self.name("apply"), is_type: false };
         let span = self.tpd.span(f);
@@ -71,6 +71,7 @@ impl Typer<'_> {
         let unsupported = self.unsupported.clone();
         match self.viewed(f, Goal::Member("apply"), ctx) {
             Ok(Some(Viewed::Extension(c))) => Some(self.implicit_extension_select(id, f, c, name, pt, ctx)),
+            Ok(Some(Viewed::Converted(converted))) => self.with_apply(converted, pt, ctx).ok(),
             _ => {
                 self.unsupported = unsupported;
                 None
