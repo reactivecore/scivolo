@@ -57,3 +57,17 @@ pub fn is_extern(u: &Universe, s: SymbolId) -> bool {
 pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {
     u.is_module_class(s) && is_static(u, s)
 }
+
+/// The javalib classes that JDK classes extend and the JDK does not, each with the JDK class
+/// and the members of it in the JDK API that javalib defines only there.
+const JAVALIB_ONLY_MEMBERS: [(&str, &str, &[&str]); 1] =
+    [("scala.scalanative.runtime.Throwable", "java.lang.Throwable", &["setStackTrace"])];
+
+/// The JDK class whose member `m` is in the JDK API, if javalib defines it in a class of its own
+/// the JDK class extends, as Scala Native, compiling against the JDK API, refers to it.
+pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
+    let owner = u.full_name(u.symbol(m).owner?);
+    let name = &u.symbol(m).name;
+    let found = JAVALIB_ONLY_MEMBERS.iter().find(|(o, _, ms)| *o == owner && ms.contains(&name.as_str()));
+    found.map(|&(_, jdk, _)| jdk)
+}
