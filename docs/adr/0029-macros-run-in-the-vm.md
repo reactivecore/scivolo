@@ -45,7 +45,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   expansion.
 - **Symbol flags** are the TASTy modifier bits as dotty's `TreeUnpickler` reads them, with a few
   bits for flags from the kind (`Method`, `Package`, `Param`) or the file (`Scala2x`); flags TASTy
-  does not carry (`Deferred`, `ParamAccessor`, `NoInits`) are refused by name. dotty's symbols the
+  does not carry (`Deferred`, `ParamAccessor`, `NoInits`) or dotty sets while typing
+  (`StableRealizable`) are refused by name. dotty's symbols the
   universe lacks are made per expansion and entered in no scope: the splice's owner `macro`
   (`Splicer.splice`) and the empty package, owner of the root's definitions.
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the

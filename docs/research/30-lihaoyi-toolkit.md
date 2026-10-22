@@ -149,7 +149,7 @@ Abstract, Trait, Enum, HasDefault, Implicit, Lazy — the ones the six libraries
 ~80 Rust, ~80 Scala. Unblocks sourcecode `Name`/`FullName`/`Enclosing`/`Pkg`, fastparse's `P`
 (takes a `sourcecode.Name`), and the `flags` reads of upickle, mainargs and pprint's `TPrint`.
 **Done** (`M/symbols.rs`, `O/ReflectFlags.scala`, ADR 0029): flags as `TreeUnpickler` reads them
-(`Scala2x` for classes of the standard library's TASTy), `Deferred`/`ParamAccessor`/`NoInits`
+(`Scala2x` for classes of the standard library's TASTy), `Deferred`/`ParamAccessor`/`NoInits`/`StableRealizable`
 refused; dotty's splice owner `macro` and the empty package are made per expansion, so owner
 chains match dotty's (golden `crates/macros/tests/inlined/symbols.scala`); `tests/aot/sourcecode`
 passes in both backends.

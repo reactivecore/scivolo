@@ -122,7 +122,7 @@ object Symbols:
       "Given" -> Flags.Given, "Implicit" -> Flags.Implicit, "Inline" -> Flags.Inline, "Lazy" -> Flags.Lazy,
       "Macro" -> Flags.Macro, "Method" -> Flags.Method, "Module" -> Flags.Module, "Mutable" -> Flags.Mutable,
       "Package" -> Flags.Package, "Param" -> Flags.Param, "Private" -> Flags.Private, "Sealed" -> Flags.Sealed,
-      "Synthetic" -> Flags.Synthetic, "Trait" -> Flags.Trait, "Scala2x" -> Flags.Scala2x
+      "Synthetic" -> Flags.Synthetic, "Trait" -> Flags.Trait, "Scala2x" -> Flags.Scala2x, "JavaDefined" -> Flags.JavaDefined
     ).collect { case (n, f) if s.flags.is(f) => n }
     val kinds = List(
       "package" -> s.isPackageDef, "class" -> s.isClassDef, "type" -> s.isTypeDef, "val" -> s.isValDef,
