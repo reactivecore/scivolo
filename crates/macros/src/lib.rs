@@ -11,6 +11,7 @@ pub use typer::inlining::Macros;
 use host::Host;
 use syntax::ast::constant::Constant;
 use syntax::source::SourceFile;
+use tasty::Erased;
 use typer::inlining::{Expanded, Lent, MacroArg, MacroCall, MacroError};
 use vm::{Thrown, Vm, VmError};
 
@@ -28,17 +29,26 @@ impl Macros for VmMacros<'_> {
         let module = u.binary_name(owner);
         let sig = u.method_signature(call.method);
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
+        let (params, _) = u.erased_method(call.method);
+        if params.len() != call.args.len() {
+            return Err(refused("a macro implementation with erased parameters"));
+        }
+        let literals = call.args.iter().zip(&params).map(|(a, p)| literal(a, p));
+        let literals: Vec<_> = literals.collect::<Option<_>>().ok_or_else(|| {
+            refused("a literal macro argument of another primitive type than its parameter")
+        })?;
         let sources = std::mem::take(&mut self.sources);
         let mut host =
             Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner, (call.expansion, sources));
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
-            .map(|a| match a {
-                &MacroArg::Expr(t) => vm::MacroArg::Expr(host.add_tree(t)),
-                &MacroArg::Type(t) => vm::MacroArg::Type(host.add_type(t)),
+            .zip(literals)
+            .map(|(a, lit)| match *a {
+                MacroArg::Expr(t) => vm::MacroArg::Expr(host.add_tree(t)),
+                MacroArg::Type(t) => vm::MacroArg::Type(host.add_type(t)),
                 MacroArg::Quotes => vm::MacroArg::Quotes,
-                MacroArg::Literal(c) => literal(c),
+                MacroArg::Literal(_) => lit.expect("a literal macro argument"),
             })
             .collect();
         let (host, result) = self.vm.expand_macro(Box::new(host), (&module, &sig), &args);
@@ -56,9 +66,11 @@ impl Macros for VmMacros<'_> {
     }
 }
 
-/// Literal `c` as the VM passes it, by the descriptor letter of its type (dotty's
-/// `interpretLiteral`).
-fn literal(c: &Constant) -> vm::MacroArg {
+/// Argument `a` as the VM passes it to a parameter erased to `param` if it is a literal: unboxed
+/// to a primitive of its type, else boxed by the descriptor letter of its type (dotty's
+/// `interpretLiteral`); `None` for a primitive of another type.
+fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
+    let MacroArg::Literal(c) = a else { return Some(None) };
     let (tag, bits, text) = match c {
         Constant::Unit => (b'V', 0, None),
         &Constant::Boolean(b) => (b'Z', b as u64, None),
@@ -72,7 +84,11 @@ fn literal(c: &Constant) -> vm::MacroArg {
         Constant::String(units) => (b'T', 0, Some(String::from_utf16_lossy(units))),
         Constant::Null => (b'N', 0, None),
     };
-    vm::MacroArg::Literal(tag, bits, text)
+    Some(Some(match *param {
+        Erased::Prim(p) if p as u8 == tag.to_ascii_lowercase() => vm::MacroArg::Unboxed(bits),
+        Erased::Prim(_) => return None,
+        _ => vm::MacroArg::Literal(tag, bits, text),
+    }))
 }
 
 /// The error dotty reports for exception `thrown`.

@@ -58,14 +58,28 @@ object QuoteHost {
   /** The descriptor letter of the type of literal argument `arg`: `T` a string, `N` null. */
   def literalTag(arg: Int): Int = throw new UnsupportedOperationException("VM native")
 
+  /** The bits of the value of literal argument `arg`. */
+  def literalBits(arg: Int): Long = throw new UnsupportedOperationException("VM native")
+
   /** The text of string literal argument `arg`. */
   def literalText(arg: Int): String = throw new UnsupportedOperationException("VM native")
 
-  /** Literal argument `arg` as an object; the VM passes a primitive one unboxed. */
-  def literal(arg: Int): Object = literalTag(arg).toChar match {
-    case 'T' => literalText(arg)
-    case 'V' => scala.runtime.BoxedUnit.UNIT
-    case _   => null
+  /** Literal argument `arg` boxed; `null` for one the VM passes unboxed. */
+  def literal(arg: Int): Object = {
+    val bits = literalBits(arg)
+    literalTag(arg).toChar match {
+      case 'T' => literalText(arg)
+      case 'V' => scala.runtime.BoxedUnit.UNIT
+      case 'Z' => java.lang.Boolean.valueOf(bits != 0)
+      case 'B' => java.lang.Byte.valueOf(bits.toByte)
+      case 'S' => java.lang.Short.valueOf(bits.toShort)
+      case 'C' => java.lang.Character.valueOf(bits.toChar)
+      case 'I' => java.lang.Integer.valueOf(bits.toInt)
+      case 'J' => java.lang.Long.valueOf(bits)
+      case 'F' => java.lang.Float.valueOf(java.lang.Float.intBitsToFloat(bits.toInt))
+      case 'D' => java.lang.Double.valueOf(java.lang.Double.longBitsToDouble(bits))
+      case _   => null
+    }
   }
 
   /** Refuses the macro expansion running for `what`. */

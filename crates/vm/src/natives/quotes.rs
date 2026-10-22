@@ -1,6 +1,5 @@
-//! Macro expansions: a macro implementation called with `Expr`s, `Type`s and a `Quotes` that
-//! stand for the frontend's trees and types, and the natives of `QuoteHost` in the overlay that
-//! reach them (ADR 0029).
+//! Macro expansions: a macro implementation called with the frontend's trees and types as
+//! `Expr`s and `Type`s, and the natives of `QuoteHost` in the overlay that reach them (ADR 0029).
 
 use super::NativeFn;
 use crate::interp::Flow;
@@ -43,14 +42,15 @@ pub type Hole = (u32, Vec<Result<u32, u32>>);
 /// What a `quotes.reflect` operation answers: numbers and a text.
 pub type Reflected = (Vec<i32>, Option<String>);
 
-/// An argument of a macro implementation; a literal by the JVM descriptor letter of its type
-/// (`T` a string, `N` null), its value's bits, passed unboxed for a primitive type, and its text.
+/// An argument of a macro implementation; a literal boxed by the JVM descriptor letter of its
+/// type (`T` a string, `N` null), its value's bits and its text, or a primitive's bits unboxed.
 #[derive(Clone)]
 pub enum MacroArg {
     Expr(u32),
     Type(u32),
     Quotes,
     Literal(u8, u64, Option<String>),
+    Unboxed(u64),
 }
 
 /// The macro expansions of a VM: the one running, if one is, with its host and arguments, and
@@ -87,7 +87,7 @@ impl Vm {
             let arr = vm.call_global(made_args, &[host])? as usize;
             let len: i32 = heap::read(arr + ARRAY_LENGTH);
             let at = |i: usize| match macro_arg(vm, i as u64) {
-                Some(&MacroArg::Literal(tag, bits, _)) if b"ZBSCIJFD".contains(&tag) => bits,
+                Some(&MacroArg::Unboxed(bits)) => bits,
                 _ => heap::read::<u64>(arr + ARRAY_HEADER as usize + 8 * i),
             };
             let values: Vec<u64> = std::iter::once(target as u64).chain((0..len as usize).map(at)).collect();
@@ -130,11 +130,15 @@ pub fn method(owner: &str, sig: &str) -> Option<NativeFn> {
                 Some(&MacroArg::Expr(n)) => n as u64,
                 Some(&MacroArg::Type(n)) => !n as u64,
                 Some(MacroArg::Quotes) | None => i32::MIN as u32 as u64,
-                Some(MacroArg::Literal(..)) => (i32::MIN + 1) as u32 as u64,
+                Some(MacroArg::Literal(..) | MacroArg::Unboxed(_)) => (i32::MIN + 1) as u32 as u64,
             })
         },
         (HOST, "D10literalTagiiEO") => |vm, args| match macro_arg(vm, args[1]) {
             Some(&MacroArg::Literal(tag, ..)) => Ok(tag as u64),
+            _ => Ok(0),
+        },
+        (HOST, "D11literalBitsijEO") => |vm, args| match macro_arg(vm, args[1]) {
+            Some(&MacroArg::Literal(_, bits, _)) => Ok(bits),
             _ => Ok(0),
         },
         (HOST, "D11literalTextiL16java.lang.StringEO") => |vm, args| match macro_arg(vm, args[1]).cloned() {
@@ -158,8 +162,7 @@ fn macro_arg(vm: &Vm, i: u64) -> Option<&MacroArg> {
     vm.quotes.running.as_ref().and_then(|(_, a)| a.get(i as usize))
 }
 
-/// What `f` answers of the quote host, an `Unsupported` thrown for a refusal, a panic or
-/// outside a macro expansion.
+/// What `f` answers of the quote host; `Unsupported` thrown for a refusal, panic or no expansion.
 pub fn with_host(vm: &mut Vm, f: impl FnOnce(&mut dyn QuoteHost) -> Result<u32, &'static str>) -> Flow {
     let answer = match vm.quotes.running.as_mut() {
         Some((host, _)) => catch_unwind(AssertUnwindSafe(|| f(host.as_mut())))
