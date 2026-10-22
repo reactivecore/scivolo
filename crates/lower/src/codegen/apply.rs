@@ -132,7 +132,7 @@ impl Gen<'_, '_> {
                 v
             }
         };
-        let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
+        let owner = self.method_owner(sym);
         let owner_ty = self.class_ref(owner);
         self.check_conforms(receiver, owner_ty, span)?;
         let args = self.gen_args(sym, args, span)?;

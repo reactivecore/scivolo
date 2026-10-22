@@ -42,29 +42,27 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
 
 /// The parameter types of method `meth`, its clauses flattened.
 fn param_types(l: &mut Lower, meth: SymbolId) -> Vec<TypeId> {
-    let mut out = Vec::new();
-    let mut t = l.u.info(meth);
-    loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { params, result, .. } => {
-                out.extend(params.iter().map(|&(_, p)| p));
-                t = *result;
-            }
-            _ => return out,
-        }
-    }
+    let info = l.u.info(meth);
+    l.u.param_clauses(info).into_iter().flat_map(|(_, ps)| ps).collect()
 }
 
-/// Whether `meth` of `class` implements the `apply` of a function class of its number of
-/// parameters above the library's arities.
+/// Whether `meth` of `class` overrides the `apply` of a function class above the library's
+/// arities.
 fn implements_xxl_apply(l: &mut Lower, class: SymbolId, meth: SymbolId) -> bool {
-    let n = param_types(l, meth).len();
-    n > MAX_IMPLEMENTED_ARITY
-        && l.u
-            .linearization(class)
-            .into_iter()
-            .any(|b| function_class_arity(l, b).is_some_and(|(a, _)| a as usize == n))
+    if param_types(l, meth).len() <= MAX_IMPLEMENTED_ARITY {
+        return false;
+    }
+    let site = l.u.this_type(class);
+    for base in l.u.linearization(class) {
+        if !function_class_arity(l, base).is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY) {
+            continue;
+        }
+        let applies = l.u.decl(base, "apply").unwrap_or_default();
+        if applies.into_iter().any(|apply| l.u.matches(site, meth, apply)) {
+            return true;
+        }
+    }
+    false
 }
 
 /// `def apply(args: Array[Object]): Object = this.meth(args(0).asInstanceOf[T1], …)` in `class`.

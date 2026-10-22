@@ -27,23 +27,22 @@ pub fn erased_function_class(l: &mut Lower, c: SymbolId) -> Option<SymbolId> {
     }
 }
 
-/// Whether class `f` derives from `t` once erasure made the function classes above the library's
-/// arities `FunctionXXL`.
+/// Whether class `f` derives from `t` once erasure replaced the function classes.
 pub fn erased_derives(l: &mut Lower, f: SymbolId, t: SymbolId) -> bool {
-    if l.u.derives_from(f, t) {
-        return true;
-    }
-    let xxl =
-        |l: &Lower, b| function_class_arity(l, b).is_some_and(|(n, _)| n as usize > MAX_IMPLEMENTED_ARITY);
-    l.u.full_name(t) == "scala.runtime.FunctionXXL" && l.u.linearization(f).into_iter().any(|b| xxl(l, b))
+    l.u.derives_from(f, t) || erased_linearization(l, f).contains(&t)
 }
 
-/// The linearization of `class` with the function classes above the library's arities as
-/// `FunctionXXL`, as erasure leaves the parents.
+/// The linearization of `class` with the function classes replaced as erasure leaves the parents.
 pub fn erased_linearization(l: &mut Lower, class: SymbolId) -> Vec<SymbolId> {
+    let bases = l.u.linearization(class);
+    erased_classes(l, bases)
+}
+
+/// `classes` with the function classes replaced as erasure leaves them, first occurrences kept.
+pub fn erased_classes(l: &mut Lower, classes: Vec<SymbolId>) -> Vec<SymbolId> {
     let mut out = Vec::new();
-    for base in l.u.linearization(class) {
-        let erased = erased_function_class(l, base).unwrap_or(base);
+    for c in classes {
+        let erased = erased_function_class(l, c).unwrap_or(c);
         if !out.contains(&erased) {
             out.push(erased);
         }

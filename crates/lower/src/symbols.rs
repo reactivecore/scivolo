@@ -66,8 +66,11 @@ const JAVALIB_ONLY_MEMBERS: [(&str, &str, &[&str]); 1] =
 /// The JDK class whose member `m` is in the JDK API, if javalib defines it in a class of its own
 /// the JDK class extends, as Scala Native, compiling against the JDK API, refers to it.
 pub fn jdk_api_owner(u: &Universe, m: SymbolId) -> Option<&'static str> {
-    let owner = u.full_name(u.symbol(m).owner?);
-    let name = &u.symbol(m).name;
-    let found = JAVALIB_ONLY_MEMBERS.iter().find(|(o, _, ms)| *o == owner && ms.contains(&name.as_str()));
-    found.map(|&(_, jdk, _)| jdk)
+    let s = u.symbol(m);
+    let named = |&&(_, _, ms): &&(&str, &str, &[&str])| ms.contains(&s.name.as_str());
+    if !JAVALIB_ONLY_MEMBERS.iter().any(|e| named(&e)) {
+        return None;
+    }
+    let owner = u.full_name(s.owner?);
+    JAVALIB_ONLY_MEMBERS.iter().find(|e| named(e) && e.0 == owner).map(|&(_, jdk, _)| jdk)
 }
