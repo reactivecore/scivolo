@@ -117,7 +117,7 @@ def baselines():
 
 def is_directory_test(groups, dir):
     """Whether the test of source `groups` is a directory of dotty's tests/`dir`, not a file."""
-    return groups[0][0].parent.name != dir if groups and groups[0] else False
+    return bool(groups and groups[0]) and groups[0][0].parent.name != dir
 
 
 def report(filter_, dir):
