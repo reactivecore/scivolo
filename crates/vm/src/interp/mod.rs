@@ -31,7 +31,7 @@ use std::rc::Rc;
 
 pub use bridge::bridge;
 pub use dispatch::lookup_order;
-pub use funcs::{Func, FuncId, Funcs, StackGuard, func_ref, is_func_ref};
+pub use funcs::{Func, FuncId, Funcs, StackGuard, func_of_ref, func_ref, is_func_ref};
 pub use ops::box_method;
 pub use unwind::{Flow, Unwind, Unwound};
 

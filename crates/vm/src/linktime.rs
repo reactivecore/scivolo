@@ -56,6 +56,13 @@ pub fn accessor_property(owner: &str, method: &str) -> Option<String> {
     property(&name).map(|_| name)
 }
 
+impl Linktime {
+    /// The values of the properties read so far.
+    pub fn props(&self) -> impl Iterator<Item = u64> + '_ {
+        self.props.values().copied()
+    }
+}
+
 impl Vm {
     /// The value of property `name` in the VM's representation.
     pub fn property_value(&mut self, name: &str) -> Flow {

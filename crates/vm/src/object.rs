@@ -25,7 +25,7 @@ impl Vm {
         match space {
             Space::Gc => self.heap.object(rtti, size),
             Space::Permanent => {
-                let obj = self.heap.permanent(size);
+                let obj = self.heap.permanent(size, heap::Blob::Object);
                 heap::write(obj, rtti);
                 obj
             }
@@ -42,7 +42,7 @@ impl Vm {
         if space == Space::Gc {
             return self.heap.array(rtti, len, elem);
         }
-        let arr = self.heap.permanent(ARRAY_HEADER as usize + elem * len);
+        let arr = self.heap.permanent(ARRAY_HEADER as usize + elem * len, heap::Blob::Object);
         heap::write(arr, rtti);
         heap::write(arr + ARRAY_LENGTH, len as i32);
         heap::write(arr + ARRAY_STRIDE, elem as i32);
@@ -104,9 +104,9 @@ impl Vm {
     /// A C `argv` of `program` and `args`, NUL-terminated strings in the permanent heap.
     pub fn c_argv(&mut self, program: &str, args: &[String]) -> usize {
         let items: Vec<&str> = std::iter::once(program).chain(args.iter().map(String::as_str)).collect();
-        let argv = self.heap.permanent(8 * (items.len() + 1));
+        let argv = self.heap.permanent(8 * (items.len() + 1), heap::Blob::Words);
         for (i, s) in items.iter().enumerate() {
-            let c = self.heap.permanent(s.len() + 1);
+            let c = self.heap.permanent(s.len() + 1, heap::Blob::Data);
             for (j, b) in s.bytes().enumerate() {
                 heap::write(c + j, b);
             }

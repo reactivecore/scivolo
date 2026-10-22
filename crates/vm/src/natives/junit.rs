@@ -39,7 +39,7 @@ fn module(vm: &mut Vm, args: &[u64]) -> Flow {
 fn name_of(vm: &mut Vm, args: &[u64]) -> Flow {
     let top = nth(vm, args);
     let class = top.strip_suffix(SUFFIX).unwrap_or(&top);
-    let s = vm.heap.permanent(class.len() + 1);
+    let s = vm.heap.permanent(class.len() + 1, heap::Blob::Data);
     for (i, b) in class.bytes().enumerate() {
         heap::write(s + i, b);
     }

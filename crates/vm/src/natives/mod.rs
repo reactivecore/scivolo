@@ -18,8 +18,8 @@ mod unwind;
 
 pub use callback::Callbacks;
 pub use ffi::{
-    Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, take_sigint,
-    watch_sigint,
+    Foreign, call as call_c_function, errno, exit_immediately, load_runtime, set_errno, symbol, symbol_at,
+    take_sigint, watch_sigint,
 };
 pub use quotes::{Expansions, Hole, MacroArg, QuoteHost, Reflected};
 pub use resources::{Resources, embedded_content, embedded_resources};

@@ -102,7 +102,7 @@ impl Vm {
         &mut self,
         body: impl FnOnce(&mut Vm) -> Flow<()> + 'static,
     ) -> Result<(), VmError> {
-        self.heap.end_training();
+        self.heap.end_training(false);
         self.run_training(body)
     }
 
@@ -117,7 +117,7 @@ impl Vm {
             })
         };
         let ran = self.run_threads(main);
-        self.heap.end_training();
+        self.heap.end_training(false);
         match ran {
             Ok(()) => Ok(()),
             Err(u) => match u.into_inner() {
@@ -133,7 +133,7 @@ impl Vm {
         let module = self.module(runtime)? as u64;
         let init = self.world.member(runtime, "D4initiR_LAL16java.lang.String_EO");
         let args = self.call_global(init, &[module, argc as u64, argv as u64]);
-        self.heap.end_training();
+        self.heap.end_training(args.is_ok());
         args
     }
 

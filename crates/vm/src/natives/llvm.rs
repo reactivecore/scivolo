@@ -124,7 +124,7 @@ const SCRATCH_CELLS: usize = 64;
 
 fn scratch(vm: &mut Vm) -> usize {
     if vm.scratch.is_empty() {
-        let base = vm.heap.permanent(16 * SCRATCH_CELLS);
+        let base = vm.heap.permanent(16 * SCRATCH_CELLS, heap::Blob::Words);
         vm.scratch = (0..SCRATCH_CELLS).map(|i| base + 16 * i).collect();
     }
     vm.scratch.rotate_left(1);

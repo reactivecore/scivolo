@@ -12,6 +12,7 @@ mod collector;
 mod region;
 
 pub use collector::{GcIds, ThreadRoots};
+pub use region::{Blob, Trained};
 
 use crate::layout::{ARRAY_HEADER, ARRAY_LENGTH, ARRAY_STRIDE};
 use collector::Collector;
@@ -27,8 +28,6 @@ pub struct Heap {
     end: usize,
     pub allocated: usize,
     region: Option<Region>,
-    /// Whether objects and arrays go to the region instead of the collected heap.
-    training: bool,
     gc: Collector,
 }
 
@@ -59,20 +58,24 @@ impl Heap {
         // SAFETY: as above.
         let init: extern "C" fn(usize, usize) = unsafe { c_fn(find("scivolo_GC_init")?) };
         init(stack.0, stack.1);
-        let training = region.is_some();
-        Ok(Self { cur: 0, end: 0, allocated: 0, region, training, gc })
+        Ok(Self { cur: 0, end: 0, allocated: 0, region, gc })
     }
 
-    /// Sends objects and arrays to the collected heap from now on.
-    pub fn end_training(&mut self) {
-        self.training = false;
+    /// Sends objects and arrays to the collected heap from now on; `keep` keeps what training
+    /// allocated as a snapshot.
+    pub fn end_training(&mut self, keep: bool) {
+        if let Some(region) = &mut self.region {
+            region.end_training(keep);
+        }
+    }
+
+    pub fn trained(&self) -> Option<Trained<'_>> {
+        self.region.as_ref()?.trained()
     }
 
     /// A zeroed object of `size` bytes whose header points to `rtti`; may collect first.
     pub fn object(&mut self, rtti: usize, size: usize) -> usize {
-        if self.training
-            && let Some(obj) = self.in_region(size.next_multiple_of(ALIGN))
-        {
+        if let Some(obj) = self.train(size) {
             write(obj, rtti);
             return obj;
         }
@@ -81,23 +84,22 @@ impl Heap {
 
     /// A zeroed array of `len` elements of `stride` bytes; may collect first.
     pub fn array(&mut self, rtti: usize, len: usize, stride: usize) -> usize {
-        if self.training {
-            let size = ARRAY_HEADER as usize + len * stride;
-            if let Some(arr) = self.in_region(size.next_multiple_of(ALIGN)) {
-                write(arr, rtti);
-                write(arr + ARRAY_LENGTH, len as i32);
-                write(arr + ARRAY_STRIDE, stride as i32);
-                return arr;
-            }
+        if let Some(arr) = self.train(ARRAY_HEADER as usize + len * stride) {
+            write(arr, rtti);
+            write(arr + ARRAY_LENGTH, len as i32);
+            write(arr + ARRAY_STRIDE, stride as i32);
+            return arr;
         }
         (self.gc.alloc_array)(rtti, len, stride)
     }
 
-    /// `size` zeroed bytes aligned to 16 that are never freed; the collector scans them.
-    pub fn permanent(&mut self, size: usize) -> usize {
+    /// `size` zeroed bytes aligned to 16 holding `blob` that are never freed; the collector
+    /// scans them.
+    pub fn permanent(&mut self, size: usize, blob: Blob) -> usize {
         let size = size.max(1).next_multiple_of(ALIGN);
         self.allocated += size;
-        if let Some(addr) = self.in_region(size) {
+        let add_roots = self.gc.add_roots;
+        if let Some(addr) = self.region.as_mut().and_then(|r| r.alloc(size, blob, |l, h| add_roots(l, h))) {
             return addr;
         }
         if size > CHUNK / 4 {
@@ -112,9 +114,9 @@ impl Heap {
         addr
     }
 
-    fn in_region(&mut self, size: usize) -> Option<usize> {
+    fn train(&mut self, size: usize) -> Option<usize> {
         let add_roots = self.gc.add_roots;
-        self.region.as_mut()?.alloc(size, |low, high| add_roots(low, high))
+        self.region.as_mut()?.train(size.next_multiple_of(ALIGN), |low, high| add_roots(low, high))
     }
 
     fn chunk(&mut self, size: usize) -> usize {

@@ -1,7 +1,7 @@
 use super::code::Num;
 use super::lower::num;
 use super::{Flow, Func, FuncId, func_ref};
-use crate::heap;
+use crate::heap::{self, Blob};
 use crate::layout::{self, WORD};
 use crate::{Vm, VmError};
 use nir::{DefnKind, GlobalId, Type, TypeId, Val, ValId};
@@ -80,7 +80,8 @@ impl Vm {
             let addr = match defn.kind {
                 DefnKind::Var { .. } | DefnKind::Const { .. } if is_extern => self.extern_variable(g)?,
                 DefnKind::Var { ty, rhs } | DefnKind::Const { ty, rhs } => {
-                    let addr = self.heap.permanent(layout::size_of(&self.world.pool, ty) as usize);
+                    let size = layout::size_of(&self.world.pool, ty) as usize;
+                    let addr = self.heap.permanent(size, Blob::Typed(ty));
                     let value = self.val(rhs, &[])?;
                     self.store_ty(addr, ty, value);
                     addr
@@ -134,12 +135,14 @@ impl Vm {
             return Ok(addr);
         }
         let Val::Const(inner) = *self.world.pool.val(v) else { unreachable!("constant of Const") };
-        let size = match self.world.pool.val(inner) {
-            Val::ByteString(b) => b.len() + 1,
-            Val::ArrayValue(ty, vs) => layout::size_of(&self.world.pool, *ty) as usize * vs.len(),
-            _ => WORD as usize,
+        let (size, blob) = match self.world.pool.val(inner) {
+            Val::ByteString(b) => (b.len() + 1, Blob::Data),
+            Val::ArrayValue(ty, vs) => {
+                (layout::size_of(&self.world.pool, *ty) as usize * vs.len(), Blob::Words)
+            }
+            _ => (WORD as usize, Blob::Words),
         };
-        let addr = self.heap.permanent(size);
+        let addr = self.heap.permanent(size, blob);
         self.write_const(addr, inner)?;
         self.funcs.consts.insert(v, addr);
         Ok(addr)

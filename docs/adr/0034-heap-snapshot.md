@@ -21,7 +21,8 @@ snapshot whose objects move corrupts every identity-keyed table built during `in
 3. **Training set.** What `init` constructs; `init` is re-run on restore with the real `argv`.
    A deny list of environment-reading modules and a classification of every pointer-typed word
    (inside the region, C trampoline or runtime symbol by name, function reference by name,
-   small integer) refuse any other snapshot.
+   small integer) refuse any other snapshot. The walk follows what the VM's tables reach;
+   training garbage, such as boxed pointers into ended frame stacks, is copied but not walked.
 4. **Cache file** `snap-<image key>-<BUILD>-<os>-<arch>.bin` beside the library image (ADR
    0005), written by the first cold run, pruned with the image; `SCIVOLO_NO_SNAPSHOT` runs cold.
 5. **Tables by name.** The VM's modules, classes (in id order), literals, link-time

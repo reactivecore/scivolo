@@ -5,7 +5,7 @@ mod dl;
 mod sigint;
 pub mod variadic;
 
-pub use dl::{extern_fn, load_runtime, symbol};
+pub use dl::{extern_fn, load_runtime, symbol, symbol_at};
 pub use sigint::{take_sigint, watch_sigint};
 
 use crate::Vm;

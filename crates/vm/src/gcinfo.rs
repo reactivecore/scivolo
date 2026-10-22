@@ -2,7 +2,7 @@
 //! arrays, boxed pointers and weak references; and the program's weak reference handler.
 
 use crate::class::{self, ClassId};
-use crate::heap::{self, GcIds};
+use crate::heap::{self, Blob, GcIds};
 use crate::interp::Flow;
 use crate::{Vm, VmError};
 use nir::Type;
@@ -84,7 +84,7 @@ impl Vm {
             .collect();
         offsets.sort_unstable();
         offsets.push(-1);
-        let addr = self.heap.permanent(4 * offsets.len());
+        let addr = self.heap.permanent(4 * offsets.len(), Blob::Data);
         for (i, o) in offsets.iter().enumerate() {
             heap::write(addr + 4 * i, *o);
         }

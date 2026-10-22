@@ -21,6 +21,12 @@ struct Monitor {
     waiters: VecDeque<ThreadId>,
 }
 
+impl Monitors {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
 impl Vm {
     pub fn monitor_enter(&mut self, obj: usize) -> Flow<()> {
         if obj == 0 {

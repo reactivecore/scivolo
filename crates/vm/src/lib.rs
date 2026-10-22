@@ -13,6 +13,7 @@ mod natives;
 mod object;
 mod rtti;
 mod session;
+mod snapshot;
 mod stack;
 mod threads;
 mod throwable;
@@ -31,6 +32,7 @@ pub use natives::{
     provider_names,
 };
 pub use rtti::{GC_RTTI_FIELDS, PRIMITIVES, interfaces, java_name};
+pub use snapshot::{Target, Walk};
 pub use throwable::{Frame, Thrown};
 pub use world::{LoadError, World};
 
@@ -82,7 +84,7 @@ impl Vm {
         let bounds =
             stack::bounds().ok_or_else(|| VmError::Unsupported("unknown thread stack bounds".into()))?;
         let mut heap = Heap::new(natives::symbol, bounds).map_err(VmError::Unsupported)?;
-        let thread = heap.permanent(16);
+        let thread = heap.permanent(16, crate::heap::Blob::Words);
         let mut vm = Self {
             world: World::new(classpath),
             heap,
