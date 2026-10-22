@@ -26,20 +26,22 @@ impl Reflect<'_> {
         Ok(Build::new(self.tpd, self.u, self.names, unit.ok_or("a library without scala.Unit")?))
     }
 
-    /// `TypeRepr.widenTermRefByName`: `t` with term references widened and a by-name type's
-    /// result for a by-name type.
+    /// `TypeRepr.widenTermRefByName` (dotty's `widenTermRefExpr`): `t` with term references
+    /// widened, a by-name type's result for a by-name type a term reference widens to.
     pub fn widen_term_ref_by_name(&mut self, mut t: TypeId) -> TypeId {
         loop {
             let term_ref = match *self.u.types().get(t) {
                 Type::TermRef(..) => true,
                 Type::Sym(_, s) => self.u.symbol(s).kind.is_term(),
-                Type::ByName(r) => return r,
                 _ => false,
             };
-            match term_ref.then(|| self.u.widen_once(t)).flatten() {
-                Some(w) if w != t => t = w,
-                _ => return t,
-            }
+            let Some(w) = term_ref.then(|| self.u.widen_once(t)).flatten().filter(|&w| w != t) else {
+                return t;
+            };
+            t = match *self.u.types().get(w) {
+                Type::ByName(r) => r,
+                _ => w,
+            };
         }
     }
 

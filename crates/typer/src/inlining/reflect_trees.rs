@@ -7,39 +7,48 @@ use super::Reflect;
 use crate::tpd::{Slot, TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
+use tasty::tags::{INLINEPROXY, SYNTHETIC};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
-    /// `Term.underlying` (dotty's `underlyingArgument` at the top of `t`): `t` without the
-    /// inlined trees without bindings, empty blocks and argument names around it, a reference to
-    /// a local value replaced by the value's right-hand side.
-    pub fn underlying(&self, t: TNodeId) -> TNodeId {
-        match *self.tpd.tree(t) {
-            T::Inlined { bindings, expansion, .. } if bindings.is_empty() => self.underlying(expansion),
-            T::Block { stats, expr } if stats.is_empty() => self.underlying(expr),
-            T::NamedArg { arg, .. } => self.underlying(arg),
-            T::Ident { .. } => match self.tpd.sym(t).and_then(|s| self.local_rhs(s)) {
-                Some(rhs) => self.underlying(rhs),
-                None => t,
-            },
-            _ => t,
-        }
+    /// `Term.underlying` (dotty's `MapToUnderlying`): `t` and its subtrees without the inlined
+    /// trees without bindings, empty blocks and argument names, references to local values and
+    /// parameterless methods replaced by their right-hand sides, the trees changed copied.
+    pub fn underlying(&mut self, t: TNodeId) -> TNodeId {
+        self.mapped(t, false)
     }
 
-    /// `Term.underlyingArgument` (dotty's `MapToUnderlying`): `underlying` applied to `t` and to
-    /// every subtree, the trees changed copied.
+    /// `Term.underlyingArgument`: `underlying` replacing only references to inline proxies and
+    /// synthetic values.
     pub fn underlying_argument(&mut self, t: TNodeId) -> TNodeId {
-        let t = self.underlying(t);
+        self.mapped(t, true)
+    }
+
+    /// `t` mapped to its underlying tree, with `proxies` for `underlyingArgument`.
+    fn mapped(&mut self, t: TNodeId, proxies: bool) -> TNodeId {
+        let skipped = |s: SymbolId| {
+            !proxies || self.u.symbol(s).flags.has(INLINEPROXY) || self.u.symbol(s).flags.has(SYNTHETIC)
+        };
+        let inner = match *self.tpd.tree(t) {
+            T::Inlined { bindings, expansion, .. } if bindings.is_empty() => Some(expansion),
+            T::Block { stats, expr } if stats.is_empty() => Some(expr),
+            T::NamedArg { arg, .. } => Some(arg),
+            T::Ident { .. } => self.tpd.sym(t).filter(|&s| skipped(s)).and_then(|s| self.local_rhs(s)),
+            _ => None,
+        };
+        if let Some(inner) = inner {
+            return self.mapped(inner, proxies);
+        }
         let mut tree = self.tpd.tree(t).clone();
         let mut slots = tree.slots();
         let mut changed = false;
         for slot in slots.iter_mut() {
             match slot {
-                Slot::Node(c) => changed |= self.replace(c),
-                Slot::Opt(Some(c)) => changed |= self.replace(c),
+                Slot::Node(c) => changed |= self.replace(c, proxies),
+                Slot::Opt(Some(c)) => changed |= self.replace(c, proxies),
                 Slot::List(l) => {
                     let mut items = self.tpd.items(*l).to_vec();
-                    if items.iter_mut().fold(false, |any, c| self.replace(c) | any) {
+                    if items.iter_mut().fold(false, |any, c| self.replace(c, proxies) | any) {
                         *l = self.tpd.list(&items);
                         changed = true;
                     }
@@ -56,9 +65,9 @@ impl Reflect<'_> {
         self.tpd.node(tree, span, tpe, sym)
     }
 
-    /// Replaces `c` by its underlying argument; whether that is another tree.
-    fn replace(&mut self, c: &mut TNodeId) -> bool {
-        let new = self.underlying_argument(*c);
+    /// Replaces `c` by its underlying tree; whether that is another tree.
+    fn replace(&mut self, c: &mut TNodeId, proxies: bool) -> bool {
+        let new = self.mapped(*c, proxies);
         std::mem::replace(c, new) != new
     }
 
@@ -77,11 +86,11 @@ impl Reflect<'_> {
     }
 
     /// The right-hand side of the definition of `s` if it is a value or parameterless method
-    /// owned by a term.
+    /// owned by a term, but for an object.
     fn local_rhs(&self, s: SymbolId) -> Option<TNodeId> {
         let sym = self.u.symbol(s);
         let local = sym.owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-        if !matches!(sym.kind, Kind::Val | Kind::Def) || !local {
+        if !matches!(sym.kind, Kind::Val | Kind::Def) || !local || self.u.is_module(s) {
             return None;
         }
         (0..self.tpd.len()).rev().map(TNodeId::new).find_map(|d| match *self.tpd.tree(d) {

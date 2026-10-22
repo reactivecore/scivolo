@@ -6,8 +6,8 @@ package scala.quoted.runtime.impl
 trait ReflectFlagSupport { this: QuotesImpl =>
 
 /** A flag is the bit of its TASTy modifier tag; bits 2 to 5 are `Method`, `Package`, `Param` and
- *  `AbsOverride`, bit 51 `Scala2x`, and bit 50 flags no symbol has. Flags the frontend does not
- *  know are `Unsupported`.
+ *  `AbsOverride`, bit 50 `JavaDefined`, bit 51 `Scala2x`, and bit 52 flags no symbol has. Flags
+ *  the frontend does not know are `Unsupported`.
  */
 trait ReflectFlags extends reflectModule { self: reflect.type =>
 
@@ -36,7 +36,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def Invisible: Flags = tag(44)
     def JavaDefined: Flags = tag(50)
     def JavaStatic: Flags = tag(18)
-    def JavaAnnotation: Flags = tag(50)
+    def JavaAnnotation: Flags = tag(52)
     def Lazy: Flags = tag(14)
     def Local: Flags = tag(22)
     def Macro: Flags = tag(33)
@@ -55,7 +55,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def Protected: Flags = tag(8)
     def Scala2x: Flags = tag(51)
     def Sealed: Flags = tag(11)
-    def StableRealizable: Flags = tag(32)
+    def StableRealizable: Flags = refused("Flags.StableRealizable")
     def Static: Flags = tag(18)
     def Synthetic: Flags = tag(23)
     def Tracked: Flags = tag(47)
@@ -79,7 +79,7 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
   object defn extends defnModule {
     def RootPackage: Symbol = new SymbolImpl(ReflectOps.one("root")).asInstanceOf[Symbol]
     def RootClass: Symbol = RootPackage
-    def EmptyPackageClass: Symbol = refused("defn.EmptyPackageClass")
+    def EmptyPackageClass: Symbol = new SymbolImpl(ReflectOps.one("emptyPackage")).asInstanceOf[Symbol]
     def ScalaPackage: Symbol = refused("defn.ScalaPackage")
     def ScalaPackageClass: Symbol = refused("defn.ScalaPackageClass")
     def AnyClass: Symbol = refused("defn.AnyClass")

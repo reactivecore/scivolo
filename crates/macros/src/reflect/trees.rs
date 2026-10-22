@@ -40,30 +40,71 @@ impl Host {
             "tree" => self.shape(self.tree(t()?)?),
             "treeSymbol" => {
                 let t = self.tree(t()?)?;
-                numbers(vec![self.tree_symbol(t).map_or(-1, |s| s.0 as i32)])
+                numbers(vec![self.tree_symbol(t)?.map_or(-1, |s| s.0 as i32)])
             }
             _ => Err(UNKNOWN),
         }
     }
 
-    /// `Tree.symbol`: the tree's own symbol, else the symbol a type tree's named or `this`
-    /// type denotes (dotty's `DenotingTree.denot`).
-    fn tree_symbol(&mut self, t: TNodeId) -> Option<SymbolId> {
-        if let Some(s) = self.tpd.sym(t) {
-            return Some(s);
+    /// `Tree.symbol` (dotty's `Tree.denot`): a definition's or reference's own symbol, else the
+    /// symbol its named or `this` type denotes; a proxy tree's forwardee's; none for others.
+    fn tree_symbol(&mut self, t: TNodeId) -> Result<Option<SymbolId>, &'static str> {
+        match *self.tpd.tree(t) {
+            T::Apply { fun, .. } | T::TypeApply { fun, .. } | T::UnApply { fun, .. } => self.tree_symbol(fun),
+            T::Typed { expr: inner, .. }
+            | T::Super { qual: inner, .. }
+            | T::AppliedTypeTree { tpt: inner, .. }
+            | T::Annotated { arg: inner, .. } => self.tree_symbol(inner),
+            T::Ident { .. }
+            | T::Select { .. }
+            | T::This { .. }
+            | T::Bind { .. }
+            | T::ValDef { .. }
+            | T::DefDef { .. }
+            | T::TypeDef { .. }
+            | T::TypeTree { .. }
+            | T::SingletonTypeTree { .. } => Ok(self.tpd.sym(t).or_else(|| self.denoted(t))),
+            T::Literal { .. }
+            | T::ClassLiteral { .. }
+            | T::New { .. }
+            | T::NamedArg { .. }
+            | T::Closure { .. }
+            | T::SeqLiteral { .. }
+            | T::Assign { .. }
+            | T::Block { .. }
+            | T::If { .. }
+            | T::CaseDef { .. }
+            | T::Return { .. }
+            | T::WhileDo { .. }
+            | T::Try { .. }
+            | T::Match { .. }
+            | T::Alternative { .. }
+            | T::ByNameTypeTree { .. }
+            | T::TypeBoundsTree { .. }
+            | T::LambdaTypeTree { .. }
+            | T::Inlined { .. } => Ok(None),
+            _ => Err("Tree.symbol of a tree the frontend does not map"),
         }
-        if !matches!(self.kind(t), Kind::TypeTree | Kind::Inferred) {
-            return None;
-        }
+    }
+
+    /// The symbol the named or `this` type of `t` denotes.
+    fn denoted(&mut self, t: TNodeId) -> Option<SymbolId> {
         let tpe = self.tpd.get(t).tpe?;
         match *self.u.types().get(tpe) {
-            Type::Sym(_, s) => Some(s),
+            Type::Sym(_, s) | Type::Package(s) => Some(s),
             Type::TypeRef(..) | Type::TermRef(..) => self.u.resolve_ref(tpe),
             Type::This(c) => self.u.class_symbol(c),
             _ => None,
         }
     }
 
+    /// Whether the type of `t` is a bounds or an alias type.
+    fn has_bounds(&self, t: TNodeId) -> bool {
+        let tpe = self.tpd.get(t).tpe;
+        tpe.is_some_and(|tpe| matches!(self.u.types().get(tpe), Type::Bounds(..) | Type::Alias(_)))
+    }
+
+    /// The kind of `t`; every `TypeTree` is dotty's `Inferred` but for one of bounds.
     fn kind(&self, t: TNodeId) -> Kind {
         let is_type = self.tpd.sym(t).is_some_and(|s| self.u.symbol(s).kind.is_type());
         match *self.tpd.tree(t) {
@@ -78,7 +119,7 @@ impl Host {
             T::Block { .. } => Kind::Block,
             T::Inlined { .. } => Kind::Inlined,
             T::SeqLiteral { .. } => Kind::Repeated,
-            T::TypeTree { inferred: true } => Kind::Inferred,
+            T::TypeTree { .. } if !self.has_bounds(t) => Kind::Inferred,
             T::TypeTree { .. }
             | T::SingletonTypeTree { .. }
             | T::ByNameTypeTree { .. }
