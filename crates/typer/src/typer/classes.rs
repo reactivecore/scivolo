@@ -152,7 +152,7 @@ impl Typer<'_> {
         let mut dummy = None;
         let mut out = Vec::new();
         let mut ctxs = Vec::new();
-        for &s in stats {
+        for s in self.without_clashing_synthetics(cls, stats) {
             let stat_ctx = match self.ast.tree(s) {
                 Tree::Empty => continue,
                 Tree::ValDef { .. } | Tree::DefDef { .. } | Tree::TypeDef { .. } | Tree::Import { .. } => ctx,

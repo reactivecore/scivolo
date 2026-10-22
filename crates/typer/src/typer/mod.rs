@@ -28,6 +28,7 @@ mod by_name_repeated;
 mod call_types;
 mod case_companion;
 mod case_lambdas;
+mod clashing_synthetics;
 mod class_bound;
 mod classes;
 mod closures;

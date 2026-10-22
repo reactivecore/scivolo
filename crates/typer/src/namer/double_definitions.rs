@@ -7,6 +7,7 @@
 use crate::ctx::{Ctx, Level};
 use crate::typer::Typer;
 use syntax::ast::NodeId;
+use syntax::ast::flags as f;
 use tasty::{Kind, SymbolId, Type};
 
 impl Typer<'_> {
@@ -30,9 +31,18 @@ impl Typer<'_> {
             }
             _ => self.u.symbol(owner).decls.clone(),
         };
+        let synthetic_tree = match *self.ast.tree(tree) {
+            syntax::ast::Tree::DefDef { mods, .. } => self.ast.modifiers(mods).flags.is(f::SYNTHETIC),
+            _ => false,
+        };
+        let retractable = in_class && self.is_retractable_name(owner, name);
         for d in decls {
             let s = self.u.symbol(d);
             if !self.syms.flags.contains_key(&d) || s.name != name || self.u.is_type_symbol(d) != is_type {
+                continue;
+            }
+            let synthetic = self.syms.flags.get(&d).is_some_and(|fl| fl.is(f::SYNTHETIC));
+            if retractable && (synthetic || synthetic_tree) {
                 continue;
             }
             let conflicts = match (kind, s.kind) {
