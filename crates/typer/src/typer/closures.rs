@@ -96,13 +96,15 @@ impl Typer<'_> {
             Type::Bounds(_, hi) => Some(hi),
             _ => Some(r),
         });
-        let expected_result = match &sam {
-            Some((_, (sam_binder, sam_names, method))) => expected_result.map(|r| {
-                let refs: Vec<TypeId> =
-                    params_syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
-                self.applied_result(r, (*sam_binder, sam_names), Some(*method), &refs)
-            }),
-            None => expected_result,
+        let refs: Vec<TypeId> = params_syms.iter().map(|&p| self.u.intern_type(Type::Sym(None, p))).collect();
+        let poly = self.poly_closures.get(&id).cloned();
+        let expected_result = match (&sam, poly.as_ref().and_then(Option::as_ref)) {
+            (Some((_, (sam_binder, sam_names, method))), _) => expected_result
+                .map(|r| self.applied_result(r, (*sam_binder, sam_names), Some(*method), &refs)),
+            (None, Some((binder, names))) => {
+                expected_result.map(|r| self.applied_result(r, (*binder, names), None, &refs))
+            }
+            (None, None) => expected_result,
         };
         let body_pt = expected_result.map_or(Pt::Any, Pt::Type);
         let body = self.typed(body, body_pt, bctx);
@@ -127,7 +129,7 @@ impl Typer<'_> {
                 None
             });
         }
-        if dependent && sam.is_none() {
+        if dependent && sam.is_none() && poly.is_none() {
             return self.unsupported(id, "dependent function type");
         }
         let binder = self.syms.fresh_binder();

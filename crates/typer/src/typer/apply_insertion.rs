@@ -11,7 +11,8 @@ use tasty::Type;
 
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or
-    /// type arguments.
+    /// type arguments; a context function value applied to its implicit arguments first unless
+    /// the arguments are `using` ones (dotty's `adaptToArgs`).
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);
@@ -24,6 +25,12 @@ impl Typer<'_> {
         }
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. } | Type::Error) {
             return Ok(f);
+        }
+        if let Pt::Fun(p) = pt
+            && !self.protos[p].using
+            && let Some(applied) = self.context_function_applied(f, Pt::Any, ctx)
+        {
+            return self.with_apply(applied?, pt, ctx);
         }
         let tpe = self.widen_if_unstable(tpe);
         if let Some(apply) = self.poly_apply(f, tpe, self.tpd.span(f).to_synthetic()) {

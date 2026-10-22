@@ -56,7 +56,16 @@ impl Typer<'_> {
                 Ok(self.tpd.node(T::TypeApply { fun: lifted, args }, span, Some(tpe), None))
             }
             T::Select { qualifier, name } => {
-                let sym = self.tpd.sym(f).ok_or("lifting")?;
+                let Some(sym) = self.tpd.sym(f) else {
+                    let tpe = self.tpd.tpe(f);
+                    self.poly_apply_info(tpe).ok_or("lifting")?;
+                    if self.is_idempotent_expr(qualifier) {
+                        return Ok(f);
+                    }
+                    let lifted = self.lift(defs, qualifier, "", complex, ctx);
+                    let site = self.tpd.tpe(lifted);
+                    return self.poly_apply(lifted, site, span).ok_or("lifting");
+                };
                 let defaults = self.has_defaults(sym);
                 let keep = match *self.tpd.tree(qualifier) {
                     T::Literal { .. } | T::This { .. } | T::New { .. } => true,
