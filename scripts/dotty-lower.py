@@ -115,11 +115,18 @@ def baselines():
     return {r[0]: r[1] for r in rows}
 
 
+def is_directory_test(groups, dir):
+    """Whether the test of source `groups` is a directory of dotty's tests/`dir`, not a file."""
+    return groups[0][0].parent.name != dir if groups and groups[0] else False
+
+
 def report(filter_, dir):
     base = baselines() if dir == "run" else {}
     if dir == "run" and not base:
         sys.exit(f"{WORK / 'results.tsv'} missing: run `just dotty-report` first")
     todo = [(n, g, c, r, base.get(n, "not run"), dir) for n, g, c, r in tests(filter_, dir)]
+    files = {t[0] for t in todo if not is_directory_test(t[1], dir)}
+    todo = [(f"{t[0]}-dir" if t[0] in files and is_directory_test(t[1], dir) else t[0], *t[1:]) for t in todo]
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         results = list(pool.map(lambda t: one(*t), todo))
     suffix = "" if dir == "run" else f"-{dir}"
