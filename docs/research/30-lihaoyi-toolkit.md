@@ -101,6 +101,10 @@ conversion `stringPathChunkValidated` (`PathChunkMacros`, which derives from
 (osl5f, osl6) without the literal validation, and `import os.PathChunk.StringPathChunkInternal`
 (osl5e) compiles where dotty errors. **Fix (X1):** `is_accessible_from` for every candidate, an
 inaccessible one a misfit. ~15 lines; after E (§2.8), since then the macro is chosen.
+**Done**: but for javalib's implicits (`java.lang.Class$._class2class`, which bridge its renamed
+`_Class`; dotty's JDK has none). `os.pwd / "tmp" / "a/b"` picks the macro and prints what dotty
+prints; osl5e compiles and runs in dotty too (the import is legal, the conversion skipped).
+Library `private[q]` takes the owner as its boundary (TASTy's qualifier is not read).
 
 ### 2.4 Overloads with type parameters after the receiver clause (fastparse) — `Y/mapped_alternatives.rs:44-50`
 
