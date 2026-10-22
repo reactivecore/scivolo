@@ -89,6 +89,7 @@ mod poly_functions;
 mod protected_accessors;
 mod pure_stats;
 mod references_outer;
+mod refined_trees;
 mod repeated;
 mod resolve_super;
 mod retained_bodies;

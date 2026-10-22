@@ -7,59 +7,10 @@ use super::implicits::conversions::Goal;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::flags::{GIVEN, IMPLICIT, MUTABLE};
 use syntax::ast::{NodeId, Span, TName, Tree};
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// The name and info of term refinement `r`: a value's type, a parameterless method's
-    /// by-name result, a method type; `Err` for one that is not a plain value or method.
-    pub fn term_refinement(&mut self, r: NodeId, ctx: Ctx) -> Result<(String, TypeId), &'static str> {
-        let (name, clauses, tpt, mods) = match *self.ast.tree(r) {
-            Tree::ValDef { name, tpt, mods, .. } => (name, None, tpt, mods),
-            Tree::DefDef { name, paramss, tpt, mods, .. } => (name, Some(paramss), tpt, mods),
-            _ => return Err("structural refinement"),
-        };
-        if self.ast.modifiers(mods).flags.is_one_of(MUTABLE.or(GIVEN).or(IMPLICIT)) {
-            return Err("structural refinement with modifiers");
-        }
-        let text = self.text(name.name).to_owned();
-        let result = self.typed_type(tpt, ctx);
-        let mut info = self.tpd.tpe(result);
-        if matches!(self.u.types().get(info), Type::Error) {
-            return Err("structural refinement of an unsupported type");
-        }
-        let Some(clauses) = clauses else { return Ok((text, info)) };
-        let clauses = self.ast.clause_items(clauses).to_vec();
-        if clauses.is_empty() {
-            return Ok((text, self.u.intern_type(Type::ByName(info))));
-        }
-        for &clause in clauses.iter().rev() {
-            let mut params = Vec::new();
-            for &p in self.ast.items(clause).to_vec().iter() {
-                let Tree::ValDef { name, tpt, mods, .. } = *self.ast.tree(p) else {
-                    return Err("polymorphic structural refinement");
-                };
-                if self.ast.modifiers(mods).flags.is_one_of(GIVEN.or(IMPLICIT)) {
-                    return Err("structural refinement with a context parameter");
-                }
-                if matches!(self.ast.tree(tpt), Tree::ByNameTypeTree { .. }) {
-                    return Err("structural refinement with a by-name parameter");
-                }
-                let typed = self.typed_type(tpt, ctx);
-                let tpe = self.tpd.tpe(typed);
-                if matches!(self.u.types().get(tpe), Type::Error) {
-                    return Err("structural refinement of an unsupported type");
-                }
-                params.push((self.text(name.name).to_owned(), tpe));
-            }
-            let binder = self.u.fresh_binder();
-            let method = Type::Method { binder, params, result: info, implicit: false, contextual: false };
-            info = self.u.intern_type(method);
-        }
-        Ok((text, info))
-    }
-
     /// Selection `id` of member `name` of `qual`, which only a term refinement of its type `pre`
     /// declares: `(qual: Selectable).selectDynamic("name").$asInstanceOf$[T]`; `None` if no
     /// refinement declares it.

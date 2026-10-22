@@ -169,7 +169,11 @@ impl Typer<'_> {
 
     /// The type of the variable `name` whose setter's parameter is being typed in `ctx`.
     fn setter_param_type(&mut self, name: &str, ctx: Ctx) -> Option<TypeId> {
-        let owner = self.u.symbol(ctx.owner).owner?;
+        let setter = match self.u.symbol(ctx.owner).kind {
+            Kind::Param => self.u.symbol(ctx.owner).owner?,
+            _ => ctx.owner,
+        };
+        let owner = self.u.symbol(setter).owner?;
         let decls = self.u.symbol(owner).decls.clone();
         let var = decls
             .into_iter()

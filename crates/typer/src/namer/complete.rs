@@ -54,7 +54,8 @@ impl Typer<'_> {
                 self.complete_class(sym, (tree, rhs), ctx)
             }
             Tree::TypeDef { rhs, .. } => {
-                let info = self.type_member_info(sym, rhs, ctx);
+                let mctx = if self.u.symbol(sym).kind == Kind::Type { ctx.with_owner(sym) } else { ctx };
+                let info = self.type_member_info(sym, rhs, mctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
             }

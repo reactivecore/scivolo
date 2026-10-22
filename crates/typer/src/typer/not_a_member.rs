@@ -28,6 +28,7 @@ impl Typer<'_> {
                 T::TypeTree { .. }
                     | T::SingletonTypeTree { .. }
                     | T::AppliedTypeTree { .. }
+                    | T::RefinedTypeTree { .. }
                     | T::ByNameTypeTree { .. }
             );
         if type_qual {

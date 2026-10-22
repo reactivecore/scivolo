@@ -19,27 +19,38 @@ impl Typer<'_> {
         refinements: List,
         ctx: Ctx,
     ) -> TNodeId {
-        let mut tpe = match tpt {
+        let items = self.ast.items(refinements).to_vec();
+        let span = self.ast.span(id);
+        let parent = match tpt {
             Some(tpt) => {
                 let parent = self.typed_type(tpt, ctx);
                 if self.is_error(parent) {
                     return parent;
                 }
-                self.tpd.tpe(parent)
+                parent
             }
-            None => self.u.class_ref("java.lang.Object"),
+            None => {
+                let at = items.first().map_or(span, |&r| self.ast.span(r)).start_pos();
+                let object = self.u.class_ref("java.lang.Object");
+                self.type_tree(object, at, false)
+            }
         };
+        let mut tpe = self.tpd.tpe(parent);
         if self.type_arity(tpe) > 0 {
             return self.unsupported(id, "refinement of a type constructor");
         }
-        let items = self.ast.items(refinements).to_vec();
+        let class = self.refinement_class(ctx);
+        let mut members = Vec::new();
         for &r in &items {
             let Tree::TypeDef { name, rhs, .. } = *self.ast.tree(r) else {
-                match self.term_refinement(r, ctx) {
-                    Ok((name, _)) if !self.type_members(tpe, &name).is_empty() => {
+                match self.term_refinement(class, r, ctx) {
+                    Ok((name, ..)) if !self.type_members(tpe, &name).is_empty() => {
                         return self.unsupported(r, "structural refinement of an existing member");
                     }
-                    Ok((name, info)) => tpe = self.u.intern_type(Type::Refined(tpe, name, info)),
+                    Ok((name, info, tree)) => {
+                        tpe = self.u.intern_type(Type::Refined(tpe, name, info));
+                        members.push(tree);
+                    }
                     Err(what) => return self.unsupported(r, what),
                 }
                 continue;
@@ -54,21 +65,15 @@ impl Typer<'_> {
             if !self.refines_type_member(tpe, &text) && !self.is_mirror_type(tpe) {
                 return self.unsupported(r, "refinement that refines no type member");
             }
-            let info = self.type_def_info(rhs, ctx);
-            let info = match *self.u.types().get(info) {
-                Type::Error => return self.unsupported(r, "refinement of an unsupported type"),
-                Type::Lambda { .. } => self.u.intern_type(Type::Alias(info)),
-                _ => info,
+            let (text, info, tree) = match self.type_refinement(class, r, ctx) {
+                Ok(refinement) => refinement,
+                Err(refused) => return refused,
             };
-            if let Type::Bounds(lo, hi) = *self.u.types().get(info)
-                && !self.u.is_subtype(lo, hi)
-            {
-                return self.unsupported(r, "refinement with conflicting bounds");
-            }
             tpe = self.u.intern_type(Type::Refined(tpe, text, info));
+            members.push(tree);
         }
-        let span = self.ast.span(id);
-        self.type_tree(tpe, span, false)
+        let refinements = self.tpd.list(&members);
+        self.tpd.node(T::RefinedTypeTree { tpt: parent, refinements }, span, Some(tpe), None)
     }
 
     /// Whether `rhs` contains `this` or an identifier naming one of `items` or a member of

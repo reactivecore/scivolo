@@ -237,6 +237,7 @@ impl Inlining<'_> {
                 | T::AppliedTypeTree { .. }
                 | T::TypeBoundsTree { .. }
                 | T::LambdaTypeTree { .. }
+                | T::RefinedTypeTree { .. }
                 | T::Annotated { .. }
         ) || matches!(*self.tpd.tree(t), T::Ident { name } | T::Select { name, .. } if name.is_type)
     }

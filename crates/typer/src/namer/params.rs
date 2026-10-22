@@ -131,7 +131,7 @@ impl Typer<'_> {
         self.add_annotations(s, p, ctx);
         let info = match *self.ast.tree(p) {
             Tree::ValDef { tpt, .. } => {
-                let info = self.value_type_ahead(tpt, ctx);
+                let info = self.value_type_ahead(tpt, ctx.with_owner(s));
                 let repeated = self.repeated_elem(info).is_some();
                 match *self.u.types().get(info) {
                     Type::Annotated(seq, _) if repeated => {
@@ -141,7 +141,7 @@ impl Typer<'_> {
                     _ => info,
                 }
             }
-            Tree::TypeDef { rhs, .. } => self.type_def_info(rhs, ctx),
+            Tree::TypeDef { rhs, .. } => self.type_def_info(rhs, ctx.with_owner(s)),
             _ => self.u.intern_type(Type::Error),
         };
         self.u.set_info(s, info);
