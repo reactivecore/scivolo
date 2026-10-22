@@ -144,7 +144,8 @@ fn classify(
     name(v).map(Some).ok_or(())
 }
 
-fn target(vm: &Vm, v: u64) -> Option<Target> {
+/// The name of function value or C address `v`.
+pub fn target(vm: &Vm, v: u64) -> Option<Target> {
     if is_func_ref(v) {
         let (top, sig) = func_name(vm, func_of_ref(v))?;
         return Some(Target::Function(top, sig));

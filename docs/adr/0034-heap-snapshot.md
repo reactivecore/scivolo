@@ -33,6 +33,12 @@ snapshot whose objects move corrupts every identity-keyed table built during `in
 - A new `unsafe` mapping in `heap.rs`; the region logic in `heap/region.rs` is safe code.
 - Objects allocated during `init` are never collected, and weak references among them never
   cleared (none exist after `init`).
-- One more cache file; `Vm::new` gains a snapshot argument when restoring arrives.
+- One more cache file. `Vm::with_snapshot` takes `Snapshot::Cold`, `Restore(file contents)` or
+  `Write(path)`; the hidden `SCIVOLO_SNAPSHOT=FILE` restores FILE, or writes it after `init`
+  when missing. A file of another program version or with a wrong body hash starts cold.
+- Field types are stored as a tagged binary encoding of NIR types with globals by name;
+  trampolines are not stored but assigned again when a function value needs one.
+- 2026-10-22, M4 under load (minima): hello 10.8 → 8.8 ms, moderate 21.7 → 17.9 ms wall. The
+  re-run `init` still decodes and lowers its own code (~1.5 ms of hello).
 - Rejected: a position-independent dump with relocations and an identity-hash side table
   (kept in reserve if a hint is ever refused in practice).

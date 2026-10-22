@@ -11,7 +11,7 @@ const MULTITHREADING: &str = "scala.scalanative.meta.linktimeinfo.isMultithreadi
 /// Evaluated properties and conditions.
 #[derive(Default)]
 pub struct Linktime {
-    props: FxHashMap<String, u64>,
+    pub props: FxHashMap<String, u64>,
     conds: FxHashMap<usize, bool>,
 }
 
@@ -54,13 +54,6 @@ pub fn accessor_property(owner: &str, method: &str) -> Option<String> {
     };
     let name = format!("{PREFIX}{scope}{method}");
     property(&name).map(|_| name)
-}
-
-impl Linktime {
-    /// The values of the properties read so far.
-    pub fn props(&self) -> impl Iterator<Item = u64> + '_ {
-        self.props.values().copied()
-    }
 }
 
 impl Vm {

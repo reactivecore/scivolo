@@ -1,6 +1,7 @@
 //! The heap region at a fixed address, which holds the permanent heap and, while the VM trains,
 //! every allocation, each recorded with what it holds; see ADR 0034.
 
+use super::Heap;
 use std::ops::Range;
 
 #[cfg(target_os = "macos")]
@@ -81,6 +82,20 @@ impl Region {
         Some(addr)
     }
 
+    /// Copies `bytes`, a snapshot of a region at `start`, to the start of this unused one, and
+    /// ends training; whether the region is that one.
+    pub fn restore(&mut self, start: usize, bytes: &[u8], add_roots: impl FnOnce(usize, usize)) -> bool {
+        if start != self.start || self.cur != start {
+            return false;
+        }
+        self.training = Training::Off;
+        if self.alloc(bytes.len().next_multiple_of(16), Blob::Data, add_roots).is_none() {
+            return false;
+        }
+        super::copy(bytes.as_ptr() as usize, start, bytes.len());
+        true
+    }
+
     /// An object of `size` bytes as `alloc` makes it, while training.
     pub fn train(&mut self, size: usize, add_roots: impl FnOnce(usize, usize)) -> Option<usize> {
         match self.training {
@@ -104,6 +119,26 @@ impl Region {
             Training::Done(blobs, end) => Some(Trained { range: self.start..*end, blobs }),
             _ => None,
         }
+    }
+}
+
+impl Heap {
+    /// Sends objects and arrays to the collected heap from now on; `keep` keeps what training
+    /// allocated as a snapshot.
+    pub fn end_training(&mut self, keep: bool) {
+        if let Some(region) = &mut self.region {
+            region.end_training(keep);
+        }
+    }
+
+    pub fn trained(&self) -> Option<Trained<'_>> {
+        self.region.as_ref()?.trained()
+    }
+
+    /// Puts snapshot `bytes` taken at `start` back in place; whether that succeeded.
+    pub fn restore(&mut self, start: usize, bytes: &[u8]) -> bool {
+        let add_roots = self.gc.add_roots;
+        self.region.as_mut().is_some_and(|r| r.restore(start, bytes, |low, high| add_roots(low, high)))
     }
 }
 

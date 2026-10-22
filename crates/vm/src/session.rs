@@ -19,6 +19,12 @@ impl Vm {
         let (entry, argc) = (entry.to_owned(), args.len() + 1);
         self.run_training(move |vm| {
             let args = vm.init_runtime(argc, argv)?;
+            if let Some(path) = vm.snapshot_to.take()
+                && let Err(e) = vm.save_snapshot(&path)
+                && vm.funcs.trace
+            {
+                eprintln!("no snapshot: {e}");
+            }
             let top = vm.world.top(&entry);
             let main = vm.world.member(top, "D4mainLAL16java.lang.String_uEo");
             vm.call_global(main, &[args])?;

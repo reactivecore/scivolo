@@ -1,8 +1,22 @@
 //! What a heap snapshot of the trained region holds, and whether one may be taken; see ADR 0034.
 
+mod format;
+mod names;
+mod read;
 mod walk;
+mod write;
+
+pub use format::parse;
 
 use crate::Vm;
+
+/// How a VM starts: cold, from a snapshot file's contents, or cold writing one to the path
+/// once `run_main` has initialized the runtime.
+pub enum Snapshot {
+    Cold,
+    Restore(Vec<u8>),
+    Write(std::path::PathBuf),
+}
 
 /// Modules, and classes of instances, whose state depends on the process environment.
 const DENIED: [&str; 14] = [
@@ -56,7 +70,7 @@ impl Vm {
         if !self.funcs.consts.is_empty() {
             return Err("constant data is keyed by this process's definitions".into());
         }
-        let props = self.linktime.props().map(|v| v as usize).filter(|v| trained.range.contains(v));
+        let props = self.linktime.props.values().map(|&v| v as usize).filter(|v| trained.range.contains(v));
         let roots: Vec<usize> = (self.modules.values().chain(self.strings.values()).copied())
             .chain(self.classes.all.iter().map(|c| c.rtti))
             .chain(self.funcs.globals.values().copied())

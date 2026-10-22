@@ -54,13 +54,13 @@ pub fn java_name(name: &str) -> &str {
 
 #[derive(Default)]
 pub struct Rtti {
-    meta: Option<ClassId>,
-    meta_size: usize,
+    pub meta: Option<ClassId>,
+    pub meta_size: usize,
     pending: Vec<ClassId>,
     unnamed: Vec<ClassId>,
-    strings_ready: bool,
-    next_class: i32,
-    next_trait: i32,
+    pub strings_ready: bool,
+    pub next_class: i32,
+    pub next_trait: i32,
 }
 
 impl Vm {

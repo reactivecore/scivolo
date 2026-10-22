@@ -9,7 +9,7 @@ use clap::{CommandFactory, Parser, error::ErrorKind};
 use std::path::PathBuf;
 use std::process::ExitCode;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use vm::{Classpath, Vm, VmError};
+use vm::{Classpath, Snapshot, Vm, VmError};
 
 /// Runs a Scala program: a main class on the classpath, a Scala file or a script; without a
 /// target, starts the REPL.
@@ -150,7 +150,11 @@ fn run(
             Classpath::with_jars(&cp, &jars).map_err(|e| e.to_string())?
         }
     };
-    let mut vm = Vm::new(classpath).map_err(|e| e.to_string())?;
+    let snapshot = match std::env::var_os("SCIVOLO_SNAPSHOT").map(PathBuf::from) {
+        Some(file) => std::fs::read(&file).map_or(Snapshot::Write(file), Snapshot::Restore),
+        None => Snapshot::Cold,
+    };
+    let mut vm = Vm::with_snapshot(classpath, snapshot).map_err(|e| e.to_string())?;
     let main_class = match script::is_source(&target) {
         true => {
             let (classes, main) = script::main_of(&target, chosen, (known, &cp), options, &mut vm)?;

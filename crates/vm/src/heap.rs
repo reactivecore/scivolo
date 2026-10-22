@@ -61,18 +61,6 @@ impl Heap {
         Ok(Self { cur: 0, end: 0, allocated: 0, region, gc })
     }
 
-    /// Sends objects and arrays to the collected heap from now on; `keep` keeps what training
-    /// allocated as a snapshot.
-    pub fn end_training(&mut self, keep: bool) {
-        if let Some(region) = &mut self.region {
-            region.end_training(keep);
-        }
-    }
-
-    pub fn trained(&self) -> Option<Trained<'_>> {
-        self.region.as_ref()?.trained()
-    }
-
     /// A zeroed object of `size` bytes whose header points to `rtti`; may collect first.
     pub fn object(&mut self, rtti: usize, size: usize) -> usize {
         if let Some(obj) = self.train(size) {

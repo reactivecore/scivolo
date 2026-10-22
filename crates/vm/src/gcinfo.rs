@@ -15,12 +15,12 @@ pub const FIRST_ARRAY: i32 = 13;
 const FIRST_WEAK: i32 = 1 << 24;
 
 pub struct GcClasses {
-    boxed_ptr: i32,
-    weak: Option<ClassId>,
-    next_weak: i32,
-    weak_referent: i32,
+    pub boxed_ptr: i32,
+    pub weak: Option<ClassId>,
+    pub next_weak: i32,
+    pub weak_referent: i32,
     /// The program's function to run after a collection cleared weak references.
-    weak_handler: Option<u64>,
+    pub weak_handler: Option<u64>,
 }
 
 impl Default for GcClasses {

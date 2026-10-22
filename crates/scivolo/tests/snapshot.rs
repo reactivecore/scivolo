@@ -11,6 +11,7 @@ fn run() -> Result<(), String> {
     vm.start_runtime("snapshot", &[]).map_err(|e| e.to_string())?;
     let walk = vm.snapshot_walk()?;
     assert!(walk.objects > 400 && walk.bytes > 60_000, "{walk:?}");
+    assert!(vm.snapshot_file()?.len() > walk.bytes);
     vm.eval_module("java.lang.SystemProperties$").map_err(|e| e.to_string())?;
     let denied = vm.snapshot_walk().unwrap_err();
     assert!(denied.contains("SystemProperties"), "{denied}");
