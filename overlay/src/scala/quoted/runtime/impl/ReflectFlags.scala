@@ -121,7 +121,8 @@ trait ReflectFlags extends reflectModule { self: reflect.type =>
     def FunctionClass(arity: Int, isContextual: Boolean): Symbol = refused("defn.FunctionClass")
     def PolyFunctionClass: Symbol = refused("defn.PolyFunctionClass")
     def TupleClass(arity: Int): Symbol = refused("defn.TupleClass")
-    def isTupleClass(sym: Symbol): Boolean = refused("defn.isTupleClass")
+    def isTupleClass(sym: Symbol): Boolean =
+      ReflectOps.id(sym) >= 0 && sym.isClassDef && (1 to 22).exists(n => sym.fullName == s"scala.Tuple$n")
     def ScalaPrimitiveValueClasses: List[Symbol] = refused("defn.ScalaPrimitiveValueClasses")
     def ScalaNumericValueClasses: List[Symbol] = refused("defn.ScalaNumericValueClasses")
   }

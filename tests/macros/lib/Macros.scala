@@ -178,6 +178,7 @@ object Terms:
       case Repeated(es, tpt)          => s"Repeated([${all(es)}], ${show(tpt)})"
       case NamedArg(n, a)             => s"NamedArg($n, ${show(a)})"
       case ValDef(n, tpt, rhs)        => s"ValDef($n, ${show(tpt)}, ${rhs.map(show)})"
+      case This(q)                    => s"This($q)"
       case Inferred()                 => "Inferred"
       case tpt: TypeTree              => s"TypeTree(${tpt.tpe.typeSymbol.name})"
       case t: Term                    => "Term"
@@ -265,7 +266,8 @@ object TypeShapes:
     val some = TypeRepr.of[Some[Int]]
     val value = some.memberType(some.typeSymbol.caseFields.head) =:= TypeRepr.of[Int]
     val ref = some.typeSymbol.typeRef.typeSymbol == some.typeSymbol
-    Expr(List(listOfInt, applied, value, ref, defn.ScalaPackage.name, defn.RepeatedParamClass.name).mkString(" "))
+    val tuple = defn.isTupleClass(TypeRepr.of[(Int, String)].typeSymbol) && !defn.isTupleClass(some.typeSymbol)
+    Expr(List(listOfInt, applied, value, ref, tuple, defn.ScalaPackage.name, defn.RepeatedParamClass.name).mkString(" "))
 
 object Members:
   inline def structure[T]: String = ${ structureImpl[T] }

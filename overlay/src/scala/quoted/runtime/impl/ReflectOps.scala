@@ -33,7 +33,7 @@ object ReflectOps {
 
   /** The kind of tree `x`: 1 `Ident`, 2 `Select`, 3 `Literal`, 4 `Typed`, 5 `Apply`, 6 `TypeApply`,
    *  7 `Block`, 8 `Inlined`, 9 `Repeated`, 10 `TypeTree`, 11 `Inferred`, 12 `ValDef`, 13 `NamedArg`,
-   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 0 another tree.
+   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 18 `This`, 0 another tree.
    */
   def kind(x: Any): Int = one("treeKind", id(x))
 
