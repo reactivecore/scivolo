@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,182 of 1,711 pass (2026-10-22); 292 stop at the typer, 15 at
+(`just dotty-lower-report`): 1,196 of 1,711 pass (2026-10-22); 278 stop at the typer, 15 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -76,8 +76,8 @@ the lowering.
    bridges; 99.8% of the library's signatures match Scala Native's mangled names.
 3. **Typer for the scripting subset** (`crates/typer`): inference, overloads, implicits and
    givens, extension methods, unions, inlining (ADR 0020), match types, mirrors and `derives`.
-   `just typer-report` (2026-10-22): tests/pos 1,783 typed as dotty, 146 differ (20 only in
-   warnings), 1,096 refused. Unsupported
+   `just typer-report` (2026-10-22): tests/pos 1,803 typed as dotty, 141 differ (20 only in
+   warnings), 1,081 refused. Unsupported
    input is refused, never compiled silently wrong.
 4. **Lowering** (`crates/lower`): dotty's phases from FirstTransform to Constructors and
    nscplugin's NIR generation; every lowered test program matches Scala Native's NIR byte for
@@ -97,7 +97,7 @@ dotty's `tests/run-macros`: 23 of 321 pass (2026-10-22, `just dotty-macros`).
 ## Phase 5 — precompiled code and wider reach
 
 - **Native executables** (done, #113, [ADR 0028](docs/adr/0028-native-executables-via-cranelift.md)):
-  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 152 of 159
+  `scivolo-aot` builds sources or NIR into single-threaded executables with Cranelift; 160 of 167
   test programs from source (`just aot-src-all`).
 - **Third-party libraries** (done): `--dep` loads `_native0.5_3` jars as NIR plus TASTy, fetched
   by Coursier.
@@ -108,13 +108,13 @@ dotty's `tests/run-macros`: 23 of 321 pass (2026-10-22, `just dotty-macros`).
 ## Next
 
 In order of the tests they unblock:
-1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s V2
-   (applications) and U (structural and small) and V1's singles (tuples, i4364a, i19641,
-   i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A leftovers
+1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s V1 singles
+   (tuples, i4364a, i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A leftovers
    (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple leftovers
    (#139: patterns over 22, `map[F]`, ordering; #146); mirrors (#129); match-type leftovers
    (#120); typed-tree printing gap 2 (#122). Done 2026-10-22: poly function leftovers (#136),
-   #122 gaps 1 and 3 (#156), research 27's I1 (#82 opaque proxies, transparent givens).
+   #122 gaps 1 and 3 (#156), research 27's I1 (#82 opaque proxies, transparent givens), V2 and U
+   (#152).
 2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `ValDef.let`, `Type.show`,
    quote matcher, further reflect slices, measured on `tests/run-macros`.
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): the
