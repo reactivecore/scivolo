@@ -5,7 +5,7 @@
 //! one group a unique winner or the most specific one. A candidate that does not fit is skipped;
 //! any other failure of a candidate fails the search.
 
-use super::super::Typer;
+use super::super::{Pt, Typer};
 use super::candidates::Candidate;
 use crate::ctx::Ctx;
 use crate::tpd::TNodeId;
@@ -158,7 +158,7 @@ impl Typer<'_> {
         self.implicit_budget -= 1;
         let tree = self.with_implicit_args(tree, (at, at), ctx, depth + 1)?;
         let tree = if method { self.eta_expanded_implicit(tree, pt, ctx)? } else { tree };
-        let tree = self.inlined_transparent(tree, super::super::Pt::Type(pt), ctx).unwrap_or(tree);
+        let tree = self.inlined_transparent(tree, Pt::Type(pt), ctx).unwrap_or(tree);
         let t = self.tpd.tpe(tree);
         let info = self.method_info(t).unwrap_or(t);
         if matches!(self.u.types().get(info), Type::Method { .. } | Type::Poly { .. }) {
