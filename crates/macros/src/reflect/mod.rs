@@ -3,6 +3,7 @@
 //! a kind, two words and a text.
 
 mod constants;
+mod members;
 mod positions;
 mod reports;
 mod symbols;
@@ -27,8 +28,9 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 7] = [
+        let subjects: [Run; 8] = [
             Host::run_report,
+            Host::run_member,
             Host::run_tree,
             Host::run_term,
             Host::run_type,

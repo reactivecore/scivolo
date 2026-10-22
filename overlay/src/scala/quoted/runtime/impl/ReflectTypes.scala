@@ -39,6 +39,10 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def =:=(that: TypeRepr): Boolean = ReflectOps.one("isSameType", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def <:<(that: TypeRepr): Boolean = ReflectOps.one("isSubtype", ReflectOps.id(self), ReflectOps.id(that)) != 0
       def asType: Type[?] = self.asInstanceOf[Type[?]]
+      def classSymbol: Option[Symbol] = {
+        val c = ReflectOps.one("classSymbol", ReflectOps.id(self))
+        if (c < 0) None else Some(new SymbolImpl(c).asInstanceOf[Symbol])
+      }
       def widen: TypeRepr = QuoteHost.tpe(ReflectOps.one("widen", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def widenTermRefByName: TypeRepr =
         QuoteHost.tpe(ReflectOps.one("widenTermRefByName", ReflectOps.id(self))).asInstanceOf[TypeRepr]

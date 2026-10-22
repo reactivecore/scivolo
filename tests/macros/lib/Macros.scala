@@ -219,6 +219,43 @@ object Checks:
     import quotes.reflect.*
     Expr(x.asTerm.tpe.widen =:= TypeRepr.of[Int])
 
+object Members:
+  inline def structure[T]: String = ${ structureImpl[T] }
+  def structureImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = TypeRepr.of[T].typeSymbol
+    def names(l: List[Symbol]) = l.map(_.name).mkString(",")
+    val ctor = s.primaryConstructor
+    val parts = List(
+      s"ctor=${ctor.name}${ctor.paramSymss.map(names).mkString("(", ")(", ")")}",
+      s"case=${names(s.caseFields)}",
+      s"companion=${s.companionClass.name}",
+      s"children=${if s.flags.is(Flags.Sealed) then names(s.children) else "-"}",
+      s"class=${TypeRepr.of[T].classSymbol.map(_.name)}"
+    )
+    Expr(parts.mkString("; "))
+
+  inline def methods[T]: String = ${ methodsImpl[T] }
+  def methodsImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    val s = TypeRepr.of[T].typeSymbol
+    val own = s.memberMethods.filter(_.owner == s).sortBy(_.pos.map(_.start))
+    val described = own.map { m =>
+      val p = m.pos.get
+      s"${m.name}${m.paramSymss.map(_.map(_.name).mkString(",")).mkString("[", "][", "]")}@${p.startLine}:${p.startColumn}"
+    }
+    Expr(described.mkString(" "))
+
+  inline def inherited[T](inline name: String): Int = ${ inheritedImpl[T]('name) }
+  def inheritedImpl[T: Type](name: Expr[String])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[T].typeSymbol.methodMember(name.valueOrAbort).size)
+
+  inline def required: String = ${ requiredImpl }
+  def requiredImpl(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(Symbol.requiredClass("scala.collection.immutable.List").fullName)
+
 class Chunk(val parts: List[String])
 
 trait ChunkMacros:

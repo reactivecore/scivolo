@@ -36,7 +36,7 @@ impl Host {
     }
 
     /// `span` as the number of its source file and its offsets in that file, in UTF-16 units.
-    fn located(&self, span: Span) -> Answer {
+    pub fn located(&self, span: Span) -> Answer {
         if !span.exists() || span.is_in_other_source() || self.sources.is_empty() {
             return Err("a position outside the sources of the unit");
         }

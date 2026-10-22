@@ -28,6 +28,12 @@ impl Host {
                 let w = self.reflect().widen_term_ref_by_name(t);
                 numbers(vec![self.add_type(w) as i32])
             }
+            "classSymbol" => {
+                let t = self.type_of(arg(0)? as u32)?;
+                let t = self.u.widen(t);
+                let c = self.u.class_symbol(t).filter(|&c| self.u.is_class(c));
+                numbers(vec![c.map_or(-1, |c| c.0 as i32)])
+            }
             "widen" => {
                 let t = self.type_of(arg(0)? as u32)?;
                 let w = self.u.widen(t);

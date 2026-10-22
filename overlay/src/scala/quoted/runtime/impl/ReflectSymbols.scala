@@ -11,10 +11,13 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     def spliceOwner: Symbol = symbol(ReflectOps.one("spliceOwner"))
     def noSymbol: Symbol = symbol(-1)
     def requiredPackage(path: String): Symbol = refused("Symbol.requiredPackage")
-    def requiredClass(path: String): Symbol = refused("Symbol.requiredClass")
+    def requiredClass(path: String): Symbol = {
+      ReflectOps.run("requiredClass", new Array[Int](0), path)
+      symbol(QuoteHost.result(0))
+    }
     def requiredModule(path: String): Symbol = refused("Symbol.requiredModule")
     def requiredMethod(path: String): Symbol = refused("Symbol.requiredMethod")
-    def classSymbol(fullName: String): Symbol = refused("Symbol.classSymbol")
+    def classSymbol(fullName: String): Symbol = requiredClass(fullName)
     def newClass(owner: Symbol, name: String, parents: List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr]): Symbol = refused("Symbol.newClass")
     def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
@@ -59,10 +62,27 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
         List.tabulate(n)(i => sym(QuoteHost.result(i)))
       }
       def owner: Symbol = sym(ReflectOps.one("owner", ReflectOps.id(self)))
-      def name: String = ReflectOps.text("name", ReflectOps.id(self))
+      def name: String = if (ReflectOps.id(self) < 0) "<none>" else ReflectOps.text("name", ReflectOps.id(self))
       def fullName: String = ReflectOps.text("fullName", ReflectOps.id(self))
       def flags: Flags = ReflectOps.flags(ReflectOps.id(self)).asInstanceOf[Flags]
       def moduleClass: Symbol = sym(ReflectOps.one("moduleClass", ReflectOps.id(self)))
+      def companionClass: Symbol = sym(ReflectOps.one("companionClass", ReflectOps.id(self)))
+      def primaryConstructor: Symbol = sym(ReflectOps.one("primaryConstructor", ReflectOps.id(self)))
+      def caseFields: List[Symbol] = ReflectOps.results("caseFields", ReflectOps.id(self)).map(sym)
+      def children: List[Symbol] = ReflectOps.results("children", ReflectOps.id(self)).map(sym)
+      def paramSymss: List[List[Symbol]] = {
+        val r = ReflectOps.results("paramSymss", ReflectOps.id(self))
+        val sizes = r.slice(1, 1 + r.head)
+        val params = r.drop(1 + r.head).map(sym)
+        sizes.scanLeft(0)(_ + _).zip(sizes).map((start, n) => params.slice(start, start + n))
+      }
+      def methodMember(name: String): List[Symbol] = members(self, name)
+      def memberMethod(name: String): List[Symbol] = members(self, name)
+      def methodMembers: List[Symbol] = members(self, "")
+      def memberMethods: List[Symbol] = members(self, "")
+      def pos: Option[Position] =
+        if (ReflectOps.id(self) < 0) None
+        else Some(ReflectOps.position("symbolPos", ReflectOps.id(self)).asInstanceOf[Position])
       def isNoSymbol: Boolean = ReflectOps.id(self) < 0
       def exists: Boolean = ReflectOps.id(self) >= 0
       def isPackageDef: Boolean = kind(self) == 0
@@ -77,6 +97,11 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     }
 
     private def sym(id: Int): Symbol = new SymbolImpl(id).asInstanceOf[Symbol]
+
+    private def members(s: Symbol, name: String): List[Symbol] = {
+      val n = ReflectOps.run("methodMembers", Array(ReflectOps.id(s)), name)
+      List.tabulate(n)(i => sym(QuoteHost.result(i)))
+    }
 
     private def kind(s: Symbol): Int = if (ReflectOps.id(s) < 0) -1 else ReflectOps.one("kind", ReflectOps.id(s))
 
