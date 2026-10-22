@@ -21,8 +21,8 @@ def compile_all():
     """Compiles a copy of overlay/src in tmp/overlay/src into tmp/overlay/out."""
     shutil.rmtree(WORK, ignore_errors=True)
     shutil.copytree(SOURCES, WORK / "src")
-    cmd = ["scala-cli", "--power", "compile", "--quiet", "--native", "--native-version", NATIVE, "--scala", "3.9.0",
-           "--workspace", str(WORK), "-d", str(WORK / "out"), "src"]
+    cmd = ["scala-cli", "--power", "compile", "--quiet", "--server=false", "--native", "--native-version", NATIVE,
+           "--scala", "3.9.0", "--workspace", str(WORK), "-d", str(WORK / "out"), "src"]
     r = subprocess.run(cmd, capture_output=True, text=True, cwd=WORK)
     if r.returncode != 0:
         sys.exit(f"scala-cli failed\n{r.stdout}{r.stderr}")
