@@ -125,3 +125,4 @@ polyfunctions
 inlineextractors
 argclauses
 localinline
+unsafelazy
