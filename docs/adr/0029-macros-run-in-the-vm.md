@@ -53,6 +53,8 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   children in the extractor's order; the overlay's `TypeTest`s and `unapply`s are written over
   it. Trees a macro builds take the expansion's span (dotty's `withDefaultPos`), and a hole
   filled with a tree of the call's source takes the hole's span (`PickledQuotes.spliceTerms`).
+- **`report`**: errors are recorded on the host with their spans and reported for the expansion
+  (`errorAndAbort` throws `StopMacroExpansion` after recording); warnings and infos are refused.
 - **Lifetime of the typer's state.** The typer lends its universe, trees and names to the
   expansion (`typer::inlining::Macros`); the `macros` crate moves them into the `QuoteHost`
   for the run and back afterwards, as the typer lends them to its own implicit searches.
