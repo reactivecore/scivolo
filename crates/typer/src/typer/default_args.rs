@@ -58,6 +58,8 @@ impl Typer<'_> {
             T::Ident { .. } => self.ident_receiver(mref, span.start_pos(), ctx)?,
             _ => return Err("default argument"),
         };
+        let lifted = matches!(self.tpd.tree(receiver), T::Ident { .. })
+            && self.tpd.sym(receiver).is_some_and(|s| self.u.symbol(s).flags.has(SYNTHETIC));
         let site = self.tpd.tpe(receiver);
         let sym_name = getter_name.replace("$lessinit$greater", "<init>");
         let [getter] = self.type_members(site, &sym_name)[..] else { return Err("default getter") };
@@ -77,7 +79,14 @@ impl Typer<'_> {
                         .map(|(&a, &t)| self.type_tree(t, self.tpd.span(a), true))
                         .collect();
                     let tpe = self.instantiated(getter, &types)?;
-                    let tpe = if ctor || i > 0 { tpe } else { self.simplified(tpe) };
+                    let after_values = matches!(self.tpd.tree(getter), T::Apply { .. });
+                    let library = self.tpd.sym(getter).is_some_and(|s| self.u.symbol(s).tree.is_some());
+                    let inferred =
+                        targs.iter().all(|&a| matches!(self.tpd.tree(a), T::TypeTree { inferred: true }));
+                    let interpolated = inferred && !lifted;
+                    let plain = self.plain_default_of_contextual(method, n);
+                    let simplify = !ctor && i == 0 && (after_values || library || interpolated || plain);
+                    let tpe = if simplify { self.simplified(tpe) } else { tpe };
                     getter = self.build().type_apply(getter, &trees, tpe, span.to_synthetic());
                     continue;
                 }
@@ -96,6 +105,26 @@ impl Typer<'_> {
             getter = self.build().apply(getter, &args, result, span.to_synthetic());
         }
         Ok(getter)
+    }
+
+    /// Whether parameter `n` of `method`, counted over its value clauses, is in a plain clause
+    /// of a method with an implicit or `using` clause.
+    fn plain_default_of_contextual(&mut self, method: SymbolId, n: usize) -> bool {
+        let (mut t, mut before, mut in_implicit, mut has_implicit) = (self.u.info(method), 0, false, false);
+        loop {
+            match self.u.types().get(t).clone() {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params, result, implicit, contextual, .. } => {
+                    if (before..before + params.len()).contains(&n) {
+                        in_implicit = implicit || contextual;
+                    }
+                    has_implicit |= implicit || contextual;
+                    before += params.len();
+                    t = result;
+                }
+                _ => return has_implicit && !in_implicit,
+            }
+        }
     }
 
     /// The receiver of the default getters of method reference `mref`, an identifier: its
