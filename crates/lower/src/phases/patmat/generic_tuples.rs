@@ -3,7 +3,7 @@
 //! The components of an extractor result of a generic tuple type `A *: B *: EmptyTuple`, as
 //! `Tuples.apply(result, i)` (dotty's `tupleApp`).
 
-use super::super::tuple_optimizations::tuple_element_types;
+use super::super::tuple_optimizations::elements::tuple_element_types;
 use super::Translator;
 use super::plan::PlanId;
 use crate::{Result, unsupported};
