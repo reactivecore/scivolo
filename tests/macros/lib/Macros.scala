@@ -223,6 +223,24 @@ object Checks:
     import quotes.reflect.*
     Expr(x.asTerm.tpe.widen =:= TypeRepr.of[Int])
 
+object TypePatterns:
+  inline def kind[T]: String = ${ kindImpl[T] }
+  def kindImpl[T: Type](using Quotes): Expr[String] =
+    import quotes.reflect.*
+    def isInt[X: Type] = TypeRepr.of[X] =:= TypeRepr.of[Int]
+    Type.of[T] match
+      case '[List[t]]   => Expr(s"list of ${if isInt[t] then "Int" else "other"}")
+      case '[Map[k, v]] => Expr(s"map ${isInt[k]} ${isInt[v]}")
+      case '[Int]       => Expr("int")
+      case _            => Expr("other")
+
+  inline def emptyOf[T]: Any = ${ emptyOfImpl[T] }
+  def emptyOfImpl[T: Type](using Quotes): Expr[Any] =
+    import quotes.reflect.*
+    TypeRepr.of[T].asType match
+      case '[Option[t]] => '{ List.empty[t] }
+      case '[t]         => '{ Option.empty[t] }
+
 object Members:
   inline def structure[T]: String = ${ structureImpl[T] }
   def structureImpl[T: Type](using Quotes): Expr[String] =

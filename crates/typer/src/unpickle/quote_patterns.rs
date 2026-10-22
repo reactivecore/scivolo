@@ -39,6 +39,26 @@ impl Unpickler<'_> {
         Ok(Some(QuotePattern { hole, bindings }))
     }
 
+    /// The type pattern quoted type body `body` is, if it is one: a block of type binding
+    /// definitions and a type tree (`'[P]`, dotty's `QuoteMatcher` on type trees).
+    pub fn type_pattern(
+        &mut self,
+        body: NodeId,
+        spliced: &[(SymbolId, TypeId)],
+    ) -> Result<Option<QuotePattern>, Refusal> {
+        let (inner, bindings) = self.type_bindings(body)?;
+        if bindings.is_empty() {
+            return Ok(None);
+        }
+        let tpt = self.tpt(inner)?;
+        let hole = self.tpd.tpe(tpt);
+        let hole = self.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
+            _ => None,
+        });
+        Ok(Some(QuotePattern { hole, bindings }))
+    }
+
     /// The body of the block at `id` after its type binding definitions, and the bindings
     /// defined; `id` itself without bindings if it is not such a block (dotty's
     /// `instrumentTypeHoles`).

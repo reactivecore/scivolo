@@ -82,8 +82,11 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   }
 
   object TypeMatch extends TypeMatchModule {
-    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Type[?])(using pattern: Type[?]): Option[Tup] =
-      throw new Unsupported("a quoted type pattern")
+    def unapply[TypeBindings, Tup <: Tuple](scrutinee: Type[?])(using pattern: Type[?]): Option[Tup] = {
+      val n = ReflectOps.one("matchType", QuoteHost.typeId(scrutinee), QuoteHost.typeId(pattern))
+      if (n < 0) None
+      else Some(Tuple.fromArray(Array.tabulate[Object](n)(i => QuoteHost.tpe(-1 - QuoteHost.matched(i)).asInstanceOf[Object])).asInstanceOf[Tup])
+    }
   }
 
   private def text(pickled: String | List[String]): String = pickled match {
