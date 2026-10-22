@@ -37,7 +37,8 @@ snapshot whose objects move corrupts every identity-keyed table built during `in
 - A new `unsafe` mapping in `heap.rs`; the region logic in `heap/region.rs` is safe code.
 - Objects allocated during `init` are never collected, and weak references among them never
   cleared (none exist after `init`).
-- One more cache file. `Vm::with_snapshot` takes `Snapshot::Cold`, `Restore(file contents)` or
+- One more cache file; a refused cache file is replaced by the cold run. `Vm::with_snapshot`
+  takes `Snapshot::Cold`, `Restore(file contents, cache path)` or
   `Write(path)`; the hidden `SCIVOLO_SNAPSHOT=FILE` uses FILE instead of the cache's. A file
   of another program version or with a wrong body hash starts cold, and so does a restore
   that fails after the copy: the region is zeroed and the tables reset first.

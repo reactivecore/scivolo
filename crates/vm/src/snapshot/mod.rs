@@ -13,10 +13,11 @@ pub use start::{ExecInfo, INIT_PORTED_FROM};
 use crate::Vm;
 
 /// How a VM starts: cold, from a snapshot file's contents, or cold writing one to the path
-/// once `run_main` or `start_runtime` has initialized the runtime.
+/// once `run_main` or `start_runtime` has initialized the runtime. A refused restore with a
+/// path to replace removes a corrupt file there and writes a fresh one.
 pub enum Snapshot {
     Cold,
-    Restore(Vec<u8>),
+    Restore(Vec<u8>, Option<std::path::PathBuf>),
     Write(std::path::PathBuf),
 }
 

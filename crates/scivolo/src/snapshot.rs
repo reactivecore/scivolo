@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use vm::Snapshot;
 
 /// How the VM over library image `image` starts: from its snapshot file, or cold writing one
-/// when it is missing. `SCIVOLO_SNAPSHOT=FILE` names another file; `SCIVOLO_NO_SNAPSHOT`
+/// when it is missing or refused. `SCIVOLO_SNAPSHOT=FILE` names another file; `SCIVOLO_NO_SNAPSHOT`
 /// starts cold without writing.
 pub fn choose(image: Option<&Image>) -> Snapshot {
     if std::env::var_os("SCIVOLO_NO_SNAPSHOT").is_some() {
@@ -21,7 +21,7 @@ pub fn choose(image: Option<&Image>) -> Snapshot {
     match std::fs::read(&file) {
         Ok(data) => {
             cache::touch(&file);
-            Snapshot::Restore(data)
+            Snapshot::Restore(data, cached.then(|| file.clone()))
         }
         Err(_) => {
             if cached {

@@ -81,3 +81,23 @@ fn programs_from_a_snapshot() {
     run(&hello, "hello", Some(&file)).unwrap();
     run_all(Some(&file));
 }
+
+#[test]
+fn corrupt_cache_snapshot_is_replaced() {
+    let cache = Path::new(env!("CARGO_TARGET_TMPDIR")).join("corrupt-cache");
+    let _ = std::fs::remove_dir_all(&cache);
+    let hello = root().join("hello");
+    let traced = || {
+        let mut command = command(&[&hello], "hello", None);
+        command.env_remove("SCIVOLO_NO_SNAPSHOT").env("SCIVOLO_CACHE", &cache).env("SCIVOLO_TRACE", "1");
+        String::from_utf8_lossy(&command.output().unwrap().stderr).into_owned()
+    };
+    if traced().contains("or the Coursier cache") {
+        return;
+    }
+    let mut files = std::fs::read_dir(&cache).unwrap().map(|e| e.unwrap().path());
+    let snap = files.find(|p| p.file_name().unwrap().to_string_lossy().starts_with("snap-")).unwrap();
+    std::fs::write(&snap, b"corrupt").unwrap();
+    assert!(traced().contains("snapshot not used"));
+    assert!(traced().contains("snapshot restored"));
+}

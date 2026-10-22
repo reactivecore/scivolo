@@ -95,11 +95,21 @@ impl Vm {
             stack::bounds().ok_or_else(|| VmError::Unsupported("unknown thread stack bounds".into()))?;
         let mut heap = Heap::new(natives::symbol, bounds).map_err(VmError::Unsupported)?;
         let mut classpath = classpath;
-        let mut image = match &snapshot {
-            Snapshot::Restore(data) => snapshot::parse(data).ok(),
-            _ => None,
+        let (mut image, snapshot_to) = match &snapshot {
+            Snapshot::Cold => (None, None),
+            Snapshot::Write(path) => (None, Some(path.clone())),
+            Snapshot::Restore(data, replace) => match snapshot::parse(data) {
+                Ok(image) if classpath.shadows(&image.packages) => (None, None),
+                Ok(image) => (Some(image), replace.clone()),
+                Err(_) => {
+                    if let Some(path) = replace {
+                        let _ = std::fs::remove_file(path);
+                    }
+                    (None, replace.clone())
+                }
+            },
         };
-        image = image.filter(|i| !classpath.shadows(&i.packages) && heap.restore(i.start, i.region));
+        image = image.filter(|i| heap.restore(i.start, i.region));
         let thread = match &image {
             Some(i) => i.thread,
             None => heap.permanent(16, heap::Blob::Words),
@@ -125,10 +135,7 @@ impl Vm {
             dlerror: std::ffi::CString::default(),
             scratch: Vec::new(),
             quotes: natives::Expansions::default(),
-            snapshot_to: match &snapshot {
-                Snapshot::Write(path) => Some(path.clone()),
-                _ => None,
-            },
+            snapshot_to: None,
             restored: None,
         };
         vm.funcs.trace = std::env::var_os("SCIVOLO_TRACE").is_some();
@@ -144,7 +151,10 @@ impl Vm {
             }
             vm.forget_snapshot();
         }
-        if vm.funcs.trace && matches!(snapshot, Snapshot::Restore(_)) {
+        if vm.restored.is_none() {
+            vm.snapshot_to = snapshot_to;
+        }
+        if vm.funcs.trace && matches!(snapshot, Snapshot::Restore(..)) {
             eprintln!("snapshot {}", if vm.restored.is_some() { "restored" } else { "not used" });
         }
         let booted = match vm.restored {
