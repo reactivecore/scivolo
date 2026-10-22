@@ -1,4 +1,5 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Dynamic.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! `apply` inserted on an applied value (dotty's `tryInsertApplyOrImplicit`).
 
@@ -11,7 +12,9 @@ use tasty::Type;
 
 impl Typer<'_> {
     /// `f`, or `f.apply` if `f` is not a method, the alternative chosen by `pt`, arguments or
-    /// type arguments.
+    /// type arguments; a context function value applied to its implicit arguments first unless
+    /// the arguments are `using` ones or it is a dynamic call's result (dotty's `adaptToArgs`,
+    /// `isDynamicExpansion`).
     pub fn with_apply(&mut self, f: TNodeId, pt: Pt, ctx: Ctx) -> Result<TNodeId, &'static str> {
         let tpe = self.tpd.tpe(f);
         let info = self.method_info(tpe).unwrap_or(tpe);

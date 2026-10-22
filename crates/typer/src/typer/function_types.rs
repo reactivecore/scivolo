@@ -1,4 +1,5 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/core/Types.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Function types `A => B` and `A ?=> B` (dotty's `typedFunctionType`) and the parts of function
 //! types.
