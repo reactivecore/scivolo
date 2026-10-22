@@ -51,9 +51,22 @@ object QuoteHost {
   def argCount(): Int = throw new UnsupportedOperationException("VM native")
 
   /** Argument `arg` of the macro implementation: an `Expr` number, `-1 - n` for `Type` number
-   *  `n`, `Int.MinValue` for the `Quotes`.
+   *  `n`, `Int.MinValue` for the `Quotes`, `Int.MinValue + 1` for a literal.
    */
   def arg(arg: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** The descriptor letter of the type of literal argument `arg`: `T` a string, `N` null. */
+  def literalTag(arg: Int): Int = throw new UnsupportedOperationException("VM native")
+
+  /** The text of string literal argument `arg`. */
+  def literalText(arg: Int): String = throw new UnsupportedOperationException("VM native")
+
+  /** Literal argument `arg` as an object; the VM passes a primitive one unboxed. */
+  def literal(arg: Int): Object = literalTag(arg).toChar match {
+    case 'T' => literalText(arg)
+    case 'V' => scala.runtime.BoxedUnit.UNIT
+    case _   => null
+  }
 
   /** Refuses the macro expansion running for `what`. */
   def refuse(what: String): Unit = throw new UnsupportedOperationException("VM native")
@@ -64,7 +77,11 @@ object QuoteHost {
     var i = 0
     while (i < args.length) {
       val n = arg(i)
-      args(i) = if (n == Int.MinValue) new QuotesImpl else if (n >= 0) expr(n) else tpe(-1 - n)
+      args(i) =
+        if (n == Int.MinValue) new QuotesImpl
+        else if (n == Int.MinValue + 1) literal(i)
+        else if (n >= 0) expr(n)
+        else tpe(-1 - n)
       i += 1
     }
     args

@@ -9,6 +9,7 @@ mod tasty_string;
 pub use typer::inlining::Macros;
 
 use host::Host;
+use syntax::ast::constant::Constant;
 use syntax::source::SourceFile;
 use typer::inlining::{Expanded, Lent, MacroArg, MacroCall, MacroError};
 use vm::{Thrown, Vm, VmError};
@@ -33,10 +34,11 @@ impl Macros for VmMacros<'_> {
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
-            .map(|a| match *a {
-                MacroArg::Expr(t) => vm::MacroArg::Expr(host.add_tree(t)),
-                MacroArg::Type(t) => vm::MacroArg::Type(host.add_type(t)),
+            .map(|a| match a {
+                &MacroArg::Expr(t) => vm::MacroArg::Expr(host.add_tree(t)),
+                &MacroArg::Type(t) => vm::MacroArg::Type(host.add_type(t)),
                 MacroArg::Quotes => vm::MacroArg::Quotes,
+                MacroArg::Literal(c) => literal(c),
             })
             .collect();
         let (host, result) = self.vm.expand_macro(Box::new(host), (&module, &sig), &args);
@@ -52,6 +54,25 @@ impl Macros for VmMacros<'_> {
             }
         }
     }
+}
+
+/// Literal `c` as the VM passes it, by the descriptor letter of its type (dotty's
+/// `interpretLiteral`).
+fn literal(c: &Constant) -> vm::MacroArg {
+    let (tag, bits, text) = match c {
+        Constant::Unit => (b'V', 0, None),
+        &Constant::Boolean(b) => (b'Z', b as u64, None),
+        &Constant::Byte(n) => (b'B', n as u8 as u64, None),
+        &Constant::Short(n) => (b'S', n as u16 as u64, None),
+        &Constant::Char(n) => (b'C', n as u64, None),
+        &Constant::Int(n) => (b'I', n as u32 as u64, None),
+        &Constant::Long(n) => (b'J', n as u64, None),
+        &Constant::Float(x) => (b'F', x.to_bits() as u64, None),
+        &Constant::Double(x) => (b'D', x.to_bits(), None),
+        Constant::String(units) => (b'T', 0, Some(String::from_utf16_lossy(units))),
+        Constant::Null => (b'N', 0, None),
+    };
+    vm::MacroArg::Literal(tag, bits, text)
 }
 
 /// The error dotty reports for exception `thrown`.

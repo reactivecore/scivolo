@@ -162,6 +162,9 @@ impl Inlining<'_> {
         if self.tpd.sym(arg) == Some(quotes) && matches!(self.tpd.tree(arg), T::Ident { .. }) {
             return Some(MacroArg::Quotes);
         }
+        if let T::Literal { value } = self.tpd.tree(arg) {
+            return Some(MacroArg::Literal(value.clone()));
+        }
         let T::Apply { fun, args } = *self.tpd.tree(arg) else { return None };
         let [q] = self.tpd.items(args)[..] else { return None };
         if self.tpd.sym(self.unwrapped(q)) != Some(quotes) {
