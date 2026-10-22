@@ -63,6 +63,7 @@ impl Typer<'_> {
         }
         let at = self.tpd.span(tree).start_pos();
         let fun = self.with_implicit_args(fun, (at, at), ctx, 1)?;
+        let fun = self.inlined_transparent(fun, Pt::Any, ctx).unwrap_or(fun);
         self.with_apply(fun, Pt::Any, ctx)
     }
 
