@@ -114,18 +114,9 @@ pub fn from_elements(l: &mut Lower, tpes: &[TypeId], elements: &[TNodeId]) -> Op
     Some(l.positioned(app))
 }
 
-/// `TupleN(it.next(), …, it.next())` of `size` elements, `EmptyTuple` of none, else
-/// `TupleXXL.fromIterator(it)` (dotty's `knownTupleFromIterator`).
+/// `TupleN(it.next(), …, it.next())` of 1 to 22 elements (dotty's `knownTupleFromIterator`).
 pub fn from_iterator(l: &mut Lower, size: usize, it: &mut Once) -> Option<TNodeId> {
-    if size == 0 {
-        return empty_tuple(l);
-    }
-    if size > MAX_TUPLE_ARITY {
-        let (xxl, from_iterator) = module_member(l, "scala.runtime", "TupleXXL", "fromIterator")?;
-        let qual = l.ident(xxl, Span::NONE);
-        let arg = it.get(l);
-        return Some(l.call(qual, from_iterator, &[arg]));
-    }
+    tuple_class(l, size)?;
     let any = l.u.class_ref("scala.Any");
     let elements = (0..size).map(|_| next(l, it)).collect::<Option<Vec<_>>>()?;
     from_elements(l, &vec![any; size], &elements)

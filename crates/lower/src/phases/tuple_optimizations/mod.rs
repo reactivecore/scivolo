@@ -7,7 +7,7 @@ pub(super) mod elements;
 mod known;
 
 use self::elements::{MAX_TUPLE_ARITY, tuple_element_types, tuple_element_types_up_to, widen_term_ref_expr};
-use self::known::{Once, class_member, empty_tuple, from_elements, from_iterator, method, module_member};
+use self::known::{Once, empty_tuple, from_elements, from_iterator, method, module_member};
 use self::known::{next, select_applied, selectors, tuple_type, typed};
 use super::first_transform::literal;
 use super::walk::{children, walk_class_up, without_type_args};
@@ -95,7 +95,7 @@ fn elements(l: &mut Lower, t: TNodeId) -> Option<Vec<TypeId>> {
 
 /// `TupleN+1(head, t._1, …, t._n)` of `val t = tail`, or of more elements
 /// `TupleN+1(it.next(), …)` of `val it = Tuples.consIterator(head, tail)` (dotty's
-/// `transformTupleCons`).
+/// `transformTupleCons`); none of more than 22 elements.
 fn cons(
     l: &mut Lower,
     t: TNodeId,
@@ -106,6 +106,9 @@ fn cons(
 ) -> Option<TNodeId> {
     let tpes = elements(l, t)?;
     let size = tpes.len();
+    if size == 0 || size > MAX_TUPLE_ARITY {
+        return None;
+    }
     if size > MAX_SELECTED {
         let it = tuples_call(l, "consIterator", &[head, tail])?;
         return from_iterator_cast(l, it, size, l.tpd.tpe(t), owner);
@@ -118,8 +121,8 @@ fn cons(
     Some(tup.wrap(l, tuple, kept))
 }
 
-/// `EmptyTuple`, `TupleN-1(t._2, …, t._n)` of `val t = tup`, the elements after the first of
-/// `tup.productIterator`, or `tup.tailXXL` (dotty's `transformTupleTail`).
+/// `EmptyTuple`, `TupleN-1(t._2, …, t._n)` of `val t = tup`, or the elements after the first of
+/// `tup.productIterator` (dotty's `transformTupleTail`); none of more than 22 elements.
 fn tuple_tail(
     l: &mut Lower,
     t: TNodeId,
@@ -129,9 +132,9 @@ fn tuple_tail(
 ) -> Option<TNodeId> {
     let tpe = l.tpd.tpe(tup);
     let widened = widen_term_ref_expr(l, tpe);
-    let tpes = tuple_element_types_up_to(l, widened, MAX_TUPLE_ARITY + 1)?;
+    let tpes = tuple_element_types_up_to(l, widened, MAX_TUPLE_ARITY)?;
     let size = tpes.len();
-    if size == 0 {
+    if size == 0 || size > MAX_TUPLE_ARITY {
         None
     } else if size == 1 {
         empty_tuple(l)
@@ -141,7 +144,7 @@ fn tuple_tail(
         let elements = selectors(l, &mut tup, size, 1..size)?;
         let tuple = from_elements(l, &tpes[1..], &elements)?;
         Some(tup.wrap(l, tuple, kept))
-    } else if size <= MAX_TUPLE_ARITY + 1 {
+    } else {
         let product = l.product().ok()?;
         let product_type = type_ref(l.u, product);
         let product_iterator = method(l, product, "productIterator")?;
@@ -154,8 +157,6 @@ fn tuple_tail(
         let block = l.block(&[first], rest, Span::NONE);
         let block = l.positioned(block);
         Some(it.wrap(l, block, kept))
-    } else {
-        xxl_member(l, tup, "tailXXL")
     }
 }
 
@@ -169,7 +170,7 @@ fn size(l: &mut Lower, t: TNodeId) -> Option<TNodeId> {
 
 /// `a` or `b` if the other is empty, `TupleN+M(t._1, …, t._n, u._1, …, u._m)` of `val t = a`
 /// and `val u = b`, or of more elements those of `Tuples.concatIterator(a, b)` (dotty's
-/// `transformTupleConcat`).
+/// `transformTupleConcat`); none of more than 22 elements.
 fn concat(
     l: &mut Lower,
     t: TNodeId,
@@ -186,6 +187,9 @@ fn concat(
     if m == 0 {
         return Some(a);
     }
+    if n + m > MAX_TUPLE_ARITY {
+        return None;
+    }
     if n + m >= MAX_SELECTED {
         let it = tuples_call(l, "concatIterator", &[a, b])?;
         return from_iterator_cast(l, it, n + m, l.tpd.tpe(t), owner);
@@ -201,8 +205,8 @@ fn concat(
     Some(first.wrap(l, inner, kept))
 }
 
-/// `tup._n+1` through `TupleN`, or `tup.productElement(n)` through `TupleXXL`, for a constant
-/// `n`, of `t`'s type (dotty's `transformTupleApply`).
+/// `tup._n+1` through `TupleN` for a constant `n`, of `t`'s type (dotty's `transformTupleApply`);
+/// none of more than 22 elements.
 fn apply(l: &mut Lower, t: TNodeId, tup: TNodeId, index: TNodeId) -> Option<TNodeId> {
     let index_type = l.tpd.tpe(index);
     let Type::Constant(tag, n) = *l.u.types().get(index_type) else { return None };
@@ -211,28 +215,18 @@ fn apply(l: &mut Lower, t: TNodeId, tup: TNodeId, index: TNodeId) -> Option<TNod
     }
     let tpes = elements(l, tup)?;
     let n = usize::try_from(n).ok().filter(|&n| n < tpes.len())?;
-    let element = if tpes.len() <= MAX_TUPLE_ARITY {
-        let tuple = tuple_type(l, &tpes)?;
-        let class = l.u.class_symbol(tuple)?;
-        let selector = method(l, class, &format!("_{}", n + 1))?;
-        let value = l.ensure_conforms(tup, tuple);
-        l.select(value, selector, Span::NONE)
-    } else {
-        let xxl = l.u.class_ref("scala.runtime.TupleXXL");
-        let product_element = class_member(l, "scala.runtime.TupleXXL", "productElement")?;
-        let value = l.ensure_conforms(tup, xxl);
-        let fun = l.select(value, product_element, Span::NONE);
-        let fun = l.positioned(fun);
-        let tpe = l.tpd.tpe(t);
-        l.apply(fun, &[index], tpe, Span::NONE)
-    };
+    let tuple = tuple_type(l, &tpes)?;
+    let class = l.u.class_symbol(tuple)?;
+    let selector = method(l, class, &format!("_{}", n + 1))?;
+    let value = l.ensure_conforms(tup, tuple);
+    let element = l.select(value, selector, Span::NONE);
     let element = l.positioned(element);
     l.tpd.get_mut(element).tpe = l.tpd.get(t).tpe;
     Some(element)
 }
 
-/// `Array.emptyObjectArray`, `Tuples.productToArray(tup)` or `tup.toArray` of a `TupleXXL`
-/// (dotty's `transformTupleToArray`).
+/// `Array.emptyObjectArray` or `Tuples.productToArray(tup)` (dotty's `transformTupleToArray`);
+/// none of more than 22 elements.
 fn to_array(l: &mut Lower, t: TNodeId, tup: TNodeId) -> Option<TNodeId> {
     let tpe = l.tpd.tpe(tup);
     let widened = l.u.widen(tpe);
@@ -249,7 +243,7 @@ fn to_array(l: &mut Lower, t: TNodeId, tup: TNodeId) -> Option<TNodeId> {
         let arg = l.ensure_conforms(tup, product_type);
         tuples_call(l, "productToArray", &[arg])
     } else {
-        xxl_member(l, tup, "toArray")
+        None
     }
 }
 
@@ -273,12 +267,4 @@ fn tuples_call(l: &mut Lower, name: &str, args: &[TNodeId]) -> Option<TNodeId> {
     let (tuples, m) = module_member(l, "scala.runtime", "Tuples", name)?;
     let qual = l.ident(tuples, Span::NONE);
     Some(l.call(qual, m, args))
-}
-
-/// `tup.asInstanceOf[TupleXXL].name`.
-fn xxl_member(l: &mut Lower, tup: TNodeId, name: &str) -> Option<TNodeId> {
-    let xxl = l.u.class_ref("scala.runtime.TupleXXL");
-    let m = class_member(l, "scala.runtime.TupleXXL", name)?;
-    let qual = l.ensure_conforms(tup, xxl);
-    Some(select_applied(l, qual, m))
 }
