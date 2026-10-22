@@ -47,7 +47,8 @@ impl Vm {
     pub fn snapshot_walk(&self) -> Result<Walk, String> {
         let trained = self.heap.trained().ok_or("no initialization ran in the region")?;
         let pool = &self.world.pool;
-        if let Some(m) = self.modules.keys().map(|&g| pool.top_name(g)).find(|m| DENIED.contains(m)) {
+        let constructed: Vec<&str> = self.modules.keys().map(|&g| pool.top_name(g)).collect();
+        if let Some(m) = DENIED.iter().find(|m| constructed.contains(m)) {
             return Err(format!("module {m} depends on the environment"));
         }
         if !self.threads.initializing.is_empty() || !self.threads.monitors.is_empty() {
