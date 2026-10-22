@@ -77,6 +77,10 @@ impl<'a> Inlining<'a> {
             T::TypeDef { .. } if sym.is_some_and(|s| self.u.symbol(s).kind == Kind::TypeParam) => {
                 self.fresh_symbol(m, sym.expect("a type parameter"));
             }
+            T::RefinedTypeTree { .. } => {
+                let tpe = tpe.map(|t| self.map_type(m, t));
+                return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
+            }
             T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } => {
                 if let Some(s) = sym {
                     self.fresh_symbol(m, s);

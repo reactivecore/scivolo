@@ -51,6 +51,7 @@ impl Typer<'_> {
             | T::ByNameTypeTree { .. }
             | T::Annotated { .. }
             | T::AppliedTypeTree { .. }
+            | T::RefinedTypeTree { .. }
             | T::TypeBoundsTree { .. } => true,
             _ => false,
         };

@@ -19,7 +19,7 @@ impl Typer<'_> {
         let rhs_ctx = sym.map_or(ctx, |s| ctx.with_owner(s));
         let tpt = match self.ready(tpt, rhs_ctx) {
             Some(typed) => typed,
-            None => self.typed_tpt(tpt, info, ctx),
+            None => self.typed_tpt(tpt, info, rhs_ctx),
         };
         let pt = info.map_or(Pt::Any, Pt::Type);
         let rhs = rhs.map(|r| self.typed(r, pt, rhs_ctx));

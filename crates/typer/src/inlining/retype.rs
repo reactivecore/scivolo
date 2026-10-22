@@ -57,6 +57,7 @@ impl Inlining<'_> {
             | T::AppliedTypeTree { .. }
             | T::TypeBoundsTree { .. }
             | T::LambdaTypeTree { .. }
+            | T::RefinedTypeTree { .. }
             | T::Annotated { .. } => Ok(t),
             T::If { cond, thenp, elsep, inline } => {
                 let cond = self.retype_forced(inline, cond, args, owner)?;

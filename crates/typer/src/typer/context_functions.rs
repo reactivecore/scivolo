@@ -129,6 +129,7 @@ impl Typer<'_> {
                         | T::ByNameTypeTree { .. }
                         | T::TypeBoundsTree { .. }
                         | T::LambdaTypeTree { .. }
+                        | T::RefinedTypeTree { .. }
                 )
             }),
             _ => self.ast.is_term(id),

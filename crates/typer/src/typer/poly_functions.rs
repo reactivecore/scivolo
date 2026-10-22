@@ -19,16 +19,20 @@ impl Typer<'_> {
         let Tree::Function { args, body: result, mods: None, .. } = *self.ast.tree(body) else {
             return self.unsupported(id, "polymorphic function type of another form");
         };
-        let owner = self.poly_apply_owner(ctx);
+        let class = self.refinement_class(ctx);
+        let owner = self.syms.define(self.u, "apply", Kind::Def, class, f::METHOD.or(f::SYNTHETIC));
         let (tparams, lctx) = match self.poly_type_params(targs, owner, ctx) {
             Ok(entered) => entered,
             Err(refused) => return refused,
         };
-        let mut params = Vec::new();
+        let lctx = Ctx { owner, ..lctx };
+        let tparam_trees: Vec<TNodeId> =
+            self.ast.items(targs).to_vec().into_iter().map(|p| self.typed_type_def(p, lctx)).collect();
+        let (mut params, mut param_trees) = (Vec::new(), Vec::new());
         for (i, a) in self.ast.items(args).to_vec().into_iter().enumerate() {
-            let (name, tpt) = match *self.ast.tree(a) {
-                Tree::ValDef { name, tpt, .. } => (self.text(name.name).to_owned(), tpt),
-                _ => (format!("x${}", i + 1), a),
+            let (name, tpt, flags) = match *self.ast.tree(a) {
+                Tree::ValDef { name, tpt, .. } => (self.text(name.name).to_owned(), tpt, f::TERM_PARAM),
+                _ => (format!("x${}", i + 1), a, f::TERM_PARAM.or(f::SYNTHETIC)),
             };
             if matches!(self.ast.tree(tpt), Tree::ByNameTypeTree { .. }) {
                 return self.unsupported(a, "polymorphic function type with a by-name parameter");
@@ -37,20 +41,22 @@ impl Typer<'_> {
             if self.is_error(typed) {
                 return typed;
             }
-            let p = self.syms.define(self.u, &name, Kind::Param, owner, f::TERM_PARAM.to_term_flags());
+            let p = self.syms.define(self.u, &name, Kind::Param, owner, flags.to_term_flags());
             let tpe = self.tpd.tpe(typed);
             self.u.set_info(p, tpe);
             self.levels.enter(lctx.level, &name, p);
             params.push(p);
+            let span = if a == tpt { self.tpd.span(typed).to_synthetic() } else { self.ast.span(a) };
+            param_trees.push(self.build().val_def(p, typed, None, span));
         }
-        let result = self.typed_type(result, lctx);
-        if self.is_error(result) {
-            return result;
+        let result_tree = self.typed_type(result, lctx);
+        if self.is_error(result_tree) {
+            return result_tree;
         }
         let binder = self.syms.fresh_binder();
         let names: Vec<(String, TypeId)> =
             params.iter().map(|&p| (self.u.symbol(p).name.clone(), self.u.info(p))).collect();
-        let result = self.tpd.tpe(result);
+        let result = self.tpd.tpe(result_tree);
         let result = self.param_refs(result, &params, binder);
         let method = self.u.intern_type(Type::Method {
             binder,
@@ -60,7 +66,14 @@ impl Typer<'_> {
             contextual: false,
         });
         let tpe = self.poly_function_of(&tparams, method);
-        self.type_tree(tpe, self.ast.span(id), false)
+        let Type::Refined(parent, _, info) = *self.u.types().get(tpe) else { unreachable!("a refined type") };
+        self.u.set_info(owner, info);
+        let first = tparam_trees.first().map_or(self.tpd.span(result_tree), |&t| self.tpd.span(t));
+        let def_span = first.union(self.tpd.span(result_tree)).to_synthetic();
+        let apply = self.build().def_def(owner, &[&tparam_trees, &param_trees], result_tree, None, def_span);
+        let tpt = self.type_tree(parent, def_span.start_pos(), false);
+        let refinements = self.tpd.list(&[apply]);
+        self.tpd.node(T::RefinedTypeTree { tpt, refinements }, self.ast.span(id), Some(tpe), None)
     }
 
     /// `qual.apply` of a polymorphic function `qual` of type `pre`, typed by the refinement;
@@ -139,7 +152,7 @@ impl Typer<'_> {
         }
         for (&p, &s) in params.iter().zip(&syms) {
             let Tree::TypeDef { rhs, .. } = *self.ast.tree(p) else { continue };
-            let info = self.type_def_info(rhs, lctx);
+            let info = self.type_def_info(rhs, lctx.with_owner(s));
             if matches!(self.u.types().get(info), Type::Error) {
                 return Err(self.error_tree(self.ast.span(p)));
             }

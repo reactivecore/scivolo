@@ -132,6 +132,7 @@ mod purity;
 mod qualifier_views;
 mod qualifies;
 mod refined_types;
+mod refinement_members;
 mod refutable_warnings;
 mod repeated;
 mod report;
