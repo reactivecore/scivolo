@@ -72,7 +72,12 @@ fn programs_from_a_snapshot() {
     assert!(traced(&[&hello]).0.contains("snapshot restored"));
     let shadowing = Path::new(env!("CARGO_TARGET_TMPDIR")).join("shadowing");
     std::fs::create_dir_all(shadowing.join("java/lang")).unwrap();
+    std::fs::write(shadowing.join("java/lang/Shadowing.nir"), b"").unwrap();
     let (trace, out) = traced(&[&hello, &shadowing]);
     assert!(trace.contains("snapshot not used") && out == "Hello, world!\n", "{trace}");
+    std::fs::remove_file(&file).unwrap();
+    let (trace, _) = traced(&[&hello, &shadowing]);
+    assert!(trace.contains("no snapshot") && !file.exists(), "{trace}");
+    run(&hello, "hello", Some(&file)).unwrap();
     run_all(Some(&file));
 }

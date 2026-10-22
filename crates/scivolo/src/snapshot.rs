@@ -13,9 +13,9 @@ pub fn choose(image: Option<&Image>) -> Snapshot {
     if std::env::var_os("SCIVOLO_NO_SNAPSHOT").is_some() {
         return Snapshot::Cold;
     }
-    let file = match (std::env::var_os("SCIVOLO_SNAPSHOT"), image) {
-        (Some(file), _) => PathBuf::from(file),
-        (None, Some(image)) => libs::cache_dir().join(name(image.key)),
+    let (file, cached) = match (std::env::var_os("SCIVOLO_SNAPSHOT"), image) {
+        (Some(file), _) => (PathBuf::from(file), false),
+        (None, Some(image)) => (libs::cache_dir().join(name(image.key)), true),
         (None, None) => return Snapshot::Cold,
     };
     match std::fs::read(&file) {
@@ -24,7 +24,9 @@ pub fn choose(image: Option<&Image>) -> Snapshot {
             Snapshot::Restore(data)
         }
         Err(_) => {
-            prune(file.parent().unwrap_or(Path::new(".")));
+            if cached {
+                prune(&libs::cache_dir());
+            }
             Snapshot::Write(file)
         }
     }

@@ -39,6 +39,7 @@ impl Vm {
         self.linktime = Default::default();
         self.rtti = Default::default();
         self.gc_classes = Default::default();
+        self.callbacks.release();
         self.restored = None;
         self.heap.forget_snapshot();
         self.thread = self.heap.permanent(16, heap::Blob::Words);

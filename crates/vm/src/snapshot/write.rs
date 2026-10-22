@@ -6,6 +6,7 @@ use super::walk;
 use crate::Vm;
 use crate::class::Kind;
 use crate::heap;
+use std::io::Write;
 
 impl Vm {
     /// The snapshot file of what the runtime's initialization built, or why there is none.
@@ -17,12 +18,7 @@ impl Vm {
         let pool = &self.world.pool;
         let mut out = Out::default();
         self.exec_info().ok_or("ExecInfo is not constructed as the restored start expects")?;
-        let mut packages: Vec<String> = (self.classes.all.iter())
-            .filter_map(|c| pool.top_name(c.name).rsplit_once('.').map(|(p, _)| p.replace('.', "/")))
-            .collect();
-        packages.sort();
-        packages.dedup();
-        format::region(&mut out, range.start, &region, self.thread, &packages);
+        format::region(&mut out, range.start, &region, self.thread, &self.snapshot_packages());
         out.u32(walk.targets.len() as u32);
         for (offset, target) in &walk.targets {
             out.u64(*offset as u64);
@@ -87,11 +83,32 @@ impl Vm {
         Ok(format::file(out))
     }
 
-    /// Writes the snapshot file to `path` through a staging file; a reason on failure.
-    pub fn save_snapshot(&self, path: &std::path::Path) -> Result<(), String> {
-        let data = self.snapshot_file()?;
+    /// The packages of the VM's classes as directories (`java/lang`), sorted.
+    fn snapshot_packages(&self) -> Vec<String> {
+        let pool = &self.world.pool;
+        let mut packages: Vec<String> = (self.classes.all.iter())
+            .filter_map(|c| pool.top_name(c.name).rsplit_once('.').map(|(p, _)| p.replace('.', "/")))
+            .collect();
+        packages.sort();
+        packages.dedup();
+        packages
+    }
+
+    /// Writes the snapshot file to `path` through a staging file, unless a directory or jar
+    /// before the library defines files in its packages; a reason on failure.
+    pub fn save_snapshot(&mut self, path: &std::path::Path) -> Result<(), String> {
+        let packages = self.snapshot_packages();
+        if self.world.shadows(&packages.iter().map(String::as_str).collect::<Vec<_>>()) {
+            return Err("the classpath defines files in the runtime's packages".into());
+        }
         let staging = path.with_extension(format!("tmp{}", std::process::id()));
-        std::fs::write(&staging, data).map_err(|e| e.to_string())?;
-        std::fs::rename(&staging, path).map_err(|e| e.to_string())
+        let mut file = std::fs::File::create(&staging).map_err(|e| e.to_string())?;
+        let written = self.snapshot_file().and_then(|data| {
+            file.write_all(&data).and_then(|()| std::fs::rename(&staging, path)).map_err(|e| e.to_string())
+        });
+        if written.is_err() {
+            let _ = std::fs::remove_file(&staging);
+        }
+        written
     }
 }

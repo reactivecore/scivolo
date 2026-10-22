@@ -74,6 +74,11 @@ impl World {
         self.classpath.add(path)
     }
 
+    /// Whether a directory or jar before the library has a NIR file in one of `packages`.
+    pub fn shadows(&mut self, packages: &[&str]) -> bool {
+        self.classpath.shadows(packages)
+    }
+
     /// The top-level names on the classpath that end in `suffix`.
     pub fn tops_ending(&mut self, suffix: &str) -> Vec<String> {
         self.classpath.tops_ending(suffix)

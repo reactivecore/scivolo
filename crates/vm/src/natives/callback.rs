@@ -129,12 +129,17 @@ impl Callbacks {
     pub fn target(&self, addr: usize) -> Option<FuncId> {
         self.owned.iter().find(|&&(slot, _)| TRAMPOLINES[slot] as usize == addr).map(|&(_, f)| f)
     }
+
+    /// Releases every trampoline this VM owns.
+    pub fn release(&mut self) {
+        for (slot, _) in self.owned.drain(..) {
+            TABLE.with(|t| t[slot].set(None));
+        }
+    }
 }
 
 impl Drop for Callbacks {
     fn drop(&mut self) {
-        for &(slot, _) in &self.owned {
-            TABLE.with(|t| t[slot].set(None));
-        }
+        self.release();
     }
 }
