@@ -36,6 +36,10 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
 
   abstract class TypeReprMethodsImpl extends TypeReprMethods {
     extension (self: TypeRepr) {
+      def =:=(that: TypeRepr): Boolean = ReflectOps.one("isSameType", ReflectOps.id(self), ReflectOps.id(that)) != 0
+      def <:<(that: TypeRepr): Boolean = ReflectOps.one("isSubtype", ReflectOps.id(self), ReflectOps.id(that)) != 0
+      def asType: Type[?] = self.asInstanceOf[Type[?]]
+      def widen: TypeRepr = QuoteHost.tpe(ReflectOps.one("widen", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def widenTermRefByName: TypeRepr =
         QuoteHost.tpe(ReflectOps.one("widenTermRefByName", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def typeSymbol: Symbol = new SymbolImpl(ReflectOps.one("typeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]

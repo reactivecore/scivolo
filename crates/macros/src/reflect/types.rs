@@ -6,7 +6,7 @@ use super::constants::encoded;
 use super::{Answer, UNKNOWN, arg, numbers};
 use crate::host::Host;
 use tasty::tags::CLASSconst;
-use tasty::{Type, TypeId};
+use tasty::{NoVars, Type, TypeId};
 use typer::tpd::constant_of;
 
 impl Host {
@@ -27,6 +27,19 @@ impl Host {
                 let t = self.type_of(arg(0)? as u32)?;
                 let w = self.reflect().widen_term_ref_by_name(t);
                 numbers(vec![self.add_type(w) as i32])
+            }
+            "widen" => {
+                let t = self.type_of(arg(0)? as u32)?;
+                let w = self.u.widen(t);
+                numbers(vec![self.add_type(w) as i32])
+            }
+            "isSubtype" | "isSameType" => {
+                let (a, b) = (self.type_of(arg(0)? as u32)?, self.type_of(arg(1)? as u32)?);
+                let holds = match op {
+                    "isSubtype" => self.u.is_subtype_in(a, b, &mut NoVars),
+                    _ => self.u.is_same_type_in(a, b, &mut NoVars),
+                };
+                numbers(vec![holds as i32])
             }
             "constantType" => {
                 let t = self.type_of(arg(0)? as u32)?;

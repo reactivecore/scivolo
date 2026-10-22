@@ -44,6 +44,7 @@ impl Macros for VmMacros<'_> {
         self.sources = std::mem::take(&mut host.sources);
         match (result, host.refusal.take()) {
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
+            _ if !host.reported.is_empty() => Err(MacroError::Reported(std::mem::take(&mut host.reported))),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),
             (Err(VmError::Uncaught(thrown)), None) => Err(failure(&thrown)),
             (Err(e), None) => {

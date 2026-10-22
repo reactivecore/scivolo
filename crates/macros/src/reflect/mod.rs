@@ -4,6 +4,7 @@
 
 mod constants;
 mod positions;
+mod reports;
 mod symbols;
 mod terms;
 mod trees;
@@ -26,7 +27,8 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 6] = [
+        let subjects: [Run; 7] = [
+            Host::run_report,
             Host::run_tree,
             Host::run_term,
             Host::run_type,

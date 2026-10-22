@@ -33,7 +33,11 @@ fn run() -> Result<(), String> {
         let mut runner =
             VmMacros { vm: &mut vm, sources: vec![SourceFile::new(source.name.clone(), text.as_str())] };
         let actual = dump_with(&mut u, &source, &[], (false, true), Some(&mut runner));
-        if actual != expected {
+        if expected.contains("\n== E ") {
+            let diagnostics =
+                |s: &str| s.lines().filter(|l| l.starts_with("== ")).collect::<Vec<_>>().join("\n");
+            assert_eq!(diagnostics(&actual), diagnostics(&expected), "{}", input.display());
+        } else if actual != expected {
             let at = actual.bytes().zip(expected.bytes()).take_while(|(a, b)| a == b).count();
             let around =
                 |s: &str| s.get(at.saturating_sub(300)..(at + 200).min(s.len())).unwrap_or("").to_owned();

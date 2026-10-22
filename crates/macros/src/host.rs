@@ -45,6 +45,8 @@ pub struct Host {
     /// Why the expansion is refused, if it is.
     pub refusal: Option<String>,
     pub made: crate::reflect::Made,
+    /// The errors the macro reported, with their spans.
+    pub reported: Vec<(Span, String)>,
 }
 
 impl Host {
@@ -67,6 +69,7 @@ impl Host {
             matched: Vec::new(),
             refusal: None,
             made: Default::default(),
+            reported: Vec::new(),
         }
     }
 

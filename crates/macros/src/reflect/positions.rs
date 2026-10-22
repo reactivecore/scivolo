@@ -46,6 +46,17 @@ impl Host {
         let (base, f) = sources.files()[i];
         Ok((vec![i as i32, utf16(f, span.start() - base), utf16(f, span.end() - base)], None))
     }
+
+    /// The span of offsets `start` until `end`, in UTF-16 units, of source file number `file`.
+    pub fn span_of(&self, (file, start, end): (i32, i32, i32)) -> Result<Span, &'static str> {
+        let sources = Sources::new(&self.sources).map_err(|_| "sources of more than 1 GiB")?;
+        let &(base, f) = sources.files().get(file as usize).ok_or("a position in no source file")?;
+        if start < 0 || end < start {
+            return Err("a position with offsets out of order");
+        }
+        let byte = |units: i32| base + f.advance_utf16(0, units as usize);
+        Ok(Span::new(byte(start), byte(end), byte(start)))
+    }
 }
 
 /// The UTF-16 units of `f` before byte offset `offset`.

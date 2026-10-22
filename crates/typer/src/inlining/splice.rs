@@ -29,6 +29,12 @@ impl Inlining<'_> {
                 self.error(self.outermost_span, msg);
                 return Ok(Some(t));
             }
+            Err(MacroError::Reported(errors)) => {
+                for (at, msg) in errors {
+                    self.error(at, msg);
+                }
+                return Ok(Some(t));
+            }
         };
         let args: Vec<TNodeId> = call
             .args

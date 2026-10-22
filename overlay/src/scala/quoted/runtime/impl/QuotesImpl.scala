@@ -21,8 +21,11 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   }
 
   extension (self: Expr[Any]) {
-    def isExprOf[X](using Type[X]): Boolean = throw new Unsupported("Expr.isExprOf")
-    def asExprOf[X](using Type[X]): Expr[X] = throw new Unsupported("Expr.asExprOf")
+    def isExprOf[X](using x: Type[X]): Boolean =
+      ReflectOps.one("isExprOf", QuoteHost.exprId(self), QuoteHost.typeId(x)) != 0
+    def asExprOf[X](using Type[X]): Expr[X] =
+      if (self.isExprOf[X]) self.asInstanceOf[Expr[X]]
+      else throw new Unsupported("Expr.asExprOf of an expression of another type")
   }
 
   def unpickleExpr[T](

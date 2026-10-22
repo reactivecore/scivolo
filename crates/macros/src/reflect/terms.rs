@@ -25,6 +25,12 @@ impl Host {
                 let tpe = self.tpd.get(t).tpe.ok_or("the type of a tree without one")?;
                 numbers(vec![self.add_type(tpe) as i32])
             }
+            "isExprOf" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let tpe = self.tpd.get(t).tpe.ok_or("isExprOf of a tree without a type")?;
+                let of = self.type_of(arg(1)? as u32)?;
+                numbers(vec![self.u.is_subtype_in(tpe, of, &mut tasty::NoVars) as i32])
+            }
             "typeTree" => {
                 let tpe = self.type_of(arg(0)? as u32)?;
                 let t = self.reflect().type_tree(tpe);

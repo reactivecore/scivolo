@@ -183,6 +183,42 @@ object Terms:
       case t: Term                    => "Term"
       case _                          => "Tree"
 
+object Checks:
+  inline def positive(inline x: Int): Int = ${ positiveImpl('x) }
+  def positiveImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    x.value match
+      case Some(v) if v < 0 => report.errorAndAbort(s"negative: $v", x)
+      case Some(v)          => Expr(v)
+      case None             => report.errorAndAbort("not a constant")
+
+  inline def flagged(inline x: Int): Int = ${ flaggedImpl('x) }
+  def flaggedImpl(x: Expr[Int])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    report.error("flagged", x.asTerm.pos)
+    x
+
+  inline def sameType[A, B]: Boolean = ${ sameTypeImpl[A, B] }
+  def sameTypeImpl[A: Type, B: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[A] =:= TypeRepr.of[B])
+
+  inline def subType[A, B]: Boolean = ${ subTypeImpl[A, B] }
+  def subTypeImpl[A: Type, B: Type](using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(TypeRepr.of[A] <:< TypeRepr.of[B])
+
+  inline def isInt(inline x: Any): Boolean = ${ isIntImpl('x) }
+  def isIntImpl(x: Expr[Any])(using Quotes): Expr[Boolean] = Expr(x.isExprOf[Int])
+
+  inline def asInt(inline x: Any): Int = ${ asIntImpl('x) }
+  def asIntImpl(x: Expr[Any])(using Quotes): Expr[Int] = '{ ${ x.asExprOf[Int] } + 1 }
+
+  inline def widened(inline x: Any): Boolean = ${ widenedImpl('x) }
+  def widenedImpl(x: Expr[Any])(using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    Expr(x.asTerm.tpe.widen =:= TypeRepr.of[Int])
+
 class Chunk(val parts: List[String])
 
 trait ChunkMacros:
