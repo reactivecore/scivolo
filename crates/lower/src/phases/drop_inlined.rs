@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/inlines/Inlines.scala
 //! dotty's `Inlines.dropInlined`, run before the other phases: each `Inlined` tree becomes the
-//! block of its bindings and expansion, or its expansion alone; its call is dropped. Under the
-//! outermost one, the trees from another source take its span (`reposition`).
+//! block of its bindings and expansion, or its expansion alone; its call is dropped. Under one
+//! outside the expansions of others, the trees from another source take its span (`reposition`).
 
 use crate::{Lower, Result};
 use syntax::ast::Span;
@@ -10,28 +10,33 @@ use typer::tpd::{TNodeId, Tree, map_children};
 
 /// `t` with the `Inlined` trees in it dropped.
 pub fn transform(l: &mut Lower, t: TNodeId) -> Result<TNodeId> {
-    Ok(drop(l, t, None))
+    Ok(drop(l, t, None, false))
 }
 
-/// `t` with the `Inlined` trees in it dropped, inside the outermost one at `call` if any.
-fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>) -> TNodeId {
-    let call = call.or_else(|| match l.tpd.tree(t) {
-        Tree::Inlined { call: Some(_), .. } => Some(l.tpd.span(t)),
-        _ => None,
-    });
+/// `t` with the `Inlined` trees in it dropped, its trees from another source at `call` if any;
+/// `expanded` if `t` is in the expansion of one.
+fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, expanded: bool) -> TNodeId {
+    let call = match l.tpd.tree(t) {
+        Tree::Inlined { call: Some(_), .. } if !expanded => Some(l.tpd.span(t)),
+        _ => call,
+    };
     if let Some(at) = call {
         reposition(l, t, at);
     }
     if let Tree::Inlined { bindings, expansion, .. } = *l.tpd.tree(t) {
-        if l.tpd.items(bindings).is_empty() {
-            let expansion = drop(l, expansion, call);
+        let stats: Vec<TNodeId> = l.tpd.items(bindings).to_vec();
+        let stats: Vec<TNodeId> = stats.into_iter().map(|b| drop(l, b, call, expanded)).collect();
+        let expansion = drop(l, expansion, call, expanded || call.is_some());
+        if stats.is_empty() {
             l.inlined_spans.insert(expansion, l.tpd.span(t));
             return expansion;
         }
-        l.tpd.get_mut(t).tree = Tree::Block { stats: bindings, expr: expansion };
+        let stats = l.tpd.list(&stats);
+        l.tpd.get_mut(t).tree = Tree::Block { stats, expr: expansion };
         l.inlined_blocks.insert(t);
+        return t;
     }
-    map_children(l, t, &mut |l, c| drop(l, c, call));
+    map_children(l, t, &mut |l, c| drop(l, c, call, expanded));
     t
 }
 
