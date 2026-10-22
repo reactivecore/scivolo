@@ -129,7 +129,6 @@ mod poly_functions;
 mod poly_instances;
 mod pretyped_args;
 mod purity;
-mod qual_skolems;
 mod qualifier_views;
 mod qualifies;
 mod refined_types;
@@ -278,8 +277,6 @@ pub struct Typer<'a> {
     pub dynamic_calls: FxHashMap<TNodeId, dynamic::DynamicCall>,
     /// The left-hand side of the assignment being typed.
     pub dynamic_lhs: Option<NodeId>,
-    /// The skolem of each prefix that is no path a selection's type is seen from.
-    pub qual_skolems: FxHashMap<tasty::TypeId, tasty::TypeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -352,7 +349,6 @@ impl<'a> Typer<'a> {
             derived_lambdas: Default::default(),
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
-            qual_skolems: FxHashMap::default(),
             depth: 0,
             file_starts: Vec::new(),
             macros: None,
