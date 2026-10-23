@@ -171,14 +171,14 @@ impl Typer<'_> {
             return self.build().ident(sym, tpe, span);
         }
         let name = self.build().term_name(sym);
-        self.this_select(span, name, tpe, sym)
+        self.this_select(span, name, tpe, sym, ctx)
     }
 
-    /// `p.name` of type `tpe`, a reference to `sym` at `span` through the path `p` of its prefix
-    /// (dotty's `ref(tpe)`).
-    pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
+    /// `p.name` of type `tpe`, a reference to `sym` at `span` from `ctx` through the path `p` of
+    /// its prefix (dotty's `ref(tpe)`).
+    pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId, ctx: Ctx) -> TNodeId {
         let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
-        let Some(qualifier) = self.path_tree(prefix, span.start_pos(), 8) else {
+        let Some(qualifier) = self.path_tree_from(prefix, span.start_pos(), 8, Some(ctx)) else {
             self.unsupported_at(span, "reference through a path");
             return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
         };

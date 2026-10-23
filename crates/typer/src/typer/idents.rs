@@ -116,7 +116,7 @@ impl Typer<'_> {
             if let Some(this) = self.module_this(sym, span, ctx) {
                 return this;
             }
-            return self.this_select(span, name, tpe, sym);
+            return self.this_select(span, name, tpe, sym, ctx);
         }
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
     }
