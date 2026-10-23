@@ -31,7 +31,7 @@ RUN curl --proto '=https' --tlsv1.2 -sSfL \
     chmod +x /usr/local/bin/cs && \
     rm /tmp/cs.gz
 
-ARG RUST_VERSION=1.95.0
+ARG RUST_VERSION=1.99.1
 ENV PATH="/root/.cargo/bin:$PATH"
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
