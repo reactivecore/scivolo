@@ -6,7 +6,7 @@
 
 use super::Inlining;
 use super::copy::TreeTypeMap;
-use crate::tpd::Tree as T;
+use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
@@ -54,6 +54,21 @@ impl Inlining<'_> {
         }
         for c in self.u.annotations(s).to_vec() {
             self.u.annotate(n, c);
+        }
+    }
+
+    /// The owner of the children of `t`, owned by `owner`, when retyped, and the class enclosing
+    /// them: the definition `t` is, the class if `t` defines one.
+    pub fn owners_within(&self, t: TNodeId, owner: SymbolId) -> (SymbolId, Option<SymbolId>) {
+        let inner = match self.tpd.tree(t) {
+            T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Template { .. } => {
+                self.tpd.sym(t).unwrap_or(owner)
+            }
+            _ => owner,
+        };
+        match matches!(self.tpd.tree(t), T::TypeDef { .. }) && self.u.symbol(inner).kind == Kind::Class {
+            true => (inner, Some(inner)),
+            false => (inner, self.enclosing_class),
         }
     }
 
