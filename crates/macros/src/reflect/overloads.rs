@@ -1,0 +1,71 @@
+// Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
+//! `Select.overloaded`: the alternative of a member applicable to the arguments and more
+//! specific than the other applicable ones (dotty's `applyOverloaded`, without implicit
+//! conversions or default arguments).
+
+use super::{Answer, arg, numbers};
+use crate::host::Host;
+use tasty::{SymbolId, Type, TypeId};
+use typer::tpd::TNodeId;
+
+impl Host {
+    /// `Select.overloaded(qual, name, targs, args)` of `args`: the qualifier, the number of type
+    /// arguments, the type arguments and the arguments.
+    pub fn select_overloaded(&mut self, args: &[i32], name: &str) -> Answer {
+        let qual = self.tree(arg(args, 0)? as u32)?;
+        let n = arg(args, 1)? as usize;
+        let rest = args.get(2..).ok_or("Select.overloaded without its arguments")?;
+        let (targs, terms) = rest.split_at(n.min(rest.len()));
+        let targs = targs.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
+        let terms = terms.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
+        let arg_types: Vec<TypeId> = terms.iter().map(|&t| self.tpd.tpe(t)).collect();
+        let tpe = self.tpd.tpe(qual);
+        let mut members = self.u.member_of_type(tpe, name);
+        members.retain(|&m| self.u.symbol(m).kind.is_term());
+        let mut applicable = Vec::new();
+        for m in members {
+            let Ok(fun) = self.selected(qual, m, &targs) else { continue };
+            if let Some(params) = self.params(fun)
+                && params.len() == arg_types.len()
+                && arg_types.iter().zip(&params).all(|(&a, &p)| self.u.is_subtype(a, p))
+            {
+                applicable.push((fun, params));
+            }
+        }
+        let specific: Vec<TNodeId> = (0..applicable.len())
+            .filter(|&i| {
+                let mine = applicable[i].1.clone();
+                (0..applicable.len()).all(|j| {
+                    i == j || mine.iter().zip(&applicable[j].1).all(|(&a, &b)| self.u.is_subtype(a, b))
+                })
+            })
+            .map(|i| applicable[i].0)
+            .collect();
+        let [fun] = specific[..] else {
+            return Err("Select.overloaded without one most specific applicable alternative");
+        };
+        let t = self.reflect().apply(fun, &terms)?;
+        numbers(vec![self.add_tree(t) as i32])
+    }
+
+    /// `qual.m[targs]`.
+    fn selected(&mut self, qual: TNodeId, m: SymbolId, targs: &[TypeId]) -> Result<TNodeId, &'static str> {
+        let sel = self.reflect().select(qual, m)?;
+        match targs.is_empty() {
+            true => Ok(sel),
+            false => self.reflect().applied_to_types(sel, targs),
+        }
+    }
+
+    /// The parameter types of the method type of `fun`, if it has one.
+    fn params(&mut self, fun: TNodeId) -> Option<Vec<TypeId>> {
+        let tpe = self.tpd.tpe(fun);
+        let info = self.u.widen(tpe);
+        match self.u.types().get(info) {
+            Type::Method { params, .. } => Some(params.iter().map(|&(_, p)| p).collect()),
+            _ => None,
+        }
+    }
+}

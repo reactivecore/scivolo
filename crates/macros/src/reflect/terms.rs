@@ -66,6 +66,7 @@ impl Host {
                 let t = self.reflect().select(qual, m)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "selectOverloaded" => self.select_overloaded(args, text),
             "select" => {
                 let qual = self.tree(arg(0)? as u32)?;
                 let t = self.reflect().select(qual, symbol(arg(1)?)?)?;

@@ -6,6 +6,7 @@ mod constants;
 mod definitions;
 mod implicits;
 mod members;
+mod overloads;
 mod positions;
 mod reports;
 mod symbols;
