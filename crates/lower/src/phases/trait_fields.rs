@@ -133,7 +133,8 @@ pub fn mixed_in(
         let sup = l.super_mix(class, mixin, at);
         let fun = l.select(sup, init, at);
         let unit = l.u.class_ref("scala.Unit");
-        let call = l.apply(fun, &[], unit, Span::NONE);
+        let args = super::local_traits::init_args(l, class, init, at)?;
+        let call = l.apply(fun, &args, unit, Span::NONE);
         out.push(l.positioned(call));
     }
     for setter in setters {

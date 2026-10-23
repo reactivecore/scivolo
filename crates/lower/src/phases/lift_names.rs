@@ -153,7 +153,9 @@ fn in_field(l: &Lower, o: SymbolId, class: SymbolId) -> bool {
 fn name_proxies(l: &mut Lower, proxies: &[Proxy], pending: &Pending) -> Result<()> {
     let mut ranked = Vec::new();
     let trait_params = l.trait_methods.values().flat_map(|(_, pairs)| pairs);
-    let originals: FxHashMap<SymbolId, SymbolId> = trait_params.map(|&(v, p)| (p, v)).collect();
+    let class_params = pending.proxies.iter().map(|p| (p.sym, p.value));
+    let originals: FxHashMap<SymbolId, SymbolId> =
+        trait_params.map(|&(v, p)| (p, v)).chain(class_params).collect();
     for p in proxies {
         let value = originals.get(&p.value).copied().unwrap_or(p.value);
         let Some(rank) = pending.deps.as_ref().and_then(|d| d.rank(p.owner, value)) else {

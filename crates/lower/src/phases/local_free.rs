@@ -115,7 +115,7 @@ pub fn free_values(l: &mut Lower, td: TNodeId, class: SymbolId, outer: SymbolId)
             }
             Tree::Ident { .. } => {
                 let owner = l.u.symbol(s).owner;
-                if owner == Some(outer) && !static_outer && !l.u.is_class(s) {
+                if owner == Some(outer) && !static_outer && !l.u.symbol(s).kind.is_type() {
                     return unsupported(span, "local classes using the enclosing instance");
                 }
                 let outer_param =

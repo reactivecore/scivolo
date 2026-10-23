@@ -28,24 +28,28 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     let (mut locals, mut traits) = (Vec::new(), Vec::new());
     for &td in classes {
         let class = l.tpd.sym(td).expect("a class definition's symbol");
-        let Some(owner) = l.u.symbol(class).owner.filter(|&o| is_term(l, o)) else { continue };
+        let values = deps.of(constructor(l, td));
+        let member = !l.u.is_trait(class)
+            && !l.u.is_module_class(class)
+            && super::explicit_outer::in_term(l, class)
+            && values.iter().any(|&v| !within(l, v, class));
+        let Some(owner) =
+            l.u.symbol(class).owner.filter(|_| member || super::dependencies::is_local(l, class))
+        else {
+            continue;
+        };
         let outer = enclosing_class(l, owner);
         let mut free = free_values(l, td, class, outer)?;
-        free.values = deps.of(constructor(l, td)).to_vec();
+        free.values = values.iter().copied().filter(|&v| !member || !within(l, v, class)).collect();
         free.in_methods = deps.of(class).to_vec();
-        let refused = match () {
-            _ if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) => {
-                Some("local classes capturing variables")
-            }
-            _ if !l.u.is_trait(class) => None,
-            _ if !free.values.is_empty() => Some("local traits initializing with captured values"),
-            _ => None,
-        };
-        if let Some(what) = refused {
-            return unsupported(l.tpd.span(td), what);
+        if free.values.iter().any(|&v| has(l.u, v, MUTABLE)) {
+            return unsupported(l.tpd.span(td), "local classes capturing variables");
         }
         if l.u.is_trait(class) {
             traits.push(td);
+        }
+        if !is_term(l, owner) && l.u.is_trait(class) {
+            continue;
         }
         let in_trait = l.u.is_trait(outer) && is_local(l, outer) && uses_outside(l, &deps, class, outer);
         let named_in = if in_trait { outer } else { lifted_into(l, outer) };
@@ -69,21 +73,28 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
         let spans: Vec<Span> = free.in_methods.iter().map(|&v| definition_span(l, root, v)).collect();
         if !l.u.is_trait(class) {
             add_proxies(l, td, class, &free, (&fields, &params), (&spans, &mut nested))?;
+        } else if !params.is_empty() {
+            super::local_traits::init_params(l, td, &free.values, &params);
         }
         let named_in = nested.named_in.get(&class).copied().unwrap_or(named_in);
+        let member = l.u.symbol(class).owner.is_some_and(|o| !is_term(l, o));
         if free.called.iter().any(|&(f, _)| l.u.symbol(f).kind == Kind::Def) {
             let fields = free.in_methods.iter().copied().zip(fields).collect();
             let params = free.values.iter().copied().zip(params).collect();
             pending.callers.push(Caller { td, class, fields, params });
         }
+        if member {
+            classes.push(None);
+            continue;
+        }
         if let Some((block, index)) = lift(l, root, td, class) {
             pending.definitions.push((block, index, free.values.clone()));
         }
-        classes.push(LocalClass { at: l.tpd.span(td).start(), class, outer: named_in });
+        classes.push(Some(LocalClass { at: l.tpd.span(td).start(), class, outer: named_in }));
     }
     let mut last = None;
     for i in order {
-        let c = &classes[i];
+        let Some(c) = &classes[i] else { continue };
         let at = match last {
             Some(before) if c.at < before => before,
             _ => c.at,
@@ -118,6 +129,7 @@ fn add_proxies(
         unreachable!("a template")
     };
     let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
+    l.captured_params.extend(free.values.iter().zip(params).map(|(&v, &p)| ((class, v), p)));
     let mut field_defs = Vec::new();
     for ((&v, &field), &at) in free.in_methods.iter().zip(fields).zip(spans) {
         l.fields.insert(field, field);
@@ -150,7 +162,7 @@ fn add_proxies(
 
 /// Makes the references in `t`, outside the classes defined in it, to values `free` refer to
 /// `to`, fields of `this` of `class` if given.
-fn redirect(l: &mut Lower, t: TNodeId, free: &[SymbolId], to: &[SymbolId], class: Option<SymbolId>) {
+pub fn redirect(l: &mut Lower, t: TNodeId, free: &[SymbolId], to: &[SymbolId], class: Option<SymbolId>) {
     for s in super::explicit_outer::terms(l, t, false) {
         if !matches!(l.tpd.tree(s), Tree::Ident { .. }) {
             continue;
