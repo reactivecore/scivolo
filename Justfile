@@ -521,9 +521,9 @@ fmt-check:
 lint *args:
     cargo clippy --workspace --all-targets {{ locked }} {{ args }} -- -D warnings
 
-# Lint with the Rust release of the macOS pipeline runner.
+# Lint with the minimum Rust release (`rust-version`).
 lint-msrv:
-    cargo +1.95.0 clippy --workspace --all-targets -- -D warnings
+    rustup run 1.97.0 cargo clippy --workspace --all-targets -- -D warnings
 
 # Run the whole test suite.
 test *args:
