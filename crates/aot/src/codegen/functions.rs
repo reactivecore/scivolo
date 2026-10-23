@@ -114,7 +114,7 @@ pub fn compile(
         let relocs: Vec<ModuleReloc> =
             code.buffer.relocs().iter().map(|r| ModuleReloc::from_mach_reloc(r, &t.ctx.func, t.id)).collect();
         module
-            .define_function_bytes(t.id, code.buffer.alignment as u64, code.buffer.data(), &relocs)
+            .define_function_bytes(t.id, code.buffer.min_alignment as u64, code.buffer.data(), &relocs)
             .map_err(|e| format!("{}: {e:?}", reach.world.name(t.g)))?;
         decls.frames.record(t.id, t.g, &t.ctx);
     }

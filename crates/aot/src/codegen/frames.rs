@@ -57,8 +57,10 @@ impl Frames {
             .buffer
             .get_srclocs_sorted()
             .iter()
-            .filter(|l| !l.loc.is_default())
-            .map(|l| (l.start, l.end, PosId(l.loc.bits())))
+            .filter_map(|l| {
+                let loc = l.loc.as_abs();
+                (!loc.is_default()).then(|| (l.start, l.end, PosId(loc.bits())))
+            })
             .collect();
         self.0.push(Compiled { func, method, size: code.code_info().total_size, positions });
     }
