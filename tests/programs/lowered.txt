@@ -137,3 +137,4 @@ usercopy
 inheritedresult
 polyctors
 R34libinner
+R34nestedinline
