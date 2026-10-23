@@ -65,6 +65,17 @@ fn contains_outer_refs(l: &mut Lower, class: SymbolId, t: TNodeId) -> bool {
                 || has_outer_prefix(l, class, tpe)
                 || is_term(l, owner) && class != created && within(l, class, created)
         }
+        Tree::Select { qualifier, name } => {
+            let Some(hops) = typer::inlining::outer_this::outer_hops(l.names.text(name.name)) else {
+                return false;
+            };
+            let Some(mut target) = l.u.class_symbol(l.tpd.tpe(qualifier)) else { return false };
+            for _ in 0..hops {
+                let owner = l.u.symbol(target).owner.expect("a class's owner");
+                target = enclosing_class(l, owner);
+            }
+            is_outer_sym(l, class, target)
+        }
         Tree::TypeApply { fun, args } if is_type_test(l, fun) => {
             let Some(&arg) = l.tpd.items(args).first() else { return false };
             let tpe = l.tpd.tpe(arg);

@@ -18,7 +18,7 @@ mod inline_call;
 mod macros;
 mod no_inits;
 mod opaque_proxies;
-mod outer_this;
+pub mod outer_this;
 mod proxies;
 mod purity;
 mod quote_match;

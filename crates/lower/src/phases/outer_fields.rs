@@ -74,12 +74,16 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
         }
     }
     let with_accessor = !anonymous || l.outer_accessors.contains_key(&class);
-    if !anonymous {
+    if with_accessor {
         field(l, class);
     }
     let Some(field) = l.outers[&class].0 else { return Ok(()) };
     let name_at = l.tpd.span(td).point();
-    let at = Span::at(l.tpd.span(template).end().max(name_at));
+    let end = match stats.last() {
+        Some(&last) if anonymous => l.tpd.span(last).end(),
+        _ => l.tpd.span(template).end(),
+    };
+    let at = Span::at(end.max(name_at));
     let mut stats = stats;
     stats.push(field_def(l, field, Span::at(name_at)));
     if with_accessor {

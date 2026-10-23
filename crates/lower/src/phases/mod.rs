@@ -80,6 +80,7 @@ mod non_local_returns;
 mod outer_args;
 mod outer_ctors;
 mod outer_fields;
+mod outer_selects;
 mod outer_tests;
 mod outer_traits;
 mod package_objects;
