@@ -130,9 +130,14 @@ impl Typer<'_> {
             owner = sym.owner;
         };
         let xparam = self.lead_param(xmethod)?;
-        let sibling = found
-            .iter()
-            .any(|&s| self.u.symbol(s).flags.has(EXTENSION) && self.lead_param(s) == Some(xparam));
+        let span_of = |t: &Self, p: SymbolId| t.syms.param_trees.get(&p).map(|&d| t.ast.span(d));
+        let xspan = span_of(self, xparam);
+        let sibling = found.iter().any(|&s| {
+            self.u.symbol(s).flags.has(EXTENSION)
+                && self
+                    .lead_param(s)
+                    .is_some_and(|p| p == xparam || xspan.is_some() && span_of(self, p) == xspan)
+        });
         if !sibling {
             return None;
         }
