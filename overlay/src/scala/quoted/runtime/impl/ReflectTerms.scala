@@ -55,6 +55,7 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
         self.asInstanceOf[Expr[T]]
       }
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
+      def show(using printer: Printer[Tree]): String = printer.show(self)
       def symbol: Symbol = new SymbolImpl(ReflectOps.one("treeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
     }
   }
