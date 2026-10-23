@@ -80,7 +80,7 @@ Features:
 
 ## Usage
 
-Needs Rust 1.95+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
+Needs Rust 1.97+, `just`, a C compiler; optional: Coursier (`--dep`), scala-cli (fallback
 frontend).
 
 ```sh
