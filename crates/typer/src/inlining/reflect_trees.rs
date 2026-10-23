@@ -7,8 +7,8 @@ use super::Reflect;
 use crate::tpd::{Slot, TNodeId, Tree as T};
 use syntax::ast::Span;
 use syntax::ast::constant::Constant;
-use tasty::tags::{INLINEPROXY, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::tags::{GIVEN, IMPLICIT, INLINEPROXY, LAZY, MUTABLE, SYNTHETIC};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Term.underlying` (dotty's `MapToUnderlying`): `t` and its subtrees without the inlined
@@ -107,6 +107,58 @@ impl Reflect<'_> {
             T::Literal { value } => Some(value.clone()),
             _ => None,
         }
+    }
+
+    /// The definition of a synthetic value `name` of `owner` with right-hand side `rhs` and the
+    /// TASTy modifier bits `flags` (dotty's `SyntheticValDef`), and a reference to it.
+    pub fn let_(
+        &mut self,
+        owner: SymbolId,
+        name: &str,
+        rhs: TNodeId,
+        flags: u64,
+    ) -> Result<(TNodeId, TNodeId), &'static str> {
+        let allowed = [LAZY, MUTABLE, SYNTHETIC, IMPLICIT, GIVEN].iter().fold(0, |b, &t| b | 1u64 << t);
+        if flags & !allowed != 0 {
+            return Err("ValDef.let with flags other than Lazy, Mutable, Synthetic, Implicit and Given");
+        }
+        let span = self.span;
+        let info = self.tpd.get(rhs).tpe.ok_or("ValDef.let of a term without a type")?;
+        let info = self.u.widen(info);
+        let s = self.u.define(Symbol {
+            name: name.to_owned(),
+            kind: Kind::Val,
+            owner: None,
+            flags: Flags(flags).with(SYNTHETIC),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        self.u.set_owner(s, owner);
+        self.u.set_info(s, info);
+        let tpt = self.type_tree(info);
+        let mut b = self.build()?;
+        let vdef = b.val_def(s, tpt, Some(rhs), span);
+        Ok((vdef, b.static_ident(s, span)))
+    }
+
+    /// `Block(stats, expr)`, of the type of `expr` widened if it refers to a definition of `stats`.
+    pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
+        let span = self.span;
+        let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.tpd.sym(s)).collect();
+        let mut tpe = self.tpd.tpe(expr);
+        let mut local = false;
+        self.u.map_type(tpe, &mut |u, part| {
+            local |= matches!(*u.types().get(part), Type::Sym(_, s) if defined.contains(&s));
+            None
+        });
+        if local {
+            tpe = self.u.widen(tpe);
+        }
+        let stats = self.tpd.list(stats);
+        self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None)
     }
 
     /// `Literal(constant)`.

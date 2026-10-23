@@ -84,7 +84,8 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object Block extends BlockModule {
-    def apply(stats: List[Statement], expr: Term): Block = refused("Block.apply")
+    def apply(stats: List[Statement], expr: Term): Block =
+      ReflectOps.term(ReflectOps.one("block", (expr :: stats).map(ReflectOps.id)*)).asInstanceOf[Block]
     def copy(original: Tree)(stats: List[Statement], expr: Term): Block = refused("Block.copy")
     def unapply(x: Block): (List[Statement], Term) = {
       val s = ReflectOps.shape(x)
@@ -131,9 +132,21 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
       val s = ReflectOps.shape(vdef)
       (s.name, s.child(0).asInstanceOf[TypeTree], ReflectOps.opt(s.children(1)).asInstanceOf[Option[Term]])
     }
-    def let(owner: Symbol, name: String, rhs: Term, flags: Flags)(body: Ref => Term): Term = refused("ValDef.let")
-    def let(owner: Symbol, name: String, rhs: Term)(body: Ref => Term): Term = refused("ValDef.let")
-    def let(owner: Symbol, terms: List[Term])(body: List[Ref] => Term): Term = refused("ValDef.let")
+    def let(owner: Symbol, name: String, rhs: Term, flags: Flags)(body: Ref => Term): Term = {
+      val (vdef, ref) = local(owner, name, rhs, flags.asInstanceOf[FlagsImpl].bits)
+      Block(List(vdef), body(ref))
+    }
+    def let(owner: Symbol, name: String, rhs: Term)(body: Ref => Term): Term = let(owner, name, rhs, Flags.EmptyFlags)(body)
+    def let(owner: Symbol, terms: List[Term])(body: List[Ref] => Term): Term = {
+      val (vdefs, refs) = terms.map(local(owner, "x", _, 0L)).unzip
+      Block(vdefs, body(refs))
+    }
+
+    /** A synthetic value of `owner` defined as `rhs` (dotty's `SyntheticValDef`) and a reference to it. */
+    private def local(owner: Symbol, name: String, rhs: Term, flags: Long): (ValDef, Ref) = {
+      ReflectOps.run("let", Array(ReflectOps.id(owner), ReflectOps.id(rhs), flags.toInt, (flags >>> 32).toInt), name)
+      (ReflectOps.term(QuoteHost.result(0)).asInstanceOf[ValDef], ReflectOps.term(QuoteHost.result(1)).asInstanceOf[Ref])
+    }
   }
 
   object NamedArg extends NamedArgModule {

@@ -7,7 +7,7 @@ use crate::host::Host;
 
 impl Host {
     /// Runs term operation `op` on `args`.
-    pub fn run_term(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+    pub fn run_term(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
         let arg = |i: usize| arg(args, i);
         match op {
             "underlying" => {
@@ -57,6 +57,23 @@ impl Host {
                 let types =
                     args[1..].iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
                 let t = self.reflect().applied_to_types(fun, &types)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "let" => {
+                let owner = symbol(arg(0)?)?;
+                if owner != self.owner && owner != self.macro_owner() {
+                    return Err("ValDef.let of an owner other than the splice's");
+                }
+                let rhs = self.tree(arg(1)? as u32)?;
+                let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
+                let owner = self.owner;
+                let (vdef, r) = self.reflect().let_(owner, name, rhs, flags)?;
+                numbers(vec![self.add_tree(vdef) as i32, self.add_tree(r) as i32])
+            }
+            "block" => {
+                let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
+                let (&expr, stats) = trees.split_first().ok_or("Block.apply without its expression")?;
+                let t = self.reflect().block(stats, expr);
                 numbers(vec![self.add_tree(t) as i32])
             }
             _ => Err(UNKNOWN),
