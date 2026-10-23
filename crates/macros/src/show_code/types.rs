@@ -64,7 +64,7 @@ impl Code<'_> {
             }
             T::Annotated { arg, annot } => {
                 let class = self.h.tpd.get(self.r(annot)).tpe.and_then(|a| self.h.u.class_symbol(a));
-                if !class.is_some_and(|c| self.h.u.full_name(c) == "scala.annotation.internal.Repeated") {
+                if class.is_none_or(|c| self.h.u.full_name(c) != "scala.annotation.internal.Repeated") {
                     return Err(REFUSED);
                 }
                 let seq = self.h.tpd.tpe(self.r(arg));
