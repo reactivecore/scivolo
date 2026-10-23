@@ -135,7 +135,10 @@ impl Typer<'_> {
                 formal = self.dependent_formal(formal, clause, &typed_args);
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
-            typed_args.push(self.arg_against(a, pre, formal, ctx));
+            let arg = self.arg_against(a, pre, formal, ctx);
+            let by_name =
+                params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+            typed_args.push(if by_name { self.by_name_uncaptured(arg) } else { arg });
         }
         let result = match dependent {
             true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),

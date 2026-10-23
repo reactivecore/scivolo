@@ -75,8 +75,9 @@ impl Typer<'_> {
         Ok(Some(self.conforms(arg, fun)))
     }
 
-    /// Whether arguments of types `args` fit the first parameter clause of `alt` seen from
-    /// `prefix` in `ctx`, through implicit conversions if `views`: `None` if undecided.
+    /// Whether arguments of types `args`, their wildcards captured if need be, fit the first
+    /// parameter clause of `alt` seen from `prefix` in `ctx`, through implicit conversions if
+    /// `views`: `None` if undecided.
     pub fn applicable(
         &mut self,
         alt: SymbolId,
@@ -141,7 +142,8 @@ impl Typer<'_> {
             };
             let p = self.from_java_object(Some(alt), p);
             let (a, p) = (by_name_result(self, a), by_name_result(self, p));
-            all &= self.compatible(a, p, views, ctx)?;
+            let fits = self.compatible(a, p, views, ctx)?;
+            all &= fits || self.captured_args(a).is_some_and(|c| self.conforms(c, p));
         }
         Some(all)
     }
