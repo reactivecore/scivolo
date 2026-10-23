@@ -44,7 +44,10 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   object Select extends SelectModule {
     def apply(qualifier: Term, symbol: Symbol): Select = qualifier.select(symbol)
-    def unique(qualifier: Term, name: String): Select = refused("Select.unique")
+    def unique(qualifier: Term, name: String): Select = {
+      ReflectOps.run("selectUnique", Array(ReflectOps.id(qualifier)), name)
+      ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Select]
+    }
     def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term]): Term =
       refused("Select.overloaded")
     def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term =

@@ -93,16 +93,16 @@ impl Reflect<'_> {
         self.tpd.node(tree, self.span, Some(tpe), None)
     }
 
-    /// `CaseDef(pat, guard, body)`, of the body's type.
+    /// `CaseDef(pat, guard, body)`.
     pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> TNodeId {
-        let tpe = self.tpd.tpe(body);
-        self.tpd.node(T::CaseDef { pat, guard, body }, self.span, Some(tpe), None)
+        self.tpd.node(T::CaseDef { pat, guard, body }, self.span.to_synthetic(), None, None)
     }
 
-    /// `Wildcard()`: the pattern `_` of type `Any`.
+    /// `Wildcard()`: the pattern `_` of type `Any`, its symbol `Any`'s.
     pub fn wildcard(&mut self) -> TNodeId {
         let name = TName { name: self.names.intern("_"), is_type: false };
-        self.tpd.node(T::Ident { name }, self.span, Some(ANY), None)
+        let any = self.u.class_symbol(ANY);
+        self.tpd.node(T::Ident { name }, self.span, Some(ANY), any)
     }
 
     /// `Typed(expr, tpt)`, of the type of `tpt`.

@@ -8,7 +8,7 @@ use typer::tpd::TNodeId;
 
 impl Host {
     /// Runs term operation `op` on `args`.
-    pub fn run_term(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+    pub fn run_term(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
         let arg = |i: usize| arg(args, i);
         match op {
             "underlying" => {
@@ -54,6 +54,15 @@ impl Host {
                     return Err("Ident.apply of a reference the frontend did not resolve");
                 };
                 let t = self.reflect().ref_(s)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "selectUnique" => {
+                let qual = self.tree(arg(0)? as u32)?;
+                let tpe = self.tpd.tpe(qual);
+                let found = self.u.member_of_type(tpe, text);
+                let terms: Vec<_> = found.into_iter().filter(|&s| self.u.symbol(s).kind.is_term()).collect();
+                let [m] = terms[..] else { return Err("Select.unique of no or an overloaded member") };
+                let t = self.reflect().select(qual, m)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
             "select" => {
