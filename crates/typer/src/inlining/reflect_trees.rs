@@ -105,6 +105,12 @@ impl Reflect<'_> {
         self.tpd.node(T::Ident { name }, self.span, Some(ANY), None)
     }
 
+    /// `Typed(expr, tpt)`, of the type of `tpt`.
+    pub fn typed(&mut self, expr: TNodeId, tpt: TNodeId) -> TNodeId {
+        let tpe = self.tpd.tpe(tpt);
+        self.tpd.node(T::Typed { expr, tpt }, self.span, Some(tpe), None)
+    }
+
     /// `Block(stats, expr)`, of the type of `expr`.
     pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
         let (tpe, stats) = (self.tpd.tpe(expr), self.tpd.list(stats));

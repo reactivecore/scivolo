@@ -37,7 +37,7 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object AppliedType extends AppliedTypeModule {
-    def apply(tycon: TypeRepr, args: List[TypeRepr]): AppliedType = throw new Unsupported("AppliedType.apply")
+    def apply(tycon: TypeRepr, args: List[TypeRepr]): AppliedType = TypeShapes.appliedTo(tycon, args).asInstanceOf[AppliedType]
     def unapply(x: AppliedType): (TypeRepr, List[TypeRepr]) = {
       val parts = TypeShapes.parts(x)
       (parts.head.asInstanceOf[TypeRepr], parts.tail.asInstanceOf[List[TypeRepr]])
@@ -46,7 +46,8 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
 
   object AnnotatedType extends AnnotatedTypeModule {
     def apply(underlying: TypeRepr, annot: Term): AnnotatedType = throw new Unsupported("AnnotatedType.apply")
-    def unapply(x: AnnotatedType): (TypeRepr, Term) = throw new Unsupported("AnnotatedType.unapply")
+    def unapply(x: AnnotatedType): (TypeRepr, Term) =
+      (TypeShapes.part(x, 0).asInstanceOf[TypeRepr], TypeShapes.annotation(x).asInstanceOf[Term])
   }
 
   abstract class NamedTypeMethodsImpl extends NamedTypeMethods {
@@ -73,7 +74,7 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   abstract class AnnotatedTypeMethodsImpl extends AnnotatedTypeMethods {
     extension (self: AnnotatedType) {
       def underlying: TypeRepr = TypeShapes.part(self, 0).asInstanceOf[TypeRepr]
-      def annotation: Term = throw new Unsupported("AnnotatedType.annotation")
+      def annotation: Term = TypeShapes.annotation(self).asInstanceOf[Term]
     }
   }
 
@@ -93,6 +94,9 @@ object TypeShapes {
   def part(t: Any, i: Int): Any = parts(t)(i)
 
   def name(t: Any): String = ReflectOps.text("typeName", ReflectOps.id(t))
+
+  /** The annotation of annotated type `t`: an instance creation of the annotation's class. */
+  def annotation(t: Any): Any = ReflectOps.term(ReflectOps.one("annotation", ReflectOps.id(t)))
 
   def appliedTo(tycon: Any, args: List[Any]): Any =
     QuoteHost.tpe(ReflectOps.one("appliedTo", (tycon :: args).map(ReflectOps.id)*))

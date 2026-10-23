@@ -95,6 +95,9 @@ impl Reflect<'_> {
 
     /// `Symbol.typeRef`, `Symbol.termRef`: the type of a reference to `s`.
     pub fn symbol_ref(&mut self, s: SymbolId) -> TypeId {
+        if self.u.symbol(s).kind == Kind::Package {
+            return self.u.intern_type(Type::Package(s));
+        }
         type_ref(self.u, s)
     }
 

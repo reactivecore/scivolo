@@ -74,7 +74,7 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
         if (!self.isType) throw new Unsupported("Symbol.typeRef of a term")
         else QuoteHost.tpe(ReflectOps.one("symbolRef", ReflectOps.id(self))).asInstanceOf[TypeRef]
       def termRef: TermRef =
-        if (!self.isTerm) throw new Unsupported("Symbol.termRef of a type")
+        if (!self.isTerm && !self.isPackageDef) throw new Unsupported("Symbol.termRef of a type")
         else QuoteHost.tpe(ReflectOps.one("symbolRef", ReflectOps.id(self))).asInstanceOf[TermRef]
       def primaryConstructor: Symbol = sym(ReflectOps.one("primaryConstructor", ReflectOps.id(self)))
       def caseFields: List[Symbol] = ReflectOps.results("caseFields", ReflectOps.id(self)).map(sym)

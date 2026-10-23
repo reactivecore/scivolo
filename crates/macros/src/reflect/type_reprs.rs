@@ -7,6 +7,7 @@
 use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
 use crate::host::Host;
 use tasty::{Kind, SymbolId, Type, TypeId};
+use typer::tpd::Tree as T;
 
 impl Host {
     /// Runs type operation `op` on `args`.
@@ -69,13 +70,23 @@ impl Host {
             }
             "memberType" => {
                 let (t, s) = (tpe(self, 0)?, symbol(arg(args, 1)?)?);
-                let m = self.u.term_type(Some(t), s);
+                let m = self.repeated_param(s).unwrap_or_else(|| self.u.term_type(Some(t), s));
                 numbers(vec![self.add_type(m) as i32])
             }
             "termRef" => {
                 let qual = tpe(self, 0)?;
                 let t = self.reflect().term_ref(qual, name)?;
                 numbers(vec![self.add_type(t) as i32])
+            }
+            "annotation" => {
+                let t = tpe(self, 0)?;
+                let Type::Annotated(_, annot) = *self.u.types().get(t) else {
+                    return Err("AnnotatedType.annotation of another type");
+                };
+                let span = self.expansion;
+                let tpt = self.tpd.node(T::TypeTree { inferred: false }, span, Some(annot), None);
+                let new = self.tpd.node(T::New { tpt }, span, Some(annot), None);
+                numbers(vec![self.add_tree(new) as i32])
             }
             "symbolRef" => {
                 let t = self.reflect().symbol_ref(symbol(arg(args, 0)?)?);
@@ -99,6 +110,27 @@ impl Host {
             _ => Type::NoPrefix,
         };
         Ok(self.u.intern_type(t))
+    }
+
+    /// The type `<repeated>[T]` of `s` if it is a repeated parameter of a method, as its
+    /// method's type states it (dotty's info of a repeated parameter).
+    fn repeated_param(&mut self, s: SymbolId) -> Option<TypeId> {
+        let sym = self.u.symbol(s);
+        let (name, owner) = (sym.name.clone(), sym.owner?);
+        if sym.kind != Kind::Param || self.u.symbol(owner).kind != Kind::Def {
+            return None;
+        }
+        let mut t = self.u.info(owner);
+        while let Type::Poly { result, .. } | Type::Method { result, .. } = self.u.types().get(t).clone() {
+            if let Type::Method { params, .. } = self.u.types().get(t).clone()
+                && let Some(&(_, p)) = params.iter().find(|(n, _)| *n == name)
+            {
+                let repeated = self.u.class_symbol(p).is_some_and(|c| self.u.symbol(c).name == "<repeated>");
+                return repeated.then_some(p);
+            }
+            t = result;
+        }
+        None
     }
 
     fn type_kind(&self, t: TypeId) -> i32 {

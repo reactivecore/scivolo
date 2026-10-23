@@ -68,10 +68,12 @@ impl Host {
                 let t = self.reflect().applied_to_types(fun, &types)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
-            "match" | "block" | "apply" => {
+            "match" | "block" | "apply" | "typed" => {
                 let trees = self.trees(args)?;
                 let t = match op {
                     "match" => self.reflect().match_(trees[0], &trees[1..]),
+                    "typed" if trees.len() == 2 => self.reflect().typed(trees[0], trees[1]),
+                    "typed" => return Err("Typed.apply without its type tree"),
                     "apply" => self.reflect().apply(trees[0], &trees[1..])?,
                     _ => self.reflect().block(&trees[1..], trees[0]),
                 };

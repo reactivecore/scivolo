@@ -57,7 +57,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object Typed extends TypedModule {
-    def apply(expr: Term, tpt: TypeTree): Typed = refused("Typed.apply")
+    def apply(expr: Term, tpt: TypeTree): Typed = built("typed", List(expr, tpt)).asInstanceOf[Typed]
     def copy(original: Tree)(expr: Term, tpt: TypeTree): Typed = refused("Typed.copy")
     def unapply(x: Typed): (Term, TypeTree) = {
       val s = ReflectOps.shape(x)
@@ -120,7 +120,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object Inferred extends InferredModule {
-    def apply(tpe: TypeRepr): Inferred = refused("Inferred.apply")
+    def apply(tpe: TypeRepr): Inferred = ReflectOps.term(ReflectOps.one("typeTree", ReflectOps.id(tpe))).asInstanceOf[Inferred]
     def unapply(x: Inferred): true = true
   }
 

@@ -1,6 +1,14 @@
 //> using dep com.lihaoyi::mainargs::0.7.8
 
-import mainargs.{arg, Flag, ParserForClass, ParserForMethods}
+import mainargs.{arg, Flag, Leftover, ParserForClass, ParserForMethods}
+
+object LhVar:
+  @mainargs.main
+  def tags(names: Seq[String], limit: Option[Int], loud: Boolean = false, rest: Leftover[String]): String =
+    s"$names $limit $loud ${rest.value}"
+
+  @mainargs.main
+  def many(xs: String*): String = xs.mkString("+")
 
 @mainargs.main
 case class LhConfig(@arg(short = 'n', doc = "the name") name: String, count: Int = 1, debug: Flag)
@@ -26,3 +34,7 @@ object LhCli:
   println(ParserForClass[LhConfig].constructEither(Seq("-n", "x", "--count", "3")))
   println(ParserForClass[LhConfig].constructEither(Seq("--name", "y", "--debug")))
   println(ParserForClass[LhConfig].constructEither(Seq("--count", "2")))
+  val vars = ParserForMethods(LhVar)
+  println(vars.runEither(Seq("tags", "--names", "a", "--names", "b", "--limit", "3", "x", "y")))
+  println(vars.runEither(Seq("tags", "--loud", "true")))
+  println(vars.runEither(Seq("many", "1", "2", "3")))

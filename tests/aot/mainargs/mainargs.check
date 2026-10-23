@@ -20,3 +20,6 @@ Expected Signature: apply
   -n --name <str>  the name
 
 )
+Right(List(a, b) Some(3) false List(x, y))
+Right(List() None true List())
+Right(1+2+3)
