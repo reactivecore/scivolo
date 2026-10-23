@@ -150,6 +150,7 @@ mod selves;
 mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
+mod source_splices;
 mod spliced_args;
 pub(crate) mod stability;
 mod stats;

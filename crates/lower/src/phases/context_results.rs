@@ -56,7 +56,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             calls.push(call);
         }
     }
-    let mut handled = FxHashSet::default();
+    let mut handled = inline_bodies(l, root);
     for (applies, r) in calls {
         handled.insert(r);
         for a in applies {
@@ -76,6 +76,16 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// The trees in the bodies of the inline methods of unit `root`, which erasure drops.
+fn inline_bodies(l: &Lower, root: TNodeId) -> FxHashSet<TNodeId> {
+    let inline = |t| l.tpd.sym(t).is_some_and(|s| l.u.symbol(s).flags.has(tasty::tags::INLINE));
+    let rhss = subtrees(l.tpd, root).into_iter().filter_map(|t| match *l.tpd.tree(t) {
+        Tree::DefDef { rhs: Some(rhs), .. } if inline(t) => Some(rhs),
+        _ => None,
+    });
+    rhss.collect::<Vec<_>>().into_iter().flat_map(|rhs| subtrees(l.tpd, rhs)).collect()
 }
 
 /// Whether `s` is a method whose final result type is a context function.
