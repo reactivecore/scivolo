@@ -22,6 +22,7 @@ impl Typer<'_> {
             }
             let found: Vec<TypeId> = parents.iter().filter_map(|&p| self.u.base_type(p, base)).collect();
             let Some((&first, rest)) = found.split_first() else { continue };
+            let mut joined = Some(first);
             for &other in rest {
                 match self.same_base_type(base, first, other) {
                     Some(true) => {}
@@ -34,16 +35,25 @@ impl Typer<'_> {
                         self.error_at(name_span, msg);
                         return;
                     }
-                    _ => {
-                        self.unsupported_at(
-                            name_span,
-                            "parents giving a base class different type arguments",
-                        );
-                        return;
-                    }
+                    _ => joined = joined.and_then(|j| self.u.joined_base_type(base, j, other)),
                 }
             }
+            if joined == Some(first) {
+                continue;
+            }
+            let this = self.u.this_type(cls);
+            let seen = self.u.base_type(this, base);
+            if !self.same_types(joined, seen) {
+                self.unsupported_at(name_span, "parents giving a base class different type arguments");
+                return;
+            }
         }
+    }
+
+    /// Whether `a` and `b` are both types and each conforms to the other.
+    fn same_types(&mut self, a: Option<TypeId>, b: Option<TypeId>) -> bool {
+        let (Some(a), Some(b)) = (a, b) else { return false };
+        a == b || self.u.is_subtype(a, b) && self.u.is_subtype(b, a)
     }
 
     /// Checks that class `cls` sees each parameterized trait its superclass extends as the

@@ -4,7 +4,8 @@
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol};
 use crate::host::Host;
-use typer::tpd::TNodeId;
+use std::collections::HashMap;
+use typer::tpd::{TNodeId, Tpd, map_children};
 
 impl Host {
     /// Runs term operation `op` on `args`.
@@ -65,6 +66,7 @@ impl Host {
                 let t = self.reflect().select(qual, m)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "selectOverloaded" => self.select_overloaded(args, text),
             "select" => {
                 let qual = self.tree(arg(0)? as u32)?;
                 let t = self.reflect().select(qual, symbol(arg(1)?)?)?;
@@ -110,8 +112,11 @@ impl Host {
             }
             "betaReduce" => {
                 let t = self.tree(arg(0)? as u32)?;
+                let fills: HashMap<_, _> =
+                    self.hole_fills().into_iter().filter_map(|(h, f)| Some((h, f?))).collect();
+                let filled = filled(&mut self.tpd, &fills, t);
                 let owner = self.owner;
-                let reduced = self.reflect().beta_reduce(t, owner)?;
+                let reduced = self.reflect().beta_reduce(filled, owner)?;
                 numbers(vec![reduced.map_or(-1, |r| self.add_tree(r) as i32)])
             }
             "block" => {
@@ -123,7 +128,26 @@ impl Host {
             _ => Err(UNKNOWN),
         }
     }
+}
 
+/// `t` with the hole placeholders in it replaced by the trees in `fills` filling them, the trees
+/// on their paths copied.
+fn filled(tpd: &mut Tpd, fills: &HashMap<TNodeId, TNodeId>, t: TNodeId) -> TNodeId {
+    if let Some(&f) = fills.get(&t) {
+        return filled(tpd, fills, f);
+    }
+    let kids = tpd.children(t).to_vec();
+    let new: Vec<_> = kids.iter().map(|&c| filled(tpd, fills, c)).collect();
+    if new == kids {
+        return t;
+    }
+    let n = tpd.node(tpd.tree(t).clone(), tpd.span(t), tpd.get(t).tpe, tpd.sym(t));
+    let mut new = new.into_iter();
+    map_children(tpd, n, &mut |_, c| new.next().unwrap_or(c));
+    n
+}
+
+impl Host {
     /// The trees of expressions `args`, at least one.
     fn trees(&self, args: &[i32]) -> Result<Vec<TNodeId>, &'static str> {
         let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;

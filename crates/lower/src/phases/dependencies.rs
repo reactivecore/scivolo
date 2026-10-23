@@ -8,7 +8,7 @@
 //! `Constructors`.
 
 use super::explicit_outer::in_term;
-use super::local_free::{is_method, is_term};
+use super::local_free::{is_method, is_term, original_owner};
 use super::mixin::{forwarded, mixins};
 use super::walk::{children, subtrees};
 use crate::Lower;
@@ -39,6 +39,7 @@ impl Dependencies {
 struct Collect<'a, 'l> {
     l: &'a Lower<'l>,
     ctors: FxHashMap<SymbolId, SymbolId>,
+    inits: FxHashMap<SymbolId, Vec<SymbolId>>,
     created: FxHashMap<TNodeId, SymbolId>,
     free: Vec<(SymbolId, Vec<SymbolId>)>,
     called: Vec<(SymbolId, Vec<SymbolId>)>,
@@ -63,12 +64,13 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
             _ => {}
         }
     }
-    let local_trait =
-        |l: &Lower, m: SymbolId| l.u.is_trait(m) && l.u.symbol(m).owner.is_some_and(|o| is_term(l, o));
+    let local_trait = |l: &Lower, m: SymbolId| l.u.is_trait(m) && is_local(l, m);
     let classes: Vec<SymbolId> =
         ctors.keys().copied().filter(|&c| !l.u.is_trait(c) && in_term(l, c)).collect();
+    let mut inits = FxHashMap::default();
     for class in classes {
         let traits: Vec<SymbolId> = mixins(l, class).into_iter().filter(|&m| local_trait(l, m)).collect();
+        inits.insert(class, traits.iter().filter_map(|m| ctors.get(m).copied()).collect());
         let methods: Vec<SymbolId> = traits.into_iter().flat_map(|m| forwarded(l, class, m)).collect();
         if !methods.is_empty() {
             l.trait_forwards.insert(class, methods);
@@ -76,7 +78,7 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
     }
     let l: &Lower = l;
     let (free, called) = (Vec::new(), Vec::new());
-    let mut c = Collect { l, ctors, created, free, called, changed: false };
+    let mut c = Collect { l, ctors, inits, created, free, called, changed: false };
     c.visit(root, None);
     loop {
         c.changed = false;
@@ -93,6 +95,14 @@ pub fn dependencies(l: &mut Lower, root: TNodeId) -> Dependencies {
             return Dependencies { free: c.free };
         }
     }
+}
+
+/// Whether `s` is defined in a term, a method or class of a local trait, or is the constructor
+/// of a local class (dotty's `isLocal`), before local classes were lifted.
+pub fn is_local(l: &Lower, s: SymbolId) -> bool {
+    let Some(owner) = original_owner(l, s) else { return false };
+    let trait_member = l.u.is_trait(owner) && (l.u.symbol(s).kind == Kind::Def || l.u.is_class(s));
+    is_term(l, owner) || (trait_member || l.u.is_constructor(s)) && is_local(l, owner)
 }
 
 /// Statements `stats` with the definition of each object's class after that of its companion
@@ -184,6 +194,9 @@ impl Collect<'_, '_> {
         for &p in parents.iter().filter(|&&p| l.tpd.sym(p).is_none_or(|s| !l.u.is_class(s))) {
             self.visit(p, ctor);
         }
+        for init in self.inits.get(&class).cloned().unwrap_or_default() {
+            self.add_called(ctor, init);
+        }
         for &s in body.iter().filter(|&&s| !member(s)) {
             let rhs = match *l.tpd.tree(s) {
                 Tree::ValDef { rhs, .. } | Tree::DefDef { rhs, .. } => rhs,
@@ -198,12 +211,8 @@ impl Collect<'_, '_> {
         }
     }
 
-    /// Whether `s` is defined in a term, a method of such a trait, or the constructor of such a
-    /// class (dotty's `isLocal`).
     fn is_local(&self, s: SymbolId) -> bool {
-        let (l, Some(owner)) = (self.l, self.l.u.symbol(s).owner) else { return false };
-        let trait_method = l.u.is_trait(owner) && l.u.symbol(s).kind == Kind::Def;
-        is_term(l, owner) || (trait_method || l.u.is_constructor(s)) && self.is_local(owner)
+        is_local(self.l, s)
     }
 
     fn add_called(&mut self, caller: Option<SymbolId>, callee: SymbolId) {

@@ -21,12 +21,12 @@ abstract class ReflectImpl
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
 
-  /** `TypeReprCode`, and `TreeCode` of inferred type trees; the other printers are `Unsupported`. */
+  /** `TreeCode`, `TreeStructure` and `TypeReprCode`; the other printers are `Unsupported`. */
   object Printer extends PrinterModule {
-    def TreeCode: Printer[Tree] = printer("showTypeTree")
+    def TreeCode: Printer[Tree] = printer("showTree")
     def TreeShortCode: Printer[Tree] = refusing("Printer.TreeShortCode")
     def TreeAnsiCode: Printer[Tree] = refusing("Printer.TreeAnsiCode")
-    def TreeStructure: Printer[Tree] = refusing("Printer.TreeStructure")
+    def TreeStructure: Printer[Tree] = printer("showStructure")
     def TypeReprCode: Printer[TypeRepr] = printer("showType")
     def TypeReprShortCode: Printer[TypeRepr] = refusing("Printer.TypeReprShortCode")
     def TypeReprAnsiCode: Printer[TypeRepr] = refusing("Printer.TypeReprAnsiCode")

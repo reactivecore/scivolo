@@ -15,7 +15,7 @@ final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSup
   val reflect: reflectModule = null
 
   extension [T](self: Expr[T]) {
-    def show: String = throw new Unsupported("Expr.show")
+    def show: String = ReflectOps.text("showTree", QuoteHost.exprId(self))
     def matches(that: Expr[Any]): Boolean = throw new Unsupported("Expr.matches")
     def valueOrAbort(using fromExpr: FromExpr[T]): T =
       fromExpr.unapply(self)(using this).getOrElse(throw new Unsupported("Expr.valueOrAbort of no known value"))

@@ -116,6 +116,15 @@ impl Host {
         holes.map(|&(node, _, _, filled)| (node, filled.and_then(|e| self.tree(e).ok()))).collect()
     }
 
+    /// The spliced type symbols of the quotes with the types they stand for.
+    pub fn spliced_types(&self) -> Vec<(SymbolId, TypeId)> {
+        let quotes = self.exprs.iter().filter_map(|e| match e {
+            Expr::Quote(q) => Some(&q.spliced),
+            Expr::Tree(_) => None,
+        });
+        quotes.flatten().copied().collect()
+    }
+
     pub fn type_of(&self, id: u32) -> Result<TypeId, &'static str> {
         self.types.get(id as usize).copied().ok_or("a Type the frontend did not make")
     }

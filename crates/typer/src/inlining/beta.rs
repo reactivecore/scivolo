@@ -10,7 +10,7 @@ use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
 use syntax::ast::constant::Constant as C;
 use tasty::tags::{MUTABLE, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, Type};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, beta-reduced if it applies a closure's `apply` to arguments.
@@ -112,7 +112,13 @@ impl Inlining<'_> {
             TreeTypeMap { old_owner: self.tpd.sym(def), new_owner: Some(owner), ..TreeTypeMap::default() };
         for (&p, &a) in params.iter().zip(args) {
             let Some(ps) = self.tpd.sym(p) else { return Ok(None) };
-            let arg_tpe = self.tpd.tpe(a);
+            let mut inner = a;
+            while let T::Inlined { call: None, bindings, expansion } = *self.tpd.tree(inner)
+                && bindings.is_empty()
+            {
+                inner = expansion;
+            }
+            let arg_tpe = self.tpd.tpe(inner);
             let direct = match *self.u.types().get(arg_tpe) {
                 Type::Sym(None, s) => {
                     self.u.symbol(s).kind.is_term() && self.purity(a) == super::purity::PURE_PATH
@@ -123,7 +129,7 @@ impl Inlining<'_> {
                 let Type::Sym(None, s) = *self.u.types().get(arg_tpe) else { return Ok(None) };
                 s
             } else {
-                self.arg_binding(ps, a, bindings, owner)?
+                self.arg_binding(ps, (a, arg_tpe), bindings, owner)?
             };
             m.syms.insert(ps, to);
         }
@@ -131,12 +137,12 @@ impl Inlining<'_> {
         Ok(Some(self.literals_for_pure_constants(body)))
     }
 
-    /// The symbol of a new binding of argument `a` of closure parameter `p`, its definition added
-    /// to `bindings` unless the argument is a pure constant or unit.
+    /// The symbol of a new binding of argument `a` of type `arg_tpe` of closure parameter `p`,
+    /// its definition added to `bindings` unless the argument is a pure constant or unit.
     fn arg_binding(
         &mut self,
         p: SymbolId,
-        a: TNodeId,
+        (a, arg_tpe): (TNodeId, TypeId),
         bindings: &mut Vec<TNodeId>,
         owner: SymbolId,
     ) -> Result<SymbolId, Unsupported> {
@@ -144,7 +150,6 @@ impl Inlining<'_> {
         if matches!(self.u.types().get(p_info), Type::ByName(_)) {
             return Err((self.tpd.span(a), "beta reduction with a by-name parameter"));
         }
-        let arg_tpe = self.tpd.tpe(a);
         let builtins = self.u.builtins();
         let widened = self.u.widen(arg_tpe);
         let bottom =

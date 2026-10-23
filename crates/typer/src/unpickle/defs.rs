@@ -47,7 +47,7 @@ impl Unpickler<'_> {
 
     /// The parameter defined at `id`, its type tree read for a local method, else the type it is
     /// entered with.
-    fn param(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
+    pub fn param(&mut self, id: NodeId) -> Result<TNodeId, Refusal> {
         let sym =
             self.u.defined_at(self.file, id).ok_or("parameter without a symbol in a library inline body")?;
         let info = self.u.info(sym);
@@ -85,23 +85,38 @@ impl Unpickler<'_> {
     /// not among its declarations, and those of its parameters; the one defined before if it was
     /// read already.
     pub fn define_local(&mut self, id: NodeId) -> Result<SymbolId, Refusal> {
-        self.define_at(id, self.owner, false)
+        self.define_definition(id, self.owner, false)
     }
 
-    fn define_at(&mut self, id: NodeId, owner: SymbolId, member: bool) -> Result<SymbolId, Refusal> {
+    /// Defines the symbol of the definition at `id`, owned by `owner` and among its declarations
+    /// if `member`: a class with its members, a parameter of a class as its value.
+    pub fn define_definition(
+        &mut self,
+        id: NodeId,
+        owner: SymbolId,
+        member: bool,
+    ) -> Result<SymbolId, Refusal> {
         if let Some(s) = self.u.defined_at(self.file, id) {
             return Ok(s);
         }
+        let in_class = self.u.symbol(owner).kind == Kind::Class;
         let (kind, mods, params) = match view(self.ast(), id) {
+            View::TypeDef { is_class: true, .. } => return self.define_class(id, owner, member),
+            View::TypeDef { mods, .. } => (Kind::Type, mods.to_vec(), Vec::new()),
             View::DefDef { parts, .. } => (Kind::Def, parts.mods.to_vec(), parts.params.to_vec()),
             View::ValDef { mods, .. } => (Kind::Val, mods.to_vec(), Vec::new()),
             View::Param { mods, .. } if self.tag(id) == TYPEPARAM => {
                 (Kind::TypeParam, mods.to_vec(), Vec::new())
             }
+            View::Param { mods, .. } if in_class => (Kind::Val, mods.to_vec(), Vec::new()),
             View::Param { mods, .. } => (Kind::Param, mods.to_vec(), Vec::new()),
             _ => return Err("local definition of another kind in a library inline body"),
         };
         let flags = mods.iter().fold(Flags::default(), |f, &m| f.with(self.tag(m)));
+        let flags = match in_class && self.tag(id) == PARAM {
+            true => flags.with(PARAMsetter),
+            false => flags,
+        };
         let s = self.u.define(Symbol {
             name: self.name(id),
             kind,
@@ -118,7 +133,7 @@ impl Unpickler<'_> {
         }
         for p in params {
             if matches!(self.tag(p), PARAM | TYPEPARAM) {
-                self.define_at(p, s, true)?;
+                self.define_definition(p, s, true)?;
             }
         }
         let info = self.u.info(s);

@@ -97,8 +97,8 @@ impl Typer<'_> {
     }
 
     /// The type a definition infers from `this` type `t` of class type `c`: `t` for an object, the
-    /// self type for a class with a given one, else `c` (dotty's `ThisType.underlying`,
-    /// `ClassInfo.selfType`).
+    /// self type for a class with a given one, else `c` applied to its type parameters (dotty's
+    /// `ThisType.underlying`, `ClassInfo.selfType`).
     pub fn widened_this(&mut self, t: TypeId, c: TypeId) -> TypeId {
         let Some(k) = self.u.class_symbol(c) else { return c };
         if self.u.is_module_class(k) {
@@ -107,7 +107,8 @@ impl Typer<'_> {
         self.ensure_self(k);
         match self.u.given_self_type(k) {
             Some(_) => self.u.self_type(k),
-            None => c,
+            None if self.u.type_params(k).is_empty() => c,
+            None => self.u.this_type(k),
         }
     }
 

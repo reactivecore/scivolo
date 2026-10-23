@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/LambdaLift.scala
-//! The methods of local traits (dotty's `LambdaLift` for traits): each using local values of the
-//! enclosing methods takes them first, as parameters; its calls pass them.
+//! The methods and constructors of local traits (dotty's `LambdaLift` for traits): each using
+//! local values of the enclosing methods takes them first, as parameters; its calls pass them.
 
 use super::dependencies::Dependencies;
 use super::explicit_outer::terms;
@@ -15,6 +15,7 @@ use super::walk::subtrees;
 use crate::symbols::has;
 use crate::{Lower, Result, unsupported};
 use rustc_hash::{FxHashMap, FxHashSet};
+use syntax::ast::Span;
 use tasty::tags::LAZY;
 use tasty::{Flags, Kind, SymbolId};
 use typer::tpd::{TNodeId, Tree};
@@ -39,11 +40,9 @@ pub fn transform(
             let plain = matches!(l.tpd.tree(stat), Tree::DefDef { .. })
                 && is_method(l, sym)
                 && sym.is_some_and(|s| !has(l.u, s, LAZY));
-            if !plain && let Some(t) = captured_ref(l, stat, trait_) {
-                return unsupported(
-                    l.tpd.span(t),
-                    "members of local traits other than methods capturing values",
-                );
+            let lazy = sym.is_some_and(|s| has(l.u, s, LAZY));
+            if lazy && let Some(t) = captured_ref(l, stat, trait_) {
+                return unsupported(l.tpd.span(t), "lazy values of local traits capturing values");
             }
             let method = sym.filter(|_| plain);
             defs.extend(method.filter(|&m| !deps.of(m).is_empty()).map(|m| (stat, m)));
@@ -66,6 +65,44 @@ pub fn transform(
         l.trait_methods.insert(m, (info, pairs));
     }
     Ok(())
+}
+
+/// Gives the constructor of local trait definition `td` leading parameters `params` standing
+/// for `values` in its parents and initializing statements, recorded as for its methods.
+pub fn init_params(l: &mut Lower, td: TNodeId, values: &[SymbolId], params: &[SymbolId]) {
+    let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a trait definition") };
+    let Tree::Template { constr, parents, body, .. } = *l.tpd.tree(template) else {
+        unreachable!("a template")
+    };
+    let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
+    let info = l.u.info(ctor);
+    add_params(l, constr, ctor, params);
+    let stats = l.tpd.items(parents).iter().chain(l.tpd.items(body)).copied().collect::<Vec<_>>();
+    for stat in stats {
+        let member = match l.tpd.tree(stat) {
+            Tree::DefDef { .. } => is_method(l, l.tpd.sym(stat)),
+            Tree::TypeDef { .. } => true,
+            _ => false,
+        };
+        if !member {
+            super::local_classes::redirect(l, stat, values, params, None);
+        }
+    }
+    l.trait_methods.insert(ctor, (info, values.iter().copied().zip(params.iter().copied()).collect()));
+}
+
+/// The arguments of the call in `class` of trait constructor `init` at `at`: the constructor
+/// parameters of `class` standing for the local values `init` takes.
+pub fn init_args(l: &mut Lower, class: SymbolId, init: SymbolId, at: Span) -> Result<Vec<TNodeId>> {
+    let values = l.trait_methods.get(&init).map(|(_, pairs)| pairs.clone()).unwrap_or_default();
+    let mut args = Vec::new();
+    for (v, _) in values {
+        let Some(&p) = l.captured_params.get(&(class, v)) else {
+            return unsupported(at, "classes mixing in local traits other than local classes");
+        };
+        args.push(l.ident(p, at));
+    }
+    Ok(args)
 }
 
 /// A reference in `stat` to a local value defined outside trait `trait_`.

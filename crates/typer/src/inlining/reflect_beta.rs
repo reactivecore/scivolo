@@ -10,7 +10,7 @@ use syntax::names::FreshNames;
 use tasty::{SymbolId, TypeId};
 
 /// The host of a reduction, which searches no implicits and expands no macros.
-struct NoHost;
+pub struct NoHost;
 
 impl Host for NoHost {
     fn call_ctx(&self, _: TNodeId) -> Option<Ctx> {
