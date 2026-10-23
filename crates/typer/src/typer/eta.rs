@@ -66,9 +66,6 @@ impl Typer<'_> {
         if params.last().is_some_and(|&(_, p)| self.repeated_elem(p).is_some()) {
             return Err("method value with a repeated parameter");
         }
-        if params.iter().any(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_))) {
-            return Err("method value with a by-name parameter");
-        }
         if self.tpd.sym(tree).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::EXTENSION)) {
             return Err("extension method reference");
         }
