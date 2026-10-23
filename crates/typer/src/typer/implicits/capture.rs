@@ -72,17 +72,25 @@ impl Typer<'_> {
     /// Argument `arg` of a by-name parameter, an error if its wildcards were captured (dotty's
     /// `checkNoWildcardCaptureForCBN`).
     pub fn by_name_uncaptured(&mut self, arg: TNodeId) -> TNodeId {
-        let T::TypeApply { fun, .. } = *self.tpd.tree(arg) else { return arg };
-        let T::Select { qualifier, .. } = *self.tpd.tree(fun) else { return arg };
         let tpe = self.tpd.tpe(arg);
         let Type::Applied(_, args) = self.u.types().get(tpe).clone() else { return arg };
+        if !args.iter().any(|&a| matches!(self.u.types().get(a), Type::Sym(..))) {
+            return arg;
+        }
         let cap =
             self.resolve_full_name("scala.runtime.TypeBox", true).and_then(|b| self.u.decl(b, "CAP").ok());
         let is_cap = |t: &Self, a: TypeId| matches!(t.u.types().get(a), Type::Sym(_, s) if cap.as_ref().is_some_and(|c| c.contains(s)));
         if !args.iter().any(|&a| is_cap(self, a)) {
             return arg;
         }
-        let shown = self.u.show_user(self.tpd.tpe(qualifier));
+        let uncast = match *self.tpd.tree(arg) {
+            T::TypeApply { fun, .. } => match *self.tpd.tree(fun) {
+                T::Select { qualifier, .. } if self.tpd.span(arg).is_synthetic() => qualifier,
+                _ => arg,
+            },
+            _ => arg,
+        };
+        let shown = self.u.show_user(self.tpd.tpe(uncast));
         let span = self.tpd.span(arg);
         let msg = format!(
             "argument for by-name parameter is not a value\nand contains wildcard arguments: {shown}\n\n\

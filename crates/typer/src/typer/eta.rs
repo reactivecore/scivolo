@@ -75,10 +75,7 @@ impl Typer<'_> {
         };
         let function = match pt {
             Pt::Type(p) if self.function_parts(p, params.len()).is_some() => true,
-            Pt::Type(p) => match self.sam_parts(p, params.len(), false) {
-                Ok(sam) => sam.is_some(),
-                Err(_) => return Err("method value of a single abstract method type"),
-            },
+            Pt::Type(p) => self.sam_method_value(tree, p, params.len())?,
             _ => false,
         };
         let inferred = last && params.len() == xarity && function;
@@ -177,18 +174,26 @@ impl Typer<'_> {
         self.tpd.span(def).to_synthetic() == self.tpd.span(rhs)
     }
 
-    /// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
-    /// library, its parameter names unknown.
-    pub fn is_java_member(&mut self, s: SymbolId) -> bool {
-        self.u.symbol(s).owner.is_some_and(|owner| self.is_java_class_name(owner))
-    }
-
-    /// Whether `c` is named as a `java.*` or `javax.*` class or a Java class of the Scala library.
-    pub fn is_java_class_name(&mut self, c: SymbolId) -> bool {
-        let name = self.u.full_name(c);
-        let library_java = name
-            .rsplit_once('.')
-            .is_some_and(|(pkg, simple)| super::java_classes::java_classes(pkg).any(|c| c == simple));
-        name.starts_with("java.") || name.starts_with("javax.") || library_java
+    /// Whether `pt` is a single abstract method type of `n` parameters, a warning given for
+    /// method reference `tree` unless its class is `@FunctionalInterface`; `Err` for a class
+    /// defined outside the script or a Java one.
+    fn sam_method_value(&mut self, tree: TNodeId, pt: TypeId, n: usize) -> Result<bool, &'static str> {
+        let outside = "method value of a single abstract method type";
+        let Some(sam) = self.sam_parts(pt, n, false).map_err(|_| outside)? else { return Ok(false) };
+        let class = self.u.class_symbol(pt).ok_or(outside)?;
+        if self.u.symbol(class).tree.is_some() || self.is_java_class_name(class) {
+            return Err(outside);
+        }
+        if !self.u.annotations(class).iter().any(|&a| self.u.full_name(a) == "java.lang.FunctionalInterface")
+        {
+            let name = self.tpd.sym(tree).map_or_else(String::new, |s| self.u.symbol(s).name.clone());
+            let parent = self.u.show_user(sam.parent);
+            let msg = format!(
+                "method {name} is eta-expanded even though {parent} does not have the @FunctionalInterface annotation."
+            );
+            let span = self.tpd.span(tree);
+            self.diags.warning_at(span.start(), span.end(), span.point(), msg);
+        }
+        Ok(true)
     }
 }
