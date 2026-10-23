@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,196 of 1,711 pass (2026-10-22); 278 stop at the typer, 15 at
+(`just dotty-lower-report`): 1,233 of 1,711 pass (2026-10-23); 246 stop at the typer, 12 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -91,8 +91,9 @@ the lowering.
 Status (2026-10-19, #40, ADR 0029): macro calls expand in scripts, the REPL and native
 executables. A library macro runs from its NIR in the VM; its quotes are unpickled into the
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
-`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject` and sourcecode 0.4.4 work.
-dotty's `tests/run-macros`: 23 of 321 pass (2026-10-22, `just dotty-macros`).
+`Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1 and mainargs 0.7.8
+work. dotty's `tests/run-macros`: 99 of 321 pass (2026-10-23,
+`just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
 
@@ -107,31 +108,30 @@ dotty's `tests/run-macros`: 23 of 321 pass (2026-10-22, `just dotty-macros`).
 
 ## Next
 
-In order of the tests they unblock:
-1. **Typer groups**: [research 27](docs/research/27-typer-groups-after-23.md)'s V1 singles
-   (tuples, i4364a, i19641, i25000); [research 28](docs/research/28-adaptation-members-implicits.md)'s A leftovers
-   (extension fallback, i16065), S's `Manifest` and P (search singles); named-tuple leftovers
-   (#139: patterns over 22, `map[F]`, ordering; #146); mirrors (#129); match-type leftovers
-   (#120); typed-tree printing gap 2 (#122). Done 2026-10-22: poly function leftovers (#136),
-   #122 gaps 1 and 3 (#156), research 27's I1 (#82 opaque proxies, transparent givens), V2 and U
-   (#152).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `ValDef.let`, `Type.show`,
-   quote matcher, further reflect slices, measured on `tests/run-macros`.
-3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): the
-   remaining macro steps for fastparse, upickle and mainargs, each measured by its library's
-   test program. Done 2026-10-22: os-lib test programs, T1, S1 (sourcecode), E, X1, R1, R3, R4
-   (`quotes.reflect` slices), FP0 (fastparse in the typer).
-4. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
-5. **Lowering gaps** (research 15): reflective calls, classes in local classes capturing values,
-   traits nested in local traits, context results needing `Bridges` (implicitFuns). Done
-   2026-10-22: `FunctionXXLForwarders` (#150), JDK forwarders (#135), `TupleOptimizations`
-   (#138).
-6. **Inlining leftovers** (research 12): `letBindUnless` projections, inline accessors of
-   polymorphic methods, outer `this` through `outerSelect`, inline methods of earlier REPL
-   inputs; the forward-reference check (#90).
-7. **Value classes** (#88): ExpandSAMs closures (i24573), the remaining corpus as the typer
-   catches up.
-8. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+Compatibility first, in order of the tests it unblocks; startup comes last and must not get
+slower meanwhile:
+1. **Typer groups**: [research 33](docs/research/33-typer-refusals-in-run.md)'s rest (#164:
+   pattern-bound type variables, local classes in inline bodies, base classes with different
+   type arguments, Java enums); research 27/28 leftovers (#166: extension fallback, i16065,
+   `Manifest`); named-tuple leftovers (#139, #146); mirrors (#129); match-type leftovers (#120);
+   typed-tree printing gap 2 (#122). Done 2026-10-23: research 33 §2.1, §2.3, §2.5 and §3
+   singles, research 27's V1 singles (tuples, i4364a, i19641, i25000).
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Varargs` on inline
+   varargs (#167), `Expr.show`/`TreeCode`, higher-order holes, `Symbol.newClass`, macro
+   annotations, measured on `tests/run-macros`. Done 2026-10-23: structural quote matcher,
+   splices in scripts, `ValDef.let`, `Block.apply`, `betaReduce`, `Type.show`.
+3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): upickle,
+   blocked on anonymous classes in library inline bodies. Done 2026-10-23: fastparse (R2) and
+   mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037).
+4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md), #165):
+   extension blocks sharing a leading parameter (LazyLists), traits nested in local traits,
+   classes nested in anonymous classes, context-result bridges, `outerSelect`, local classes in
+   inline bodies, inline accessors of polymorphic methods; the forward-reference check (#90).
+   Done 2026-10-23: TASTy prefix names, outer arguments of library inner classes, inline methods
+   of nested objects and generic classes, arrays of arrays, positions of inlined arguments.
+5. **Value classes** (#88): i15725 and t13033, both behind typer refusals.
+6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
+7. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
 
 Process notes: each batch is reviewed by a subagent before its MR; `just snapshot-diff programs
 lower` shows worsened tests, which needs `tmp/dotty/3.9.0-0.5.12/results.tsv` from `just
