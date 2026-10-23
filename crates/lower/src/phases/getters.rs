@@ -175,7 +175,8 @@ pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
 }
 
-/// Whether `s` is a `var` parameter of a library class, which an inline body assigns.
+/// Whether `s` is a `var` parameter of a class as a library class declares it, which a library
+/// inline body assigns.
 fn is_library_var_param(l: &Lower, s: SymbolId) -> bool {
     let sym = l.u.symbol(s);
     sym.kind == Kind::Param && sym.flags.has(MUTABLE) && sym.owner.is_some_and(|o| l.u.is_class(o))
