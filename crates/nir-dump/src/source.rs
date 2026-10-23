@@ -38,12 +38,13 @@ fn read_jar(path: &Path, out: &mut Vec<Entry>) -> io::Result<()> {
     let mut zip = zip::ZipArchive::new(fs::File::open(path)?).map_err(io::Error::other)?;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(io::Error::other)?;
-        if !file.name().ends_with(".nir") {
+        let name = file.name().map_err(io::Error::other)?.into_owned();
+        if !name.ends_with(".nir") {
             continue;
         }
         let mut data = Vec::with_capacity(file.size() as usize);
         file.read_to_end(&mut data)?;
-        out.push(Entry { name: file.name().to_string(), data });
+        out.push(Entry { name, data });
     }
     Ok(())
 }

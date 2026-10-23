@@ -64,7 +64,7 @@ impl Classpath {
             for root in &mut self.roots {
                 match root {
                     Root::Dir(dir) => walk(dir, dir, &mut files),
-                    Root::Jar(zip) => files.extend(zip.file_names().map(str::to_owned)),
+                    Root::Jar(zip) => files.extend(zip.file_names().flatten().map(Cow::into_owned)),
                     Root::Image(image) => {
                         files.extend(image.names().filter(|n| n.ends_with(&file_suffix)).map(str::to_owned))
                     }
@@ -107,9 +107,9 @@ impl Classpath {
                 let mut names = Vec::new();
                 match root {
                     Root::Dir(dir) => walk(dir, dir, &mut names),
-                    Root::Jar(zip) => {
-                        names.extend(zip.file_names().filter(|n| !n.ends_with('/')).map(str::to_owned))
-                    }
+                    Root::Jar(zip) => names.extend(
+                        zip.file_names().flatten().filter(|n| !n.ends_with('/')).map(Cow::into_owned),
+                    ),
                     Root::Image(_) => continue,
                 }
                 out.extend(names.into_iter().map(|n| (i, n)));

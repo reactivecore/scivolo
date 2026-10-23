@@ -113,7 +113,7 @@ fn the_package_table_is_that_of_the_jars() {
     let mut names = BTreeSet::new();
     for jar in &jars {
         let zip = zip::ZipArchive::new(File::open(jar).unwrap()).unwrap();
-        names.extend(zip.file_names().map(str::to_owned));
+        names.extend(zip.file_names().map(|n| n.unwrap().into_owned()));
     }
     let names: Vec<&str> = names.iter().map(String::as_str).collect();
     let (table, _) =
