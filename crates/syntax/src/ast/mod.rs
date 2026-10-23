@@ -69,6 +69,8 @@ impl Attrs {
     pub const PAREN_ARGS: Attrs = Attrs(1 << 21);
     /// A companion object that receives the `derives` clause of its class, kept through copies.
     pub const DERIVES_OF_CLASS: Attrs = Attrs(1 << 22);
+    /// An applied type or an extractor pattern made of an infix operation.
+    pub const INFIX_OP: Attrs = Attrs(1 << 23);
 
     pub fn contains(self, a: Attrs) -> bool {
         self.0 & a.0 == a.0

@@ -170,7 +170,8 @@ evening batch: 861 passed, 28 refused by the lowering, 543 by the typer; before 
   research 23.
 - **Crashed:** i15618, a match type erased unreduced (#120).
 - **`-source future`:** typed as 3.9 with the parser's new-syntax rules; the typer refuses
-  alphanumeric infix calls of methods not declared `infix` and checks no other `future` rule.
+  alphanumeric infix calls, types and extractor patterns not declared `infix` (also those of
+  libraries compiled before 3.4, which dotty accepts) and checks no other `future` rule.
 - **Frontend crashed:** t8199, `scivolo-lower` panics writing a NIR file.
 
 ## M5: scala/scala `test/junit`
