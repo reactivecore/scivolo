@@ -65,7 +65,7 @@ inlining (ADR 0006).
 
 Exit criterion (met, 2026-10-15): editing and then running `moderate.scala` takes 48 ms with no
 JVM (`just bench-edit`). Measured by dotty's `tests/run` through typer, lowering and VM
-(`just dotty-lower-report`): 1,233 of 1,711 pass (2026-10-23); 246 stop at the typer, 12 at
+(`just dotty-lower-report`): 1,264 of 1,711 pass (2026-10-23); 222 stop at the typer, 5 at
 the lowering.
 
 1. **Parser** (`crates/syntax`): ports of dotty's `Scanners`, `Parsers`, `Desugar` and
@@ -92,7 +92,7 @@ Status (2026-10-19, #40, ADR 0029): macro calls expand in scripts, the REPL and 
 executables. A library macro runs from its NIR in the VM; its quotes are unpickled into the
 typer's trees. Typed-hole quote patterns and a `quotes.reflect` subset work; the rest of
 `Quotes` is refused by name. Circe 0.14.10's `derives Codec.AsObject`, sourcecode 0.4.4, fastparse 3.1.1 and mainargs 0.7.8
-work. dotty's `tests/run-macros`: 99 of 321 pass (2026-10-23,
+work. dotty's `tests/run-macros`: 134 of 321 pass (2026-10-23,
 `just dotty-lower-report "" run-macros`).
 
 ## Phase 5 — precompiled code and wider reach
@@ -111,24 +111,27 @@ work. dotty's `tests/run-macros`: 99 of 321 pass (2026-10-23,
 Compatibility first, in order of the tests it unblocks; startup comes last and must not get
 slower meanwhile:
 1. **Typer groups**: [research 33](docs/research/33-typer-refusals-in-run.md)'s rest (#164:
-   pattern-bound type variables, local classes in inline bodies, base classes with different
-   type arguments, Java enums); research 27/28 leftovers (#166: extension fallback, i16065,
-   `Manifest`); named-tuple leftovers (#139, #146); mirrors (#129); match-type leftovers (#120);
-   typed-tree printing gap 2 (#122). Done 2026-10-23: research 33 §2.1, §2.3, §2.5 and §3
-   singles, research 27's V1 singles (tuples, i4364a, i19641, i25000).
-2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Varargs` on inline
-   varargs (#167), `Expr.show`/`TreeCode`, higher-order holes, `Symbol.newClass`, macro
-   annotations, measured on `tests/run-macros`. Done 2026-10-23: structural quote matcher,
-   splices in scripts, `ValDef.let`, `Block.apply`, `betaReduce`, `Type.show`.
+   Java enums, refinements, dependent function types, polymorphic givens as import bounds);
+   research 27/28 leftovers (#166: extension fallback, i16065, `Manifest`); named-tuple
+   leftovers (#139, #146); mirrors (#129); match-type leftovers (#120); typed-tree printing gap
+   2 (#122). Done 2026-10-23: research 33 §2.1–2.3, §2.5, §2.6 and §3 singles, research 27's V1
+   singles.
+2. **Macros** (#40, [research 26](docs/research/26-macros-next.md)): `Symbol.newClass`, macro
+   annotations, `TypeReprStructure`, higher-order holes with types, measured on
+   `tests/run-macros`. Done 2026-10-23: structural quote matcher, splices in scripts,
+   `ValDef.let`, `Block.apply`, `betaReduce`, `Type.show`, `Expr.show`/`TreeCode`,
+   higher-order holes, `Select.overloaded`, `Varargs` (#167).
 3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): upickle,
-   blocked on anonymous classes in library inline bodies. Done 2026-10-23: fastparse (R2) and
-   mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037).
-4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md), #165):
-   extension blocks sharing a leading parameter (LazyLists), traits nested in local traits,
-   classes nested in anonymous classes, context-result bridges, `outerSelect`, local classes in
-   inline bodies, inline accessors of polymorphic methods; the forward-reference check (#90).
-   Done 2026-10-23: TASTy prefix names, outer arguments of library inner classes, inline methods
-   of nested objects and generic classes, arrays of arrays, positions of inlined arguments.
+   now stopped at the signature of `annotate` (inner-trait erasure). Done 2026-10-23: fastparse
+   (R2) and mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037).
+4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
+   [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): local objects and
+   `super` in inline bodies, implicit search in the call's context, inline accessors of
+   polymorphic methods, overriding Java `()` methods in inline reselection; the
+   forward-reference check (#90). Done 2026-10-23: TASTy prefix names, outer arguments of
+   library inner classes, inline methods of nested objects and generic classes, `outerSelect`,
+   local classes in inline bodies, shared extension parameters, local trait members,
+   context-result bridges.
 5. **Value classes** (#88): i15725 and t13033, both behind typer refusals.
 6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 7. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
