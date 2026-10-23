@@ -30,7 +30,19 @@ impl Matcher<'_> {
             let (T::Ident { .. }, Some(p)) = (self.tpd.tree(id), self.tpd.sym(id)) else { return Err(shape) };
             let Some(&(captured, _)) = self.env.iter().find(|&&(_, b)| b == p) else { return Err(shape) };
             let eta = match self.u.symbol(captured).kind {
-                Kind::Def => Some(self.tpd.get(a).tpe.ok_or(shape)?),
+                Kind::Def => {
+                    let info = self.u.info(captured);
+                    let types = self.u.types();
+                    let curried = match types.get(info) {
+                        Type::Poly { .. } => true,
+                        Type::Method { result, .. } => matches!(types.get(*result), Type::Method { .. }),
+                        _ => false,
+                    };
+                    if curried {
+                        return Err("a higher-order hole capturing a polymorphic or curried method");
+                    }
+                    Some(self.tpd.get(a).tpe.ok_or(shape)?)
+                }
                 _ => None,
             };
             params.push(Captured { name: self.u.symbol(p).name.clone(), sym: captured, eta });
