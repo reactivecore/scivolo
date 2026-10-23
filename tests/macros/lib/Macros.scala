@@ -154,6 +154,12 @@ object Terms:
     import quotes.reflect.*
     Expr(x.show + " / " + x.asTerm.show(using Printer.TreeStructure))
 
+  inline def open(inline x: Int): String = ${ openImpl('x) }
+  def openImpl(x: Expr[Int])(using Quotes): Expr[String] = x match
+    case '{ val y: Int = 1; $body(y): Int }         => Expr(body.show)
+    case '{ def g(y: Int): Int = $body(g, y); g(2) } => Expr(body.show)
+    case _                                           => Expr("no")
+
   inline def shapeUnderlying(inline x: Any): String = ${ shapeUnderlyingImpl('x) }
   def shapeUnderlyingImpl(x: Expr[Any])(using Quotes): Expr[String] =
     import quotes.reflect.*

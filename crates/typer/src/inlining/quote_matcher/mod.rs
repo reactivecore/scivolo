@@ -3,35 +3,65 @@
 //! The runtime of `QuoteMatching.ExprMatch.unapply` (dotty's `QuoteMatcher.treeMatch`): a
 //! scrutinee tree matched against a quote pattern's tree with typed term holes.
 
+mod defs;
+mod open;
 mod shapes;
 
+use super::Reflect;
 use super::quote_match::Bindings;
 use crate::tpd::{List, TNodeId, Tpd, Tree as T};
 use crate::unpickle::{PatternBody, QuotePattern, Refusal};
 use shapes::same_constant;
+use syntax::names::Names;
 use tasty::{SymbolId, TypeId, Universe};
 
 /// What `scrutinee` gives the type bindings and term holes of `pattern` if it matches it: the
-/// bindings' types and the holes' trees, each in the pattern's order. `fills` are the quote
-/// hole placeholders with the trees that fill them, if filled.
+/// bindings' types and the holes' trees, each in the pattern's order, a higher-order hole's a
+/// closure owned by `owner`. `fills` are the quote hole placeholders with the trees that fill
+/// them, if filled.
 pub fn quote_match(
-    u: &mut Universe,
-    tpd: &mut Tpd,
+    (u, tpd, names): (&mut Universe, &mut Tpd, &mut Names),
     (scrutinee, fills): (TNodeId, &[(TNodeId, Option<TNodeId>)]),
     pattern: &QuotePattern,
+    owner: SymbolId,
 ) -> Result<Option<Matches>, Refusal> {
     let PatternBody::Term(tree) = pattern.body else {
         return Err("a type pattern matched against an expression");
     };
     let Some(bindings) = Bindings::new(u, &pattern.bindings, &pattern.spliced) else { return Ok(None) };
     let mut m = Matcher { u, tpd, fills, bindings, env: Vec::new(), matched: Vec::new() };
-    Ok(m.matches(scrutinee, tree)?.then(|| (m.bindings.approximated(), m.matched)))
+    if !m.matches(scrutinee, tree)? {
+        return Ok(None);
+    }
+    let (types, holes) = (m.bindings.approximated(), m.matched);
+    let span = tpd.span(scrutinee);
+    let mut r = Reflect { u, tpd, names, span };
+    let exprs = holes.into_iter().map(|h| match h {
+        Hole::Closed(t) => Ok(t),
+        Hole::Open(t, params) => r.open_closure(owner, t, &params),
+    });
+    Ok(Some((types, exprs.collect::<Result<_, _>>()?)))
 }
 
 /// The types of a pattern's bindings and the trees its holes match.
 pub type Matches = (Vec<TypeId>, Vec<TNodeId>);
 
 type Matched = Result<bool, Refusal>;
+
+/// What a term hole matched: a closed tree, or an open one with the higher-order hole's
+/// captured identifiers.
+enum Hole {
+    Closed(TNodeId),
+    Open(TNodeId, Vec<Captured>),
+}
+
+/// An identifier a higher-order hole captures: its name, the scrutinee's symbol it stands for
+/// and, for a method, the type of its eta expansion.
+pub struct Captured {
+    pub name: String,
+    pub sym: SymbolId,
+    pub eta: Option<TypeId>,
+}
 
 struct Matcher<'a> {
     u: &'a mut Universe,
@@ -40,7 +70,7 @@ struct Matcher<'a> {
     bindings: Bindings,
     /// The symbols the scrutinee defines with those of the pattern they stand for.
     env: Vec<(SymbolId, SymbolId)>,
-    matched: Vec<TNodeId>,
+    matched: Vec<Hole>,
 }
 
 impl Matcher<'_> {
@@ -64,11 +94,15 @@ impl Matcher<'_> {
         if let Some(hole) = self.hole(p) {
             return Ok(self.conforms(s, hole) && self.closed(s));
         }
-        if let T::Apply { fun, .. } = pt
+        if let T::Apply { fun, args } = pt
             && let T::TypeApply { fun, .. } = *self.tpd.tree(fun)
-            && (self.is_patterns(fun, "higherOrderHole") || self.is_patterns(fun, "higherOrderHoleWithTypes"))
         {
-            return Err("a quote pattern with a higher-order hole");
+            if self.is_patterns(fun, "higherOrderHoleWithTypes") {
+                return Err("a quote pattern with a polymorphic higher-order hole");
+            }
+            if self.is_patterns(fun, "higherOrderHole") {
+                return self.open(s, args);
+            }
         }
         if let T::Typed { expr, .. } = pt {
             return self.matches(s, expr);
@@ -114,7 +148,10 @@ impl Matcher<'_> {
                     (r1, r2) => Ok(r1.is_none() && r2.is_none()),
                 })
             }
-            (T::DefDef { .. }, T::DefDef { .. }) => Err("a quote pattern with a method definition"),
+            (
+                T::DefDef { paramss: p1, tpt: t1, rhs: r1, .. },
+                T::DefDef { paramss: p2, tpt: t2, rhs: r2, .. },
+            ) => self.def_def((s, p1, t1, r1), (p, p2, t2, r2)),
             (T::Closure { .. }, T::Closure { .. }) => Ok(true),
             (T::NamedArg { name: n1, arg: a1 }, T::NamedArg { name: n2, arg: a2 }) => {
                 Ok(n1.name == n2.name && self.matches(a1, a2)?)
@@ -233,16 +270,21 @@ impl Matcher<'_> {
     /// The scrutinee `s` matched by a hole if it refers to no definition of the scrutinee the
     /// pattern defines too (dotty's `ClosedPatternTerm`).
     fn closed(&mut self, s: TNodeId) -> bool {
-        let tpd = &*self.tpd;
-        let env = &self.env;
-        let free = tpd.fold(false, s, &mut |found, t| {
-            found
-                || matches!(tpd.tree(t), T::Ident { .. })
-                    && tpd.sym(t).is_some_and(|x| env.iter().any(|&(e, _)| e == x))
-        });
+        let free = self.refers_to_env(s, &[]);
         if !free {
-            self.matched.push(s);
+            self.matched.push(Hole::Closed(s));
         }
         !free
+    }
+
+    /// Whether `s` refers to a scrutinee definition the environment pairs, but for `except`.
+    fn refers_to_env(&self, s: TNodeId, except: &[SymbolId]) -> bool {
+        let tpd = &*self.tpd;
+        let env = &self.env;
+        tpd.fold(false, s, &mut |found, t| {
+            found
+                || matches!(tpd.tree(t), T::Ident { .. })
+                    && tpd.sym(t).is_some_and(|x| !except.contains(&x) && env.iter().any(|&(e, _)| e == x))
+        })
     }
 }

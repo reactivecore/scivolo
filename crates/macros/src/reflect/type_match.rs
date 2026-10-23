@@ -47,7 +47,8 @@ impl Host {
         let s = self.tree(scrutinee)?;
         let pattern = self.pattern(pattern).ok_or("a quote pattern the frontend did not unpickle")?;
         let fills = self.hole_fills();
-        let Some((types, exprs)) = quote_match(&mut self.u, &mut self.tpd, (s, &fills), &pattern)? else {
+        let lent = (&mut self.u, &mut self.tpd, &mut self.names);
+        let Some((types, exprs)) = quote_match(lent, (s, &fills), &pattern, self.owner)? else {
             return Ok(u32::MAX);
         };
         self.matched = types.into_iter().map(|t| Err(self.add_type(t))).collect();
