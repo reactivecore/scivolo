@@ -110,7 +110,8 @@ impl Typer<'_> {
             let given = self.u.symbol(sym).flags.has(GIVEN);
             let excluded = (wildcard || givens) && names.iter().any(|(n, r)| *n == name && *r != name);
             let named = names.iter().find(|(n, r)| *n == name && r != "_").map(|(_, r)| r.clone());
-            if !excluded && (named.is_some() || givens || (!given && wildcard)) {
+            if !excluded && (named.is_some() || givens && self.imports_given(i, sym) || (!given && wildcard))
+            {
                 out.push((Candidate { sym, prefix: Some(qual) }, named.unwrap_or(name)));
             }
         }

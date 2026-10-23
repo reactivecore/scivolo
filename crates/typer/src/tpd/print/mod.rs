@@ -79,9 +79,19 @@ impl Printer<'_> {
     /// `EmptyValDef`.
     fn fields(&mut self, tree: &mut Tree) {
         let template = matches!(tree, Tree::Template { .. });
+        let bound = match *tree {
+            Tree::ImportSelector { bound, .. } => bound,
+            _ => None,
+        };
         tree.fields(&mut |field| match field {
             Field::Node(t) => self.node(*t),
             Field::Opt(None) if template => self.out.push_str(" _self"),
+            Field::Opt(Some(t)) if Some(*t) == bound => {
+                let span = self.tpd.span(*t);
+                write!(self.out, " (TypedSplice {}..{}", span.start(), span.end()).unwrap();
+                self.node(*t);
+                self.out.push(')');
+            }
             Field::Opt(t) => self.opt(*t),
             Field::List(l) => self.list(*l),
             Field::Clauses(c) => self.clauses(*c),
