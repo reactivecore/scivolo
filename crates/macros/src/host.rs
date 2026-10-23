@@ -108,6 +108,15 @@ impl Host {
         }
     }
 
+    /// The hole placeholders of the quotes with the trees that fill them, if filled.
+    pub fn hole_fills(&self) -> Vec<(TNodeId, Option<TNodeId>)> {
+        let holes = self.exprs.iter().flat_map(|e| match e {
+            Expr::Quote(q) => q.holes.as_slice(),
+            Expr::Tree(_) => &[],
+        });
+        holes.map(|&(node, _, _, filled)| (node, filled.and_then(|e| self.tree(e).ok()))).collect()
+    }
+
     pub fn type_of(&self, id: u32) -> Result<TypeId, &'static str> {
         self.types.get(id as usize).copied().ok_or("a Type the frontend did not make")
     }

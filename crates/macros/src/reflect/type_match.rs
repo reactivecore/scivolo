@@ -46,7 +46,8 @@ impl Host {
     pub fn match_expr(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str> {
         let s = self.tree(scrutinee)?;
         let pattern = self.pattern(pattern).ok_or("a quote pattern the frontend did not unpickle")?;
-        let Some((types, exprs)) = quote_match(&mut self.u, &mut self.tpd, s, &pattern)? else {
+        let fills = self.hole_fills();
+        let Some((types, exprs)) = quote_match(&mut self.u, &mut self.tpd, (s, &fills), &pattern)? else {
             return Ok(u32::MAX);
         };
         self.matched = types.into_iter().map(|t| Err(self.add_type(t))).collect();

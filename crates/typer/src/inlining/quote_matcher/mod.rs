@@ -12,18 +12,19 @@ use shapes::same_constant;
 use tasty::{SymbolId, TypeId, Universe};
 
 /// What `scrutinee` gives the type bindings and term holes of `pattern` if it matches it: the
-/// bindings' types and the holes' trees, each in the pattern's order.
+/// bindings' types and the holes' trees, each in the pattern's order. `fills` are the quote
+/// hole placeholders with the trees that fill them, if filled.
 pub fn quote_match(
     u: &mut Universe,
     tpd: &mut Tpd,
-    scrutinee: TNodeId,
+    (scrutinee, fills): (TNodeId, &[(TNodeId, Option<TNodeId>)]),
     pattern: &QuotePattern,
 ) -> Result<Option<Matches>, Refusal> {
     let PatternBody::Term(tree) = pattern.body else {
         return Err("a type pattern matched against an expression");
     };
     let Some(bindings) = Bindings::new(u, &pattern.bindings, &pattern.spliced) else { return Ok(None) };
-    let mut m = Matcher { u, tpd, bindings, env: Vec::new(), matched: Vec::new() };
+    let mut m = Matcher { u, tpd, fills, bindings, env: Vec::new(), matched: Vec::new() };
     Ok(m.matches(scrutinee, tree)?.then(|| (m.bindings.approximated(), m.matched)))
 }
 
@@ -35,6 +36,7 @@ type Matched = Result<bool, Refusal>;
 struct Matcher<'a> {
     u: &'a mut Universe,
     tpd: &'a mut Tpd,
+    fills: &'a [(TNodeId, Option<TNodeId>)],
     bindings: Bindings,
     /// The symbols the scrutinee defines with those of the pattern they stand for.
     env: Vec<(SymbolId, SymbolId)>,
@@ -45,6 +47,10 @@ impl Matcher<'_> {
     /// `scrutinee =?= pattern`.
     fn matches(&mut self, s: TNodeId, p: TNodeId) -> Matched {
         let (s, p) = (self.normalize(s), self.normalize(p));
+        if let Some(&(_, filled)) = self.fills.iter().find(|&&(h, _)| h == s) {
+            let filled = filled.ok_or("a quote pattern matched against a quote with an open hole")?;
+            return self.matches(filled, p);
+        }
         let (st, pt) = (self.tpd.tree(s).clone(), self.tpd.tree(p).clone());
         if let T::Typed { expr, tpt } = pt
             && let Some(hole) = self.hole(expr)
