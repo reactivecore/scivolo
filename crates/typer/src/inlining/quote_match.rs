@@ -10,6 +10,7 @@ use crate::constraint::Constraint;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::unpickle::QuotePattern;
 use rustc_hash::FxHashMap;
+use syntax::ast::constant::Constant;
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 
 /// The types the bindings of `pattern` stand for if an expression of type `scrutinee` matches
@@ -23,7 +24,12 @@ pub fn quote_match(u: &mut Universe, scrutinee: TypeId, pattern: &QuotePattern) 
 /// `pattern` is no literal.
 pub fn literal_match(tpd: &Tpd, scrutinee: TNodeId, pattern: TNodeId) -> Option<bool> {
     let T::Literal { value: p } = tpd.tree(stripped(tpd, pattern)) else { return None };
-    Some(matches!(tpd.tree(stripped(tpd, scrutinee)), T::Literal { value } if value == p))
+    let T::Literal { value: s } = tpd.tree(stripped(tpd, scrutinee)) else { return Some(false) };
+    Some(match (s, p) {
+        (Constant::Float(a), Constant::Float(b)) => a.to_bits() == b.to_bits(),
+        (Constant::Double(a), Constant::Double(b)) => a.to_bits() == b.to_bits(),
+        _ => s == p,
+    })
 }
 
 fn stripped(tpd: &Tpd, t: TNodeId) -> TNodeId {
