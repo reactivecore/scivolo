@@ -79,7 +79,7 @@ impl Host {
             "block" => {
                 let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
                 let (&expr, stats) = trees.split_first().ok_or("Block.apply without its expression")?;
-                let t = self.reflect().block(stats, expr);
+                let t = self.reflect().block(stats, expr)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
             _ => Err(UNKNOWN),

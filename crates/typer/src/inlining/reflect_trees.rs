@@ -144,21 +144,28 @@ impl Reflect<'_> {
         Ok((vdef, b.static_ident(s, span)))
     }
 
-    /// `Block(stats, expr)`, of the type of `expr` widened if it refers to a definition of `stats`.
-    pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
+    /// `Block(stats, expr)`, of the type of `expr` widened if it refers to a definition of `stats`;
+    /// refused if the widened type still does.
+    pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> Result<TNodeId, &'static str> {
         let span = self.span;
         let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.tpd.sym(s)).collect();
+        let local = |u: &mut tasty::Universe, t: TypeId| {
+            let mut found = false;
+            u.map_type(t, &mut |u, part| {
+                found |= matches!(*u.types().get(part), Type::Sym(_, s) if defined.contains(&s));
+                None
+            });
+            found
+        };
         let mut tpe = self.tpd.tpe(expr);
-        let mut local = false;
-        self.u.map_type(tpe, &mut |u, part| {
-            local |= matches!(*u.types().get(part), Type::Sym(_, s) if defined.contains(&s));
-            None
-        });
-        if local {
+        if local(self.u, tpe) {
             tpe = self.u.widen(tpe);
+            if local(self.u, tpe) {
+                return Err("Block.apply of an expression whose type refers to the block's definitions");
+            }
         }
         let stats = self.tpd.list(stats);
-        self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None)
+        Ok(self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None))
     }
 
     /// `Literal(constant)`.
