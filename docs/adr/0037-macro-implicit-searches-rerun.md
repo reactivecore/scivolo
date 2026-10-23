@@ -21,5 +21,6 @@ out without unsafe code.
 
 ## Consequences
 - An expansion with `n` searches runs `n + 1` times; the trees and symbols of the runs before
-  the last are left unused in the unit's tables.
+  the last are left unused in the unit's tables, and a macro's side effects in the VM (output,
+  state of its objects) happen once per run.
 - The typer is never re-entered while the VM runs Scala code.
