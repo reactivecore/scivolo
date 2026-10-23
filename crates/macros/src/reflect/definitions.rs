@@ -59,7 +59,7 @@ impl Host {
     }
 
     /// The definition of `s` among the typer's trees (dotty's `Symbol.tree`), if it has one.
-    pub fn definition(&self, s: SymbolId) -> Option<TNodeId> {
+    fn definition(&self, s: SymbolId) -> Option<TNodeId> {
         let defines = |d: TNodeId| {
             self.tpd.sym(d) == Some(s)
                 && matches!(self.tpd.tree(d), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
