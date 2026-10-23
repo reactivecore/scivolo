@@ -140,6 +140,7 @@ impl<'a> Decoder<'a> {
             TYPEREFpkg | TERMREFpkg => {
                 let name = self.name(id);
                 let name = name.strip_prefix("_root_").map_or(name.as_str(), |n| n.trim_start_matches('.'));
+                let name = if name == "<empty>" { "" } else { name };
                 match self.packages.get(name) {
                     Some(&p) => Type::Package(p),
                     None => Type::PackageName(name.to_owned()),
