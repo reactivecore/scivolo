@@ -61,6 +61,11 @@ fn oslib_runs_in_a_script() {
 }
 
 #[test]
+fn fastparse_macros_expand_in_a_script() {
+    check_script("fastparse");
+}
+
+#[test]
 fn sourcecode_macros_expand_in_a_script() {
     check_script("sourcecode");
 }

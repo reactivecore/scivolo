@@ -52,7 +52,15 @@ pub enum MacroError {
     Aborted,
 }
 
-/// Runs macro implementations.
+/// The typed annotations of the unit's definitions, by symbol.
+pub type Annotations = rustc_hash::FxHashMap<SymbolId, Vec<TNodeId>>;
+
+/// Runs macro implementations, which see the annotations `annotations`.
 pub trait Macros {
-    fn expand(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
+    fn expand(
+        &mut self,
+        lent: Lent<'_>,
+        call: &MacroCall,
+        annotations: &Annotations,
+    ) -> Result<Expanded, MacroError>;
 }

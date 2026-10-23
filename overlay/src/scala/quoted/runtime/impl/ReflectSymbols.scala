@@ -92,6 +92,12 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       def pos: Option[Position] =
         if (ReflectOps.id(self) < 0) None
         else Some(ReflectOps.position("symbolPos", ReflectOps.id(self)).asInstanceOf[Position])
+      def annotations: List[Term] = annotated(self, -1)
+      def getAnnotation(annotSym: Symbol): Option[Term] = annotated(self, ReflectOps.id(annotSym)).headOption
+      def hasAnnotation(annotSym: Symbol): Boolean = annotated(self, ReflectOps.id(annotSym)).nonEmpty
+      def tree: Tree = ReflectOps.opt(ReflectOps.one("symbolTree", ReflectOps.id(self))).getOrElse {
+        throw new Unsupported("Symbol.tree of a symbol without a definition in the unit")
+      }.asInstanceOf[Tree]
       def isNoSymbol: Boolean = ReflectOps.id(self) < 0
       def exists: Boolean = ReflectOps.id(self) >= 0
       def isPackageDef: Boolean = kind(self) == 0
@@ -111,6 +117,11 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       val n = ReflectOps.run("methodMembers", Array(ReflectOps.id(s)), name)
       List.tabulate(n)(i => sym(QuoteHost.result(i)))
     }
+
+    /** The annotations of `s`, only those of class `cls` unless it is `-1`. */
+    private def annotated(s: Symbol, cls: Int): List[Term] =
+      if (ReflectOps.id(s) < 0) Nil
+      else ReflectOps.results("annotations", ReflectOps.id(s), cls).map(ReflectOps.term).asInstanceOf[List[Term]]
 
     private def kind(s: Symbol): Int = if (ReflectOps.id(s) < 0) -1 else ReflectOps.one("kind", ReflectOps.id(s))
 

@@ -86,9 +86,7 @@ impl Inlining<'_> {
                 if let T::Select { qualifier: q, .. } = &mut self.tpd.get_mut(t).tree {
                     *q = qualifier;
                 }
-                if self.reselects_override(t, qualifier, self.names.text(name.name).to_owned()) {
-                    return Err((span, "inline expansion selecting an overriding member"));
-                }
+                self.reselect(t, qualifier, self.names.text(name.name).to_owned())?;
                 if let Some(prefix) = before.and_then(|b| self.local_prefix(b))
                     && let Some(tpe) = self.tpd.get(t).tpe
                     && let Type::Sym(Some(_), s) = *self.u.types().get(tpe)

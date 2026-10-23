@@ -4,11 +4,11 @@
 //! The trees `quotes.reflect` reads and builds.
 
 use super::Reflect;
-use crate::tpd::{Slot, TNodeId, Tree as T};
-use syntax::ast::Span;
+use crate::tpd::{MatchKind, Slot, TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
+use syntax::ast::{Span, TName};
 use tasty::tags::{INLINEPROXY, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{ANY, Kind, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Term.underlying` (dotty's `MapToUnderlying`): `t` and its subtrees without the inlined
@@ -83,6 +83,32 @@ impl Reflect<'_> {
         let tpe = self.u.intern_type(Type::Applied(seq, vec![self.tpd.tpe(elemtpt)]));
         let elems = self.tpd.list(elems);
         self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
+    }
+
+    /// `Match(selector, cases)`, of the cases' least upper bound.
+    pub fn match_(&mut self, selector: TNodeId, cases: &[TNodeId]) -> TNodeId {
+        let tpe = crate::tpd::lub_of(self.tpd, self.u, cases);
+        let cases = self.tpd.list(cases);
+        let tree = T::Match { selector: Some(selector), cases, kind: MatchKind::Plain };
+        self.tpd.node(tree, self.span, Some(tpe), None)
+    }
+
+    /// `CaseDef(pat, guard, body)`, of the body's type.
+    pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> TNodeId {
+        let tpe = self.tpd.tpe(body);
+        self.tpd.node(T::CaseDef { pat, guard, body }, self.span, Some(tpe), None)
+    }
+
+    /// `Wildcard()`: the pattern `_` of type `Any`.
+    pub fn wildcard(&mut self) -> TNodeId {
+        let name = TName { name: self.names.intern("_"), is_type: false };
+        self.tpd.node(T::Ident { name }, self.span, Some(ANY), None)
+    }
+
+    /// `Block(stats, expr)`, of the type of `expr`.
+    pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> TNodeId {
+        let (tpe, stats) = (self.tpd.tpe(expr), self.tpd.list(stats));
+        self.tpd.node(T::Block { stats, expr }, self.span, Some(tpe), None)
     }
 
     /// The right-hand side of the definition of `s` if it is a value or parameterless method

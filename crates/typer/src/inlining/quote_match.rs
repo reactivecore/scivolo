@@ -4,9 +4,10 @@
 //! Type bindings of patterns: the types a scrutinee's type gives the type variables of a pattern
 //! type it conforms to (dotty's GADT approximation of quote pattern and inline match type
 //! binds); the runtime of `QuoteMatching.ExprMatch.unapply` for a quote pattern of a typed term
-//! hole (dotty's `QuoteMatcher.treeMatch`).
+//! hole or of a literal (dotty's `QuoteMatcher.treeMatch`).
 
 use crate::constraint::Constraint;
+use crate::tpd::{TNodeId, Tpd, Tree as T};
 use crate::unpickle::QuotePattern;
 use rustc_hash::FxHashMap;
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
@@ -15,6 +16,23 @@ use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
 /// it, in their order.
 pub fn quote_match(u: &mut Universe, scrutinee: TypeId, pattern: &QuotePattern) -> Option<Vec<TypeId>> {
     bound_types(u, scrutinee, pattern.hole, &pattern.bindings)
+}
+
+/// Whether term `scrutinee` matches quoted literal `pattern`, both without inlined trees
+/// without bindings, ascriptions and empty blocks (dotty's `QuoteMatcher` on literals); none if
+/// `pattern` is no literal.
+pub fn literal_match(tpd: &Tpd, scrutinee: TNodeId, pattern: TNodeId) -> Option<bool> {
+    let T::Literal { value: p } = tpd.tree(stripped(tpd, pattern)) else { return None };
+    Some(matches!(tpd.tree(stripped(tpd, scrutinee)), T::Literal { value } if value == p))
+}
+
+fn stripped(tpd: &Tpd, t: TNodeId) -> TNodeId {
+    match *tpd.tree(t) {
+        T::Inlined { bindings, expansion, .. } if bindings.is_empty() => stripped(tpd, expansion),
+        T::Block { stats, expr } if stats.is_empty() => stripped(tpd, expr),
+        T::Typed { expr, .. } => stripped(tpd, expr),
+        _ => t,
+    }
 }
 
 /// Each of `binds` with whether it occurs in `t` only contravariantly, so is approximated from

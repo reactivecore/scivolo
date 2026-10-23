@@ -90,7 +90,8 @@ impl Host {
             sizes.push(params.len());
             t = result;
         }
-        let params = self.u.symbol(s).decls.clone();
+        let mut params = self.u.symbol(s).decls.clone();
+        params.retain(|&p| matches!(self.u.symbol(p).kind, Kind::Param | Kind::TypeParam));
         if sizes.iter().sum::<usize>() != params.len() {
             return Err("Symbol.paramSymss of a method whose parameters the frontend lacks");
         }

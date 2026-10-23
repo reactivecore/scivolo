@@ -87,8 +87,13 @@ impl Host for Typer<'_> {
     }
 
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
+        let (u, tpd, names, fresh) = lent;
+        self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        let typed = catch_unwind(AssertUnwindSafe(|| self.typed_annotations()));
+        self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
+        typed.unwrap_or_else(|panic| resume_unwind(panic));
         let expanded = match self.macros.as_deref_mut() {
-            Some(macros) => macros.expand(lent, call),
+            Some(macros) => macros.expand((u, tpd, names, fresh), call, &self.syms.annotations),
             None => Err(MacroError::Unsupported("macro call".into())),
         };
         if let Err(MacroError::Unsupported(what)) = &expanded {

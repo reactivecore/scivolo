@@ -1,16 +1,14 @@
 //! The frontend's side of a running macro: the typer's trees and tables, lent for the run, and
 //! the expressions and types the macro holds by number.
 
+use crate::Tables;
 use syntax::ast::Span;
 use syntax::names::Names;
 use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
-use typer::inlining::{Quoted, quote_match};
+use typer::inlining::{Annotations, Quoted, literal_match, quote_match};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::{Quote, QuotePattern, quote, quoted_type};
-
-/// The universe, trees and names the typer lends the expansion.
-pub type Tables<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names);
 
 /// A quote unpickled for the macro: its tree, its spliced types and, per term hole, the
 /// placeholder, the pickled index, the arguments' expressions and the filling expression.
@@ -37,6 +35,7 @@ pub struct Host {
     /// The span of the macro expansion, in `sources`.
     pub expansion: Span,
     pub sources: Vec<SourceFile>,
+    pub annotations: Annotations,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     pub patterns: Vec<QuotePattern>,
@@ -63,6 +62,7 @@ impl Host {
             owner,
             expansion,
             sources,
+            annotations: Annotations::default(),
             exprs: Vec::new(),
             types: Vec::new(),
             patterns: Vec::new(),
@@ -97,10 +97,8 @@ impl Host {
 
     /// The tree of expression `expr`, a quote's with its holes open.
     pub fn tree(&self, expr: u32) -> Result<TNodeId, &'static str> {
-        match self.exprs.get(expr as usize) {
-            Some(Expr::Tree(t)) => Ok(*t),
-            Some(Expr::Quote(q)) => Ok(q.root),
-            None => Err("an Expr the frontend did not make"),
+        match self.exprs.get(expr as usize).ok_or("an Expr the frontend did not make")? {
+            Expr::Tree(t) | Expr::Quote(Unpickled { root: t, .. }) => Ok(*t),
         }
     }
 
@@ -115,7 +113,7 @@ impl Host {
             Expr::Tree(t) => Ok(Quoted::Tree(*t)),
             Expr::Quote(q) => {
                 let holes: Option<Vec<_>> =
-                    q.holes.iter().map(|&(node, _, _, filled)| Some((node, filled?))).collect();
+                    q.holes.iter().map(|&(h, _, _, filled)| Some((h, filled?))).collect();
                 let holes = holes.ok_or("a quote whose hole the macro left open")?;
                 Ok(Quoted::Quote { root: q.root, spliced: q.spliced.clone(), holes })
             }
@@ -175,11 +173,15 @@ impl vm::QuoteHost for Host {
     }
 
     fn match_pattern(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str> {
-        let tpe = self.tpd.tpe(self.tree(scrutinee)?);
+        let tree = self.tree(scrutinee)?;
         let unknown = "a quote pattern the frontend did not unpickle";
-        let pattern = (pattern & PATTERN != 0).then_some(pattern & !PATTERN).ok_or(unknown)?;
-        let pattern = self.patterns.get(pattern as usize).ok_or(unknown)?;
-        let Some(types) = quote_match(&mut self.u, tpe, pattern) else { return Ok(u32::MAX) };
+        self.matched.clear();
+        if pattern & PATTERN == 0 {
+            let literal = literal_match(&self.tpd, tree, self.tree(pattern)?).ok_or(unknown)?;
+            return Ok(if literal { 0 } else { u32::MAX });
+        }
+        let pattern = self.patterns.get((pattern & !PATTERN) as usize).ok_or(unknown)?;
+        let Some(types) = quote_match(&mut self.u, self.tpd.tpe(tree), pattern) else { return Ok(u32::MAX) };
         let types: Vec<_> = types.into_iter().map(|t| Err(self.add_type(t))).collect();
         self.matched = types.into_iter().chain([Ok(scrutinee)]).collect();
         Ok(self.matched.len() as u32)

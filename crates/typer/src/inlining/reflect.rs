@@ -114,6 +114,25 @@ impl Reflect<'_> {
         Ok(self.build()?.select(qual, m, span))
     }
 
+    /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
+    /// arguments' types.
+    pub fn apply(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TNodeId, &'static str> {
+        let span = self.span;
+        let info = self.u.widen(self.tpd.tpe(fun));
+        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+            return Err("Apply of a term that takes no arguments");
+        };
+        if params.len() != args.len() {
+            return Err("Apply with another number of arguments than parameters");
+        }
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let meth = self.tpd.sym(self.tpd.meth_part(fun));
+        let tpe =
+            crate::typer::dependent_params::applied_result(self.u, result, (binder, &names), meth, &tpes);
+        Ok(self.build()?.apply(fun, args, tpe, span))
+    }
+
     /// `Term.appliedToTypes(args)`.
     pub fn applied_to_types(&mut self, fun: TNodeId, args: &[TypeId]) -> Result<TNodeId, &'static str> {
         let span = self.span;

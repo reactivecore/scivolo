@@ -13,7 +13,7 @@ trait ReflectTreeSupport { this: QuotesImpl =>
 trait ReflectTrees extends reflectModule { self: reflect.type =>
 
   given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18)
-  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18)
+  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)
   given ThisTypeTest: TypeTest[Tree, This] = test(18)
 
   object This extends ThisModule {
@@ -21,7 +21,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
     def copy(original: Tree)(qual: Option[String]): This = refused("This.copy")
     def unapply(x: This): Some[Option[String]] = Some(Option(ReflectOps.shape(x).name))
   }
-  given DefinitionTypeTest: TypeTest[Tree, Definition] = test(12, 15, 16)
+  given DefinitionTypeTest: TypeTest[Tree, Definition] = test(12, 15, 16, 19)
   given IdentTypeTest: TypeTest[Tree, Ident] = test(1)
   given SelectTypeTest: TypeTest[Tree, Select] = test(2)
   given LiteralTypeTest: TypeTest[Tree, Literal] = test(3)
@@ -66,7 +66,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object Apply extends ApplyModule {
-    def apply(fun: Term, args: List[Term]): Apply = refused("Apply.apply")
+    def apply(fun: Term, args: List[Term]): Apply = built("apply", fun :: args).asInstanceOf[Apply]
     def copy(original: Tree)(fun: Term, args: List[Term]): Apply = refused("Apply.copy")
     def unapply(x: Apply): (Term, List[Term]) = {
       val s = ReflectOps.shape(x)
@@ -75,7 +75,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object TypeApply extends TypeApplyModule {
-    def apply(fun: Term, args: List[TypeTree]): TypeApply = refused("TypeApply.apply")
+    def apply(fun: Term, args: List[TypeTree]): TypeApply = fun.appliedToTypes(args.map(_.tpe)).asInstanceOf[TypeApply]
     def copy(original: Tree)(fun: Term, args: List[TypeTree]): TypeApply = refused("TypeApply.copy")
     def unapply(x: TypeApply): (Term, List[TypeTree]) = {
       val s = ReflectOps.shape(x)
@@ -84,7 +84,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object Block extends BlockModule {
-    def apply(stats: List[Statement], expr: Term): Block = refused("Block.apply")
+    def apply(stats: List[Statement], expr: Term): Block = built("block", expr :: stats).asInstanceOf[Block]
     def copy(original: Tree)(stats: List[Statement], expr: Term): Block = refused("Block.copy")
     def unapply(x: Block): (List[Statement], Term) = {
       val s = ReflectOps.shape(x)
@@ -144,6 +144,28 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
       (s.name, s.child(0).asInstanceOf[Term])
     }
   }
+
+  object Match extends MatchModule {
+    def apply(selector: Term, cases: List[CaseDef]): Match = built("match", selector :: cases).asInstanceOf[Match]
+    def copy(original: Tree)(selector: Term, cases: List[CaseDef]): Match = refused("Match.copy")
+    def unapply(x: Match): (Term, List[CaseDef]) = refused("Match.unapply")
+  }
+
+  object CaseDef extends CaseDefModule {
+    def apply(pattern: Tree, guard: Option[Term], rhs: Term): CaseDef = {
+      val args = Array(ReflectOps.id(pattern), guard.fold(-1)(ReflectOps.id), ReflectOps.id(rhs))
+      ReflectOps.term(ReflectOps.one("caseDef", args*)).asInstanceOf[CaseDef]
+    }
+    def copy(original: Tree)(pattern: Tree, guard: Option[Term], rhs: Term): CaseDef = refused("CaseDef.copy")
+    def unapply(x: CaseDef): (Tree, Option[Term], Term) = refused("CaseDef.unapply")
+  }
+
+  object Wildcard extends WildcardModule {
+    def apply(): Wildcard = ReflectOps.term(ReflectOps.one("wildcard")).asInstanceOf[Wildcard]
+    def unapply(pattern: Wildcard): true = true
+  }
+
+  private def built(op: String, trees: List[Tree]): Any = ReflectOps.term(ReflectOps.one(op, trees.map(ReflectOps.id)*))
 
   private def test[T](kinds: Int*): T = new KindTest(kinds*).asInstanceOf[T]
 
