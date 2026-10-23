@@ -42,7 +42,7 @@ impl Expansion<'_, '_> {
             arg_tpe = seq;
         }
         let by_name = matches!(i.u.types().get(formal), Type::ByName(_));
-        let inline = i.is_inline_param_type(formal);
+        let inline = i.u.symbol(p).flags.has(INLINE) || i.is_inline_param_type(formal);
         let mut widened = i.u.widen(arg_tpe);
         let builtins = i.u.builtins();
         let bottom = i.u.class_symbol(widened).is_some_and(|c| c == builtins.nothing || c == builtins.null);

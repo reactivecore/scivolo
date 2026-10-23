@@ -26,3 +26,5 @@ object Terms:
   val t = shapeUnderlying { val x = 1; x }
   val u = shape(this)
   val v = shape(Terms.this.one)
+  val w = count(1, 2, 3)
+  val x = count()
