@@ -10,8 +10,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// A method of the unit whose context closures became parameter clauses: its symbol, its
-/// original parameter clauses, how many closures.
+/// A flattened method: its symbol, its original parameter clauses, how many closures.
 struct Flattened {
     m: SymbolId,
     clauses: usize,
@@ -43,7 +42,8 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     for t in subtrees(l.tpd, root) {
         let Some(m) = l.tpd.sym(t) else { continue };
         let library = super::context_library::flatten_reference(l, t, m);
-        flattened.extend(library.map(|(clauses, depth)| Flattened { m, clauses, depth }));
+        let new = library.filter(|_| flattened.iter().all(|f: &Flattened| f.m != m));
+        flattened.extend(new.map(|(clauses, depth)| Flattened { m, clauses, depth }));
         if !counts.get(&m).is_some_and(|&(d, _)| d == t) {
             continue;
         }
@@ -272,7 +272,7 @@ fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
 }
 
 /// Whether library method `s` is annotated `ContextResultCount`.
-pub fn is_annotated(l: &Lower, s: SymbolId) -> bool {
+fn is_annotated(l: &Lower, s: SymbolId) -> bool {
     l.u.symbol(s).tree.is_some() && l.u.is_annotated(s, "scala.annotation.internal.ContextResultCount")
 }
 

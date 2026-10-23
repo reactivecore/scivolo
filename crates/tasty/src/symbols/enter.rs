@@ -1,7 +1,7 @@
 //! Entering the symbols a top-level file defines: from the library image's symbol table of the
 //! file if it has one, else from the decoded file.
 
-use super::entries::{Entry, annotations, entries, names_ref};
+use super::entries::{Entry, annotations, entries, first_int, names_ref};
 use super::loaded::{Decoded, Loaded};
 use super::{Error, FileId, Kind, Symbol, SymbolId, Universe, table};
 use crate::{NodeId, View, view};
@@ -80,6 +80,17 @@ impl Universe {
         let (ast, names) = self.file(file);
         let View::DefDef { parts, .. } = view(ast, id) else { return false };
         annotations(ast, parts.mods).any(|(ty, _)| names_ref(ast, names, ty, name))
+    }
+
+    /// The first `Int` argument of the annotation of the class with full name `full` on method
+    /// `sym` in its TASTy, by the class's simple name.
+    pub fn annotation_int(&self, sym: SymbolId, full: &str) -> Option<i32> {
+        let (file, id) = self.symbol(sym).tree?;
+        let name = full.rsplit('.').next().unwrap_or(full);
+        let (ast, names) = self.file(file);
+        let View::DefDef { parts, .. } = view(ast, id) else { return None };
+        let (_, call) = annotations(ast, parts.mods).find(|&(ty, _)| names_ref(ast, names, ty, name))?;
+        first_int(ast, call)
     }
 
     /// The owner and name of a definition named `name` in `owner`: its JDK package and name if
