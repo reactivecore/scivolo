@@ -81,13 +81,10 @@ impl Expansion<'_, '_> {
             tree: None,
         });
         i.u.set_info(s, info);
-        let mut rhs = match i.defines_class(arg) {
-            true => i.change_owner(arg, self.owner, s),
-            false => {
-                let mut m =
-                    TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
-                i.copy(&mut m, arg, &mut |_, _, _| None)?
-            }
+        let mut rhs = {
+            let mut m =
+                TreeTypeMap { old_owner: Some(self.owner), new_owner: Some(s), ..TreeTypeMap::default() };
+            i.copy(&mut m, arg, &mut |_, _, _| None)?
         };
         if let Some(sk) = skolem {
             rhs = i.cast(rhs, sk)?;

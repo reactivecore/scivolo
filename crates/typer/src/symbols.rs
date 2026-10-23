@@ -40,6 +40,8 @@ pub struct Syms {
     pub annotations: FxHashMap<SymbolId, Vec<TNodeId>>,
     /// The symbol each definition tree defines.
     pub by_tree: FxHashMap<NodeId, SymbolId>,
+    /// The definition tree of each method parameter of the unit.
+    pub param_trees: FxHashMap<SymbolId, NodeId>,
     /// The definition tree of each member and local of the unit.
     pub def_trees: FxHashMap<SymbolId, NodeId>,
     /// Whether a script class initializes nothing itself (dotty's `NoInits`).
@@ -126,6 +128,7 @@ impl Syms {
             }
         }
         self.by_tree.clear();
+        self.param_trees.clear();
         self.pending_selves.clear();
         self.def_trees.clear();
         self.closure_syms.clear();

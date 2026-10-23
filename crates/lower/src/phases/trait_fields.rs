@@ -115,9 +115,6 @@ pub fn mixed_in(
         } else if l.u.is_module(getter) {
             out.push(module_forwarder(l, class, getter, span)?);
         } else if has(l.u, getter, LAZY) && has_body(l, getter) && implemented_by(l, class, getter) {
-            if library {
-                return unsupported(span, "lazy values in library traits");
-            }
             let at = if span.exists() { Span::at(span.point()) } else { span };
             out.push(lazy_forwarder(l, class, mixin, getter, at));
         } else if is_trait_getter(l, getter) && !is_const_final(l, getter) && implemented_by(l, class, getter)
@@ -133,7 +130,8 @@ pub fn mixed_in(
         let sup = l.super_mix(class, mixin, at);
         let fun = l.select(sup, init, at);
         let unit = l.u.class_ref("scala.Unit");
-        let call = l.apply(fun, &[], unit, Span::NONE);
+        let args = super::local_traits::init_args(l, class, init, at)?;
+        let call = l.apply(fun, &args, unit, Span::NONE);
         out.push(l.positioned(call));
     }
     for setter in setters {

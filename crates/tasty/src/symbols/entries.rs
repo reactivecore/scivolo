@@ -118,6 +118,14 @@ fn mentions(ast: &Ast, names: &[String], id: NodeId, name: &str) -> bool {
         || ast.kids(id).iter().any(|&k| mentions(ast, names, ast.deref(k), name))
 }
 
+/// The first `Int` constant in the tree at `id`.
+pub fn first_int(ast: &Ast, id: NodeId) -> Option<i32> {
+    match ast.node(id) {
+        n if n.tag == INTconst => Some(n.a as i32),
+        _ => ast.kids(id).iter().find_map(|&k| first_int(ast, ast.deref(k))),
+    }
+}
+
 /// The first string constant in the tree at `id`.
 fn first_string(ast: &Ast, names: &[String], id: NodeId) -> Option<String> {
     match ast.node(id) {

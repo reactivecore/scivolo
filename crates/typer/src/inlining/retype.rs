@@ -113,12 +113,12 @@ impl Inlining<'_> {
             | T::Try { .. }
             | T::Bind { .. }
             | T::Alternative { .. }
-            | T::UnApply { .. } => {
-                let (inner, call) = match *self.tpd.tree(t) {
-                    T::ValDef { .. } | T::DefDef { .. } => (self.tpd.sym(t).unwrap_or(owner), None),
-                    T::Inlined { call, .. } => (owner, call),
-                    _ => (owner, None),
-                };
+            | T::UnApply { .. }
+            | T::TypeDef { .. }
+            | T::Template { .. } => {
+                let call = if let T::Inlined { call, .. } = *self.tpd.tree(t) { call } else { None };
+                let (inner, within) = self.owners_within(t, owner);
+                let outer_class = std::mem::replace(&mut self.enclosing_class, within);
                 let mut failed = None;
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
@@ -127,6 +127,7 @@ impl Inlining<'_> {
                         c
                     }),
                 });
+                self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }

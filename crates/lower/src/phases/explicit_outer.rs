@@ -53,6 +53,7 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<()> {
     for &td in classes {
         super::outer_args::pass_outer(l, td)?;
     }
+    super::outer_selects::transform(l, classes);
     for &(td, class) in with_outer.iter().rev() {
         match l.u.is_trait(class) {
             true => super::outer_traits::add_outer(l, td, class),

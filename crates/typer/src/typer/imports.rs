@@ -8,13 +8,15 @@ use super::idents::Found;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Level, LevelId};
 use crate::tpd::TNodeId;
-use syntax::ast::{List, NodeId, Tree};
+use syntax::ast::{NodeId, Tree};
 use tasty::{SymbolId, TypeId};
 
-/// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport.
+/// A selector `name => rename`; `name` empty for `given`, `rename` `_` for an unimport; the
+/// typed bound of a `given T`.
 pub struct Selector {
     pub name: String,
     pub rename: String,
+    pub bound: Option<TNodeId>,
 }
 
 pub struct ImportInfo {
@@ -58,7 +60,8 @@ impl Typer<'_> {
 
     /// A root import of all members of `qual`.
     pub fn root_import(&mut self, outer: Option<LevelId>, qual: TypeId) -> LevelId {
-        let selector = |name: &str, rename: &str| Selector { name: name.into(), rename: rename.into() };
+        let selector =
+            |name: &str, rename: &str| Selector { name: name.into(), rename: rename.into(), bound: None };
         let mut selectors = vec![selector("_", "_"), selector("", "")];
         if self.import_site(qual) == Some(self.defn.predef) {
             selectors.insert(0, selector("any2stringadd", "_"));
@@ -116,7 +119,7 @@ impl Typer<'_> {
                     "import that looks like a language import but refers to something else",
                 );
             }
-            let selectors = self.selectors(selectors);
+            let selectors = self.selectors(selectors, ctx);
             let owner = Some(ctx.owner);
             self.imports[i] = ImportEntry::Done(ImportInfo { qual, selectors, expr: Some(typed), owner });
         }
@@ -151,37 +154,24 @@ impl Typer<'_> {
         rest.is_empty() || rest == ["scala"] || rest == ["_root_", "scala"]
     }
 
-    fn selectors(&self, selectors: List) -> Vec<Selector> {
-        let ident = |id: NodeId| match *self.ast.tree(id) {
-            Tree::Ident { name } => self.text(name.name).to_owned(),
-            _ => String::new(),
-        };
-        let items = self.ast.items(selectors);
-        let selectors = items.iter().filter_map(|&s| match *self.ast.tree(s) {
-            Tree::ImportSelector { imported, renamed, .. } => {
-                let name = ident(imported);
-                let rename = renamed.map_or_else(|| name.clone(), ident);
-                Some(Selector { name, rename })
-            }
-            _ => None,
-        });
-        selectors.collect()
-    }
-
-    /// The members named `member` of import `i`'s path; for a wildcard, the givens only if it is
-    /// a `given` wildcard and the others only if it is a `_` wildcard (dotty's `selection`).
+    /// The members named `member` of import `i`'s path; for a wildcard, the givens only if a
+    /// `given` selector imports them and the others only if it is a `_` wildcard (dotty's
+    /// `selection`).
     fn selection(&mut self, i: usize, member: &str, is_type: bool, wildcard: bool) -> Option<Found> {
         let info = self.import_info(i)?;
-        let (qual, given_wild, plain_wild) = (info.qual, info.has(""), info.has("_"));
-        let syms: Vec<SymbolId> = self
-            .type_members(qual, member)
-            .into_iter()
-            .filter(|&s| self.u.is_type_symbol(s) == is_type)
-            .filter(|&s| {
+        let (qual, plain_wild) = (info.qual, info.has("_"));
+        let mut syms: Vec<SymbolId> = self.type_members(qual, member);
+        syms.retain(|&s| self.u.is_type_symbol(s) == is_type);
+        if wildcard {
+            let mut kept = Vec::new();
+            for s in syms {
                 let given = self.u.symbol(s).flags.has(tasty::tags::GIVEN);
-                !wildcard || if given { given_wild } else { plain_wild }
-            })
-            .collect();
+                if if given { self.imports_given(i, s) } else { plain_wild } {
+                    kept.push(s);
+                }
+            }
+            syms = kept;
+        }
         (!syms.is_empty()).then_some(Found { prefix: Some(qual), syms })
     }
 

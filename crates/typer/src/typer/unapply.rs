@@ -8,7 +8,7 @@ use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::{List, NodeId, Span, TName, Tree};
-use tasty::{Type, TypeId, TypeVars, VarId};
+use tasty::{Type, TypeId, TypeVars};
 
 impl Typer<'_> {
     pub fn typed_unapply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
@@ -41,6 +41,8 @@ impl Typer<'_> {
         let sel_type = self.strip_named_tuple(zonked);
         let sel = if sel_type == zonked { sel } else { sel_type };
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
+        let (applied, targs) = (fun, self.unapply_type_args(fun, sel_type, ctx));
+        let fun = targs.map_or(fun, |(qual, _)| qual);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs
             && !self.splices.contains_key(&fun)
@@ -66,7 +68,10 @@ impl Typer<'_> {
             return Err("sequence wildcard of an extractor without unapplySeq");
         }
         let vars = self.constraint.count();
-        let unapp = self.with_type_vars(unapp)?;
+        let unapp = match targs {
+            Some((_, args)) => self.with_unapply_type_args(applied, unapp, args, ctx)?,
+            None => self.with_type_vars(unapp)?,
+        };
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
@@ -78,7 +83,7 @@ impl Typer<'_> {
         if !implicit && matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
             return Err("extractor with more parameters");
         }
-        let own = self.pattern_type(sel, arg_type, vars)?;
+        let own = self.pattern_type((sel, arg_type), vars, unapp, ctx)?;
         let sel = self.zonk(sel);
         let tested = self.stripped(own) != self.stripped(sel);
         let result = self.applied_unapply_result(unapp, result, (binder, param), own);
@@ -116,7 +121,12 @@ impl Typer<'_> {
     /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
     /// method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a value of
     /// scrutinee type `sel` (dotty's `trySelectUnapply`); whether it is `unapplySeq`.
-    fn unapply_fun(&mut self, qual: NodeId, sel: TypeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
+    pub fn unapply_fun(
+        &mut self,
+        qual: NodeId,
+        sel: TypeId,
+        ctx: Ctx,
+    ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
         let typed = self.typed(qual, Pt::Any, ctx);
@@ -193,11 +203,28 @@ impl Typer<'_> {
         found
     }
 
+    /// Whether `t` widened has a wildcard type argument, also inside another argument.
+    fn has_wildcard(&mut self, t: TypeId) -> bool {
+        let widened = self.u.widen(t);
+        let mut found = false;
+        self.u.map_type(widened, &mut |u, part| {
+            found |= matches!(u.types().get(part), Type::Bounds(..));
+            None
+        });
+        found
+    }
+
     /// The type of a pattern whose extractor takes `arg_type` against a value of type `sel`:
     /// `sel` if it conforms, else `arg_type` constrained by `sel`, unless only variant type
-    /// arguments of an open class would be, and maximized; type variables from id `vars` on
-    /// instantiated.
-    fn pattern_type(&mut self, sel: TypeId, arg_type: TypeId, vars: usize) -> Result<TypeId, &'static str> {
+    /// arguments of an open class would be, and maximized with the binders added to extractor
+    /// `unapp`; type variables from id `vars` on instantiated.
+    fn pattern_type(
+        &mut self,
+        (sel, arg_type): (TypeId, TypeId),
+        vars: usize,
+        unapp: TNodeId,
+        ctx: Ctx,
+    ) -> Result<TypeId, &'static str> {
         let mark = self.constraint.mark();
         if self.conforms(sel, arg_type) {
             self.fully_defined_as(arg_type, true)?;
@@ -223,27 +250,11 @@ impl Typer<'_> {
                 return Err("pattern constraining type parameters (GADT)");
             }
         }
-        let arg_type = self.zonk(arg_type);
-        let variances = self.variances(arg_type, None, vars);
-        for i in vars..self.constraint.count() {
-            let v = VarId(i as u32);
-            if self.constraint.instance(v).is_some() {
-                continue;
-            }
-            let from_below = match variances.get(&v.0) {
-                None => continue,
-                Some(1) => false,
-                Some(-1) => true,
-                Some(_) => {
-                    let (lo, hi) = self.constraint.bounds(v);
-                    if lo != hi {
-                        return Err("pattern-bound type variable");
-                    }
-                    false
-                }
-            };
-            self.instantiate_var(v, from_below)?;
+        let bound = self.maximize_type(arg_type, vars, unapp, ctx)?;
+        if !bound.is_empty() && self.has_wildcard(sel) {
+            return Err("pattern-bound type against a wildcard argument");
         }
+        self.add_binders(unapp, &bound);
         Ok(self.zonk(arg_type))
     }
 }

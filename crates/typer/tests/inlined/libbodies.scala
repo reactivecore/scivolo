@@ -22,6 +22,8 @@ object Test {
     println(Lib.sepOr(sep = "x"))
     println(Lib.elemCount[Point])
     println(Lib.elemCount[Shape])
+    println(Lib.mk(n))
+    Lib.anon("there").run()
   }
 }
 

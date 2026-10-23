@@ -16,6 +16,7 @@ mod inits;
 mod java_strings;
 mod java_stubs;
 mod jdk;
+mod joined_bases;
 mod loaded;
 mod lookup;
 mod members;
@@ -69,6 +70,8 @@ pub struct Universe {
     infos: FxHashMap<SymbolId, TypeId>,
     parents: FxHashMap<SymbolId, Vec<TypeId>>,
     linearizations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// Per class and base class, whether the class's parents give the base different types.
+    disagreeing_bases: FxHashMap<(SymbolId, SymbolId), bool>,
     /// The abstract methods and values among the symbols defined outside TASTy.
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.

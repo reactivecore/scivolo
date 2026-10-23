@@ -38,27 +38,35 @@ impl Expansion<'_, '_> {
         let mut uses = false;
         let mut outers = Vec::new();
         self.i.this_refs(body, cls, &mut uses, &mut outers);
-        let outer_err = self.err("inline body referring to an outer this");
-        let Some(q) = prefix else { return if outers.is_empty() { Ok(Vec::new()) } else { Err(outer_err) } };
-        if matches!(self.i.tpd.tree(q), T::Super { .. }) {
+        outers.retain(|&c| !crate::sealed::is_contained_in(self.i.u, c, meth));
+        let Some(q) = prefix else {
+            if outers.is_empty() {
+                return Ok(Vec::new());
+            }
+            let q = self.prefix_this(fun, cls)?;
+            let qt = self.i.tpd.tpe(q);
+            return self.bind_outer_this((cls, q, qt), &outers, None, true);
+        };
+        if let T::Super { qual, .. } = *self.i.tpd.tree(q) {
             return match (uses, outers.is_empty()) {
                 (false, true) => Ok(Vec::new()),
                 (true, _) => Err(self.err("inline call through super")),
-                (false, false) => Err(outer_err),
+                (false, false) => {
+                    let qt = self.i.tpd.tpe(qual);
+                    self.bind_outer_this((cls, qual, qt), &outers, None, true)
+                }
             };
         }
         let qt = self.i.tpd.tpe(q);
         let qtv = self.i.u.types().get(qt).clone();
-        if matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls)) {
-            return if outers.is_empty() { Ok(Vec::new()) } else { Err(outer_err) };
-        }
         let mut proxies = Vec::new();
-        if uses || impure {
+        let elided = matches!(qtv, Type::This(c) if self.i.u.class_symbol(c) == Some(cls));
+        if !elided && (uses || impure) {
             proxies.push((cls, self.bind_class_this(cls, q, qt)?));
         }
         let pure = !proxies.is_empty() || self.i.is_pure_expr(q);
-        let at = proxies.len();
-        proxies.extend(self.bind_outer_this(cls, qt, &outers, (pure, at))?);
+        let last = proxies.first().map(|&(_, p)| p);
+        proxies.extend(self.bind_outer_this((cls, q, qt), &outers, last, pure)?);
         Ok(proxies)
     }
 
@@ -176,6 +184,10 @@ pub fn replace_this(
                 Some(proxy_tpe),
                 None,
             ))
+        }
+        (T::Ident { name }, Type::This(c)) if !name.is_type && is_cls(i, c) => {
+            let span = i.tpd.span(t);
+            Some(i.tpd.node(T::Ident { name }, span, Some(proxy_tpe), Some(proxy)))
         }
         (T::Ident { name }, Type::Sym(Some(_), s))
             if !name.is_type && prefix_is_cls && i.u.symbol(s).kind.is_term() =>

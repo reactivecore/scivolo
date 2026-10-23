@@ -212,7 +212,7 @@ impl Typer<'_> {
         let args = self.tpd.list(&typed_args);
         let apply = self.tpd.node(T::Apply { fun: f, args }, self.ast.span(id), Some(tpe), None);
         self.fold_apply(apply);
-        let widened = self.widen_enum_case(apply, method, pt);
+        let widened = self.widen_enum_case(apply, infix_meth, pt);
         match self.converted_new_generic_array(widened) {
             Ok(tree) => self.wrap_defs(lifted, tree),
             Err(what) => self.unsupported(id, what),

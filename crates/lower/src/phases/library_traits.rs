@@ -25,18 +25,21 @@ pub fn prepare(l: &mut Lower, trait_: SymbolId, span: Span) -> Result<()> {
         if l.u.body(value).is_none() || is_const_final(l, value) {
             continue;
         }
-        if has(l.u, value, LAZY) {
-            return unsupported(span, "lazy values in library traits");
-        }
         let flags = l.u.symbol(value).flags.with(FIELDaccessor);
         l.u.set_flags(value, flags);
-        if !has(l.u, value, MUTABLE) {
+        if !has(l.u, value, MUTABLE) && !has(l.u, value, LAZY) {
             let info = l.u.info(value);
             let setter = trait_setter_name(l, trait_, &accessor_name(l, value));
             define_setter(l, trait_, &setter, info);
         }
     }
     Ok(())
+}
+
+/// Whether library trait `trait_` has a lazy value with an initializer.
+pub fn has_lazy(l: &mut Lower, trait_: SymbolId) -> bool {
+    let decls = l.u.decls(trait_).unwrap_or_default();
+    decls.into_iter().any(|v| l.u.symbol(v).kind == Kind::Val && has(l.u, v, LAZY) && l.u.body(v).is_some())
 }
 
 /// The deferred setter `name(x$0: value): Unit` of class `owner`.
