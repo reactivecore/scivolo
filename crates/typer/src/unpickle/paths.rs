@@ -49,6 +49,12 @@ impl Unpickler<'_> {
                 let tpe = self.resolved(tpe);
                 self.ref_tree(tpe)
             }
+            CLASSconst => {
+                let tpe = self.ty(self.kids(id)[0]);
+                let class = self.class_symbol("java.lang.Class")?;
+                let class_tpe = crate::defn::applied(self.u, class, vec![tpe]);
+                Ok(self.bare(T::ClassLiteral { tpe }, Some(class_tpe), None))
+            }
             _ => Err("a tree of another kind in a library inline body"),
         }
     }
