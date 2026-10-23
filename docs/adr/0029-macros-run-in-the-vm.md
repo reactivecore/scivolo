@@ -33,11 +33,11 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
   a hole), and run the term-hole closures themselves, so natives never call back into Scala.
   Every other member throws `Unsupported(<member>)`. The natives reach the frontend through
   `vm::QuoteHost`, a trait object the VM holds only while a macro runs.
-- **Quote patterns** of a typed term hole (`'{ $m: T { type L = l } }`, dotty's `QuoteMatcher`
-  hole cases) are matched by the typer (`inlining::quote_match`): the pattern's type bindings
-  become type variables of a subtype check of the scrutinee's type against the hole's, and are
-  approximated after it; type patterns `'[P]` the same way with `P` as the hole's type; other
-  pattern shapes are refused by name.
+- **Quote patterns** are matched by the typer (`inlining::quote_matcher`, dotty's
+  `QuoteMatcher.=?=` over the typed trees): the pattern's type bindings become type variables of
+  one constraint for every subtype check of the match, and are approximated after it; type
+  patterns `'[P]` the same way with `P` as the hole's type. Higher-order holes, method and type
+  definitions in patterns are refused by name.
 - **`quotes.reflect`** is the overlay's abstract `ReflectImpl` with the members macros such as
   Circe's use (terms as `ExprImpl`s, `TypeRepr`s as `TypeImpl`s, symbols by number), each a
   named operation the typer runs (`inlining::Reflect`). `reflect`'s getter and the `given`
@@ -72,7 +72,7 @@ The typer has no VM; scripts created theirs after compiling; Immix allows one VM
 
 ## Consequences
 - A macro whose implementation is not on the VM's classpath, or that uses a `quotes.reflect`
-  member outside the subset, a quote pattern other than a typed hole or `Expr.show`, is refused
+  member outside the subset, a quote pattern with a higher-order hole or `Expr.show`, is refused
   by name and the script falls back to scala-cli; an exception the implementation throws is
   dotty's "Failed to evaluate macro" error.
 - Macro side effects happen in the VM that compiles the script. So that they do not reach
