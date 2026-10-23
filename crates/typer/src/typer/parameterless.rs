@@ -7,7 +7,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type, else for a single abstract method type `pt` the only
+    /// unless that is a function type, else the only one with an implicit clause only, else for a single abstract method type `pt` the only
     /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
     pub fn parameterless_alternative(
         &mut self,
@@ -20,7 +20,7 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &args, Some(p));
         }
-        let mut found = Vec::new();
+        let (mut found, mut implicit) = (Vec::new(), Vec::new());
         for &s in syms {
             self.complete(s);
             let tpe = self.ref_type(prefix, s);
@@ -33,19 +33,19 @@ impl Typer<'_> {
                     _ => return Err("overloaded reference with a polymorphic alternative"),
                 },
                 Type::Method { params, result, implicit: false, .. } if params.is_empty() => result,
+                Type::Method { result, implicit: true, .. } => {
+                    implicit.push((s, result));
+                    continue;
+                }
                 Type::Method { .. } => continue,
                 _ => info,
             };
-            if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
-                continue;
+            if self.result_fits(result, pt) {
+                found.push(s);
             }
-            if let Pt::Type(p) = pt
-                && self.is_fully_defined(p)
-                && !self.u.is_subtype(result, p)
-            {
-                continue;
-            }
-            found.push(s);
+        }
+        if found.is_empty() {
+            found = implicit.into_iter().filter(|&(_, r)| self.result_fits(r, pt)).map(|(s, _)| s).collect();
         }
         if let (Pt::Type(p), []) = (pt, &found[..])
             && let Some(sam) = (0..=22).find_map(|n| self.sam_shape(p, n).ok().flatten())
@@ -55,6 +55,17 @@ impl Typer<'_> {
         match found[..] {
             [s] => Ok(s),
             _ => Err("overloaded reference"),
+        }
+    }
+
+    /// Whether an alternative of result type `result` is a value that may conform to `pt`.
+    fn result_fits(&mut self, result: TypeId, pt: Pt) -> bool {
+        if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
+            return false;
+        }
+        match pt {
+            Pt::Type(p) => !self.is_fully_defined(p) || self.u.is_subtype(result, p),
+            _ => true,
         }
     }
 
