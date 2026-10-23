@@ -13,7 +13,7 @@ clap = { version = "4.6", features = ["derive"] }
 hashbrown = { version = "0.17", default-features = false }
 md-5 = "0.11"
 rustc-hash = "2"
-rustyline = { version = "18", default-features = false, features = ["with-file-history"] }
+rustyline = { version = "19", default-features = false, features = ["with-file-history"] }
 zip = { version = "2", default-features = false, features = ["deflate"] }
 libimage = { package = "scivolo-libimage", path = "crates/libimage" }
 libs = { package = "scivolo-libs", path = "crates/libs" }
