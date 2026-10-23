@@ -69,7 +69,7 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
                 let param = l.outers[&class].1;
                 l.ident(param, span)
             };
-            let read = through(l, start, &chain, span)?;
+            let read = through(l, start, &chain, span, true)?;
             l.copy_node(t, read);
         }
     }
@@ -79,11 +79,9 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
     }
     let Some(field) = l.outers[&class].0 else { return Ok(()) };
     let name_at = l.tpd.span(td).point();
-    let end = match stats.last() {
-        Some(&last) if anonymous => l.tpd.span(last).end(),
-        _ => l.tpd.span(template).end(),
-    };
-    let at = Span::at(end.max(name_at));
+    let spans = l.tpd.items(parents).iter().chain(&stats).map(|&s| l.tpd.span(s));
+    let end = spans.filter(|s| anonymous && s.exists()).map(|s| s.end()).max();
+    let at = Span::at(end.unwrap_or(l.tpd.span(template).end()).max(name_at));
     let mut stats = stats;
     stats.push(field_def(l, field, Span::at(name_at)));
     if with_accessor {
@@ -94,11 +92,13 @@ pub fn rewrite(l: &mut Lower, td: TNodeId, class: SymbolId) -> Result<()> {
     Ok(())
 }
 
-/// `start`, the instance of the first class of `chain`, then the outer accessors to the last.
-fn through(l: &mut Lower, start: TNodeId, chain: &[SymbolId], span: Span) -> Result<TNodeId> {
+/// `start`, the instance of the first class of `chain`, then the outer accessors to the last;
+/// those of anonymous local classes only if `define`, before their definitions are rewritten.
+fn through(l: &mut Lower, start: TNodeId, chain: &[SymbolId], span: Span, define: bool) -> Result<TNodeId> {
     let mut read = start;
     for pair in chain.windows(2) {
-        if is_local(l, pair[0]) && is_anonymous(l, pair[0]) {
+        let defined = define || l.outer_accessors.contains_key(&pair[0]);
+        if is_local(l, pair[0]) && is_anonymous(l, pair[0]) && !defined {
             return unsupported(span, "classes in anonymous classes using the enclosing instance");
         }
         let accessor = outer_accessor(l, pair[0]);
@@ -151,7 +151,7 @@ pub fn outer_path(
             l.apply(fun, &[], tpe, span)
         }
     };
-    through(l, start, &chain, span)
+    through(l, start, &chain, span, false)
 }
 
 /// Appends the definition of field `f` to class definition `td`.

@@ -12,7 +12,7 @@ use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use syntax::ast::Span;
 use tasty::tags::{CASEaccessor, FIELDaccessor, LAZY, OBJECT, PARAMsetter, PRIVATE};
-use tasty::{Erased, Kind, SymbolId};
+use tasty::{Erased, Kind, SymbolId, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> Result<()> {
@@ -43,7 +43,10 @@ pub fn transform(l: &mut Lower, td: TNodeId, deferred: &FxHashSet<SymbolId>) -> 
         }
         let own = stats.iter().copied().find(|&s| l.tpd.sym(s) == Some(member) && l.tpd.span(s).exists());
         let at = Span::at(l.tpd.span(own.unwrap_or(td)).point());
-        stats.push(bridge(l, class, member, other, at)?);
+        match l.context_results.contains_key(&member) && !l.context_results.contains_key(&other) {
+            true => stats.extend(super::context_bridges::bridge(l, class, member, other, at)?),
+            false => stats.push(bridge(l, class, member, other, at)?),
+        }
     }
     if !made.is_empty() {
         stats.retain(|&s| l.tpd.sym(s).is_none_or(|s| !removed.contains(&s)));
@@ -109,8 +112,17 @@ fn overriding_pairs(
 }
 
 /// Whether `a` overrides `b` as members of `site`: neither takes parameters, or both are methods
-/// whose parameters match.
+/// whose parameters match, of their types before `ContextFunctionResults`.
 fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> bool {
+    let before: Vec<(SymbolId, TypeId, TypeId)> =
+        [a, b].iter().filter_map(|&s| l.context_results.get(&s).map(|&(t, _)| (s, l.u.info(s), t))).collect();
+    before.iter().for_each(|&(s, _, t)| l.u.set_info(s, t));
+    let matched = matching_now(l, site, a, b);
+    before.into_iter().for_each(|(s, now, _)| l.u.set_info(s, now));
+    matched
+}
+
+fn matching_now(l: &mut Lower, site: TypeId, a: SymbolId, b: SymbolId) -> bool {
     let methods = l.u.symbol(a).kind == Kind::Def && l.u.symbol(b).kind == Kind::Def;
     let clauses = |l: &mut Lower, s| {
         let info = l.u.info(s);

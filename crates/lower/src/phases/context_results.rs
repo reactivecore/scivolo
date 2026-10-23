@@ -10,8 +10,7 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
-/// A method of the unit whose context closures became parameter clauses: its symbol, its
-/// original parameter clauses, how many closures.
+/// A flattened method: its symbol, its original parameter clauses, how many closures.
 struct Flattened {
     m: SymbolId,
     clauses: usize,
@@ -19,10 +18,9 @@ struct Flattened {
 }
 
 /// Flattens the methods of unit `root` whose right-hand sides are context closures of their
-/// context function result types (dotty's `annotateContextResults`) and their calls; refuses
-/// those overriding or overridden in the unit by methods flattened otherwise, those overriding
-/// members of other units, other references to them, and references to library methods
-/// annotated `ContextResultCount`.
+/// context function result types (dotty's `annotateContextResults`), the library methods
+/// annotated `ContextResultCount`, and their calls; refuses those overriding or overridden by
+/// methods flattened otherwise but abstract ones, and other references to them.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut defs = Vec::new();
     let mut counts = FxHashMap::default();
@@ -42,7 +40,13 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
     let mut flattened = Vec::new();
     for t in subtrees(l.tpd, root) {
-        let Some(m) = l.tpd.sym(t).filter(|m| counts.get(m).is_some_and(|&(d, _)| d == t)) else { continue };
+        let Some(m) = l.tpd.sym(t) else { continue };
+        let library = super::context_library::flatten_reference(l, t, m);
+        let new = library.filter(|_| flattened.iter().all(|f: &Flattened| f.m != m));
+        flattened.extend(new.map(|(clauses, depth)| Flattened { m, clauses, depth }));
+        if !counts.get(&m).is_some_and(|&(d, _)| d == t) {
+            continue;
+        }
         if !overrides_alike(l, m, &defs, &counts) {
             return unsupported(
                 l.tpd.span(t),
@@ -50,8 +54,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             );
         }
         let info = l.u.info(m);
-        let clauses = method_clauses(l, info);
+        let clauses = super::context_bridges::clauses(l, info).len();
         let depth = integrate(l, t, m);
+        l.context_results.insert(m, (info, depth));
         flattened.push(Flattened { m, clauses, depth });
     }
     let mut calls = Vec::new();
@@ -107,8 +112,9 @@ fn context_result_count(l: &mut Lower, mut tpt: TNodeId, mut rhs: TNodeId) -> us
 }
 
 /// Whether every member of the name of method `m` that `m` may override, or that may override
-/// `m`, is a method of the unit flattened by as many closures: those of the base classes of its
-/// class and of the unit's classes deriving from it, and of `Object` and `Any`.
+/// `m`, is a method of the unit flattened by as many closures, or an abstract one of the unit's
+/// a base class declares, bridged: those of the base classes of its class and of the unit's
+/// classes deriving from it, and of `Object` and `Any`.
 fn overrides_alike(
     l: &mut Lower,
     m: SymbolId,
@@ -134,7 +140,8 @@ fn overrides_alike(
         }
     }
     let roots = [("java.lang", "Object"), ("scala", "Any")];
-    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count)
+    let bridged = |l: &mut Lower, d| !counts.contains_key(&d) && super::context_bridges::bridged(l, owner, d);
+    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count || bridged(l, d))
         && roots.into_iter().all(|(p, c)| !root_declares(l, p, c, &name))
 }
 
@@ -144,18 +151,6 @@ fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool 
     let found = l.u.decl(pkg, class).unwrap_or_default();
     let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
     classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
-}
-
-/// How many parameter clauses method type `t` has.
-fn method_clauses(l: &Lower, mut t: TypeId) -> usize {
-    let mut n = 0;
-    loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { result, .. } => (n, t) = (n + 1, *result),
-            _ => return n,
-        }
-    }
 }
 
 /// Moves the parameters and bodies of the context closures of method definition `def` of `m`
@@ -200,7 +195,7 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
 }
 
 /// Method type `t` with its parameters named `x$0`, `x$1`, … (a context function's method type).
-fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
+pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
     let Type::Method { binder, params, result, implicit, contextual } = l.u.types().get(t).clone() else {
         return t;
     };
@@ -209,7 +204,7 @@ fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
 }
 
 /// Method type `t` with its final result `result`.
-fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
+pub fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
     let t = match l.u.types().get(t).clone() {
         Type::Poly { binder, params, result: r } => {
             Type::Poly { binder, params, result: with_result(l, r, result) }
@@ -282,7 +277,7 @@ fn is_annotated(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// Whether `t` is a `ContextFunctionN` type.
-fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
+pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
     let class = l.u.class_symbol(tycon);

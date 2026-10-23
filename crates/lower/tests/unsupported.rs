@@ -64,12 +64,8 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f: Tuple.Head[EmptyTuple] = ??? }", "ground match types in type trees"),
     (
-        "object O { def f(k: Int) = { trait T { val v = k }; new T {}.v } }",
-        "local traits initializing with captured values",
-    ),
-    (
         "object O { def f(k: Int) = { trait T { lazy val v = k }; new T {}.v } }",
-        "members of local traits other than methods capturing values",
+        "lazy values of local traits capturing values",
     ),
     (
         "object O { def f(k: Int) = { trait T { def g[A]: Int = k }; new T {}.g[String] } }",
@@ -95,10 +91,6 @@ const CASES: &[(&str, &str)] = &[
     (
         "object O { def f(k: Int) = { class C { def g = { class D { def h = List(1).map(_ + k) }; new D().h } }; new C().g } }",
         "lambdas reading values of enclosing local classes",
-    ),
-    (
-        "class W(val v: Int) { trait In { def get: Int }; def f = new In { def get = new In { def get = v }.get }.get }",
-        "classes in anonymous classes using the enclosing instance",
     ),
     (
         "class A { val x: Int = scala.compiletime.uninitialized }",

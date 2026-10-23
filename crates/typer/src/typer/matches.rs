@@ -90,11 +90,13 @@ impl Typer<'_> {
         let typed_body = self.typed(body, pt, cctx);
         let mut locals = self.levels.scope_symbols(level);
         let mut types = Vec::new();
-        self.pattern_types(pat, &mut types);
-        locals.extend(types.iter().filter(|t| !locals.contains(t)).copied().collect::<Vec<_>>());
-        let unconstrained = self.is_top(selector);
-        let opaque: &[_] = if unconstrained { &[] } else { &types };
-        let Some(body) = self.no_local_refs(typed_body, &locals, opaque, pt) else {
+        self.pattern_types(pat, &mut types, false);
+        locals.extend(types.iter().map(|&(t, _)| t).filter(|t| !locals.contains(t)).collect::<Vec<_>>());
+        let opaque: Vec<SymbolId> = match self.is_top(selector) {
+            true => Vec::new(),
+            false => types.iter().filter(|&&(_, known)| !known).map(|&(t, _)| t).collect(),
+        };
+        let Some(body) = self.no_local_refs(typed_body, &locals, &opaque, pt) else {
             return self.unsupported(id, "case type with pattern variables");
         };
         let span = self.ast.span(id);
@@ -117,16 +119,18 @@ impl Typer<'_> {
         self.tpd.node(T::Alternative { trees }, span, Some(tpe), None)
     }
 
-    /// The types bound in pattern `t`, appended to `out`.
-    fn pattern_types(&self, t: TNodeId, out: &mut Vec<SymbolId>) {
+    /// The types bound in pattern `t`, appended to `out`, each with whether it is bound on an
+    /// extractor's type arguments (`in_targs`), its bounds known.
+    fn pattern_types(&self, t: TNodeId, out: &mut Vec<(SymbolId, bool)>, in_targs: bool) {
         if let T::Bind { .. } = self.tpd.tree(t)
             && let Some(s) = self.tpd.sym(t)
             && self.u.is_type_symbol(s)
         {
-            out.push(s);
+            out.push((s, in_targs));
         }
+        let targs = matches!(self.tpd.tree(t), T::TypeApply { .. });
         for c in self.tpd.children(t) {
-            self.pattern_types(c, out);
+            self.pattern_types(c, out, targs);
         }
     }
 

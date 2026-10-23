@@ -23,8 +23,16 @@ impl Typer<'_> {
         if let Err(what) = self.check_selectors(i) {
             return self.unsupported(id, what);
         }
+        let bounds: Vec<Option<TNodeId>> = match &self.imports[i] {
+            ImportEntry::Done(info) => info.selectors.iter().map(|s| s.bound).collect(),
+            _ => Vec::new(),
+        };
         let items = self.ast.items(selectors).to_vec();
-        let typed: Vec<TNodeId> = items.into_iter().map(|s| self.untyped_selector(s)).collect();
+        let typed: Vec<TNodeId> = items
+            .into_iter()
+            .enumerate()
+            .map(|(k, s)| self.untyped_selector(s, bounds.get(k).copied().flatten()))
+            .collect();
         let selectors = self.tpd.list(&typed);
         let span = self.ast.span(id);
         self.tpd.node(T::Import { expr, selectors, export: false }, span, None, None)
@@ -57,12 +65,13 @@ impl Typer<'_> {
         Ok(())
     }
 
-    /// An import selector as dotty keeps it: untyped identifiers.
-    pub fn untyped_selector(&mut self, s: NodeId) -> TNodeId {
+    /// An import selector as dotty keeps it: untyped identifiers, and the bound `typed_bound` of
+    /// a `given T`.
+    pub fn untyped_selector(&mut self, s: NodeId, typed_bound: Option<TNodeId>) -> TNodeId {
         let Tree::ImportSelector { imported, renamed, bound } = *self.ast.tree(s) else {
             return self.unsupported(s, "import selector");
         };
-        if let Some(b) = bound {
+        if let Some(b) = bound.filter(|_| typed_bound.is_none()) {
             return self.unsupported(b, "import bound");
         }
         let ident = |t: &mut Self, id: NodeId| match *t.ast.tree(id) {
@@ -75,6 +84,6 @@ impl Typer<'_> {
         let imported = ident(self, imported);
         let renamed = renamed.map(|r| ident(self, r));
         let span = self.ast.span(s);
-        self.tpd.node(T::ImportSelector { imported, renamed, bound: None }, span, None, None)
+        self.tpd.node(T::ImportSelector { imported, renamed, bound: typed_bound }, span, None, None)
     }
 }

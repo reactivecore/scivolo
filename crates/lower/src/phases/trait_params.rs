@@ -14,28 +14,32 @@ use typer::tpd::{List, TNodeId, Tree};
 /// A class's call of a trait's constructor: its span and arguments.
 pub type TraitCall = (Span, Vec<TNodeId>);
 
-/// Makes trait constructor definition `constr` take no parameters if it takes values.
+/// Makes trait constructor definition `constr` take no parameters but those standing for the
+/// local values it uses, if it takes others.
 pub fn strip_params(l: &mut Lower, constr: TNodeId) {
     let Tree::DefDef { name, paramss, tpt, rhs } = *l.tpd.tree(constr) else { unreachable!("a constructor") };
+    let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
+    let lifted: Vec<SymbolId> = l
+        .trait_methods
+        .get(&ctor)
+        .map(|(_, pairs)| pairs.iter().map(|&(_, p)| p).collect())
+        .unwrap_or_default();
     let clauses = l.tpd.clause_items(paramss).to_vec();
-    let values =
-        clauses.iter().flat_map(|&c| l.tpd.items(c)).any(|&p| !matches!(l.tpd.tree(p), Tree::TypeDef { .. }));
-    if !values {
+    let all: Vec<TNodeId> = clauses.iter().flat_map(|&c| l.tpd.items(c)).copied().collect();
+    let values = all.iter().filter(|&&p| !matches!(l.tpd.tree(p), Tree::TypeDef { .. })).count();
+    if values == lifted.len() {
         return;
     }
-    let empty = l.tpd.list(&[]);
-    let paramss = l.tpd.clauses(&[empty]);
+    let kept: Vec<TNodeId> =
+        all.into_iter().filter(|&p| l.tpd.sym(p).is_some_and(|s| lifted.contains(&s))).collect();
+    let kept = l.tpd.list(&kept);
+    let paramss = l.tpd.clauses(&[kept]);
     l.tpd.get_mut(constr).tree = Tree::DefDef { name, paramss, tpt, rhs };
-    let ctor = l.tpd.sym(constr).expect("a constructor's symbol");
     let unit = l.u.class_ref("scala.Unit");
     let binder = l.u.fresh_binder();
-    let info = l.u.intern_type(Type::Method {
-        binder,
-        params: Vec::new(),
-        result: unit,
-        implicit: false,
-        contextual: false,
-    });
+    let params = lifted.iter().map(|&p| (l.u.symbol(p).name.clone(), l.u.info(p))).collect();
+    let info =
+        l.u.intern_type(Type::Method { binder, params, result: unit, implicit: false, contextual: false });
     l.u.set_info(ctor, info);
 }
 

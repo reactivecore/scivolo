@@ -84,6 +84,8 @@ impl Universe {
         if !self.derives_from(s, base) {
             return None;
         }
+        let join = self.parents_disagree(s, base);
+        let mut joined = None;
         for parent in self.parents(s).into_iter().rev() {
             if !self.class_symbol(parent).is_some_and(|p| self.derives_from(p, base)) {
                 continue;
@@ -93,11 +95,16 @@ impl Universe {
                 (Some(p), Some(o)) if self.symbol(o).kind == Kind::Class => self.as_seen_from(parent, p, o),
                 _ => parent,
             };
-            if let Some(found) = self.base_type_within(parent, base, depth) {
+            let Some(found) = self.base_type_within(parent, base, depth) else { continue };
+            if !join {
                 return Some(found);
             }
+            joined = Some(match joined {
+                Some(j) => self.joined_base_type(base, j, found).unwrap_or(j),
+                None => found,
+            });
         }
-        None
+        joined
     }
 
     /// Whether `t` refers to `Nothing` or `Null`.

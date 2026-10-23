@@ -64,6 +64,12 @@ pub struct Lower<'a> {
     proxies: Vec<(SymbolId, SymbolId)>,
     /// The field of each lifted local class holding a value it captures, by class and value.
     captured_fields: FxHashMap<(SymbolId, SymbolId), SymbolId>,
+    /// The methods whose context closures became parameter clauses: each one's type before, and
+    /// how many closures.
+    context_results: FxHashMap<SymbolId, (tasty::TypeId, usize)>,
+    /// The constructor parameter of each lifted local class standing for a value it captures,
+    /// by class and value.
+    captured_params: FxHashMap<(SymbolId, SymbolId), SymbolId>,
     /// The methods of local traits taking the local values they use first: each one's type
     /// before, and the values with the parameters standing for them.
     trait_methods: FxHashMap<SymbolId, (tasty::TypeId, Vec<(SymbolId, SymbolId)>)>,
@@ -162,6 +168,8 @@ pub fn lower_sources(
         endless_loops: FxHashSet::default(),
         proxies: Vec::new(),
         captured_fields: FxHashMap::default(),
+        captured_params: FxHashMap::default(),
+        context_results: FxHashMap::default(),
         trait_methods: FxHashMap::default(),
         trait_forwards: FxHashMap::default(),
         applied_references: FxHashSet::default(),

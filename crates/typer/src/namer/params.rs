@@ -120,6 +120,7 @@ impl Typer<'_> {
         }
         let text = self.text(name.name).to_owned();
         let s = self.syms.define(self.u, &text, kind, method, flags);
+        self.syms.param_trees.insert(s, p);
         if self.syms.by_tree.insert(p, s).is_some() {
             self.unsupported(p, "definition tree shared by two definitions");
         }
