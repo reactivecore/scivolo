@@ -41,6 +41,8 @@ impl Typer<'_> {
         let sel_type = self.strip_named_tuple(zonked);
         let sel = if sel_type == zonked { sel } else { sel_type };
         self.retype_tuple_arg_types(sel_type, &arg_ids, ctx);
+        let (applied, targs) = (fun, self.unapply_type_args(fun, sel_type, ctx));
+        let fun = targs.map_or(fun, |(qual, _)| qual);
         let with_targs = matches!(self.ast.tree(fun), Tree::TypeApply { .. });
         if !with_targs
             && !self.splices.contains_key(&fun)
@@ -66,7 +68,10 @@ impl Typer<'_> {
             return Err("sequence wildcard of an extractor without unapplySeq");
         }
         let vars = self.constraint.count();
-        let unapp = self.with_type_vars(unapp)?;
+        let unapp = match targs {
+            Some((_, args)) => self.with_unapply_type_args(applied, unapp, args, ctx)?,
+            None => self.with_type_vars(unapp)?,
+        };
         let fun_tpe = self.tpd.tpe(unapp);
         let info = self.method_info(fun_tpe).unwrap_or(fun_tpe);
         let Type::Method { binder, params, result, implicit: false, .. } = self.u.types().get(info).clone()
@@ -116,7 +121,12 @@ impl Typer<'_> {
     /// `qual.unapply` for extractor `qual`, typed as an expression, a member or an extension
     /// method, or `qual.unapplySeq` if it has neither, an overloaded one applied to a value of
     /// scrutinee type `sel` (dotty's `trySelectUnapply`); whether it is `unapplySeq`.
-    fn unapply_fun(&mut self, qual: NodeId, sel: TypeId, ctx: Ctx) -> Result<(TNodeId, bool), &'static str> {
+    pub fn unapply_fun(
+        &mut self,
+        qual: NodeId,
+        sel: TypeId,
+        ctx: Ctx,
+    ) -> Result<(TNodeId, bool), &'static str> {
         let unsupported = self.unsupported.clone();
         let ctx = ctx.with_mode(Mode::NONE);
         let typed = self.typed(qual, Pt::Any, ctx);

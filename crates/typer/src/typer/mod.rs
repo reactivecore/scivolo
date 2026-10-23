@@ -179,6 +179,7 @@ mod unapply;
 mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
+mod unapply_targs;
 mod unchecked_tests;
 mod unknown_params;
 mod untupled;
