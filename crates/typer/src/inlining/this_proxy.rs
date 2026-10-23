@@ -69,21 +69,6 @@ impl Expansion<'_, '_> {
         Ok(proxies)
     }
 
-    /// `C.this` for the prefix of identifier `fun` if it is the `this` of `cls` (dotty's
-    /// `desugarIdentPrefix`).
-    fn prefix_this(&mut self, fun: TNodeId, cls: SymbolId) -> Result<TNodeId, Unsupported> {
-        let refused = self.err("inline body referring to an outer this");
-        let tpe = self.i.tpd.tpe(fun);
-        let Type::Sym(Some(p), _) = *self.i.u.types().get(tpe) else { return Err(refused) };
-        let this = match *self.i.u.types().get(p) {
-            Type::This(c) => Some(c),
-            _ => None,
-        };
-        let is_cls = this.is_some_and(|c| self.i.u.class_symbol(c) == Some(cls));
-        let point = Span::at(self.i.tpd.span(self.call).point());
-        is_cls.then(|| self.i.this_tree(p, point)).flatten().ok_or(refused)
-    }
-
     /// The proxy of the `this` of class `cls` for call prefix `q` of type `qt`, bound first.
     fn bind_class_this(&mut self, cls: SymbolId, q: TNodeId, qt: TypeId) -> Result<SymbolId, Unsupported> {
         let stable = match *self.i.u.types().get(qt) {

@@ -18,6 +18,21 @@ pub fn outer_hops(name: &str) -> Option<usize> {
 }
 
 impl Expansion<'_, '_> {
+    /// `C.this` for the prefix of identifier `fun` if it is the `this` of `cls` (dotty's
+    /// `desugarIdentPrefix`).
+    pub fn prefix_this(&mut self, fun: TNodeId, cls: SymbolId) -> Result<TNodeId, Unsupported> {
+        let refused = self.err("inline body referring to an outer this");
+        let tpe = self.i.tpd.tpe(fun);
+        let Type::Sym(Some(p), _) = *self.i.u.types().get(tpe) else { return Err(refused) };
+        let this = match *self.i.u.types().get(p) {
+            Type::This(c) => Some(c),
+            _ => None,
+        };
+        let is_cls = this.is_some_and(|c| self.i.u.class_symbol(c) == Some(cls));
+        let point = Span::at(self.i.tpd.span(self.call).point());
+        is_cls.then(|| self.i.this_tree(p, point)).flatten().ok_or(refused)
+    }
+
     /// The classes `outers`, enclosing class `cls`, with the proxies of their `this` for call
     /// prefix `q` of type `qt`, innermost first, bound after `last`, the proxy of the `this` of
     /// `cls` if any: each to the stable path the prefix makes it if `pure` or after another proxy
