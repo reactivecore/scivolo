@@ -19,10 +19,9 @@ struct Flattened {
 }
 
 /// Flattens the methods of unit `root` whose right-hand sides are context closures of their
-/// context function result types (dotty's `annotateContextResults`) and their calls; refuses
-/// those overriding or overridden in the unit by methods flattened otherwise, those overriding
-/// members of other units, other references to them, and references to library methods
-/// annotated `ContextResultCount`.
+/// context function result types (dotty's `annotateContextResults`), the library methods
+/// annotated `ContextResultCount`, and their calls; refuses those overriding or overridden by
+/// methods flattened otherwise but abstract ones, and other references to them.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut defs = Vec::new();
     let mut counts = FxHashMap::default();
@@ -42,7 +41,12 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let defined: FxHashSet<SymbolId> = defs.iter().copied().collect();
     let mut flattened = Vec::new();
     for t in subtrees(l.tpd, root) {
-        let Some(m) = l.tpd.sym(t).filter(|m| counts.get(m).is_some_and(|&(d, _)| d == t)) else { continue };
+        let Some(m) = l.tpd.sym(t) else { continue };
+        let library = super::context_library::flatten_reference(l, t, m);
+        flattened.extend(library.map(|(clauses, depth)| Flattened { m, clauses, depth }));
+        if !counts.get(&m).is_some_and(|&(d, _)| d == t) {
+            continue;
+        }
         if !overrides_alike(l, m, &defs, &counts) {
             return unsupported(
                 l.tpd.span(t),
@@ -191,7 +195,7 @@ fn integrate(l: &mut Lower, def: TNodeId, m: SymbolId) -> usize {
 }
 
 /// Method type `t` with its parameters named `x$0`, `x$1`, … (a context function's method type).
-fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
+pub fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
     let Type::Method { binder, params, result, implicit, contextual } = l.u.types().get(t).clone() else {
         return t;
     };
@@ -200,7 +204,7 @@ fn synthetic_names(l: &mut Lower, t: TypeId) -> TypeId {
 }
 
 /// Method type `t` with its final result `result`.
-fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
+pub fn with_result(l: &mut Lower, t: TypeId, result: TypeId) -> TypeId {
     let t = match l.u.types().get(t).clone() {
         Type::Poly { binder, params, result: r } => {
             Type::Poly { binder, params, result: with_result(l, r, result) }
@@ -268,12 +272,12 @@ fn is_context_apply(l: &mut Lower, t: TNodeId) -> bool {
 }
 
 /// Whether library method `s` is annotated `ContextResultCount`.
-fn is_annotated(l: &Lower, s: SymbolId) -> bool {
+pub fn is_annotated(l: &Lower, s: SymbolId) -> bool {
     l.u.symbol(s).tree.is_some() && l.u.is_annotated(s, "scala.annotation.internal.ContextResultCount")
 }
 
 /// Whether `t` is a `ContextFunctionN` type.
-fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
+pub fn is_context_function(l: &mut Lower, t: TypeId) -> bool {
     let t = l.u.dealias(t);
     let Type::Applied(tycon, _) = *l.u.types().get(t) else { return false };
     let class = l.u.class_symbol(tycon);
