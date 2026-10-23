@@ -9,13 +9,14 @@ use syntax::ast::Span;
 use tasty::{Type, TypeId};
 
 impl Typer<'_> {
-    /// A tree of path type `prefix` at `span`: `C.this`, or a reference to a stable term
-    /// through its own prefix unless that can be left implicit from `ctx`; `None` if outside the
-    /// subset. Without `ctx`, a parameter of a class that is not static is outside it.
+    /// `path_tree_from` without a context.
     pub fn path_tree(&mut self, prefix: TypeId, span: Span, depth: u32) -> Option<TNodeId> {
         self.path_tree_from(prefix, span, depth, None)
     }
 
+    /// A tree of path type `prefix` at `span`: `C.this`, or a reference to a stable term
+    /// through its own prefix unless that can be left implicit from `ctx`; `None` if outside the
+    /// subset. Without `ctx`, a parameter of a class that is not static is outside it.
     pub fn path_tree_from(
         &mut self,
         prefix: TypeId,

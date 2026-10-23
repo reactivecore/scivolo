@@ -69,7 +69,7 @@ impl Typer<'_> {
         let names: Vec<(String, String)> =
             info.selectors.iter().map(|s| (s.name.clone(), s.rename.clone())).collect();
         let Some(site) = self.import_site(qual) else { return Ok(Vec::new()) };
-        let value_class = |t: &mut Self| {
+        let class_of_value = |t: &mut Self| {
             let widened = t.u.widen(qual);
             t.u.class_symbol(widened)
         };
@@ -77,7 +77,7 @@ impl Typer<'_> {
             .u
             .module_class(site)
             .or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
-            .or_else(|| value_class(self))
+            .or_else(|| class_of_value(self))
         {
             Some(class) => vec![class],
             None if self.u.symbol(site).kind == Kind::Package => self

@@ -1,6 +1,9 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
+//   compiler/src/dotty/tools/dotc/typer/Applications.scala
 //   compiler/src/dotty/tools/dotc/typer/Inferencing.scala
-//! Wildcard capture of a view's argument type (dotty's `Inferencing.captureWildcards`).
+//   compiler/src/dotty/tools/dotc/typer/ProtoTypes.scala
+//! Wildcard capture of the type of a view's argument, an adapted tree or an overloaded
+//! method's argument (dotty's `Inferencing.captureWildcards`).
 
 use super::super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
@@ -27,7 +30,7 @@ impl Typer<'_> {
         self.captured_through(t, false)
     }
 
-    fn captured_through(&mut self, t: TypeId, java: bool) -> Option<TypeId> {
+    fn captured_through(&mut self, t: TypeId, java_unbounded: bool) -> Option<TypeId> {
         let t = self.zonk(t);
         let t = self.u.widen(t);
         let t = self.u.dealias(t);
@@ -41,7 +44,7 @@ impl Typer<'_> {
         }
         let type_box = self.resolve_full_name("scala.runtime.TypeBox", true)?;
         let cap = self.u.decl(type_box, "CAP").ok()?.first().copied()?;
-        let java = !java && self.u.class_symbol(tycon).is_some_and(|c| self.is_java_class_name(c));
+        let java = !java_unbounded && self.u.class_symbol(tycon).is_some_and(|c| self.is_java_class_name(c));
         let mut captured = Vec::new();
         for (a, &p) in args.into_iter().zip(&params) {
             let a = self.with_param_bounds(a, Some(p), &params);
