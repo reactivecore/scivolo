@@ -20,6 +20,7 @@ impl Desugar<'_> {
                     self.ast.derived(m, Tree::Export { expr, selectors, ext: Some(ext) })
                 }
                 Tree::DefDef { .. } => {
+                    let ext_paramss = self.copied_clauses(&ext_paramss);
                     let m = self.ext_method(m, &ext_paramss);
                     self.def_def(m, false)
                 }
@@ -27,6 +28,18 @@ impl Desugar<'_> {
             })
             .collect();
         self.flat_tree(&expanded)
+    }
+
+    /// `clauses` with a fresh node for each parameter.
+    fn copied_clauses(&mut self, clauses: &[List]) -> Vec<List> {
+        clauses
+            .iter()
+            .map(|&l| {
+                let params: Vec<NodeId> =
+                    self.ast.items(l).to_vec().into_iter().map(|p| self.ast.copy_node(p)).collect();
+                self.ast.list(&params)
+            })
+            .collect()
     }
 
     fn ext_method(&mut self, mdef: NodeId, ext_paramss: &[List]) -> NodeId {
