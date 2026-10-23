@@ -47,7 +47,8 @@ impl Macros for VmMacros<'_> {
         let sources = std::mem::take(&mut self.sources);
         let mut host =
             Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner, (call.expansion, sources));
-        host.annotations = annotations.clone();
+        host.typer.annotations = annotations.clone();
+        host.typer.searched = call.searched.clone();
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
@@ -64,6 +65,9 @@ impl Macros for VmMacros<'_> {
         host.restore((lent.0, lent.1, lent.2));
         self.sources = std::mem::take(&mut host.sources);
         match (result, host.refusal.take()) {
+            (_, Some(why)) if why == reflect::SEARCH => {
+                Err(host.typer.wanted.map_or(MacroError::Unsupported(why), MacroError::Search))
+            }
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             _ if !host.reported.is_empty() => Err(MacroError::Reported(std::mem::take(&mut host.reported))),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),

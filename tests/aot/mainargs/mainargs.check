@@ -1,0 +1,13 @@
+Right(ababab)
+Right(xx)
+Right(3)
+Right(4 + 5 = 9)
+Left(Missing argument: -w --word <str>
+Expected Signature: repeat
+Repeats a word
+  --times <int>    how often
+  -w --word <str>  the word
+
+)
+true
+true

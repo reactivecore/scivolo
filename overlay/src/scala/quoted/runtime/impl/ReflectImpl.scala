@@ -4,6 +4,7 @@ package scala.quoted.runtime.impl
 
 import scala.quoted.Expr
 import scala.quoted.runtime.StopMacroExpansion
+import scala.reflect.TypeTest
 
 /** The `reflect` of `QuotesImpl`. */
 trait ReflectSupport { this: QuotesImpl =>
@@ -43,5 +44,44 @@ abstract class ReflectImpl
     def info(msg: String, expr: Expr[Any]): Unit = throw new Unsupported("report.info")
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")
   }
+
+  /** Searches the typer answers between runs of the expansion; a failure is one without a
+   *  matching candidate.
+   */
+  object Implicits extends ImplicitsModule {
+    def search(tpe: TypeRepr): ImplicitSearchResult = ReflectOps.results("search", ReflectOps.id(tpe)) match {
+      case List(1, tree) => new SearchImpl(tree).asInstanceOf[ImplicitSearchResult]
+      case _             => new SearchImpl(-1).asInstanceOf[ImplicitSearchResult]
+    }
+    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
+      throw new Unsupported("Implicits.searchIgnoring")
+  }
+
+  given ImplicitSearchSuccessTypeTest: TypeTest[ImplicitSearchResult, ImplicitSearchSuccess] = searched(true)
+  given ImplicitSearchFailureTypeTest: TypeTest[ImplicitSearchResult, ImplicitSearchFailure] = searched(false)
+  given NoMatchingImplicitsTypeTest: TypeTest[ImplicitSearchResult, NoMatchingImplicits] = searched(false)
+  given ImplicitSearchSuccessMethods: ImplicitSearchSuccessMethods =
+    QuoteHost.allocate("scala.quoted.runtime.impl.ReflectSupport$ReflectImpl$SuccessMethods").asInstanceOf[ImplicitSearchSuccessMethods]
+  given ImplicitSearchFailureMethods: ImplicitSearchFailureMethods =
+    QuoteHost.allocate("scala.quoted.runtime.impl.ReflectSupport$ReflectImpl$FailureMethods").asInstanceOf[ImplicitSearchFailureMethods]
+
+  abstract class SuccessMethods extends ImplicitSearchSuccessMethods {
+    extension (self: ImplicitSearchSuccess) def tree: Term =
+      ReflectOps.term(self.asInstanceOf[SearchImpl].tree).asInstanceOf[Term]
+  }
+
+  abstract class FailureMethods extends ImplicitSearchFailureMethods {
+    extension (self: ImplicitSearchFailure) def explanation: String = "no implicit argument of the type was found"
+  }
+
+  private def searched[T](success: Boolean): T = new SearchTest(success).asInstanceOf[T]
 }
+}
+
+/** The result of an implicit search: the expression found, `-1` for none. */
+final class SearchImpl(val tree: Int)
+
+/** The type test of successful searches if `success`, else of failed ones. */
+final class SearchTest(success: Boolean) extends TypeTest[Any, Any] {
+  def unapply(x: Any): Option[x.type & Any] = if ((x.asInstanceOf[SearchImpl].tree >= 0) == success) Some(x) else None
 }

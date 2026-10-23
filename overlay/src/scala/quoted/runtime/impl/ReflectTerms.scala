@@ -140,8 +140,9 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
         ReflectOps.term(ReflectOps.one("select", ReflectOps.id(self), ReflectOps.id(sym))).asInstanceOf[Select]
       def appliedTo(arg: Term): Term = self.appliedToArgs(List(arg))
       def appliedTo(arg: Term, args: Term*): Term = self.appliedToArgs(arg :: args.toList)
-      def appliedToArgs(args: List[Term]): Apply = Apply(self, args)
-      def appliedToNone: Apply = Apply(self, Nil)
+      def appliedToArgs(args: List[Term]): Apply =
+        ReflectOps.term(ReflectOps.one("apply", (self :: args).map(ReflectOps.id)*)).asInstanceOf[Apply]
+      def appliedToNone: Apply = self.appliedToArgs(Nil)
       def appliedToType(targ: TypeRepr): Term = self.appliedToTypes(List(targ))
       def appliedToTypes(targs: List[TypeRepr]): Term = {
         val args = ReflectOps.id(self) :: targs.map(ReflectOps.id)

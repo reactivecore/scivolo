@@ -66,6 +66,11 @@ fn fastparse_macros_expand_in_a_script() {
 }
 
 #[test]
+fn mainargs_macros_expand_in_a_script() {
+    check_script("mainargs");
+}
+
+#[test]
 fn sourcecode_macros_expand_in_a_script() {
     check_script("sourcecode");
 }

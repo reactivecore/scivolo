@@ -23,6 +23,8 @@ pub struct MacroCall {
     pub span: Span,
     /// The span of the outermost inline call expanded (dotty's `Position.ofMacroExpansion`).
     pub expansion: Span,
+    /// The implicit searches of earlier runs of the expansion, with the arguments found.
+    pub searched: Vec<(TypeId, Option<TNodeId>)>,
 }
 
 /// An expression a macro made or was given, by number.
@@ -50,6 +52,9 @@ pub enum MacroError {
     Reported(Vec<(Span, String)>),
     /// The macro threw `StopMacroExpansion` without reporting an error.
     Aborted,
+    /// The macro searched an implicit argument of a type `searched` lacks; the expansion runs
+    /// again once the typer has searched it.
+    Search(TypeId),
 }
 
 /// The typed annotations of the unit's definitions, by symbol.

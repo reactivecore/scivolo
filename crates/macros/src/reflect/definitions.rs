@@ -22,7 +22,7 @@ impl Host {
                         _ => Err("the annotations of a symbol defined outside the unit"),
                     };
                 }
-                let mut trees = self.annotations.get(&s).cloned().unwrap_or_default();
+                let mut trees = self.typer.annotations.get(&s).cloned().unwrap_or_default();
                 if let Some(cls) = cls {
                     trees.retain(|&t| self.u.class_symbol(self.tpd.tpe(t)) == Some(cls));
                 }

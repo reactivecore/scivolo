@@ -6,7 +6,7 @@ use syntax::ast::Span;
 use syntax::names::Names;
 use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
-use typer::inlining::{Annotations, Quoted, literal_match, quote_match};
+use typer::inlining::{Quoted, literal_match, quote_match};
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::{Quote, QuotePattern, quote, quoted_type};
 
@@ -35,7 +35,7 @@ pub struct Host {
     /// The span of the macro expansion, in `sources`.
     pub expansion: Span,
     pub sources: Vec<SourceFile>,
-    pub annotations: Annotations,
+    pub typer: crate::reflect::FromTyper,
     exprs: Vec<Expr>,
     types: Vec<TypeId>,
     pub patterns: Vec<QuotePattern>,
@@ -62,7 +62,7 @@ impl Host {
             owner,
             expansion,
             sources,
-            annotations: Annotations::default(),
+            typer: Default::default(),
             exprs: Vec::new(),
             types: Vec::new(),
             patterns: Vec::new(),
@@ -175,7 +175,6 @@ impl vm::QuoteHost for Host {
     fn match_pattern(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str> {
         let tree = self.tree(scrutinee)?;
         let unknown = "a quote pattern the frontend did not unpickle";
-        self.matched.clear();
         if pattern & PATTERN == 0 {
             let literal = literal_match(&self.tpd, tree, self.tree(pattern)?).ok_or(unknown)?;
             return Ok(if literal { 0 } else { u32::MAX });
