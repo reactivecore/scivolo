@@ -2,8 +2,8 @@
 //   compiler/src/dotty/tools/dotc/ast/tpd.scala
 //   compiler/src/dotty/tools/dotc/core/Contexts.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! References to members of an enclosing class: `C.this.m` where the prefix cannot be left
-//! implicit (dotty's `prefixIsElidable`, `ref`), and `this` itself.
+//! Enclosing classes, whether a reference to their members can leave the prefix implicit
+//! (dotty's `prefixIsElidable`), and `this` itself.
 
 use super::Typer;
 use crate::ctx::Ctx;
@@ -155,37 +155,5 @@ impl Typer<'_> {
         let this = self.build().this(class, span);
         self.tpd.get_mut(this).span = span;
         Some(this)
-    }
-
-    /// A reference of type `tpe` to member `sym` of `prefix` from `ctx` by its term name (dotty's
-    /// `ref(tp)`): an identifier if the prefix can be left implicit, else `C.this.name`.
-    pub fn ref_(
-        &mut self,
-        prefix: Option<TypeId>,
-        sym: SymbolId,
-        tpe: TypeId,
-        span: Span,
-        ctx: Ctx,
-    ) -> TNodeId {
-        if self.term_prefix_is_elidable(prefix, sym, ctx) {
-            return self.build().ident(sym, tpe, span);
-        }
-        let name = self.build().term_name(sym);
-        self.this_select(span, name, tpe, sym)
-    }
-
-    /// `p.name` of type `tpe`, a reference to `sym` at `span` through the path `p` of its prefix
-    /// (dotty's `ref(tpe)`).
-    pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
-        let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
-        let Some(qualifier) = self.path_tree(prefix, span.start_pos(), 8) else {
-            self.unsupported_at(span, "reference through a path");
-            return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
-        };
-        let name = match self.u.types().get(prefix) {
-            Type::This(_) => name,
-            _ => TName { is_type: name.is_type, ..self.build().term_name(sym) },
-        };
-        self.tpd.node(T::Select { qualifier, name }, span, Some(tpe), Some(sym))
     }
 }

@@ -156,7 +156,7 @@ impl Typer<'_> {
             _ => self.ref_type(c.prefix, c.sym),
         };
         let through_path = !self.term_prefix_is_elidable(c.prefix, c.sym, ctx);
-        if through_path && c.prefix.and_then(|p| self.path_tree(p, span, 8)).is_none() {
+        if through_path && c.prefix.and_then(|p| self.path_tree_in(p, span, ctx)).is_none() {
             return Err("implicit through a path");
         }
         Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))

@@ -3,9 +3,10 @@
 //! Trees of path types (dotty's `singleton` and `ref` of a term reference).
 
 use super::Typer;
+use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
-use syntax::ast::Span;
-use tasty::{Type, TypeId};
+use syntax::ast::{Span, TName};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Typer<'_> {
     /// A tree of path type `prefix` at `span`: `C.this`, or a reference to a stable term
@@ -36,5 +37,66 @@ impl Typer<'_> {
             }
             _ => None,
         }
+    }
+
+    /// `path_tree` from `ctx`, where a parameter or accessor of the enclosing class is an
+    /// identifier (dotty's `prefixIsElidable`).
+    pub fn path_tree_in(&mut self, prefix: TypeId, span: Span, ctx: Ctx) -> Option<TNodeId> {
+        if let Type::Sym(Some(p), s) = *self.u.types().get(prefix)
+            && matches!(self.u.types().get(p), Type::This(_))
+            && self.is_param_or_accessor(s)
+            && self.term_prefix_is_elidable(Some(p), s, ctx)
+        {
+            return Some(self.build().ident(s, prefix, span));
+        }
+        self.path_tree(prefix, span, 8)
+    }
+
+    /// A reference of type `tpe` to member `sym` of `prefix` from `ctx` by its term name (dotty's
+    /// `ref(tp)`): an identifier if the prefix can be left implicit, else `C.this.name`.
+    pub fn ref_(
+        &mut self,
+        prefix: Option<TypeId>,
+        sym: SymbolId,
+        tpe: TypeId,
+        span: Span,
+        ctx: Ctx,
+    ) -> TNodeId {
+        if self.term_prefix_is_elidable(prefix, sym, ctx) {
+            return self.build().ident(sym, tpe, span);
+        }
+        let name = self.build().term_name(sym);
+        self.select_through(span, name, tpe, sym, Some(ctx))
+    }
+
+    /// `p.name` of type `tpe`, a reference to `sym` at `span` through the path `p` of its prefix
+    /// (dotty's `ref(tpe)`).
+    pub fn this_select(&mut self, span: Span, name: TName, tpe: TypeId, sym: SymbolId) -> TNodeId {
+        self.select_through(span, name, tpe, sym, None)
+    }
+
+    /// `this_select`, its path built from `ctx` if given.
+    fn select_through(
+        &mut self,
+        span: Span,
+        name: TName,
+        tpe: TypeId,
+        sym: SymbolId,
+        ctx: Option<Ctx>,
+    ) -> TNodeId {
+        let Type::Sym(Some(prefix), _) = *self.u.types().get(tpe) else { unreachable!("a member reference") };
+        let path = match ctx {
+            Some(ctx) => self.path_tree_in(prefix, span.start_pos(), ctx),
+            None => self.path_tree(prefix, span.start_pos(), 8),
+        };
+        let Some(qualifier) = path else {
+            self.unsupported_at(span, "reference through a path");
+            return self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym));
+        };
+        let name = match self.u.types().get(prefix) {
+            Type::This(_) => name,
+            _ => TName { is_type: name.is_type, ..self.build().term_name(sym) },
+        };
+        self.tpd.node(T::Select { qualifier, name }, span, Some(tpe), Some(sym))
     }
 }
