@@ -85,7 +85,9 @@ impl Typer<'_> {
                 .package_objects(site)
                 .map_err(|_| "implicit import from an unreadable package object")?,
             None if self.u.symbol(site).kind.is_term() => {
-                return Err("implicit import from a value other than an object");
+                let widened = self.u.widen(qual);
+                let class = self.u.class_symbol(widened);
+                class.into_iter().collect()
             }
             None => return Ok(Vec::new()),
         };
