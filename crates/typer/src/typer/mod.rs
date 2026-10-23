@@ -75,6 +75,7 @@ mod ident_hint;
 mod idents;
 mod implicit_views;
 mod implicits;
+mod import_selectors;
 mod import_tree;
 mod imports;
 mod infer;
