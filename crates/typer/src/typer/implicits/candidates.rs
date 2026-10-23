@@ -87,7 +87,7 @@ impl Typer<'_> {
             None if self.u.symbol(site).kind.is_term() => {
                 let widened = self.u.widen(qual);
                 let class = self.u.class_symbol(widened);
-                class.into_iter().collect()
+                vec![class.ok_or("implicit import from a value of a type other than a class")?]
             }
             None => return Ok(Vec::new()),
         };
