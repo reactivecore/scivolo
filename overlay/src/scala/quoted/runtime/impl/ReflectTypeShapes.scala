@@ -28,7 +28,10 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   }
 
   object TermRef extends TermRefModule {
-    def apply(qual: TypeRepr, name: String): TermRef = throw new Unsupported("TermRef.apply")
+    def apply(qual: TypeRepr, name: String): TermRef = {
+      ReflectOps.run("termRef", Array(ReflectOps.id(qual)), name)
+      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[TermRef]
+    }
     def unapply(x: TermRef): (TypeRepr, String) =
       (TypeShapes.part(x, 0).asInstanceOf[TypeRepr], TypeShapes.name(x))
   }

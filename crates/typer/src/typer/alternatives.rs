@@ -8,9 +8,10 @@ use super::{Pt, Typer};
 use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Typer<'_> {
-    /// The only alternative of `syms` without parameter lists, its type conforming to `pt`
-    /// unless that is a function type, else for a single abstract method type `pt` the only
-    /// method taking its parameters (dotty's `resolveOverloaded` without arguments).
+    /// The only alternative of `syms` without parameter lists, else the only one whose leading
+    /// clause is implicit, its type conforming to `pt` unless that is a function type, else for
+    /// a single abstract method type `pt` the only method taking its parameters (dotty's
+    /// `resolveOverloaded` without arguments).
     fn parameterless_alternative(
         &mut self,
         syms: &[SymbolId],
@@ -22,21 +23,22 @@ impl Typer<'_> {
         {
             return self.taking_params(syms, prefix, &args);
         }
-        let mut found = Vec::new();
+        let (mut found, mut implicit_found) = (Vec::new(), Vec::new());
         for &s in syms {
             self.complete(s);
             let tpe = self.ref_type(prefix, s);
             let info = self.method_info(tpe).unwrap_or(tpe);
             let info = self.mapped_info(info, s);
-            let result = match self.u.types().get(info).clone() {
-                Type::ByName(r) => r,
+            let (result, implicit) = match self.u.types().get(info).clone() {
+                Type::ByName(r) => (r, false),
                 Type::Poly { result, .. } => match self.u.types().get(result) {
                     Type::Method { params, implicit: false, .. } if !params.is_empty() => continue,
                     _ => return Err("overloaded reference with a polymorphic alternative"),
                 },
-                Type::Method { params, result, implicit: false, .. } if params.is_empty() => result,
+                Type::Method { params, result, implicit: false, .. } if params.is_empty() => (result, false),
+                Type::Method { result, implicit: true, .. } => (result, true),
                 Type::Method { .. } => continue,
-                _ => info,
+                _ => (info, false),
             };
             if matches!(self.u.types().get(result), Type::Method { .. } | Type::Poly { .. }) {
                 continue;
@@ -47,7 +49,10 @@ impl Typer<'_> {
             {
                 continue;
             }
-            found.push(s);
+            if implicit { implicit_found.push(s) } else { found.push(s) }
+        }
+        if found.is_empty() {
+            found = implicit_found;
         }
         if let (Pt::Type(p), []) = (pt, &found[..])
             && let Some(sam) = (0..=22).find_map(|n| self.sam_shape(p, n).ok().flatten())
@@ -133,7 +138,7 @@ impl Typer<'_> {
         let mut fitting = Vec::new();
         for s in methods {
             let info = self.u.info(s);
-            let Some((implicit, ps)) = self.u.param_clauses(info).into_iter().next() else {
+            let Some((_, ps)) = self.u.param_clauses(info).into_iter().next() else {
                 let value = match *self.u.types().get(info) {
                     Type::Poly { result, .. } | Type::ByName(result) => result,
                     _ => info,
@@ -149,9 +154,6 @@ impl Typer<'_> {
                 }
                 continue;
             };
-            if implicit {
-                return Err("overloads with a leading implicit parameter clause");
-            }
             let method = match *self.u.types().get(info) {
                 Type::Poly { result, .. } => result,
                 _ => info,

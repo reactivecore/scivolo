@@ -48,6 +48,14 @@ impl Host {
                 let t = self.reflect().ref_(symbol(arg(0)?)?)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "identRef" => {
+                let tpe = self.type_of(arg(0)? as u32)?;
+                let tasty::Type::Sym(_, s) = *self.u.types().get(tpe) else {
+                    return Err("Ident.apply of a reference the frontend did not resolve");
+                };
+                let t = self.reflect().ref_(s)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
             "select" => {
                 let qual = self.tree(arg(0)? as u32)?;
                 let t = self.reflect().select(qual, symbol(arg(1)?)?)?;

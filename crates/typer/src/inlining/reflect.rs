@@ -98,6 +98,17 @@ impl Reflect<'_> {
         type_ref(self.u, s)
     }
 
+    /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
+    pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
+        let found = match *self.u.types().get(qual) {
+            Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
+            _ => self.u.member_of_type(qual, name),
+        };
+        let terms: Vec<SymbolId> = found.into_iter().filter(|&s| self.u.symbol(s).kind.is_term()).collect();
+        let [s] = terms[..] else { return Err("TermRef.apply of no or an overloaded term member") };
+        Ok(crate::defn::ref_type(self.u, Some(qual), s))
+    }
+
     /// `Ref(s)` of a static object or value `s`.
     pub fn ref_(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
         let span = self.span;

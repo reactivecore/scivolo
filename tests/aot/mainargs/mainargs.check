@@ -11,3 +11,12 @@ Repeats a word
 )
 true
 true
+Right(LhConfig(x,3,Flag(false)))
+Right(LhConfig(y,1,Flag(true)))
+Left(Missing argument: -n --name <str>
+Expected Signature: apply
+  --count <int>
+  --debug
+  -n --name <str>  the name
+
+)

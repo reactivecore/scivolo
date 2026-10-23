@@ -1,6 +1,9 @@
 //> using dep com.lihaoyi::mainargs::0.7.8
 
-import mainargs.{arg, Flag, ParserForMethods}
+import mainargs.{arg, Flag, ParserForClass, ParserForMethods}
+
+@mainargs.main
+case class LhConfig(@arg(short = 'n', doc = "the name") name: String, count: Int = 1, debug: Flag)
 
 object LhCli:
   @mainargs.main(doc = "Repeats a word")
@@ -20,3 +23,6 @@ object LhCli:
   println(parser.runEither(Seq("repeat", "--times", "1")))
   println(parser.runEither(Seq("add", "-x", "1")).isLeft)
   println(parser.runEither(Seq("repeat", "--times", "zz", "-w", "a")).isLeft)
+  println(ParserForClass[LhConfig].constructEither(Seq("-n", "x", "--count", "3")))
+  println(ParserForClass[LhConfig].constructEither(Seq("--name", "y", "--debug")))
+  println(ParserForClass[LhConfig].constructEither(Seq("--count", "2")))

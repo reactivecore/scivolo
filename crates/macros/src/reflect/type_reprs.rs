@@ -10,7 +10,7 @@ use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Host {
     /// Runs type operation `op` on `args`.
-    pub fn run_type_repr(&mut self, op: &str, args: &[i32], _: &str) -> Answer {
+    pub fn run_type_repr(&mut self, op: &str, args: &[i32], name: &str) -> Answer {
         let tpe = |h: &Host, i: usize| h.type_of(arg(args, i)? as u32);
         match op {
             "typeKind" => {
@@ -71,6 +71,11 @@ impl Host {
                 let (t, s) = (tpe(self, 0)?, symbol(arg(args, 1)?)?);
                 let m = self.u.term_type(Some(t), s);
                 numbers(vec![self.add_type(m) as i32])
+            }
+            "termRef" => {
+                let qual = tpe(self, 0)?;
+                let t = self.reflect().term_ref(qual, name)?;
+                numbers(vec![self.add_type(t) as i32])
             }
             "symbolRef" => {
                 let t = self.reflect().symbol_ref(symbol(arg(args, 0)?)?);

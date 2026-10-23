@@ -1,0 +1,9 @@
+Parsed.Success(List((a,1), (bc,22)), 14)
+true
+false
+Parsed.Success((0,abc), 5)
+true
+false
+Parsed.Success(12, 2)
+Parsed.Success(None, 0)
+Parsed.Failure(Position 1:1, found "a = ")

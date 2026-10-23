@@ -37,7 +37,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   given NamedArgTypeTest: TypeTest[Tree, NamedArg] = test(13)
 
   object Ident extends IdentModule {
-    def apply(tmref: TermRef): Term = refused("Ident.apply")
+    def apply(tmref: TermRef): Term = ReflectOps.term(ReflectOps.one("identRef", ReflectOps.id(tmref))).asInstanceOf[Term]
     def copy(original: Tree)(name: String): Ident = refused("Ident.copy")
     def unapply(tree: Ident): Some[String] = Some(ReflectOps.shape(tree).name)
   }
