@@ -42,6 +42,10 @@ impl Typer<'_> {
         }
         let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
+        let infix_meth = self.tpd.sym(self.tpd.meth_part(f));
+        if self.is_invalid_future_infix(id, fun, infix_meth) {
+            return self.unsupported(id, "alphanumeric infix operator under -source future");
+        }
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }

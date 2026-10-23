@@ -70,6 +70,7 @@ impl Typer<'_> {
         if rhs.is_some() && self.u.symbol(sym).name == "<init>" && owner.is_some_and(|o| self.u.is_trait(o)) {
             self.error_at(self.ast.span(id), "Traits cannot have secondary constructors");
         }
+        let erasure_mark = self.erasure_diags.items.len();
         let mut rhs = rhs.map(|r| self.typed(r, Pt::Type(result), mctx));
         if let Some(r) = rhs
             && self.u.symbol(sym).name == "<init>"
@@ -82,6 +83,7 @@ impl Typer<'_> {
             return self.unsupported(id, "inline constructor");
         }
         if flags.has(tasty::tags::INLINE) {
+            self.erasure_diags.items.truncate(erasure_mark);
             if self.u.annotations(sym).iter().any(|&c| self.u.full_name(c) == "scala.annotation.tailrec") {
                 return self.unsupported(id, "tailrec inline method");
             }
