@@ -1,12 +1,11 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/TypeTestsCasts.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Type patterns of abstract types (dotty's `tryWithTypeTest`, and the unchecked warning of
-//! `TypeTestsCasts.checkTypePattern`).
+//! Type patterns of abstract types (dotty's `tryWithTypeTest`, and the types
+//! `TypeTestsCasts.checkTypePattern` lets erasure test).
 
 use super::dependent_results::has_wildcard;
 use super::implicits::is_misfit;
-use super::irrefutable::UNCHECKED;
 use super::{Pt, Typer};
 use crate::ctx::{Ctx, Mode};
 use crate::tpd::{TNodeId, Tree as T};
@@ -137,32 +136,16 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether a typed pattern can test for `t` by its erasure: an abstract type, or a union or
-    /// intersection of such types and testable ones.
+    /// Whether a typed pattern can test for `t` by its erasure: an abstract type, a refinement of
+    /// a testable or such a type, or a union or intersection of such types and testable ones.
     pub fn is_erased_test_type(&mut self, t: TypeId) -> bool {
         let t = self.dealiased(t);
+        let side = |s: &mut Self, x| s.is_erased_test_type(x) || s.is_testable_type(x);
         match *self.u.types().get(t) {
-            Type::And(a, b) | Type::Or(a, b, _) => {
-                let side = |s: &mut Self, x| s.is_erased_test_type(x) || s.is_testable_type(x);
-                side(self, a) && side(self, b)
-            }
+            Type::And(a, b) | Type::Or(a, b, _) => side(self, a) && side(self, b),
+            Type::Refined(parent, ..) | Type::Rec(_, parent) => side(self, parent),
             _ => self.is_abstract_type(t) && !has_wildcard(self.u, t),
         }
-    }
-
-    /// dotty's unchecked warning at `span` about testing a value of type `pt` for `tpe` that
-    /// refers to an abstract type, unless `pt` conforms or is `@unchecked`.
-    pub fn warn_unchecked_type_test(&mut self, pt: Pt, tpe: TypeId, span: Span) {
-        let Pt::Type(p) = pt else { return };
-        if self.without_annotation(p, UNCHECKED) != p || self.u.is_subtype(p, tpe) {
-            return;
-        }
-        let shown = self.plain_text(tpe).unwrap_or_else(|| self.u.show_user(tpe));
-        let text = format!(
-            "the type test for {shown} cannot be checked at runtime because it refers to an \
-             abstract type member or type parameter"
-        );
-        self.erasure_diags.warning_at(span.start(), span.end(), span.point(), text);
     }
 
     /// `x @ tag(e)` as `tag(x @ e)` if `body` is the extractor pattern of a type test.

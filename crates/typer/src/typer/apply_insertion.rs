@@ -37,7 +37,10 @@ impl Typer<'_> {
             return Ok(apply);
         }
         let Some(found) = self.members_found(tpe, "apply", false) else {
-            let proxy = if matches!(pt, Pt::Fun(_)) { self.proxy_companion(f, pt, ctx) } else { None };
+            let proxy = match pt {
+                Pt::Fun(_) | Pt::PolyFun(_) => self.proxy_companion(f, pt, ctx),
+                _ => None,
+            };
             if let Some(proxy) = proxy {
                 return Ok(proxy);
             }

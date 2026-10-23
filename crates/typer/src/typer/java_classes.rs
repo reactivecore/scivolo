@@ -1,5 +1,25 @@
 //! The Java classes of dotty's class path the universe may lack: those of the JDK's `java.lang`
-//! (17 to 25) and the Java-defined ones of the Scala library, nested ones aside.
+//! (17 to 25) and the Java-defined ones of the Scala library, nested ones aside; whether a class
+//! or member is a Java one.
+
+use super::Typer;
+use tasty::SymbolId;
+
+impl Typer<'_> {
+    /// Whether `s` is a member of a `java.*` or `javax.*` class or a Java class of the Scala
+    /// library, its parameter names unknown.
+    pub fn is_java_member(&mut self, s: SymbolId) -> bool {
+        self.u.symbol(s).owner.is_some_and(|owner| self.is_java_class_name(owner))
+    }
+
+    /// Whether `c` is named as a `java.*` or `javax.*` class or a Java class of the Scala library.
+    pub fn is_java_class_name(&mut self, c: SymbolId) -> bool {
+        let name = self.u.full_name(c);
+        let library_java =
+            name.rsplit_once('.').is_some_and(|(pkg, simple)| java_classes(pkg).any(|c| c == simple));
+        name.starts_with("java.") || name.starts_with("javax.") || library_java
+    }
+}
 
 /// The names of the Java classes of package `package` the universe may lack.
 pub fn java_classes(package: &str) -> impl Iterator<Item = &'static str> {

@@ -19,8 +19,11 @@ impl Typer<'_> {
             Tree::Ident { .. } | Tree::Select { .. } | Tree::TypedSplice { .. } => {
                 self.typed(id, Pt::Any, ctx)
             }
-            Tree::AppliedTypeTree { tpt, args } => {
-                let tpt = self.typed_type(tpt, ctx);
+            Tree::AppliedTypeTree { tpt: op, args } => {
+                let tpt = self.typed_type(op, ctx);
+                if self.is_invalid_future_infix_op(id, op, self.tpd.sym(tpt)) {
+                    return self.unsupported(id, "alphanumeric infix type under -source future");
+                }
                 let tycon = self.tpd.tpe(tpt);
                 let mut arg_ids = self.ast.items(args).to_vec();
                 let arity = self.type_arity(tycon);

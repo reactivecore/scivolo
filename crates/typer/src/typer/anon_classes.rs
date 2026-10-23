@@ -5,7 +5,7 @@
 
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::TNodeId;
+use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::flags as f;
 use syntax::ast::modifiers::Modifiers;
 use syntax::ast::{NodeId, Span, TName, Tree};
@@ -43,6 +43,9 @@ impl Typer<'_> {
                 *parents_or_derived = parents;
             }
         }
+        if let Pt::Type(p) = pt {
+            self.infer_parent_args(template, p, ctx);
+        }
         let name = TName { name: self.name("$anon"), is_type: true };
         let mods = self.ast.mods(Modifiers::with_flags(f::FINAL.or(f::SYNTHETIC)));
         let class = self.ast.node(Tree::TypeDef { name, rhs: template, mods });
@@ -62,6 +65,54 @@ impl Typer<'_> {
         let block = self.ast.node(Tree::Block { stats, expr: Some(apply) });
         self.ast.with_span(block, span);
         self.typed_block(block, stats, Some(apply), pt, ctx)
+    }
+
+    /// Each parent of `template` that names a type constructor of the class of `pt`, applied
+    /// to `pt`'s arguments (dotty's `inferTypeParams` for an expected type of the parent's class).
+    fn infer_parent_args(&mut self, template: NodeId, pt: TypeId, ctx: Ctx) {
+        let Tree::Template { parents_or_derived, .. } = *self.ast.tree(template) else { return };
+        let Some(pt_class) = self.u.class_symbol(pt) else { return };
+        let pt_name = self.u.symbol(pt_class).name.clone();
+        let mut parents = self.ast.items(parents_or_derived).to_vec();
+        let mut changed = false;
+        for p in parents.iter_mut() {
+            let (Tree::Ident { name } | Tree::Select { name, .. }) = *self.ast.tree(*p) else { continue };
+            if self.text(name.name) != pt_name {
+                continue;
+            }
+            let typed = self.typed_type(*p, ctx);
+            let tpe = self.tpd.tpe(typed);
+            if self.type_arity(tpe) == 0 || self.u.class_symbol(tpe) != Some(pt_class) {
+                continue;
+            }
+            let base = self.u.base_type(pt, pt_class);
+            let Some(Ok(applied)) = base.map(|b| self.fully_defined(b)) else { continue };
+            let Type::Applied(_, args) = self.u.types().get(applied).clone() else { continue };
+            let span = self.ast.span(*p);
+            let Ok(lambda) = self.eta_expanded(pt_class, tpe) else { continue };
+            let typed = match *self.tpd.tree(typed) {
+                T::Ident { name } => {
+                    self.tpd.node(T::Ident { name }, self.tpd.span(typed), Some(lambda), None)
+                }
+                _ => typed,
+            };
+            let args: Vec<TNodeId> = args.iter().map(|&a| self.type_tree(a, span, true)).collect();
+            let args = self.tpd.list(&args);
+            let tpt = self.tpd.node(
+                T::AppliedTypeTree { tpt: typed, args },
+                span.to_synthetic(),
+                Some(applied),
+                None,
+            );
+            *p = self.spliced(tpt);
+            changed = true;
+        }
+        if changed {
+            let parents = self.ast.list(&parents);
+            if let Tree::Template { parents_or_derived, .. } = &mut self.ast.get_mut(template).tree {
+                *parents_or_derived = parents;
+            }
+        }
     }
 
     /// Expected type `pt` as the parent of an anonymous class without parents: fully defined,
