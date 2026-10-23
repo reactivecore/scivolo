@@ -11,6 +11,7 @@ mod compiletime;
 mod const_fold;
 mod constants;
 mod copy;
+mod copy_classes;
 mod erased;
 mod expand;
 mod host;

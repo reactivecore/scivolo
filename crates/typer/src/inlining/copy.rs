@@ -21,6 +21,8 @@ pub struct TreeTypeMap {
     pub new_owner: Option<SymbolId>,
     /// The classes whose `this` is replaced, with the types replacing them.
     pub this: Vec<(SymbolId, TypeId)>,
+    /// Whether classes are among the local definitions copied.
+    pub classes: bool,
 }
 
 /// What replaces a tree instead of its copy, if anything (dotty's `treeMap`).
@@ -29,7 +31,7 @@ pub type Hook<'h, 'a> = dyn FnMut(&mut Inlining<'a>, &TreeTypeMap, TNodeId) -> O
 impl<'a> Inlining<'a> {
     /// `t` with the references of `m` replaced and its local definitions renamed.
     pub fn map_type(&mut self, m: &TreeTypeMap, t: TypeId) -> TypeId {
-        self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+        let mapped = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
             Type::Sym(None, s) => match m.refs.get(&s) {
                 Some(&r) => Some(r),
                 None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
@@ -39,7 +41,11 @@ impl<'a> Inlining<'a> {
                 m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
             }
             _ => None,
-        })
+        });
+        match m.classes {
+            true => super::copy_classes::rename_members(self.u, &m.syms, mapped),
+            false => mapped,
+        }
     }
 
     /// A copy of `t` with its local definitions given fresh symbols.
@@ -65,7 +71,9 @@ impl<'a> Inlining<'a> {
                     .tpd
                     .items(stats)
                     .iter()
-                    .filter(|&&s| matches!(self.tpd.tree(s), T::ValDef { .. } | T::DefDef { .. }))
+                    .filter(|&&s| {
+                        matches!(self.tpd.tree(s), T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
+                    })
                     .filter_map(|&s| self.tpd.sym(s))
                     .collect();
                 self.fresh_symbols(m, &defs);
@@ -81,24 +89,24 @@ impl<'a> Inlining<'a> {
                 let tpe = tpe.map(|t| self.map_type(m, t));
                 return Ok(self.tpd.node(T::TypeTree { inferred: false }, span, tpe, None));
             }
-            T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } => {
+            T::ValDef { .. } | T::DefDef { .. } | T::Bind { .. } | T::TypeDef { .. } => {
                 if let Some(s) = sym {
                     self.fresh_symbol(m, s);
                 }
             }
-            T::TypeDef { .. } | T::Template { .. } | T::Import { .. } => {
-                return Err((span, "inline body with a local type, class or import"));
-            }
+            T::Import { .. } => return Err((span, "inline body with an import")),
             _ => {}
         }
         let tpe = tpe.map(|t| self.map_type(m, t));
         let sym = sym.map(|s| m.syms.get(&s).copied().unwrap_or(s));
-        let (tree, call) = match tree {
+        let (tree, call) = match self.without_imports(tree) {
             T::Inlined { call, bindings, expansion } => {
                 (T::Inlined { call: None, bindings, expansion }, call)
             }
             tree => (tree, None),
         };
+        let is_class_def =
+            matches!(tree, T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }));
         let copy = self.tpd.node(tree, span, tpe, sym);
         let mut failed = None;
         map_children(self, copy, &mut |i, c| match i.copy(m, c, hook) {
@@ -113,6 +121,9 @@ impl<'a> Inlining<'a> {
         }
         if let T::Inlined { call: c, .. } = &mut self.tpd.get_mut(copy).tree {
             *c = call;
+        }
+        if is_class_def {
+            self.note_inits(copy);
         }
         self.fold_constants(copy);
         Ok(copy)
@@ -140,18 +151,16 @@ impl<'a> Inlining<'a> {
         let mut made = Vec::new();
         for &s in syms {
             if !m.syms.contains_key(&s) {
-                made.push((s, self.declared_fresh(m, s)));
+                self.declared_fresh_with_members(m, s, &mut made);
             }
         }
         for (s, n) in made {
-            let info = self.u.info(s);
-            let info = self.map_type(m, info);
-            self.u.set_info(n, info);
+            self.complete_fresh(m, s, n);
         }
     }
 
     /// A fresh symbol of `s` recorded in `m`, its type not yet set.
-    fn declared_fresh(&mut self, m: &mut TreeTypeMap, s: SymbolId) -> SymbolId {
+    pub fn declared_fresh(&mut self, m: &mut TreeTypeMap, s: SymbolId) -> SymbolId {
         let old = self.u.symbol(s);
         let owner = old.owner.map(|o| match m.syms.get(&o) {
             Some(&n) => n,

@@ -10,7 +10,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{MatchKind, TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
 use syntax::ast::constant::Constant as C;
-use tasty::{SymbolId, Type};
+use tasty::{Kind, SymbolId, Type};
 
 impl Inlining<'_> {
     /// `t`, owned by `owner`, retyped, the proxies of inline arguments in `args` replaced by copies
@@ -113,12 +113,20 @@ impl Inlining<'_> {
             | T::Try { .. }
             | T::Bind { .. }
             | T::Alternative { .. }
-            | T::UnApply { .. } => {
+            | T::UnApply { .. }
+            | T::TypeDef { .. }
+            | T::Template { .. } => {
                 let (inner, call) = match *self.tpd.tree(t) {
-                    T::ValDef { .. } | T::DefDef { .. } => (self.tpd.sym(t).unwrap_or(owner), None),
+                    T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Template { .. } => {
+                        (self.tpd.sym(t).unwrap_or(owner), None)
+                    }
                     T::Inlined { call, .. } => (owner, call),
                     _ => (owner, None),
                 };
+                let outer_class = self.enclosing_class;
+                if matches!(self.tpd.tree(t), T::TypeDef { .. }) && self.u.symbol(inner).kind == Kind::Class {
+                    self.enclosing_class = Some(inner);
+                }
                 let mut failed = None;
                 map_children(self, t, &mut |i, c| match Some(c) == call {
                     true => c,
@@ -127,6 +135,7 @@ impl Inlining<'_> {
                         c
                     }),
                 });
+                self.enclosing_class = outer_class;
                 failed.map_or(Ok(()), Err)?;
                 self.retyped(t, owner)
             }

@@ -38,6 +38,7 @@ impl Expansion<'_, '_> {
         let mut uses = false;
         let mut outers = Vec::new();
         self.i.this_refs(body, cls, &mut uses, &mut outers);
+        outers.retain(|&c| !crate::sealed::is_contained_in(self.i.u, c, meth));
         let Some(q) = prefix else {
             if outers.is_empty() {
                 return Ok(Vec::new());
