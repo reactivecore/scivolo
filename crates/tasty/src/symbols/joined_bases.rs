@@ -9,8 +9,12 @@ use crate::tags::{CONTRAVARIANT, COVARIANT};
 use crate::types::{Type, TypeId};
 
 impl Universe {
-    /// Whether two parents of class `c` give its base class `base` different types.
+    /// Whether two parents of class `c`, if defined outside TASTy, give its base class `base`
+    /// different types.
     pub fn parents_disagree(&mut self, c: SymbolId, base: SymbolId) -> bool {
+        if self.symbol(c).tree.is_some() {
+            return false;
+        }
         if let Some(&d) = self.disagreeing_bases.get(&(c, base)) {
             return d;
         }
