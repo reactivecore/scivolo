@@ -59,13 +59,20 @@ impl Host {
         }
     }
 
-    /// The parameter types of the method type of `fun`, if it has one.
+    /// The parameter types of the method type of `fun`, by-name ones as their results, if it has
+    /// an explicit clause and no implicit one after it.
     fn params(&mut self, fun: TNodeId) -> Option<Vec<TypeId>> {
         let tpe = self.tpd.tpe(fun);
         let info = self.u.widen(tpe);
-        match self.u.types().get(info) {
-            Type::Method { params, .. } => Some(params.iter().map(|&(_, p)| p).collect()),
-            _ => None,
+        let types = self.u.types();
+        let Type::Method { params, result, implicit: false, .. } = types.get(info) else { return None };
+        if matches!(types.get(*result), Type::Method { implicit: true, .. }) {
+            return None;
         }
+        let by_value = |p: TypeId| match *types.get(p) {
+            Type::ByName(r) => r,
+            _ => p,
+        };
+        Some(params.iter().map(|&(_, p)| by_value(p)).collect())
     }
 }
