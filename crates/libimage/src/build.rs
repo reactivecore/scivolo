@@ -96,7 +96,7 @@ fn collect<R: Read + io::Seek>(
     let mut zip = zip.map_err(io::Error::other)?;
     for i in 0..zip.len() {
         let mut file = zip.by_index(i).map_err(io::Error::other)?;
-        let name = file.name().to_owned();
+        let name = file.name().map_err(io::Error::other)?.into_owned();
         if !keep(&name) || !seen.insert(name.clone()) {
             continue;
         }

@@ -42,8 +42,11 @@ impl Library {
                 Archive::Dir(jar.clone())
             } else {
                 let zip = ZipArchive::new(File::open(jar)?).map_err(io::Error::other)?;
-                for name in zip.file_names().filter(|n| n.ends_with(".tasty")) {
-                    files.entry(name.to_owned()).or_insert(i);
+                for name in zip.file_names() {
+                    let name = name.map_err(io::Error::other)?;
+                    if name.ends_with(".tasty") {
+                        files.entry(name.into_owned()).or_insert(i);
+                    }
                 }
                 Archive::Zip(zip)
             };

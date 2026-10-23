@@ -15,7 +15,7 @@ impl Classpath {
                         entries.flatten().any(|e| e.file_name().to_str().is_some_and(is_nir))
                     })
                 }),
-                Root::Jar(zip) => zip.file_names().any(|n| {
+                Root::Jar(zip) => zip.file_names().flatten().any(|n| {
                     n.rsplit_once('/')
                         .is_some_and(|(dir, file)| is_nir(file) && packages.binary_search(&dir).is_ok())
                 }),

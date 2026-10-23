@@ -50,10 +50,10 @@ fn standard_library_decodes() {
     let mut files = 0;
     for i in 0..zip.len() {
         let mut entry = zip.by_index(i).unwrap();
-        if !entry.name().ends_with(".tasty") {
+        let name = entry.name().unwrap().into_owned();
+        if !name.ends_with(".tasty") {
             continue;
         }
-        let name = entry.name().to_owned();
         let mut bytes = Vec::new();
         entry.read_to_end(&mut bytes).unwrap();
         let t = Tasty::parse(&bytes).unwrap_or_else(|e| panic!("{name}: {e}"));
