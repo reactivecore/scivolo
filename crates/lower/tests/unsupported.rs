@@ -24,8 +24,8 @@ const CASES: &[(&str, &str)] = &[
         "type tests of this.type of value classes",
     ),
     (
-        "object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[Array[T]]] }",
-        "type tests of generic arrays of arrays",
+        "object O { val v: Any = 1; def f[T]: Boolean = O.v.isInstanceOf[Array[Array[T]]] }",
+        "type tests of generic arrays of arrays of paths other than names",
     ),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (
@@ -62,7 +62,6 @@ const CASES: &[(&str, &str)] = &[
         "class A { object B; def f(x: Any) = x.isInstanceOf[B.type] }",
         "type tests of objects nested in classes",
     ),
-    ("abstract class E extends Enumeration { def v = new Val(1) {} }", "library classes nested in classes"),
     ("object O { def f: Tuple.Head[EmptyTuple] = ??? }", "ground match types in type trees"),
     (
         "object O { def f(k: Int) = { trait T { val v = k }; new T {}.v } }",

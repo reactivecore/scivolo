@@ -5,16 +5,50 @@
 
 use super::explicit_outer::terms;
 use super::local_free::{enclosing_class, is_term, within};
+use super::walk::is_type_tree;
 use crate::Lower;
 use crate::symbols::{has, is_static, is_static_owner};
-use tasty::tags::LAZY;
+use tasty::tags::{INLINE, LAZY};
 use tasty::{Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Whether definition `td` of class `class`, the classes in it included, refers to the instance
-/// of a class enclosing `class`.
+/// of a class enclosing `class`, also through the type trees of inline methods.
 pub fn references_outer(l: &mut Lower, class: SymbolId, td: TNodeId) -> bool {
-    terms(l, td, true).into_iter().any(|t| contains_outer_refs(l, class, t))
+    let all = terms(l, td, true);
+    let inline = |l: &Lower, t| {
+        matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t).is_some_and(|s| has(l.u, s, INLINE))
+    };
+    let inline_defs: Vec<TNodeId> = all.iter().copied().filter(|&t| inline(l, t)).collect();
+    all.into_iter().any(|t| contains_outer_refs(l, class, t))
+        || inline_defs.into_iter().any(|d| {
+            let types: Vec<TNodeId> = terms(l, d, true).into_iter().filter(|&t| is_type_tree(l, t)).collect();
+            types
+                .into_iter()
+                .any(|t| l.tpd.get(t).tpe.is_some_and(|tpe| contains_outer_refs_anywhere(l, class, tpe)))
+        })
+}
+
+/// Whether a singleton part of `tpe` or of its aliases refers to an enclosing instance, as the
+/// expansions of inline methods do (dotty's `containsOuterRefsAnywhere`).
+fn contains_outer_refs_anywhere(l: &mut Lower, class: SymbolId, tpe: TypeId) -> bool {
+    let (mut singletons, mut aliases) = (Vec::new(), Vec::new());
+    l.u.map_type(tpe, &mut |u, part| {
+        match *u.types().get(part) {
+            Type::This(_) | Type::TermRef(..) => singletons.push(part),
+            Type::Sym(_, s) if u.symbol(s).kind.is_term() => singletons.push(part),
+            Type::Sym(..) | Type::TypeRef(..) => {
+                let alias = u.dealias(part);
+                if alias != part {
+                    aliases.push(alias);
+                }
+            }
+            _ => {}
+        }
+        None
+    });
+    singletons.into_iter().any(|p| is_outer_ref(l, class, p))
+        || aliases.into_iter().any(|a| contains_outer_refs_anywhere(l, class, a))
 }
 
 fn contains_outer_refs(l: &mut Lower, class: SymbolId, t: TNodeId) -> bool {

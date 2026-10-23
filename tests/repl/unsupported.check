@@ -1,8 +1,8 @@
 scala> class A(private var p: Int) { def f = p }
 // defined class A
 
-scala> object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[Array[T]]] }
--- unsupported: type tests of generic arrays of arrays
+scala> object O { val v: Any = 1; def f[T]: Boolean = O.v.isInstanceOf[Array[Array[T]]] }
+-- unsupported: type tests of generic arrays of arrays of paths other than names
 
 scala> val y = 2
 val y: Int = 2

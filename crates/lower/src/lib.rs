@@ -119,6 +119,9 @@ pub struct Lower<'a> {
     tested_values: Vec<(SymbolId, Span)>,
     /// The trees `FirstTransform` made of named arguments (dotty's `WasNamedArg`).
     was_named_args: FxHashSet<TNodeId>,
+    /// The local methods, lambdas among them, in the values `PatternMatcher` binds, which
+    /// `Erasure` sees owned by the value.
+    in_match_values: FxHashSet<SymbolId>,
 }
 
 /// The NIR files of typed unit `root`, one per top-level name.
@@ -183,6 +186,7 @@ pub fn lower_sources(
         erasure_owner: None,
         tested_values: Vec::new(),
         was_named_args: FxHashSet::default(),
+        in_match_values: FxHashSet::default(),
     };
     let files = phases::run(&mut l, root).and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);

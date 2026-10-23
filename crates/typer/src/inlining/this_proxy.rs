@@ -35,12 +35,6 @@ impl Expansion<'_, '_> {
         if self.i.u.symbol(cls).kind != Kind::Class {
             return Err(self.err("inline method of a type"));
         }
-        if self.i.u.is_module_class(cls) {
-            return Err(self.err("inline method of a nested object"));
-        }
-        if !self.i.u.type_params(cls).is_empty() {
-            return Err(self.err("inline method of a generic class"));
-        }
         let mut uses = false;
         let mut outers = Vec::new();
         self.i.this_refs(body, cls, &mut uses, &mut outers);
@@ -115,7 +109,7 @@ impl Inlining<'_> {
     pub fn ident_as_select(&mut self, t: TNodeId) -> Result<TNodeId, Unsupported> {
         let (&T::Ident { name }, Some(tpe)) = (self.tpd.tree(t), self.tpd.get(t).tpe) else { return Ok(t) };
         let Type::Sym(Some(p), s) = *self.u.types().get(tpe) else { return Ok(t) };
-        if name.is_type || self.is_elidable_prefix(p, s) {
+        if name.is_type || !self.u.symbol(s).kind.is_term() || self.is_elidable_prefix(p, s) {
             return Ok(t);
         }
         let span = self.tpd.span(t);
@@ -183,7 +177,9 @@ pub fn replace_this(
                 None,
             ))
         }
-        (T::Ident { name }, Type::Sym(Some(_), s)) if !name.is_type && prefix_is_cls => {
+        (T::Ident { name }, Type::Sym(Some(_), s))
+            if !name.is_type && prefix_is_cls && i.u.symbol(s).kind.is_term() =>
+        {
             let span = i.tpd.span(t);
             let qualifier = i.singleton(proxy_tpe, Span::at(span.start()))?;
             let tpe = i.u.intern_type(Type::Sym(Some(proxy_tpe), s));

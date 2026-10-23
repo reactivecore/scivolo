@@ -10,23 +10,26 @@ use typer::tpd::{TNodeId, Tree, map_children};
 
 /// `t` with the `Inlined` trees in it dropped.
 pub fn transform(l: &mut Lower, t: TNodeId) -> Result<TNodeId> {
-    Ok(drop(l, t, None, false))
+    Ok(drop(l, t, None, 0))
 }
 
 /// `t` with the `Inlined` trees in it dropped, its trees from another source at `call` if any;
-/// `expanded` if `t` is in the expansion of one.
-fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, expanded: bool) -> TNodeId {
-    let call = match l.tpd.tree(t) {
-        Tree::Inlined { call: Some(_), .. } if !expanded => Some(l.tpd.span(t)),
-        _ => call,
+/// `depth` the number of expansions `t` is in, less the arguments inlined from outside (`Inlined`
+/// trees without a call) between them (dotty's `enclosingInlineds`).
+fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, depth: u32) -> TNodeId {
+    let (call, inner) = match l.tpd.tree(t) {
+        Tree::Inlined { call: Some(_), .. } if depth == 0 => (Some(l.tpd.span(t)), 1),
+        Tree::Inlined { call: Some(_), .. } => (call, depth + 1),
+        Tree::Inlined { call: None, .. } => (call, depth.saturating_sub(1)),
+        _ => (call, depth),
     };
     if let Some(at) = call {
         reposition(l, t, at);
     }
     if let Tree::Inlined { bindings, expansion, .. } = *l.tpd.tree(t) {
         let stats: Vec<TNodeId> = l.tpd.items(bindings).to_vec();
-        let stats: Vec<TNodeId> = stats.into_iter().map(|b| drop(l, b, call, expanded)).collect();
-        let expansion = drop(l, expansion, call, expanded || call.is_some());
+        let stats: Vec<TNodeId> = stats.into_iter().map(|b| drop(l, b, call, depth)).collect();
+        let expansion = drop(l, expansion, call, inner);
         if stats.is_empty() {
             l.inlined_spans.insert(expansion, l.tpd.span(t));
             return expansion;
@@ -36,7 +39,7 @@ fn drop(l: &mut Lower, t: TNodeId, call: Option<Span>, expanded: bool) -> TNodeI
         l.inlined_blocks.insert(t);
         return t;
     }
-    map_children(l, t, &mut |l, c| drop(l, c, call, expanded));
+    map_children(l, t, &mut |l, c| drop(l, c, call, depth));
     t
 }
 

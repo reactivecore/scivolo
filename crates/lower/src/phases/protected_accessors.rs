@@ -233,6 +233,9 @@ fn accessor_def(l: &mut Lower, root: TNodeId, a: &Accessor, end: Span) -> TNodeI
     let defined = walk::subtrees(l.tpd, root).into_iter().find(|&d| {
         l.tpd.sym(d) == Some(a.accessed) && matches!(l.tpd.tree(d), Tree::DefDef { .. } | Tree::ValDef { .. })
     });
+    if defined.is_none() {
+        l.coords.insert(a.sym, Span::NONE);
+    }
     let span = defined.map_or(end, |d| {
         let point = l.tpd.span(d).point();
         Span::new(point, point + l.u.symbol(a.accessed).name.len() as u32, point)

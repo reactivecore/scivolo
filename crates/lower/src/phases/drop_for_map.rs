@@ -4,24 +4,37 @@
 //! becomes `r` (or the value `r` was converted from) when that has the type of the call.
 
 use super::casts::class_named;
-use super::walk::subtrees;
+use super::walk::{children, subtrees};
 use crate::symbols::has;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
+use rustc_hash::FxHashSet;
 use tasty::tags::{EXTENSION, IMPLICIT};
 use tasty::{SymbolId, Type, TypeId};
-use typer::tpd::{TNodeId, Tree};
+use typer::tpd::{List, TNodeId, Tree};
 
-/// Drops the trailing `map` calls of `for` comprehensions in unit `root`, inner ones first.
+/// Drops the trailing `map` calls of `for` comprehensions in unit `root`, inner ones first; the
+/// calls of `Inlined` trees are left as they are.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
-    for t in subtrees(l.tpd, root).into_iter().rev() {
+    let all = subtrees(l.tpd, root);
+    let mut calls = FxHashSet::default();
+    for &t in &all {
+        if let Tree::Inlined { call: Some(call), .. } = *l.tpd.tree(t)
+            && !calls.contains(&t)
+        {
+            calls.extend(subtrees(l.tpd, call));
+        }
+    }
+    for t in all.into_iter().rev().filter(|t| !calls.contains(t)) {
         match *l.tpd.tree(t) {
             Tree::Apply { .. } => {
                 if let Some(r) = dropped(l, t) {
                     l.copy_node(t, r);
                 }
             }
-            Tree::Inlined { call: Some(call), .. } if marked_call(l, call) => {
-                return unsupported(l.tpd.span(t), "an inlined trailing map of a for");
+            Tree::Inlined { call: Some(call), bindings, expansion } if marked_call(l, call) => {
+                if let Some(e) = inlined_receiver(l, call, bindings, expansion) {
+                    l.tpd.get_mut(t).tree = Tree::Inlined { call: Some(call), bindings, expansion: e };
+                }
             }
             _ => {}
         }
@@ -65,6 +78,59 @@ fn unmapped(l: &mut Lower, t: TNodeId) -> Option<(Option<TNodeId>, SymbolId, Vec
         Tree::TypeApply { fun, .. } => unmapped(l, fun),
         _ => None,
     }
+}
+
+/// The reference to the receiver's binding in `expansion` of inlined trailing `map` call `call`
+/// with `bindings`, if the receiver has the expansion's type (dotty's
+/// `DropForMap.transformInlined`).
+fn inlined_receiver(l: &mut Lower, call: TNodeId, bindings: List, expansion: TNodeId) -> Option<TNodeId> {
+    let (f0, sym, args) = call_parts(l, call)?;
+    let f = if has(l.u, sym, EXTENSION) { *args.first()? } else { f0? };
+    let widened = l.u.widen(l.tpd.tpe(f));
+    let tpe = l.tpd.tpe(expansion);
+    if !same_type(l, widened, tpe) {
+        return converted(l, f).filter(|&r| {
+            let rt = l.tpd.tpe(r);
+            same_type(l, rt, tpe)
+        });
+    }
+    let binding = l.tpd.items(bindings).iter().copied().find(|&b| match *l.tpd.tree(b) {
+        Tree::ValDef { rhs: Some(rhs), .. } => same_tree(l, f, rhs),
+        _ => false,
+    })?;
+    let proxy = l.tpd.sym(binding)?;
+    subtrees(l.tpd, expansion).into_iter().find(|&t| match *l.tpd.tree(t) {
+        Tree::Inlined { call: None, bindings, expansion: e } => {
+            l.tpd.items(bindings).is_empty()
+                && matches!(l.tpd.tree(e), Tree::Ident { .. })
+                && l.tpd.sym(e) == Some(proxy)
+        }
+        _ => false,
+    })
+}
+
+/// The receiver, `map` method and arguments of call `t` of `map` on a lambda.
+fn call_parts(l: &Lower, t: TNodeId) -> Option<(Option<TNodeId>, SymbolId, Vec<TNodeId>)> {
+    match *l.tpd.tree(t) {
+        Tree::Apply { fun, args } if l.tpd.items(args).len() == 1 && is_lambda(l, l.tpd.items(args)[0]) => {
+            map_call(l, fun, Vec::new())
+        }
+        Tree::Apply { fun, .. } | Tree::TypeApply { fun, .. } => call_parts(l, fun),
+        _ => None,
+    }
+}
+
+/// Whether trees `a` and `b` are alike: of the same form, symbol and type, their children alike
+/// (dotty's `sameTree`).
+fn same_tree(l: &Lower, a: TNodeId, b: TNodeId) -> bool {
+    let (x, y) = (l.tpd.get(a), l.tpd.get(b));
+    let ca: Vec<TNodeId> = children(l.tpd, a).into_iter().collect();
+    let cb: Vec<TNodeId> = children(l.tpd, b).into_iter().collect();
+    std::mem::discriminant(&x.tree) == std::mem::discriminant(&y.tree)
+        && x.sym == y.sym
+        && x.tpe == y.tpe
+        && ca.len() == cb.len()
+        && ca.iter().zip(&cb).all(|(&c, &d)| same_tree(l, c, d))
 }
 
 /// The receiver, `map` method and innermost arguments of `t`, a call of `map`.

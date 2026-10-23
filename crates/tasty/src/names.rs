@@ -115,14 +115,8 @@ impl<'a> Names<'a> {
                 self.write(s, *u, sig);
                 let _ = write!(s, "$default${}", i + 1);
             }
-            Name::SuperAccessor(u) => {
-                s.push_str("super$");
-                self.write(s, *u, sig);
-            }
-            Name::InlineAccessor(u) => {
-                s.push_str("inline$");
-                self.write(s, *u, sig);
-            }
+            Name::SuperAccessor(u) => self.write_prefixed(s, "super$", *u, sig),
+            Name::InlineAccessor(u) => self.write_prefixed(s, "inline$", *u, sig),
             Name::BodyRetainer(u) => {
                 self.write(s, *u, sig);
                 s.push_str("$retainedBody");
@@ -156,6 +150,27 @@ impl<'a> Names<'a> {
                 }
             }
         }
+    }
+
+    /// `prefix` before the last segment of `u`: `p$C$$inline$f` for `inline$` and `p$C$$f`
+    /// (dotty's `qualToString`).
+    fn write_prefixed(&self, s: &mut String, prefix: &str, u: NameRef, sig: bool) {
+        let split = match self.get(u) {
+            Some(Name::Qualified(a, b)) => Some((*a, ".", *b)),
+            Some(Name::Expanded(a, b)) => Some((*a, "$$", *b)),
+            Some(Name::ExpandPrefix(a, b)) => Some((*a, "$", *b)),
+            _ => None,
+        };
+        let last = match split {
+            Some((first, sep, last)) => {
+                self.write(s, first, sig);
+                s.push_str(sep);
+                last
+            }
+            None => u,
+        };
+        s.push_str(prefix);
+        self.write(s, last, sig);
     }
 }
 
