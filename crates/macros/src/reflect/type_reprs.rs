@@ -70,7 +70,7 @@ impl Host {
             }
             "memberType" => {
                 let (t, s) = (tpe(self, 0)?, symbol(arg(args, 1)?)?);
-                let m = self.repeated_param(s).unwrap_or_else(|| self.u.term_type(Some(t), s));
+                let m = self.repeated_param(s)?.unwrap_or_else(|| self.u.term_type(Some(t), s));
                 numbers(vec![self.add_type(m) as i32])
             }
             "termRef" => {
@@ -113,24 +113,29 @@ impl Host {
     }
 
     /// The type `<repeated>[T]` of `s` if it is a repeated parameter of a method, as its
-    /// method's type states it (dotty's info of a repeated parameter).
-    fn repeated_param(&mut self, s: SymbolId) -> Option<TypeId> {
+    /// method's type states it (dotty's info of a repeated parameter); `Err` for one of a
+    /// polymorphic method.
+    fn repeated_param(&mut self, s: SymbolId) -> Result<Option<TypeId>, &'static str> {
         let sym = self.u.symbol(s);
-        let (name, owner) = (sym.name.clone(), sym.owner?);
+        let (name, Some(owner)) = (sym.name.clone(), sym.owner) else { return Ok(None) };
         if sym.kind != Kind::Param || self.u.symbol(owner).kind != Kind::Def {
-            return None;
+            return Ok(None);
         }
-        let mut t = self.u.info(owner);
+        let (mut t, mut poly) = (self.u.info(owner), false);
         while let Type::Poly { result, .. } | Type::Method { result, .. } = self.u.types().get(t).clone() {
             if let Type::Method { params, .. } = self.u.types().get(t).clone()
                 && let Some(&(_, p)) = params.iter().find(|(n, _)| *n == name)
             {
                 let repeated = self.u.class_symbol(p).is_some_and(|c| self.u.symbol(c).name == "<repeated>");
-                return repeated.then_some(p);
+                return match (repeated, poly) {
+                    (true, true) => Err("memberType of a repeated parameter of a polymorphic method"),
+                    _ => Ok(repeated.then_some(p)),
+                };
             }
+            poly |= matches!(self.u.types().get(t), Type::Poly { .. });
             t = result;
         }
-        None
+        Ok(None)
     }
 
     fn type_kind(&self, t: TypeId) -> i32 {
