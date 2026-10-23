@@ -159,7 +159,7 @@ impl<'t, 'a> Translator<'t, 'a> {
                 (Tree::DefDef { .. }, Some(m)) if self.l.u.symbol(m).owner == Some(self.owner) => {
                     self.l.in_match_values.insert(m);
                 }
-                (Tree::Ident { .. } | Tree::Literal { .. } | Tree::This { .. }, _) => {}
+                (Tree::DefDef { .. } | Tree::Ident { .. } | Tree::Literal { .. } | Tree::This { .. }, _) => {}
                 _ => todo.extend(self.l.tpd.children(t)),
             }
         }
