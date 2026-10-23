@@ -18,6 +18,10 @@ impl Host {
                 let t = self.type_of(arg(0)? as u32)?;
                 numbers(vec![self.reflect().type_symbol(t).map_or(-1, |s| s.0 as i32)])
             }
+            "termSymbol" => {
+                let t = self.type_of(arg(0)? as u32)?;
+                numbers(vec![self.reflect().term_symbol(t)?.map_or(-1, |s| s.0 as i32)])
+            }
             "typeArgs" => {
                 let t = self.type_of(arg(0)? as u32)?;
                 let args = self.reflect().type_args(t);

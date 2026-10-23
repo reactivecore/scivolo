@@ -58,6 +58,7 @@ trait ReflectTypes extends reflectModule { self: reflect.type =>
       def widenTermRefByName: TypeRepr =
         QuoteHost.tpe(ReflectOps.one("widenTermRefByName", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def typeSymbol: Symbol = new SymbolImpl(ReflectOps.one("typeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
+      def termSymbol: Symbol = new SymbolImpl(ReflectOps.one("termSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
       def typeArgs: List[TypeRepr] =
         ReflectOps.results("typeArgs", ReflectOps.id(self)).map(t => QuoteHost.tpe(t).asInstanceOf[TypeRepr])
     }
