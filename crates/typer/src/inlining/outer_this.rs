@@ -13,8 +13,8 @@ use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 impl Expansion<'_, '_> {
     /// The classes `outers`, enclosing class `cls`, with the proxies of their `this` for a call
     /// prefix of type `qt`, innermost first, bound from index `at` on: each to the stable path the
-    /// prefix makes it if the prefix is `pure` (dotty's `ref(info)`); a path through outer
-    /// fields (`outerSelect`) is refused.
+    /// prefix makes it if the prefix is `pure` (dotty's `ref(info)`), else to the static object it
+    /// is; a path through outer fields (`outerSelect`) is refused.
     pub fn bind_outer_this(
         &mut self,
         cls: SymbolId,
@@ -35,16 +35,30 @@ impl Expansion<'_, '_> {
                 _ => false,
             };
             let first_impure = !pure && out.is_empty();
-            if !stable || first_impure {
-                return Err(self.err("inline body referring to an outer this"));
-            }
+            let path = match stable && !first_impure {
+                true => Some(seen),
+                false => self.static_module_ref(seen),
+            };
+            let refused = self.err("inline body referring to an outer this");
+            let Some(path) = path else { return Err(refused) };
             let proxy = self.this_proxy_symbol(c, seen);
-            let rhs =
-                self.i.singleton(seen, point).ok_or(self.err("inline body referring to an outer this"))?;
+            let rhs = self.i.singleton(path, point).ok_or(refused)?;
             self.bind_proxy(proxy, rhs, point, at + out.len());
             out.push((c, proxy));
         }
         Ok(out)
+    }
+
+    /// The reference to the static object whose class `t` widens to, if it does (dotty's
+    /// `ref(rhsClsSym.sourceModule)`).
+    fn static_module_ref(&mut self, t: TypeId) -> Option<TypeId> {
+        let widened = self.i.u.widen(t);
+        let c = self.i.u.class_symbol(widened)?;
+        if !self.i.u.is_module_class(c) || !self.i.is_static_owner(c) {
+            return None;
+        }
+        let m = self.i.u.source_module(c)?;
+        Some(crate::defn::type_ref(self.i.u, m))
     }
 
     /// A proxy of the `this` of class `cls`, of type `info`, owned by the call's owner.

@@ -1,19 +1,35 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/quoted/QuotePatterns.scala
 //   compiler/src/scala/quoted/runtime/impl/QuoteMatcher.scala
-//! Quote patterns as pickled for `QuoteMatching.ExprMatch` (dotty's `QuotePatterns`): a quote
-//! whose body is a term hole `patternHole[T]`, after the type definitions of its bindings.
+//! Quote patterns as pickled for `QuoteMatching.ExprMatch` and `TypeMatch` (dotty's
+//! `QuotePatterns`): a quote whose body follows the type definitions of its bindings.
 
 use super::{Refusal, Unpickler};
-use crate::tpd::Tree as T;
+use crate::tpd::TNodeId;
 use tasty::tags::{ANNOTATION, BLOCK, SYNTHETIC, TYPEAPPLY, TYPED, TYPEDEF};
 use tasty::{Flags, Kind, NodeId, Symbol, SymbolId, Type, TypeId, View, view};
 
-/// A quote pattern of a single typed term hole: the hole's type and the pattern's type
-/// bindings, each with whether it is approximated from above (`@fromAbove`).
+/// A quote pattern: what it matches, its type bindings, each with whether it is approximated
+/// from above (`@fromAbove`), and its spliced type symbols with the types they stand for.
+#[derive(Clone)]
 pub struct QuotePattern {
-    pub hole: TypeId,
+    pub body: PatternBody,
     pub bindings: Vec<(SymbolId, bool)>,
+    pub spliced: Vec<(SymbolId, TypeId)>,
+}
+
+impl QuotePattern {
+    /// The pattern of quote `root` without type bindings, of spliced types `spliced`.
+    pub fn of(root: TNodeId, spliced: &[(SymbolId, TypeId)]) -> QuotePattern {
+        QuotePattern { body: PatternBody::Term(root), bindings: Vec::new(), spliced: spliced.to_vec() }
+    }
+}
+
+/// The tree of an expression pattern or the type of a type pattern.
+#[derive(Clone, Copy)]
+pub enum PatternBody {
+    Term(TNodeId),
+    Type(TypeId),
 }
 
 const SHAPE: Refusal = "a quote pattern other than a typed term hole";
@@ -31,12 +47,8 @@ impl Unpickler<'_> {
         if bindings.is_empty() && !self.is_hole(inner) {
             return Ok(None);
         }
-        let hole = self.hole_type(inner)?;
-        let hole = self.u.map_type(hole, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
-            _ => None,
-        });
-        Ok(Some(QuotePattern { hole, bindings }))
+        let body = PatternBody::Term(self.term(inner)?);
+        Ok(Some(QuotePattern { body, bindings, spliced: spliced.to_vec() }))
     }
 
     /// The type pattern quoted type body `body` is, if it is one: a block of type binding
@@ -57,7 +69,7 @@ impl Unpickler<'_> {
             Type::Sym(None, s) => spliced.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,
         });
-        Ok(Some(QuotePattern { hole, bindings }))
+        Ok(Some(QuotePattern { body: PatternBody::Type(hole), bindings, spliced: Vec::new() }))
     }
 
     /// The body of the block at `id` after its type binding definitions, and the bindings
@@ -108,16 +120,6 @@ impl Unpickler<'_> {
     fn is_hole(&self, id: NodeId) -> bool {
         let id = if self.tag(id) == TYPED { self.kids(id)[0] } else { id };
         self.tag(id) == TYPEAPPLY && self.name(self.ast().deref(self.kids(id)[0])) == "patternHole"
-    }
-
-    /// The type `T` of the term hole `patternHole[T]` at `id`, possibly ascribed.
-    fn hole_type(&mut self, id: NodeId) -> Result<TypeId, Refusal> {
-        let id = if self.tag(id) == TYPED { self.kids(id)[0] } else { id };
-        let t = self.term(id)?;
-        let T::TypeApply { fun, args } = *self.tpd.tree(t) else { return Err(SHAPE) };
-        let [tpt] = self.tpd.items(args)[..] else { return Err(SHAPE) };
-        let hole = self.tpd.sym(fun).is_some_and(|s| self.is_patterns_member(s, "patternHole"));
-        hole.then(|| self.tpd.tpe(tpt)).ok_or(SHAPE)
     }
 
     /// Whether `s` is member `name` of object `scala.quoted.runtime.Patterns`.

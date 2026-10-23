@@ -13,6 +13,11 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
   given TermMethods: TermMethods = methods("TermMethodsImpl")
   given LiteralMethods: LiteralMethods = methods("LiteralMethodsImpl")
 
+  object Term extends TermModule {
+    def betaReduce(term: Term): Option[Term] =
+      ReflectOps.opt(ReflectOps.one("betaReduce", ReflectOps.id(term))).asInstanceOf[Option[Term]]
+  }
+
   object Ref extends RefModule {
     def term(tp: TermRef): Ref = throw new Unsupported("Ref.term")
     def apply(sym: Symbol): Ref = termOf(ReflectOps.one("ref", ReflectOps.id(sym))).asInstanceOf[Ref]
@@ -50,6 +55,7 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
         self.asInstanceOf[Expr[T]]
       }
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
+      def show(using printer: Printer[Tree]): String = printer.show(self)
       def symbol: Symbol = new SymbolImpl(ReflectOps.one("treeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
     }
   }

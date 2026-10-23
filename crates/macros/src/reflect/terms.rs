@@ -77,14 +77,13 @@ impl Host {
                 let t = self.reflect().applied_to_types(fun, &types)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
-            "match" | "block" | "apply" | "typed" => {
+            "match" | "apply" | "typed" => {
                 let trees = self.trees(args)?;
                 let t = match op {
                     "match" => self.reflect().match_(trees[0], &trees[1..]),
                     "typed" if trees.len() == 2 => self.reflect().typed(trees[0], trees[1]),
                     "typed" => return Err("Typed.apply without its type tree"),
-                    "apply" => self.reflect().apply(trees[0], &trees[1..])?,
-                    _ => self.reflect().block(&trees[1..], trees[0]),
+                    _ => self.reflect().apply(trees[0], &trees[1..])?,
                 };
                 numbers(vec![self.add_tree(t) as i32])
             }
@@ -96,6 +95,29 @@ impl Host {
             }
             "wildcard" => {
                 let t = self.reflect().wildcard();
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "let" => {
+                let owner = symbol(arg(0)?)?;
+                if owner != self.owner && owner != self.macro_owner() {
+                    return Err("ValDef.let of an owner other than the splice's");
+                }
+                let rhs = self.tree(arg(1)? as u32)?;
+                let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
+                let owner = self.owner;
+                let (vdef, r) = self.reflect().let_(owner, text, rhs, flags)?;
+                numbers(vec![self.add_tree(vdef) as i32, self.add_tree(r) as i32])
+            }
+            "betaReduce" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let owner = self.owner;
+                let reduced = self.reflect().beta_reduce(t, owner)?;
+                numbers(vec![reduced.map_or(-1, |r| self.add_tree(r) as i32)])
+            }
+            "block" => {
+                let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
+                let (&expr, stats) = trees.split_first().ok_or("Block.apply without its expression")?;
+                let t = self.reflect().block(stats, expr)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
             _ => Err(UNKNOWN),

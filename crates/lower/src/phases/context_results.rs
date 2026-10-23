@@ -26,10 +26,14 @@ struct Flattened {
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let mut defs = Vec::new();
     let mut counts = FxHashMap::default();
+    let mut inline_rhss = Vec::new();
     for t in subtrees(l.tpd, root) {
         let Tree::DefDef { tpt, rhs, .. } = *l.tpd.tree(t) else { continue };
         let Some(m) = l.tpd.sym(t) else { continue };
         defs.push(m);
+        if l.u.symbol(m).flags.has(tasty::tags::INLINE) {
+            inline_rhss.extend(rhs);
+        }
         let count = rhs.map_or(0, |rhs| context_result_count(l, tpt, rhs));
         if count > 0 && l.u.symbol(m).name != "$anonfun" {
             counts.insert(m, (t, count));
@@ -56,7 +60,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             calls.push(call);
         }
     }
-    let mut handled = FxHashSet::default();
+    let mut handled: FxHashSet<TNodeId> = inline_rhss.into_iter().flat_map(|r| subtrees(l.tpd, r)).collect();
     for (applies, r) in calls {
         handled.insert(r);
         for a in applies {

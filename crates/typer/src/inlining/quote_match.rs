@@ -3,43 +3,11 @@
 //   compiler/src/scala/quoted/runtime/impl/QuoteMatcher.scala
 //! Type bindings of patterns: the types a scrutinee's type gives the type variables of a pattern
 //! type it conforms to (dotty's GADT approximation of quote pattern and inline match type
-//! binds); the runtime of `QuoteMatching.ExprMatch.unapply` for a quote pattern of a typed term
-//! hole or of a literal (dotty's `QuoteMatcher.treeMatch`).
+//! binds).
 
 use crate::constraint::Constraint;
-use crate::tpd::{TNodeId, Tpd, Tree as T};
-use crate::unpickle::QuotePattern;
 use rustc_hash::FxHashMap;
-use syntax::ast::constant::Constant;
 use tasty::{ANY, NOTHING, SymbolId, Type, TypeId, TypeVars, Universe, VarId};
-
-/// The types the bindings of `pattern` stand for if an expression of type `scrutinee` matches
-/// it, in their order.
-pub fn quote_match(u: &mut Universe, scrutinee: TypeId, pattern: &QuotePattern) -> Option<Vec<TypeId>> {
-    bound_types(u, scrutinee, pattern.hole, &pattern.bindings)
-}
-
-/// Whether term `scrutinee` matches quoted literal `pattern`, both without inlined trees
-/// without bindings, ascriptions and empty blocks (dotty's `QuoteMatcher` on literals); none if
-/// `pattern` is no literal.
-pub fn literal_match(tpd: &Tpd, scrutinee: TNodeId, pattern: TNodeId) -> Option<bool> {
-    let T::Literal { value: p } = tpd.tree(stripped(tpd, pattern)) else { return None };
-    let T::Literal { value: s } = tpd.tree(stripped(tpd, scrutinee)) else { return Some(false) };
-    Some(match (s, p) {
-        (Constant::Float(a), Constant::Float(b)) => a.to_bits() == b.to_bits(),
-        (Constant::Double(a), Constant::Double(b)) => a.to_bits() == b.to_bits(),
-        _ => s == p,
-    })
-}
-
-fn stripped(tpd: &Tpd, t: TNodeId) -> TNodeId {
-    match *tpd.tree(t) {
-        T::Inlined { bindings, expansion, .. } if bindings.is_empty() => stripped(tpd, expansion),
-        T::Block { stats, expr } if stats.is_empty() => stripped(tpd, expr),
-        T::Typed { expr, .. } => stripped(tpd, expr),
-        _ => t,
-    }
-}
 
 /// Each of `binds` with whether it occurs in `t` only contravariantly, so is approximated from
 /// above (dotty's `InlineReducer.getTypeBindsMap`).
@@ -102,51 +70,80 @@ fn collect_variances(
 }
 
 /// The types bindings `binds` stand for if `scrutinee` conforms to `pattern`, which refers to
-/// them; each its lower bound, its upper one if approximated from above, unless instantiated
-/// (dotty's `typeHoleApproximation`).
+/// them.
 pub fn bound_types(
     u: &mut Universe,
     scrutinee: TypeId,
     pattern: TypeId,
     binds: &[(SymbolId, bool)],
 ) -> Option<Vec<TypeId>> {
-    let mut c = Constraint::default();
-    let vars: Vec<(SymbolId, VarId, TypeId)> = binds
-        .iter()
-        .map(|&(s, _)| {
+    let mut b = Bindings::new(u, binds, &[])?;
+    b.conforms(u, scrutinee, pattern).then(|| b.approximated())
+}
+
+/// A pattern's type bindings as type variables of one constraint (dotty's GADT bounds of
+/// `instrumentTypeHoles`), its spliced type symbols as the types they stand for.
+pub struct Bindings {
+    c: Constraint,
+    /// Each binding with its variable and whether it is approximated from above.
+    vars: Vec<(SymbolId, VarId, bool)>,
+    /// Each binding and spliced type symbol with the type it stands for.
+    subst: Vec<(SymbolId, TypeId)>,
+}
+
+impl Bindings {
+    /// The variables of `binds` constrained by their bounds, `spliced` replaced; `None` if the
+    /// bounds contradict each other.
+    pub fn new(
+        u: &mut Universe,
+        binds: &[(SymbolId, bool)],
+        spliced: &[(SymbolId, TypeId)],
+    ) -> Option<Bindings> {
+        let mut c = Constraint::default();
+        let mut b = Bindings { c: Constraint::default(), vars: Vec::new(), subst: spliced.to_vec() };
+        for &(s, from_above) in binds {
             let v = c.fresh(u);
             let Type::Var(id) = *u.types().get(v) else { unreachable!("a type variable") };
-            (s, id, v)
-        })
-        .collect();
-    let bound = |u: &mut Universe, t: TypeId| {
+            b.vars.push((s, id, from_above));
+            b.subst.push((s, v));
+        }
+        for &(s, id, _) in &b.vars.clone() {
+            let info = u.info(s);
+            if let Type::Bounds(lo, hi) = *u.types().get(info) {
+                let (lo, hi) = (b.bound(u, lo), b.bound(u, hi));
+                let ok = (lo == NOTHING || c.add_lower(u, id, lo)) && (hi == ANY || c.add_upper(u, id, hi));
+                if !ok {
+                    return None;
+                }
+            }
+        }
+        b.c = c;
+        Some(b)
+    }
+
+    /// Pattern type `t` with the bindings' variables and the spliced types.
+    pub fn bound(&self, u: &mut Universe, t: TypeId) -> TypeId {
         u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => vars.iter().find(|&&(x, _, _)| x == s).map(|&(_, _, v)| v),
+            Type::Sym(None, s) => self.subst.iter().find(|&&(x, _)| x == s).map(|&(_, t)| t),
             _ => None,
         })
-    };
-    let mut bounds = Vec::new();
-    for &(s, id, _) in &vars {
-        let info = u.info(s);
-        if let Type::Bounds(lo, hi) = *u.types().get(info) {
-            bounds.push((id, bound(u, lo), bound(u, hi)));
-        }
     }
-    let pattern = bound(u, pattern);
-    for (id, lo, hi) in bounds {
-        let ok = (lo == NOTHING || c.add_lower(u, id, lo)) && (hi == ANY || c.add_upper(u, id, hi));
-        if !ok {
-            return None;
-        }
+
+    /// Whether `scrutinee` conforms to pattern type `pattern`, constraining the bindings.
+    pub fn conforms(&mut self, u: &mut Universe, scrutinee: TypeId, pattern: TypeId) -> bool {
+        let pattern = self.bound(u, pattern);
+        u.is_subtype_in(scrutinee, pattern, &mut self.c)
     }
-    if !u.is_subtype_in(scrutinee, pattern, &mut c) {
-        return None;
+
+    /// The type of each binding: its lower bound, its upper one if approximated from above,
+    /// unless instantiated (dotty's `typeHoleApproximation`).
+    pub fn approximated(&self) -> Vec<TypeId> {
+        let approximated = self.vars.iter().map(|&(_, id, from_above)| {
+            self.c.instance(id).unwrap_or_else(|| {
+                let (lo, hi) = self.c.bounds(id);
+                if from_above { hi } else { lo }
+            })
+        });
+        approximated.collect()
     }
-    let approximated = vars.iter().zip(binds).map(|(&(_, id, _), &(_, from_above))| {
-        c.instance(id).unwrap_or_else(|| {
-            let (lo, hi) = c.bounds(id);
-            if from_above { hi } else { lo }
-        })
-    });
-    Some(approximated.collect())
 }

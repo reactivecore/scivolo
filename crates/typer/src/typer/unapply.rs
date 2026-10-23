@@ -13,7 +13,16 @@ use tasty::{Type, TypeId, TypeVars, VarId};
 impl Typer<'_> {
     pub fn typed_unapply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         match self.unapply_tree(id, fun, args, pt, ctx) {
-            Ok(tree) => tree,
+            Ok(tree) => {
+                let unapply = match *self.tpd.tree(tree) {
+                    T::UnApply { fun, .. } => self.tpd.sym(self.tpd.meth_part(fun)),
+                    _ => None,
+                };
+                if self.is_invalid_future_infix_op(id, fun, unapply) {
+                    return self.unsupported(id, "alphanumeric infix extractor under -source future");
+                }
+                tree
+            }
             Err(what) => self.unsupported(id, what),
         }
     }

@@ -68,6 +68,7 @@ mod extension_calls;
 mod features;
 mod find_ref;
 mod function_types;
+mod future_infix;
 mod generic_arrays;
 mod harmonize;
 mod ident_hint;
@@ -118,6 +119,7 @@ mod overloads;
 mod overrides;
 mod package_members;
 mod param_vars;
+mod parameterless;
 mod parent_trees;
 mod parents;
 mod paths;
@@ -150,6 +152,7 @@ mod selves;
 mod shown_prefix;
 pub(crate) mod simplify;
 mod small_tuples;
+mod source_splices;
 mod spliced_args;
 pub(crate) mod stability;
 mod stats;
@@ -175,6 +178,7 @@ mod unapply;
 mod unapply_implicits;
 mod unapply_results;
 mod unapply_seq;
+mod unchecked_tests;
 mod unknown_params;
 mod untupled;
 mod variances;
@@ -220,6 +224,8 @@ pub struct Typer<'a> {
     pub features: Features,
     /// The `-W` lints the options enable.
     pub lints: Lints,
+    /// Whether the source version is `future`.
+    pub source_future: bool,
     /// Trees typed while completing a symbol, by the owner they were typed in, taken when typing
     /// reaches them.
     pub ahead: FxHashMap<NodeId, Vec<(SymbolId, TNodeId)>>,
@@ -304,7 +310,7 @@ impl<'a> Typer<'a> {
         syms: &mut Syms,
     ) -> Result<Self, String> {
         let v = cfg.source_version;
-        if !v.is_at_least(SourceVersion::V3_7) || v.requires_new_syntax() || v.migrating {
+        if !v.is_at_least(SourceVersion::V3_7) || v.migrating {
             return Err("source versions other than 3.7 to 3.9".into());
         }
         let defn = Defn::new(u)?;
@@ -327,6 +333,7 @@ impl<'a> Typer<'a> {
             erasure_diags: Diagnostics::default(),
             features: cfg.features,
             lints: cfg.warnings.lints,
+            source_future: v.requires_new_syntax(),
             ahead: FxHashMap::default(),
             splices: FxHashMap::default(),
             splice_owners: FxHashMap::default(),

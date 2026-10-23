@@ -36,6 +36,8 @@ impl Typer<'_> {
             Tree::Literal { value } => self.typed_literal(id, value),
             Tree::Number { digits, kind } => self.typed_number(id, (&digits, kind), pt, ctx),
             Tree::TypedSplice { sym } => self.typed_full_ref(id, sym, ctx),
+            Tree::Splice { expr } => self.typed_splice(id, expr, pt, ctx),
+            Tree::Quote { body } => self.typed_quote(id, body, pt, ctx),
             Tree::This { qual } => self.typed_this(id, qual, ctx),
             Tree::Super { qual, mix } => self.typed_super(id, qual, mix, ctx),
             Tree::New { tpt } if matches!(self.ast.tree(tpt), Tree::Template { .. }) => {

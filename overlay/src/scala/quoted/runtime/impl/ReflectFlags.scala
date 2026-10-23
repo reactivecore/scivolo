@@ -139,6 +139,7 @@ final class FlagsImpl(val bits: Long) {
     case _            => false
   }
   override def hashCode: Int = java.lang.Long.hashCode(bits)
+  override def toString: String = throw new Unsupported("Flags.toString")
 }
 
 object FlagsImpl {

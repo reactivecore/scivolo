@@ -65,7 +65,7 @@ def one(name, groups, check, reason, baseline, dir):
         return "fails in the VM", baseline
     outcome = lowered(name, groups, check, dir)
     quoted = [s for s in groups[-1] if "scala.quoted" in s.read_text(errors="replace")]
-    if outcome == ("typer refused", "Splice") and 0 < len(quoted) < len(groups[-1]):
+    if outcome[0] == "typer refused" and 0 < len(quoted) < len(groups[-1]):
         rest = [s for s in groups[-1] if s not in quoted]
         return lowered(name, [*groups[:-1], quoted, rest], check, dir)
     return outcome

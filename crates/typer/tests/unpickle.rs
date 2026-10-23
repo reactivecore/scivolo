@@ -70,14 +70,11 @@ fn polymorphic_function_parameters_are_read() {
 }
 
 #[test]
-fn bodies_outside_the_subset_are_refused() {
+fn annotated_type_trees_are_read() {
     let Some(mut u) = universe() else { return };
-    let cases = [("scala.util", "boundary$", "apply", "type tree of another kind in a library inline body")];
-    for (pkg, class, name, why) in cases {
-        let defs = inline_defs(&mut u, pkg, class, name);
-        assert!(!defs.is_empty(), "{class}.{name}");
-        for d in defs {
-            assert_eq!(read(&mut u, d).err(), Some(why), "{class}.{name}");
-        }
+    let defs = inline_defs(&mut u, "scala.util", "boundary$", "apply");
+    assert!(!defs.is_empty());
+    for d in defs {
+        assert!(read(&mut u, d).is_ok());
     }
 }

@@ -5,6 +5,7 @@ mod decode;
 mod map;
 mod refinements;
 mod show;
+mod show_source;
 mod show_user;
 mod widen;
 

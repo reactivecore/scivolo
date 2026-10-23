@@ -87,6 +87,9 @@ fn expand(l: &mut Lower, stat: TNodeId) -> Result<Expanded> {
     let owner = l.u.symbol(value).owner.expect("a local value's owner");
     let name = l.u.symbol(value).name.clone();
     let mut info = l.u.info(value);
+    if l.u.value_class(info).is_some() {
+        return unsupported(span, "local lazy value of a value class");
+    }
     if l.u.erase(info) == Erased::Unit {
         let boxed_unit = l.u.symbol(l.defs.boxed_unit_unit).owner.expect("BoxedUnit");
         info = type_ref(l.u, boxed_unit);

@@ -4,12 +4,14 @@
 //! enclosing instance becomes `new p.C(p, args)`, `this` for a prefix `Outer.this`.
 
 use super::explicit_outer::{enclosing_instance, outer_chain, terms};
+use super::leading_params::with_leading_params;
 use super::local_free::{enclosing_class, is_term, within};
-use crate::definitions::type_ref;
-use crate::symbols::{is_static, is_static_module};
+use crate::definitions::{symbol, type_ref};
+use crate::symbols::{has, is_static, is_static_module};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::tags::PRIVATE;
+use tasty::{Flags, Kind, SymbolId, Type, TypeId};
 use typer::tpd::{TNodeId, Tree};
 
 /// Passes the enclosing instance to each `new C` in class definition `td` of a class `C` that
@@ -29,11 +31,14 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         let tpe = l.tpd.tpe(new);
         let Some(created) = l.u.class_symbol(tpe) else { continue };
         let span = l.tpd.span(t);
-        if !l.outers.contains_key(&created) {
-            if l.u.symbol(created).tree.is_some() && enclosing_instance(l, created).is_some() {
-                return unsupported(span, "library classes nested in classes");
-            }
-            continue;
+        let library = l.u.symbol(created).tree.is_some();
+        match enclosing_instance(l, created) {
+            Some(outer) if library => match l.tpd.sym(ctor) {
+                Some(c) if !has(l.u, created, PRIVATE) => declare_library(l, created, c, outer),
+                _ => return unsupported(span, "private library classes nested in classes"),
+            },
+            _ if !l.outers.contains_key(&created) => continue,
+            _ => {}
         }
         let at = Span::at(l.tpd.span(ctor).start());
         let owner = l.u.symbol(created).owner.filter(|&o| is_term(l, o));
@@ -60,6 +65,29 @@ pub fn pass_outer(l: &mut Lower, td: TNodeId) -> Result<()> {
         l.tpd.get_mut(t).tree = Tree::Apply { fun, args };
     }
     Ok(())
+}
+
+/// Gives constructor `ctor` of library class `class` the leading parameter `$outer` of the type
+/// of `outer` unless it has it, and `class` its entry in `l.outers` (dotty's `needsOuterAlways`).
+fn declare_library(l: &mut Lower, class: SymbolId, ctor: SymbolId, outer: SymbolId) {
+    let tpe = type_ref(l.u, outer);
+    let info = l.u.info(ctor);
+    let first = match l.u.types().get(info) {
+        Type::Poly { result, .. } => *result,
+        _ => info,
+    };
+    let declared = matches!(l.u.types().get(first), Type::Method { params, .. }
+        if params.first().is_some_and(|(n, _)| n == "$outer"));
+    if declared && l.outers.contains_key(&class) {
+        return;
+    }
+    let param = l.u.define(symbol("$outer", Kind::Param, ctor, Flags::default()));
+    l.u.set_info(param, tpe);
+    if !declared {
+        let info = with_leading_params(l, info, &[param]);
+        l.u.set_info(ctor, info);
+    }
+    l.outers.entry(class).or_insert((None, param));
 }
 
 /// The enclosing instance of a class of type `tpe` created in `class`: its prefix as a tree.
