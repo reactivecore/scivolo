@@ -3,7 +3,7 @@
 //! The shapes of trees for the extractors of `quotes.reflect`: a tree's kind, the expression
 //! numbers of its children in the extractor's order (`-1` for none) and its name.
 
-use super::{Answer, UNKNOWN, arg, numbers};
+use super::{Answer, UNKNOWN, arg, numbers, text};
 use crate::host::Host;
 use tasty::{SymbolId, Type};
 use typer::tpd::{TNodeId, Tree as T};
@@ -40,6 +40,8 @@ impl Host {
         match op {
             "treeKind" => numbers(vec![self.kind(self.tree(t()?)?) as i32]),
             "tree" => self.shape(self.tree(t()?)?),
+            "showTree" => text(self.show_code(self.tree(t()?)?, false)?),
+            "showStructure" => text(self.show_code(self.tree(t()?)?, true)?),
             "treeSymbol" => {
                 let t = self.tree(t()?)?;
                 numbers(vec![self.tree_symbol(t)?.map_or(-1, |s| s.0 as i32)])

@@ -3,6 +3,7 @@
 
 mod host;
 mod reflect;
+mod show_code;
 mod tasty_string;
 
 pub use typer::inlining::Macros;

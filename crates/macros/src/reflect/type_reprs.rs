@@ -34,15 +34,6 @@ impl Host {
                 let t = tpe(self, 0)?;
                 text(self.u.show_source(t)?)
             }
-            "showTypeTree" => {
-                let t = self.tree(arg(args, 0)? as u32)?;
-                let inferred = matches!(self.tpd.tree(t), typer::tpd::Tree::TypeTree { .. });
-                let tpe = self.tpd.get(t).tpe.filter(|&tpe| {
-                    inferred && !matches!(self.u.types().get(tpe), Type::Bounds(..) | Type::Alias(_))
-                });
-                let tpe = tpe.ok_or("Printer.TreeCode of a tree other than an inferred type tree")?;
-                text(self.u.show_source(tpe)?)
-            }
             "typeName" => {
                 let t = tpe(self, 0)?;
                 match self.u.types().get(t).clone() {

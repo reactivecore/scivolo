@@ -149,6 +149,11 @@ object Terms:
     import quotes.reflect.*
     Expr(show(x.asTerm))
 
+  inline def code(inline x: Any): String = ${ codeImpl('x) }
+  def codeImpl(x: Expr[Any])(using Quotes): Expr[String] =
+    import quotes.reflect.*
+    Expr(x.show + " / " + x.asTerm.show(using Printer.TreeStructure))
+
   inline def shapeUnderlying(inline x: Any): String = ${ shapeUnderlyingImpl('x) }
   def shapeUnderlyingImpl(x: Expr[Any])(using Quotes): Expr[String] =
     import quotes.reflect.*
