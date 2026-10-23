@@ -70,6 +70,12 @@ impl Host {
                 let (vdef, r) = self.reflect().let_(owner, name, rhs, flags)?;
                 numbers(vec![self.add_tree(vdef) as i32, self.add_tree(r) as i32])
             }
+            "betaReduce" => {
+                let t = self.tree(arg(0)? as u32)?;
+                let owner = self.owner;
+                let reduced = self.reflect().beta_reduce(t, owner)?;
+                numbers(vec![reduced.map_or(-1, |r| self.add_tree(r) as i32)])
+            }
             "block" => {
                 let trees = args.iter().map(|&t| self.tree(t as u32)).collect::<Result<Vec<_>, _>>()?;
                 let (&expr, stats) = trees.split_first().ok_or("Block.apply without its expression")?;
