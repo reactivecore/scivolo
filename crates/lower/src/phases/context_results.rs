@@ -50,8 +50,9 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
             );
         }
         let info = l.u.info(m);
-        let clauses = method_clauses(l, info);
+        let clauses = super::context_bridges::clauses(l, info).len();
         let depth = integrate(l, t, m);
+        l.context_results.insert(m, (info, depth));
         flattened.push(Flattened { m, clauses, depth });
     }
     let mut calls = Vec::new();
@@ -107,8 +108,9 @@ fn context_result_count(l: &mut Lower, mut tpt: TNodeId, mut rhs: TNodeId) -> us
 }
 
 /// Whether every member of the name of method `m` that `m` may override, or that may override
-/// `m`, is a method of the unit flattened by as many closures: those of the base classes of its
-/// class and of the unit's classes deriving from it, and of `Object` and `Any`.
+/// `m`, is a method of the unit flattened by as many closures, or an abstract one of the unit's
+/// a base class declares, bridged: those of the base classes of its class and of the unit's
+/// classes deriving from it, and of `Object` and `Any`.
 fn overrides_alike(
     l: &mut Lower,
     m: SymbolId,
@@ -134,7 +136,8 @@ fn overrides_alike(
         }
     }
     let roots = [("java.lang", "Object"), ("scala", "Any")];
-    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count)
+    let bridged = |l: &mut Lower, d| !counts.contains_key(&d) && super::context_bridges::bridged(l, owner, d);
+    related.into_iter().all(|d| d == m || counts.get(&d).map(|&(_, c)| c) == count || bridged(l, d))
         && roots.into_iter().all(|(p, c)| !root_declares(l, p, c, &name))
 }
 
@@ -144,18 +147,6 @@ fn root_declares(l: &mut Lower, package: &str, class: &str, name: &str) -> bool 
     let found = l.u.decl(pkg, class).unwrap_or_default();
     let classes: Vec<SymbolId> = found.into_iter().filter(|&c| l.u.symbol(c).kind == Kind::Class).collect();
     classes.is_empty() || classes.into_iter().any(|c| l.u.decl(c, name).map_or(true, |d| !d.is_empty()))
-}
-
-/// How many parameter clauses method type `t` has.
-fn method_clauses(l: &Lower, mut t: TypeId) -> usize {
-    let mut n = 0;
-    loop {
-        match l.u.types().get(t) {
-            Type::Poly { result, .. } => t = *result,
-            Type::Method { result, .. } => (n, t) = (n + 1, *result),
-            _ => return n,
-        }
-    }
 }
 
 /// Moves the parameters and bodies of the context closures of method definition `def` of `m`
