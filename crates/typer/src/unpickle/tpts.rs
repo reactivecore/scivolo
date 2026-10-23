@@ -1,7 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/core/tasty/TreeUnpickler.scala
 //! Type trees (dotty's `readTpt`): type identifiers, selections and applications, singleton and
-//! by-name types, and types read as `TypeTree`s.
+//! by-name and annotated types, and types read as `TypeTree`s.
 
 use super::{Refusal, Unpickler};
 use crate::tpd::{TNodeId, Tree as T};
@@ -66,7 +66,14 @@ impl Unpickler<'_> {
                 let tpe = self.u.intern_type(Type::Bounds(self.tpd.tpe(lo), self.tpd.tpe(hi)));
                 self.bare(T::TypeBoundsTree { lo, hi, alias }, Some(tpe), None)
             }
-            ANNOTATEDtpt | LAMBDAtpt | REFINEDtpt | MATCHtpt | BLOCK | HOLE => {
+            ANNOTATEDtpt => {
+                let arg = self.tpt(k[0])?;
+                let annot = self.term(k[1])?;
+                let annot_tpe = self.tpd.tpe(annot);
+                let tpe = self.u.intern_type(Type::Annotated(self.tpd.tpe(arg), annot_tpe));
+                self.bare(T::Annotated { arg, annot }, Some(tpe), None)
+            }
+            LAMBDAtpt | REFINEDtpt | MATCHtpt | BLOCK | HOLE => {
                 return Err("type tree of another kind in a library inline body");
             }
             _ => {
