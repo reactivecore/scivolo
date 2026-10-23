@@ -115,9 +115,6 @@ pub fn mixed_in(
         } else if l.u.is_module(getter) {
             out.push(module_forwarder(l, class, getter, span)?);
         } else if has(l.u, getter, LAZY) && has_body(l, getter) && implemented_by(l, class, getter) {
-            if library {
-                return unsupported(span, "lazy values in library traits");
-            }
             let at = if span.exists() { Span::at(span.point()) } else { span };
             out.push(lazy_forwarder(l, class, mixin, getter, at));
         } else if is_trait_getter(l, getter) && !is_const_final(l, getter) && implemented_by(l, class, getter)

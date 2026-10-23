@@ -64,10 +64,11 @@ pub fn transform(l: &mut Lower, td: TNodeId) -> Result<()> {
         {
             return unsupported(span, "specialized functions");
         }
-        if library && !l.u.no_inits(mixin) {
+        let inits = !l.u.no_inits(mixin) || library && super::library_traits::has_lazy(l, mixin);
+        if library && inits {
             super::library_traits::prepare(l, mixin, span)?;
         }
-        if !library || !l.u.no_inits(mixin) {
+        if !library || inits {
             forwarders.extend(mixed_in(l, class, mixin, args.remove(&mixin), span)?);
         }
         let methods = match super::dependencies::is_local(l, mixin) {
