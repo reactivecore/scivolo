@@ -78,9 +78,10 @@ impl Typer<'_> {
         };
         let function = match pt {
             Pt::Type(p) if self.function_parts(p, params.len()).is_some() => true,
-            Pt::Type(p) if !matches!(self.sam_parts(p, params.len(), false), Ok(None)) => {
-                return Err("method value of a single abstract method type");
-            }
+            Pt::Type(p) => match self.sam_parts(p, params.len(), false) {
+                Ok(sam) => sam.is_some(),
+                Err(_) => return Err("method value of a single abstract method type"),
+            },
             _ => false,
         };
         let inferred = last && params.len() == xarity && function;
