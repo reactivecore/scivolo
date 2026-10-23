@@ -22,6 +22,7 @@ mod outer_this;
 mod proxies;
 mod purity;
 mod quote_match;
+mod quote_matcher;
 mod quoted;
 mod reduce;
 mod reflect;
@@ -40,7 +41,8 @@ mod unused;
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
 pub use macros::{Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
-pub use quote_match::{bound_types, quote_match};
+pub use quote_match::bound_types;
+pub use quote_matcher::quote_match;
 pub use reflect::Reflect;
 
 use crate::ctx::Ctx;

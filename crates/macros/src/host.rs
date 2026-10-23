@@ -5,15 +5,15 @@ use syntax::ast::Span;
 use syntax::names::Names;
 use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
-use typer::inlining::{Quoted, quote_match};
+use typer::inlining::Quoted;
 use typer::tpd::{TNodeId, Tpd};
 use typer::unpickle::{Quote, QuotePattern, quote, quoted_type};
 
 /// The universe, trees and names the typer lends the expansion.
 pub type Tables<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names);
 
-/// A quote unpickled for the macro: its tree, its spliced types and, per term hole, the
-/// placeholder, the pickled index, the arguments' expressions and the filling expression.
+/// A quote unpickled for the macro: its tree, spliced types and term holes (placeholder, index,
+/// arguments' and filling expressions).
 struct Unpickled {
     root: TNodeId,
     spliced: Vec<(SymbolId, TypeId)>,
@@ -90,17 +90,21 @@ impl Host {
         self.types.len() as u32 - 1
     }
 
-    fn add_pattern(&mut self, p: QuotePattern) -> u32 {
-        self.patterns.push(p);
-        PATTERN | (self.patterns.len() as u32 - 1)
-    }
-
     /// The tree of expression `expr`, a quote's with its holes open.
     pub fn tree(&self, expr: u32) -> Result<TNodeId, &'static str> {
         match self.exprs.get(expr as usize) {
             Some(Expr::Tree(t)) => Ok(*t),
             Some(Expr::Quote(q)) => Ok(q.root),
             None => Err("an Expr the frontend did not make"),
+        }
+    }
+
+    /// Quote pattern `n`, or the pattern of quote `n` without holes.
+    pub fn pattern(&self, n: u32) -> Option<QuotePattern> {
+        match self.exprs.get(n as usize) {
+            _ if n & PATTERN != 0 => self.patterns.get((n & !PATTERN) as usize).cloned(),
+            Some(Expr::Quote(q)) if q.holes.is_empty() => Some(QuotePattern::of(q.root, &q.spliced)),
+            _ => None,
         }
     }
 
@@ -175,14 +179,7 @@ impl vm::QuoteHost for Host {
     }
 
     fn match_pattern(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str> {
-        let tpe = self.tpd.tpe(self.tree(scrutinee)?);
-        let unknown = "a quote pattern the frontend did not unpickle";
-        let pattern = (pattern & PATTERN != 0).then_some(pattern & !PATTERN).ok_or(unknown)?;
-        let pattern = self.patterns.get(pattern as usize).ok_or(unknown)?;
-        let Some(types) = quote_match(&mut self.u, tpe, pattern) else { return Ok(u32::MAX) };
-        let types: Vec<_> = types.into_iter().map(|t| Err(self.add_type(t))).collect();
-        self.matched = types.into_iter().chain([Ok(scrutinee)]).collect();
-        Ok(self.matched.len() as u32)
+        self.match_expr(scrutinee, pattern)
     }
 
     fn matched(&self, i: u32) -> Option<Result<u32, u32>> {
