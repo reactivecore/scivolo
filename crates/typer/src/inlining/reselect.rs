@@ -22,10 +22,12 @@ impl Inlining<'_> {
 
     /// The member named `name` that selection `t` from `qualifier` finds in the class of the
     /// qualifier's type before the owner of the selected symbol with the selected symbol's
-    /// signature: none if there is none, `Err` if there are several or it is private.
+    /// signature, abstract ones only for an abstract selected symbol: none if there is none, `Err`
+    /// if there are several or it is private.
     fn reselected(&mut self, t: TNodeId, qualifier: TNodeId, name: String) -> Result<Option<SymbolId>, ()> {
         let (Some(sym), Some(q)) = (self.tpd.sym(t), self.tpd.get(qualifier).tpe) else { return Ok(None) };
         let owner = self.u.symbol(sym).owner;
+        let concrete = !self.is_abstract(sym);
         let widened = self.u.widen(q);
         let Some(c) = self.u.class_symbol(widened) else { return Ok(None) };
         for base in self.u.linearization(c) {
@@ -38,6 +40,7 @@ impl Inlining<'_> {
                 .filter(|&d| {
                     self.u.symbol(d).name == name
                         && self.u.symbol(d).kind.is_term()
+                        && !(concrete && self.is_abstract(d))
                         && self.u.matches(site, d, sym)
                 })
                 .collect();
@@ -49,6 +52,11 @@ impl Inlining<'_> {
             }
         }
         Ok(None)
+    }
+
+    /// Whether member `s` has no body: deferred in the source or without a right-hand side in TASTy.
+    fn is_abstract(&self, s: SymbolId) -> bool {
+        self.u.is_deferred(s) || (self.u.symbol(s).tree.is_some() && self.u.body(s).is_none())
     }
 
     /// The prefix of a selection from a qualifier of type `t` (dotty's `cpy.Select`): `t` if it is
