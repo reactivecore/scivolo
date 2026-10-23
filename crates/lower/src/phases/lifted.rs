@@ -103,7 +103,8 @@ pub fn lift(
         if let Some(all) = method.all_args {
             params = vec![(all, l.u.info(all))];
         }
-        let prefix = prefix(l, class, functions, methods, f);
+        let in_value = l.in_match_values.contains(&f.sym) && !f.ctor;
+        let prefix = if in_value { String::new() } else { prefix(l, class, functions, methods, f) };
         let closure = f.closure.map(|_| plan(l, class, f, &prefix, &params, result, &mut deferred));
         plans.push(closure.transpose()?);
     }

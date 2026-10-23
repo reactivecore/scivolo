@@ -153,6 +153,16 @@ impl<'t, 'a> Translator<'t, 'a> {
         self.l.u.set_info(var, tpe);
         self.generated.insert(var);
         self.initializer.insert(var, rhs);
+        let mut todo = vec![rhs];
+        while let Some(t) = todo.pop() {
+            match (self.l.tpd.tree(t), self.l.tpd.sym(t)) {
+                (Tree::DefDef { .. }, Some(m)) if self.l.u.symbol(m).owner == Some(self.owner) => {
+                    self.l.in_match_values.insert(m);
+                }
+                (Tree::Ident { .. } | Tree::Literal { .. } | Tree::This { .. }, _) => {}
+                _ => todo.extend(self.l.tpd.children(t)),
+            }
+        }
         self.spans.insert(var, coord(super::drop_inlined::span_before_erasure(self.l, rhs)));
         let body = body(self, var)?;
         Ok(self.add(Plan::Let { sym: var, body }))
