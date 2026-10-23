@@ -4,7 +4,7 @@
 use super::{Inlining, Unsupported};
 use crate::tpd::TNodeId;
 use tasty::tags::PRIVATE;
-use tasty::{Kind, SymbolId, Type, TypeId, Universe};
+use tasty::{SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// Makes selection `t` of `name` from retyped `qualifier` select the member dotty's retyping
@@ -21,8 +21,8 @@ impl Inlining<'_> {
     }
 
     /// The member named `name` that selection `t` from `qualifier` finds in the class of the
-    /// qualifier's type before the owner of the selected symbol: none if there is none, `Err` if
-    /// none of them has the selected symbol's signature or it is private.
+    /// qualifier's type before the owner of the selected symbol with the selected symbol's
+    /// signature: none if there is none, `Err` if there are several or it is private.
     fn reselected(&mut self, t: TNodeId, qualifier: TNodeId, name: String) -> Result<Option<SymbolId>, ()> {
         let (Some(sym), Some(q)) = (self.tpd.sym(t), self.tpd.get(qualifier).tpe) else { return Ok(None) };
         let owner = self.u.symbol(sym).owner;
@@ -33,22 +33,20 @@ impl Inlining<'_> {
                 return Ok(None);
             }
             let decls = self.u.decls(base).unwrap_or_default();
-            let found: Vec<SymbolId> = (decls.into_iter())
-                .filter(|&d| self.u.symbol(d).name == name && self.u.symbol(d).kind.is_term())
-                .collect();
-            if found.is_empty() {
-                continue;
-            }
             let site = crate::defn::type_ref(self.u, c);
-            let def = |u: &Universe, s: SymbolId| u.symbol(s).kind == Kind::Def;
-            let same: Vec<SymbolId> = (found.into_iter())
-                .filter(|&d| !(def(self.u, d) && def(self.u, sym)) || self.u.matches(site, d, sym))
+            let same: Vec<SymbolId> = (decls.into_iter())
+                .filter(|&d| {
+                    self.u.symbol(d).name == name
+                        && self.u.symbol(d).kind.is_term()
+                        && self.u.matches(site, d, sym)
+                })
                 .collect();
             let public = same.iter().all(|&d| !self.u.symbol(d).flags.has(PRIVATE));
-            return match same[..] {
-                [d] if public => Ok(Some(d)),
-                _ => Err(()),
-            };
+            match same[..] {
+                [] => continue,
+                [d] if public => return Ok(Some(d)),
+                _ => return Err(()),
+            }
         }
         Ok(None)
     }
