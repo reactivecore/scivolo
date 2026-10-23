@@ -97,10 +97,11 @@ impl Host {
         }
     }
 
-    /// Quote pattern `n`, or the pattern of quote `n` without holes.
+    /// Quote pattern `n`, or the pattern of tree `n` or of quote `n` without holes.
     pub fn pattern(&self, n: u32) -> Option<QuotePattern> {
         match self.exprs.get(n as usize) {
             _ if n & PATTERN != 0 => self.patterns.get((n & !PATTERN) as usize).cloned(),
+            Some(Expr::Tree(t)) => Some(QuotePattern::of(*t, &[])),
             Some(Expr::Quote(q)) if q.holes.is_empty() => Some(QuotePattern::of(q.root, &q.spliced)),
             _ => None,
         }
