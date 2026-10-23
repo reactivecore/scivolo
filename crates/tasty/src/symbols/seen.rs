@@ -134,9 +134,10 @@ impl Universe {
             }
             _ => {
                 let (c, i) = u.class_param(x)?;
-                if !u.derives_from(owner, c) {
-                    return None;
-                }
+                let prefix = match u.derives_from(owner, c) {
+                    true => prefix,
+                    false => u.this_seen_from(prefix, owner, c, MAX_DEPTH)?,
+                };
                 let seen = u.base_type(prefix, c)?;
                 match u.types().get(seen) {
                     Type::Applied(_, args) => args.get(i).copied(),

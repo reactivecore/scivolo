@@ -42,6 +42,10 @@ impl Typer<'_> {
         }
         let arg_ids = self.protos[proto].args.clone();
         let method = self.tpd.sym(f);
+        let infix_meth = self.tpd.sym(self.tpd.meth_part(f));
+        if self.is_invalid_future_infix(id, fun, infix_meth) {
+            return self.unsupported(id, "alphanumeric infix operator under -source future");
+        }
         if method.is_some_and(|m| self.u.full_name(m) == "scala.compiletime.package$package$.summonFrom") {
             return self.summon_from_applied(id, &arg_ids, pt, ctx);
         }
@@ -135,7 +139,10 @@ impl Typer<'_> {
                 formal = self.dependent_formal(formal, clause, &typed_args);
             }
             let pre = pretyped.as_ref().and_then(|typed| typed[i]);
-            typed_args.push(self.arg_against(a, pre, formal, ctx));
+            let arg = self.arg_against(a, pre, formal, ctx);
+            let by_name =
+                params.get(i).is_some_and(|&(_, p)| matches!(self.u.types().get(p), Type::ByName(_)));
+            typed_args.push(if by_name { self.by_name_uncaptured(arg) } else { arg });
         }
         let result = match dependent {
             true => self.dependent_result(result, (binder, &params), meth, &typed_args).filter(|_| plain),

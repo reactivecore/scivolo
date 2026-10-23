@@ -69,15 +69,15 @@ impl Typer<'_> {
         let names: Vec<(String, String)> =
             info.selectors.iter().map(|s| (s.name.clone(), s.rename.clone())).collect();
         let Some(site) = self.import_site(qual) else { return Ok(Vec::new()) };
-        let aliased_object = |t: &mut Self| {
+        let class_of_value = |t: &mut Self| {
             let widened = t.u.widen(qual);
-            t.u.class_symbol(widened).filter(|&c| t.u.symbol(c).flags.has(tasty::tags::OBJECT))
+            t.u.class_symbol(widened)
         };
         let classes = match self
             .u
             .module_class(site)
             .or_else(|| (self.u.symbol(site).kind == Kind::Class).then_some(site))
-            .or_else(|| aliased_object(self))
+            .or_else(|| class_of_value(self))
         {
             Some(class) => vec![class],
             None if self.u.symbol(site).kind == Kind::Package => self
@@ -85,7 +85,7 @@ impl Typer<'_> {
                 .package_objects(site)
                 .map_err(|_| "implicit import from an unreadable package object")?,
             None if self.u.symbol(site).kind.is_term() => {
-                return Err("implicit import from a value other than an object");
+                return Err("implicit import from a value of no class type");
             }
             None => return Ok(Vec::new()),
         };
@@ -154,7 +154,7 @@ impl Typer<'_> {
             _ => self.ref_type(c.prefix, c.sym),
         };
         let through_path = !self.term_prefix_is_elidable(c.prefix, c.sym, ctx);
-        if through_path && c.prefix.and_then(|p| self.path_tree(p, span, 8)).is_none() {
+        if through_path && c.prefix.and_then(|p| self.path_tree_from(p, span, 8, Some(ctx))).is_none() {
             return Err("implicit through a path");
         }
         Ok(self.ref_(c.prefix, c.sym, tpe, span, ctx))

@@ -43,7 +43,7 @@ impl Typer<'_> {
         let tpt = if self.term_prefix_is_elidable(prefix, class, ctx) {
             self.tpd.node(T::Ident { name }, span, Some(tpe), Some(class))
         } else {
-            self.this_select(span, name, tpe, class)
+            self.this_select(span, name, tpe, class, ctx)
         };
         self.proxy_new(tpt, pt, ctx)
     }

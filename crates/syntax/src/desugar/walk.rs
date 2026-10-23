@@ -33,8 +33,16 @@ impl Desugar<'_> {
             Tree::InfixOp { left, op, right } => {
                 let args = self.list(&[left, right]);
                 let t = match self.mode {
-                    Mode::Type => self.ast.derived(id, Tree::AppliedTypeTree { tpt: op, args }),
-                    Mode::Pattern => self.ast.derived(id, Tree::Apply { fun: op, args }),
+                    Mode::Type | Mode::Pattern => {
+                        let t = if matches!(self.mode, Mode::Type) {
+                            Tree::AppliedTypeTree { tpt: op, args }
+                        } else {
+                            Tree::Apply { fun: op, args }
+                        };
+                        let t = self.ast.derived(id, t);
+                        self.ast.add_attrs(t, Attrs::INFIX_OP);
+                        t
+                    }
                     Mode::Expr => {
                         let t = self.binop(left, op, right);
                         self.ast.add_attrs(t, self.ast.attrs(id));

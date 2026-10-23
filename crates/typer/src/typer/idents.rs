@@ -109,14 +109,20 @@ impl Typer<'_> {
         }
         let tpe = self.ref_type(found.prefix, sym);
         let span = self.ast.span(id);
-        if !self.prefix_is_elidable(tpe, ctx) {
+        let overloaded_accessor = found.syms.len() > 1
+            && self.is_param_or_accessor(sym)
+            && found.prefix.is_some_and(|p| match *self.u.types().get(p) {
+                Type::This(c) => self.u.class_symbol(c).is_some_and(|c| !self.is_static_owner(c)),
+                _ => false,
+            });
+        if overloaded_accessor || !self.prefix_is_elidable(tpe, ctx) {
             if name.is_type {
                 return self.type_tree(tpe, span, false);
             }
             if let Some(this) = self.module_this(sym, span, ctx) {
                 return this;
             }
-            return self.this_select(span, name, tpe, sym);
+            return self.this_select(span, name, tpe, sym, ctx);
         }
         self.tpd.node(T::Ident { name }, span, Some(tpe), Some(sym))
     }

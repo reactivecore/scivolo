@@ -141,7 +141,10 @@ impl Typer<'_> {
         let tree = self.candidate_ref(c, at, ctx)?;
         let tree = self.with_type_vars(tree)?;
         let t = self.tpd.tpe(tree);
-        let info = self.method_info(t).unwrap_or(t);
+        let info = match *self.u.types().get(t) {
+            Type::Sym(_, s) if self.u.is_type_symbol(s) => t,
+            _ => self.method_info(t).unwrap_or(t),
+        };
         let stripped = self.strip_implicit(info);
         let method = matches!(self.u.types().get(stripped), Type::Method { .. });
         match self.implicit_value_type(info, c.sym, pt) {

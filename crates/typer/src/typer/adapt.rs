@@ -101,6 +101,11 @@ impl Typer<'_> {
         if let Some(widened) = self.numeric_view(tree, pt) {
             return widened;
         }
+        match self.captured_cast(tree, pt) {
+            Some(Ok(cast)) => return self.adapt(cast, Pt::Type(pt), ctx),
+            Some(Err(what)) => self.unsupported_at(span, what),
+            None => {}
+        }
         if self.u.class_symbol(pt) == Some(self.defn.unit) {
             self.check_unit_purity(tree);
             return self.discarded(tree, span);
