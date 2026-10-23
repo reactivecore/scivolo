@@ -24,8 +24,8 @@ const CASES: &[(&str, &str)] = &[
         "type tests of this.type of value classes",
     ),
     (
-        "object O { def f[T](x: Any): Boolean = x.isInstanceOf[Array[Array[T]]] }",
-        "type tests of generic arrays of arrays",
+        "object O { val v: Any = 1; def f[T]: Boolean = O.v.isInstanceOf[Array[Array[T]]] }",
+        "type tests of generic arrays of arrays of paths other than names",
     ),
     ("object O { def f(): Boolean = ().isInstanceOf[Unit] }", "type tests of primitive values or of null"),
     (

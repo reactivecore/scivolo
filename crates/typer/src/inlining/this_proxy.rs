@@ -35,9 +35,6 @@ impl Expansion<'_, '_> {
         if self.i.u.symbol(cls).kind != Kind::Class {
             return Err(self.err("inline method of a type"));
         }
-        if !self.i.u.type_params(cls).is_empty() {
-            return Err(self.err("inline method of a generic class"));
-        }
         let mut uses = false;
         let mut outers = Vec::new();
         self.i.this_refs(body, cls, &mut uses, &mut outers);
