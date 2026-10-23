@@ -122,7 +122,13 @@ impl Unpickler<'_> {
         self.u.symbol(s).flags.has(STATIC)
             || match *self.u.types().get(prefix) {
                 Type::NoPrefix | Type::Package(_) => true,
-                Type::This(c) => self.u.class_symbol(c).is_some_and(|c| static_owner(self.u, c)),
+                Type::This(c) => self.u.class_symbol(c).is_some_and(|c| {
+                    let accessor =
+                        self.u.symbol(s).flags.has(PARAMsetter) && !self.u.symbol(c).flags.has(TRAIT);
+                    let enclosing = std::iter::successors(Some(self.owner), |&o| self.u.symbol(o).owner)
+                        .find(|&o| self.u.symbol(o).kind == Kind::Class);
+                    static_owner(self.u, c) || accessor && enclosing == Some(c)
+                }),
                 Type::Sym(_, m) => self.u.symbol(m).flags.has(OBJECT) && self.u.is_static_symbol(m),
                 _ => false,
             }

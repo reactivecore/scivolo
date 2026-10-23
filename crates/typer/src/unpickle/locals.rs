@@ -19,6 +19,8 @@ impl Unpickler<'_> {
         for &s in &k[1..] {
             stats.push(match self.tag(s) {
                 VALDEF | DEFDEF => self.local_def(s)?,
+                TYPEDEF => self.type_def(s)?,
+                IMPORT | EXPORT => continue,
                 _ => self.term(s)?,
             });
         }
@@ -33,9 +35,7 @@ impl Unpickler<'_> {
         let mut locals = Vec::new();
         for &s in stats {
             match self.tag(s) {
-                VALDEF | DEFDEF => locals.push(self.define_local(s)?),
-                TYPEDEF => return Err("local type or class in a library inline body"),
-                IMPORT | EXPORT => return Err("import in a library inline body"),
+                VALDEF | DEFDEF | TYPEDEF => locals.push(self.define_local(s)?),
                 _ => {}
             }
         }
@@ -110,9 +110,10 @@ impl Unpickler<'_> {
             return Ok(tpe);
         }
         let widened = self.u.widen(tpe);
-        match mentions(self.u, widened) {
-            true => Err("type referring to locals in a library inline body"),
-            false => Ok(widened),
+        if !mentions(self.u, widened) {
+            return Ok(widened);
         }
+        self.class_parents_avoiding(widened, locals)
+            .ok_or("type referring to locals in a library inline body")
     }
 }

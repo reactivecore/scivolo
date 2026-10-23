@@ -41,3 +41,9 @@ object Lib:
   inline def size[T <: Tuple]: Int = inline compiletime.erasedValue[T] match
     case _: EmptyTuple => 0
     case _: (t *: ts) => 1 + size[ts]
+  inline def mk(n: Int): Int =
+    class Foo(val k: Int):
+      def twice = k * 2
+    new Foo(n).twice + 1
+  inline def anon(s: String): Runnable = new Runnable:
+    def run() = println("hi " + s)

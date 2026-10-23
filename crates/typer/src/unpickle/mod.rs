@@ -8,6 +8,7 @@
 mod admitted;
 mod assign;
 mod cases;
+mod class_defs;
 mod defs;
 mod locals;
 mod paths;
