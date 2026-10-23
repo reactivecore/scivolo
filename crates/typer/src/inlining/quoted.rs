@@ -12,8 +12,9 @@ use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::Span;
 use tasty::SymbolId;
 
-/// The expansion, the trees of the macro's arguments and the quotes by their roots.
-type Context<'c> = (&'c Expanded, &'c [TNodeId], &'c FxHashMap<TNodeId, u32>);
+/// The expansion, the trees of the macro's arguments, the quotes by their roots and the filling
+/// expressions by their hole placeholders.
+type Context<'c> = (&'c Expanded, &'c [TNodeId], &'c FxHashMap<TNodeId, u32>, &'c FxHashMap<TNodeId, u32>);
 
 impl Inlining<'_> {
     /// The tree of the expression the macro returned; `args` are the trees of its `Expr`
@@ -27,7 +28,14 @@ impl Inlining<'_> {
                 Quoted::Tree(_) => None,
             })
             .collect();
-        let cx = (expanded, args, &roots);
+        let fills: FxHashMap<TNodeId, u32> = (expanded.exprs.iter())
+            .flat_map(|q| match q {
+                Quoted::Quote { holes, .. } => holes.as_slice(),
+                Quoted::Tree(_) => &[],
+            })
+            .copied()
+            .collect();
+        let cx = (expanded, args, &roots, &fills);
         let result = self.quoted_tree(cx, &mut built, expanded.result, 0)?;
         match expanded.exprs[expanded.result as usize] {
             Quoted::Quote { .. } => Ok(result),
@@ -49,9 +57,12 @@ impl Inlining<'_> {
         let mut inner = TreeTypeMap { refs: m.refs.clone(), syms: m.syms.clone(), ..TreeTypeMap::default() };
         let mut failed = None;
         let copy = self.copy(&mut inner, t, &mut |i, m, node| {
-            let e = cx.2.get(&node).copied().filter(|&e| Some(e) != own)?;
+            let (e, own) = match cx.2.get(&node).copied().filter(|&e| Some(e) != own) {
+                Some(e) => (e, Some(e)),
+                None => (cx.3.get(&node).copied()?, None),
+            };
             let quote =
-                i.quoted_tree(cx, built, e, 1).and_then(|q| i.with_quotes(cx, built, (m, None), q, Some(e)));
+                i.quoted_tree(cx, built, e, 1).and_then(|q| i.with_quotes(cx, built, (m, None), q, own));
             Some(quote.unwrap_or_else(|e| {
                 failed.get_or_insert(e);
                 node
@@ -72,7 +83,7 @@ impl Inlining<'_> {
         id: u32,
         depth: usize,
     ) -> Result<TNodeId, Unsupported> {
-        let (expanded, args, _) = cx;
+        let (expanded, args, _, _) = cx;
         let unknown = (self.call_span, "a macro expression the frontend did not give it");
         match expanded.exprs.get(id as usize).ok_or(unknown)? {
             _ if depth > expanded.exprs.len() => Err(unknown),
