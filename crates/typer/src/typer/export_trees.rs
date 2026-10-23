@@ -20,7 +20,7 @@ impl Typer<'_> {
         };
         let path = self.export_path(expr, exported.path_method, ctx);
         let items = self.ast.items(selectors).to_vec();
-        let typed: Vec<TNodeId> = items.into_iter().map(|s| self.untyped_selector(s)).collect();
+        let typed: Vec<TNodeId> = items.into_iter().map(|s| self.untyped_selector(s, None)).collect();
         let selectors = self.tpd.list(&typed);
         let span = self.ast.span(id);
         let mut out =
