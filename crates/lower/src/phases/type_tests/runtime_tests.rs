@@ -62,10 +62,9 @@ pub fn array_test(l: &mut Lower, expr: TNodeId, tpe: TypeId, span: Span) -> Resu
     if dims == 1 {
         return is_array(l, expr, 1, span).map(Some);
     }
-    if !matches!(l.tpd.tree(expr), Tree::Ident { .. }) || !is_pure(l, expr) {
+    let (&Tree::Ident { name }, true) = (l.tpd.tree(expr), is_pure(l, expr)) else {
         return unsupported(span, "type tests of generic arrays of arrays of paths other than names");
-    }
-    let Tree::Ident { name } = *l.tpd.tree(expr) else { unreachable!("a name") };
+    };
     let n = l.tpd.get(expr);
     let (expr_span, tpe, sym) = (n.span, n.tpe, n.sym);
     let other = l.tpd.node(Tree::Ident { name }, expr_span, tpe, sym);

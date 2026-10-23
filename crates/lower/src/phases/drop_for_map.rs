@@ -16,14 +16,14 @@ use typer::tpd::{List, TNodeId, Tree};
 /// calls of `Inlined` trees are left as they are.
 pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
     let all = subtrees(l.tpd, root);
-    let calls: FxHashSet<TNodeId> = all
-        .iter()
-        .filter_map(|&t| match *l.tpd.tree(t) {
-            Tree::Inlined { call: Some(call), .. } => Some(call),
-            _ => None,
-        })
-        .flat_map(|call| subtrees(l.tpd, call))
-        .collect();
+    let mut calls = FxHashSet::default();
+    for &t in &all {
+        if let Tree::Inlined { call: Some(call), .. } = *l.tpd.tree(t)
+            && !calls.contains(&t)
+        {
+            calls.extend(subtrees(l.tpd, call));
+        }
+    }
     for t in all.into_iter().rev().filter(|t| !calls.contains(t)) {
         match *l.tpd.tree(t) {
             Tree::Apply { .. } => {
