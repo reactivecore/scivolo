@@ -98,11 +98,13 @@ impl Typer<'_> {
         let is = |t: &mut Self, x, c| t.u.class_symbol(x) == Some(c);
         let hi = match (is(self, hi, any), is(self, phi, any) || !independent(self, phi)) {
             (_, true) => hi,
+            _ if hi == phi => hi,
             (true, false) => phi,
             _ => self.u.intern_type(Type::And(hi, phi)),
         };
         let lo = match (is(self, lo, nothing), is(self, plo, nothing) || !independent(self, plo)) {
             (_, true) => lo,
+            _ if lo == plo => lo,
             (true, false) => plo,
             _ => self.u.intern_type(Type::Or(lo, plo, false)),
         };

@@ -1,0 +1,25 @@
+Right(ababab)
+Right(xx)
+Right(3)
+Right(4 + 5 = 9)
+Left(Missing argument: -w --word <str>
+Expected Signature: repeat
+Repeats a word
+  --times <int>    how often
+  -w --word <str>  the word
+
+)
+true
+true
+Right(LhConfig(x,3,Flag(false)))
+Right(LhConfig(y,1,Flag(true)))
+Left(Missing argument: -n --name <str>
+Expected Signature: apply
+  --count <int>
+  --debug
+  -n --name <str>  the name
+
+)
+Right(List(a, b) Some(3) false List(x, y))
+Right(List() None true List())
+Right(1+2+3)

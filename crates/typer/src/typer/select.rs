@@ -28,9 +28,6 @@ impl Typer<'_> {
         if text == "*:" && self.is_large_generic_tuple(qual) {
             return self.unsupported(id, "generic tuple of more than 22 elements");
         }
-        if text == "apply" && self.is_eta_closure(qual) {
-            return self.unsupported(id, "apply of a method reference");
-        }
         let (mut converted, mut widened, mut tupled, mut defined) = (false, false, false, false);
         let (qual_tpe, syms) = loop {
             let qual_tpe = self.tpd.tpe(qual);

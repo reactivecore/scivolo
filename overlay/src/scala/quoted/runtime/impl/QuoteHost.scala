@@ -125,6 +125,10 @@ final class Unsupported(what: String) extends RuntimeException(what) {
   QuoteHost.refuse(what)
 }
 
-final class ExprImpl(val id: Int, val expansion: Int) extends Expr[Any]
+final class ExprImpl(val id: Int, val expansion: Int) extends Expr[Any] {
+  override def toString: String = throw new Unsupported("Expr.toString, Tree.toString")
+}
 
-final class TypeImpl(val id: Int, val expansion: Int) extends Type[Nothing]
+final class TypeImpl(val id: Int, val expansion: Int) extends Type[Nothing] {
+  override def toString: String = throw new Unsupported("Type.toString, TypeRepr.toString")
+}

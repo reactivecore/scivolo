@@ -66,6 +66,19 @@ impl Reflect<'_> {
         }
     }
 
+    /// `TypeRepr.termSymbol`: the symbol a term reference names, through annotations; none for
+    /// class references, applied, constant and `this` types; a refusal for other types.
+    pub fn term_symbol(&mut self, t: TypeId) -> Result<Option<SymbolId>, &'static str> {
+        match *self.u.types().get(t) {
+            Type::Sym(_, s) if self.u.symbol(s).kind.is_term() => Ok(Some(s)),
+            Type::TermRef(..) => Ok(self.u.resolve_ref(t)),
+            Type::Annotated(inner, _) => self.term_symbol(inner),
+            Type::Sym(_, s) if self.u.is_class(s) => Ok(None),
+            Type::Applied(..) | Type::Constant(..) | Type::This(_) => Ok(None),
+            _ => Err("TypeRepr.termSymbol of a type other than a reference, an applied or a constant type"),
+        }
+    }
+
     /// `TypeRepr.typeArgs`: the arguments of an applied type, none for other types.
     pub fn type_args(&mut self, t: TypeId) -> Vec<TypeId> {
         match self.u.types().get(t) {
@@ -95,7 +108,21 @@ impl Reflect<'_> {
 
     /// `Symbol.typeRef`, `Symbol.termRef`: the type of a reference to `s`.
     pub fn symbol_ref(&mut self, s: SymbolId) -> TypeId {
+        if self.u.symbol(s).kind == Kind::Package {
+            return self.u.intern_type(Type::Package(s));
+        }
         type_ref(self.u, s)
+    }
+
+    /// `TermRef(qual, name)`: the reference to the only term member `name` of `qual`.
+    pub fn term_ref(&mut self, qual: TypeId, name: &str) -> Result<TypeId, &'static str> {
+        let found = match *self.u.types().get(qual) {
+            Type::Package(p) => self.u.decl(p, name).unwrap_or_default(),
+            _ => self.u.member_of_type(qual, name),
+        };
+        let terms: Vec<SymbolId> = found.into_iter().filter(|&s| self.u.symbol(s).kind.is_term()).collect();
+        let [s] = terms[..] else { return Err("TermRef.apply of no or an overloaded term member") };
+        Ok(crate::defn::ref_type(self.u, Some(qual), s))
     }
 
     /// `Ref(s)` of a static object or value `s`.
@@ -112,6 +139,25 @@ impl Reflect<'_> {
     pub fn select(&mut self, qual: TNodeId, m: SymbolId) -> Result<TNodeId, &'static str> {
         let span = self.span;
         Ok(self.build()?.select(qual, m, span))
+    }
+
+    /// `Apply(fun, args)` (dotty's `tpd.Apply`), of the result of `fun`'s method type for the
+    /// arguments' types.
+    pub fn apply(&mut self, fun: TNodeId, args: &[TNodeId]) -> Result<TNodeId, &'static str> {
+        let span = self.span;
+        let info = self.u.widen(self.tpd.tpe(fun));
+        let Type::Method { binder, params, result, .. } = self.u.types().get(info).clone() else {
+            return Err("Apply of a term that takes no arguments");
+        };
+        if params.len() != args.len() {
+            return Err("Apply with another number of arguments than parameters");
+        }
+        let names: Vec<String> = params.into_iter().map(|(n, _)| n).collect();
+        let tpes: Vec<TypeId> = args.iter().map(|&a| self.tpd.tpe(a)).collect();
+        let meth = self.tpd.sym(self.tpd.meth_part(fun));
+        let tpe =
+            crate::typer::dependent_params::applied_result(self.u, result, (binder, &names), meth, &tpes);
+        Ok(self.build()?.apply(fun, args, tpe, span))
     }
 
     /// `Term.appliedToTypes(args)`.

@@ -65,27 +65,18 @@ fn implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> 
     Ok(def)
 }
 
-/// Whether `name` is that of a super accessor a library trait's TASTy declares: `super$T$$m`, or
-/// `T$$super$m` once renamed by `library_implementation`.
+/// Whether `name` is that of a super accessor a library trait's TASTy declares: `super$m` or
+/// `T$$super$m`.
 fn is_library_accessor(name: &str) -> bool {
     name.starts_with("super$") || name.contains("$$super$")
 }
 
-/// The implementation in `class` of super accessor `acc` of a library trait, at `span`; renames
-/// `acc` from `super$T$$m` to `T$$super$m` first.
+/// The implementation in `class` of super accessor `acc` of a library trait, at `span`.
 fn library_implementation(l: &mut Lower, class: SymbolId, acc: SymbolId, span: Span) -> Result<TNodeId> {
-    let pickled = l.u.symbol(acc).name.clone();
-    let split = match pickled.strip_prefix("super$") {
-        Some(rest) => rest.rsplit_once("$$"),
-        None => pickled.rsplit_once("$$super$"),
-    };
-    let Some((prefix, name)) = split else {
+    let expanded = l.u.symbol(acc).name.clone();
+    let Some((_, name)) = expanded.rsplit_once("$$super$") else {
         return unsupported(span, "super accessors of library traits without an expanded name");
     };
-    let expanded = format!("{prefix}$$super${name}");
-    if pickled != expanded {
-        l.u.rename(acc, &expanded);
-    }
     let target = rebind_super(l, class, acc, name, span)?;
     let owner = l.u.symbol(target).owner.expect("a member's owner");
     let this = l.u.this_type(class);

@@ -23,7 +23,7 @@ use syntax::ast::{Span, TName};
 use syntax::names::Names;
 use tasty::{Ast, FileId, NameRef, NodeId, SymbolId, TypeId, Universe};
 
-pub use quote_patterns::QuotePattern;
+pub use quote_patterns::{PatternBody, QuotePattern};
 pub use quotes::{Quote, QuoteHole, Unpickled, quote, quoted_type};
 
 /// Why a body is outside the subset read.

@@ -26,6 +26,8 @@ impl Mode {
     pub const APPLY_QUALIFIER: Mode = Mode(32);
     /// The left-hand side of an assignment, where a context function value stays unapplied.
     pub const ASSIGNMENT_LHS: Mode = Mode(64);
+    /// The argument of a top-level splice of an inline method, where quotes may stand.
+    pub const SPLICE: Mode = Mode(128);
 
     pub fn is(self, m: Mode) -> bool {
         self.0 & m.0 != 0

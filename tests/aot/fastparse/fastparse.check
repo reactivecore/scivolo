@@ -1,0 +1,8 @@
+Parsed.Success(7, 5)
+Parsed.Success(7, 11)
+Parsed.Failure(Position 1:3, found "*2")
+Parsed.Success(List(ab, c, def), 10)
+Parsed.Success(let, 4)
+false
+Parsed.Success(356, 8)
+14

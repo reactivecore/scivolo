@@ -13,6 +13,8 @@ use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
 const RUNTIME_EXPR: &str = "scala.quoted.runtime.Expr$";
+/// The implicit searches of one expansion, each a run of the macro.
+const MAX_SEARCHES: usize = 64;
 const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
                        errors to end-users when aborting a macro expansion with StopMacroExpansion.";
 
@@ -22,10 +24,22 @@ impl Inlining<'_> {
     pub fn expand_splice(&mut self, t: TNodeId, owner: SymbolId) -> Result<Option<TNodeId>, Unsupported> {
         let Some(closure) = self.runtime_call(t, "splice") else { return Ok(None) };
         let span = self.tpd.span(t);
-        let call = self.macro_call(closure, owner, span)?;
-        let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        let expanded = match self.host.expand_macro(lent, &call) {
+        let mut call = self.macro_call(closure, owner, span)?;
+        let expanded = loop {
+            let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
+            match self.host.expand_macro(lent, &call) {
+                Err(MacroError::Search(pt)) if call.searched.len() < MAX_SEARCHES => {
+                    let found = self.summon(pt, self.outermost_span)?;
+                    call.searched.push((pt, found));
+                }
+                expanded => break expanded,
+            }
+        };
+        let expanded = match expanded {
             Ok(expanded) => expanded,
+            Err(MacroError::Search(_)) => {
+                return Err((span, "a macro searching implicit arguments repeatedly"));
+            }
             Err(MacroError::Unsupported(_)) => return Err((span, "a macro expansion the frontend refuses")),
             Err(MacroError::Failed(msg)) => {
                 self.error(self.outermost_span, msg);
@@ -107,7 +121,7 @@ impl Inlining<'_> {
                 arg => arg,
             });
         }
-        Ok(MacroCall { method, args, owner, span, expansion: self.outermost_span })
+        Ok(MacroCall { method, args, owner, span, expansion: self.outermost_span, searched: Vec::new() })
     }
 
     /// Quoted argument `body` as a literal if it refers to an inline proxy whose type normalizes

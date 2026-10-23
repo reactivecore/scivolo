@@ -33,7 +33,7 @@ object ReflectOps {
 
   /** The kind of tree `x`: 1 `Ident`, 2 `Select`, 3 `Literal`, 4 `Typed`, 5 `Apply`, 6 `TypeApply`,
    *  7 `Block`, 8 `Inlined`, 9 `Repeated`, 10 `TypeTree`, 11 `Inferred`, 12 `ValDef`, 13 `NamedArg`,
-   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 18 `This`, 0 another tree.
+   *  14 another term, 15 `DefDef`, 16 `TypeDef`, 17 `Import`, 18 `This`, 19 `ClassDef`, 0 another tree.
    */
   def kind(x: Any): Int = one("treeKind", id(x))
 
@@ -74,6 +74,7 @@ final class SymbolImpl(val id: Int) {
     case _             => false
   }
   override def hashCode: Int = id
+  override def toString: String = throw new Unsupported("Symbol.toString")
 }
 
 /** Offsets `start` until `end` of source file number `file`. */
@@ -87,9 +88,13 @@ final class PositionImpl(val file: Int, val start: Int, val end: Int) {
   def at(i: Int): Int = lines._1(i)
 
   def code: String = lines._2
+
+  override def toString: String = throw new Unsupported("Position.toString")
 }
 
-final class SourceFileImpl(val file: Int)
+final class SourceFileImpl(val file: Int) {
+  override def toString: String = throw new Unsupported("SourceFile.toString")
+}
 
 /** A constant: its kind, the two words of its value, and its text if it is a string. */
 final class ConstantImpl(val kind: Int, val lo: Int, val hi: Int, val text: String) {
@@ -109,4 +114,6 @@ final class ConstantImpl(val kind: Int, val lo: Int, val hi: Int, val text: Stri
       case _  => bits.toShort
     }
   }
+
+  override def toString: String = throw new Unsupported("Constant.toString")
 }

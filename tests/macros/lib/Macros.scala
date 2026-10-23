@@ -354,3 +354,23 @@ object Tuples:
 
 object Helpers:
   inline def inc(x: Int): Int = x + 1
+
+object LhReflect:
+  inline def isOne(inline x: Int): String = ${ isOneImpl('x) }
+  def isOneImpl(x: Expr[Int])(using Quotes): Expr[String] = x match
+    case '{ 1 } => Expr("one")
+    case _      => Expr("other")
+
+  inline def size(s: String): Int = ${ sizeImpl('s) }
+  def sizeImpl(s: Expr[String])(using Quotes): Expr[Int] =
+    import quotes.reflect.*
+    Select.unique(s.asTerm, "length").appliedToNone.asExprOf[Int]
+
+  inline def found[T]: Boolean = ${ foundImpl[T] }
+  def foundImpl[T: Type](using Quotes): Expr[Boolean] = Expr(Expr.summon[T].isDefined)
+
+  inline def isA(c: Char): Boolean = ${ isAImpl('c) }
+  def isAImpl(c: Expr[Char])(using Quotes): Expr[Boolean] =
+    import quotes.reflect.*
+    val cases = List(CaseDef(Literal(CharConstant('a')), None, Expr(true).asTerm), CaseDef(Wildcard(), None, Expr(false).asTerm))
+    Match(c.asTerm, cases).asExprOf[Boolean]

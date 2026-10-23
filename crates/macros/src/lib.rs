@@ -11,8 +11,11 @@ use host::Host;
 use syntax::ast::constant::Constant;
 use syntax::source::SourceFile;
 use tasty::Erased;
-use typer::inlining::{Expanded, Lent, MacroArg, MacroCall, MacroError};
+use typer::inlining::{Annotations, Expanded, Lent, MacroArg, MacroCall, MacroError};
 use vm::{Thrown, Vm, VmError};
+
+/// The universe, trees and names the typer lends the expansion.
+pub type Tables<'l> = (&'l mut tasty::Universe, &'l mut typer::tpd::Tpd, &'l mut syntax::names::Names);
 
 /// Runs macro implementations in `vm`, the positions of their calls in `sources`.
 pub struct VmMacros<'v> {
@@ -21,7 +24,12 @@ pub struct VmMacros<'v> {
 }
 
 impl Macros for VmMacros<'_> {
-    fn expand(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
+    fn expand(
+        &mut self,
+        lent: Lent<'_>,
+        call: &MacroCall,
+        annotations: &Annotations,
+    ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
         let owner = u.symbol(call.method).owner.ok_or_else(|| refused("macro implementation"))?;
@@ -39,6 +47,8 @@ impl Macros for VmMacros<'_> {
         let sources = std::mem::take(&mut self.sources);
         let mut host =
             Host::new((&mut *lent.0, &mut *lent.1, &mut *lent.2), call.owner, (call.expansion, sources));
+        host.typer.annotations = annotations.clone();
+        host.typer.searched = call.searched.clone();
         let args: Vec<vm::MacroArg> = call
             .args
             .iter()
@@ -55,6 +65,9 @@ impl Macros for VmMacros<'_> {
         host.restore((lent.0, lent.1, lent.2));
         self.sources = std::mem::take(&mut host.sources);
         match (result, host.refusal.take()) {
+            (_, Some(why)) if why == reflect::SEARCH => {
+                Err(host.typer.wanted.map_or(MacroError::Unsupported(why), MacroError::Search))
+            }
             (_, Some(why)) => Err(MacroError::Unsupported(why)),
             _ if !host.reported.is_empty() => Err(MacroError::Reported(std::mem::take(&mut host.reported))),
             (Ok(result), None) => Ok(Expanded { exprs: host.quoted().map_err(refused)?, result }),
@@ -96,10 +109,16 @@ fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
 
 const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";
 
-/// The error dotty reports for exception `thrown`.
+/// The error dotty reports for exception `thrown`; a refusal for the VM's `InternalError` of what
+/// it does not support.
 fn failure(thrown: &Thrown) -> MacroError {
     let class = thrown.classes.first().map_or("", String::as_str);
     let message = thrown.header.split_once(": ").map_or("", |(_, m)| m);
+    if let Some(what) = message.strip_prefix("scivolo: unsupported: ")
+        && class == "java.lang.InternalError"
+    {
+        return MacroError::Unsupported(format!("a macro implementation the VM cannot run: {what}"));
+    }
     let mut msg = format!("Failed to evaluate macro.\n  Caused by class {class}: {message}");
     for f in thrown.frames.iter().skip(1) {
         let at = f.file.as_ref().map_or_else(String::new, |file| format!("{file}:{}", f.line));

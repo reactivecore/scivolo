@@ -108,20 +108,17 @@ fn overriding_pairs(
     pairs
 }
 
-/// Whether `a` overrides `b` as members of `site`: their parameters match unless one is a value
-/// or neither takes parameters.
+/// Whether `a` overrides `b` as members of `site`: neither takes parameters, or both are methods
+/// whose parameters match.
 fn matching(l: &mut Lower, site: tasty::TypeId, a: SymbolId, b: SymbolId) -> bool {
     let methods = l.u.symbol(a).kind == Kind::Def && l.u.symbol(b).kind == Kind::Def;
-    if !methods {
-        return true;
-    }
     let clauses = |l: &mut Lower, s| {
         let info = l.u.info(s);
         l.u.param_clauses(info).iter().map(|(_, ps)| ps.len()).collect::<Vec<_>>()
     };
     let (ca, cb) = (clauses(l, a), clauses(l, b));
     let nullary = |c: &[usize]| c.is_empty() || c == [0];
-    (nullary(&ca) && nullary(&cb)) || l.u.matches(site, a, b)
+    (nullary(&ca) && nullary(&cb)) || methods && l.u.matches(site, a, b)
 }
 
 /// Whether `s` is a non-private method or value a class can override.

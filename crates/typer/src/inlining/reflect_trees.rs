@@ -4,11 +4,11 @@
 //! The trees `quotes.reflect` reads and builds.
 
 use super::Reflect;
-use crate::tpd::{Slot, TNodeId, Tree as T};
-use syntax::ast::Span;
+use crate::tpd::{MatchKind, Slot, TNodeId, Tree as T};
 use syntax::ast::constant::Constant;
-use tasty::tags::{INLINEPROXY, SYNTHETIC};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use syntax::ast::{Span, TName};
+use tasty::tags::{GIVEN, IMPLICIT, INLINEPROXY, LAZY, MUTABLE, SYNTHETIC};
+use tasty::{ANY, Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
     /// `Term.underlying` (dotty's `MapToUnderlying`): `t` and its subtrees without the inlined
@@ -85,6 +85,32 @@ impl Reflect<'_> {
         self.tpd.node(T::SeqLiteral { elems, elemtpt }, span, Some(tpe), None)
     }
 
+    /// `Match(selector, cases)`, of the cases' least upper bound.
+    pub fn match_(&mut self, selector: TNodeId, cases: &[TNodeId]) -> TNodeId {
+        let tpe = crate::tpd::lub_of(self.tpd, self.u, cases);
+        let cases = self.tpd.list(cases);
+        let tree = T::Match { selector: Some(selector), cases, kind: MatchKind::Plain };
+        self.tpd.node(tree, self.span, Some(tpe), None)
+    }
+
+    /// `CaseDef(pat, guard, body)`.
+    pub fn case_def(&mut self, pat: TNodeId, guard: Option<TNodeId>, body: TNodeId) -> TNodeId {
+        self.tpd.node(T::CaseDef { pat, guard, body }, self.span.to_synthetic(), None, None)
+    }
+
+    /// `Wildcard()`: the pattern `_` of type `Any`, its symbol `Any`'s.
+    pub fn wildcard(&mut self) -> TNodeId {
+        let name = TName { name: self.names.intern("_"), is_type: false };
+        let any = self.u.class_symbol(ANY);
+        self.tpd.node(T::Ident { name }, self.span, Some(ANY), any)
+    }
+
+    /// `Typed(expr, tpt)`, of the type of `tpt`.
+    pub fn typed(&mut self, expr: TNodeId, tpt: TNodeId) -> TNodeId {
+        let tpe = self.tpd.tpe(tpt);
+        self.tpd.node(T::Typed { expr, tpt }, self.span, Some(tpe), None)
+    }
+
     /// The right-hand side of the definition of `s` if it is a value or parameterless method
     /// owned by a term, but for an object.
     fn local_rhs(&self, s: SymbolId) -> Option<TNodeId> {
@@ -107,6 +133,65 @@ impl Reflect<'_> {
             T::Literal { value } => Some(value.clone()),
             _ => None,
         }
+    }
+
+    /// The definition of a synthetic value `name` of `owner` with right-hand side `rhs` and the
+    /// TASTy modifier bits `flags` (dotty's `SyntheticValDef`), and a reference to it.
+    pub fn let_(
+        &mut self,
+        owner: SymbolId,
+        name: &str,
+        rhs: TNodeId,
+        flags: u64,
+    ) -> Result<(TNodeId, TNodeId), &'static str> {
+        let allowed = [LAZY, MUTABLE, SYNTHETIC, IMPLICIT, GIVEN].iter().fold(0, |b, &t| b | 1u64 << t);
+        if flags & !allowed != 0 {
+            return Err("ValDef.let with flags other than Lazy, Mutable, Synthetic, Implicit and Given");
+        }
+        let span = self.span;
+        let info = self.tpd.get(rhs).tpe.ok_or("ValDef.let of a term without a type")?;
+        let info = self.u.widen(info);
+        let s = self.u.define(Symbol {
+            name: name.to_owned(),
+            kind: Kind::Val,
+            owner: None,
+            flags: Flags(flags).with(SYNTHETIC),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        self.u.set_owner(s, owner);
+        self.u.set_info(s, info);
+        let tpt = self.type_tree(info);
+        let mut b = self.build()?;
+        let vdef = b.val_def(s, tpt, Some(rhs), span);
+        Ok((vdef, b.static_ident(s, span)))
+    }
+
+    /// `Block(stats, expr)`, of the type of `expr` widened if it refers to a definition of `stats`;
+    /// refused if the widened type still does.
+    pub fn block(&mut self, stats: &[TNodeId], expr: TNodeId) -> Result<TNodeId, &'static str> {
+        let span = self.span;
+        let defined: Vec<SymbolId> = stats.iter().filter_map(|&s| self.tpd.sym(s)).collect();
+        let local = |u: &mut tasty::Universe, t: TypeId| {
+            let mut found = false;
+            u.map_type(t, &mut |u, part| {
+                found |= matches!(*u.types().get(part), Type::Sym(_, s) if defined.contains(&s));
+                None
+            });
+            found
+        };
+        let mut tpe = self.tpd.tpe(expr);
+        if local(self.u, tpe) {
+            tpe = self.u.widen(tpe);
+            if local(self.u, tpe) {
+                return Err("Block.apply of an expression whose type refers to the block's definitions");
+            }
+        }
+        let stats = self.tpd.list(stats);
+        Ok(self.tpd.node(T::Block { stats, expr }, span, Some(tpe), None))
     }
 
     /// `Literal(constant)`.

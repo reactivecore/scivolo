@@ -25,7 +25,7 @@ pub struct Made {
 
 impl Host {
     /// The value `macro` that owns the splice (dotty's `Splicer.splice`).
-    fn macro_owner(&mut self) -> SymbolId {
+    pub fn macro_owner(&mut self) -> SymbolId {
         let flags = Flags::default().with(MACRO).with(SYNTHETIC);
         let owner = self.owner;
         *self.made.macro_owner.get_or_insert_with(|| local(&mut self.u, "macro", Kind::Val, owner, flags))

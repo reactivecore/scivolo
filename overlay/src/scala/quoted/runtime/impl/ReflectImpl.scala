@@ -4,6 +4,7 @@ package scala.quoted.runtime.impl
 
 import scala.quoted.Expr
 import scala.quoted.runtime.StopMacroExpansion
+import scala.reflect.TypeTest
 
 /** The `reflect` of `QuotesImpl`. */
 trait ReflectSupport { this: QuotesImpl =>
@@ -14,10 +15,33 @@ trait ReflectSupport { this: QuotesImpl =>
  *  method of the class, which refuses the expansion.
  */
 abstract class ReflectImpl
-    extends reflectModule, ReflectTrees, ReflectTerms, ReflectTypes, ReflectTypeShapes, ReflectConstants, ReflectSymbols, ReflectFlags {
+    extends reflectModule, ReflectTrees, ReflectTerms, ReflectTypes, ReflectTypeShapes, ReflectConstants, ReflectSymbols, ReflectFlags,
+      ReflectDefinitions {
   self: reflect.type =>
 
   extension (expr: Expr[Any]) def asTerm: Term = ReflectOps.term(QuoteHost.exprId(expr)).asInstanceOf[Term]
+
+  /** `TypeReprCode`, and `TreeCode` of inferred type trees; the other printers are `Unsupported`. */
+  object Printer extends PrinterModule {
+    def TreeCode: Printer[Tree] = printer("showTypeTree")
+    def TreeShortCode: Printer[Tree] = refusing("Printer.TreeShortCode")
+    def TreeAnsiCode: Printer[Tree] = refusing("Printer.TreeAnsiCode")
+    def TreeStructure: Printer[Tree] = refusing("Printer.TreeStructure")
+    def TypeReprCode: Printer[TypeRepr] = printer("showType")
+    def TypeReprShortCode: Printer[TypeRepr] = refusing("Printer.TypeReprShortCode")
+    def TypeReprAnsiCode: Printer[TypeRepr] = refusing("Printer.TypeReprAnsiCode")
+    def TypeReprStructure: Printer[TypeRepr] = refusing("Printer.TypeReprStructure")
+    def ConstantCode: Printer[Constant] = refusing("Printer.ConstantCode")
+    def ConstantStructure: Printer[Constant] = refusing("Printer.ConstantStructure")
+
+    private def printer[T](op: String): Printer[T] = new Printer[T] {
+      def show(x: T): String = ReflectOps.text(op, ReflectOps.id(x))
+    }
+
+    private def refusing[T](what: String): Printer[T] = new Printer[T] {
+      def show(x: T): String = throw new Unsupported(what)
+    }
+  }
 
   /** Errors are recorded on the frontend, which reports them for the expansion; warnings and
    *  infos are `Unsupported`.
@@ -42,5 +66,44 @@ abstract class ReflectImpl
     def info(msg: String, expr: Expr[Any]): Unit = throw new Unsupported("report.info")
     def info(msg: String, pos: Position): Unit = throw new Unsupported("report.info")
   }
+
+  /** Searches the typer answers between runs of the expansion; a failure is one without a
+   *  matching candidate.
+   */
+  object Implicits extends ImplicitsModule {
+    def search(tpe: TypeRepr): ImplicitSearchResult = ReflectOps.results("search", ReflectOps.id(tpe)) match {
+      case List(1, tree) => new SearchImpl(tree).asInstanceOf[ImplicitSearchResult]
+      case _             => new SearchImpl(-1).asInstanceOf[ImplicitSearchResult]
+    }
+    def searchIgnoring(tpe: TypeRepr)(ignored: Symbol*): ImplicitSearchResult =
+      throw new Unsupported("Implicits.searchIgnoring")
+  }
+
+  given ImplicitSearchSuccessTypeTest: TypeTest[ImplicitSearchResult, ImplicitSearchSuccess] = searched(true)
+  given ImplicitSearchFailureTypeTest: TypeTest[ImplicitSearchResult, ImplicitSearchFailure] = searched(false)
+  given NoMatchingImplicitsTypeTest: TypeTest[ImplicitSearchResult, NoMatchingImplicits] = searched(false)
+  given ImplicitSearchSuccessMethods: ImplicitSearchSuccessMethods =
+    QuoteHost.allocate("scala.quoted.runtime.impl.ReflectSupport$ReflectImpl$SuccessMethods").asInstanceOf[ImplicitSearchSuccessMethods]
+  given ImplicitSearchFailureMethods: ImplicitSearchFailureMethods =
+    QuoteHost.allocate("scala.quoted.runtime.impl.ReflectSupport$ReflectImpl$FailureMethods").asInstanceOf[ImplicitSearchFailureMethods]
+
+  abstract class SuccessMethods extends ImplicitSearchSuccessMethods {
+    extension (self: ImplicitSearchSuccess) def tree: Term =
+      ReflectOps.term(self.asInstanceOf[SearchImpl].tree).asInstanceOf[Term]
+  }
+
+  abstract class FailureMethods extends ImplicitSearchFailureMethods {
+    extension (self: ImplicitSearchFailure) def explanation: String = "no implicit argument of the type was found"
+  }
+
+  private def searched[T](success: Boolean): T = new SearchTest(success).asInstanceOf[T]
 }
+}
+
+/** The result of an implicit search: the expression found, `-1` for none. */
+final class SearchImpl(val tree: Int)
+
+/** The type test of successful searches if `success`, else of failed ones. */
+final class SearchTest(success: Boolean) extends TypeTest[Any, Any] {
+  def unapply(x: Any): Option[x.type & Any] = if ((x.asInstanceOf[SearchImpl].tree >= 0) == success) Some(x) else None
 }

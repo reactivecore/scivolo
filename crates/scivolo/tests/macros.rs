@@ -72,7 +72,9 @@ val res22: String = \"other\"
 
 const SCRIPT: &str = "import macrolib.Macros.*
 import macrolib.Tuples.*
+inline def thrice(inline x: Int): Int = ${ twiceImpl('{ x + x / 2 }) }
 @main def run(): Unit =
+  println(thrice(4))
   println(size[(Int, String) & Tuple])
   println(labels[(\"id\", \"name\") & Tuple])
   println(sizeOf[(Int, String)])
@@ -140,6 +142,6 @@ fn macros_expand_in_a_script() {
     let env = [("SCIVOLO_FRONTEND", "strict"), ("SCIVOLO_CACHE", cache.to_str().unwrap())];
     let out = scivolo(&[file.to_str().unwrap()], "", &env);
     let stdout = String::from_utf8_lossy(&out.stdout);
-    let expected = "2\nList(id, name)\n2\n3\n3\n42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\n";
+    let expected = "12\n2\nList(id, name)\n2\n3\n3\n42\nHello, Bob!\n(1.5,1.5)\nList(a, b)\n2\n10\nList(w)\n";
     assert_eq!(stdout, expected, "{}", String::from_utf8_lossy(&out.stderr));
 }

@@ -3,6 +3,8 @@
 //! a kind, two words and a text.
 
 mod constants;
+mod definitions;
+mod implicits;
 mod members;
 mod positions;
 mod reports;
@@ -13,6 +15,7 @@ mod type_match;
 mod type_reprs;
 mod types;
 
+pub use implicits::{FromTyper, SEARCH};
 pub use symbols::Made;
 
 use crate::host::Host;
@@ -30,8 +33,10 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 10] = [
+        let subjects: [Run; 12] = [
             Host::run_report,
+            Host::run_definition,
+            Host::run_implicit,
             Host::run_type_match,
             Host::run_type_repr,
             Host::run_member,

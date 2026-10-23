@@ -13,6 +13,11 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
   given TermMethods: TermMethods = methods("TermMethodsImpl")
   given LiteralMethods: LiteralMethods = methods("LiteralMethodsImpl")
 
+  object Term extends TermModule {
+    def betaReduce(term: Term): Option[Term] =
+      ReflectOps.opt(ReflectOps.one("betaReduce", ReflectOps.id(term))).asInstanceOf[Option[Term]]
+  }
+
   object Ref extends RefModule {
     def term(tp: TermRef): Ref = throw new Unsupported("Ref.term")
     def apply(sym: Symbol): Ref = termOf(ReflectOps.one("ref", ReflectOps.id(sym))).asInstanceOf[Ref]
@@ -50,6 +55,7 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
         self.asInstanceOf[Expr[T]]
       }
       def pos: Position = ReflectOps.position("pos", ReflectOps.id(self)).asInstanceOf[Position]
+      def show(using printer: Printer[Tree]): String = printer.show(self)
       def symbol: Symbol = new SymbolImpl(ReflectOps.one("treeSymbol", ReflectOps.id(self))).asInstanceOf[Symbol]
     }
   }
@@ -138,6 +144,11 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
       def underlying: Term = ReflectOps.term(ReflectOps.one("underlying", ReflectOps.id(self))).asInstanceOf[Term]
       def select(sym: Symbol): Select =
         ReflectOps.term(ReflectOps.one("select", ReflectOps.id(self), ReflectOps.id(sym))).asInstanceOf[Select]
+      def appliedTo(arg: Term): Term = self.appliedToArgs(List(arg))
+      def appliedTo(arg: Term, args: Term*): Term = self.appliedToArgs(arg :: args.toList)
+      def appliedToArgs(args: List[Term]): Apply =
+        ReflectOps.term(ReflectOps.one("apply", (self :: args).map(ReflectOps.id)*)).asInstanceOf[Apply]
+      def appliedToNone: Apply = self.appliedToArgs(Nil)
       def appliedToType(targ: TypeRepr): Term = self.appliedToTypes(List(targ))
       def appliedToTypes(targs: List[TypeRepr]): Term = {
         val args = ReflectOps.id(self) :: targs.map(ReflectOps.id)

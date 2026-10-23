@@ -130,7 +130,10 @@ pub fn setter_calls(l: &mut Lower, td: TNodeId) -> Result<()> {
     while let Some(t) = todo.pop() {
         todo.extend(super::walk::children(l.tpd, t));
         let Tree::Assign { lhs, rhs } = *l.tpd.tree(t) else { continue };
-        let Some(var) = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor)) else { continue };
+        let Some(var) = l.tpd.sym(lhs).filter(|&s| has(l.u, s, FIELDaccessor) || is_library_var_param(l, s))
+        else {
+            continue;
+        };
         let owner = l.u.symbol(var).owner.expect("a variable's class");
         let setter_name = format!("{}_=", l.u.symbol(var).name);
         let setter = l.u.decl(owner, &setter_name).unwrap_or_default().into_iter().find(|&s| is_setter(l, s));
@@ -170,6 +173,13 @@ pub fn record_rhs(l: &mut Lower, td: TNodeId) {
 /// Whether `s` is a value a class parameter defines (the typer marks it `PARAMsetter`).
 pub fn is_param_accessor(l: &Lower, s: SymbolId) -> bool {
     has(l.u, s, PARAMsetter)
+}
+
+/// Whether `s` is a `var` parameter of a class as a library class declares it, which a library
+/// inline body assigns.
+fn is_library_var_param(l: &Lower, s: SymbolId) -> bool {
+    let sym = l.u.symbol(s);
+    sym.kind == Kind::Param && sym.flags.has(MUTABLE) && sym.owner.is_some_and(|o| l.u.is_class(o))
 }
 
 /// Whether `s` is a `final` value, not a variable, of a constant type.

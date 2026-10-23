@@ -30,6 +30,7 @@ enum Kind {
     TypeDef = 16,
     Import = 17,
     This = 18,
+    ClassDef = 19,
 }
 
 impl Host {
@@ -141,6 +142,7 @@ impl Host {
             | T::Match { .. }
             | T::Labeled { .. } => Kind::Term,
             T::DefDef { .. } => Kind::DefDef,
+            T::TypeDef { rhs, .. } if matches!(self.tpd.tree(rhs), T::Template { .. }) => Kind::ClassDef,
             T::TypeDef { .. } => Kind::TypeDef,
             T::Import { .. } => Kind::Import,
             _ => Kind::Other,
@@ -171,7 +173,8 @@ impl Host {
             }
             (_, T::ValDef { name, tpt, rhs }) => (vec![Some(tpt), rhs], Some(name)),
             (_, T::NamedArg { name, arg }) => (vec![Some(arg)], Some(name)),
-            (_, T::DefDef { name, .. } | T::TypeDef { name, .. }) => (Vec::new(), Some(name)),
+            (_, T::DefDef { name, tpt, rhs, .. }) => (vec![Some(tpt), rhs], Some(name)),
+            (_, T::TypeDef { name, .. }) => (Vec::new(), Some(name)),
             (_, T::This { qual }) => match *self.tpd.tree(qual) {
                 T::Ident { name } if !self.names.text(name.name).is_empty() => (Vec::new(), Some(name)),
                 T::Ident { .. } => (Vec::new(), None),
