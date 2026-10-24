@@ -6,7 +6,6 @@ use crate::{Lower, Result};
 use typer::tpd::TNodeId;
 
 pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
-    crate::codegen::annotations::check_annotations(l, root)?;
     let unit_owner = l.tpd.sym(root).or_else(|| l.u.package("")).expect("the unit's package");
     refined_trees::transform(l, root);
     retained_bodies::transform(l, root)?;

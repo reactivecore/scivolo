@@ -196,7 +196,9 @@ pub fn lower_sources(
         was_named_args: FxHashSet::default(),
         in_match_values: FxHashSet::default(),
     };
-    let files = phases::run(&mut l, root).and_then(|()| codegen::unit(&mut l, root));
+    let files = codegen::annotations::check_annotations(&l, root)
+        .and_then(|()| phases::run(&mut l, root))
+        .and_then(|()| codegen::unit(&mut l, root));
     l.u.elide_opaques(false);
     files
 }
