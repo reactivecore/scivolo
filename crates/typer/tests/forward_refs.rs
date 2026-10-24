@@ -16,6 +16,7 @@ const CASES: &[(&str, bool)] = &[
     ("def f = { val a = 1; val b = a; b }", false),
     ("def f = { val x: Option[C] = None; class C; x }", false),
     ("def f = { val x = new C; class C; x }", true),
+    ("def f = { class C { class D }; val x = new c.D; val c = new C; x }", true),
 ];
 
 #[test]

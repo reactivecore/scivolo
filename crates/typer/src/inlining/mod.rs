@@ -210,7 +210,7 @@ impl Inlining<'_> {
     fn inline_method(&mut self, t: TNodeId) -> Result<Option<TNodeId>, Unsupported> {
         let Some(tpe) = self.tpd.get(t).tpe else { return Ok(None) };
         let widened = self.u.widen(tpe);
-        if self.is_type_tree(t)
+        if self.tpd.is_type_tree(t)
             || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
         {
             return Ok(None);
@@ -245,20 +245,6 @@ impl Inlining<'_> {
             T::Ident { .. } | T::Select { .. } => Some(t),
             _ => None,
         }
-    }
-
-    fn is_type_tree(&self, t: TNodeId) -> bool {
-        matches!(
-            self.tpd.tree(t),
-            T::TypeTree { .. }
-                | T::SingletonTypeTree { .. }
-                | T::ByNameTypeTree { .. }
-                | T::AppliedTypeTree { .. }
-                | T::TypeBoundsTree { .. }
-                | T::LambdaTypeTree { .. }
-                | T::RefinedTypeTree { .. }
-                | T::Annotated { .. }
-        ) || matches!(*self.tpd.tree(t), T::Ident { name } | T::Select { name, .. } if name.is_type)
     }
 
     /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of

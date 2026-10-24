@@ -7,8 +7,8 @@ use super::Typer;
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
 use syntax::ast::Span;
-use tasty::SymbolId;
 use tasty::tags::LAZY;
+use tasty::{SymbolId, Type};
 
 /// The definitions of one block by index, and its greatest index referred to so far.
 struct Level {
@@ -45,14 +45,22 @@ impl Typer<'_> {
                 }
                 return;
             }
-            T::SingletonTypeTree { .. } => return,
-            T::Ident { .. } => {
-                let term = sym.filter(|&s| self.u.symbol(s).kind.is_term());
-                term.into_iter().for_each(|s| self.enter_reference(s, t, levels));
-            }
+            _ if self.tpd.is_type_tree(t) => return,
+            T::Ident { .. } => sym.into_iter().for_each(|s| self.enter_reference(s, t, levels)),
             T::New { tpt } => {
-                let class = self.tpd.get(tpt).tpe.and_then(|tpe| self.u.class_symbol(tpe));
-                class.into_iter().for_each(|c| self.enter_reference(c, t, levels));
+                let Some(tpe) = self.tpd.get(tpt).tpe else { return };
+                let mut refs: Vec<SymbolId> = self.u.class_symbol(tpe).into_iter().collect();
+                let tpe = self.u.dealias(tpe);
+                self.u.map_type(tpe, &mut |u, part| {
+                    if let Type::Sym(_, s) = *u.types().get(part)
+                        && u.symbol(s).kind.is_term()
+                    {
+                        refs.push(s);
+                    }
+                    None
+                });
+                refs.into_iter().for_each(|s| self.enter_reference(s, t, levels));
+                return;
             }
             _ => {}
         }

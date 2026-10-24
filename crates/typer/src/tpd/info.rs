@@ -36,6 +36,21 @@ impl Tpd {
         t
     }
 
+    /// Whether `t` is a type tree (dotty's `isType`).
+    pub fn is_type_tree(&self, t: TNodeId) -> bool {
+        matches!(
+            self.tree(t),
+            Tree::TypeTree { .. }
+                | Tree::SingletonTypeTree { .. }
+                | Tree::ByNameTypeTree { .. }
+                | Tree::AppliedTypeTree { .. }
+                | Tree::TypeBoundsTree { .. }
+                | Tree::LambdaTypeTree { .. }
+                | Tree::RefinedTypeTree { .. }
+                | Tree::Annotated { .. }
+        ) || matches!(*self.tree(t), Tree::Ident { name } | Tree::Select { name, .. } if name.is_type)
+    }
+
     /// `e` of `e: T: U` (dotty's `stripTyped`).
     pub fn strip_typed(&self, mut t: TNodeId) -> TNodeId {
         while let Tree::Typed { expr, .. } = *self.tree(t) {
