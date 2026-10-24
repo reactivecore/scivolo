@@ -116,6 +116,10 @@ const CASES: &[(&str, &str)] = &[
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
         "unapply of an implicit view beside unapplySeq",
     ),
+    (
+        "class S\nobject S { @scala.annotation.static def f(): Int = 1 }\nobject O { def g = S.f() }",
+        "@static members",
+    ),
 ];
 
 #[test]

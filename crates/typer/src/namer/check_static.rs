@@ -4,14 +4,12 @@
 
 use super::annotations::STATIC;
 use crate::typer::Typer;
+use syntax::ast::NodeId;
 use syntax::ast::flags as f;
-use syntax::ast::{NodeId, Tree};
 use tasty::{Kind, SymbolId};
 
 impl Typer<'_> {
-    /// Refuses `@static` member `sym`, annotated by `annot`, where `CheckStatic` rejects it, and
-    /// a `@static` value initialized by more than a literal, which the object's constructor
-    /// initializes here.
+    /// Refuses `@static` member `sym`, annotated by `annot`, where `CheckStatic` rejects it.
     pub fn check_static(&mut self, sym: SymbolId, annot: NodeId) {
         let span = self.ast.span(annot);
         let owner = self.u.symbol(sym).owner.expect("a member");
@@ -35,14 +33,7 @@ impl Typer<'_> {
         let overrides = overridden.into_iter().any(|m| self.same_member(site, sym, m));
         let trait_var = flags.is(f::MUTABLE) && self.u.symbol(companion).flags.has(tasty::tags::TRAIT);
         if flags.is(f::LAZY) || in_companion || overrides || trait_var || field_after {
-            return self.unsupported_at(span, "@static member CheckStatic rejects");
-        }
-        let rhs = self.syms.def_trees.get(&sym).and_then(|&t| match *self.ast.tree(t) {
-            Tree::ValDef { rhs, .. } => rhs,
-            _ => None,
-        });
-        if rhs.is_some_and(|r| !matches!(self.ast.tree(r), Tree::Literal { .. } | Tree::Number { .. })) {
-            self.unsupported_at(span, "@static value initialized by more than a literal");
+            self.unsupported_at(span, "@static member CheckStatic rejects");
         }
     }
 
