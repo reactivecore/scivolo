@@ -17,7 +17,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   given ThisTypeTest: TypeTest[Tree, This] = test(18)
 
   object This extends ThisModule {
-    def apply(cls: Symbol): This = refused("This.apply")
+    def apply(cls: Symbol): This = ReflectOps.term(ReflectOps.one("this", ReflectOps.id(cls))).asInstanceOf[This]
     def copy(original: Tree)(qual: Option[String]): This = refused("This.copy")
     def unapply(x: This): Some[Option[String]] = Some(Option(ReflectOps.shape(x).name))
   }

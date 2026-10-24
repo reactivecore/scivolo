@@ -87,8 +87,9 @@ impl Reflect<'_> {
         Ok(self.tpd.node(tree, self.tpd.span(original), None, Some(s)))
     }
 
-    /// `ClassDef.copy(original)(name, constr, parents, self, body)` with the name, constructor,
-    /// parents and self of `original`: its class kept.
+    /// `ClassDef.copy(original)(name, constr, parents, self, body)` with the name, constructor
+    /// and self of `original` and parents of its parents' classes, whose trees it keeps: its
+    /// class kept.
     pub fn copy_class(
         &mut self,
         original: TNodeId,
@@ -103,7 +104,11 @@ impl Reflect<'_> {
         let T::Template { constr: c, parents: ps, self_: s, .. } = *self.tpd.tree(rhs) else {
             return Err("ClassDef.copy of another tree");
         };
-        if self.names.text(n.name) != name || c != constr || s != self_ || self.tpd.items(ps) != parents {
+        let old: Vec<TypeId> = self.tpd.items(ps).iter().map(|&p| self.tpd.tpe(p)).collect();
+        let new = parents.iter().map(|&p| self.tpd.tpe(p));
+        let same_classes = old.len() == parents.len()
+            && old.into_iter().zip(new).all(|(a, b)| self.u.class_symbol(a) == self.u.class_symbol(b));
+        if self.names.text(n.name) != name || c != constr || s != self_ || !same_classes {
             return Err(refused);
         }
         let body = self.tpd.list(body);

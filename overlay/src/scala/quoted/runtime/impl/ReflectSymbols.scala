@@ -105,6 +105,12 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
         val params = r.drop(1 + r.head).map(sym)
         sizes.scanLeft(0)(_ + _).zip(sizes).map((start, n) => params.slice(start, start + n))
       }
+      def overridingSymbol(ofclazz: Symbol): Symbol =
+        sym(ReflectOps.one("overridingSymbol", ReflectOps.id(self), ReflectOps.id(ofclazz)))
+      def fieldMember(name: String): Symbol = {
+        ReflectOps.run("fieldMember", Array(ReflectOps.id(self)), name)
+        sym(QuoteHost.result(0))
+      }
       def methodMember(name: String): List[Symbol] = members(self, name)
       def memberMethod(name: String): List[Symbol] = members(self, name)
       def methodMembers: List[Symbol] = members(self, "")

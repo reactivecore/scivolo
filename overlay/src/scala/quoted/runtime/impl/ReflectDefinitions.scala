@@ -60,6 +60,13 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
     def unapply(x: New): Some[TypeTree] = refused("New.unapply")
   }
 
+  object Assign extends AssignModule {
+    def apply(lhs: Term, rhs: Term): Assign =
+      ReflectOps.term(ReflectOps.one("assign", ReflectOps.id(lhs), ReflectOps.id(rhs))).asInstanceOf[Assign]
+    def copy(original: Tree)(lhs: Term, rhs: Term): Assign = refused("Assign.copy")
+    def unapply(x: Assign): (Term, Term) = refused("Assign.unapply")
+  }
+
   object TypeIdent extends TypeIdentModule {
     def apply(sym: Symbol): TypeTree = ReflectOps.term(ReflectOps.one("typeIdent", ReflectOps.id(sym))).asInstanceOf[TypeTree]
     def copy(original: Tree)(name: String): TypeIdent = refused("TypeIdent.copy")

@@ -4,6 +4,8 @@
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol};
 use crate::host::Host;
+use tasty::Kind;
+use typer::tpd::Tree as T;
 
 impl Host {
     /// Runs class-making operation `op` on `args` and `name`.
@@ -36,6 +38,38 @@ impl Host {
             "typeIdent" => {
                 let t = self.reflect().type_ident(symbol(arg(args, 0)?)?)?;
                 numbers(vec![self.add_tree(t) as i32])
+            }
+            "this" => {
+                let cls = symbol(arg(args, 0)?)?;
+                if !self.u.is_class(cls) {
+                    return Err("This.apply of a symbol other than a class");
+                }
+                let (tpe, span) = (self.reflect().symbol_ref(cls), self.expansion);
+                let t = self.reflect().build()?.this(tpe, span);
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "assign" => {
+                let (lhs, rhs) = (self.tree(arg(args, 0)? as u32)?, self.tree(arg(args, 1)? as u32)?);
+                let unit = self.u.class_ref("scala.Unit");
+                let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "fieldMember" => {
+                let cls = symbol(arg(args, 0)?)?;
+                let fields = match self.u.is_class(cls) {
+                    true => self.u.member_where(cls, name, |u, m| u.symbol(m).kind == Kind::Val),
+                    false => Vec::new(),
+                };
+                numbers(vec![fields.first().map_or(-1, |f| f.0 as i32)])
+            }
+            "overridingSymbol" => {
+                let (m, cls) = (symbol(arg(args, 0)?)?, symbol(arg(args, 1)?)?);
+                let name = self.u.symbol(m).name.clone();
+                let sig = self.u.method_signature(m);
+                let decls = self.u.decl(cls, &name).unwrap_or_default();
+                let found =
+                    decls.into_iter().find(|&d| d != m && sig.is_some() && self.u.method_signature(d) == sig);
+                numbers(vec![found.map_or(-1, |f| f.0 as i32)])
             }
             "new" => {
                 let tpt = self.tree(arg(args, 0)? as u32)?;
