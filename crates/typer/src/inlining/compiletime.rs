@@ -65,11 +65,13 @@ impl Inlining<'_> {
         }))
     }
 
-    /// Implicit `found` of type `pt`, ascribed `pt` if its class is another one, so that a member
-    /// selected from it is `pt`'s.
+    /// Implicit `found` of type `pt`, ascribed `pt` if its class is another one and its type
+    /// refines none, so that a member selected from it is `pt`'s.
     fn typed_as_class_of(&mut self, found: TNodeId, pt: TypeId, span: Span) -> TNodeId {
         let own = self.u.widen(self.tpd.tpe(found));
-        if self.u.class_symbol(own) == self.u.class_symbol(pt) {
+        if self.u.class_symbol(own) == self.u.class_symbol(pt)
+            || matches!(self.u.types().get(own), Type::Refined(..) | Type::And(..))
+        {
             return found;
         }
         let tpt = self.tpd.node(T::TypeTree { inferred: true }, span.to_synthetic(), Some(pt), None);
