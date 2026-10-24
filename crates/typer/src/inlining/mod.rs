@@ -7,6 +7,7 @@
 
 mod beta;
 mod blocks;
+mod code_of;
 mod compiletime;
 mod const_fold;
 mod constants;

@@ -15,7 +15,7 @@ impl Typer<'_> {
     pub fn complete(&mut self, sym: SymbolId) {
         let (tree, ctx) = match self.syms.completions.get(&sym) {
             Some(&Completion::Pending { tree, ctx }) => (tree, ctx),
-            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) => {
+            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) && !self.is_provisional(tree) => {
                 self.unsupported(tree, "cyclic reference");
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
@@ -26,6 +26,7 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        self.set_provisional_info(sym, tree);
         let open = std::mem::take(&mut self.history.open);
         let vars = self.constraint.count();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));

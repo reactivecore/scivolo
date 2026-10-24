@@ -8,6 +8,7 @@ mod attempts;
 mod can_equal;
 mod candidates;
 mod capture;
+mod child_prefixes;
 mod class_tags;
 mod clauses;
 mod contextual;

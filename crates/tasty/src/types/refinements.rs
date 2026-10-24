@@ -33,9 +33,15 @@ impl Universe {
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
-                    let alias =
-                        |i: &Option<TypeId>| i.is_some_and(|i| matches!(self.types().get(i), Type::Alias(_)));
-                    return if alias(&b) || a.is_none() { b } else { a };
+                    let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
+                    return match (self.types().get(a).clone(), self.types().get(b).clone()) {
+                        (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
+                            let (lo, hi) = (self.lub(lx, ly), self.glb(hx, hy));
+                            Some(self.intern_type(Type::Bounds(lo, hi)))
+                        }
+                        (Type::Alias(_), _) => Some(a),
+                        _ => Some(b),
+                    };
                 }
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
@@ -44,6 +50,23 @@ impl Universe {
             }
         }
         None
+    }
+
+    /// The alias by which the class of term `prefix`'s declared type overrides abstract type
+    /// member `s`, seen from `prefix`.
+    pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        let Type::Sym(_, term) = *self.types().get(prefix) else { return None };
+        if self.symbol(s).kind != Kind::Type || !self.symbol(term).kind.is_term() {
+            return None;
+        }
+        let base = self.symbol(s).owner?;
+        let info = self.info(term);
+        let cls = self.class_symbol(info).filter(|&c| c != base && self.derives_from(c, base))?;
+        let name = self.symbol(s).name.clone();
+        let found = self.member_where(cls, &name, |u, m| m != s && u.symbol(m).kind == Kind::Type);
+        let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
+        let alias = self.alias_of(m)?;
+        Some(self.as_seen_from(alias, prefix, owner))
     }
 
     /// `t` without its refinements, and whether one of them refines a term member.

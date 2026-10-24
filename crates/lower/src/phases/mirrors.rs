@@ -12,7 +12,7 @@ use super::lift_names::fresh;
 use super::sum_mirrors::is_generic_sum;
 use crate::definitions::{symbol, type_ref};
 use crate::symbols::has;
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use syntax::ast::Span;
 use tasty::tags::{CASE, ENUM, SEALED, SYNTHETIC};
 use tasty::{Flags, Kind, SymbolId, Type, TypeId};
@@ -52,9 +52,6 @@ pub fn mirror_support(
     }
     if !has(l.u, linked, SEALED) || !is_generic_sum(l, root, linked) {
         return Ok(None);
-    }
-    if !l.u.type_params(linked).is_empty() {
-        return unsupported(span, "companions of generic sealed classes");
     }
     mono_type(l, class, linked);
     let param = type_ref(l.u, linked);

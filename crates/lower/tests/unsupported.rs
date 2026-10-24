@@ -75,10 +75,6 @@ const CASES: &[(&str, &str)] = &[
         "object O { def f(k: Int) = { def g = k; class C { class D { def m = g } }; val c = new C; new c.D().m } }",
         "classes in local classes calling local methods",
     ),
-    (
-        "sealed trait S[A]; object S { case class X[A](a: A) extends S[A] }",
-        "companions of generic sealed classes",
-    ),
     ("object O { def f() = { object L { lazy val a = 1 }; L.a } }", "lazy values in local objects"),
     (
         "trait U { def f: Int ?=> Int }; trait T { def f: Int ?=> Int = 1 }; class X extends U with T",

@@ -177,6 +177,7 @@ mod type_arity;
 mod type_defs;
 mod type_lambdas;
 mod type_mismatch;
+mod type_reductions;
 mod type_tests;
 mod type_trees;
 mod unapply;

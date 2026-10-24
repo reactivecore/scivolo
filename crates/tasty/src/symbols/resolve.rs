@@ -55,7 +55,7 @@ impl Universe {
     fn prefix_owner(&mut self, prefix: TypeId) -> Option<SymbolId> {
         match self.types.get(prefix).clone() {
             Type::Package(p) => Some(p),
-            Type::This(c) | Type::Super(_, c) => self.prefix_owner(c),
+            Type::This(c) | Type::Super(_, c) | Type::Refined(c, ..) => self.prefix_owner(c),
             Type::Sym(_, s) => self.symbol_owner(s),
             Type::TermRef(..) => {
                 let term = self.resolve_ref(prefix)?;

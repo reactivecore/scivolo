@@ -101,7 +101,10 @@ impl Universe {
         }
         let alias = match self.visible_opaque_alias(s, prefix) {
             Some(a) => a,
-            None => self.alias_of(s)?,
+            None => match self.alias_of(s) {
+                Some(a) => a,
+                None => return self.overriding_alias(prefix?, s),
+            },
         };
         let owner = self.symbol(s).owner?;
         Some(match prefix {

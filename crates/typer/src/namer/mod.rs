@@ -19,6 +19,7 @@ mod inheritance;
 mod inherited;
 mod inline_checks;
 mod params;
+mod provisional;
 mod split_companions;
 mod value_classes;
 
