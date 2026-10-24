@@ -12,3 +12,9 @@ true
 "Empty"
 Green
 Rect(1,1)
+{"user_name":"ann","id":7,"tags":["x"]}
+User(bob,Id(3),List())
+true
+{"a":[0,"e"],"b":[1,"one"],"c":null}
+Mix(Right(5),(2,two),Some(1.5))
+{"1":"a"}

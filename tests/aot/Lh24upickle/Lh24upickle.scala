@@ -1,6 +1,7 @@
 //> using dep com.lihaoyi::upickle::4.4.3
 
-import upickle.default.{ReadWriter, read, write}
+import upickle.default.*
+import upickle.implicits.key
 
 case class Pt(x: Int, y: Int) derives ReadWriter
 case class Line(name: String, pts: List[Pt], tags: Map[String, Int] = Map.empty, note: Option[String] = None)
@@ -16,6 +17,13 @@ enum Color derives ReadWriter:
   case Mixed(level: Int)
 
 case class Scene(shapes: List[Shape], color: Color) derives ReadWriter
+
+case class Id(value: Int)
+object Id:
+  given ReadWriter[Id] = readwriter[Int].bimap[Id](_.value, Id(_))
+
+case class User(@key("user_name") name: String, id: Id, tags: Seq[String] = Nil) derives ReadWriter
+case class Mix(a: Either[String, Int], b: (Int, String), c: Option[Double]) derives ReadWriter
 
 @main def run(): Unit =
   val l = Line("l", List(Pt(1, 2), Pt(3, 4)), Map("a" -> 1), Some("n"))
@@ -33,3 +41,10 @@ case class Scene(shapes: List[Shape], color: Color) derives ReadWriter
   println(write[Shape](Empty))
   println(read[Color]("\"Green\""))
   println(read[Shape]("""{"$type":"Rect","w":1,"h":1}"""))
+  val u = User("ann", Id(7), Seq("x"))
+  println(write(u))
+  println(read[User]("""{"user_name":"bob","id":3}"""))
+  println(read[User](writeJs(u)) == u)
+  println(write(Mix(Left("e"), (1, "one"), None)))
+  println(read[Mix]("""{"a":[1,5],"b":[2,"two"],"c":1.5}"""))
+  println(write(Map(1 -> "a")))
