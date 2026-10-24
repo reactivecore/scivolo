@@ -235,6 +235,11 @@ lib-compile module filter="": fetch-scala-native
     cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
     python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
 
+# Compile Scala Native's library with its build's Scala 3 (sbt, JDK; 3.8.3) into tmp/lib/sn,
+# lib-compile's oracle in place of the published jars, which Scala 3.1.3 compiled.
+lib-oracle: fetch-scala-native
+    scripts/lib-oracle.sh
+
 # Save lib-compile's results of `module` as the baseline whose worsened files it lists.
 lib-baseline module:
     for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done

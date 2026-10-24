@@ -5,14 +5,17 @@ Usage: scripts/lib-compile.py MODULE [FILTER]
 
 MODULE is one of MODULES or `all`. Each `.scala` file of the module's Scala 3 source directories
 in ref/scala-native (those whose paths contain FILTER) is lowered on its own, against the
-published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared with the
-published jar's, unpacked into tmp/lib/jars/MODULE, as `just nir-cmp` compares them.
+published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared, as `just
+nir-cmp` compares them, with the oracle's: the module compiled by Scala Native's build (Scala
+3.8.3) in tmp/lib/sn/MODULE (`just lib-oracle`) if there, else the published jar's (Scala
+3.1.3), unpacked into tmp/lib/jars/MODULE.
 
-Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR files same,
-differing, missing from the jar), cmp.tsv (NIR file, same|differ|missing, differing lines),
-diffs/ (the jar's dump against ours of each differing NIR file), refusals.txt (reasons by count, positions stripped), and prints one summary line. With FILTER,
-the rows of the files run replace those of the last run. Files worse than in baseline.tsv
-(`just lib-baseline MODULE`) are listed.
+Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR files
+same, differing, missing from the oracle), cmp.tsv (NIR file, same|differ|missing, differing
+lines), diffs/ (the oracle's dump against ours of each differing NIR file), refusals.txt
+(reasons by count, positions stripped), and prints one summary line. With FILTER, the rows of
+the files run replace those of the last run. Files worse than in baseline.tsv (`just
+lib-baseline MODULE`) are listed.
 """
 import collections
 import concurrent.futures
@@ -49,8 +52,11 @@ def sources(module, filter_):
     return found
 
 
-def jar_dir(module):
-    """The published jar's files, unpacked once."""
+def oracle(module):
+    """The NIR the module's is compared with: Scala Native's build of it from `just lib-oracle` if
+    there, else the published jar's files, unpacked once."""
+    if (WORK / "sn" / module).is_dir():
+        return WORK / "sn" / module
     out = WORK / "jars" / module
     if not (out / ".done").exists():
         with zipfile.ZipFile(LIBS / f"{module}_native0.5_3-0.5.12.jar") as jar:
@@ -69,7 +75,7 @@ def compare(ours, theirs, diff_file):
     """`same`, `differ N` (changed lines, the diff written to `diff_file`) or `missing`."""
     if not theirs.exists():
         return "missing", 0
-    diff = list(difflib.unified_diff(dump(theirs), dump(ours), "jar", "ours", lineterm="", n=0))
+    diff = list(difflib.unified_diff(dump(theirs), dump(ours), "oracle", "ours", lineterm="", n=0))
     changed = sum(1 for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---")))
     if changed == 0:
         return "same", 0
@@ -94,10 +100,10 @@ def one(module, root, file):
             return [shown, "crashed", f"{m[2]} at {m[1]}".replace("\t", " ")[:200], 0, 0, 0], []
         reason = next((l for l in r.stderr.splitlines() if l.strip()), "").replace("\t", " ")[:200]
         return [shown, "refused", reason, 0, 0, 0], []
-    jar, cmp, counts = jar_dir(module), [], collections.Counter()
+    theirs, cmp, counts = oracle(module), [], collections.Counter()
     for name in r.stdout.split():
         path = name.removesuffix(".nir").replace(".", "/") + ".nir"
-        state, lines = compare(out / path, jar / path, WORK / module / "diffs" / f"{path}.diff")
+        state, lines = compare(out / path, theirs / path, WORK / module / "diffs" / f"{path}.diff")
         counts[state] += 1
         cmp.append([path, state, lines])
     return [shown, "ok", "", counts["same"], counts["differ"], counts["missing"]], cmp
@@ -139,7 +145,7 @@ def compile_module(module, filter_):
     nir = [sum(int(r[i]) for r in rows.values()) for i in (3, 4, 5)]
     print(f"{module}: {states['ok']} ok, {states['refused']} refused, {states['timeout']} timeout, "
           f"{states['crashed']} crashed; "
-          f"nir {nir[0]} same, {nir[1]} differ, {nir[2]} missing")
+          f"nir {nir[0]} same, {nir[1]} differ, {nir[2]} missing (oracle {oracle(module).relative_to(ROOT)})")
     baseline = {r[0]: r for r in read_tsv(work / "baseline.tsv")}
     for r in sorted(rows.values()):
         if r[0] in baseline and worse(baseline[r[0]], r):
