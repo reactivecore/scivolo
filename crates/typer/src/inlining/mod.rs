@@ -262,7 +262,7 @@ impl Inlining<'_> {
             let node = self.tpd.get_mut(qual);
             (node.sym, node.tpe) = (Some(c), Some(tpe));
         }
-        for c in self.tpd.children(t) {
+        for c in self.tpd.traversed(t) {
             self.type_this_qualifiers(c);
         }
     }

@@ -102,6 +102,19 @@ impl Tpd {
         }
         out
     }
+
+    /// The direct subtrees of `t` but the call of an `Inlined` tree (dotty's `TreeAccumulator`).
+    pub fn traversed(&self, t: TNodeId) -> Children {
+        let mut out = self.children(t);
+        if let super::Tree::Inlined { call: Some(call), .. } = *self.tree(t)
+            && out.first() == Some(&call)
+        {
+            let rest = out[1..].to_vec();
+            out = Children { inline: [t; INLINE], len: 0, spilled: Vec::new() };
+            out.extend(rest);
+        }
+        out
+    }
 }
 
 impl AsMut<Tpd> for Tpd {

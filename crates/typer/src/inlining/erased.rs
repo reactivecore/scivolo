@@ -24,6 +24,6 @@ impl Inlining<'_> {
         if reference && self.tpd.sym(t).is_some_and(|s| is_erased_value(self.u, s)) {
             return Some(t);
         }
-        self.tpd.children(t).into_iter().find_map(|c| self.erased_value_in(c))
+        self.tpd.traversed(t).into_iter().find_map(|c| self.erased_value_in(c))
     }
 }
