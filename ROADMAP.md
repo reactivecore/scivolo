@@ -138,7 +138,7 @@ slower meanwhile:
    [research 36](docs/research/36-compiling-the-native-stdlib.md), ADR 0042, 0043): `just
    lib-compile MODULE` lowers each file and compares its NIR with Scala Native's build of it
    (`just lib-oracle`, Scala 3.8.3; the published jars are Scala 3.1.3's). 2026-10-24: javalib
-   318 of 601 files lowered, 672 of 759 NIR files identical; nativelib 59 of 103, 179 of 295;
+   325 of 601 files lowered, 685 of 783 NIR files identical; nativelib 59 of 103, 179 of 295;
    auxlib 7 of 15, 43 of 44; windowslib 5 of 34; clib and posixlib wait for `@extern` (G3).
    Done: G1, G2, G5 (unit and javalib classes as Scala classes), G6a, G6b in part. Next: G3,
    G4, G6c.
