@@ -20,8 +20,8 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; \
-         transparent inline def t: Show[Int] = s[Int]; def g = t }",
-        "implicit search without the call's context",
+         transparent inline def t: Show[Int] = { given x: Show[Int] = null; s[Int] }; def g = t }",
+        "implicit search in an inline body with local implicits",
     ),
     (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \

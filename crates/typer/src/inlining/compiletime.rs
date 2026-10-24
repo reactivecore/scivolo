@@ -8,7 +8,7 @@ use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, constant_type_of};
 use syntax::ast::constant::Constant as C;
 use syntax::ast::{Span, TName};
-use tasty::{Kind, SymbolId, Type};
+use tasty::{Kind, SymbolId, Type, TypeId};
 
 impl Inlining<'_> {
     /// The name of the `scala.compiletime` operation `call` calls, if it calls one.
@@ -56,12 +56,24 @@ impl Inlining<'_> {
             ("summonInline", _, Some(t)) => {
                 let (tpe, at) = (self.tpd.tpe(t), self.tpd.span(t).start_pos());
                 let found = self.summon(tpe, at)?.ok_or((span, "no implicit argument"))?;
-                self.transform(found, owner)?
+                let found = self.transform(found, owner)?;
+                self.typed_as_class_of(found, tpe, span)
             }
             ("constValueTuple", _, Some(t)) => self.tuple_intrinsic(t, false, span)?,
             ("summonAll", _, Some(t)) => self.tuple_intrinsic(t, true, span)?,
             _ => return Ok(None),
         }))
+    }
+
+    /// Implicit `found` of type `pt`, ascribed `pt` if its class is another one, so that a member
+    /// selected from it is `pt`'s.
+    fn typed_as_class_of(&mut self, found: TNodeId, pt: TypeId, span: Span) -> TNodeId {
+        let own = self.u.widen(self.tpd.tpe(found));
+        if self.u.class_symbol(own) == self.u.class_symbol(pt) {
+            return found;
+        }
+        let tpt = self.tpd.node(T::TypeTree { inferred: true }, span.to_synthetic(), Some(pt), None);
+        self.tpd.node(T::Typed { expr: found, tpt }, span, Some(pt), None)
     }
 
     /// The type arguments of `call` and its value arguments, clause by clause.

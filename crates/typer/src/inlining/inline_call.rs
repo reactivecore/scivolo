@@ -5,6 +5,7 @@
 
 use super::{Inlining, MAX_INLINES, Unsupported, expand};
 use crate::tpd::{TNodeId, Tree as T};
+use tasty::tags::{INLINE, TRANSPARENT};
 use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
@@ -28,8 +29,17 @@ impl Inlining<'_> {
         }
         if self.depth == 0 {
             self.outermost_span = self.typer_inlined.unwrap_or(span);
+            self.outer_implicits.clear();
             if !self.transparent_only {
                 self.ctx = self.host.call_ctx(call);
+                if self.ctx.is_none()
+                    && let Some((ctx, around)) = self.typer_ctx
+                {
+                    self.ctx = Some(ctx);
+                    let mut implicits = Vec::new();
+                    self.implicit_defs(around, &mut implicits);
+                    self.outer_implicits = implicits;
+                }
             }
         }
         if self.depth > 0 && self.tpd.sym(def).is_some_and(|m| self.u.within_opaques(m)) {
@@ -74,5 +84,29 @@ impl Inlining<'_> {
         let inlined =
             self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None);
         self.sealed_opaques(inlined, call, &locals, expanded)
+    }
+
+    /// A reference to an inline method in `t`, outside the arguments inlined from outside.
+    fn inline_ref_in(&self, t: TNodeId) -> Option<TNodeId> {
+        match *self.tpd.tree(t) {
+            T::Inlined { call: None, .. } => return None,
+            T::Inlined { bindings, expansion, .. } => {
+                let parts = [self.tpd.items(bindings), &[expansion]].concat();
+                return parts.into_iter().find_map(|c| self.inline_ref_in(c));
+            }
+            T::Ident { .. } | T::Select { .. } => {
+                let inline = self.tpd.sym(t).is_some_and(|s| {
+                    let s = self.u.symbol(s);
+                    s.kind == Kind::Def
+                        && s.flags.has(INLINE)
+                        && (!self.transparent_only || s.flags.has(TRANSPARENT))
+                });
+                if inline {
+                    return Some(t);
+                }
+            }
+            _ => {}
+        }
+        self.tpd.children(t).into_iter().find_map(|c| self.inline_ref_in(c))
     }
 }

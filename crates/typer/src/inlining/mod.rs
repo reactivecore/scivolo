@@ -88,8 +88,15 @@ pub struct Inlining<'a> {
     pub outermost_span: Span,
     /// The span of the outermost `Inlined` tree from the typer around the code being expanded.
     typer_inlined: Option<Span>,
+    /// The context of the call of that tree, if the typer recorded one, and the tree.
+    typer_ctx: Option<(Ctx, TNodeId)>,
+    /// The implicits that tree defines, while a call inside it without a context of its own
+    /// expands in its context.
+    pub outer_implicits: Vec<SymbolId>,
     /// Whether the code being expanded is in the scope of an implicit it defines.
     pub local_implicits: bool,
+    /// The bindings of the `summonFrom` cases whose bodies are being expanded, innermost last.
+    pub case_givens: Vec<SymbolId>,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -121,7 +128,10 @@ impl<'a> Inlining<'a> {
             ctx: None,
             outermost_span: Span::NONE,
             typer_inlined: None,
+            typer_ctx: None,
+            outer_implicits: Vec::new(),
             local_implicits: false,
+            case_givens: Vec::new(),
         }
     }
 }
@@ -161,10 +171,12 @@ impl Inlining<'_> {
             }
             _ => owner,
         };
+        let typer_ctx = self.typer_inlined_ctx(t);
         let call = self.traced_call(t);
-        let outer = self.typer_inlined;
+        let (outer, outer_ctx) = (self.typer_inlined, self.typer_ctx);
         if call.is_some() {
             self.typer_inlined = outer.or(Some(self.tpd.span(t)));
+            self.typer_ctx = if outer.is_some() { outer_ctx } else { typer_ctx };
         }
         let mut failed = None;
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
@@ -174,7 +186,7 @@ impl Inlining<'_> {
                 c
             }),
         });
-        self.typer_inlined = outer;
+        (self.typer_inlined, self.typer_ctx) = (outer, outer_ctx);
         if let Some(e) = failed {
             return Err(e);
         }
@@ -265,29 +277,5 @@ impl Inlining<'_> {
         for c in self.tpd.children(t) {
             self.type_this_qualifiers(c);
         }
-    }
-
-    /// A reference to an inline method in `t`, outside the arguments inlined from outside.
-    fn inline_ref_in(&self, t: TNodeId) -> Option<TNodeId> {
-        match *self.tpd.tree(t) {
-            T::Inlined { call: None, .. } => return None,
-            T::Inlined { bindings, expansion, .. } => {
-                let parts = [self.tpd.items(bindings), &[expansion]].concat();
-                return parts.into_iter().find_map(|c| self.inline_ref_in(c));
-            }
-            T::Ident { .. } | T::Select { .. } => {
-                let inline = self.tpd.sym(t).is_some_and(|s| {
-                    let s = self.u.symbol(s);
-                    s.kind == Kind::Def
-                        && s.flags.has(INLINE)
-                        && (!self.transparent_only || s.flags.has(TRANSPARENT))
-                });
-                if inline {
-                    return Some(t);
-                }
-            }
-            _ => {}
-        }
-        self.tpd.children(t).into_iter().find_map(|c| self.inline_ref_in(c))
     }
 }

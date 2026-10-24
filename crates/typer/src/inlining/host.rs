@@ -7,7 +7,7 @@ use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The trees and tables an expansion works on, lent back to the typer for a search.
 pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut FreshNames);
@@ -39,8 +39,25 @@ impl Inlining<'_> {
     /// if there is none.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
-        if self.local_implicits {
+        let outer = std::mem::take(&mut self.outer_implicits);
+        let fits_outer = self.may_fit(&outer, pt);
+        self.outer_implicits = outer;
+        if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
+        }
+        let fitting: Vec<SymbolId> = (self.case_givens.clone().into_iter())
+            .filter(|&g| {
+                let info = self.u.info(g);
+                self.u.is_subtype(info, pt)
+            })
+            .collect();
+        match fitting[..] {
+            [] => {}
+            [g] => {
+                let (name, tpe) = (self.term_name(g), self.u.intern_type(Type::Sym(None, g)));
+                return Ok(Some(self.tpd.node(T::Ident { name }, at.to_synthetic(), Some(tpe), Some(g))));
+            }
+            _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
         self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))
@@ -59,15 +76,30 @@ impl Inlining<'_> {
         if self.tpd.sym(def).is_some_and(|s| self.u.symbol(s).flags.has(tasty::tags::MACRO)) {
             return false;
         }
-        self.has_implicit_def(rhs)
+        let mut found = Vec::new();
+        self.implicit_defs(rhs, &mut found);
+        !found.is_empty()
     }
 
-    fn has_implicit_def(&self, t: TNodeId) -> bool {
-        let def = matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. });
-        let implicit = self.tpd.sym(t).is_some_and(|s| {
-            let flags = self.u.symbol(s).flags;
-            flags.has(GIVEN) || flags.has(IMPLICIT)
-        });
-        def && implicit || self.tpd.children(t).into_iter().any(|c| self.has_implicit_def(c))
+    /// Adds the given and implicit terms `t` defines to `found`.
+    pub fn implicit_defs(&self, t: TNodeId, found: &mut Vec<SymbolId>) {
+        if matches!(self.tpd.tree(t), T::ValDef { .. } | T::DefDef { .. })
+            && let Some(s) = self.tpd.sym(t)
+            && (self.u.symbol(s).flags.has(GIVEN) || self.u.symbol(s).flags.has(IMPLICIT))
+        {
+            found.push(s);
+        }
+        for c in self.tpd.children(t) {
+            self.implicit_defs(c, found);
+        }
+    }
+
+    /// Whether one of the implicits `defs` of a typer's expansion around the call may be an
+    /// argument of type `pt`: a method, or a value of a subtype of `pt`.
+    fn may_fit(&mut self, defs: &[SymbolId], pt: TypeId) -> bool {
+        defs.iter().any(|&d| {
+            let info = self.u.info(d);
+            self.u.symbol(d).kind != Kind::Val || self.u.is_subtype(info, pt)
+        })
     }
 }
