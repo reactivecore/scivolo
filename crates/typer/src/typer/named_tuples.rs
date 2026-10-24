@@ -2,13 +2,12 @@
 //   compiler/src/dotty/tools/dotc/ast/Desugar.scala
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
 //! Named tuples `(a: A, b: B)` as `NamedTuple.NamedTuple[("a", "b"), (A, B)]`: types, literals
-//! cast from their values tuple, and element selection `x.a` as `._1` on the values tuple, above
-//! 22 elements as `x.apply(i)`.
+//! cast from their values tuple, and element selection `x.a` as `NamedTuple.apply(x)(i)`.
 
 use super::small_tuples::MAX_TUPLE_ARITY;
 use super::{Pt, Typer};
 use crate::ctx::Ctx;
-use crate::tpd::{TNodeId, Tree as T};
+use crate::tpd::TNodeId;
 use syntax::ast::constant::Constant;
 use syntax::ast::{List, NodeId, Span, TName, Tree};
 use tasty::TypeId;
@@ -110,8 +109,8 @@ impl Typer<'_> {
         app
     }
 
-    /// `qual.name` as `qual.$asInstanceOf$[V]._i`, above 22 elements as `qual.apply(i)`, if `qual`
-    /// is a named tuple with element `name` (dotty's `tryNamedTupleSelection`).
+    /// `qual.name` as `NamedTuple.apply(qual)(i)` if `qual` is a named tuple with element `name`
+    /// (dotty's `tryNamedTupleSelection`).
     pub fn named_tuple_select(
         &mut self,
         id: NodeId,
@@ -124,24 +123,14 @@ impl Typer<'_> {
         }
         let tpe = self.tpd.tpe(qual);
         let widened = self.u.widen(tpe);
-        let (names, values) = self.named_tuple_parts(widened)?;
+        let (names, values) = self.derived_named_tuple_parts(widened)?;
         let i = names.iter().position(|n| n == self.text(name.name))?;
         if names.iter().any(|n| n == "apply") {
             return Some(
                 self.error(id, "Named tuples that define an `apply` field do not allow field selection."),
             );
         }
-        if values.len() > MAX_TUPLE_ARITY {
-            return Some(self.indexed_element(id, qual, i, ctx));
-        }
-        let values = self.values_type(&values)?;
-        let cast = self.type_cast(qual, values);
-        let field = format!("_{}", i + 1);
-        let sym =
-            self.type_members_in(values, &field, ctx).into_iter().find(|&s| !self.u.is_type_symbol(s))?;
-        let tpe = self.ref_type(Some(values), sym);
-        let name = TName { name: self.names.intern(&field), is_type: false };
-        Some(self.tpd.node(T::Select { qualifier: cast, name }, self.ast.span(id), Some(tpe), Some(sym)))
+        (i < values.len()).then(|| self.indexed_element(id, qual, i, ctx))
     }
 
     /// Selection `id` of element `i` of named tuple `qual` as `NamedTuple.apply(qual)(i)`.
