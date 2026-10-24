@@ -44,6 +44,19 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
     }
   }
 
+  /** A method type of parameter and result types that do not refer to it. */
+  object MethodType extends MethodTypeModule {
+    def apply(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr], resultTypeExp: MethodType => TypeRepr): MethodType = {
+      val unknown = QuoteHost.tpe(Int.MaxValue).asInstanceOf[MethodType]
+      val types = paramInfosExp(unknown) ::: List(resultTypeExp(unknown))
+      ReflectOps.run("methodType", types.map(ReflectOps.id).toArray, paramNames.mkString("\u0000"))
+      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[MethodType]
+    }
+    def apply(kind: MethodTypeKind)(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr],
+        resultTypeExp: MethodType => TypeRepr): MethodType = throw new Unsupported("MethodType.apply of a kind")
+    def unapply(x: MethodType): (List[String], List[TypeRepr], TypeRepr) = throw new Unsupported("MethodType.unapply")
+  }
+
   object ByNameType extends ByNameTypeModule {
     def apply(underlying: TypeRepr): TypeRepr =
       QuoteHost.tpe(ReflectOps.one("byName", ReflectOps.id(underlying))).asInstanceOf[TypeRepr]

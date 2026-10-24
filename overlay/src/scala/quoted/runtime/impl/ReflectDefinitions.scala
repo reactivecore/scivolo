@@ -15,7 +15,10 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   given DefDefTypeTest: TypeTest[Tree, DefDef] = kind(15)
 
   object ClassDef extends ClassDefModule {
-    def apply(cls: Symbol, parents: List[Tree], body: List[Statement]): ClassDef = refused("ClassDef.apply")
+    def apply(cls: Symbol, parents: List[Tree], body: List[Statement]): ClassDef = {
+      val ids = List(ReflectOps.id(cls), parents.length) ::: (parents ::: body).map(ReflectOps.id)
+      ReflectOps.term(ReflectOps.one("classDef", ids*)).asInstanceOf[ClassDef]
+    }
     def copy(original: Tree)(name: String, constr: DefDef, parents: List[Tree], selfOpt: Option[ValDef],
         body: List[Statement]): ClassDef = {
       val ids = List(ReflectOps.id(original), ReflectOps.id(constr), selfOpt.fold(-1)(ReflectOps.id), parents.length) :::
@@ -49,6 +52,18 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
       val s = ReflectOps.shape(ddef)
       (s.name, ddef.paramss, s.child(0).asInstanceOf[TypeTree], ReflectOps.opt(s.children(1)).asInstanceOf[Option[Term]])
     }
+  }
+
+  object New extends NewModule {
+    def apply(tpt: TypeTree): New = ReflectOps.term(ReflectOps.one("new", ReflectOps.id(tpt))).asInstanceOf[New]
+    def copy(original: Tree)(tpt: TypeTree): New = refused("New.copy")
+    def unapply(x: New): Some[TypeTree] = refused("New.unapply")
+  }
+
+  object TypeIdent extends TypeIdentModule {
+    def apply(sym: Symbol): TypeTree = ReflectOps.term(ReflectOps.one("typeIdent", ReflectOps.id(sym))).asInstanceOf[TypeTree]
+    def copy(original: Tree)(name: String): TypeIdent = refused("TypeIdent.copy")
+    def unapply(x: TypeIdent): Some[String] = refused("TypeIdent.unapply")
   }
 
   object TermParamClause extends TermParamClauseModule {

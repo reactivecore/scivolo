@@ -25,7 +25,13 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     }
     def classSymbol(fullName: String): Symbol = requiredClass(fullName)
     def newClass(owner: Symbol, name: String, parents: List[TypeRepr], decls: Symbol => List[Symbol],
-        selfType: Option[TypeRepr]): Symbol = refused("Symbol.newClass")
+        selfType: Option[TypeRepr]): Symbol = {
+      if (selfType.nonEmpty) refused("Symbol.newClass with a self type")
+      ReflectOps.run("newClass", (ReflectOps.id(owner) :: parents.map(ReflectOps.id)).toArray, name)
+      val cls = symbol(QuoteHost.result(0))
+      ReflectOps.run("enterDecls", (cls :: decls(cls)).map(ReflectOps.id).toArray, null)
+      cls
+    }
     def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol,
         conParams: List[(String, TypeRepr)]): Symbol = refused("Symbol.newClass")

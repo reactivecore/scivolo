@@ -56,6 +56,21 @@ impl Host {
                 let d = self.u.dealias(t);
                 numbers(vec![self.add_type(d) as i32])
             }
+            "methodType" => {
+                let types = args.iter().map(|&t| self.type_of(t as u32)).collect::<Result<Vec<_>, _>>()?;
+                let (&result, params) =
+                    types.split_last().ok_or("MethodType.apply without its result type")?;
+                let names: Vec<String> =
+                    name.split('\0').filter(|n| !n.is_empty()).map(str::to_owned).collect();
+                if names.len() != params.len() {
+                    return Err("MethodType.apply with another number of names than types");
+                }
+                let binder = self.u.fresh_binder();
+                let params = names.into_iter().zip(params.iter().copied()).collect();
+                let t = Type::Method { binder, params, result, implicit: false, contextual: false };
+                let t = self.u.intern_type(t);
+                numbers(vec![self.add_type(t) as i32])
+            }
             "byName" => {
                 let t = tpe(self, 0)?;
                 let by_name = self.u.intern_type(Type::ByName(t));
