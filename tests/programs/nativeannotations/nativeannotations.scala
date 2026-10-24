@@ -1,4 +1,4 @@
-import scala.scalanative.annotation.{alwaysinline, nooptimize, nospecialize, stub}
+import scala.scalanative.annotation.{alwaysinline, nooptimize, nospecialize, safePublish, stub}
 import scala.scalanative.unsafe.{define, link, linkCppRuntime}
 
 @link("m") @define("NATIVE_ANNOTATIONS") object Lib {
@@ -10,8 +10,20 @@ import scala.scalanative.unsafe.{define, link, linkCppRuntime}
   @link("c") @linkCppRuntime def e(x: Int): Int = x % 5
 }
 
+class Fields(@safePublish val a: Int) {
+  @volatile var b: Int = a
+  val c: Int = a + 1
+}
+
+@safePublish class Published(val x: Int) {
+  @volatile var y: Int = x
+}
+
 object nativeannotations {
   def main(args: Array[String]): Unit = {
     println(Lib.a(1) + Lib.b(2) + Lib.c(3) + Lib.d(4) + Lib.e(7))
+    val f = new Fields(1)
+    f.b += f.c
+    println(f.a + f.b + new Published(4).y)
   }
 }

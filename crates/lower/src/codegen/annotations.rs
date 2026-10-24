@@ -1,8 +1,8 @@
 // Derived from Scala Native 0.5.12 (Apache-2.0, see native/LICENSE-scala-native.md); translated to Rust and changed:
 //   nscplugin/src/main/scala-3/scala/scalanative/nscplugin/NirGenStat.scala
 //   nir/src/main/scala/scala/scalanative/nir/Attrs.scala
-//! The annotations Scala Native's code generator reads (`genClassAttrs`, `genMethodAttrs`): the
-//! attributes they give classes and methods, and those refused.
+//! The annotations Scala Native's code generator reads (`genClassAttrs`, `genMethodAttrs`,
+//! `genClassFields`): the attributes they give classes, methods and fields, and those refused.
 
 use super::Gen;
 use crate::{Lower, Result, unsupported};
@@ -19,10 +19,14 @@ enum Gives {
     Any(fn() -> Attr),
     /// `link` or `define` of its string argument, of methods and classes.
     Named(fn(StrId) -> Attr),
+    /// An attribute of the fields of what it annotates, a field or a class.
+    Field(fn() -> Attr),
     Refused,
 }
 
-const ANNOTATIONS: [(&str, Gives); 20] = [
+const ANNOTATIONS: [(&str, Gives); 21] = [
+    ("scala.volatile", Gives::Field(|| Attr::Volatile)),
+    ("scala.scalanative.annotation.safePublish", Gives::Field(|| Attr::SafePublish)),
     ("scala.inline", Gives::Method(|| Attr::InlineHint)),
     ("scala.noinline", Gives::Method(|| Attr::NoInline)),
     ("scala.scalanative.annotation.alwaysinline", Gives::Method(|| Attr::AlwaysInline)),
@@ -34,7 +38,6 @@ const ANNOTATIONS: [(&str, Gives); 20] = [
     ("scala.scalanative.unsafe.define", Gives::Named(Attr::Define)),
     ("scala.scalanative.annotation.align", Gives::Refused),
     ("scala.scalanative.annotation.nonExtern", Gives::Refused),
-    ("scala.scalanative.annotation.safePublish", Gives::Refused),
     ("scala.scalanative.reflect.annotation.EnableReflectiveInstantiation", Gives::Refused),
     ("scala.scalanative.runtime.struct", Gives::Refused),
     ("scala.scalanative.unsafe.exportAccessors", Gives::Refused),
@@ -84,6 +87,25 @@ impl Gen<'_, '_> {
     /// The attributes the annotations of class `c` give, after `attrs`, in NIR's order.
     pub fn class_attrs(&mut self, c: SymbolId, attrs: Vec<Attr>) -> Vec<Attr> {
         self.annotated(c, attrs, false)
+    }
+
+    /// `attrs` of field `f` of class `c` and those of the annotations of `f`, the value it was made
+    /// for, and `c`: `volatile` of the field, `safePublish` of a final field or its class.
+    pub fn field_attrs(&mut self, f: SymbolId, c: SymbolId, mut attrs: Vec<Attr>) -> Vec<Attr> {
+        let field = [Some(f), self.l.fields.get(&f).copied()];
+        let is_final = attrs.iter().any(|a| matches!(a, Attr::Final));
+        for (sym, of_class) in field.into_iter().flatten().map(|s| (s, false)).chain([(c, true)]) {
+            for &class in self.l.u.annotations(sym) {
+                if let Some(Gives::Field(a)) = gives(self.l, class) {
+                    match a() {
+                        Attr::SafePublish if !is_final => {}
+                        Attr::Volatile if of_class => {}
+                        attr => attrs.push(attr),
+                    }
+                }
+            }
+        }
+        canonical(attrs)
     }
 
     /// `attrs` and those of the annotations of `sym`; a library symbol's from its TASTy, but for
