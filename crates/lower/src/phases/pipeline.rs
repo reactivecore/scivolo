@@ -37,7 +37,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
     }
     uninitialized_defs::refuse_others(l, root)?;
     for &td in &classes {
-        getters::setter_calls(l, td)?;
+        setter_calls::transform(l, td)?;
     }
     for &td in &classes {
         interpolators::transform(l, td)?;
