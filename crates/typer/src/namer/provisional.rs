@@ -8,10 +8,10 @@ use syntax::ast::{NodeId, Tree};
 use tasty::{ANY, NOTHING, SymbolId, Type};
 
 impl Typer<'_> {
-    /// Gives match type alias `sym` of right-hand side `rhs` the info of an abstract type over
-    /// its type parameters; nothing for another type definition.
-    pub fn set_provisional_info(&mut self, sym: SymbolId, rhs: NodeId) {
-        let Some(tparams) = self.match_alias_params(rhs) else { return };
+    /// Gives match type alias `sym` of definition `tree` the info of an abstract type over its
+    /// type parameters; nothing for another definition.
+    pub fn set_provisional_info(&mut self, sym: SymbolId, tree: NodeId) {
+        let Some(tparams) = self.match_alias_params(tree) else { return };
         let bounds = self.u.intern_type(Type::Bounds(NOTHING, ANY));
         let info = match tparams.is_empty() {
             true => bounds,
@@ -30,14 +30,15 @@ impl Typer<'_> {
         self.u.set_info(sym, info);
     }
 
-    /// Whether type definition `tree` is a match type alias, which has a provisional info while
-    /// it completes.
+    /// Whether definition `tree` is a match type alias, which has a provisional info while it
+    /// completes.
     pub fn is_provisional(&self, tree: NodeId) -> bool {
-        matches!(*self.ast.tree(tree), Tree::TypeDef { rhs, .. } if self.match_alias_params(rhs).is_some())
+        self.match_alias_params(tree).is_some()
     }
 
-    /// The type parameters of match type alias right-hand side `rhs`, if it is one.
-    fn match_alias_params(&self, rhs: NodeId) -> Option<Vec<NodeId>> {
+    /// The type parameters of definition `tree` if it is a match type alias.
+    fn match_alias_params(&self, tree: NodeId) -> Option<Vec<NodeId>> {
+        let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) else { return None };
         let (tparams, body) = match *self.ast.tree(rhs) {
             Tree::LambdaTypeTree { tparams, body } => (self.ast.items(tparams).to_vec(), body),
             _ => (Vec::new(), rhs),
