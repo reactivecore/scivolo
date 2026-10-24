@@ -9,11 +9,29 @@ use syntax::ast::Span;
 use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
-    /// Refuses tree `t`, owned by `owner`, if it defines a symbol twice or refers to the `this`
-    /// of a class other than a static object that does not enclose the reference.
-    pub fn check_macro_tree(&self, t: TNodeId, owner: SymbolId) -> Result<(), Unsupported> {
+    /// Refuses tree `t`, owned by `owner`, if it defines a symbol twice, defines a value or method
+    /// that is neither local, nor a member of a class `t` defines, nor one of `members_of`, or
+    /// refers to the `this` of a class other than a static object that does not enclose the
+    /// reference.
+    pub fn check_macro_tree(
+        &self,
+        t: TNodeId,
+        owner: SymbolId,
+        members_of: Option<SymbolId>,
+    ) -> Result<(), Unsupported> {
         let (mut todo, mut defined) = (vec![(t, owner)], FxHashSet::default());
         while let Some((n, owner)) = todo.pop() {
+            if let (T::ValDef { .. } | T::DefDef { .. }, Some(s)) = (self.tpd.tree(n), self.tpd.sym(n))
+                && let Some(o) = self.u.symbol(s).owner
+                && !self.u.symbol(o).kind.is_term()
+                && !defined.contains(&o)
+                && members_of != Some(o)
+            {
+                return Err((
+                    self.tpd.span(n),
+                    "a macro tree defining a member of a class it does not define",
+                ));
+            }
             let tree = self.tpd.tree(n);
             if let (T::This { .. }, Some(c)) = (tree, self.tpd.sym(n))
                 && !(self.u.is_module_class(c) && self.u.is_static_symbol(c))

@@ -83,7 +83,7 @@ impl Inlining<'_> {
             };
             let mut made = Vec::new();
             for tree in self.quoted_trees(&expanded, &[])? {
-                self.check_macro_tree(tree, owner)?;
+                self.check_macro_tree(tree, owner, Some(owner))?;
                 self.own_right_hand_sides(tree);
                 let tree = self.retype(tree, &FxHashMap::default(), owner)?;
                 self.enter_made(tree, owner, span)?;

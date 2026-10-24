@@ -68,7 +68,7 @@ impl Inlining<'_> {
         let [tree] = self.quoted_trees(&expanded, &args)?[..] else {
             return Err((span, "a splice returning other than one expression"));
         };
-        self.check_macro_tree(tree, owner)?;
+        self.check_macro_tree(tree, owner, None)?;
         self.tpd.get_mut(tree).span = span;
         let outer = std::mem::replace(&mut self.in_macro_result, true);
         let retyped = self.retype(tree, &FxHashMap::default(), owner);
