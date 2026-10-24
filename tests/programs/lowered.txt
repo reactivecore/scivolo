@@ -157,3 +157,10 @@ Nt24asmatchable
 nativeannotations
 wildcardvars
 ptrassign
+Lw24summons
+Lw24mirrors
+Lw24localenum
+Lw24accessors
+Lw24generic
+Lw24lazybyname
+Lw24ctxbridges

@@ -120,15 +120,13 @@ impl Typer<'_> {
         at: Span,
     ) -> Result<TNodeId, &'static str> {
         let empty = self.nested_pairs(&[])?;
-        self.check_refinement(formal.pt, "MirroredElemTypes", empty)?;
-        self.check_refinement(formal.pt, "MirroredElemLabels", empty)?;
         let scala2 = self.u.is_module(s) && self.u.module_class(s).is_some_and(|c| self.u.is_scala2(c));
         let parent = match scala2 {
             true => "scala.deriving.Mirror$.SingletonProxy",
             false => "scala.deriving.Mirror$.Singleton",
         };
         let label = self.u.symbol(s).name.clone();
-        let core = MirrorCore { parent, mono: formal.mirrored, label: &label, elems: None };
+        let core = MirrorCore { parent, mono: formal.mirrored, label: &label, elems: Some((empty, empty)) };
         let cast = self.mirror_type(formal, core)?;
         let mut value = self.path_tree(path, at, 8).ok_or("Mirror of a singleton outside the subset")?;
         if scala2 {

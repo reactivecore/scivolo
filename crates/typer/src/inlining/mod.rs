@@ -21,6 +21,7 @@ mod macros;
 mod no_inits;
 mod opaque_proxies;
 pub mod outer_this;
+mod prefix_seen;
 mod proxies;
 mod purity;
 mod quote_match;
@@ -91,12 +92,19 @@ pub struct Inlining<'a> {
     pub outermost_span: Span,
     /// The span of the outermost `Inlined` tree from the typer around the code being expanded.
     typer_inlined: Option<Span>,
+    /// The context of the call of that tree, if the typer recorded one, and the tree.
+    typer_ctx: Option<(Ctx, TNodeId)>,
+    /// The implicits that tree defines, while a call inside it without a context of its own
+    /// expands in its context.
+    pub outer_implicits: Vec<SymbolId>,
     /// Whether the code being expanded is in the scope of an implicit it defines other than by a
-    /// block statement.
+    /// block statement or a `summonFrom` case.
     pub local_implicits: bool,
     /// The implicit values and methods block statements of the code being expanded define, in
     /// whose scope it is, by block, outermost first.
     pub block_implicits: Vec<Vec<SymbolId>>,
+    /// The bindings of the `summonFrom` cases whose bodies are being expanded, innermost last.
+    pub case_givens: Vec<SymbolId>,
     /// Whether the code being retyped is a macro's result, whose references to methods with a
     /// using clause take their implicit arguments.
     pub in_macro_result: bool,
@@ -131,8 +139,11 @@ impl<'a> Inlining<'a> {
             ctx: None,
             outermost_span: Span::NONE,
             typer_inlined: None,
+            typer_ctx: None,
+            outer_implicits: Vec::new(),
             local_implicits: false,
             block_implicits: Vec::new(),
+            case_givens: Vec::new(),
             in_macro_result: false,
         }
     }
@@ -173,10 +184,12 @@ impl Inlining<'_> {
             }
             _ => owner,
         };
+        let typer_ctx = self.typer_inlined_ctx(t);
         let call = self.traced_call(t);
-        let outer = self.typer_inlined;
+        let (outer, outer_ctx) = (self.typer_inlined, self.typer_ctx);
         if call.is_some() {
             self.typer_inlined = outer.or(Some(self.tpd.span(t)));
+            self.typer_ctx = if outer.is_some() { outer_ctx } else { typer_ctx };
         }
         let mut failed = None;
         let changed = map_children(self, t, &mut |i, c| match Some(c) == call {
@@ -186,7 +199,7 @@ impl Inlining<'_> {
                 c
             }),
         });
-        self.typer_inlined = outer;
+        (self.typer_inlined, self.typer_ctx) = (outer, outer_ctx);
         if let Some(e) = failed {
             return Err(e);
         }
@@ -209,7 +222,7 @@ impl Inlining<'_> {
     fn inline_method(&mut self, t: TNodeId) -> Result<Option<TNodeId>, Unsupported> {
         let Some(tpe) = self.tpd.get(t).tpe else { return Ok(None) };
         let widened = self.u.widen(tpe);
-        if self.is_type_tree(t)
+        if self.tpd.is_type_tree(t)
             || matches!(self.u.types().get(widened), Type::Method { .. } | Type::Poly { .. })
         {
             return Ok(None);
@@ -246,20 +259,6 @@ impl Inlining<'_> {
         }
     }
 
-    fn is_type_tree(&self, t: TNodeId) -> bool {
-        matches!(
-            self.tpd.tree(t),
-            T::TypeTree { .. }
-                | T::SingletonTypeTree { .. }
-                | T::ByNameTypeTree { .. }
-                | T::AppliedTypeTree { .. }
-                | T::TypeBoundsTree { .. }
-                | T::LambdaTypeTree { .. }
-                | T::RefinedTypeTree { .. }
-                | T::Annotated { .. }
-        ) || matches!(*self.tpd.tree(t), T::Ident { name } | T::Select { name, .. } if name.is_type)
-    }
-
     /// Gives the qualifier of each `this` in `t` its class's symbol and type, as dotty's copy of
     /// the call in `inlineCall` does after the typer.
     pub fn type_this_qualifiers(&mut self, t: TNodeId) {
@@ -277,29 +276,5 @@ impl Inlining<'_> {
         for c in self.tpd.traversed(t) {
             self.type_this_qualifiers(c);
         }
-    }
-
-    /// A reference to an inline method in `t`, outside the arguments inlined from outside.
-    fn inline_ref_in(&self, t: TNodeId) -> Option<TNodeId> {
-        match *self.tpd.tree(t) {
-            T::Inlined { call: None, .. } => return None,
-            T::Inlined { bindings, expansion, .. } => {
-                let parts = [self.tpd.items(bindings), &[expansion]].concat();
-                return parts.into_iter().find_map(|c| self.inline_ref_in(c));
-            }
-            T::Ident { .. } | T::Select { .. } => {
-                let inline = self.tpd.sym(t).is_some_and(|s| {
-                    let s = self.u.symbol(s);
-                    s.kind == Kind::Def
-                        && s.flags.has(INLINE)
-                        && (!self.transparent_only || s.flags.has(TRANSPARENT))
-                });
-                if inline {
-                    return Some(t);
-                }
-            }
-            _ => {}
-        }
-        self.tpd.children(t).into_iter().find_map(|c| self.inline_ref_in(c))
     }
 }

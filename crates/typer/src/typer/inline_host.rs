@@ -3,7 +3,7 @@
 
 use super::Typer;
 use super::implicits::is_misfit;
-use crate::ctx::{Ctx, Level};
+use crate::ctx::{Ctx, Level, Mode};
 use crate::inlining::{Expanded, Host, Inlining, Lent, MacroCall, MacroError};
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
@@ -47,6 +47,15 @@ impl Typer<'_> {
         }
     }
 
+    /// Records `ctx`, out of pattern mode, as the context of extractor `fun` if it is an inline
+    /// method outside an inline method.
+    pub fn record_inline_extractor(&mut self, fun: TNodeId, ctx: Ctx) {
+        let Some(meth) = self.tpd.sym(self.tpd.meth_part(fun)) else { return };
+        if self.u.symbol(meth).flags.has(INLINE) && self.enclosing_inline(ctx.owner).is_none() {
+            self.inline_ctxs.insert(fun, ctx.with_mode(ctx.mode.without(Mode::PATTERN)));
+        }
+    }
+
     fn swap_lent(&mut self, (u, tpd, names, fresh): Lent<'_>) {
         std::mem::swap(&mut *self.u, u);
         std::mem::swap(&mut self.tpd, tpd);
@@ -62,6 +71,12 @@ impl Host for Typer<'_> {
 
     fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx {
         Ctx { level: self.levels.push(Some(ctx.level), Level::Scope(locals)), ..ctx }
+    }
+
+    fn copied_call(&mut self, original: TNodeId, copy: TNodeId) {
+        if let Some(&ctx) = self.inline_ctxs.get(&original) {
+            self.inline_ctxs.insert(copy, ctx);
+        }
     }
 
     fn summon(

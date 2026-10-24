@@ -5,7 +5,7 @@
 
 use super::local_free::{Free, within};
 use super::walk::{children, is_class_def};
-use crate::{Lower, Result, unsupported};
+use crate::{Lower, Result};
 use rustc_hash::FxHashSet;
 use tasty::tags::OBJECT;
 use tasty::{Kind, SymbolId};
@@ -45,8 +45,7 @@ pub fn pass_values(
                     let this = l.this(class, span);
                     l.select(this, fields[i], span)
                 }
-                Some(_) => l.ident(v, l.tpd.span(fun).end_pos()),
-                None => return unsupported(span, "local classes making instances of themselves"),
+                _ => l.ident(v, l.tpd.span(fun).end_pos()),
             };
             values.push(value);
         }

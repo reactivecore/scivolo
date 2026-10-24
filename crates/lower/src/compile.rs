@@ -1,6 +1,7 @@
 //! A source file through the whole frontend: parser, desugaring, typer, lowering.
 
 use crate::NirFile;
+use syntax::ast::Span;
 use syntax::config::Config;
 use syntax::desugar::Desugar;
 use syntax::diag::Diagnostics;
@@ -71,7 +72,7 @@ pub fn compile_with(
 }
 
 /// ` at LINE:COLUMN` of span `at` in `source`, if it has a position there.
-fn at_point(source: &SourceFile, at: syntax::ast::Span) -> String {
+fn at_point(source: &SourceFile, at: Span) -> String {
     if !at.exists() || at.is_in_other_source() {
         return String::new();
     }

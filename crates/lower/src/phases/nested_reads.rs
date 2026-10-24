@@ -14,9 +14,10 @@ use rustc_hash::FxHashMap;
 use tasty::SymbolId;
 use typer::tpd::{TNodeId, Tree};
 
-/// The values each lifted local class captures, and the local classes named in another one.
+/// The values each lifted local class captures, in its constructor and in fields, and the local
+/// classes named in another one.
 pub struct Nested {
-    pub own: FxHashMap<SymbolId, Vec<SymbolId>>,
+    pub own: FxHashMap<SymbolId, (Vec<SymbolId>, Vec<SymbolId>)>,
     pub named_in: FxHashMap<SymbolId, SymbolId>,
 }
 
@@ -36,7 +37,7 @@ pub fn redirect(
         subtrees(l.tpd, stat).into_iter().filter(|&t| is_class_def(l.tpd, t)).collect();
     for td in nested {
         let inner = l.tpd.sym(td).expect("a class definition's symbol");
-        let captured = own.get(&inner).map_or(&[][..], Vec::as_slice);
+        let (in_ctor, in_fields) = own.get(&inner).map_or((&[][..], &[][..]), |(c, f)| (c, f));
         let Tree::TypeDef { rhs: template, .. } = *l.tpd.tree(td) else { unreachable!("a class definition") };
         let Tree::Template { parents, body, .. } = *l.tpd.tree(template) else { unreachable!("a template") };
         let stats: Vec<TNodeId> = l.tpd.items(parents).iter().chain(l.tpd.items(body)).copied().collect();
@@ -46,7 +47,7 @@ pub fn redirect(
             let method = matches!(l.tpd.tree(s), Tree::DefDef { .. }) && is_method(l, l.tpd.sym(s));
             for (t, functions) in in_functions(l, s) {
                 let used = l.tpd.sym(t).filter(|_| matches!(l.tpd.tree(t), Tree::Ident { .. }));
-                let used = used.filter(|v| !captured.contains(v));
+                let used = used.filter(|v| !in_fields.contains(v) && (method || !in_ctor.contains(v)));
                 let Some(i) = used.and_then(|v| values.iter().position(|&w| w == v)) else { continue };
                 let span = l.tpd.span(t);
                 let chain = outer_chain(l, inner, class).unwrap_or_default();

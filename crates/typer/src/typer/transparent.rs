@@ -50,7 +50,12 @@ impl Typer<'_> {
             return None;
         }
         match self.expand_transparent(tree, meth, pt, ctx) {
-            Ok(inlined) => Some(inlined),
+            Ok(inlined) => {
+                if let T::Inlined { call: Some(call), .. } = *self.tpd.tree(inlined) {
+                    self.inline_ctxs.insert(call, ctx);
+                }
+                Some(inlined)
+            }
             Err((span, what)) => {
                 self.unsupported_at(span, what);
                 None

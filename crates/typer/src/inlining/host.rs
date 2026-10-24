@@ -7,7 +7,7 @@ use crate::tpd::{MatchKind, TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{SymbolId, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 /// The trees and tables an expansion works on, lent back to the typer for a search.
 pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut FreshNames);
@@ -17,6 +17,8 @@ pub trait Host {
     fn call_ctx(&self, call: TNodeId) -> Option<Ctx>;
     /// `ctx` inside a scope of `locals` by name.
     fn within(&mut self, ctx: Ctx, locals: Vec<(String, SymbolId)>) -> Ctx;
+    /// Gives `copy` the context of call `original`, if it has one.
+    fn copied_call(&mut self, original: TNodeId, copy: TNodeId);
     /// An implicit argument of type `pt` at `at` in `ctx`, its type variables instantiated
     /// (dotty's `inferImplicitArg`); `Ok(None)` if no candidate fits.
     fn summon(
@@ -36,11 +38,36 @@ pub trait Host {
 
 impl Inlining<'_> {
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
-    /// if there is none.
+    /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
-        if self.local_implicits {
+        let outer = std::mem::take(&mut self.outer_implicits);
+        let fits_outer = self.may_fit(&outer, pt);
+        self.outer_implicits = outer;
+        if self.local_implicits || fits_outer {
             return Err((at, "implicit search in an inline body with local implicits"));
+        }
+        let fitting: Vec<SymbolId> = (self.case_givens.clone().into_iter())
+            .filter(|&g| {
+                let info = self.u.info(g);
+                self.u.is_subtype(info, pt)
+            })
+            .collect();
+        let mut blocks = self.block_implicits.concat();
+        blocks.retain(|b| !self.case_givens.contains(b));
+        match fitting[..] {
+            [] => {}
+            [_] if self.may_fit(&blocks, pt) => {
+                return Err((
+                    at,
+                    "implicit search fitting a given of a summonFrom case and a block implicit",
+                ));
+            }
+            [g] => {
+                let (name, tpe) = (self.term_name(g), self.u.intern_type(Type::Sym(None, g)));
+                return Ok(Some(self.tpd.node(T::Ident { name }, at.to_synthetic(), Some(tpe), Some(g))));
+            }
+            _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
         }
         let mut ctx = ctx;
         for scope in self.block_implicits.clone() {
@@ -48,7 +75,26 @@ impl Inlining<'_> {
             ctx = self.host.within(ctx, locals);
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))
+        let found = self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))?;
+        let locals = [&self.outer_implicits[..], &self.case_givens[..]].concat();
+        match found {
+            _ if locals.is_empty() => Ok(found),
+            Some(f) if self.unshadowed_ref(f, &locals) => Ok(found),
+            _ => Err((at, "implicit search in an inline body with local implicits")),
+        }
+    }
+
+    /// Whether `t` is a reference without implicit arguments of its own whose name none of
+    /// `locals` has.
+    fn unshadowed_ref(&self, t: TNodeId, locals: &[SymbolId]) -> bool {
+        match *self.tpd.tree(t) {
+            T::TypeApply { fun, .. } => self.unshadowed_ref(fun, locals),
+            T::Ident { .. } | T::Select { .. } => self.tpd.sym(t).is_some_and(|s| {
+                let name = &self.u.symbol(s).name;
+                locals.iter().all(|&l| self.u.symbol(l).name != *name)
+            }),
+            _ => false,
+        }
     }
 
     /// Reports error `msg` at `at`.
@@ -112,6 +158,27 @@ impl Inlining<'_> {
         def && self.tpd.sym(t).is_some_and(|s| {
             let flags = self.u.symbol(s).flags;
             flags.has(GIVEN) || flags.has(IMPLICIT)
+        })
+    }
+
+    /// Adds the given and implicit terms `t` defines to `found`.
+    pub fn implicit_defs(&self, t: TNodeId, found: &mut Vec<SymbolId>) {
+        if self.is_implicit_def(t)
+            && let Some(s) = self.tpd.sym(t)
+        {
+            found.push(s);
+        }
+        for c in self.tpd.children(t) {
+            self.implicit_defs(c, found);
+        }
+    }
+
+    /// Whether one of the implicits `defs` of a typer's expansion around the call may be an
+    /// argument of type `pt`: a method, or a value of a subtype of `pt`.
+    fn may_fit(&mut self, defs: &[SymbolId], pt: TypeId) -> bool {
+        defs.iter().any(|&d| {
+            let info = self.u.info(d);
+            self.u.symbol(d).kind != Kind::Val || self.u.is_subtype(info, pt)
         })
     }
 }

@@ -20,8 +20,25 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "object O { inline def s[T]: Show[T] = summonInline[Show[T]]; \
-         transparent inline def t: Show[Int] = s[Int]; def g = t }",
-        "implicit search without the call's context",
+         transparent inline def t: Show[Int] = { given x: Show[Int] = null; s[Int] }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; inline def f: Int = \
+         summonFrom { case s: Show[Int] => summonInline[Show[List[Int]]].hashCode }; def g = f }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s: Int = summonFrom { case _: Show[List[Long]] => 1; case _ => 2 }; \
+         transparent inline def t: Int = { given x: Show[Long] = null; s }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
+        "implicit search in an inline body with local implicits",
     ),
     (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \

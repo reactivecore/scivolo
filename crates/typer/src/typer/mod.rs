@@ -67,6 +67,7 @@ mod export_trees;
 mod extension_calls;
 mod features;
 mod find_ref;
+mod forward_refs;
 mod function_types;
 mod future_infix;
 mod generic_arrays;
