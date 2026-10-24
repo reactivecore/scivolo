@@ -228,6 +228,17 @@ bench-edit-base base file runs="10": release
 vm-profile name *args: release
     SCIVOLO_PROFILE=1 target/release/scivolo --cp tests/programs/{{ name }} {{ name }} {{ args }}
 
+# Lower each Scala file of Scala Native library `module` (nativelib, clib, posixlib, windowslib,
+# javalib, auxlib or all; files whose paths contain `filter`) through the own frontend and compare
+# its NIR with the published jar's; results under tmp/lib/<module>.
+lib-compile module filter="": fetch-scala-native
+    cargo build -q --release -p scivolo-lower -p scivolo-nir-dump
+    python3 scripts/lib-compile.py '{{ module }}' '{{ filter }}'
+
+# Save lib-compile's results of `module` as the baseline whose worsened files it lists.
+lib-baseline module:
+    for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
+
 # Run a `.scala` or `.sc` file with call and instruction counts on stderr.
 [no-cd]
 script-profile file *args: release
