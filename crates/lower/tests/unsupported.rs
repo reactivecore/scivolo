@@ -166,6 +166,10 @@ const CASES: &[(&str, &str)] = &[
         "intrinsic CQuote.c",
     ),
     (
+        "import scala.scalanative.meta.LinktimeInfo\nobject O { def f: Int = if LinktimeInfo.isLinux then 1 else 2 }",
+        "values resolved at link time",
+    ),
+    (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
         "annotation @scala.scalanative.unsafe.name",
     ),
