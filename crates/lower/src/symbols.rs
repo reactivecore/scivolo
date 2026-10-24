@@ -33,10 +33,11 @@ pub fn is_java_static(u: &Universe, s: SymbolId) -> bool {
         || (u.symbol(s).kind == Kind::Def && u.symbol(s).owner.is_some_and(|o| is_jdk_object(u, o)))
 }
 
-/// Whether class `c` is the class of a javalib object in a JDK package.
+/// Whether class `c` is the class of a javalib object in a JDK package, from TASTy.
 fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     let name = u.full_name(c);
-    u.is_module_class(c) && (name.starts_with("java.") || name.starts_with("javax."))
+    let tasty = u.symbol(c).tree.is_some();
+    tasty && u.is_module_class(c) && (name.starts_with("java.") || name.starts_with("javax."))
 }
 
 /// Whether `s` is a package or an object reachable through static paths.

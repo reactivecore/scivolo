@@ -363,6 +363,13 @@ fn unit_members_replace_classpath_members() {
 }
 
 #[test]
+fn unit_objects_in_jdk_packages_are_values() {
+    let Some(mut u) = universe() else { return };
+    let text = "package java.io\nobject FilenameFilter { val self: Any = FilenameFilter }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "FilenameFilter.scala", text), Ok(()));
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";
