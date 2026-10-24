@@ -60,7 +60,27 @@ impl Inlining<'_> {
             _ => return Err((at, "implicit search fitting several givens of summonFrom cases")),
         }
         let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-        self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))
+        let found = self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))?;
+        let locals = [&self.outer_implicits[..], &self.case_givens[..]].concat();
+        match found {
+            Some(f) if !locals.is_empty() && !self.unshadowed_ref(f, &locals) => {
+                Err((at, "implicit search in an inline body with local implicits"))
+            }
+            _ => Ok(found),
+        }
+    }
+
+    /// Whether `t` is a reference without implicit arguments of its own whose name none of
+    /// `locals` has.
+    fn unshadowed_ref(&self, t: TNodeId, locals: &[SymbolId]) -> bool {
+        match *self.tpd.tree(t) {
+            T::TypeApply { fun, .. } => self.unshadowed_ref(fun, locals),
+            T::Ident { .. } | T::Select { .. } => self.tpd.sym(t).is_some_and(|s| {
+                let name = &self.u.symbol(s).name;
+                locals.iter().all(|&l| self.u.symbol(l).name != *name)
+            }),
+            _ => false,
+        }
     }
 
     /// Reports error `msg` at `at`.

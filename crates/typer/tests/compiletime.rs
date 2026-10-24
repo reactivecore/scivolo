@@ -24,6 +24,17 @@ const CASES: &[(&str, &str)] = &[
         "implicit search in an inline body with local implicits",
     ),
     (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; inline def f: Int = \
+         summonFrom { case s: Show[Int] => summonInline[Show[List[Int]]].hashCode }; def g = f }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s[T]: Show[T] = summonInline[Show[T]]; \
+         transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
         "object O { given a: Show[String] = new Show[String] { def show(t: String) = \"\" }; \
          given b: Show[String] = a; inline def f: Boolean = summonFrom { case _: Show[String] => true }; \
          def g = f }",
