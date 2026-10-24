@@ -16,6 +16,7 @@ use typer::tpd::{TNodeId, Tree};
 
 const EXTERN_BODY: &str = "scala.scalanative.unsafe.package$.extern";
 const NAME: &str = "scala.scalanative.unsafe.name";
+const BLOCKING: &str = "scala.scalanative.unsafe.package$.blocking";
 
 /// The C type a value of class `name` passes as (NIR's `Type.unbox`).
 pub fn unboxed(name: &str) -> Option<Type> {
@@ -45,7 +46,10 @@ impl Gen<'_, '_> {
         if !self.l.u.is_annotated(sym, crate::symbols::EXTERN) {
             return unsupported(span, "classes in extern objects");
         }
+        let blocking = self.is_blocking(sym);
         let attrs = self.class_attrs(sym, Vec::new());
+        let attrs = attrs.into_iter().map(|a| if a.is_extern() { Attr::Extern { blocking } } else { a });
+        let attrs = attrs.collect();
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
         let kind = if crate::symbols::is_static_module(self.l.u, sym) {
@@ -102,15 +106,22 @@ impl Gen<'_, '_> {
             }
             _ => return unsupported(span, "methods in extern objects without an extern body"),
         };
-        let inline = has(self.l.u, sym, FIELDaccessor) || self.l.bridges.contains(&sym) || target != sym;
-        let extern_ = Attr::Extern { blocking: false };
+        let ty = self.extern_sig(target, span)?;
+        if target != sym && self.method_sig(sym, true) != ty {
+            return unsupported(span, "extern forwarders of another signature");
+        }
+        let inline = has(self.l.u, sym, FIELDaccessor) || self.l.bridges.contains(&sym);
+        let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
+        let extern_ = Attr::Extern { blocking: self.is_blocking(sym) || self.is_blocking(owner) };
         let attrs = if inline { vec![Attr::AlwaysInline, extern_] } else { vec![extern_] };
         let attrs = self.method_attrs(sym, attrs);
         let pos = self.pos_or(self.l.tpd.span(rhs), self.no_pos);
-        let owner = self.l.u.symbol(sym).owner.expect("a method's owner");
         let name = self.extern_name(owner, target, span)?;
-        let ty = self.extern_sig(target, span)?;
         Ok(Some(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } }))
+    }
+
+    fn is_blocking(&self, sym: SymbolId) -> bool {
+        self.l.u.is_annotated(sym, BLOCKING)
     }
 
     /// Whether `t` is `extern` or `extern()`.

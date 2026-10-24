@@ -6,7 +6,7 @@ import scala.scalanative.unsafe.*
 }
 
 @extern trait cmemory {
-  def free(p: Ptr[Byte]): Unit = extern
+  @blocking def free(p: Ptr[Byte]): Unit = extern
 }
 
 @extern object cmemory extends cmemory
