@@ -161,6 +161,10 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     private def isCase(s: Symbol): Boolean = (ReflectOps.flags(ReflectOps.id(s)).bits & 1L << 12) != 0
   }
 
+  object SourceFile extends SourceFileModule {
+    def current: SourceFile = Position.ofMacroExpansion.sourceFile
+  }
+
   given PositionMethods: PositionMethods = methods("PositionMethodsImpl")
   given SourceFileMethods: SourceFileMethods = methods("SourceFileMethodsImpl")
 
@@ -180,6 +184,8 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
   abstract class SourceFileMethodsImpl extends SourceFileMethods {
     extension (self: SourceFile) {
       def path: String = ReflectOps.text("sourcePath", self.asInstanceOf[SourceFileImpl].file)
+      def jpath: java.nio.file.Path = java.nio.file.Paths.get(self.path)
+      def getJPath: Option[java.nio.file.Path] = Some(self.jpath)
       def name: String = self.path.substring(self.path.lastIndexOf('/') + 1)
       def content: Option[String] = Some(ReflectOps.text("sourceContent", self.asInstanceOf[SourceFileImpl].file))
     }
