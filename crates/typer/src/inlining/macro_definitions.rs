@@ -9,20 +9,20 @@ use syntax::ast::Span;
 use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
-    /// The symbols of the definitions in definition `t`, which a macro's copy of it keeps; none
-    /// if `t` is no definition.
+    /// The symbols of the definitions in definition `t` but in the calls of `Inlined` trees,
+    /// which a macro's copy of it keeps; none if `t` is no definition.
     pub fn definition_symbols(&self, t: TNodeId) -> Vec<SymbolId> {
-        let is_def =
-            |t: TNodeId| is_definition(self.tpd.tree(t)) || matches!(self.tpd.tree(t), T::Bind { .. });
         if !is_definition(self.tpd.tree(t)) {
             return Vec::new();
         }
         let (mut todo, mut syms) = (vec![t], Vec::new());
         while let Some(n) = todo.pop() {
-            if is_def(n) {
+            let tree = self.tpd.tree(n);
+            if is_definition(tree) || matches!(tree, T::Bind { .. }) {
                 syms.extend(self.tpd.sym(n));
             }
-            todo.extend(self.tpd.children(n));
+            let call = if let T::Inlined { call, .. } = *tree { call } else { None };
+            todo.extend(self.tpd.children(n).into_iter().filter(|&c| Some(c) != call));
         }
         syms
     }

@@ -69,7 +69,7 @@ impl Inlining<'_> {
         let [tree] = self.quoted_trees(&expanded, &args)?[..] else {
             return Err((span, "a splice returning other than one expression"));
         };
-        self.check_enclosing_this(tree, owner)?;
+        self.check_macro_tree(tree, owner)?;
         self.tpd.get_mut(tree).span = span;
         self.retype(tree, &FxHashMap::default(), owner).map(Some)
     }

@@ -1,5 +1,5 @@
-//! Checks of the trees macros return: `this` only of the classes enclosing it, and each
-//! definition of an existing symbol only once, in place of the one it replaces.
+//! Checks of the trees macros return: `this` only of the classes enclosing it, each symbol
+//! defined once, an existing one only in place of the definition it replaces.
 
 use super::macro_definitions::is_definition;
 use super::{Inlining, Unsupported};
@@ -9,10 +9,10 @@ use syntax::ast::Span;
 use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
-    /// Refuses tree `t`, owned by `owner`, if it refers to the `this` of a class other than a
-    /// static object that does not enclose the reference.
-    pub fn check_enclosing_this(&self, t: TNodeId, owner: SymbolId) -> Result<(), Unsupported> {
-        let mut todo = vec![(t, owner)];
+    /// Refuses tree `t`, owned by `owner`, if it defines a symbol twice or refers to the `this`
+    /// of a class other than a static object that does not enclose the reference.
+    pub fn check_macro_tree(&self, t: TNodeId, owner: SymbolId) -> Result<(), Unsupported> {
+        let (mut todo, mut defined) = (vec![(t, owner)], FxHashSet::default());
         while let Some((n, owner)) = todo.pop() {
             let tree = self.tpd.tree(n);
             if let (T::This { .. }, Some(c)) = (tree, self.tpd.sym(n))
@@ -21,9 +21,16 @@ impl Inlining<'_> {
             {
                 return Err((self.tpd.span(n), "a macro's this of a class not enclosing it"));
             }
+            if (is_definition(tree) || matches!(tree, T::Bind { .. }))
+                && let Some(s) = self.tpd.sym(n)
+                && !defined.insert(s)
+            {
+                return Err((self.tpd.span(n), "a macro tree defining a symbol twice"));
+            }
             let defines = is_definition(tree) || matches!(tree, T::Template { .. });
             let inner = self.tpd.sym(n).filter(|_| defines).unwrap_or(owner);
-            todo.extend(self.tpd.children(n).into_iter().map(|c| (c, inner)));
+            let call = if let T::Inlined { call, .. } = *tree { call } else { None };
+            todo.extend(self.tpd.children(n).into_iter().filter(|&c| Some(c) != call).map(|c| (c, inner)));
         }
         Ok(())
     }
