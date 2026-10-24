@@ -4,12 +4,14 @@
 use super::Typer;
 use super::implicits::is_misfit;
 use crate::ctx::Ctx;
-use crate::inlining::{Expanded, Host, Inlining, Lent, MacroCall, MacroError};
+use crate::inlining::{
+    AnnotationCall, Annotations, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Macros,
+};
 use crate::tpd::{TNodeId, Tree as T};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
 use syntax::ast::Span;
 use tasty::tags::{INLINE, MACRO};
-use tasty::{Kind, Type, TypeId, Universe};
+use tasty::{Kind, SymbolId, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// `f` run on an inlining of this typer's trees and tables, the typer its host; with
@@ -87,7 +89,26 @@ impl Host for Typer<'_> {
     }
 
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError> {
-        let (u, tpd, names, fresh) = lent;
+        self.with_macros(lent, call.span, |m, lent, annotations| m.expand(lent, call, annotations))
+    }
+
+    fn annotations(&self, s: SymbolId) -> Vec<TNodeId> {
+        self.syms.annotations.get(&s).cloned().unwrap_or_default()
+    }
+
+    fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError> {
+        self.with_macros(lent, call.span, |m, lent, annotations| m.expand_annotation(lent, call, annotations))
+    }
+}
+
+impl Typer<'_> {
+    /// What `run` answers with the unit's annotations typed; a refusal at `span` recorded.
+    fn with_macros(
+        &mut self,
+        (u, tpd, names, fresh): Lent<'_>,
+        span: Span,
+        run: impl FnOnce(&mut dyn Macros, Lent<'_>, &Annotations) -> Result<Expanded, MacroError>,
+    ) -> Result<Expanded, MacroError> {
         if self.macros.is_some() {
             self.swap_lent((&mut *u, &mut *tpd, &mut *names, &mut *fresh));
             let typed = catch_unwind(AssertUnwindSafe(|| self.typed_annotations()));
@@ -95,11 +116,11 @@ impl Host for Typer<'_> {
             typed.unwrap_or_else(|panic| resume_unwind(panic));
         }
         let expanded = match self.macros.as_deref_mut() {
-            Some(macros) => macros.expand((u, tpd, names, fresh), call, &self.syms.annotations),
+            Some(macros) => run(macros, (u, tpd, names, fresh), &self.syms.annotations),
             None => Err(MacroError::Unsupported("macro call".into())),
         };
         if let Err(MacroError::Unsupported(what)) = &expanded {
-            self.unsupported_at(call.span, what);
+            self.unsupported_at(span, what);
         }
         expanded
     }

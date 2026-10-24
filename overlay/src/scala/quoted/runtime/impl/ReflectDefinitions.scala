@@ -27,7 +27,7 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   object DefDef extends DefDefModule {
     def apply(symbol: Symbol, rhsFn: List[List[Tree]] => Option[Term]): DefDef = refused("DefDef.apply")
     def copy(original: Tree)(name: String, paramss: List[ParamClause], tpt: TypeTree, rhs: Option[Term]): DefDef =
-      refused("DefDef.copy")
+      ReflectOps.copyDef(original, name, paramss.flatMap(_.asInstanceOf[ClauseImpl].params), tpt, rhs).asInstanceOf[DefDef]
     def unapply(ddef: DefDef): (String, List[ParamClause], TypeTree, Option[Term]) = {
       val s = ReflectOps.shape(ddef)
       (s.name, ddef.paramss, s.child(0).asInstanceOf[TypeTree], ReflectOps.opt(s.children(1)).asInstanceOf[Option[Term]])

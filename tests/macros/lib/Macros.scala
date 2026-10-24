@@ -385,3 +385,22 @@ object LhReflect:
     import quotes.reflect.*
     val cases = List(CaseDef(Literal(CharConstant('a')), None, Expr(true).asTerm), CaseDef(Wildcard(), None, Expr(false).asTerm))
     Match(c.asTerm, cases).asExprOf[Boolean]
+
+/** Prints `msg` before a method runs; moves a value's right-hand side into a private value. */
+@scala.annotation.experimental
+class traced(msg: String) extends scala.annotation.MacroAnnotation:
+  def transform(using Quotes)(definition: quotes.reflect.Definition, companion: Option[quotes.reflect.Definition]): List[quotes.reflect.Definition] =
+    import quotes.reflect.*
+    definition match
+      case DefDef(name, params, tpt, Some(rhs)) =>
+        given Quotes = definition.symbol.asQuotes
+        rhs.asExpr match
+          case '{ $r: t } =>
+            val traced = '{ println(${ Expr(msg) }); $r }.asTerm
+            List(DefDef.copy(definition)(name, params, tpt, Some(traced)))
+      case ValDef(name, tpt, Some(rhs)) =>
+        val moved = Symbol.newVal(Symbol.spliceOwner, Symbol.freshName(name), tpt.tpe, Flags.Private, Symbol.noSymbol)
+        List(ValDef(moved, Some(rhs)), ValDef.copy(definition)(name, tpt, Some(Ref(moved))))
+      case _ =>
+        report.error("traced only on a method or a value")
+        List(definition)

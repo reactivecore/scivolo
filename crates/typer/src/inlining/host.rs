@@ -1,13 +1,13 @@
 //! What an expansion asks of the typer it runs in: the context of a call, implicit arguments,
 //! errors (dotty's `Inliner` working in the context of the call).
 
-use super::{Expanded, Inlining, MacroCall, MacroError, Unsupported};
+use super::{AnnotationCall, Expanded, Inlining, MacroCall, MacroError, Unsupported};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tpd, Tree as T};
 use syntax::ast::Span;
 use syntax::names::{FreshNames, Names};
 use tasty::tags::{GIVEN, IMPLICIT};
-use tasty::{TypeId, Universe};
+use tasty::{SymbolId, TypeId, Universe};
 
 /// The trees and tables an expansion works on, lent back to the typer for a search.
 pub type Lent<'l> = (&'l mut Universe, &'l mut Tpd, &'l mut Names, &'l mut FreshNames);
@@ -30,6 +30,10 @@ pub trait Host {
     fn has_errors(&self) -> bool;
     /// What macro call `call` expands to (dotty's `Splicer.splice`).
     fn expand_macro(&mut self, lent: Lent<'_>, call: &MacroCall) -> Result<Expanded, MacroError>;
+    /// The typed annotations on `s`, a symbol of the unit, in source order.
+    fn annotations(&self, s: SymbolId) -> Vec<TNodeId>;
+    /// The definitions macro annotation call `call` returns (dotty's `MacroAnnotations.callMacro`).
+    fn expand_annotation(&mut self, lent: Lent<'_>, call: &AnnotationCall) -> Result<Expanded, MacroError>;
 }
 
 impl Inlining<'_> {

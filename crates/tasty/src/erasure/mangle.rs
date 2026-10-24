@@ -72,6 +72,12 @@ impl Universe {
         Some(out)
     }
 
+    /// The mangled signature of constructor `ctor` of a static class, e.g. `RiE`.
+    pub fn constructor_signature(&mut self, ctor: SymbolId) -> String {
+        let (params, _) = self.erased_method(ctor);
+        format!("R{}E", params.iter().map(mangle).collect::<String>())
+    }
+
     /// The erased parameter types of method `def`, `Unit` boxed, and its erased result type, also
     /// boxed for a value; a type parameter erases to its upper bound.
     pub fn erased_method(&mut self, def: SymbolId) -> (Vec<Erased>, Erased) {

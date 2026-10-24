@@ -101,6 +101,18 @@ object QuoteHost {
     args
   }
 
+  /** Runs `transform` of macro annotation `annotation` on expression `definition` and
+   *  `companion` (`-1` for none) and hands the definitions it returns to the frontend.
+   */
+  @scala.annotation.experimental
+  def annotate(annotation: Object, definition: Int, companion: Int): Int = {
+    val q = new QuotesImpl
+    val tree = expr(definition).asInstanceOf[q.reflect.Definition]
+    val other = if (companion < 0) None else Some(expr(companion).asInstanceOf[q.reflect.Definition])
+    val made = annotation.asInstanceOf[scala.annotation.MacroAnnotation].transform(using q)(tree, other)
+    ReflectOps.run("definitions", made.map(ReflectOps.id).toArray, null)
+  }
+
   def expr(id: Int): Expr[Any] = new ExprImpl(id, expansion())
 
   def tpe(id: Int): Type[?] = new TypeImpl(id, expansion())

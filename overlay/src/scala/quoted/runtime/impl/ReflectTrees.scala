@@ -136,8 +136,10 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
   }
 
   object ValDef extends ValDefModule {
-    def apply(symbol: Symbol, rhs: Option[Term]): ValDef = refused("ValDef.apply")
-    def copy(original: Tree)(name: String, tpt: TypeTree, rhs: Option[Term]): ValDef = refused("ValDef.copy")
+    def apply(symbol: Symbol, rhs: Option[Term]): ValDef =
+      ReflectOps.term(ReflectOps.one("valDef", ReflectOps.id(symbol), rhs.fold(-1)(ReflectOps.id))).asInstanceOf[ValDef]
+    def copy(original: Tree)(name: String, tpt: TypeTree, rhs: Option[Term]): ValDef =
+      ReflectOps.copyDef(original, name, Nil, tpt, rhs).asInstanceOf[ValDef]
     def unapply(vdef: ValDef): (String, TypeTree, Option[Term]) = {
       val s = ReflectOps.shape(vdef)
       (s.name, s.child(0).asInstanceOf[TypeTree], ReflectOps.opt(s.children(1)).asInstanceOf[Option[Term]])

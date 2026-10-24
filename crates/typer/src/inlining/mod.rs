@@ -29,6 +29,7 @@ mod quoted;
 mod reduce;
 mod reflect;
 mod reflect_beta;
+mod reflect_defs;
 mod reflect_trees;
 mod reselect;
 mod retype;
@@ -43,7 +44,7 @@ mod unused;
 
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
-pub use macros::{Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
+pub use macros::{AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
 pub use quote_match::bound_types;
 pub use quote_matcher::quote_match;
 pub use reflect::Reflect;
@@ -162,7 +163,7 @@ impl Inlining<'_> {
             }
             _ => owner,
         };
-        self.check_macro_annotations(t)?;
+        self.expand_macro_annotations(t)?;
         let call = self.traced_call(t);
         let outer = self.typer_inlined;
         if call.is_some() {

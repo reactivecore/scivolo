@@ -54,6 +54,11 @@ impl Host {
                 answer.extend(clauses.into_iter().flatten().map(|p| self.add_tree(p) as i32));
                 numbers(answer)
             }
+            "definitions" => {
+                let defs = args.iter().map(|&d| self.tree(d as u32).map(|_| d as u32));
+                self.definitions = Some(defs.collect::<Result<_, _>>()?);
+                numbers(Vec::new())
+            }
             _ => Err(UNKNOWN),
         }
     }

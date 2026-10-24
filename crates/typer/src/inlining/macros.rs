@@ -27,6 +27,16 @@ pub struct MacroCall {
     pub searched: Vec<(TypeId, Option<TNodeId>)>,
 }
 
+/// The call of `transform` of macro annotation `annotation`, a typed `new`, on `definition` and
+/// its `companion`, owned by `owner` (dotty's `MacroAnnotations.callMacro`).
+pub struct AnnotationCall {
+    pub annotation: TNodeId,
+    pub definition: TNodeId,
+    pub companion: Option<TNodeId>,
+    pub owner: SymbolId,
+    pub span: Span,
+}
+
 /// An expression a macro made or was given, by number.
 #[derive(Clone, Debug)]
 pub enum Quoted {
@@ -37,10 +47,11 @@ pub enum Quoted {
     Quote { root: TNodeId, spliced: Vec<(SymbolId, TypeId)>, holes: Vec<(TNodeId, u32)> },
 }
 
-/// What a macro expansion made: its expressions and the number of the one returned.
+/// What a macro expansion made: its expressions and the numbers of those returned, one for a
+/// splice, the definitions for a macro annotation.
 pub struct Expanded {
     pub exprs: Vec<Quoted>,
-    pub result: u32,
+    pub results: Vec<u32>,
 }
 
 pub enum MacroError {
@@ -66,6 +77,14 @@ pub trait Macros {
         &mut self,
         lent: Lent<'_>,
         call: &MacroCall,
+        annotations: &Annotations,
+    ) -> Result<Expanded, MacroError>;
+
+    /// Runs the `transform` of a macro annotation.
+    fn expand_annotation(
+        &mut self,
+        lent: Lent<'_>,
+        call: &AnnotationCall,
         annotations: &Annotations,
     ) -> Result<Expanded, MacroError>;
 }

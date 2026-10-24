@@ -66,7 +66,9 @@ impl Inlining<'_> {
                 _ => None,
             })
             .collect();
-        let tree = self.quoted_trees(&expanded, &args)?;
+        let [tree] = self.quoted_trees(&expanded, &args)?[..] else {
+            return Err((span, "a splice returning other than one expression"));
+        };
         self.tpd.get_mut(tree).span = span;
         self.retype(tree, &FxHashMap::default(), owner).map(Some)
     }

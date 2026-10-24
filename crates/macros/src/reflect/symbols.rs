@@ -51,6 +51,7 @@ impl Host {
                 let Ok(s) = symbol(arg(0)?) else { return Ok((Vec::new(), None)) };
                 Ok((self.reflect().declared_methods(s, name).into_iter().map(|s| s.0 as i32).collect(), None))
             }
+            "spliceOwner" if self.annotating => one(Some(self.owner)),
             "spliceOwner" => one(Some(self.macro_owner())),
             "root" => one(Some(self.u.root())),
             "emptyPackage" => one(Some(self.empty_package())),

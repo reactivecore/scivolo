@@ -17,10 +17,14 @@ use tasty::SymbolId;
 type Context<'c> = (&'c Expanded, &'c [TNodeId], &'c FxHashMap<TNodeId, u32>, &'c FxHashMap<TNodeId, u32>);
 
 impl Inlining<'_> {
-    /// The tree of the expression the macro returned; `args` are the trees of its `Expr`
+    /// The trees of the expressions the macro returned; `args` are the trees of its `Expr`
     /// arguments, which come from the call's source, as the trees the macro built do. A hole
     /// filled with such a tree gets the hole's span.
-    pub fn quoted_trees(&mut self, expanded: &Expanded, args: &[TNodeId]) -> Result<TNodeId, Unsupported> {
+    pub fn quoted_trees(
+        &mut self,
+        expanded: &Expanded,
+        args: &[TNodeId],
+    ) -> Result<Vec<TNodeId>, Unsupported> {
         let mut built = vec![None; expanded.exprs.len()];
         let roots: FxHashMap<TNodeId, u32> = (expanded.exprs.iter().enumerate())
             .filter_map(|(e, q)| match q {
@@ -36,11 +40,32 @@ impl Inlining<'_> {
             .copied()
             .collect();
         let cx = (expanded, args, &roots, &fills);
-        let result = self.quoted_tree(cx, &mut built, expanded.result, 0)?;
-        match expanded.exprs[expanded.result as usize] {
-            Quoted::Quote { .. } => Ok(result),
-            Quoted::Tree(t) => self.with_quotes(cx, &mut built, (&TreeTypeMap::default(), None), t, None),
+        let mut trees = Vec::new();
+        for &e in &expanded.results {
+            let tree = self.quoted_tree(cx, &mut built, e, 0)?;
+            trees.push(match expanded.exprs[e as usize] {
+                Quoted::Quote { .. } => tree,
+                Quoted::Tree(t) => {
+                    let kept = self.definition_symbols(t).into_iter().map(|s| (s, s)).collect();
+                    let m = TreeTypeMap { syms: kept, ..TreeTypeMap::default() };
+                    self.with_quotes(cx, &mut built, (&m, None), t, None)?
+                }
+            });
         }
+        Ok(trees)
+    }
+
+    /// The symbols of definition `t` and its parameters, which a macro annotation's copy of it
+    /// keeps; none if `t` is no definition.
+    fn definition_symbols(&self, t: TNodeId) -> Vec<SymbolId> {
+        let params = match *self.tpd.tree(t) {
+            T::DefDef { paramss, .. } => {
+                self.tpd.clause_items(paramss).iter().flat_map(|&l| self.tpd.items(l)).copied().collect()
+            }
+            T::ValDef { .. } => Vec::new(),
+            _ => return Vec::new(),
+        };
+        self.tpd.sym(t).into_iter().chain(params.into_iter().filter_map(|p| self.tpd.sym(p))).collect()
     }
 
     /// A copy of `t` through a map of `m`'s references and symbols, its outermost definitions
@@ -145,7 +170,7 @@ impl Inlining<'_> {
     }
 
     /// Gives the outermost definitions in copy `t` owner `owner`.
-    fn reown(&mut self, t: TNodeId, owner: SymbolId) {
+    pub fn reown(&mut self, t: TNodeId, owner: SymbolId) {
         let (mut todo, mut defs) = (vec![t], Vec::new());
         while let Some(n) = todo.pop() {
             if matches!(self.tpd.tree(n), T::DefDef { .. } | T::ValDef { .. } | T::Bind { .. }) {

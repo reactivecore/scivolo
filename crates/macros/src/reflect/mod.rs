@@ -5,6 +5,7 @@
 mod constants;
 mod definitions;
 mod implicits;
+mod made;
 mod members;
 mod overloads;
 mod positions;
@@ -34,9 +35,10 @@ type Run = fn(&mut Host, &str, &[i32], &str) -> Answer;
 impl Host {
     /// Runs `quotes.reflect` operation `op` on `args` and `text`.
     pub fn run_reflect(&mut self, op: &str, args: &[i32], text: &str) -> Answer {
-        let subjects: [Run; 12] = [
+        let subjects: [Run; 13] = [
             Host::run_report,
             Host::run_definition,
+            Host::run_made,
             Host::run_implicit,
             Host::run_type_match,
             Host::run_type_repr,

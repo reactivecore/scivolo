@@ -43,6 +43,13 @@ object ReflectOps {
     new Shape(QuoteHost.result(0), List.tabulate(n - 1)(i => QuoteHost.result(i + 1)), QuoteHost.resultText())
   }
 
+  /** `ValDef.copy` and `DefDef.copy` of `original` with parameters `params`. */
+  def copyDef(original: Any, name: String, params: List[Any], tpt: Any, rhs: Option[Any]): Any = {
+    val args = Array(id(original), id(tpt), rhs.fold(-1)(id)) ++ params.map(id)
+    run("copyDef", args, name)
+    term(QuoteHost.result(0))
+  }
+
   def term(id: Int): Any = QuoteHost.expr(id)
 
   /** Expression `id`, if there is one. */

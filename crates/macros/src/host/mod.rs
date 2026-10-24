@@ -1,14 +1,16 @@
 //! The frontend's side of a running macro: the typer's trees and tables, lent for the run, and
 //! the expressions and types the macro holds by number.
 
+mod natives;
+
 use crate::Tables;
 use syntax::ast::Span;
-use syntax::names::Names;
+use syntax::names::{FreshNames, Names};
 use syntax::source::SourceFile;
 use tasty::{SymbolId, TypeId, Universe};
 use typer::inlining::Quoted;
 use typer::tpd::{TNodeId, Tpd};
-use typer::unpickle::{Quote, QuotePattern, quote, quoted_type};
+use typer::unpickle::QuotePattern;
 
 /// A quote unpickled for the macro: its tree, spliced types and term holes (placeholder, index,
 /// arguments' and filling expressions).
@@ -46,6 +48,11 @@ pub struct Host {
     pub made: crate::reflect::Made,
     /// The errors the macro reported, with their spans.
     pub reported: Vec<(Span, String)>,
+    /// The expressions of the definitions a macro annotation returned.
+    pub definitions: Option<Vec<u32>>,
+    /// Whether a macro annotation runs, whose splice owner is `owner` itself.
+    pub annotating: bool,
+    pub fresh: FreshNames,
 }
 
 impl Host {
@@ -70,6 +77,9 @@ impl Host {
             refusal: None,
             made: Default::default(),
             reported: Vec::new(),
+            definitions: None,
+            annotating: false,
+            fresh: FreshNames::default(),
         }
     }
 
@@ -142,72 +152,5 @@ impl Host {
             }
         };
         self.exprs.iter().map(quoted).collect()
-    }
-}
-
-/// The refusals of the natives become `Unsupported` exceptions, which record them through
-/// `refuse`.
-impl vm::QuoteHost for Host {
-    fn unpickle_expr(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
-        let (bytes, types) = self.decoded(pickled, types)?;
-        let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        let Quote { root, spliced, holes } = match quote(lent, bytes, self.owner, &types)? {
-            typer::unpickle::Unpickled::Quote(q) => q,
-            typer::unpickle::Unpickled::Pattern(p) => return Ok(self.add_pattern(p)),
-        };
-        let holes = holes
-            .into_iter()
-            .map(|h| (h.node, h.index, h.args.into_iter().map(|a| self.add_tree(a)).collect(), None))
-            .collect();
-        self.exprs.push(Expr::Quote(Unpickled { root, spliced, holes }));
-        Ok(self.exprs.len() as u32 - 1)
-    }
-
-    fn unpickle_type(&mut self, pickled: &str, types: &[u32]) -> Result<u32, &'static str> {
-        let (bytes, types) = self.decoded(pickled, types)?;
-        let lent = (&mut self.u, &mut self.tpd, &mut self.names);
-        Ok(match quoted_type(lent, bytes, self.owner, &types)? {
-            Ok(t) => self.add_type(t),
-            Err(p) => self.add_pattern(p),
-        })
-    }
-
-    fn hole_count(&self, quote: u32) -> u32 {
-        let Some(Expr::Quote(q)) = self.exprs.get(quote as usize) else { return 0 };
-        q.holes.len() as u32
-    }
-
-    fn hole(&self, quote: u32, hole: u32) -> Option<vm::Hole> {
-        let Some(Expr::Quote(q)) = self.exprs.get(quote as usize) else { return None };
-        let (_, index, args, _) = q.holes.get(hole as usize)?;
-        Some((*index, args.iter().map(|&a| Ok(a)).collect()))
-    }
-
-    fn fill_hole(&mut self, quote: u32, hole: u32, expr: u32) -> Result<(), &'static str> {
-        let known = (expr as usize) < self.exprs.len();
-        if let Some(Expr::Quote(q)) = self.exprs.get_mut(quote as usize)
-            && let Some(h) = q.holes.get_mut(hole as usize)
-            && known
-        {
-            h.3 = Some(expr);
-            return Ok(());
-        }
-        Err("a quote hole filled with an unknown expression")
-    }
-
-    fn match_pattern(&mut self, scrutinee: u32, pattern: u32) -> Result<u32, &'static str> {
-        self.match_expr(scrutinee, pattern)
-    }
-
-    fn matched(&self, i: u32) -> Option<Result<u32, u32>> {
-        self.matched.get(i as usize).copied()
-    }
-
-    fn reflect(&mut self, op: &str, args: &[i32], text: &str) -> Result<vm::Reflected, &'static str> {
-        self.run_reflect(op, args, text)
-    }
-
-    fn refuse(&mut self, what: &str) {
-        self.refusal.get_or_insert_with(|| what.to_owned());
     }
 }

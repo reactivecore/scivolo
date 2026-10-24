@@ -36,14 +36,21 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol = refused("Symbol.newMethod")
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
       refused("Symbol.newMethod")
-    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
-      refused("Symbol.newVal")
+    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol = {
+      if (!privateWithin.isNoSymbol) refused("Symbol.newVal with privateWithin")
+      val bits = flags.asInstanceOf[FlagsImpl].bits
+      ReflectOps.run("newVal", Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits.toInt, (bits >>> 32).toInt), name)
+      symbol(QuoteHost.result(0))
+    }
     def newBind(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr): Symbol = refused("Symbol.newBind")
     def newTypeAlias(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr, privateWithin: Symbol): Symbol =
       refused("Symbol.newTypeAlias")
     def newBoundedType(owner: Symbol, name: String, flags: Flags, tpe: TypeBounds, privateWithin: Symbol): Symbol =
       refused("Symbol.newBoundedType")
-    def freshName(prefix: String): String = refused("Symbol.freshName")
+    def freshName(prefix: String): String = {
+      ReflectOps.run("freshName", new Array[Int](0), prefix)
+      QuoteHost.resultText()
+    }
   }
 
   object Position extends PositionModule {
@@ -98,6 +105,7 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       def tree: Tree = ReflectOps.opt(ReflectOps.one("symbolTree", ReflectOps.id(self))).getOrElse {
         throw new Unsupported("Symbol.tree of a symbol without a definition in the unit")
       }.asInstanceOf[Tree]
+      def asQuotes: scala.quoted.Quotes = new QuotesImpl
       def isNoSymbol: Boolean = ReflectOps.id(self) < 0
       def exists: Boolean = ReflectOps.id(self) >= 0
       def isPackageDef: Boolean = kind(self) == 0

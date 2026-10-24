@@ -20,6 +20,7 @@ impl Unpickler<'_> {
             return Err("class of another kind in a library inline body");
         };
         let flags = mods.iter().fold(Flags::default(), |f, &m| f.with(self.tag(m)));
+        let mods = mods.to_vec();
         let class = self.u.define(Symbol {
             name: self.name(id),
             kind: Kind::Class,
@@ -34,6 +35,7 @@ impl Unpickler<'_> {
         if !member {
             self.u.unenter(class);
         }
+        self.annotate_quoted(class, &mods);
         for k in self.kids(rhs) {
             match self.tag(k) {
                 TYPEPARAM | PARAM | VALDEF | DEFDEF | TYPEDEF => {
