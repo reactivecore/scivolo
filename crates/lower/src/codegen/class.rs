@@ -20,6 +20,7 @@ impl Gen<'_, '_> {
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
         let attrs =
             if crate::symbols::has(self.l.u, sym, ABSTRACT) { vec![Attr::Abstract] } else { Vec::new() };
+        let attrs = self.class_attrs(sym, attrs);
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
         let kind = if is_static_module(self.l.u, sym) {

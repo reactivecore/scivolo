@@ -116,6 +116,18 @@ const CASES: &[(&str, &str)] = &[
          object O { given Conversion[B.type, Ex] = _ => Ex(); def f(x: Int) = x match { case B(v) => v; case _ => 0 } }",
         "unapply of an implicit view beside unapplySeq",
     ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
+        "annotation @scala.scalanative.unsafe.package$.extern",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
+        "annotation @scala.scalanative.unsafe.name",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { final val m = \"m\"; @link(m) def f = 1 }",
+        "annotation @scala.scalanative.unsafe.link without a string literal",
+    ),
 ];
 
 #[test]

@@ -80,6 +80,8 @@ pub struct Universe {
     self_types: FxHashMap<SymbolId, TypeId>,
     /// The annotation classes of the symbols defined outside TASTy.
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
+    /// The string literal that is the only argument of such an annotation, by symbol and class.
+    annotation_strings: FxHashMap<(SymbolId, SymbolId), String>,
     /// The right-hand sides of the opaque types defined outside TASTy.
     opaque_aliases: FxHashMap<SymbolId, TypeId>,
     /// Whether those aliases are seen through every prefix (after dotty's `ElimOpaque`).

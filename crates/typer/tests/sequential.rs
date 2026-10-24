@@ -424,10 +424,6 @@ fn constructs_diverging_from_dotty_are_refused() {
             "class O(x: Int) { def this(s: String) = this(this.hashCode) }",
             "this in the arguments of a self-constructor call",
         ),
-        (
-            "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
-            "annotation @scala.scalanative.unsafe.package$.extern",
-        ),
         ("object N { @native def f(): Int = 1 }", "annotation @scala.native"),
     ];
     for (text, what) in cases {

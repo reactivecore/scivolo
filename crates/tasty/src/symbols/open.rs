@@ -46,6 +46,7 @@ impl Universe {
             with_inits: Default::default(),
             self_types: Default::default(),
             annotations: Default::default(),
+            annotation_strings: Default::default(),
             opaque_aliases: Default::default(),
             opaques_elided: false,
             comparison_owner: None,
