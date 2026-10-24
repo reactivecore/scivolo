@@ -23,8 +23,8 @@ impl Inlining<'_> {
         self.retype_part(t, args, owner, true)
     }
 
-    /// `retype`, a reference to a method with a using clause applied to its implicit arguments if
-    /// `adapt`.
+    /// `retype`, a reference to or an application of a method whose next clause is a using clause
+    /// applied to its implicit arguments if `adapt`.
     fn retype_part(
         &mut self,
         t: TNodeId,
@@ -36,8 +36,11 @@ impl Inlining<'_> {
         if let Some(expanded) = self.expand_splice(t, owner)? {
             return Ok(expanded);
         }
-        let ref_ = matches!(self.tpd.tree(t), T::Ident { .. } | T::Select { .. } | T::TypeApply { .. });
-        let t = if adapt && ref_ && self.in_macro_result { self.with_implicit_args(t)? } else { t };
+        let adaptable = matches!(
+            self.tpd.tree(t),
+            T::Ident { .. } | T::Select { .. } | T::TypeApply { .. } | T::Apply { .. }
+        );
+        let t = if adapt && adaptable && self.in_macro_result { self.with_implicit_args(t)? } else { t };
         let Some(def) = self.inline_method(t)? else { return Ok(t) };
         self.inline_call(t, def, owner)
     }

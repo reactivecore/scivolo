@@ -1,6 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/Typer.scala
-//! Implicit arguments of a macro-built reference to a method with a using clause, applied as
+//! Implicit arguments of a macro-built reference to or partial application of a method with a
+//! using clause, applied as
 //! the retyper's `adapt` does (dotty's `adaptNoArgsImplicitMethod`).
 
 use super::{Inlining, Unsupported};
