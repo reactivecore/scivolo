@@ -447,6 +447,10 @@ fn constructs_diverging_from_dotty_are_refused() {
             "class Fi(i: java.io.InputStream) extends java.io.FilterInputStream(i) { def d(): Unit = in = null }",
             "assignment to a non-variable",
         ),
+        (
+            "object Sx { def x = 1; def x_=(v: Int) = () }\nobject Sy { import Sx.x; def f() = { def x_=(v: Int) = (); x = 2 } }",
+            "setter of a member shadowed by another `_=`",
+        ),
     ];
     for (text, what) in cases {
         let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);
