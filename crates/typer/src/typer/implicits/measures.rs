@@ -35,6 +35,9 @@ impl Typer<'_> {
             Type::Refined(p, _, i) | Type::Bounds(p, i) | Type::And(p, i) | Type::Or(p, i, _) => vec![p, i],
             Type::ByName(r) | Type::Annotated(r, _) | Type::Alias(r) => vec![r],
             Type::Lambda { params, result, .. } => {
+                if !params.iter().all(|&(_, b)| self.unbounded(b)) {
+                    return Err(OUTSIDE);
+                }
                 params.into_iter().map(|(_, b)| b).chain([result]).collect()
             }
             Type::Param(..)
@@ -46,6 +49,13 @@ impl Typer<'_> {
             | Type::Constant(..) => Vec::new(),
             _ => return Err(OUTSIDE),
         })
+    }
+
+    /// Whether `b` is the bounds `>: Nothing <: Any`.
+    fn unbounded(&mut self, b: TypeId) -> bool {
+        let Type::Bounds(lo, hi) = *self.u.types().get(b) else { return false };
+        let builtins = self.u.builtins();
+        self.u.class_symbol(lo) == Some(builtins.nothing) && self.u.class_symbol(hi) == Some(builtins.any)
     }
 
     /// `t` dealiased if it is a reference to an alias, `None` if not.
