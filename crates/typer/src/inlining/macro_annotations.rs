@@ -75,6 +75,7 @@ impl Inlining<'_> {
             let at =
                 defs.iter().position(|&d| self.tpd.sym(d) == Some(sym)).expect("the annotated definition");
             let call = AnnotationCall { annotation, definition: defs[at], companion, owner, span };
+            let fresh = self.u.next_symbol();
             let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
             let expanded = self.host.expand_annotation(lent, &call);
             let Some(expanded) = self.expanded_or_reported(expanded, span)? else {
@@ -82,11 +83,13 @@ impl Inlining<'_> {
             };
             let mut made = Vec::new();
             for tree in self.quoted_trees(&expanded, &[])? {
+                self.check_enclosing_this(tree, owner)?;
                 self.own_right_hand_sides(tree);
                 let tree = self.retype(tree, &FxHashMap::default(), owner)?;
                 self.enter_made(tree, owner, span)?;
                 made.push(tree);
             }
+            self.check_made(&made, (defs[at], companion), fresh, span)?;
             if let Some(c) = companion_sym {
                 let (mut found, rest): (Vec<_>, Vec<_>) =
                     made.into_iter().partition(|&d| self.tpd.sym(d) == Some(c));
@@ -150,11 +153,11 @@ impl Inlining<'_> {
         }
         let base = self.u.class_ref(MACRO_ANNOTATION);
         let Type::Sym(_, base) = *self.u.types().get(base) else { return Ok(Vec::new()) };
-        let classes = self.u.annotations(s).to_vec();
-        let classes = classes.into_iter().filter(|&c| self.u.derives_from(c, base)).count();
         let mut trees = self.host.annotations(s);
         trees.retain(|&t| self.u.class_symbol(self.tpd.tpe(t)).is_some_and(|c| self.u.derives_from(c, base)));
-        if classes > 0 && trees.is_empty() {
+        let typed: Vec<_> = trees.iter().map(|&t| self.u.class_symbol(self.tpd.tpe(t))).collect();
+        let classes = self.u.annotations(s).to_vec();
+        if classes.into_iter().any(|c| self.u.derives_from(c, base) && !typed.contains(&Some(c))) {
             return Err((self.tpd.span(def), "a macro annotation in a quote or a library inline body"));
         }
         trees.reverse();
