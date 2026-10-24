@@ -64,9 +64,11 @@ pub fn check_annotations(l: &Lower, root: TNodeId) -> Result<()> {
         let Some(sym) = l.tpd.sym(t) else { return Ok(()) };
         for &class in l.u.annotations(sym) {
             let what = || format!("annotation @{}", l.u.full_name(class));
+            let strings = l.u.annotation_strings(sym, class);
+            let literal = !strings.is_empty() && strings.iter().all(Option::is_some);
             match gives(l, class) {
                 Some(Gives::Refused) => return unsupported(l.tpd.span(t), what()),
-                Some(Gives::Named(_)) if l.u.annotation_strings(sym, class).iter().any(Option::is_none) => {
+                Some(Gives::Named(_)) if !literal => {
                     return unsupported(l.tpd.span(t), format!("{} without a string literal", what()));
                 }
                 _ => {}

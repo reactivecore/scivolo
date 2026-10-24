@@ -54,6 +54,9 @@ impl Inlining<'_> {
         }
         for c in self.u.annotations(s).to_vec() {
             self.u.annotate(n, c);
+            for arg in self.u.annotation_strings(s, c).to_vec() {
+                self.u.annotate_string(n, c, arg);
+            }
         }
     }
 
