@@ -54,10 +54,12 @@ impl Export {
 }
 
 /// The term flags a forwarder keeps from its target (dotty's `RetainedExportTermFlags`).
-const RETAINED: [(u8, FlagSet); 4] = [
+const RETAINED: [(u8, FlagSet); 6] = [
     (t::INFIX, f::INFIX),
     (t::GIVEN, f::GIVEN),
     (t::IMPLICIT, f::IMPLICIT),
+    (t::INLINE, f::INLINE),
+    (t::TRANSPARENT, f::TRANSPARENT),
     (t::EXTENSION, f::EXTENSION_METHOD),
 ];
 
@@ -137,8 +139,8 @@ impl Typer<'_> {
             return self.add_type_forwarder(e, alias, m, span);
         }
         let flags = self.u.symbol(m).flags;
-        if [t::INLINE, t::ERASED, t::MACRO].iter().any(|&fl| flags.has(fl)) {
-            self.unsupported_at(span, "export of an inline or erased member");
+        if [t::ERASED, t::MACRO].iter().any(|&fl| flags.has(fl)) {
+            self.unsupported_at(span, "export of an erased member or a macro");
             return;
         }
         let mut fl = RETAINED
