@@ -45,7 +45,11 @@ impl Typer<'_> {
                 }
                 return;
             }
-            T::Ident { .. } => sym.into_iter().for_each(|s| self.enter_reference(s, t, levels)),
+            T::SingletonTypeTree { .. } => return,
+            T::Ident { .. } => {
+                let term = sym.filter(|&s| self.u.symbol(s).kind.is_term());
+                term.into_iter().for_each(|s| self.enter_reference(s, t, levels));
+            }
             T::New { tpt } => {
                 let class = self.tpd.get(tpt).tpe.and_then(|tpe| self.u.class_symbol(tpe));
                 class.into_iter().for_each(|c| self.enter_reference(c, t, levels));
