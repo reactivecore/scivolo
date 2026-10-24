@@ -128,6 +128,10 @@ const CASES: &[(&str, &str)] = &[
         "import scala.scalanative.unsafe.*\nobject O { final val m = \"m\"; @link(m) def f = 1 }",
         "annotation @scala.scalanative.unsafe.link without a string literal",
     ),
+    (
+        "import scala.scalanative.runtime.RawPtr\nclass W(val p: RawPtr) extends AnyVal",
+        "boxing, unboxing and primitive conversions",
+    ),
 ];
 
 #[test]

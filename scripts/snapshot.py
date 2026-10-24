@@ -53,6 +53,20 @@ def programs():
         raise Failed(str(e))
 
 
+def lib():
+    """Each Scala Native library source through the own frontend (`just lib-compile all`): `same`
+    when all its NIR is as in the jar, else `differs`, `refused` or `timeout`."""
+    run = report(["scripts/lib-compile.py", "all"], "tmp/lib/auxlib/results.tsv", "ref/scala-native")
+    run()
+    out = []
+    for path in sorted((ROOT / "tmp/lib").glob("*/results.tsv")):
+        for file, state, reason, same, differ, missing in (l.split("\t") for l in path.read_text().splitlines()):
+            if state == "ok":
+                state, reason = ("same" if differ == missing == "0" else "differs"), f"{same} same, {differ} differ"
+            out.append(f"{path.parent.name}/{file}\t{state}\t{reason}\n")
+    return "".join(out)
+
+
 def syntax(mode):
     work = f"tmp/syntax/3.9.0/{mode}"
     return report(["scripts/syntax-tests.py", mode, "report"], f"{work}/results.tsv", "ref/dotty/tests",
@@ -68,6 +82,7 @@ ORACLES = {
     "trees": syntax("trees"),
     "desugar": syntax("desugar"),
     "programs": programs,
+    "lib": lib,
 }
 
 

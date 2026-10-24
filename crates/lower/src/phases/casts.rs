@@ -42,6 +42,8 @@ pub fn type_of(l: &mut Lower, e: &Erased) -> TypeId {
             let array = l.u.class_ref("scala.Array");
             l.u.intern_type(Type::Applied(array, vec![elem]))
         }
+        Erased::Prim('R') => l.u.class_ref("scala.scalanative.runtime.RawPtr"),
+        Erased::Prim('w') => l.u.class_ref("scala.scalanative.runtime.RawSize"),
         Erased::Prim(c) => {
             let p = l.primitive(*c).expect("a primitive letter").module;
             let class = l.u.module_class(p).expect("a primitive's object class");

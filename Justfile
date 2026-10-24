@@ -239,6 +239,11 @@ lib-compile module filter="": fetch-scala-native
 lib-baseline module:
     for m in $([ '{{ module }}' = all ] && echo nativelib clib posixlib windowslib javalib auxlib || echo '{{ module }}'); do cp tmp/lib/$m/results.tsv tmp/lib/$m/baseline.tsv; done
 
+# List the files of native/ that differ from the C resources of Scala Native's jars, the patched
+# ones and native/scivolo left out.
+native-stale:
+    python3 scripts/native-stale.py
+
 # Run a `.scala` or `.sc` file with call and instruction counts on stderr.
 [no-cd]
 script-profile file *args: release
@@ -341,24 +346,25 @@ typer-progress: typer-report
 
 # Before a refactor that must not change behaviour: record the outcomes of the oracles (default:
 # all) under tmp/snapshot. `typer` (typer-report), `lower` (dotty-lower-report), `tokens`,
-# `trees` and `desugar` (syntax-report), and `programs`: each test program's result in the
-# release VM against its `.check` file, as `just check` runs it, with a hash of its output.
+# `trees` and `desugar` (syntax-report), `lib` (lib-compile all), and `programs`: each test
+# program's result in the release VM against its `.check` file, as `just check` runs it, with a
+# hash of its output.
 # An oracle whose recorded dotty output or checkout is missing is skipped; its old snapshot stays.
 snapshot *oracles: release
-    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax -p scivolo-nir-dump
     python3 scripts/snapshot.py record {{ oracles }}
 
 # After the refactor: rerun the oracles, list the rows that differ from the snapshot as worsened,
 # improved and other changes, and fail on any of them, on a skipped oracle that has a snapshot,
 # and when no oracle was compared.
 snapshot-check *oracles: release
-    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax -p scivolo-nir-dump
     python3 scripts/snapshot.py check {{ oracles }}
 
 # After a feature: list the rows that differ from the snapshot like `snapshot-check`, without
 # failing on them.
 snapshot-diff *oracles: release
-    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax
+    cargo build -q --release -p scivolo-typer -p scivolo-lower -p scivolo-syntax -p scivolo-nir-dump
     python3 scripts/snapshot.py diff {{ oracles }}
 
 # In a linked worktree (e.g. an agent's): link the main checkout's ref/ and copy the oracle data
