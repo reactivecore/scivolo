@@ -22,7 +22,10 @@ impl Typer<'_> {
             None => self.typed_tpt(tpt, info, rhs_ctx),
         };
         let pt = info.map_or(Pt::Any, Pt::Type);
-        let rhs = rhs.map(|r| self.typed(r, pt, rhs_ctx));
+        let rhs = rhs.map(|r| match *self.ast.tree(r) {
+            Tree::Ident { name } if self.text(name.name) == "_" => self.default_initializer(id, r, sym, info),
+            _ => self.typed(r, pt, rhs_ctx),
+        });
         let span = self.ast.span(id);
         let inline = sym.is_some_and(|s| {
             let s = self.u.symbol(s);
@@ -34,6 +37,25 @@ impl Typer<'_> {
             return self.unsupported(id, "inline value of a type that is not constant or impure");
         }
         self.tpd.node(T::ValDef { name, tpt, rhs }, span, None, sym)
+    }
+
+    /// The `_` right-hand side `rhs` of variable field `vdef`, of the field's type `info`.
+    fn default_initializer(
+        &mut self,
+        vdef: NodeId,
+        rhs: NodeId,
+        sym: Option<SymbolId>,
+        info: Option<tasty::TypeId>,
+    ) -> TNodeId {
+        let Tree::Ident { name } = *self.ast.tree(rhs) else { unreachable!("a wildcard") };
+        let field = sym.filter(|&s| {
+            let class_member = self.u.symbol(s).owner.is_some_and(|o| self.u.is_class(o));
+            class_member && self.syms.flags.get(&s).is_some_and(|f| f.is(syntax::ast::flags::MUTABLE))
+        });
+        match (field, info) {
+            (Some(_), Some(tpe)) => self.tpd.node(T::Ident { name }, self.ast.span(rhs), Some(tpe), None),
+            _ => self.unsupported(vdef, "`_` other than as a variable field's value"),
+        }
     }
 
     /// Type tree `tpt`, or, if the source gives none, an inferred one of type `info`.

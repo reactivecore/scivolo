@@ -145,3 +145,4 @@ TDanonnested
 TDsupercapture
 TDcontextbridge
 nativeannotations
+wildcardvars

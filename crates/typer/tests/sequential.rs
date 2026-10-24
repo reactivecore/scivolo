@@ -425,6 +425,7 @@ fn constructs_diverging_from_dotty_are_refused() {
             "this in the arguments of a self-constructor call",
         ),
         ("object N { @native def f(): Int = 1 }", "annotation @scala.native"),
+        ("object Lv { def f() = { var x: Int = _; x } }", "`_` other than as a variable field's value"),
     ];
     for (text, what) in cases {
         let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);
