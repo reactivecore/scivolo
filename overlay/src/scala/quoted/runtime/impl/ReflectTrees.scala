@@ -60,7 +60,7 @@ trait ReflectTrees extends reflectModule { self: reflect.type =>
     }
     def overloaded(qualifier: Term, name: String, targs: List[TypeRepr], args: List[Term], returnType: TypeRepr): Term =
       refused("Select.overloaded")
-    def copy(original: Tree)(qualifier: Term, name: String): Select = refused("Select.copy")
+    def copy(original: Tree)(qualifier: Term, name: String): Select = { ReflectOps.run("copySelect", Array(ReflectOps.id(original), ReflectOps.id(qualifier)), name); ReflectOps.term(QuoteHost.result(0)).asInstanceOf[Select] }
     def unapply(x: Select): (Term, String) = {
       val s = ReflectOps.shape(x)
       (s.child(0).asInstanceOf[Term], s.name)

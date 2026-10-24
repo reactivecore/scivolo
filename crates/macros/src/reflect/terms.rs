@@ -106,6 +106,21 @@ impl Host {
                 let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "copySelect" => {
+                let (original, qual) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
+                let T::Select { qualifier, name } = *self.tpd.tree(original) else {
+                    return Err("Select.copy of another tree");
+                };
+                if self.names.text(name.name) != text {
+                    return Err("Select.copy under another name");
+                }
+                if qual == qualifier {
+                    return numbers(vec![arg(0)?]);
+                }
+                let m = self.tpd.sym(original).ok_or("Select.copy of a selection without a symbol")?;
+                let t = self.reflect().select(qual, m)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
             "namedArg" => {
                 let arg = self.tree(arg(0)? as u32)?;
                 let name = TName { name: self.names.intern(text), is_type: false };
