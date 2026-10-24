@@ -8,7 +8,7 @@ in ref/scala-native (those whose paths contain FILTER) is lowered on its own, ag
 published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared with the
 published jar's, unpacked into tmp/lib/jars/MODULE, as `just nir-cmp` compares them.
 
-Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout, reason, NIR files same,
+Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout|crashed, reason, NIR files same,
 differing, missing from the jar), cmp.tsv (NIR file, same|differ|missing, differing lines),
 diffs/ (the jar's dump against ours of each differing NIR file), refusals.txt (reasons by count, positions stripped), and prints one summary line. With FILTER,
 the rows of the files run replace those of the last run. Files worse than in baseline.tsv
@@ -85,6 +85,8 @@ def one(module, root, file):
     except subprocess.TimeoutExpired:
         return [shown, "timeout", "", 0, 0, 0], []
     if r.returncode != 0:
+        if m := re.search(r"panicked at (\S+):\n(.*)", r.stderr):
+            return [shown, "crashed", f"{m[2]} at {m[1]}".replace("\t", " ")[:200], 0, 0, 0], []
         reason = next((l for l in r.stderr.splitlines() if l.strip()), "").replace("\t", " ")[:200]
         return [shown, "refused", reason, 0, 0, 0], []
     jar, cmp, counts = jar_dir(module), [], collections.Counter()
@@ -106,7 +108,8 @@ def write_tsv(path, rows):
 
 def worse(old, new):
     """Whether row `new` of a file is worse than its baseline row `old`."""
-    return (old[1] == "ok" and new[1] != "ok") or int(new[3]) < int(old[3])
+    rank = {"ok": 2, "refused": 1}
+    return rank.get(new[1], 0) < rank.get(old[1], 0) or int(new[3]) < int(old[3])
 
 
 def compile_module(module, filter_):
@@ -124,11 +127,13 @@ def compile_module(module, filter_):
     ran = {r[0] for r, _ in done}
     old_cmp = [c for c in read_tsv(work / "cmp.tsv") if c[0] not in ran] if keep else []
     write_tsv(work / "cmp.tsv", sorted(old_cmp + [[r[0], *c] for r, cmp in done for c in cmp]))
-    reasons = collections.Counter(re.sub(r" at ([^ ]+:)?\d+:\d+", "", r[2]) for r in rows.values() if r[1] != "ok")
+    reasons = collections.Counter(f"crashed: {r[2]}" if r[1] == "crashed" else re.sub(r" at ([^ ]+:)?\d+:\d+", "", r[2])
+                                  for r in rows.values() if r[1] != "ok")
     (work / "refusals.txt").write_text("".join(f"{c:5} {r}\n" for r, c in reasons.most_common()))
     states = collections.Counter(r[1] for r in rows.values())
     nir = [sum(int(r[i]) for r in rows.values()) for i in (3, 4, 5)]
-    print(f"{module}: {states['ok']} ok, {states['refused']} refused, {states['timeout']} timeout; "
+    print(f"{module}: {states['ok']} ok, {states['refused']} refused, {states['timeout']} timeout, "
+          f"{states['crashed']} crashed; "
           f"nir {nir[0]} same, {nir[1]} differ, {nir[2]} missing")
     baseline = {r[0]: r for r in read_tsv(work / "baseline.tsv")}
     for r in sorted(rows.values()):
