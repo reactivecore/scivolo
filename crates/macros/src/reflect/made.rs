@@ -56,6 +56,27 @@ impl Host {
                 let t = self.reflect().closure(def)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "etaExpand" => {
+                let (t, owner) = (self.tree(arg(0)? as u32)?, symbol(arg(1)?)?);
+                let owner = if owner == self.macro_owner() { self.owner } else { owner };
+                let info = self.tpd.get(t).tpe.ok_or("Term.etaExpand of a term without a type")?;
+                let info = self.u.widen(info);
+                if !matches!(self.u.types().get(info), tasty::Type::Method { .. }) {
+                    return numbers(vec![arg(0)?]);
+                }
+                let synthetic = 1 << tasty::tags::SYNTHETIC;
+                let meth = self.reflect().new_term((owner, "$anonfun", Kind::Def), info, synthetic)?;
+                let params = self.method_params(meth)?;
+                let mut refs = Vec::new();
+                for p in params.iter().flatten() {
+                    let s = self.tpd.sym(*p).ok_or("a parameter without a symbol")?;
+                    refs.push(self.reflect().ref_(s)?);
+                }
+                let body = self.reflect().apply(t, &refs)?;
+                let def = self.reflect().def_def(meth, &params, Some(body))?;
+                let closure = self.reflect().closure(def)?;
+                numbers(vec![self.add_tree(closure) as i32])
+            }
             "lambdaOf" => {
                 let t = self.tree(arg(0)? as u32)?;
                 let parts = self.lambda_parts(t).unwrap_or_default();

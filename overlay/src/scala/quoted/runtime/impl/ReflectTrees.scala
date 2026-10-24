@@ -12,8 +12,8 @@ trait ReflectTreeSupport { this: QuotesImpl =>
 
 trait ReflectTrees extends reflectModule { self: reflect.type =>
 
-  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18)
-  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19)
+  given TermTypeTest: TypeTest[Tree, Term] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 13, 14, 18, 20)
+  given StatementTypeTest: TypeTest[Tree, Statement] = test(1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20)
   given ThisTypeTest: TypeTest[Tree, This] = test(18)
 
   object This extends ThisModule {

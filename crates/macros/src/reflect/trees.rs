@@ -31,6 +31,7 @@ enum Kind {
     Import = 17,
     This = 18,
     ClassDef = 19,
+    Closure = 20,
 }
 
 impl Host {
@@ -133,9 +134,9 @@ impl Host {
             T::ValDef { .. } => Kind::ValDef,
             T::NamedArg { .. } => Kind::NamedArg,
             T::This { .. } => Kind::This,
+            T::Closure { .. } => Kind::Closure,
             T::Super { .. }
             | T::New { .. }
-            | T::Closure { .. }
             | T::Assign { .. }
             | T::If { .. }
             | T::Return { .. }
@@ -175,6 +176,7 @@ impl Host {
             }
             (_, T::ValDef { name, tpt, rhs }) => (vec![Some(tpt), rhs], Some(name)),
             (_, T::NamedArg { name, arg }) => (vec![Some(arg)], Some(name)),
+            (_, T::Closure { meth, tpt, .. }) => (vec![Some(meth), tpt], None),
             (_, T::DefDef { name, tpt, rhs, .. }) => (vec![Some(tpt), rhs], Some(name)),
             (_, T::TypeDef { name, .. }) => (Vec::new(), Some(name)),
             (_, T::This { qual }) => match *self.tpd.tree(qual) {
