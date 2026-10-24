@@ -30,6 +30,12 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
+         inline def s: Int = summonFrom { case _: Show[List[Long]] => 1; case _ => 2 }; \
+         transparent inline def t: Int = { given x: Show[Long] = null; s }; def g = t }",
+        "implicit search in an inline body with local implicits",
+    ),
+    (
+        "object O { given ls[A](using Show[A]): Show[List[A]] = null; \
          inline def s[T]: Show[T] = summonInline[Show[T]]; \
          transparent inline def t: Show[List[Int]] = { given x: Show[Int] = null; s[List[Int]] }; def g = t }",
         "implicit search in an inline body with local implicits",

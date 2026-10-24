@@ -36,7 +36,7 @@ pub trait Host {
 
 impl Inlining<'_> {
     /// An implicit argument of type `pt` at `at` in the context of the outermost call; `Ok(None)`
-    /// if there is none.
+    /// if there is none. Refused where implicits the expansion defines may take part.
     pub fn summon(&mut self, pt: TypeId, at: Span) -> Result<Option<TNodeId>, Unsupported> {
         let Some(ctx) = self.ctx else { return Err((at, "implicit search without the call's context")) };
         let outer = std::mem::take(&mut self.outer_implicits);
@@ -63,10 +63,9 @@ impl Inlining<'_> {
         let found = self.host.summon(lent, pt, at, ctx).map_err(|what| (at, what))?;
         let locals = [&self.outer_implicits[..], &self.case_givens[..]].concat();
         match found {
-            Some(f) if !locals.is_empty() && !self.unshadowed_ref(f, &locals) => {
-                Err((at, "implicit search in an inline body with local implicits"))
-            }
-            _ => Ok(found),
+            _ if locals.is_empty() => Ok(found),
+            Some(f) if self.unshadowed_ref(f, &locals) => Ok(found),
+            _ => Err((at, "implicit search in an inline body with local implicits")),
         }
     }
 
