@@ -4,7 +4,7 @@
 
 use super::Gen;
 use crate::phases::adapt::from_start;
-use crate::symbols::is_java_static;
+use crate::symbols::{is_extern, is_java_static};
 use crate::{Result, unsupported};
 use nir::{Op, Type, Val, ValId};
 use syntax::ast::Span;
@@ -115,7 +115,9 @@ impl Gen<'_, '_> {
         if self.is_reflective(sym, "applyDynamic") {
             return self.gen_reflective_apply(sym, recv, args, span);
         }
-        self.check_callee(sym, span)?;
+        if !is_extern(self.l.u, sym) {
+            self.check_callee(sym, span)?;
+        }
         if is_java_static(self.l.u, sym) {
             let owner = match recv {
                 Receiver::Tree(t) => self.l.tpd.sym(t),
@@ -135,6 +137,9 @@ impl Gen<'_, '_> {
         let owner = self.method_owner(sym);
         let owner_ty = self.class_ref(owner);
         self.check_conforms(receiver, owner_ty, span)?;
+        if is_extern(self.l.u, sym) {
+            return self.call_extern(sym, args, span);
+        }
         let args = self.gen_args(sym, args, span)?;
         Ok(self.call_method(sym, statically, receiver, args))
     }

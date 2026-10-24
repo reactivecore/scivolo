@@ -30,10 +30,10 @@ impl Gen<'_, '_> {
     pub fn gen_class(&mut self, td: TNodeId) -> Result<()> {
         let sym = self.l.tpd.sym(td).expect("a class definition's symbol");
         self.class = Some(sym);
-        if crate::symbols::is_extern(self.l.u, sym) {
-            return unsupported(self.l.tpd.span(td), "native interop");
-        }
         let pos = self.pos_or(self.l.tpd.span(td), self.no_pos);
+        if crate::symbols::is_extern(self.l.u, sym) {
+            return self.gen_extern_class(td, sym, pos);
+        }
         let attrs =
             if crate::symbols::has(self.l.u, sym, ABSTRACT) { vec![Attr::Abstract] } else { Vec::new() };
         let attrs = self.class_attrs(sym, attrs);
@@ -77,7 +77,7 @@ impl Gen<'_, '_> {
         Some(self.type_name(superclass))
     }
 
-    fn class_interfaces(&mut self, c: tasty::SymbolId) -> Vec<nir::GlobalId> {
+    pub fn class_interfaces(&mut self, c: tasty::SymbolId) -> Vec<nir::GlobalId> {
         let parents = self.l.u.parents(c);
         let classes: Vec<_> = parents.into_iter().filter_map(|p| self.l.u.class_symbol(p)).collect();
         let traits: Vec<_> = classes.into_iter().filter(|&s| self.l.u.is_trait(s)).collect();

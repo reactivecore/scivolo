@@ -51,9 +51,13 @@ pub fn is_static(u: &Universe, s: SymbolId) -> bool {
     u.symbol(s).owner.is_some_and(|o| is_static_owner(u, o))
 }
 
+pub const EXTERN: &str = "scala.scalanative.unsafe.package$.extern";
+
 /// Whether `s` or its owner is Scala Native's `@extern`.
 pub fn is_extern(u: &Universe, s: SymbolId) -> bool {
-    u.symbol(s).is_extern || u.symbol(s).owner.is_some_and(|o| u.symbol(o).is_extern)
+    let annotated =
+        |s: SymbolId| u.symbol(s).is_extern || u.annotations(s).iter().any(|&c| u.full_name(c) == EXTERN);
+    annotated(s) || u.symbol(s).owner.is_some_and(annotated)
 }
 
 pub fn is_static_module(u: &Universe, s: SymbolId) -> bool {

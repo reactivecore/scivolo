@@ -127,7 +127,7 @@ pub fn first_int(ast: &Ast, id: NodeId) -> Option<i32> {
 }
 
 /// The first string constant in the tree at `id`.
-fn first_string(ast: &Ast, names: &[String], id: NodeId) -> Option<String> {
+pub fn first_string(ast: &Ast, names: &[String], id: NodeId) -> Option<String> {
     match ast.node(id) {
         n if n.tag == STRINGconst => names.get(n.a as usize).cloned(),
         _ => ast.kids(id).iter().find_map(|&k| first_string(ast, names, k)),

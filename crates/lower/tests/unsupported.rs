@@ -139,9 +139,14 @@ const CASES: &[(&str, &str)] = &[
     ),
     ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
     (
-        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
-        "annotation @scala.scalanative.unsafe.package$.extern",
+        "import scala.scalanative.unsafe.*\n@extern object libc { def printf(f: CString, xs: Any*): CInt = extern }",
+        "extern methods with variable arguments",
     ),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def f(x: CInt): CInt = x }",
+        "methods in extern objects without an extern body",
+    ),
+    ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
     (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
         "annotation @scala.scalanative.unsafe.name",
