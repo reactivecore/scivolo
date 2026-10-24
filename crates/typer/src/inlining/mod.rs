@@ -20,6 +20,7 @@ mod macros;
 mod no_inits;
 mod opaque_proxies;
 pub mod outer_this;
+mod prefix_seen;
 mod proxies;
 mod purity;
 mod quote_match;

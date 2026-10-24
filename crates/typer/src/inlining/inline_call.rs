@@ -6,7 +6,7 @@
 use super::{Inlining, MAX_INLINES, Unsupported, expand};
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::{INLINE, TRANSPARENT};
-use tasty::{Kind, SymbolId, Type, TypeId};
+use tasty::{Kind, SymbolId};
 
 impl Inlining<'_> {
     /// Call `call`, owned by `owner`, of the inline method defined by `def`, expanded; what is
@@ -78,27 +78,13 @@ impl Inlining<'_> {
         let tpe = self.tpd.tpe(expansion);
         let tpe =
             self.avoid(tpe, &locals).ok_or((span, "inline expansion of a type referring to a binding"))?;
-        let tpe = self.class_params_seen(tpe);
+        let tpe = super::prefix_seen::class_params_seen(self.u, tpe);
         let expanded = self.tpd.tpe(expansion);
         let expansion = self.sealed(&locals, expansion, tpe)?;
         let bindings = self.tpd.list(&bindings);
         let inlined =
             self.tpd.node(T::Inlined { call: Some(call), bindings, expansion }, span, Some(tpe), None);
         self.sealed_opaques(inlined, call, &locals, expanded)
-    }
-
-    /// `t` with each type parameter of a class selected from a path replaced by the argument the
-    /// path's type gives it (dotty's `TypeRef` to a class parameter dereferenced).
-    fn class_params_seen(&mut self, t: TypeId) -> TypeId {
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Sym(Some(p), _) = *u.types().get(part) else { return None };
-            if !matches!(u.types().get(p), Type::Sym(None, s) if u.symbol(*s).kind.is_term()) {
-                return None;
-            }
-            let (c, _) = u.class_param(part)?;
-            let seen = u.as_seen_from(part, p, c);
-            (seen != part).then_some(seen)
-        })
     }
 
     /// A reference to an inline method in `t`, outside the arguments inlined from outside.

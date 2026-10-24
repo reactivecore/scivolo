@@ -34,7 +34,7 @@ impl<'a> Inlining<'a> {
         let mapped = self.u.map_type(t, &mut |u, part| {
             if !m.this.is_empty()
                 && matches!(u.types().get(part), Type::Sym(..))
-                && let Some(seen) = super::outer_this::class_param_seen(u, &m.this, part)
+                && let Some(seen) = super::prefix_seen::class_param_seen(u, &m.this, part)
             {
                 return Some(seen);
             }
@@ -50,29 +50,11 @@ impl<'a> Inlining<'a> {
                 _ => None,
             }
         });
-        let mapped = if mapped == t { t } else { self.reselected_members(mapped) };
+        let mapped = if mapped == t { t } else { super::prefix_seen::reselected_members(self.u, mapped) };
         match m.classes {
             true => super::copy_classes::rename_members(self.u, &m.syms, mapped),
             false => mapped,
         }
-    }
-
-    /// `t` with each abstract type member selected from a path selecting instead the member of
-    /// that name the path's type defines, if it defines a concrete one (dotty's name-based
-    /// `TypeRef`s).
-    fn reselected_members(&mut self, t: TypeId) -> TypeId {
-        self.u.map_type(t, &mut |u, part| {
-            let Type::Sym(Some(p), s) = *u.types().get(part) else { return None };
-            if u.symbol(s).kind != Kind::Type
-                || !matches!(u.types().get(p), Type::Sym(..))
-                || u.alias_of(s).is_some()
-            {
-                return None;
-            }
-            let name = u.symbol(s).name.clone();
-            let r = u.resolve(p, &name, true).filter(|&r| r != s && u.alias_of(r).is_some())?;
-            Some(u.intern_type(Type::Sym(Some(p), r)))
-        })
     }
 
     /// A copy of `t` with its local definitions given fresh symbols.
