@@ -443,6 +443,10 @@ fn constructs_diverging_from_dotty_are_refused() {
         ),
         ("object N { @native def f(): Int = 1 }", "annotation @scala.native"),
         ("object Lv { def f() = { var x: Int = _; x } }", "`_` other than as a variable field's value"),
+        (
+            "class Fi(i: java.io.InputStream) extends java.io.FilterInputStream(i) { def d(): Unit = in = null }",
+            "assignment to a non-variable",
+        ),
     ];
     for (text, what) in cases {
         let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);
