@@ -30,6 +30,21 @@ impl Host {
                 };
                 numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
             }
+            "lambdaParts" => {
+                let (flags, params, result) = match self.u.types().get(tpe(self, 0)?).clone() {
+                    Type::Method { params, result, implicit, contextual, .. } => {
+                        ([implicit, contextual], params, result)
+                    }
+                    Type::Poly { params, result, .. } => ([false, false], params, result),
+                    _ => return Err("the parts of a type other than a method or polymorphic type"),
+                };
+                let mut parts: Vec<i32> =
+                    flags.iter().map(|&f| f as i32).chain([params.len() as i32]).collect();
+                parts.extend(params.iter().map(|&(_, t)| self.add_type(t) as i32));
+                parts.push(self.add_type(result) as i32);
+                let names: Vec<&str> = params.iter().map(|(n, _)| n.as_str()).collect();
+                Ok((parts, Some(names.join("\0"))))
+            }
             "showType" => {
                 let t = tpe(self, 0)?;
                 text(self.u.show_source(t)?)
@@ -169,6 +184,8 @@ impl Host {
             Type::TermRef(..) => 2,
             Type::Applied(..) => 3,
             Type::Annotated(..) => 4,
+            Type::Method { .. } => 5,
+            Type::Poly { .. } => 6,
             _ => 0,
         }
     }
