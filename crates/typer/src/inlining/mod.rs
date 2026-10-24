@@ -16,6 +16,7 @@ mod erased;
 mod expand;
 mod host;
 mod inline_call;
+mod macro_annotations;
 mod macros;
 mod no_inits;
 mod opaque_proxies;
@@ -161,6 +162,7 @@ impl Inlining<'_> {
             }
             _ => owner,
         };
+        self.check_macro_annotations(t)?;
         let call = self.traced_call(t);
         let outer = self.typer_inlined;
         if call.is_some() {
