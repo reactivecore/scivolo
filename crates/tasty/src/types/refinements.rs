@@ -33,21 +33,14 @@ impl Universe {
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
                 Type::And(a, b) => {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
-                    return match (a, b) {
-                        (Some(a), _) if matches!(self.types().get(a), Type::Alias(_)) => Some(a),
-                        (Some(a), Some(b)) if !matches!(self.types().get(b), Type::Alias(_)) => {
-                            let within = |u: &mut Self, x: TypeId, y: TypeId| match (
-                                u.types().get(x).clone(),
-                                u.types().get(y).clone(),
-                            ) {
-                                (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
-                                    u.is_subtype(ly, lx) && u.is_subtype(hx, hy)
-                                }
-                                _ => false,
-                            };
-                            if within(self, a, b) { Some(a) } else { within(self, b, a).then_some(b) }
+                    let (Some(a), Some(b)) = (a, b) else { return a.or(b) };
+                    return match (self.types().get(a).clone(), self.types().get(b).clone()) {
+                        (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
+                            let (lo, hi) = (self.lub(lx, ly), self.glb(hx, hy));
+                            Some(self.intern_type(Type::Bounds(lo, hi)))
                         }
-                        (a, b) => b.or(a),
+                        (Type::Alias(_), _) => Some(a),
+                        _ => Some(b),
                     };
                 }
                 _ => match self.dealias(t) {
