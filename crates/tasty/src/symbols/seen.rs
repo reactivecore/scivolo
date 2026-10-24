@@ -192,11 +192,17 @@ impl Universe {
         }
     }
 
-    /// The type of member `m` of `prefix`.
+    /// The type of member `m` of `prefix`; the `apply` of a dependent function type the one its
+    /// refinement gives.
     pub fn member_info(&mut self, prefix: TypeId, m: SymbolId) -> TypeId {
         let info = self.info(m);
         match self.symbol(m).owner {
-            Some(owner) if self.symbol(owner).kind == Kind::Class => self.as_seen_from(info, prefix, owner),
+            Some(owner) if self.symbol(owner).kind == Kind::Class => {
+                if let Some(refined) = self.dependent_refinement(prefix, m) {
+                    return refined;
+                }
+                self.as_seen_from(info, prefix, owner)
+            }
             _ => info,
         }
     }

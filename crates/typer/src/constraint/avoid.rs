@@ -75,6 +75,22 @@ impl Constraint {
                 }
                 Some(u.intern_type(Type::Applied(tycon, out)))
             }
+            Type::Refined(parent, name, info) => {
+                let parent = self.avoided(u, parent, born, v)?;
+                let info = match u.types().get(info).clone() {
+                    _ if !self.refers_to_local(u, info, born, 4) => info,
+                    Type::Alias(a) if v > 0 => {
+                        let (lo, hi) = (self.avoided(u, a, born, -1)?, self.avoided(u, a, born, 1)?);
+                        u.intern_type(Type::Bounds(lo, hi))
+                    }
+                    Type::Bounds(lo, hi) if v > 0 => {
+                        let (lo, hi) = (self.avoided(u, lo, born, -1)?, self.avoided(u, hi, born, 1)?);
+                        u.intern_type(Type::Bounds(lo, hi))
+                    }
+                    _ => return None,
+                };
+                Some(u.intern_type(Type::Refined(parent, name, info)))
+            }
             Type::And(a, b) => {
                 let (a, b) = (self.avoided(u, a, born, v)?, self.avoided(u, b, born, v)?);
                 Some(meet(u, a, b))

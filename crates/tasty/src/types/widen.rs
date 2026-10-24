@@ -129,9 +129,7 @@ impl Universe {
     pub fn term_type(&mut self, prefix: Option<TypeId>, s: SymbolId) -> TypeId {
         let info = self.info(s);
         match (prefix, self.symbol(s).owner) {
-            (Some(p), Some(owner)) if self.symbol(owner).kind == Kind::Class => {
-                self.as_seen_from(info, p, owner)
-            }
+            (Some(p), Some(owner)) if self.symbol(owner).kind == Kind::Class => self.member_info(p, s),
             _ => info,
         }
     }

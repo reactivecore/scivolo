@@ -74,7 +74,12 @@ impl Typer<'_> {
             _ => true,
         };
         let function = match pt {
-            Pt::Type(p) if self.function_parts(p, params.len()).is_some() => true,
+            Pt::Type(p)
+                if self.function_parts(p, params.len()).is_some()
+                    || self.dependent_function_parts(p, params.len(), false).is_some() =>
+            {
+                true
+            }
             Pt::Type(p) => self.sam_method_value(tree, p, params.len())?,
             _ => false,
         };
