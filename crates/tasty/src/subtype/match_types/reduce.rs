@@ -161,6 +161,11 @@ impl Cmp<'_> {
         }
         let widened = self.u.widen(scrut);
         let dealiased = self.u.dealias(widened);
+        if dealiased != scrut
+            && let Some(base) = self.u.base_type(dealiased, c)
+        {
+            return Some(base);
+        }
         let Type::Applied(tycon, args) = self.u.types().get(dealiased).clone() else { return None };
         let tuple = self.named(tycon)?.sym?;
         let pairs = self.nested_pairs(tuple, &args)?;

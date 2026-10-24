@@ -152,35 +152,6 @@ impl Typer<'_> {
         }
     }
 
-    /// Whether `tycon[args]` normalizes, a compile-time operation on constants.
-    pub fn folds(&mut self, tycon: TypeId, args: &[TypeId]) -> bool {
-        let op = self.u.intern_type(Type::Applied(tycon, args.to_vec()));
-        self.u.try_normalize(op).is_some()
-    }
-
-    /// Whether `t` is a match type that refers to no type parameter, parameter or abstract type.
-    pub fn is_ground_match(&mut self, t: TypeId) -> bool {
-        let dealiased = self.u.dealias(t);
-        if !matches!(self.u.types().get(dealiased), Type::Match { .. }) {
-            return false;
-        }
-        let mut abstract_part = false;
-        self.u.map_type(t, &mut |u, part| {
-            if let Type::Sym(_, s) = *u.types().get(part) {
-                abstract_part |= match u.symbol(s).kind {
-                    Kind::TypeParam | Kind::Param => true,
-                    Kind::Type => {
-                        let info = u.info(s);
-                        matches!(u.types().get(info), Type::Bounds(..))
-                    }
-                    _ => false,
-                };
-            }
-            None
-        });
-        !abstract_part
-    }
-
     /// The names of the type variables pattern `pat` binds: its lower-case type identifiers.
     fn type_variables(&mut self, pat: NodeId) -> Vec<String> {
         let idents =
