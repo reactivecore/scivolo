@@ -34,6 +34,17 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
     }
   }
 
+  object TermParamClause extends TermParamClauseModule {
+    def apply(params: List[ValDef]): TermParamClause = new ClauseImpl(false, params).asInstanceOf[TermParamClause]
+    def unapply(x: TermParamClause): Some[List[ValDef]] = Some(x.params)
+  }
+
+  object TypeParamClause extends TypeParamClauseModule {
+    def apply(params: List[TypeDef]): TypeParamClause = new ClauseImpl(true, params).asInstanceOf[TypeParamClause]
+    def unapply(x: TypeParamClause): Some[List[TypeDef]] =
+      Some(x.asInstanceOf[ClauseImpl].params.asInstanceOf[List[TypeDef]])
+  }
+
   given ClassDefMethods: ClassDefMethods = methods("ClassDefMethodsImpl")
   given DefDefMethods: DefDefMethods = methods("DefDefMethodsImpl")
   given ParamClauseMethods: ParamClauseMethods = methods("ParamClauseMethodsImpl")
