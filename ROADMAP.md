@@ -126,12 +126,11 @@ slower meanwhile:
    (R2) and mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037).
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
    [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): local objects and
-   `super` in inline bodies, implicit search in the call's context, inline accessors of
-   polymorphic methods, overriding Java `()` methods in inline reselection; the
-   forward-reference check (#90). Done 2026-10-23: TASTy prefix names, outer arguments of
-   library inner classes, inline methods of nested objects and generic classes, `outerSelect`,
-   local classes in inline bodies, shared extension parameters, local trait members,
-   context-result bridges.
+   `super` in inline bodies; members of path-dependent aliases seen from the path
+   (typeclass-derivation2b); local lazy values of value classes. Done 2026-10-24: implicit
+   search in the call's context, `summonFrom` givens, polymorphic inline accessors, library
+   trait variables, the forward-reference check (#90), local enums, nested context-result
+   bridges; 1,281 of 1,711 tests/run pass.
 5. **Value classes** (#88): i15725 and t13033, both behind typer refusals.
 6. **Tooling:** test programs compiled with Scala 3.9.0 explicitly (#91).
 7. **Startup** (#9): decoded definitions and lowered code in the heap snapshot.
