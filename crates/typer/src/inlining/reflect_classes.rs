@@ -8,37 +8,61 @@ use super::Reflect;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
+use tasty::tags::{LOCAL, PARAMsetter, PRIVATE};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
-    /// `Symbol.newClass(owner, name, parents, _, None)`: a class of `parents` with a constructor
-    /// without parameters, its declarations entered by `enter_decls`.
-    pub fn new_class(
-        &mut self,
-        owner: SymbolId,
-        name: &str,
-        parents: Vec<TypeId>,
-    ) -> Result<SymbolId, &'static str> {
+    /// `Symbol.newClass(owner, name, ..)`: a class with a constructor, its parents set by
+    /// `class_parents`, its constructor parameters by `class_params` and its declarations
+    /// entered by `enter_decls`.
+    pub fn new_class(&mut self, owner: SymbolId, name: &str) -> SymbolId {
+        let class = self.define(name, Kind::Class, owner, Flags::default());
+        let ctor = self.define("<init>", Kind::Def, class, Flags::default());
+        self.u.enter(ctor);
+        let dummy = self.define(&format!("<local {name}>"), Kind::Val, class, Flags::default());
+        self.u.enter(dummy);
+        class
+    }
+
+    pub fn class_parents(&mut self, class: SymbolId, parents: Vec<TypeId>) -> Result<(), &'static str> {
         if parents.iter().any(|&p| self.u.class_symbol(p).is_none()) {
             return Err("Symbol.newClass with a parent other than a class type");
         }
-        let class = self.define(name, Kind::Class, owner);
         self.u.set_parents(class, parents);
-        let ctor = self.define("<init>", Kind::Def, class);
-        self.u.enter(ctor);
-        let binder = self.u.fresh_binder();
-        let result = type_ref(self.u, class);
-        let info = self.u.intern_type(Type::Method {
-            binder,
-            params: Vec::new(),
-            result,
-            implicit: false,
-            contextual: false,
-        });
+        Ok(())
+    }
+
+    /// Gives the constructor of `class` parameters `params`, each with a private field, and
+    /// answers their definitions.
+    pub fn class_params(
+        &mut self,
+        class: SymbolId,
+        params: Vec<(String, TypeId)>,
+    ) -> Result<Vec<TNodeId>, &'static str> {
+        let span = self.span;
+        let ctor = self.constructor(class)?;
+        let (binder, result) = (self.u.fresh_binder(), type_ref(self.u, class));
+        let info =
+            Type::Method { binder, params: params.clone(), result, implicit: false, contextual: false };
+        let info = self.u.intern_type(info);
         self.u.set_info(ctor, info);
-        let dummy = self.define(&format!("<local {name}>"), Kind::Val, class);
-        self.u.enter(dummy);
-        Ok(class)
+        let mut defs = Vec::new();
+        for (name, tpe) in params {
+            let field_flags = Flags::default().with(PRIVATE).with(LOCAL).with(PARAMsetter);
+            let field = self.define(&name, Kind::Val, class, field_flags);
+            self.u.set_info(field, tpe);
+            self.u.enter(field);
+            let p = self.define(&name, Kind::Param, ctor, Flags::default());
+            self.u.set_info(p, tpe);
+            let tpt = self.type_tree(tpe);
+            defs.push(self.build()?.val_def(p, tpt, None, span));
+        }
+        Ok(defs)
+    }
+
+    fn constructor(&mut self, class: SymbolId) -> Result<SymbolId, &'static str> {
+        let ctor = self.u.decl(class, "<init>").ok().and_then(|c| c.first().copied());
+        ctor.ok_or("a class without a constructor")
     }
 
     /// Enters `decls`, symbols owned by `class`, into its declarations.
@@ -54,27 +78,36 @@ impl Reflect<'_> {
         Ok(())
     }
 
-    /// `ClassDef(cls, parents, body)` of a class `Symbol.newClass` made, its class parents called
-    /// as constructors without arguments.
+    /// `ClassDef(cls, parents, body)` of a class `Symbol.newClass` made with constructor
+    /// parameter definitions `params`: the fields of the parameters first in its body, its class
+    /// parents called as constructors without arguments.
     pub fn class_def(
         &mut self,
         cls: SymbolId,
-        parents: &[TNodeId],
+        (params, parents): (&[TNodeId], &[TNodeId]),
         body: &[TNodeId],
     ) -> Result<TNodeId, &'static str> {
         let span = self.span;
-        let ctor = self.u.decl(cls, "<init>").ok().and_then(|c| c.first().copied());
-        let ctor = ctor.ok_or("ClassDef.apply of a class without a constructor")?;
+        let ctor = self.constructor(cls)?;
         let dummy = format!("<local {}>", self.u.symbol(cls).name);
         let dummy = crate::defn::entered(self.u, cls, &dummy, Kind::Val);
         let unit = self.u.class_ref("scala.Unit");
         let tpt = self.type_tree(unit);
-        let constr = self.build()?.def_def(ctor, &[&[]], tpt, None, span);
+        let constr = self.build()?.def_def(ctor, &[params], tpt, None, span);
         let mut called = Vec::new();
         for &p in parents {
             called.push(self.parent_call(p)?);
         }
-        let (parents, body) = (self.tpd.list(&called), self.tpd.list(body));
+        let mut fields: Vec<SymbolId> = self.u.symbol(cls).decls.clone();
+        fields.retain(|&f| self.u.symbol(f).flags.has(PARAMsetter));
+        let mut stats = Vec::new();
+        for f in fields {
+            let info = self.u.info(f);
+            let tpt = self.type_tree(info);
+            stats.push(self.build()?.val_def(f, tpt, None, span));
+        }
+        stats.extend_from_slice(body);
+        let (parents, body) = (self.tpd.list(&called), self.tpd.list(&stats));
         let template = self.tpd.node(T::Template { constr, parents, self_: None, body }, span, None, dummy);
         let name = TName { name: self.names.intern(&self.u.symbol(cls).name), is_type: true };
         let tpe = type_ref(self.u, cls);
@@ -124,12 +157,12 @@ impl Reflect<'_> {
         self.tpd.node(T::New { tpt }, self.span, Some(tpe), None)
     }
 
-    fn define(&mut self, name: &str, kind: Kind, owner: SymbolId) -> SymbolId {
+    fn define(&mut self, name: &str, kind: Kind, owner: SymbolId, flags: Flags) -> SymbolId {
         let s = self.u.define(Symbol {
             name: name.to_owned(),
             kind,
             owner: None,
-            flags: Flags::default(),
+            flags,
             target: None,
             is_extern: false,
             derived: false,

@@ -25,16 +25,21 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     }
     def classSymbol(fullName: String): Symbol = requiredClass(fullName)
     def newClass(owner: Symbol, name: String, parents: List[TypeRepr], decls: Symbol => List[Symbol],
-        selfType: Option[TypeRepr]): Symbol = {
+        selfType: Option[TypeRepr]): Symbol = newClass(owner, name, _ => parents, decls, selfType, Flags.EmptyFlags, noSymbol, Nil)
+    def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
+        selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol,
+        conParams: List[(String, TypeRepr)]): Symbol = {
       if (selfType.nonEmpty) refused("Symbol.newClass with a self type")
-      ReflectOps.run("newClass", (ReflectOps.id(owner) :: parents.map(ReflectOps.id)).toArray, name)
+      if (clsFlags.asInstanceOf[FlagsImpl].bits != 0) refused("Symbol.newClass with flags")
+      if (ReflectOps.id(clsPrivateWithin) >= 0) refused("Symbol.newClass with privateWithin")
+      ReflectOps.run("newClass", Array(ReflectOps.id(owner)), name)
       val cls = symbol(QuoteHost.result(0))
+      ReflectOps.run("classParents", (cls :: parents(cls)).map(ReflectOps.id).toArray, null)
+      val types = conParams.map(p => ReflectOps.id(p._2))
+      ReflectOps.run("classParams", (ReflectOps.id(cls) :: types).toArray, conParams.map(_._1).mkString("\u0000"))
       ReflectOps.run("enterDecls", (cls :: decls(cls)).map(ReflectOps.id).toArray, null)
       cls
     }
-    def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
-        selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol,
-        conParams: List[(String, TypeRepr)]): Symbol = refused("Symbol.newClass")
     def newClass(owner: Symbol, name: String, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr], clsFlags: Flags, clsPrivateWithin: Symbol, clsAnnotations: List[Term],
         conMethodType: TypeRepr => MethodOrPoly, conFlags: Flags, conPrivateWithin: Symbol,
