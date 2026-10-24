@@ -370,6 +370,16 @@ fn unit_objects_in_jdk_packages_are_values() {
 }
 
 #[test]
+fn javalib_objects_are_values_when_compiling_javalib() {
+    let Some(mut u) = universe() else { return };
+    let text = |n: &str| format!("package java.io\nobject {n} {{ val filter: Any = FilenameFilter }}\n");
+    let refused = Err("unsupported object of a Java class used as a value".to_owned());
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "U1.scala", &text("U1")), refused);
+    u.set_javalib_sources();
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "U2.scala", &text("U2")), Ok(()));
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";
