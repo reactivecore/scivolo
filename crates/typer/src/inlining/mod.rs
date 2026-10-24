@@ -33,6 +33,7 @@ mod reflect_trees;
 mod reflect_vals;
 mod reselect;
 mod retype;
+mod retyped;
 mod skolems;
 mod splice;
 mod this_proxy;
@@ -94,8 +95,11 @@ pub struct Inlining<'a> {
     /// block statement.
     pub local_implicits: bool,
     /// The implicit values and methods block statements of the code being expanded define, in
-    /// whose scope it is, outermost first.
-    pub block_implicits: Vec<SymbolId>,
+    /// whose scope it is, by block, outermost first.
+    pub block_implicits: Vec<Vec<SymbolId>>,
+    /// Whether the code being retyped is a macro's result, whose references to methods with a
+    /// using clause take their implicit arguments.
+    pub in_macro_result: bool,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -129,6 +133,7 @@ impl<'a> Inlining<'a> {
             typer_inlined: None,
             local_implicits: false,
             block_implicits: Vec::new(),
+            in_macro_result: false,
         }
     }
 }
