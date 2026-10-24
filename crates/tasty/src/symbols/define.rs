@@ -89,13 +89,8 @@ impl Universe {
 
     /// Sets the given self type of class `c`; resolved references are dropped.
     pub fn set_self_type(&mut self, c: SymbolId, self_type: TypeId) {
-        self.self_types.insert(c, self_type);
+        self.self_types.insert(c, Some(self_type));
         self.changed();
-    }
-
-    /// The given self type of class `c` (dotty's `givenSelfType`), if it declares one.
-    pub fn given_self_type(&self, c: SymbolId) -> Option<TypeId> {
-        self.self_types.get(&c).copied()
     }
 
     /// Sets the flags of `sym`; changed flags drop the resolved references.
