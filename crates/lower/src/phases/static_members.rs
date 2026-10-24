@@ -28,7 +28,7 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         let Some(target) = target.filter(|_| !companion.is_some_and(|c| l.u.is_trait(c))) else {
             return unsupported(
                 l.tpd.span(statics[0]),
-                "@static members of an object whose companion is a trait",
+                "@static members of an object whose companion is a trait or in another unit",
             );
         };
         for &stat in &statics {
