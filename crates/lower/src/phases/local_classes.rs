@@ -63,10 +63,7 @@ pub fn transform(l: &mut Lower, root: TNodeId, classes: &[TNodeId]) -> Result<Pe
     }
     super::local_traits::transform(l, root, &traits, &deps, &mut pending)?;
     pending.deps = Some(deps);
-    let own = locals
-        .iter()
-        .map(|c| (c.class, c.free.values.iter().chain(&c.free.in_methods).copied().collect()))
-        .collect();
+    let own = locals.iter().map(|c| (c.class, (c.free.values.clone(), c.free.in_methods.clone()))).collect();
     let mut nested = Nested { own, named_in: FxHashMap::default() };
     let mut classes = Vec::new();
     for (Local { td, class, named_in, free, .. }, (fields, params)) in locals.into_iter().zip(proxies) {
