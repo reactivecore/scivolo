@@ -41,9 +41,9 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             let Some(ext) = extension(l, m) else {
                 return unsupported(l.tpd.span(stat), "methods of value classes without companions");
             };
-            let name = l.u.symbol(ext).name.clone();
-            if name.contains(RETAINED_BODY) {
-                l.u.rename(ext, &name.replace(RETAINED_BODY, ""));
+            let name = l.u.symbol(m).name.clone();
+            if let Some(retained) = name.strip_suffix(RETAINED_BODY) {
+                l.u.rename(ext, &format!("{retained}$extension"));
             }
             let def = move_body(l, class, stat, ext);
             let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };

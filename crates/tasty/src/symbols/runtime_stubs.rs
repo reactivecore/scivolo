@@ -5,7 +5,7 @@
 use super::any_members::{class_type, method};
 use super::builtin::synthetic;
 use super::{Kind, SymbolId, Universe};
-use crate::tags::{FINAL, MUTABLE, OBJECT};
+use crate::tags::{FINAL, MUTABLE, OBJECT, STATIC};
 use crate::types::{Type, TypeId};
 
 /// The primitive types with a `*Ref` class.
@@ -72,19 +72,22 @@ impl Universe {
         self.is_module_class(c) && self.is_java_stub(c)
     }
 
-    /// Whether `s` is a field of a Java class entered here.
+    /// Whether `s` is an instance field of a Java class entered here.
     pub fn is_java_field(&self, s: SymbolId) -> bool {
         self.symbol(s).kind == Kind::Val
             && !self.is_module(s)
+            && !self.symbol(s).flags.has(STATIC)
             && self.symbol(s).owner.is_some_and(|c| self.is_java_stub(c))
     }
 
     fn is_java_stub(&self, c: SymbolId) -> bool {
+        if self.symbol(c).tree.is_some() || self.symbol(c).kind != Kind::Class {
+            return false;
+        }
         let name = self.full_name(c);
         let Some(simple) = name.strip_prefix("scala.runtime.") else { return false };
         let simple = simple.strip_suffix('$').unwrap_or(simple);
         let primitive = simple.strip_prefix("Volatile").unwrap_or(simple).strip_suffix("Ref");
-        self.symbol(c).tree.is_none()
-            && (matches!(simple, "Statics" | "BoxedUnit") || primitive.is_some_and(|p| REFS.contains(&p)))
+        matches!(simple, "Statics" | "BoxedUnit") || primitive.is_some_and(|p| REFS.contains(&p))
     }
 }

@@ -25,10 +25,11 @@ pub fn transform(l: &mut Lower, root: TNodeId) -> Result<()> {
         }
         let companion = l.u.companion_class(module);
         let target = classes.iter().copied().find(|&c| l.tpd.sym(c).is_some() && l.tpd.sym(c) == companion);
-        let Some(target) = target.filter(|_| !companion.is_some_and(|c| l.u.is_trait(c))) else {
+        let plain = companion.is_some_and(|c| !l.u.is_trait(c) && l.u.underlying(c).is_none());
+        let Some(target) = target.filter(|_| plain) else {
             return unsupported(
                 l.tpd.span(statics[0]),
-                "@static members of an object whose companion is a trait or in another unit",
+                "@static members of an object whose companion is a trait, a value class or in another unit",
             );
         };
         for &stat in &statics {
@@ -66,7 +67,7 @@ fn is_static(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// Refuses `@static` definition `stat` unless it is a method whose body needs no `this` and
-/// defines no method but closures' and no class.
+/// defines no method but closures' of function types and no class.
 fn check_movable(l: &Lower, stat: TNodeId) -> Result<()> {
     let Tree::DefDef { rhs, .. } = *l.tpd.tree(stat) else {
         return unsupported(l.tpd.span(stat), "@static values");
@@ -74,8 +75,9 @@ fn check_movable(l: &Lower, stat: TNodeId) -> Result<()> {
     for t in rhs.map(|r| subtrees(l.tpd, r)).unwrap_or_default() {
         let closure = l.tpd.sym(t).is_some_and(|s| l.u.symbol(s).name == "$anonfun");
         let local_def = matches!(l.tpd.tree(t), Tree::DefDef { .. }) && !closure;
-        if local_def || matches!(l.tpd.tree(t), Tree::This { .. } | Tree::TypeDef { .. } | Tree::Super { .. })
-        {
+        let sam = matches!(l.tpd.tree(t), Tree::Closure { tpt: Some(_), .. });
+        let refused = matches!(l.tpd.tree(t), Tree::This { .. } | Tree::TypeDef { .. } | Tree::Super { .. });
+        if local_def || sam || refused {
             return unsupported(
                 l.tpd.span(t),
                 "@static method needing its object or defining local methods or classes",
