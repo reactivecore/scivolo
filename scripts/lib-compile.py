@@ -32,6 +32,10 @@ WORK = ROOT / "tmp/lib"
 LOWER, NIR_DUMP = ROOT / "target/release/scivolo-lower", ROOT / "target/release/scivolo-nir-dump"
 MODULES = ["nativelib", "clib", "posixlib", "windowslib", "javalib", "auxlib"]
 SOURCE_DIRS = ["scala", "scala-3", "scala-2.13+"]
+WINDOWSLIB = LIBS / "windowslib_native0.5_3-0.5.12.jar"
+# The TASTy a module's sources see beyond the frontend's library: windowslib's, which the
+# library lacks, and the JDK annotations javalib's sources use.
+TASTY = {"windowslib": [WINDOWSLIB], "javalib": [WINDOWSLIB, ROOT / "libs/jdk-stubs.jar"]}
 JOBS = os.cpu_count() or 4
 TIMEOUT = 60
 
@@ -79,7 +83,8 @@ def one(module, root, file):
     rel = str(file.relative_to(root))
     shown = f"{root.name}/{rel}"
     out = WORK / module / "out" / root.name / rel.removesuffix(".scala")
-    cmd = [str(LOWER), "--sourceroot", str(root), str(file), str(out)]
+    tasty = [a for jar in TASTY.get(module, []) for a in ("--tasty", str(jar))]
+    cmd = [str(LOWER), *tasty, "--sourceroot", str(root), str(file), str(out)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, errors="replace", timeout=TIMEOUT)
     except subprocess.TimeoutExpired:

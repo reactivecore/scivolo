@@ -513,6 +513,17 @@ macro-fixture:
 javalib-tasty:
     scripts/javalib-tasty.sh
 
+# Rebuild the checked-in libs/jdk-stubs.jar, the TASTy of libs/jdk-stubs (scala-cli).
+jdk-stubs:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    rm -rf tmp/jdk-stubs
+    scala-cli --power compile --quiet --scala 3.9.0 --server=false --workspace tmp/jdk-stubs/ws \
+        -d tmp/jdk-stubs/out libs/jdk-stubs/JdkStubs.scala
+    find tmp/jdk-stubs/out -name '*.tasty' -exec touch -t 201001010000 {} +
+    rm -f libs/jdk-stubs.jar
+    (cd tmp/jdk-stubs/out && find . -name '*.tasty' | sed 's|^\./||' | sort | zip -q -X {{ justfile_directory() }}/libs/jdk-stubs.jar -@)
+
 # Check out Scala Native v0.5.12 into ref/scala-native.
 fetch-scala-native:
     scripts/fetch-scala-native.sh

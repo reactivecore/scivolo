@@ -16,6 +16,9 @@ struct Cli {
     /// A directory of TASTy and NIR files compiled before.
     #[arg(long)]
     cp: Vec<PathBuf>,
+    /// A jar or directory whose TASTy the sources see, without its NIR.
+    #[arg(long)]
+    tasty: Vec<PathBuf>,
     /// Names each source in positions by its path relative to this directory, not by its file name.
     #[arg(long)]
     sourceroot: Option<PathBuf>,
@@ -27,11 +30,11 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, sourceroot, files, out_dir: out } = Cli::parse();
+    let Cli { cp, tasty, sourceroot, files, out_dir: out } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = typer::dump::library_jars(&libs);
-    let mut u = Universe::open(&[&jars[..], &cp].concat()).expect("opening the library");
+    let mut u = Universe::open(&[&jars[..], &cp, &tasty].concat()).expect("opening the library");
     let sources: Vec<SourceFile> =
         files.iter().map(|f| SourceFile::new(source_name(f, sourceroot.as_deref()), read(f))).collect();
     let mut vm = (!cp.is_empty()).then(|| {
