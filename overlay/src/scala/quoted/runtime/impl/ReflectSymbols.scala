@@ -36,8 +36,12 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol = refused("Symbol.newMethod")
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
       refused("Symbol.newMethod")
-    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
-      refused("Symbol.newVal")
+    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol = {
+      val bits = flags.asInstanceOf[FlagsImpl].bits
+      val args = Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits.toInt, (bits >>> 32).toInt, ReflectOps.id(privateWithin))
+      ReflectOps.run("newVal", args, name)
+      symbol(QuoteHost.result(0))
+    }
     def newBind(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr): Symbol = refused("Symbol.newBind")
     def newTypeAlias(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr, privateWithin: Symbol): Symbol =
       refused("Symbol.newTypeAlias")

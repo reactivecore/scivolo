@@ -54,7 +54,11 @@ impl Host {
                 let tasty::Type::Sym(_, s) = *self.u.types().get(tpe) else {
                     return Err("Ident.apply of a reference the frontend did not resolve");
                 };
-                let t = self.reflect().ref_(s)?;
+                let local = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
+                let t = match local {
+                    true => self.reflect().local_ident(s)?,
+                    false => self.reflect().ref_(s)?,
+                };
                 numbers(vec![self.add_tree(t) as i32])
             }
             "selectUnique" => {
@@ -109,6 +113,22 @@ impl Host {
                 let owner = self.owner;
                 let (vdef, r) = self.reflect().let_(owner, text, rhs, flags)?;
                 numbers(vec![self.add_tree(vdef) as i32, self.add_tree(r) as i32])
+            }
+            "newVal" => {
+                let owner = symbol(arg(0)?)?;
+                if owner != self.owner && owner != self.macro_owner() || arg(4)? >= 0 {
+                    return Err("Symbol.newVal of an owner other than the splice's or with a privateWithin");
+                }
+                let info = self.type_of(arg(1)? as u32)?;
+                let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
+                let owner = self.owner;
+                let s = self.reflect().new_val(owner, text, info, flags)?;
+                numbers(vec![s.0 as i32])
+            }
+            "valDef" => {
+                let rhs = (arg(1)? >= 0).then(|| self.tree(arg(1)? as u32)).transpose()?;
+                let t = self.reflect().val_def(symbol(arg(0)?)?, rhs)?;
+                numbers(vec![self.add_tree(t) as i32])
             }
             "betaReduce" => {
                 let t = self.tree(arg(0)? as u32)?;

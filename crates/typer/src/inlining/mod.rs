@@ -29,6 +29,7 @@ mod reduce;
 mod reflect;
 mod reflect_beta;
 mod reflect_trees;
+mod reflect_vals;
 mod reselect;
 mod retype;
 mod skolems;
@@ -88,8 +89,12 @@ pub struct Inlining<'a> {
     pub outermost_span: Span,
     /// The span of the outermost `Inlined` tree from the typer around the code being expanded.
     typer_inlined: Option<Span>,
-    /// Whether the code being expanded is in the scope of an implicit it defines.
+    /// Whether the code being expanded is in the scope of an implicit it defines other than by a
+    /// block statement.
     pub local_implicits: bool,
+    /// The implicit values and methods block statements of the code being expanded define, in
+    /// whose scope it is, outermost first.
+    pub block_implicits: Vec<SymbolId>,
 }
 
 impl AsMut<Tpd> for Inlining<'_> {
@@ -122,6 +127,7 @@ impl<'a> Inlining<'a> {
             outermost_span: Span::NONE,
             typer_inlined: None,
             local_implicits: false,
+            block_implicits: Vec::new(),
         }
     }
 }
