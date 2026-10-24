@@ -4,11 +4,10 @@
 //! `SpliceInterpreter`): the call of the macro implementation read off the splice, run by the
 //! host, and the expression it returns built from its quotes.
 
-use super::macros::{MacroArg, MacroCall, MacroError};
+use super::macros::{MacroArg, MacroError};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T, map_children};
 use rustc_hash::FxHashMap;
-use syntax::ast::Span;
 use tasty::tags::INLINEPROXY;
 use tasty::{Kind, SymbolId};
 
@@ -84,65 +83,9 @@ impl Inlining<'_> {
         found.then(|| self.tpd.items(args).first().copied()).flatten()
     }
 
-    /// The call of the macro implementation that splice argument `closure`, a context function
-    /// of the `Quotes`, makes.
-    fn macro_call(
-        &mut self,
-        closure: TNodeId,
-        owner: SymbolId,
-        span: Span,
-    ) -> Result<MacroCall, Unsupported> {
-        let refused = (span, "a splice other than a call of a macro implementation");
-        let T::Block { stats, .. } = *self.tpd.tree(closure) else { return Err(refused) };
-        let [def] = self.tpd.items(stats)[..] else { return Err(refused) };
-        let T::DefDef { paramss, rhs: Some(body), .. } = *self.tpd.tree(def) else { return Err(refused) };
-        let params: Vec<TNodeId> =
-            self.tpd.clause_items(paramss).iter().flat_map(|&l| self.tpd.items(l)).copied().collect();
-        let [quotes] = params[..] else { return Err(refused) };
-        let quotes = self.tpd.sym(quotes).ok_or(refused)?;
-        let mut t = self.unwrapped(body);
-        let (mut clauses, mut context) = (Vec::new(), false);
-        loop {
-            match *self.tpd.tree(t) {
-                T::Apply { fun, args } if clauses.is_empty() && !context => {
-                    match self.context_function(fun, args, quotes) {
-                        Some(f) => (context, t) = (true, f),
-                        None => {
-                            clauses.push(self.tpd.items(args).to_vec());
-                            t = fun;
-                        }
-                    }
-                }
-                T::Apply { fun, args } => {
-                    clauses.push(self.tpd.items(args).to_vec());
-                    t = fun;
-                }
-                T::TypeApply { fun, .. } => t = fun,
-                _ => break,
-            }
-        }
-        let (method, receiver) = self.macro_method(t).ok_or(refused)?;
-        let mut args = Vec::new();
-        for arg in clauses.into_iter().rev().flatten() {
-            let refused = (self.tpd.span(arg), "a macro argument other than a quote, a type or the Quotes");
-            args.push(match self.macro_arg(arg, quotes).ok_or(refused)? {
-                MacroArg::Expr(body) => {
-                    let body = self.constant_arg(body);
-                    MacroArg::Expr(self.outer_inlined(body))
-                }
-                arg => arg,
-            });
-        }
-        if context {
-            args.push(MacroArg::Quotes);
-        }
-        let expansion = self.outermost_span;
-        Ok(MacroCall { method, receiver, context, args, owner, span, expansion, searched: Vec::new() })
-    }
-
     /// Quoted argument `body` as a literal if it refers to an inline proxy whose type normalizes
     /// to a constant (dotty's `constToLiteral` of an inline parameter's binding).
-    fn constant_arg(&mut self, body: TNodeId) -> TNodeId {
+    pub fn constant_arg(&mut self, body: TNodeId) -> TNodeId {
         let inner = self.unwrapped(body);
         let proxy =
             |u: &tasty::Universe, s| u.symbol(s).kind == Kind::Val && u.symbol(s).flags.has(INLINEPROXY);
@@ -160,7 +103,7 @@ impl Inlining<'_> {
 
     /// Quoted expression `body` as an argument inlined from the outer scope, as the
     /// `SpliceInterpreter` wraps it.
-    fn outer_inlined(&mut self, body: TNodeId) -> TNodeId {
+    pub fn outer_inlined(&mut self, body: TNodeId) -> TNodeId {
         let body = self.without_outer_inlined(body);
         let (span, tpe) = (self.tpd.span(body), self.tpd.get(body).tpe);
         let bindings = self.tpd.list(&[]);
@@ -179,7 +122,7 @@ impl Inlining<'_> {
     }
 
     /// `t` without the typed, inlined and empty block trees around it.
-    fn unwrapped(&self, t: TNodeId) -> TNodeId {
+    pub fn unwrapped(&self, t: TNodeId) -> TNodeId {
         match *self.tpd.tree(t) {
             T::Typed { expr, .. } => self.unwrapped(expr),
             T::Inlined { call: None, bindings, expansion } if bindings.is_empty() => {
@@ -192,7 +135,7 @@ impl Inlining<'_> {
 
     /// Argument `arg` of a macro implementation, given the splice's `Quotes` parameter `quotes`:
     /// `quotes`, `'{ e }(quotes)` or `Type.of[T](quotes)` (the `SpliceInterpreter`'s cases).
-    fn macro_arg(&self, arg: TNodeId, quotes: SymbolId) -> Option<MacroArg> {
+    pub fn macro_arg(&self, arg: TNodeId, quotes: SymbolId) -> Option<MacroArg> {
         let arg = self.unwrapped(arg);
         if self.tpd.sym(arg) == Some(quotes) && matches!(self.tpd.tree(arg), T::Ident { .. }) {
             return Some(MacroArg::Quotes);
