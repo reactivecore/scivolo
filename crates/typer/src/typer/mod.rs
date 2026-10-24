@@ -193,6 +193,7 @@ mod widen_inferred;
 mod widen_union;
 mod widening;
 mod wild_approx;
+mod wildcard_members;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::{Defn, entered};

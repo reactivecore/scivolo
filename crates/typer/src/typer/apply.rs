@@ -111,7 +111,7 @@ impl Typer<'_> {
         if misplaced {
             return self.unsupported(id, "sequence argument");
         }
-        if let Type::Bounds(..) = self.u.types().get(result) {
+        if super::wildcard_members::is_bounds_like(self.u, result) {
             return self.unsupported(id, "result type of a wildcard argument");
         }
         let aligned_args = aligned.as_ref().map(|a| {
