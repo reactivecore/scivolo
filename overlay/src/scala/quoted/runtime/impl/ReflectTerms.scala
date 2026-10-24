@@ -144,6 +144,8 @@ trait ReflectTerms extends reflectModule { self: reflect.type =>
       def underlying: Term = ReflectOps.term(ReflectOps.one("underlying", ReflectOps.id(self))).asInstanceOf[Term]
       def select(sym: Symbol): Select =
         ReflectOps.term(ReflectOps.one("select", ReflectOps.id(self), ReflectOps.id(sym))).asInstanceOf[Select]
+      def etaExpand(owner: Symbol): Term =
+        ReflectOps.term(ReflectOps.one("etaExpand", ReflectOps.id(self), ReflectOps.id(owner))).asInstanceOf[Term]
       def appliedTo(arg: Term): Term = self.appliedToArgs(List(arg))
       def appliedTo(arg: Term, args: Term*): Term = self.appliedToArgs(arg :: args.toList)
       def appliedToArgs(args: List[Term]): Apply =

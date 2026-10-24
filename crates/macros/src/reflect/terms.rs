@@ -5,7 +5,8 @@
 use super::{Answer, UNKNOWN, arg, numbers, symbol};
 use crate::host::Host;
 use std::collections::HashMap;
-use typer::tpd::{TNodeId, Tpd, map_children};
+use syntax::ast::TName;
+use typer::tpd::{TNodeId, Tpd, Tree as T, map_children};
 
 impl Host {
     /// Runs term operation `op` on `args`.
@@ -103,6 +104,34 @@ impl Host {
                 let t = self.reflect().wildcard();
                 numbers(vec![self.add_tree(t) as i32])
             }
+            "assign" => {
+                let (lhs, rhs) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
+                let unit = self.u.class_ref("scala.Unit");
+                let t = self.tpd.node(T::Assign { lhs, rhs }, self.expansion, Some(unit), None);
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "copySelect" => {
+                let (original, qual) = (self.tree(arg(0)? as u32)?, self.tree(arg(1)? as u32)?);
+                let T::Select { qualifier, name } = *self.tpd.tree(original) else {
+                    return Err("Select.copy of another tree");
+                };
+                if self.names.text(name.name) != text {
+                    return Err("Select.copy under another name");
+                }
+                if qual == qualifier {
+                    return numbers(vec![arg(0)?]);
+                }
+                let m = self.tpd.sym(original).ok_or("Select.copy of a selection without a symbol")?;
+                let t = self.reflect().select(qual, m)?;
+                numbers(vec![self.add_tree(t) as i32])
+            }
+            "namedArg" => {
+                let arg = self.tree(arg(0)? as u32)?;
+                let name = TName { name: self.names.intern(text), is_type: false };
+                let tpe = self.tpd.get(arg).tpe;
+                let t = self.tpd.node(T::NamedArg { name, arg }, self.expansion, tpe, None);
+                numbers(vec![self.add_tree(t) as i32])
+            }
             "let" => {
                 let owner = symbol(arg(0)?)?;
                 if owner != self.owner && owner != self.macro_owner() {
@@ -113,27 +142,6 @@ impl Host {
                 let owner = self.owner;
                 let (vdef, r) = self.reflect().let_(owner, text, rhs, flags)?;
                 numbers(vec![self.add_tree(vdef) as i32, self.add_tree(r) as i32])
-            }
-            "newVal" => {
-                let owner = symbol(arg(0)?)?;
-                if owner != self.owner && owner != self.macro_owner() || arg(4)? >= 0 {
-                    return Err("Symbol.newVal of an owner other than the splice's or with a privateWithin");
-                }
-                let info = self.type_of(arg(1)? as u32)?;
-                let flags = (arg(2)? as u32 as u64) | ((arg(3)? as u32 as u64) << 32);
-                let owner = self.owner;
-                let s = self.reflect().new_val(owner, text, info, flags)?;
-                numbers(vec![s.0 as i32])
-            }
-            "valDef" => {
-                let s = symbol(arg(0)?)?;
-                let local = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
-                if self.u.symbol(s).kind != tasty::Kind::Val || !local {
-                    return Err("ValDef.apply of a symbol other than a local value");
-                }
-                let rhs = (arg(1)? >= 0).then(|| self.tree(arg(1)? as u32)).transpose()?;
-                let t = self.reflect().val_def(s, rhs)?;
-                numbers(vec![self.add_tree(t) as i32])
             }
             "betaReduce" => {
                 let t = self.tree(arg(0)? as u32)?;

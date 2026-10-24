@@ -131,6 +131,7 @@ impl Unpickler<'_> {
         if !member {
             self.u.unenter(s);
         }
+        self.annotate_quoted(s, &mods);
         for p in params {
             if matches!(self.tag(p), PARAM | TYPEPARAM) {
                 self.define_definition(p, s, true)?;

@@ -125,14 +125,24 @@ impl Reflect<'_> {
         Ok(crate::defn::ref_type(self.u, Some(qual), s))
     }
 
-    /// `Ref(s)` of a static object or value `s`.
+    /// `Ref(s)` of a static or local term `s`, or `C.this.s` of a member of class `C`.
     pub fn ref_(&mut self, s: SymbolId) -> Result<TNodeId, &'static str> {
         let span = self.span;
-        if !self.u.symbol(s).kind.is_term() || !self.u.is_static_symbol(s) {
-            return Err("Ref of a symbol other than a static term");
+        let owner = self.u.symbol(s).owner.ok_or("Ref of a symbol without an owner")?;
+        if !self.u.symbol(s).kind.is_term() {
+            return Err("Ref of a type");
         }
-        let tpe = type_ref(self.u, s);
-        Ok(self.build()?.ident(s, tpe, span))
+        if self.u.is_static_symbol(s) || self.u.symbol(owner).kind.is_term() {
+            let tpe = type_ref(self.u, s);
+            return Ok(self.build()?.ident(s, tpe, span));
+        }
+        if self.u.symbol(owner).kind != Kind::Class {
+            return Err("Ref of a symbol other than a static term, a local or a class member");
+        }
+        let class = type_ref(self.u, owner);
+        let mut b = self.build()?;
+        let this = b.this(class, span);
+        Ok(b.select(this, s, span))
     }
 
     /// `Term.select(m)`.

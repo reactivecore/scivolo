@@ -53,7 +53,7 @@ pub enum Test {
     Equal(TNodeId),
     /// The scrutinee is the condition.
     Guard,
-    /// `scrutinee.$isInstanceOf[tpt]`.
+    /// `scrutinee.$isInstanceOf$[tpt]`.
     Type(TNodeId),
     /// `scrutinee ne null`.
     NonNull,

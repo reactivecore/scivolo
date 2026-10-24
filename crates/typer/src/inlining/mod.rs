@@ -17,6 +17,10 @@ mod expand;
 mod host;
 mod implicit_args;
 mod inline_call;
+mod macro_annotations;
+mod macro_definitions;
+mod macro_impls;
+mod macro_trees;
 mod macros;
 mod no_inits;
 mod opaque_proxies;
@@ -30,6 +34,9 @@ mod quoted;
 mod reduce;
 mod reflect;
 mod reflect_beta;
+mod reflect_classes;
+mod reflect_defs;
+mod reflect_lambdas;
 mod reflect_trees;
 mod reflect_vals;
 mod reselect;
@@ -46,7 +53,7 @@ mod unused;
 
 pub use erased::is_erased_value;
 pub use host::{Host, Lent};
-pub use macros::{Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
+pub use macros::{AnnotationCall, Annotations, Expanded, MacroArg, MacroCall, MacroError, Macros, Quoted};
 pub use quote_match::bound_types;
 pub use quote_matcher::quote_match;
 pub use reflect::Reflect;
@@ -184,6 +191,7 @@ impl Inlining<'_> {
             }
             _ => owner,
         };
+        self.expand_macro_annotations(t)?;
         let typer_ctx = self.typer_inlined_ctx(t);
         let call = self.traced_call(t);
         let (outer, outer_ctx) = (self.typer_inlined, self.typer_ctx);

@@ -49,6 +49,55 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
     }
   }
 
+  /** A method type of parameter and result types that do not refer to it. */
+  object MethodType extends MethodTypeModule {
+    def apply(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr], resultTypeExp: MethodType => TypeRepr): MethodType = {
+      val unknown = QuoteHost.tpe(Int.MaxValue).asInstanceOf[MethodType]
+      val types = paramInfosExp(unknown) ::: List(resultTypeExp(unknown))
+      ReflectOps.run("methodType", types.map(ReflectOps.id).toArray, paramNames.mkString("\u0000"))
+      QuoteHost.tpe(QuoteHost.result(0)).asInstanceOf[MethodType]
+    }
+    def apply(kind: MethodTypeKind)(paramNames: List[String])(paramInfosExp: MethodType => List[TypeRepr],
+        resultTypeExp: MethodType => TypeRepr): MethodType = throw new Unsupported("MethodType.apply of a kind")
+    def unapply(x: MethodType): (List[String], List[TypeRepr], TypeRepr) = (x.paramNames, x.paramTypes, x.resType)
+  }
+
+  given LambdaTypeTypeTest: TypeTest[TypeRepr, LambdaType] = test(8, 9)
+  given MethodOrPolyTypeTest: TypeTest[TypeRepr, MethodOrPoly] = test(8, 9)
+  given MethodTypeTypeTest: TypeTest[TypeRepr, MethodType] = test(8)
+  given PolyTypeTypeTest: TypeTest[TypeRepr, PolyType] = test(9)
+  given LambdaTypeMethods: LambdaTypeMethods = methods("LambdaTypeMethodsImpl")
+  given MethodTypeMethods: MethodTypeMethods = methods("MethodTypeMethodsImpl")
+
+  /** Parts 0 to 2 of a method or polymorphic type: whether it is implicit, contextual, how many
+   *  parameters it has; then their types, its result type and the names of its parameters.
+   */
+  abstract class LambdaTypeMethodsImpl extends LambdaTypeMethods {
+    extension (self: LambdaType) {
+      def paramNames: List[String] = TypeShapes.lambda(self)._2
+      def paramTypes: List[TypeRepr] = TypeShapes.lambda(self)._1.drop(3).init.map(QuoteHost.tpe).asInstanceOf[List[TypeRepr]]
+      def resType: TypeRepr = QuoteHost.tpe(TypeShapes.lambda(self)._1.last).asInstanceOf[TypeRepr]
+    }
+  }
+
+  abstract class MethodTypeMethodsImpl extends MethodTypeMethods {
+    extension (self: MethodType) {
+      def isImplicit: Boolean = TypeShapes.lambda(self)._1(0) != 0
+      def isContextual: Boolean = TypeShapes.lambda(self)._1(1) != 0
+      def methodTypeKind: MethodTypeKind = throw new Unsupported("MethodType.methodTypeKind")
+      def isErased: Boolean = false
+      def erasedParams: List[Boolean] = List.fill(TypeShapes.lambda(self)._1(2))(false)
+      def hasErasedParams: Boolean = false
+      def param(idx: Int): TypeRepr = throw new Unsupported("MethodType.param")
+    }
+  }
+
+  object ByNameType extends ByNameTypeModule {
+    def apply(underlying: TypeRepr): TypeRepr =
+      QuoteHost.tpe(ReflectOps.one("byName", ReflectOps.id(underlying))).asInstanceOf[TypeRepr]
+    def unapply(x: ByNameType): Some[TypeRepr] = throw new Unsupported("ByNameType.unapply")
+  }
+
   object AnnotatedType extends AnnotatedTypeModule {
     def apply(underlying: TypeRepr, annot: Term): AnnotatedType = throw new Unsupported("AnnotatedType.apply")
     def unapply(x: AnnotatedType): (TypeRepr, Term) =
@@ -123,7 +172,7 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
 }
 
 /** Type kinds: 1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 5 `TypeBounds`,
- *  6 `Refinement`, 7 `NoPrefix`, 0 another type.
+ *  6 `Refinement`, 7 `NoPrefix`, 8 `MethodType`, 9 `PolyType`, 0 another type.
  */
 object TypeShapes {
   def kind(t: Any): Int = ReflectOps.one("typeKind", ReflectOps.id(t))
@@ -133,6 +182,13 @@ object TypeShapes {
   def part(t: Any, i: Int): Any = parts(t)(i)
 
   def name(t: Any): String = ReflectOps.text("typeName", ReflectOps.id(t))
+
+  /** The parts of method or polymorphic type `t` and the names of its parameters. */
+  def lambda(t: Any): (List[Int], List[String]) = {
+    val parts = ReflectOps.results("lambdaParts", ReflectOps.id(t))
+    val names = QuoteHost.resultText()
+    (parts, if (parts(2) == 0) Nil else names.split("\u0000", -1).toList)
+  }
 
   /** The annotation of annotated type `t`: an instance creation of the annotation's class. */
   def annotation(t: Any): Any = ReflectOps.term(ReflectOps.one("annotation", ReflectOps.id(t)))

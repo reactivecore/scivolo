@@ -86,7 +86,7 @@ fn contains_outer_refs(l: &mut Lower, class: SymbolId, t: TNodeId) -> bool {
     }
 }
 
-/// Whether `fun` is `isInstanceOf` or `$isInstanceOf`.
+/// Whether `fun` is `isInstanceOf` or `$isInstanceOf$`.
 fn is_type_test(l: &Lower, fun: TNodeId) -> bool {
     l.tpd.sym(fun).is_some_and(|s| s == l.defs.is_instance_of || s == l.defs.type_test)
 }

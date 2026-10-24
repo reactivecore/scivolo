@@ -2,7 +2,7 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! `Term.betaReduce` of `quotes.reflect`: the inlining's beta reduction, run without a typer.
 
-use super::{Expanded, Host, Inlining, Lent, MacroCall, MacroError, Reflect};
+use super::{AnnotationCall, Expanded, Host, Inlining, Lent, MacroCall, MacroError, Reflect};
 use crate::ctx::Ctx;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::Span;
@@ -35,6 +35,14 @@ impl Host for NoHost {
 
     fn expand_macro(&mut self, _: Lent<'_>, _: &MacroCall) -> Result<Expanded, MacroError> {
         Err(MacroError::Unsupported("a macro call in Term.betaReduce".into()))
+    }
+
+    fn annotations(&self, _: SymbolId) -> Vec<TNodeId> {
+        Vec::new()
+    }
+
+    fn expand_annotation(&mut self, _: Lent<'_>, _: &AnnotationCall) -> Result<Expanded, MacroError> {
+        Err(MacroError::Unsupported("a macro annotation in Term.betaReduce".into()))
     }
 }
 

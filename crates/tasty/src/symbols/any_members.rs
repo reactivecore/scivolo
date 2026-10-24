@@ -15,7 +15,7 @@ const HIDDEN: [&str; 4] = ["equals", "hashCode", "toString", "getClass"];
 
 /// The members of `Any` that do not observe their arguments (dotty's `pureMethods`).
 const PURE_ANY_METHODS: [&str; 9] =
-    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf"];
+    ["==", "!=", "equals", "hashCode", "toString", "##", "getClass", "isInstanceOf", "$isInstanceOf$"];
 
 impl Universe {
     /// Whether method `m` is known not to observe its arguments (dotty's `isKnownPureOp`): a
@@ -58,7 +58,7 @@ pub fn enter(u: &mut Universe, any: SymbolId, object: SymbolId) {
         u.types.intern(Type::Method { binder, params: vec![], result, implicit: false, contextual: false })
     });
     poly(u, any, "isInstanceOf", any_bounds, |_, _| boolean);
-    let type_test = poly(u, any, "$isInstanceOf", any_bounds, |_, _| boolean);
+    let type_test = poly(u, any, "$isInstanceOf$", any_bounds, |_, _| boolean);
     u.set_flags(type_test, u.symbol(type_test).flags.with(ARTIFACT));
     poly(u, any, "asInstanceOf", any_bounds, |u, x0| u.types.intern(x0.clone()));
     let type_cast = poly(u, any, "$asInstanceOf$", any_bounds, |u, x0| u.types.intern(x0.clone()));
