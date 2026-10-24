@@ -15,7 +15,7 @@ impl Typer<'_> {
     pub fn complete(&mut self, sym: SymbolId) {
         let (tree, ctx) = match self.syms.completions.get(&sym) {
             Some(&Completion::Pending { tree, ctx }) => (tree, ctx),
-            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) => {
+            Some(&Completion::Completing(tree)) if !self.is_class_def(tree) && !self.is_provisional(tree) => {
                 self.unsupported(tree, "cyclic reference");
                 let error = self.u.intern_type(Type::Error);
                 return self.u.set_info(sym, error);
@@ -55,6 +55,7 @@ impl Typer<'_> {
             }
             Tree::TypeDef { rhs, .. } => {
                 let mctx = if self.u.symbol(sym).kind == Kind::Type { ctx.with_owner(sym) } else { ctx };
+                self.set_provisional_info(sym, rhs);
                 let info = self.type_member_info(sym, rhs, mctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);
