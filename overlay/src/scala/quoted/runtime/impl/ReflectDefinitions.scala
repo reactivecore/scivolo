@@ -33,8 +33,11 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
       (name, ReflectOps.term(r(0)).asInstanceOf[DefDef], parents.asInstanceOf[List[Tree]],
         ReflectOps.opt(r(1)).asInstanceOf[Option[ValDef]], body.asInstanceOf[List[Statement]])
     }
-    def module(module: Symbol, parents: List[Tree], body: List[Statement]): (ValDef, ClassDef) =
-      refused("ClassDef.module")
+    def module(module: Symbol, parents: List[Tree], body: List[Statement]): (ValDef, ClassDef) = {
+      val cls = module.moduleClass
+      val made = Apply(Select(New(TypeIdent(cls)), cls.primaryConstructor), Nil)
+      (ValDef(module, Some(made)), ClassDef(cls, parents, body))
+    }
   }
 
   object DefDef extends DefDefModule {

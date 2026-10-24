@@ -8,7 +8,7 @@ use super::Reflect;
 use crate::defn::type_ref;
 use crate::tpd::{TNodeId, Tree as T};
 use syntax::ast::TName;
-use tasty::tags::{LOCAL, PARAMsetter, PRIVATE};
+use tasty::tags::{LOCAL, OBJECT, PARAMsetter, PRIVATE};
 use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
 
 impl Reflect<'_> {
@@ -16,7 +16,21 @@ impl Reflect<'_> {
     /// `class_parents`, its constructor parameters by `class_params` and its declarations
     /// entered by `enter_decls`.
     pub fn new_class(&mut self, owner: SymbolId, name: &str) -> SymbolId {
-        let class = self.define(name, Kind::Class, owner, Flags::default());
+        self.class_of(owner, name, Flags::default())
+    }
+
+    /// `Symbol.newModule(owner, name, ..)`: an object and its module class, made as by
+    /// `new_class`.
+    pub fn new_module(&mut self, owner: SymbolId, name: &str) -> (SymbolId, SymbolId) {
+        let class = self.class_of(owner, &format!("{name}$"), Flags::default().with(OBJECT));
+        let module = self.define(name, Kind::Val, owner, Flags::default().with(OBJECT));
+        let tpe = type_ref(self.u, class);
+        self.u.set_info(module, tpe);
+        (module, class)
+    }
+
+    fn class_of(&mut self, owner: SymbolId, name: &str, flags: Flags) -> SymbolId {
+        let class = self.define(name, Kind::Class, owner, flags);
         let ctor = self.define("<init>", Kind::Def, class, Flags::default());
         self.u.enter(ctor);
         let dummy = self.define(&format!("<local {name}>"), Kind::Val, class, Flags::default());

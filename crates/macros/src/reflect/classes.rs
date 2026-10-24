@@ -19,6 +19,14 @@ impl Host {
                 let c = self.reflect().new_class(owner, name);
                 numbers(vec![c.0 as i32])
             }
+            "newModule" => {
+                let owner = match symbol(arg(args, 0)?)? {
+                    o if o == self.macro_owner() => self.owner,
+                    o => o,
+                };
+                let (module, class) = self.reflect().new_module(owner, name);
+                numbers(vec![module.0 as i32, class.0 as i32])
+            }
             "classParents" | "classParams" => {
                 let cls = symbol(arg(args, 0)?)?;
                 let types = rest(1).iter().map(|&p| self.type_of(p as u32)).collect::<Result<Vec<_>, _>>()?;

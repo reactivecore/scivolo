@@ -10,7 +10,7 @@ import scala.quoted.runtime.{QuoteMatching, QuoteUnpickler}
  */
 final class QuotesImpl extends Quotes, QuoteUnpickler, QuoteMatching, ReflectSupport, ReflectTreeSupport, ReflectTermSupport,
     ReflectTypeSupport, ReflectTypeShapeSupport,ReflectConstantSupport, ReflectSymbolSupport, ReflectFlagSupport,
-    ReflectDefinitionSupport, ReflectDeclarationSupport {
+    ReflectDefinitionSupport, ReflectDeclarationSupport, ReflectPositionSupport {
   /** Its getter is a VM native allocating a `ReflectImpl`. */
   val reflect: reflectModule = null
 

@@ -2,7 +2,7 @@
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 package scala.quoted.runtime.impl
 
-/** The symbols and positions of `quotes.reflect`. */
+/** The symbols of `quotes.reflect`. */
 trait ReflectSymbolSupport { this: QuotesImpl =>
 
 trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.type =>
@@ -33,10 +33,15 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       if (clsFlags.asInstanceOf[FlagsImpl].bits != 0) refused("Symbol.newClass with flags")
       if (ReflectOps.id(clsPrivateWithin) >= 0) refused("Symbol.newClass with privateWithin")
       ReflectOps.run("newClass", Array(ReflectOps.id(owner)), name)
-      val cls = symbol(QuoteHost.result(0))
+      completed(symbol(QuoteHost.result(0)), parents, decls, conParams)
+    }
+
+    /** Class `cls` with its parents, constructor parameters and declarations. */
+    private def completed(cls: Symbol, parents: Symbol => List[TypeRepr], decls: Symbol => List[Symbol],
+        params: List[(String, TypeRepr)]): Symbol = {
       ReflectOps.run("classParents", (cls :: parents(cls)).map(ReflectOps.id).toArray, null)
-      val types = conParams.map(p => ReflectOps.id(p._2))
-      ReflectOps.run("classParams", (ReflectOps.id(cls) :: types).toArray, conParams.map(_._1).mkString("\u0000"))
+      val types = params.map(p => ReflectOps.id(p._2))
+      ReflectOps.run("classParams", (ReflectOps.id(cls) :: types).toArray, params.map(_._1).mkString("\u0000"))
       ReflectOps.run("enterDecls", (cls :: decls(cls)).map(ReflectOps.id).toArray, null)
       cls
     }
@@ -46,7 +51,14 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
         conParamFlags: List[List[Flags]], conParamPrivateWithins: List[List[Symbol]]): Symbol =
       refused("Symbol.newClass")
     def newModule(owner: Symbol, name: String, modFlags: Flags, clsFlags: Flags, parents: Symbol => List[TypeRepr],
-        decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol = refused("Symbol.newModule")
+        decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol = {
+      val flags = modFlags.asInstanceOf[FlagsImpl].bits | clsFlags.asInstanceOf[FlagsImpl].bits
+      if (flags != 0 || ReflectOps.id(privateWithin) >= 0) refused("Symbol.newModule with flags or privateWithin")
+      ReflectOps.run("newModule", Array(ReflectOps.id(owner)), name)
+      val (module, cls) = (symbol(QuoteHost.result(0)), symbol(QuoteHost.result(1)))
+      completed(cls, parents, decls, Nil)
+      module
+    }
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol =
       newMethod(owner, name, tpe, Flags.EmptyFlags, noSymbol)
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
@@ -69,12 +81,6 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
       ReflectOps.run("freshName", new Array[Int](0), prefix)
       QuoteHost.resultText()
     }
-  }
-
-  object Position extends PositionModule {
-    def ofMacroExpansion: Position = ReflectOps.position("expansionPos").asInstanceOf[Position]
-    def apply(sourceFile: SourceFile, start: Int, end: Int): Position =
-      new PositionImpl(sourceFile.asInstanceOf[SourceFileImpl].file, start, end).asInstanceOf[Position]
   }
 
   given SymbolMethods: SymbolMethods = methods("SymbolMethodsImpl")
@@ -159,36 +165,6 @@ trait ReflectSymbols extends reflectModule, ReflectDeclarations { self: reflect.
     private def kind(s: Symbol): Int = if (ReflectOps.id(s) < 0) -1 else ReflectOps.one("kind", ReflectOps.id(s))
 
     private def isCase(s: Symbol): Boolean = (ReflectOps.flags(ReflectOps.id(s)).bits & 1L << 12) != 0
-  }
-
-  object SourceFile extends SourceFileModule {
-    def current: SourceFile = Position.ofMacroExpansion.sourceFile
-  }
-
-  given PositionMethods: PositionMethods = methods("PositionMethodsImpl")
-  given SourceFileMethods: SourceFileMethods = methods("SourceFileMethodsImpl")
-
-  abstract class PositionMethodsImpl extends PositionMethods {
-    extension (self: Position) {
-      def start: Int = self.asInstanceOf[PositionImpl].start
-      def end: Int = self.asInstanceOf[PositionImpl].end
-      def sourceFile: SourceFile = new SourceFileImpl(self.asInstanceOf[PositionImpl].file).asInstanceOf[SourceFile]
-      def startLine: Int = self.asInstanceOf[PositionImpl].at(0)
-      def startColumn: Int = self.asInstanceOf[PositionImpl].at(1)
-      def endLine: Int = self.asInstanceOf[PositionImpl].at(2)
-      def endColumn: Int = self.asInstanceOf[PositionImpl].at(3)
-      def sourceCode: Option[String] = Option(self.asInstanceOf[PositionImpl].code)
-    }
-  }
-
-  abstract class SourceFileMethodsImpl extends SourceFileMethods {
-    extension (self: SourceFile) {
-      def path: String = ReflectOps.text("sourcePath", self.asInstanceOf[SourceFileImpl].file)
-      def jpath: java.nio.file.Path = java.nio.file.Paths.get(self.path)
-      def getJPath: Option[java.nio.file.Path] = Some(self.jpath)
-      def name: String = self.path.substring(self.path.lastIndexOf('/') + 1)
-      def content: Option[String] = Some(ReflectOps.text("sourceContent", self.asInstanceOf[SourceFileImpl].file))
-    }
   }
 
   private def symbol(id: Int): Symbol = new SymbolImpl(id).asInstanceOf[Symbol]
