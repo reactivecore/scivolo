@@ -53,7 +53,13 @@ impl Typer<'_> {
             class_member && self.syms.flags.get(&s).is_some_and(|f| f.is(syntax::ast::flags::MUTABLE))
         });
         match (field, info) {
-            (Some(_), Some(tpe)) => self.tpd.node(T::Ident { name }, self.ast.span(rhs), Some(tpe), None),
+            (Some(_), Some(tpe)) => {
+                let named = match *self.u.types().get(tpe) {
+                    Type::Sym(_, s) => Some(s),
+                    _ => None,
+                };
+                self.tpd.node(T::Ident { name }, self.ast.span(rhs), Some(tpe), named)
+            }
             _ => self.unsupported(vdef, "`_` other than as a variable field's value"),
         }
     }
