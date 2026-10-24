@@ -39,9 +39,6 @@ impl Typer<'_> {
                 };
                 current = Some(cur.clone());
                 if prev.size <= cur.size {
-                    if (prev.covering == cur.covering) != (prev.bare == cur.bare) {
-                        return Err("divergence check depending on prefixes");
-                    }
                     if prev.covering == cur.covering
                         && (prev.size < cur.size || self.frozen_same(wild_tp, wild_pt))
                     {
