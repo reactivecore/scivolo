@@ -52,15 +52,16 @@ impl Universe {
         None
     }
 
-    /// The alias by which the class of term `prefix`'s type overrides abstract type member `s`,
-    /// seen from `prefix`.
+    /// The alias by which the class of term `prefix`'s declared type overrides abstract type
+    /// member `s`, seen from `prefix`.
     pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
         let Type::Sym(_, term) = *self.types().get(prefix) else { return None };
         if self.symbol(s).kind != Kind::Type || !self.symbol(term).kind.is_term() {
             return None;
         }
-        let widened = self.widen(prefix);
-        let cls = self.class_symbol(widened).filter(|&c| Some(c) != self.symbol(s).owner)?;
+        let base = self.symbol(s).owner?;
+        let info = self.info(term);
+        let cls = self.class_symbol(info).filter(|&c| c != base && self.derives_from(c, base))?;
         let name = self.symbol(s).name.clone();
         let found = self.member_where(cls, &name, |u, m| m != s && u.symbol(m).kind == Kind::Type);
         let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
