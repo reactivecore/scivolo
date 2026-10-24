@@ -2,7 +2,7 @@
 //   compiler/src/dotty/tools/dotc/transform/MoveStatics.scala
 //! dotty's `MoveStatics` for methods: each `@static` method of an object moves to the companion
 //! class as a static method; `@static` values, and methods whose bodies need the object's `this`
-//! or define closures or local definitions, are refused.
+//! or define local methods or classes, are refused.
 
 use super::walk::{class_defs, subtrees};
 use crate::{Lower, Result, unsupported};
@@ -66,21 +66,20 @@ fn is_static(l: &Lower, s: SymbolId) -> bool {
 }
 
 /// Refuses `@static` definition `stat` unless it is a method whose body needs no `this` and
-/// defines no closure, method or class.
+/// defines no method but closures' and no class.
 fn check_movable(l: &Lower, stat: TNodeId) -> Result<()> {
     let Tree::DefDef { rhs, .. } = *l.tpd.tree(stat) else {
         return unsupported(l.tpd.span(stat), "@static values");
     };
     for t in rhs.map(|r| subtrees(l.tpd, r)).unwrap_or_default() {
-        if matches!(
-            l.tpd.tree(t),
-            Tree::This { .. }
-                | Tree::Closure { .. }
-                | Tree::DefDef { .. }
-                | Tree::TypeDef { .. }
-                | Tree::Super { .. }
-        ) {
-            return unsupported(l.tpd.span(t), "@static method needing its object or defining functions");
+        let closure = l.tpd.sym(t).is_some_and(|s| l.u.symbol(s).name == "$anonfun");
+        let local_def = matches!(l.tpd.tree(t), Tree::DefDef { .. }) && !closure;
+        if local_def || matches!(l.tpd.tree(t), Tree::This { .. } | Tree::TypeDef { .. } | Tree::Super { .. })
+        {
+            return unsupported(
+                l.tpd.span(t),
+                "@static method needing its object or defining local methods or classes",
+            );
         }
     }
     Ok(())
