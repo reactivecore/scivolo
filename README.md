@@ -197,8 +197,9 @@ Outside the crates:
 
 | Path | What | Rebuilt by |
 |---|---|---|
-| `native/` | Scala Native 0.5.12's C runtime (nativelib, javalib, posixlib, clib), copied; patched files marked | by hand |
+| `native/` | Scala Native 0.5.12's C runtime (nativelib, javalib, posixlib, clib), copied; patched files marked | by hand, checked by `just native-stale` |
 | `libs/javalib-tasty-0.5.12.jar` | TASTy of Scala Native's javalib, which the published jar lacks | `just javalib-tasty` |
+| `libs/jdk-stubs.jar` | TASTy of the JDK annotations javalib's sources use (`libs/jdk-stubs`), for `just lib-compile` | `just jdk-stubs` |
 | `tests/programs/*/` | NIR and `.check` output of each test program, compiled by Scala Native 0.5.12: the byte oracle | `just program-update NAME` |
 | `overlay/nir` | NIR of `overlay/src`, compiled by Scala Native's compiler | `just overlay` |
 | `tests/macros/lib/macros.jar`, `crates/*/tests/**` jars, `.nir`, `.tasty` | Test fixtures compiled by dotty or Scala Native | `just macro-fixture`, `just inline-fixture` |

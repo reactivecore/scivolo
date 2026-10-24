@@ -42,6 +42,7 @@ impl Gen<'_, '_> {
                 _ if mutable => Vec::new(),
                 _ => vec![Attr::Final],
             };
+            let attrs = self.field_attrs(f, c, attrs);
             let info = self.l.u.info(f);
             let ty = self.gen_type(info);
             let rhs = self.val(Val::Zero(ty));

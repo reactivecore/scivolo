@@ -25,8 +25,8 @@ impl Gen<'_, '_> {
         let inline = has(self.l.u, sym, FIELDaccessor)
             || self.l.bridges.contains(&sym)
             || self.l.local_lazy_accessors.contains(&sym);
-        let mut attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
-        attrs.extend(self.annotation_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym)));
+        let attrs = if inline { vec![Attr::AlwaysInline] } else { Vec::new() };
+        let attrs = self.method_attrs(self.l.forwarded.get(&sym).copied().unwrap_or(sym), attrs);
         let Some(rhs) = rhs else {
             return Ok(Defn { name, attrs, pos, kind: DefnKind::Declare { ty } });
         };
@@ -37,12 +37,6 @@ impl Gen<'_, '_> {
         self.m.pos = rhs_pos;
         let body = self.gen_method_body(sym, paramss, rhs)?;
         Ok(Defn { name, attrs, pos, kind: DefnKind::Define { ty, body } })
-    }
-
-    /// The attributes the `@inline` and `@noinline` annotations of method `m` give.
-    fn annotation_attrs(&self, m: SymbolId) -> Vec<Attr> {
-        let annotations = [("scala.noinline", Attr::NoInline), ("scala.inline", Attr::InlineHint)];
-        annotations.into_iter().filter(|(name, _)| self.l.u.is_annotated(m, name)).map(|(_, a)| a).collect()
     }
 
     /// Fails for a method the lowering cannot define yet.

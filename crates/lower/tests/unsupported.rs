@@ -142,6 +142,22 @@ const CASES: &[(&str, &str)] = &[
         "type argument of another kind",
     ),
     ("object O { def f(x: (a: Int, b: String) & (b: String, a: Int)): Int = x.a }", "member not found"),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
+        "annotation @scala.scalanative.unsafe.package$.extern",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
+        "annotation @scala.scalanative.unsafe.name",
+    ),
+    (
+        "import scala.scalanative.unsafe.*\nobject O { final val m = \"m\"; @link(m) def f = 1 }",
+        "annotation @scala.scalanative.unsafe.link without a string literal",
+    ),
+    (
+        "import scala.scalanative.runtime.RawPtr\nclass W(val p: RawPtr) extends AnyVal",
+        "boxing, unboxing and primitive conversions",
+    ),
 ];
 
 #[test]

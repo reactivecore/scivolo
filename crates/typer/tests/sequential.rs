@@ -352,6 +352,46 @@ fn no_false_errors_behind_unsupported_constructs() {
 }
 
 #[test]
+fn unit_members_replace_classpath_members() {
+    let Some(mut u) = universe() else { return };
+    let text = "package scala.scalanative.libc\nobject string { def f = 1 }\nobject M { val y = string.f }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "string.scala", text), Ok(()));
+    let libc = u.package("scala.scalanative.libc").expect("libc");
+    let strings = u.decl(libc, "string").expect("a lookup");
+    assert_eq!(strings.len(), 1);
+    assert!(u.symbol(strings[0]).tree.is_none());
+}
+
+#[test]
+fn each_annotation_keeps_its_string() {
+    let Some(mut u) = universe() else { return };
+    let text =
+        "class Ann(s: String) extends scala.annotation.StaticAnnotation\n@Ann(\"a\") @Ann(\"b\") object La\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "La.scala", text), Ok(()));
+    let root = u.package("").expect("the empty package");
+    let la = u.decl(root, "La").expect("a lookup")[0];
+    let ann = u.decl(root, "Ann").expect("a lookup")[0];
+    assert_eq!(u.annotation_strings(la, ann), [Some("a".to_owned()), Some("b".to_owned())]);
+}
+
+#[test]
+fn unit_objects_in_jdk_packages_are_values() {
+    let Some(mut u) = universe() else { return };
+    let text = "package java.io\nobject FilenameFilter { val self: Any = FilenameFilter }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "FilenameFilter.scala", text), Ok(()));
+}
+
+#[test]
+fn javalib_objects_are_values_when_compiling_javalib() {
+    let Some(mut u) = universe() else { return };
+    let text = |n: &str| format!("package java.io\nobject {n} {{ val filter: Any = FilenameFilter }}\n");
+    let refused = Err("unsupported object of a Java class used as a value".to_owned());
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "U1.scala", &text("U1")), refused);
+    u.set_javalib_sources();
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "U2.scala", &text("U2")), Ok(()));
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";
@@ -413,11 +453,16 @@ fn constructs_diverging_from_dotty_are_refused() {
             "class O(x: Int) { def this(s: String) = this(this.hashCode) }",
             "this in the arguments of a self-constructor call",
         ),
-        (
-            "import scala.scalanative.unsafe.*\n@extern object libc { def puts(s: CString): CInt = extern }",
-            "annotation @scala.scalanative.unsafe.package$.extern",
-        ),
         ("object N { @native def f(): Int = 1 }", "annotation @scala.native"),
+        ("object Lv { def f() = { var x: Int = _; x } }", "`_` other than as a variable field's value"),
+        (
+            "class Fi(i: java.io.InputStream) extends java.io.FilterInputStream(i) { def d(): Unit = in = null }",
+            "assignment to a non-variable",
+        ),
+        (
+            "object Sx { def x = 1; def x_=(v: Int) = () }\nobject Sy { import Sx.x; def f() = { def x_=(v: Int) = (); x = 2 } }",
+            "setter of a member shadowed by another `_=`",
+        ),
     ];
     for (text, what) in cases {
         let outcome = type_unit(&mut u, &mut Units::default(), "t.scala", text);

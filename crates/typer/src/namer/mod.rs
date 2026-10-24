@@ -117,6 +117,9 @@ impl Typer<'_> {
         if package_private {
             flags = flags.and_not(f::PRIVATE_LOCAL);
         }
+        if self.u.symbol(ctx.owner).kind == Kind::Package {
+            self.unenter_classpath_members(ctx.owner, &text);
+        }
         let sym = self.syms.define(self.u, &text, kind, ctx.owner, flags);
         if flags.is(f::OPAQUE)
             && kind == Kind::Type
@@ -144,6 +147,20 @@ impl Typer<'_> {
         }
         self.syms.def_trees.insert(sym, tree);
         Some(sym)
+    }
+
+    /// Removes the TASTy members of package `package` that a unit's member `name` replaces: those
+    /// of that name and of its companion's (dotty's `isDefinedInCurrentRun`), not the JDK classes
+    /// a name Scala Native gives them stands for.
+    fn unenter_classpath_members(&mut self, package: SymbolId, name: &str) {
+        let base = name.strip_suffix('$').unwrap_or(name);
+        for n in [base.to_owned(), format!("{base}$")] {
+            for d in self.u.decl(package, &n).unwrap_or_default() {
+                if self.u.symbol(d).tree.is_some() && self.u.symbol(d).name == n {
+                    self.u.unenter(d);
+                }
+            }
+        }
     }
 
     /// Whether `owner` is a package or a package object, whose private members are private to the

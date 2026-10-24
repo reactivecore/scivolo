@@ -42,6 +42,25 @@ pub fn jdk_member(owner: &str, name: &str) -> Option<String> {
     (owner == "java.lang.Object").then(|| name.strip_prefix("__").map(str::to_owned)).flatten()
 }
 
+impl super::Universe {
+    /// Makes the classes of javalib's TASTy Scala classes, not the JDK's, as when compiling
+    /// javalib's sources.
+    pub fn set_javalib_sources(&mut self) {
+        self.javalib_sources = true;
+    }
+
+    /// Whether class `c` may be a Java class, if its name says so: one from TASTy; when javalib's
+    /// sources are compiled, only a JDK class javalib defines under another name.
+    pub fn may_be_java(&self, c: crate::SymbolId) -> bool {
+        if !self.javalib_sources {
+            return self.symbol(c).tree.is_some();
+        }
+        let name = self.full_name(c);
+        let name = name.strip_suffix('$').unwrap_or(&name);
+        self.symbol(c).tree.is_some() && RENAMED.iter().any(|&(_, jdk)| jdk == name)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::{defined_name, jdk_member, jdk_name};

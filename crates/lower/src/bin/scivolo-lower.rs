@@ -16,6 +16,15 @@ struct Cli {
     /// A directory of TASTy and NIR files compiled before.
     #[arg(long)]
     cp: Vec<PathBuf>,
+    /// A jar or directory whose TASTy the sources see, without its NIR.
+    #[arg(long)]
+    tasty: Vec<PathBuf>,
+    /// The sources are javalib's: javalib's classes are Scala classes, not the JDK's.
+    #[arg(long)]
+    javalib: bool,
+    /// Names each source in positions by its path relative to this directory, not by its file name.
+    #[arg(long)]
+    sourceroot: Option<PathBuf>,
     /// The Scala files.
     #[arg(required = true)]
     files: Vec<String>,
@@ -24,12 +33,16 @@ struct Cli {
 }
 
 fn main() {
-    let Cli { cp, files, out_dir: out } = Cli::parse();
+    let Cli { cp, tasty, javalib, sourceroot, files, out_dir: out } = Cli::parse();
     let libs = std::env::var_os("SCIVOLO_LIBS")
         .map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../ref/libs"), PathBuf::from);
     let jars = typer::dump::library_jars(&libs);
-    let mut u = Universe::open(&[&jars[..], &cp].concat()).expect("opening the library");
-    let sources: Vec<SourceFile> = files.iter().map(|f| SourceFile::new(file_name(f), read(f))).collect();
+    let mut u = Universe::open(&[&jars[..], &cp, &tasty].concat()).expect("opening the library");
+    if javalib {
+        u.set_javalib_sources();
+    }
+    let sources: Vec<SourceFile> =
+        files.iter().map(|f| SourceFile::new(source_name(f, sourceroot.as_deref()), read(f))).collect();
     let mut vm = (!cp.is_empty()).then(|| {
         let nir = libs::jars().unwrap_or_else(|e| fail(&e));
         let classpath = vm::Classpath::with_jars(&cp, &nir).unwrap_or_else(|e| fail(&format!("{cp:?}: {e}")));
@@ -70,8 +83,15 @@ fn fail(message: &str) -> ! {
     std::process::exit(1)
 }
 
-fn file_name(file: &str) -> String {
-    Path::new(file).file_name().map_or(file.to_owned(), |n| n.to_string_lossy().into_owned())
+fn source_name(file: &str, root: Option<&Path>) -> String {
+    let path = Path::new(file);
+    let name = match root {
+        Some(root) => {
+            path.strip_prefix(root).unwrap_or_else(|_| fail(&format!("{file} is not under {root:?}")))
+        }
+        None => path.file_name().map_or(path, Path::new),
+    };
+    name.to_string_lossy().into_owned()
 }
 
 fn read(file: &str) -> String {

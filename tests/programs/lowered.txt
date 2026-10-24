@@ -154,3 +154,6 @@ Nt24hkargs
 Nt24polyusing
 Nt24projarg
 Nt24asmatchable
+nativeannotations
+wildcardvars
+ptrassign
