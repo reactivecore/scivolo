@@ -56,27 +56,6 @@ impl Host {
                 let s = sym()?;
                 ids(self.children(s)?)
             }
-            "requiredClass" => {
-                let t = self.u.class_ref(text);
-                match *self.u.types().get(t) {
-                    Type::Sym(_, c) => numbers(vec![c.0 as i32]),
-                    _ => Err("Symbol.requiredClass of a class the frontend lacks"),
-                }
-            }
-            "requiredMethod" => {
-                let (class, name) =
-                    text.rsplit_once('.').ok_or("Symbol.requiredMethod of a name without a class")?;
-                let c = self.u.class_ref(class);
-                let c =
-                    self.u.class_symbol(c).ok_or("Symbol.requiredMethod in a class the frontend lacks")?;
-                let methods = self.u.member_where(c, name, |u, m| u.symbol(m).kind == Kind::Def);
-                let m = methods.first().copied();
-                numbers(vec![m.ok_or("Symbol.requiredMethod of a method the frontend lacks")?.0 as i32])
-            }
-            "requiredPackage" => match self.u.package(text) {
-                Some(p) => numbers(vec![p.0 as i32]),
-                None => Err("Symbol.requiredPackage of a package the frontend lacks"),
-            },
             "symbolPos" => {
                 let s = sym()?;
                 let span = self.def_name_span(s).ok_or("Symbol.pos of a symbol defined outside the unit")?;
