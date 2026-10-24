@@ -1,0 +1,28 @@
+Node(
+  name = "root",
+  kids = List(
+    Node(
+      name = "a",
+      kids = List()
+    ),
+    Node(
+      name = "b",
+      kids = List(
+        Node(
+          name = "c",
+          kids = List(
+          )
+        )
+      )
+    )
+  )
+)
+Map(1 -> "x")
+Green
+(1, "two", 3.0, 'c', None, Some(List(1)))
+"""multi
+line"""
+Map[String, List[Int]]
+(Int, String) => Boolean
+Option[_]
+(Int, Seq[Char])

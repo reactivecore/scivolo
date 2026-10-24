@@ -57,12 +57,14 @@ fn upickle_derives_in_a_script() {
 #[test]
 fn pprint_runs_in_a_script() {
     check_script("pprint");
+    check_script("Lh24pprint");
 }
 
 #[test]
 fn oslib_runs_in_a_script() {
     check_script("oslib");
     check_script("osproc");
+    check_script("Lh24oslib");
 }
 
 #[test]
