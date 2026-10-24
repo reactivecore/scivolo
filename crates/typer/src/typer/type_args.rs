@@ -112,7 +112,8 @@ impl Typer<'_> {
         let projection = prefix.is_some_and(|p| matches!(self.u.types().get(p), Type::Applied(..)));
         if projection && self.type_arity(tpe) > 0 {
             let lambda = self.projected_alias(tpe).ok_or("type projection constructor argument")?;
-            self.tpd.get_mut(arg).tpe = Some(lambda);
+            let node = self.tpd.get_mut(arg);
+            (node.tpe, node.sym) = (Some(lambda), None);
             return Ok(lambda);
         }
         if self.u.symbol(c).kind != Kind::Class || self.u.type_params(c).is_empty() {

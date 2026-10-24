@@ -16,6 +16,9 @@ impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let poly = self.poly_protos.len();
         let arg_ids = self.ast.items(args).to_vec();
+        if self.applies_named_type_args(fun) {
+            return self.unsupported(id, "type application of named type arguments");
+        }
         self.poly_protos.push(PolyProto { args: arg_ids.clone(), ctx, pt, typed: None });
         let f = self.typed(fun, Pt::PolyFun(poly), ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));

@@ -20,6 +20,12 @@ impl Typer<'_> {
         args.iter().any(|&a| matches!(self.ast.tree(a), Tree::NamedArg { .. }))
     }
 
+    /// Whether `fun` is a type application with named type arguments.
+    pub fn applies_named_type_args(&self, fun: NodeId) -> bool {
+        let Tree::TypeApply { args, .. } = *self.ast.tree(fun) else { return false };
+        self.has_named_type_arg(self.ast.items(args))
+    }
+
     /// Positional type arguments `typed` with their types.
     pub fn typed_type_args(&mut self, typed: Vec<TNodeId>) -> Result<NamedTypeArgs, &'static str> {
         let types = typed.iter().map(|&a| self.adapted_type_arg(a)).collect::<Result<_, _>>()?;
