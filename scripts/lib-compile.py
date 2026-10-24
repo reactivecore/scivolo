@@ -9,8 +9,8 @@ published jars, into tmp/lib/MODULE/out/FILE/; each NIR file written is compared
 published jar's, unpacked into tmp/lib/jars/MODULE, as `just nir-cmp` compares them.
 
 Writes under tmp/lib/MODULE: results.tsv (file, ok|refused|timeout, reason, NIR files same,
-differing, missing from the jar), cmp.tsv (NIR file, same|differ N|missing, N differing lines),
-refusals.txt (reasons by count, positions stripped), and prints one summary line. With FILTER,
+differing, missing from the jar), cmp.tsv (NIR file, same|differ|missing, differing lines),
+diffs/ (the jar's dump against ours of each differing NIR file), refusals.txt (reasons by count, positions stripped), and prints one summary line. With FILTER,
 the rows of the files run replace those of the last run. Files worse than in baseline.tsv
 (`just lib-baseline MODULE`) are listed.
 """
@@ -19,6 +19,7 @@ import concurrent.futures
 import difflib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import zipfile
@@ -60,13 +61,17 @@ def dump(path):
     return [l for l in r.stdout.splitlines() if not l.startswith(("// ", "# "))]
 
 
-def compare(ours, theirs):
-    """`same`, `differ N` (changed lines) or `missing`."""
+def compare(ours, theirs, diff_file):
+    """`same`, `differ N` (changed lines, the diff written to `diff_file`) or `missing`."""
     if not theirs.exists():
         return "missing", 0
-    diff = difflib.unified_diff(dump(theirs), dump(ours), lineterm="", n=0)
+    diff = list(difflib.unified_diff(dump(theirs), dump(ours), "jar", "ours", lineterm="", n=0))
     changed = sum(1 for l in diff if l[:1] in "+-" and not l.startswith(("+++", "---")))
-    return ("same", 0) if changed == 0 else ("differ", changed)
+    if changed == 0:
+        return "same", 0
+    diff_file.parent.mkdir(parents=True, exist_ok=True)
+    diff_file.write_text("\n".join(diff) + "\n")
+    return "differ", changed
 
 
 def one(module, root, file):
@@ -85,7 +90,7 @@ def one(module, root, file):
     jar, cmp, counts = jar_dir(module), [], collections.Counter()
     for name in r.stdout.split():
         path = name.removesuffix(".nir").replace(".", "/") + ".nir"
-        state, lines = compare(out / path, jar / path)
+        state, lines = compare(out / path, jar / path, WORK / module / "diffs" / f"{path}.diff")
         counts[state] += 1
         cmp.append([path, state, lines])
     return [shown, "ok", "", counts["same"], counts["differ"], counts["missing"]], cmp
@@ -106,18 +111,20 @@ def worse(old, new):
 
 def compile_module(module, filter_):
     work = WORK / module
+    keep = filter_ != ""
+    if not keep:
+        shutil.rmtree(work / "diffs", ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
     todo = sources(module, filter_)
     with concurrent.futures.ThreadPoolExecutor(JOBS) as pool:
         done = list(pool.map(lambda t: one(module, *t), todo))
-    keep = filter_ != ""
     rows = {r[0]: r for r in read_tsv(work / "results.tsv")} if keep else {}
     rows |= {r[0]: r for r, _ in done}
     write_tsv(work / "results.tsv", sorted(rows.values()))
     ran = {r[0] for r, _ in done}
     old_cmp = [c for c in read_tsv(work / "cmp.tsv") if c[0] not in ran] if keep else []
     write_tsv(work / "cmp.tsv", sorted(old_cmp + [[r[0], *c] for r, cmp in done for c in cmp]))
-    reasons = collections.Counter(re.sub(r" at [^ ]+:\d+:\d+", "", r[2]) for r in rows.values() if r[1] != "ok")
+    reasons = collections.Counter(re.sub(r" at ([^ ]+:)?\d+:\d+", "", r[2]) for r in rows.values() if r[1] != "ok")
     (work / "refusals.txt").write_text("".join(f"{c:5} {r}\n" for r, c in reasons.most_common()))
     states = collections.Counter(r[1] for r in rows.values())
     nir = [sum(int(r[i]) for r in rows.values()) for i in (3, 4, 5)]
