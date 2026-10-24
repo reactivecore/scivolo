@@ -35,11 +35,13 @@ impl Typer<'_> {
         true
     }
 
-    /// The first value parameter's type of method type `info`, the method's type parameters
-    /// replaced by fresh type variables; `None` for a dependent or by-name receiver.
+    /// The type of the first parameter after the leading implicit clauses of method type `info`,
+    /// the method's type parameters replaced by fresh type variables; `None` for a dependent or
+    /// by-name receiver.
     fn receiver_type(&mut self, method: tasty::SymbolId, info: TypeId) -> Option<TypeId> {
         let mut t = info;
         let tparams = self.u.type_params(method);
+        let mut binders = Vec::new();
         let receiver = loop {
             match self.u.types().get(t).clone() {
                 Type::Poly { binder, params, result } => {
@@ -53,9 +55,14 @@ impl Typer<'_> {
                         _ => None,
                     });
                 }
+                Type::Method { binder, result, implicit: true, .. } => {
+                    binders.push(binder);
+                    t = result;
+                }
                 Type::Method { binder, params, .. } => {
                     let first = params.first()?.1;
-                    let dependent = self.mentions_params(first, binder, None);
+                    binders.push(binder);
+                    let dependent = binders.into_iter().any(|b| self.mentions_params(first, b, None));
                     break (!dependent).then_some(first)?;
                 }
                 _ => return None,
