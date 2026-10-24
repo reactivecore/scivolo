@@ -50,6 +50,11 @@ fn ujson_runs_in_a_script() {
 }
 
 #[test]
+fn upickle_derives_in_a_script() {
+    check_script("Lh24upickle");
+}
+
+#[test]
 fn pprint_runs_in_a_script() {
     check_script("pprint");
 }
