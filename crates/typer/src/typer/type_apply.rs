@@ -116,8 +116,8 @@ impl Typer<'_> {
         self.instantiated_with(f, args, false)
     }
 
-    /// `instantiated`, without the kind check if `args` are fresh type variables.
-    pub fn instantiated_with(
+    /// `instantiated`, without the kind check of those of `args` that are fresh type variables.
+    fn instantiated_with(
         &mut self,
         f: TNodeId,
         args: &[TypeId],
@@ -136,14 +136,14 @@ impl Typer<'_> {
         for (&(_, bounds), &arg) in params.iter().zip(args) {
             let bounds = self.instantiate_poly(bounds, binder, &names, args, method);
             let (lo, hi, arity) = self.bounds_of(bounds);
-            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
-            if !fresh && !any_kind && self.type_arity(arg) != arity {
-                return Err("type argument of another kind");
-            }
             let var = match *self.u.types().get(arg) {
                 Type::Var(v) if fresh => Some(v),
                 _ => None,
             };
+            let any_kind = self.u.class_symbol(hi) == Some(self.u.builtins().any_kind);
+            if var.is_none() && !any_kind && self.type_arity(arg) != arity {
+                return Err("type argument of another kind");
+            }
             let upper = match var {
                 Some(v) if self.u.dealias(hi) != hi && self.open_vars(hi).is_empty() => {
                     self.constraint.add_upper(self.u, v, hi)
