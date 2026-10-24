@@ -7,3 +7,8 @@ Map(a -> List(1, 2))
   "x": 5,
   "y": 6
 }
+{"shapes":[{"$type":"Circle","r":1.5},{"$type":"Rect","w":2,"h":3},"Empty"],"color":{"$type":"Mixed","level":4}}
+true
+"Empty"
+Green
+Rect(1,1)
