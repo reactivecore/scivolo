@@ -99,6 +99,16 @@ fn ujson_and_pprint_run() {
     }
     check_expanded("ujson", &[]);
     check_expanded("pprint", &[]);
+    check_expanded("Lh24pprint", &[]);
+}
+
+#[test]
+fn upickle_derives_through_its_macros() {
+    if !in_coursier_cache(&["com.lihaoyi:upickle_native0.5_3:4.4.3"]) && std::env::var_os("CI").is_none() {
+        eprintln!("skipped: upickle 4.4.3 is not in the Coursier cache");
+        return;
+    }
+    check_expanded("Lh24upickle", &[]);
 }
 
 #[test]
@@ -108,6 +118,7 @@ fn oslib_file_operations_run() {
         return;
     }
     check_expanded("oslib", &[]);
+    check_expanded("Lh24oslib", &[]);
 }
 
 #[test]
