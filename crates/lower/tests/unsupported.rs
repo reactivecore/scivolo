@@ -120,6 +120,22 @@ const CASES: &[(&str, &str)] = &[
         "class S\nobject S { @scala.annotation.static val x: Int = 1 }\nobject O { def g = S.x }",
         "@static values",
     ),
+    (
+        "class S\nobject S { val v = 1; @scala.annotation.static def f = this.v }\nobject O { def g = S.f }",
+        "@static method needing its object",
+    ),
+    (
+        "class S\nobject S { @scala.annotation.static def f = { def h = 1; h } }\nobject O { def g = S.f }",
+        "defining local methods",
+    ),
+    (
+        "trait S\nobject S { @scala.annotation.static def f = 1 }\nobject O { def g = S.f }",
+        "companion is a trait",
+    ),
+    (
+        "class D { class E; object E { @scala.annotation.static def f = 1 } }\nobject O { def g = D().E.f }",
+        "@static",
+    ),
 ];
 
 #[test]
