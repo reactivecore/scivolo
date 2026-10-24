@@ -100,9 +100,18 @@ impl Inlining<'_> {
         let [quotes] = params[..] else { return Err(refused) };
         let quotes = self.tpd.sym(quotes).ok_or(refused)?;
         let mut t = self.unwrapped(body);
-        let mut clauses = Vec::new();
+        let (mut clauses, mut context) = (Vec::new(), false);
         loop {
             match *self.tpd.tree(t) {
+                T::Apply { fun, args } if clauses.is_empty() && !context => {
+                    match self.context_function(fun, args, quotes) {
+                        Some(f) => (context, t) = (true, f),
+                        None => {
+                            clauses.push(self.tpd.items(args).to_vec());
+                            t = fun;
+                        }
+                    }
+                }
                 T::Apply { fun, args } => {
                     clauses.push(self.tpd.items(args).to_vec());
                     t = fun;
@@ -111,7 +120,7 @@ impl Inlining<'_> {
                 _ => break,
             }
         }
-        let method = self.tpd.sym(t).filter(|&m| self.is_static_method(m)).ok_or(refused)?;
+        let (method, receiver) = self.macro_method(t).ok_or(refused)?;
         let mut args = Vec::new();
         for arg in clauses.into_iter().rev().flatten() {
             let refused = (self.tpd.span(arg), "a macro argument other than a quote, a type or the Quotes");
@@ -123,7 +132,11 @@ impl Inlining<'_> {
                 arg => arg,
             });
         }
-        Ok(MacroCall { method, args, owner, span, expansion: self.outermost_span, searched: Vec::new() })
+        if context {
+            args.push(MacroArg::Quotes);
+        }
+        let expansion = self.outermost_span;
+        Ok(MacroCall { method, receiver, context, args, owner, span, expansion, searched: Vec::new() })
     }
 
     /// Quoted argument `body` as a literal if it refers to an inline proxy whose type normalizes
@@ -174,15 +187,6 @@ impl Inlining<'_> {
             T::Block { stats, expr } if stats.is_empty() => self.unwrapped(expr),
             _ => t,
         }
-    }
-
-    /// Whether `m` is a method of a static object, not inline.
-    fn is_static_method(&self, m: SymbolId) -> bool {
-        let s = self.u.symbol(m);
-        let inline = s.flags.has(tasty::tags::INLINE);
-        s.kind == Kind::Def
-            && !inline
-            && s.owner.is_some_and(|o| self.u.is_module_class(o) && self.u.is_static_symbol(o))
     }
 
     /// Argument `arg` of a macro implementation, given the splice's `Quotes` parameter `quotes`:

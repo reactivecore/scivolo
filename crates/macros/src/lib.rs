@@ -35,13 +35,21 @@ impl Macros for VmMacros<'_> {
     ) -> Result<Expanded, MacroError> {
         let refused = |what: &str| MacroError::Unsupported(what.to_owned());
         let u = &mut *lent.0;
-        let owner = u.symbol(call.method).owner.ok_or_else(|| refused("macro implementation"))?;
-        let module = u.binary_name(owner);
-        let sig = u.method_signature(call.method);
+        let module = u.binary_name(call.receiver);
+        let sig = u
+            .method_signature(call.method)
+            .and_then(|s| if call.context { quotes_last(&s) } else { Some(s) });
         let sig = sig.ok_or_else(|| refused("a macro implementation without a method signature"))?;
-        let (params, _) = u.erased_method(call.method);
+        let (mut params, _) = u.erased_method(call.method);
+        if call.context {
+            params.push(Erased::Class("scala.quoted.Quotes".into()));
+        }
         if params.len() != call.args.len() {
             return Err(refused("a macro implementation with erased parameters"));
+        }
+        let quotes = Erased::Class("scala.quoted.Quotes".into());
+        if call.args.iter().zip(&params).any(|(a, p)| matches!(a, MacroArg::Quotes) && *p != quotes) {
+            return Err(refused("a macro implementation taking the Quotes by name"));
         }
         let literals = call.args.iter().zip(&params).map(|(a, p)| literal(a, p));
         let literals: Vec<_> = literals.collect::<Option<_>>().ok_or_else(|| {
@@ -155,6 +163,13 @@ fn literal(a: &MacroArg, param: &Erased) -> Option<Option<vm::MacroArg>> {
         Erased::Prim(_) => return None,
         _ => vm::MacroArg::Literal(tag, bits, text),
     }))
+}
+
+/// Signature `sig` of a macro implementation whose result is a context function of the `Quotes`
+/// as dotty's erasure gives it: the `Quotes` its last parameter (`ContextFunctionResults`).
+fn quotes_last(sig: &str) -> Option<String> {
+    let sig = sig.strip_suffix("L15scala.Function1EO")?;
+    Some(format!("{sig}L19scala.quoted.QuotesL17scala.quoted.ExprEO"))
 }
 
 const STOP: &str = "scala.quoted.runtime.StopMacroExpansion";
