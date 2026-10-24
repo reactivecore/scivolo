@@ -35,6 +35,18 @@ impl Universe {
                     let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
                     return match (a, b) {
                         (Some(a), _) if matches!(self.types().get(a), Type::Alias(_)) => Some(a),
+                        (Some(a), Some(b)) if !matches!(self.types().get(b), Type::Alias(_)) => {
+                            let within = |u: &mut Self, x: TypeId, y: TypeId| match (
+                                u.types().get(x).clone(),
+                                u.types().get(y).clone(),
+                            ) {
+                                (Type::Bounds(lx, hx), Type::Bounds(ly, hy)) => {
+                                    u.is_subtype(ly, lx) && u.is_subtype(hx, hy)
+                                }
+                                _ => false,
+                            };
+                            if within(self, a, b) { Some(a) } else { within(self, b, a).then_some(b) }
+                        }
                         (a, b) => b.or(a),
                     };
                 }

@@ -26,6 +26,9 @@ impl Typer<'_> {
             _ => return,
         };
         self.syms.completions.insert(sym, Completion::Completing(tree));
+        if let Tree::TypeDef { rhs, .. } = *self.ast.tree(tree) {
+            self.set_provisional_info(sym, rhs);
+        }
         let open = std::mem::take(&mut self.history.open);
         let vars = self.constraint.count();
         let outer = self.u.set_comparison_owner(Some(ctx.owner));
@@ -55,7 +58,6 @@ impl Typer<'_> {
             }
             Tree::TypeDef { rhs, .. } => {
                 let mctx = if self.u.symbol(sym).kind == Kind::Type { ctx.with_owner(sym) } else { ctx };
-                self.set_provisional_info(sym, rhs);
                 let info = self.type_member_info(sym, rhs, mctx);
                 self.u.set_info(sym, info);
                 self.check_non_cyclic(sym, info, tree);

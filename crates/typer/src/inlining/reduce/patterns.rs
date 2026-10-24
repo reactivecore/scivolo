@@ -30,7 +30,12 @@ impl Reducer<'_, '_> {
                 let tpe = self.i.tpd.tpe(tpt);
                 let mut binds = self.type_binds(tpt);
                 for b in extractor.unwrap_or_default() {
-                    if !binds.contains(&b) {
+                    let mut occurs = false;
+                    self.i.u.map_type(tpe, &mut |u, part| {
+                        occurs |= matches!(*u.types().get(part), Type::Sym(None, s) if s == b);
+                        None
+                    });
+                    if occurs && !binds.contains(&b) {
                         binds.push(b);
                     }
                 }

@@ -36,12 +36,18 @@ impl Inlining<'_> {
                     Type::Sym(p, _) => p,
                     _ => return None,
                 };
-                prefix
-                    .is_none_or(|p| self.is_omitted_prefix(p))
-                    .then(|| self.names.text(name.name).to_owned())
+                let text = self.names.text(name.name).to_owned();
+                (!text.contains('$') && prefix.is_none_or(|p| self.is_omitted_prefix(p))).then_some(text)
             }
             T::Apply { .. } if local => None,
             T::Apply { fun, args } => {
+                let widened = self.tpd.get(fun).tpe.map(|f| self.u.widen(f));
+                let implicit = widened.is_some_and(|f| {
+                    matches!(*self.u.types().get(f), Type::Method { implicit, contextual, .. } if implicit || contextual)
+                });
+                if implicit {
+                    return None;
+                }
                 let args = self.tpd.items(args).to_vec();
                 if let (T::Select { qualifier, name }, [arg]) = (self.tpd.tree(fun).clone(), &args[..]) {
                     let op = self.names.text(name.name).to_owned();
