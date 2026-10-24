@@ -67,6 +67,7 @@ impl Typer<'_> {
         self.ast.with_span(apply, Span::synthetic(inner.start(), inner.end()));
         let typed = self.typed_apply(apply, fun, args, pt, ctx);
         let typed = match pt {
+            Pt::PolyFun(_) if self.takes_using(typed) => self.implicit_clause_applied(typed, ctx),
             Pt::PolyFun(_) => Ok(typed),
             Pt::Fun(proto) if self.protos[proto].using => self.with_type_vars(typed),
             _ => self.with_type_vars(typed).and_then(|t| self.using_applied(t, pt, ctx)),
