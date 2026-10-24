@@ -72,16 +72,20 @@ impl Typer<'_> {
                     }
                 }
                 let wildcard = arg_types.iter().any(|&a| matches!(self.u.types().get(a), Type::Bounds(..)));
+                let mut reduced = false;
                 if wildcard
                     && let Type::Sym(_, s) = *self.u.types().get(tycon)
                     && self.u.symbol(s).kind == Kind::Type
                     && self.syms.flags.contains_key(&s)
-                    && !self.reduces_with_wildcards(s)
                 {
-                    return self.unsupported(id, "parameterized type alias applied to a wildcard");
+                    if !self.reduces_with_wildcards(s) {
+                        return self.unsupported(id, "parameterized type alias applied to a wildcard");
+                    }
+                    reduced = true;
                 }
                 let arg_types = self.pattern_bound_args(tycon, &mut typed_args, &vars, arg_types, ctx);
                 let tpe = and_or.unwrap_or_else(|| self.applied_to(tycon, arg_types));
+                let tpe = if reduced { self.u.dealias(tpe) } else { tpe };
                 if self.is_ground_match(tpe) {
                     return self.unsupported(id, "match type that may reduce");
                 }
