@@ -113,6 +113,7 @@ mod named_args;
 mod named_overloads;
 mod named_tuple_types;
 mod named_tuples;
+mod named_type_args;
 mod names;
 mod no_inits;
 mod non_method_apply;

@@ -16,6 +16,9 @@ impl Typer<'_> {
     pub fn typed_type_apply(&mut self, id: NodeId, fun: NodeId, args: List, pt: Pt, ctx: Ctx) -> TNodeId {
         let poly = self.poly_protos.len();
         let arg_ids = self.ast.items(args).to_vec();
+        if arg_ids.iter().any(|&a| matches!(self.ast.tree(a), syntax::ast::Tree::NamedArg { .. })) {
+            return self.typed_named_type_apply(id, fun, &arg_ids, pt, ctx);
+        }
         self.poly_protos.push(PolyProto { args: arg_ids.clone(), ctx, pt, typed: None });
         let f = self.typed(fun, Pt::PolyFun(poly), ctx);
         let fun_name = self.tpd.sym(f).map(|s| self.u.full_name(s));
@@ -110,7 +113,7 @@ impl Typer<'_> {
     }
 
     /// `instantiated`, without the kind check if `args` are fresh type variables.
-    fn instantiated_with(
+    pub fn instantiated_with(
         &mut self,
         f: TNodeId,
         args: &[TypeId],
