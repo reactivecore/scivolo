@@ -23,11 +23,17 @@ impl Reducer<'_, '_> {
         let span = self.i.tpd.span(pat);
         Ok(match self.i.tpd.tree(pat).clone() {
             T::Typed { expr, tpt } => {
-                if self.binds_type(expr) {
+                let extractor = self.extractor_binds(expr);
+                if extractor.is_none() && self.binds_type(expr) {
                     return Err((span, "type binding in an inline match pattern"));
                 }
                 let tpe = self.i.tpd.tpe(tpt);
-                let binds = self.type_binds(tpt);
+                let mut binds = self.type_binds(tpt);
+                for b in extractor.unwrap_or_default() {
+                    if !binds.contains(&b) {
+                        binds.push(b);
+                    }
+                }
                 let binds = bind_variances(self.i.u, tpe, &binds);
                 let conforms = match binds.is_empty() {
                     true => self.i.u.is_subtype(scrut, tpe),
@@ -119,6 +125,7 @@ impl Reducer<'_, '_> {
         let widened = self.i.u.widen(fun_tpe);
         let Type::Method { params, .. } = self.i.u.types().get(widened).clone() else { return Ok(false) };
         let [(_, param)] = params[..] else { return Ok(false) };
+        let param = self.with_type_bindings(param);
         let unapp = self.i.method_part(fun).and_then(|f| self.i.tpd.sym(f));
         let synthetic = unapp.is_some_and(|s| self.i.u.symbol(s).flags.has(SYNTHETIC));
         let Some(cls) = self.i.u.class_symbol(param).filter(|&c| self.i.u.symbol(c).flags.has(CASE)) else {
@@ -229,6 +236,23 @@ impl Reducer<'_, '_> {
 
     fn same_type(&mut self, a: TypeId, b: TypeId) -> bool {
         self.i.u.is_subtype(a, b) && self.i.u.is_subtype(b, a)
+    }
+
+    /// The type variables extractor pattern `t` binds in its type arguments, if its argument
+    /// patterns bind none.
+    fn extractor_binds(&self, t: TNodeId) -> Option<Vec<SymbolId>> {
+        let T::UnApply { fun, patterns, .. } = *self.i.tpd.tree(t) else { return None };
+        let pats = self.i.tpd.items(patterns);
+        (!pats.iter().any(|&p| self.binds_type(p))).then(|| self.type_binds(fun))
+    }
+
+    /// `t` with the type variables bound so far replaced by their types.
+    fn with_type_bindings(&mut self, t: TypeId) -> TypeId {
+        let bindings = self.type_bindings.clone();
+        self.i.u.map_type(t, &mut |u, part| match *u.types().get(part) {
+            Type::Sym(None, s) => bindings.iter().find(|&&(b, _)| b == s).map(|&(_, to)| to),
+            _ => None,
+        })
     }
 
     /// Whether pattern `t` binds a type variable.
