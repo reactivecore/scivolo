@@ -120,8 +120,11 @@ impl Typer<'_> {
             }
         };
         let mut dependent = false;
-        let body_tpe = self.tpd.tpe(body);
-        for t in [result, body_tpe] {
+        let checked = match expected_result {
+            Some(_) => vec![result],
+            None => vec![result, self.tpd.tpe(body)],
+        };
+        for t in checked {
             let t = self.zonk(t);
             let t = self.widen_singletons(t, false);
             self.u.map_type(t, &mut |u, part| {
