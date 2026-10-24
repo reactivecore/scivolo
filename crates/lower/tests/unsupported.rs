@@ -117,8 +117,8 @@ const CASES: &[(&str, &str)] = &[
         "unapply of an implicit view beside unapplySeq",
     ),
     (
-        "class S\nobject S { @scala.annotation.static def f(): Int = 1 }\nobject O { def g = S.f() }",
-        "@static members",
+        "class S\nobject S { @scala.annotation.static val x: Int = 1 }\nobject O { def g = S.x }",
+        "@static values",
     ),
 ];
 
