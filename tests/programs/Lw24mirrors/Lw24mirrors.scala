@@ -28,11 +28,21 @@ enum Lw24Opt[+T]:
   case Sm(t: T)
   case Nn
 
+trait Lw24Arity[T]:
+  def arity: Int
+
+object Lw24Arity:
+  inline given derived: [T] => (m: Mirror.Of[T]) => Lw24Arity[T] =
+    new Lw24Arity[T]:
+      def arity = lw24Count[m.MirroredElemTypes]
+
 object Lw24Opt:
   given derivedEq: [T] => Lw24Eq[Lw24Opt[T]] = Lw24Eq.derived
   def sizes: Int = summonInline[Lw24Size[Lw24Opt.Nn.type]].size
+  def arities: (Int, Int) = (summonInline[Lw24Arity[Sm[Int]]].arity, Lw24Arity.derived[Nn.type].arity)
 
 object Lw24mirrors:
   def main(args: Array[String]): Unit =
     println(summon[Lw24Eq[Lw24Opt[Int]]].weight)
     println(Lw24Opt.sizes)
+    println(Lw24Opt.arities)

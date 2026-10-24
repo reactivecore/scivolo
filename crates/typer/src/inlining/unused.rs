@@ -78,8 +78,14 @@ impl Inlining<'_> {
                 None
             });
         }
+        let call = match *self.tpd.tree(t) {
+            T::Inlined { call, .. } => call,
+            _ => None,
+        };
         for c in self.tpd.children(t) {
-            self.count_refs(c, count);
+            if Some(c) != call {
+                self.count_refs(c, count);
+            }
         }
     }
 
