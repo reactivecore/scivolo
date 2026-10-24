@@ -121,9 +121,11 @@ slower meanwhile:
    `tests/run-macros`. Done 2026-10-23: structural quote matcher, splices in scripts,
    `ValDef.let`, `Block.apply`, `betaReduce`, `Type.show`, `Expr.show`/`TreeCode`,
    higher-order holes, `Select.overloaded`, `Varargs` (#167).
-3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): upickle,
-   now stopped at the signature of `annotate` (inner-trait erasure). Done 2026-10-23: fastparse
-   (R2) and mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037).
+3. **com-lihaoyi toolkit** (#144, [research 31](docs/research/31-lihaoyi-macros.md)): upickle's
+   generic case classes (implicit search with higher-kinded type variables). Done 2026-10-23:
+   fastparse (R2) and mainargs (R5, R6; `Implicits.search` by re-running the macro, ADR 0037);
+   2026-10-24: upickle derivation of case classes, sealed traits and enums (R7, R8), pprint's
+   `tprint`, os-lib paths.
 4. **Lowering and inlining gaps** ([research 34](docs/research/34-lowering-leftovers.md),
    [research 35](docs/research/35-local-classes-in-inline-bodies.md), #165): local objects and
    `super` in inline bodies, implicit search in the call's context, inline accessors of

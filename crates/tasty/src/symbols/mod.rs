@@ -28,6 +28,7 @@ mod predicates;
 mod resolve;
 mod runtime_stubs;
 mod seen;
+mod selves;
 mod symbol;
 mod table;
 mod varargs;
@@ -77,8 +78,8 @@ pub struct Universe {
     deferred: FxHashSet<SymbolId>,
     /// The classes defined outside TASTy that have initialization code.
     with_inits: FxHashSet<SymbolId>,
-    /// The given self types of the classes defined outside TASTy that declare one.
-    self_types: FxHashMap<SymbolId, TypeId>,
+    /// The given self type of each class whose self type was asked for or set.
+    self_types: FxHashMap<SymbolId, Option<TypeId>>,
     /// The annotation classes of the symbols defined outside TASTy.
     annotations: FxHashMap<SymbolId, Vec<SymbolId>>,
     /// The right-hand sides of the opaque types defined outside TASTy.

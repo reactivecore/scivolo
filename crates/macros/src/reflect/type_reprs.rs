@@ -1,8 +1,8 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/scala/quoted/runtime/impl/QuotesImpl.scala
 //! The shapes of `TypeRepr`s for their type tests and extractors, and the type operations over
-//! them: a type's kind (1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 0 other),
-//! its parts and its name.
+//! them: a type's kind (1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 5
+//! `TypeBounds`, 6 `Refinement`, 7 `NoPrefix`, 0 other), its parts and its name.
 
 use super::{Answer, UNKNOWN, arg, numbers, symbol, text};
 use crate::host::Host;
@@ -26,6 +26,9 @@ impl Host {
                     Type::Sym(Some(prefix), _) => vec![prefix],
                     Type::Sym(None, s) => vec![self.qualifier(s)?],
                     Type::TypeRef(prefix, _) | Type::TermRef(prefix, _) => vec![prefix],
+                    Type::Bounds(lo, hi) => vec![lo, hi],
+                    Type::Alias(a) => vec![a, a],
+                    Type::Refined(parent, _, info) => vec![parent, info],
                     _ => return Err("the parts of a type of another kind"),
                 };
                 numbers(parts.into_iter().map(|p| self.add_type(p) as i32).collect())
@@ -38,7 +41,7 @@ impl Host {
                 let t = tpe(self, 0)?;
                 match self.u.types().get(t).clone() {
                     Type::Sym(_, s) => text(self.u.symbol(s).name.clone()),
-                    Type::TypeRef(_, n) | Type::TermRef(_, n) => text(n),
+                    Type::TypeRef(_, n) | Type::TermRef(_, n) | Type::Refined(_, n, _) => text(n),
                     _ => Err("the name of an unnamed type"),
                 }
             }
@@ -149,6 +152,9 @@ impl Host {
             Type::TermRef(..) => 2,
             Type::Applied(..) => 3,
             Type::Annotated(..) => 4,
+            Type::Bounds(..) | Type::Alias(_) => 5,
+            Type::Refined(..) => 6,
+            Type::NoPrefix => 7,
             _ => 0,
         }
     }

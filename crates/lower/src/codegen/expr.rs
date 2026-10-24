@@ -71,8 +71,13 @@ impl Gen<'_, '_> {
         let saved = self.at_span(span);
         let value = if sym == self.l.defs.boxed_unit_unit {
             self.val(Val::Unit)
-        } else if self.l.u.is_module(sym) {
+        } else if self.l.u.is_module(sym) && is_static(self.l.u, sym) {
             self.gen_module(sym)
+        } else if self.l.u.is_module(sym) {
+            let tasty::Type::Sym(Some(prefix), _) = *self.l.u.types().get(self.l.tpd.tpe(t)) else {
+                return unsupported(span, "a reference to an object of a class without its prefix");
+            };
+            self.gen_apply_method(sym, false, super::apply::Receiver::Prefix(prefix, span), &[], span)?
         } else if let Some(&slot) = self.m.env.get(&sym).filter(|_| self.m.mutable.contains(&sym)) {
             self.emit(Op::Varload(slot))
         } else if let Some(&v) = self.m.env.get(&sym) {

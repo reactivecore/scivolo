@@ -42,7 +42,13 @@ impl Universe {
             Kind::Class => self.member_where(owner, name, wanted),
             _ => self.decl(owner, name).ok()?,
         };
-        found.into_iter().find(|&s| wanted(self, s))
+        match found.into_iter().find(|&s| wanted(self, s)) {
+            None if matches!(self.types.get(prefix), Type::This(_)) => {
+                let self_type = self.given_self_type(owner)?;
+                self.member_of_type(self_type, name).into_iter().find(|&s| wanted(self, s))
+            }
+            found => found,
+        }
     }
 
     /// The package or class whose members a prefix selects.

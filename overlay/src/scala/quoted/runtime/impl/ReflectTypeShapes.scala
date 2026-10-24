@@ -16,11 +16,16 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
   given TermRefTypeTest: TypeTest[TypeRepr, TermRef] = test(2)
   given AppliedTypeTypeTest: TypeTest[TypeRepr, AppliedType] = test(3)
   given AnnotatedTypeTypeTest: TypeTest[TypeRepr, AnnotatedType] = test(4)
+  given TypeBoundsTypeTest: TypeTest[TypeRepr, TypeBounds] = test(5)
+  given RefinementTypeTest: TypeTest[TypeRepr, Refinement] = test(6)
+  given NoPrefixTypeTest: TypeTest[TypeRepr, NoPrefix] = test(7)
 
   given NamedTypeMethods: NamedTypeMethods = methods("NamedTypeMethodsImpl")
   given TypeRefMethods: TypeRefMethods = methods("TypeRefMethodsImpl")
   given AppliedTypeMethods: AppliedTypeMethods = methods("AppliedTypeMethodsImpl")
   given AnnotatedTypeMethods: AnnotatedTypeMethods = methods("AnnotatedTypeMethodsImpl")
+  given TypeBoundsMethods: TypeBoundsMethods = methods("TypeBoundsMethodsImpl")
+  given RefinementMethods: RefinementMethods = methods("RefinementMethodsImpl")
 
   object TypeRef extends TypeRefModule {
     def unapply(x: TypeRef): (TypeRepr, String) =
@@ -48,6 +53,38 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
     def apply(underlying: TypeRepr, annot: Term): AnnotatedType = throw new Unsupported("AnnotatedType.apply")
     def unapply(x: AnnotatedType): (TypeRepr, Term) =
       (TypeShapes.part(x, 0).asInstanceOf[TypeRepr], TypeShapes.annotation(x).asInstanceOf[Term])
+  }
+
+  object TypeBounds extends TypeBoundsModule {
+    def apply(low: TypeRepr, hi: TypeRepr): TypeBounds = throw new Unsupported("TypeBounds.apply")
+    def unapply(x: TypeBounds): (TypeRepr, TypeRepr) = (x.low, x.hi)
+    def empty: TypeBounds = throw new Unsupported("TypeBounds.empty")
+    def upper(hi: TypeRepr): TypeBounds = throw new Unsupported("TypeBounds.upper")
+    def lower(lo: TypeRepr): TypeBounds = throw new Unsupported("TypeBounds.lower")
+  }
+
+  object Refinement extends RefinementModule {
+    def apply(parent: TypeRepr, name: String, info: TypeRepr): Refinement = throw new Unsupported("Refinement.apply")
+    def unapply(x: Refinement): (TypeRepr, String, TypeRepr) = (x.parent, x.name, x.info)
+  }
+
+  object NoPrefix extends NoPrefixModule {
+    def unapply(x: NoPrefix): true = true
+  }
+
+  abstract class TypeBoundsMethodsImpl extends TypeBoundsMethods {
+    extension (self: TypeBounds) {
+      def low: TypeRepr = TypeShapes.part(self, 0).asInstanceOf[TypeRepr]
+      def hi: TypeRepr = TypeShapes.part(self, 1).asInstanceOf[TypeRepr]
+    }
+  }
+
+  abstract class RefinementMethodsImpl extends RefinementMethods {
+    extension (self: Refinement) {
+      def parent: TypeRepr = TypeShapes.part(self, 0).asInstanceOf[TypeRepr]
+      def name: String = TypeShapes.name(self)
+      def info: TypeRepr = TypeShapes.part(self, 1).asInstanceOf[TypeRepr]
+    }
   }
 
   abstract class NamedTypeMethodsImpl extends NamedTypeMethods {
@@ -85,7 +122,9 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
 }
 }
 
-/** Type kinds: 1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 0 another type. */
+/** Type kinds: 1 `TypeRef`, 2 `TermRef`, 3 `AppliedType`, 4 `AnnotatedType`, 5 `TypeBounds`,
+ *  6 `Refinement`, 7 `NoPrefix`, 0 another type.
+ */
 object TypeShapes {
   def kind(t: Any): Int = ReflectOps.one("typeKind", ReflectOps.id(t))
 
