@@ -48,18 +48,18 @@ impl Typer<'_> {
             "illegal combination of modifiers"
         } else if let Some(problem) = self.inline_problem(kind, owner, flags) {
             problem
-        } else if flags.is(f::OPAQUE) && !self.u.symbol(owner).flags.has(tasty::tags::OBJECT) {
-            "opaque type outside an object"
+        } else if kind == Kind::Type && flags.is_all_of(f::PRIVATE.or(f::OPAQUE)) {
+            "illegal combination of modifiers"
         } else if flags.is(f::OPAQUE) && self.is_named_package_object(owner) {
             "top-level opaque type"
+        } else if flags.is_all_of(f::DEFERRED_GIVEN_FLAGS) {
+            "deferred given"
         } else if flags.is(f::TRAIT) && flags.is_one_of(f::FINAL.or(f::OPEN)) {
             "final or open trait"
         } else if kind != Kind::Class && flags.is(f::ABSTRACT) {
             "abstract non-class"
         } else if kind == Kind::Val && !flags.is(f::TERM_PARAM) && name.ends_with("_=") {
             "value name ending in _="
-        } else if flags.is_all_of(f::GIVEN.or(f::DEFERRED)) {
-            "deferred given"
         } else if !is_type && flags.is(f::DEFERRED) && !self.is_class_owner(owner) {
             "abstract member outside a class"
         } else if !is_type && flags.is(f::DEFERRED) && flags.is(f::PRIVATE) {

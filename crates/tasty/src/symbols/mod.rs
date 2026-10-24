@@ -26,6 +26,7 @@ mod overrides;
 mod packages;
 mod predicates;
 mod resolve;
+mod runtime_stubs;
 mod seen;
 mod symbol;
 mod table;

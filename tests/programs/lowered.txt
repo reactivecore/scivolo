@@ -144,3 +144,5 @@ TDtraitlocals
 TDanonnested
 TDsupercapture
 TDcontextbridge
+Nb24namerstubs
+Nb24statics

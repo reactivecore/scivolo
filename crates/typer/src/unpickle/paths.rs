@@ -110,9 +110,6 @@ impl Unpickler<'_> {
             return Ok(self.bare(T::Ident { name }, Some(tpe), Some(s)));
         };
         let qualifier = match *self.u.types().get(p) {
-            Type::This(_) if self.u.symbol(s).kind == Kind::Param => {
-                return Err("reference to a class parameter in a library inline body");
-            }
             Type::This(_) => self.this_tree(p)?,
             Type::Sym(..) | Type::Package(_) => self.ref_tree(p)?,
             _ => return Err("a path through a prefix of another kind in a library inline body"),

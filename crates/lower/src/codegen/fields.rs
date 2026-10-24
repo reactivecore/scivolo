@@ -17,9 +17,9 @@ use tasty::tags::{MUTABLE, PRIVATE, STATIC};
 use typer::tpd::{TNodeId, Tree};
 
 impl Gen<'_, '_> {
-    /// Whether `s` is a field: one `Memoize` made, or a private local value.
+    /// Whether `s` is a field: one `Memoize` made, a private local value, or a Java field.
     pub fn is_field(&self, s: SymbolId) -> bool {
-        self.l.fields.contains_key(&s)
+        self.l.fields.contains_key(&s) || self.l.u.is_java_field(s)
     }
 
     /// A `var` for each field of class `c` with template `template`, in the order of their

@@ -1,5 +1,5 @@
 //! Java classes of the Scala library without TASTy, entered with their parents and members:
-//! `scala.math.ScalaNumber`.
+//! `scala.math.ScalaNumber`, and `scala.runtime`'s.
 
 use super::any_members::{class_type, method};
 use super::builtin::synthetic;
@@ -8,6 +8,7 @@ use crate::tags::{ABSTRACT, PROTECTED};
 use crate::types::Type;
 
 pub fn enter(u: &mut Universe, object: SymbolId) {
+    super::runtime_stubs::enter(u, object);
     let Some(math) = u.package("scala.math") else { return };
     if u.pending.get(&math).is_some_and(|f| f.iter().any(|(stem, _)| stem == "ScalaNumber")) {
         return;
