@@ -87,9 +87,9 @@ impl Reflect<'_> {
         Ok(self.tpd.node(tree, self.tpd.span(original), None, Some(s)))
     }
 
-    /// `ClassDef.copy(original)(name, constr, parents, self, body)` with the name, constructor
-    /// and self of `original` and parents of its parents' classes, whose trees it keeps: its
-    /// class kept.
+    /// `ClassDef.copy(original)(name, constr, parents, self, body)` with the name, constructor,
+    /// self and parents of `original`, a parent also as a type tree of its class: its class
+    /// and parent trees kept.
     pub fn copy_class(
         &mut self,
         original: TNodeId,
@@ -104,11 +104,15 @@ impl Reflect<'_> {
         let T::Template { constr: c, parents: ps, self_: s, .. } = *self.tpd.tree(rhs) else {
             return Err("ClassDef.copy of another tree");
         };
-        let old: Vec<TypeId> = self.tpd.items(ps).iter().map(|&p| self.tpd.tpe(p)).collect();
-        let new = parents.iter().map(|&p| self.tpd.tpe(p));
-        let same_classes = old.len() == parents.len()
-            && old.into_iter().zip(new).all(|(a, b)| self.u.class_symbol(a) == self.u.class_symbol(b));
-        if self.names.text(n.name) != name || c != constr || s != self_ || !same_classes {
+        let old = self.tpd.items(ps).to_vec();
+        let kept = |r: &mut Self, (o, p): (TNodeId, TNodeId)| {
+            let type_tree =
+                matches!(r.tpd.tree(p), T::TypeTree { .. } | T::Ident { .. } | T::AppliedTypeTree { .. });
+            o == p || type_tree && r.u.class_symbol(r.tpd.tpe(o)) == r.u.class_symbol(r.tpd.tpe(p))
+        };
+        let same_parents = old.len() == parents.len()
+            && old.into_iter().zip(parents.iter().copied()).all(|op| kept(self, op));
+        if self.names.text(n.name) != name || c != constr || s != self_ || !same_parents {
             return Err(refused);
         }
         let body = self.tpd.list(body);
