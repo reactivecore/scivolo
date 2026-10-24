@@ -36,7 +36,7 @@ pub fn is_java_static(u: &Universe, s: SymbolId) -> bool {
 /// Whether class `c` is the class of a javalib object in a JDK package.
 fn is_jdk_object(u: &Universe, c: SymbolId) -> bool {
     let name = u.full_name(c);
-    u.is_module_class(c) && (name.starts_with("java.") || name.starts_with("javax."))
+    u.is_module_class(c) && (name.starts_with("java.") || name.starts_with("javax.")) || u.is_java_statics(c)
 }
 
 /// Whether `s` is a package or an object reachable through static paths.
