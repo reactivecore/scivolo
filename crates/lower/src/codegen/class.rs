@@ -10,6 +10,22 @@ use nir::{Attr, Defn, DefnKind};
 use tasty::tags::ABSTRACT;
 use typer::tpd::{TNodeId, Tree};
 
+/// The classes without a superclass (nscplugin's `NObjectClass` and `RuntimePrimitiveTypes`).
+const ROOT_CLASSES: [&str; 12] = [
+    "scala.scalanative.runtime._Object",
+    "scala.scalanative.runtime.PrimitiveBoolean",
+    "scala.scalanative.runtime.PrimitiveChar",
+    "scala.scalanative.runtime.PrimitiveByte",
+    "scala.scalanative.runtime.PrimitiveShort",
+    "scala.scalanative.runtime.PrimitiveInt",
+    "scala.scalanative.runtime.PrimitiveLong",
+    "scala.scalanative.runtime.PrimitiveFloat",
+    "scala.scalanative.runtime.PrimitiveDouble",
+    "scala.scalanative.runtime.PrimitiveUnit",
+    "scala.scalanative.runtime.RawPtr",
+    "scala.scalanative.runtime.RawSize",
+];
+
 impl Gen<'_, '_> {
     pub fn gen_class(&mut self, td: TNodeId) -> Result<()> {
         let sym = self.l.tpd.sym(td).expect("a class definition's symbol");
@@ -24,11 +40,11 @@ impl Gen<'_, '_> {
         let name = self.type_name(sym);
         let traits = self.class_interfaces(sym);
         let kind = if is_static_module(self.l.u, sym) {
-            DefnKind::Module { parent: Some(self.class_parent(sym)), traits }
+            DefnKind::Module { parent: self.class_parent(sym), traits }
         } else if self.l.u.is_trait(sym) {
             DefnKind::Trait { traits }
         } else {
-            DefnKind::Class { parent: Some(self.class_parent(sym)), traits }
+            DefnKind::Class { parent: self.class_parent(sym), traits }
         };
         self.defns.push(Defn { name, attrs, pos, kind });
         if self.l.u.is_module_class(sym) {
@@ -46,15 +62,19 @@ impl Gen<'_, '_> {
         self.gen_mirror_class(sym, pos)
     }
 
-    /// The superclass of `c`, `java.lang.Object` for none.
-    fn class_parent(&mut self, c: tasty::SymbolId) -> nir::GlobalId {
+    /// The superclass of `c`, `java.lang.Object` for none; none for `java.lang.Object` and the
+    /// runtime's primitive types.
+    fn class_parent(&mut self, c: tasty::SymbolId) -> Option<nir::GlobalId> {
+        if ROOT_CLASSES.contains(&self.l.u.full_name(c).as_str()) {
+            return None;
+        }
         let parents = self.l.u.parents(c);
         let superclass = parents
             .first()
             .and_then(|&p| self.l.u.class_symbol(p))
             .filter(|&s| !self.l.u.is_trait(s) && s != self.l.defs.any_val)
             .unwrap_or(self.l.defs.object);
-        self.type_name(superclass)
+        Some(self.type_name(superclass))
     }
 
     fn class_interfaces(&mut self, c: tasty::SymbolId) -> Vec<nir::GlobalId> {
