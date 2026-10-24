@@ -6,12 +6,14 @@
 //! class moves to its extension method `m$extension` in the companion object, `this` becoming
 //! the parameter `$this`; the method forwards to it.
 
+use super::retained_bodies::add_bodies;
 use super::value_classes::{extension, has_extension};
 use super::walk::subtrees;
 use crate::definitions::{symbol, type_ref};
 use crate::{Lower, Result, unsupported};
 use syntax::ast::Span;
 use tasty::{Flags, Kind, SymbolId, Type};
+use typer::RETAINED_BODY;
 use typer::tpd::{TNodeId, Tree};
 
 /// The definitions of a forwarder and its extension method, and the span of the moved body
@@ -39,11 +41,22 @@ pub fn transform(l: &mut Lower, classes: &[TNodeId]) -> Result<Vec<Moved>> {
             let Some(ext) = extension(l, m) else {
                 return unsupported(l.tpd.span(stat), "methods of value classes without companions");
             };
+            let name = l.u.symbol(ext).name.clone();
+            if name.contains(RETAINED_BODY) {
+                l.u.rename(ext, &name.replace(RETAINED_BODY, ""));
+            }
             let def = move_body(l, class, stat, ext);
             let Tree::DefDef { rhs: Some(rhs), .. } = *l.tpd.tree(def) else { unreachable!("a method") };
             let matched = matches!(l.tpd.tree(rhs), Tree::Match { .. });
             moved.push((stat, def, (!matched).then(|| l.tpd.span(rhs))));
             defs.push(def);
+        }
+        for (retainer, method) in add_bodies(l, template)? {
+            let Some(entry) = moved.iter_mut().find(|(f, _, _)| *f == retainer) else { continue };
+            *entry = (method, entry.1, Some(l.tpd.span(retainer)));
+            if let (Some(m), Some(ext)) = (l.tpd.sym(method), l.tpd.sym(entry.1)) {
+                l.extensions.insert(m, ext);
+            }
         }
         let Some(module_class) = defs.first().and_then(|&d| l.tpd.sym(d)).and_then(|e| l.u.symbol(e).owner)
         else {
