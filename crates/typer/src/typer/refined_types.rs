@@ -65,7 +65,10 @@ impl Typer<'_> {
             if self.refines_class(tpe, &text) {
                 return self.unsupported(r, "refinement of a class member");
             }
-            if self.type_members(tpe, &text).is_empty() && self.has_variant_params(rhs) {
+            if self.type_members(tpe, &text).is_empty()
+                && self.has_variant_params(rhs)
+                && !self.is_mirror_type(tpe)
+            {
                 return self.unsupported(r, "new higher-kinded refinement with variances");
             }
             let (text, info, tree) = match self.type_refinement(class, r, ctx) {
@@ -111,6 +114,15 @@ impl Typer<'_> {
         let tpe = self.u.intern_type(Type::TypeRef(pre, text));
         let span = self.ast.span(id);
         Some(self.tpd.node(T::Select { qualifier: qual, name }, span, Some(tpe), None))
+    }
+
+    /// Whether `t` is a refinement of `Mirror` or one of its subtraits, whose type members
+    /// `MirroredType` and `MirroredElemTypes` exist only as refinements.
+    fn is_mirror_type(&mut self, mut t: TypeId) -> bool {
+        while let Type::Refined(parent, ..) = *self.u.types().get(t) {
+            t = parent;
+        }
+        self.u.class_symbol(t).is_some_and(|c| self.u.full_name(c).starts_with("scala.deriving.Mirror"))
     }
 
     /// Whether type lambda tree `rhs` has a covariant or contravariant type parameter.
