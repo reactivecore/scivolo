@@ -32,15 +32,19 @@ impl Typer<'_> {
             Some("constValue" | "constValueOpt")
         );
         let arg_ctx = if const_value { ctx.with_mode(ctx.mode.with(Mode::CONST_VALUE_ARG)) } else { ctx };
-        let typed_args: Vec<TNodeId> = match self.poly_protos[poly].typed.take() {
-            Some(typed) => typed,
-            None => arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect(),
+        let typed = match self.poly_protos[poly].typed.take() {
+            Some(typed) => self.typed_type_args(typed),
+            None if self.has_named_type_arg(&arg_ids) => self.named_type_args(f, &arg_ids, arg_ctx),
+            None => {
+                let typed = arg_ids.iter().map(|&a| self.typed_type(a, arg_ctx)).collect();
+                self.typed_type_args(typed)
+            }
         };
-        let arg_types = match typed_args.iter().map(|&a| self.adapted_type_arg(a)).collect() {
-            Ok::<Vec<TypeId>, _>(types) => types,
+        let (typed_args, arg_types, fresh) = match typed {
+            Ok(typed) => typed,
             Err(what) => return self.unsupported(id, what),
         };
-        let mut tpe = match self.instantiated(f, &arg_types) {
+        let mut tpe = match self.instantiated_with(f, &arg_types, fresh) {
             Ok(tpe) => tpe,
             Err(what) => return self.unsupported(id, what),
         };
@@ -110,7 +114,7 @@ impl Typer<'_> {
     }
 
     /// `instantiated`, without the kind check if `args` are fresh type variables.
-    fn instantiated_with(
+    pub fn instantiated_with(
         &mut self,
         f: TNodeId,
         args: &[TypeId],
