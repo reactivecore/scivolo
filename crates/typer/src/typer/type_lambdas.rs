@@ -131,6 +131,22 @@ impl Typer<'_> {
         refined.unwrap_or_else(|| self.u.info(s))
     }
 
+    /// The type lambda that projection `P#A` of a type alias `A` of a class stands for, as seen
+    /// from `P`.
+    pub fn projected_alias(&mut self, t: TypeId) -> Option<TypeId> {
+        let Type::Sym(Some(pre), a) = *self.u.types().get(t) else { return None };
+        let owner = self.u.symbol(a).owner?;
+        self.complete(a);
+        let info = self.u.info(a);
+        let lambda = match *self.u.types().get(info) {
+            Type::Alias(lambda) => lambda,
+            Type::Lambda { result, .. } if !matches!(self.u.types().get(result), Type::Bounds(..)) => info,
+            _ => return None,
+        };
+        matches!(self.u.types().get(lambda), Type::Lambda { .. })
+            .then(|| self.u.as_seen_from(lambda, pre, owner))
+    }
+
     /// The type definition whose right-hand side is `rhs`: an alias or abstract type being
     /// completed, else a type parameter.
     fn type_def_with_rhs(&self, rhs: NodeId) -> Option<SymbolId> {

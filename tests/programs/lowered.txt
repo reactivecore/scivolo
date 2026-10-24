@@ -149,3 +149,4 @@ Nt24xxlcons
 Nt24namedtargs
 Nt24hkargs
 Nt24polyusing
+Nt24projarg
