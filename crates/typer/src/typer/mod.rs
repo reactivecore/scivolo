@@ -45,6 +45,8 @@ mod default_args;
 mod default_params;
 mod define_further;
 mod defs;
+mod dependent_function_types;
+mod dependent_functions;
 pub(crate) mod dependent_params;
 mod dependent_results;
 mod derived;
@@ -65,6 +67,7 @@ mod escaping;
 mod eta;
 mod export_trees;
 mod extension_calls;
+mod extension_fallback;
 mod features;
 mod find_ref;
 mod forward_refs;
@@ -81,12 +84,14 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inherited_conflicts;
 mod inline_accessors;
 mod inline_host;
 mod inline_refs;
 mod interpolate;
 mod irrefutable;
 mod java_classes;
+mod java_enums;
 mod java_members;
 mod java_objects;
 mod jdk_members;
@@ -194,12 +199,14 @@ mod widen_inferred;
 mod widen_union;
 mod widening;
 mod wild_approx;
+mod wildcard_aliases;
+mod wildcard_members;
 
 use crate::ctx::{Ctx, LevelId, Levels};
 use crate::defn::{Defn, entered};
 use crate::symbols::Syms;
 use crate::tpd::{TNodeId, Tpd};
-use rustc_hash::FxHashMap;
+use rustc_hash::{FxHashMap, FxHashSet};
 use syntax::ast::{Ast, NodeId, Span};
 use syntax::config::{Config, Features, Lints, SourceVersion};
 use syntax::diag::Diagnostics;
@@ -297,6 +304,8 @@ pub struct Typer<'a> {
     /// The functions of polymorphic function values, whose results may refer to their
     /// parameters, with the binder and parameter names of an expected `apply` whose result does.
     pub poly_closures: FxHashMap<NodeId, Option<(tasty::Binder, Vec<String>)>>,
+    /// The parameters of context closures named after an expected `apply`'s, not in scope.
+    pub hidden_params: FxHashSet<NodeId>,
     /// How many `typed` calls are in progress, one inside another.
     depth: u32,
     /// The offset each source file of the unit starts at, after the first, which starts at 0.
@@ -371,6 +380,7 @@ impl<'a> Typer<'a> {
             dynamic_calls: FxHashMap::default(),
             dynamic_lhs: None,
             poly_closures: FxHashMap::default(),
+            hidden_params: FxHashSet::default(),
             depth: 0,
             file_starts: Vec::new(),
             macros: None,

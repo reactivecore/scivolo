@@ -36,6 +36,13 @@ impl Typer<'_> {
             None => self.u.info(s),
         };
         let info = self.resolve_class_params(info);
+        let info = match seen_from_prefix {
+            Some(p) => {
+                let raw = self.u.info(s);
+                self.wildcard_params(raw, info, p)
+            }
+            None => info,
+        };
         let info = self.effective_constructor_info(s, info, prefix);
         Some(self.with_repeated_class(info))
     }

@@ -95,6 +95,27 @@ impl Universe {
         })
     }
 
+    /// The method type a refinement of `prefix`'s widened type gives `apply` method `s` of a
+    /// function class if its result refers to its parameters (a dependent function type).
+    pub fn dependent_refinement(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        let sym = self.symbol(s);
+        let function = |n: &str| n.starts_with("Function") || n.starts_with("ContextFunction");
+        if sym.kind != Kind::Def
+            || sym.name != "apply"
+            || !sym.owner.is_some_and(|o| function(&self.symbol(o).name))
+        {
+            return None;
+        }
+        let info = self.term_refinement_named(prefix, "apply")?;
+        let Type::Method { binder, result, .. } = *self.types().get(info) else { return None };
+        let mut dependent = false;
+        self.map_type(result, &mut |u, part| {
+            dependent |= matches!(*u.types().get(part), Type::Param(b, _) if b == binder);
+            None
+        });
+        dependent.then_some(info)
+    }
+
     /// The info a refinement of `prefix`'s widened type gives term member `name`.
     pub fn term_refinement_named(&mut self, prefix: TypeId, name: &str) -> Option<TypeId> {
         let mut t = self.widen(prefix);

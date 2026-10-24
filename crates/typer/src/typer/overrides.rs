@@ -1,8 +1,7 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/typer/RefChecks.scala
 //! What dotty's `RefChecks.checkAllOverrides` rejects and the typer does not port yet, made to fall
-//! back: a member overriding a concrete one without `override`, and concrete members of traits
-//! inherited in conflict.
+//! back: a member overriding a concrete one without `override` or by an abstract one.
 
 use super::Typer;
 use syntax::ast::Span;
@@ -33,7 +32,7 @@ impl Typer<'_> {
     }
 
     /// The term members of class `c` named `name` that a subclass can override.
-    fn overridable(&self, c: SymbolId, name: &str) -> Vec<SymbolId> {
+    pub fn overridable(&self, c: SymbolId, name: &str) -> Vec<SymbolId> {
         let decls = &self.u.symbol(c).decls;
         let keep = |&&d: &&SymbolId| {
             let s = self.u.symbol(d);
@@ -133,7 +132,10 @@ impl Typer<'_> {
                         continue;
                     }
                     if flags.is(f::DEFERRED) {
-                        return self.unsupported_at(span, "abstract member overriding a concrete one");
+                        if self.overrides_only_concretely(d, m) {
+                            return self.unsupported_at(span, "abstract member overriding a concrete one");
+                        }
+                        continue;
                     }
                     if !flags.is(f::OVERRIDE) && !flags.is(f::ABS_OVERRIDE) {
                         return self.unsupported_at(span, "override without override modifier");
@@ -141,73 +143,25 @@ impl Typer<'_> {
                 }
             }
         }
-        let own_names: Vec<String> =
-            self.u.symbol(cls).decls.iter().map(|&d| self.u.symbol(d).name.clone()).collect();
-        let traits: Vec<SymbolId> =
-            bases.iter().copied().filter(|&b| self.u.symbol(b).flags.has(tasty::tags::TRAIT)).collect();
-        for &t in &traits {
-            let names: Vec<String> =
-                self.u.symbol(t).decls.iter().map(|&d| self.u.symbol(d).name.clone()).collect();
-            for name in names.iter().filter(|n| !own_names.contains(n) && n.as_str() != "<init>") {
-                let concrete: Vec<SymbolId> = bases
-                    .iter()
-                    .flat_map(|&b| self.overridable(b, name))
-                    .filter(|&m| self.is_concrete(m))
-                    .collect();
-                let Some((&winner, rest)) = concrete.split_first() else { continue };
-                let Some(winner_owner) = self.u.symbol(winner).owner else { continue };
-                for &m in rest {
-                    let owner = self.u.symbol(m).owner.expect("a member");
-                    if self.u.derives_from(winner_owner, owner) || !self.same_member(site, winner, m) {
-                        continue;
-                    }
-                    if !self.overrides_through(site, winner, (winner_owner, owner))
-                        && !self.overrides_through(site, m, (owner, winner_owner))
-                    {
-                        return self.unsupported_at(span, "conflicting inherited members");
-                    }
-                }
-            }
-        }
+        self.check_inherited_conflicts(cls, site, &bases, span);
     }
 
-    /// Whether member `m` of class `a`, declared `override`, overrides the member of class `b`.
-    fn overrides_through(&mut self, site: TypeId, m: SymbolId, (a, b): (SymbolId, SymbolId)) -> bool {
-        let overrides = match self.syms.flags.get(&m) {
-            Some(fl) => fl.is(f::OVERRIDE) || fl.is(f::ABS_OVERRIDE),
-            None => self.u.symbol(m).flags.has(tasty::tags::OVERRIDE),
-        };
-        overrides && self.overrides_in_common(site, (a, b), m)
-    }
-
-    /// Whether classes `a` and `b` both derive from a third class with a member `m` matches, or
-    /// `b` is a base class of `a`'s self type (dotty's `extendedOverriddenSymbols`).
-    fn overrides_in_common(&mut self, site: TypeId, (a, b): (SymbolId, SymbolId), m: SymbolId) -> bool {
-        let name = self.u.symbol(m).name.clone();
-        if self.self_type_bases(a).contains(&b) {
-            return true;
-        }
-        let bases: Vec<SymbolId> = self.u.linearization(a).into_iter().skip(1).collect();
-        let common: Vec<SymbolId> =
-            bases.into_iter().filter(|&c| c != b && self.u.derives_from(b, c)).collect();
-        common.into_iter().any(|c| {
-            let members = self.overridable(c, &name);
-            members.into_iter().any(|o| self.same_member(site, m, o))
-        })
-    }
-
-    /// The base classes of the classes in the given self type of class `c`.
-    fn self_type_bases(&mut self, c: SymbolId) -> Vec<SymbolId> {
-        let Some(self_type) = self.u.given_self_type(c) else { return Vec::new() };
-        let mut todo = vec![self_type];
-        let mut out = Vec::new();
-        while let Some(t) = todo.pop() {
-            if let Type::And(x, y) = *self.u.types().get(t) {
-                todo.extend([x, y]);
-            } else if let Some(class) = self.u.class_symbol(t) {
-                out.extend(self.u.linearization(class));
-            }
-        }
-        out
+    /// Whether abstract member `d` may not override concrete member `m` (dotty's `checkOverride`
+    /// for a deferred member): `m` is not `Object`'s, is final, of a final class or a value, one
+    /// of them is an extension method, or `d`'s result type does not conform to `m`'s.
+    fn overrides_only_concretely(&mut self, d: SymbolId, m: SymbolId) -> bool {
+        use tasty::tags::{EXTENSION, FINAL};
+        let (sd, sm) = (self.u.symbol(d), self.u.symbol(m));
+        let final_owner =
+            sm.owner.is_some_and(|o| self.u.symbol(o).flags.has(FINAL) || self.u.is_module_class(o));
+        let object = sm.owner.is_some_and(|o| self.u.full_name(o) == "java.lang.Object");
+        let refused = !object
+            || sm.flags.has(FINAL)
+            || final_owner
+            || sm.kind != Kind::Def
+            || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION);
+        let (rd, rm) = (self.u.info(d), self.u.info(m));
+        let (rd, rm) = (self.u.result_type(rd), self.u.result_type(rm));
+        refused || !self.conforms(rd, rm)
     }
 }

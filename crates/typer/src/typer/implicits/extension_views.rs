@@ -71,7 +71,28 @@ impl Typer<'_> {
         let container = self.candidate_ref(c, at, ctx)?;
         let value = self.tpd.tpe(container);
         let methods = self.extension_members(value, name)?;
-        let [method] = methods[..] else { return Err("overloaded extension method of an implicit value") };
+        if let [_, _, ..] = methods[..] {
+            for m in methods {
+                let (fits, clean, _) = self.speculatively(|t| t.receiver_fits(container, m, tree));
+                if clean && fits.is_ok() {
+                    return Ok(container);
+                }
+            }
+            return Err("implicit of another type");
+        }
+        let [method] = methods[..] else { return Err("implicit of another type") };
+        self.receiver_fits(container, method, tree).map(|()| container)
+    }
+
+    /// Whether extension method `method` of implicit value `container` takes `tree` as its
+    /// receiver; `Err` saying why not.
+    fn receiver_fits(
+        &mut self,
+        container: TNodeId,
+        method: tasty::SymbolId,
+        tree: TNodeId,
+    ) -> Result<(), &'static str> {
+        let at = self.tpd.span(tree).start_pos();
         let select = self.build().select(container, method, at);
         let select = self.with_type_vars(select)?;
         let tpe = self.tpd.tpe(select);
@@ -85,7 +106,7 @@ impl Typer<'_> {
         }
         let from = self.tpd.tpe(tree);
         if self.conforms(from, receiver) {
-            return Ok(container);
+            return Ok(());
         }
         if self.constant_of(tree).is_some() && self.widens_to(from, receiver) {
             return Err("extension method of an implicit value on a widened constant");

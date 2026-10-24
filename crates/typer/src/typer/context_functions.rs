@@ -46,6 +46,8 @@ impl Typer<'_> {
         let wildcard = formals.iter().any(|&t| self.has_proto_wildcard(t));
         let span = self.ast.span(id);
         let at = span.start_pos();
+        let mut names =
+            self.dependent_context_function(ifpt).into_iter().flat_map(|(ps, _)| ps).map(|(n, _)| n);
         let mut params = Vec::new();
         for formal in formals {
             let tpt = self.ast.node(Tree::TypeTree);
@@ -58,9 +60,17 @@ impl Typer<'_> {
                 let typed = self.type_tree(formal, at, true);
                 self.splices.insert(tpt, typed);
             }
-            let name = TName { name: self.fresh.next(self.names, "contextual$"), is_type: false };
+            let named = names.next();
+            let name = match &named {
+                Some(n) => self.name(n),
+                None => self.fresh.next(self.names, "contextual$"),
+            };
+            let name = TName { name, is_type: false };
             let mods = self.ast.mods(Modifiers::with_flags(f::GIVEN));
             let param = self.ast.node(Tree::ValDef { name, tpt, rhs: None, mods });
+            if named.is_some() {
+                self.hidden_params.insert(param);
+            }
             self.ast.with_span(param, at);
             params.push(param);
         }
@@ -108,11 +118,12 @@ impl Typer<'_> {
         if let Some((params, _)) = self.context_function_parts(d) {
             return Ok(Some((d, params)));
         }
-        match self.u.types().get(d).clone() {
-            Type::Refined(parent, ..) if self.context_function_parts(parent).is_some() => {
-                Err("dependent context function type")
+        match self.dependent_context_function(d) {
+            Some((params, result)) if self.context_function_parts(result).is_none() => {
+                Ok(Some((d, params.into_iter().map(|(_, p)| p).collect())))
             }
-            _ => Ok(None),
+            Some(_) => Err("curried dependent context function type"),
+            None => Ok(None),
         }
     }
 
@@ -168,7 +179,10 @@ impl Typer<'_> {
         }
         let tpe = self.tpd.tpe(tree);
         let wide = self.u.widen(tpe);
-        self.context_function_parts(wide)?;
+        if self.context_function_parts(wide).is_none() {
+            let wide = self.u.dealias(wide);
+            self.dependent_context_function(wide)?;
+        }
         let meth = self.tpd.sym(self.tpd.meth_part(tree));
         if meth.is_some_and(|m| self.u.symbol(m).flags.has(tasty::tags::EXTENSION)) {
             return Some(Err("context function result of an extension method"));
