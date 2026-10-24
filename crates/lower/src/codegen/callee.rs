@@ -31,6 +31,9 @@ impl Gen<'_, '_> {
         if is_extern(self.l.u, sym) {
             return unsupported(span, "native interop");
         }
+        if self.l.u.full_name(sym) == "scala.scalanative.unsafe.package$.extern" {
+            return unsupported(span, "`extern` outside an extern object");
+        }
         Ok(())
     }
 

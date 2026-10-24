@@ -147,6 +147,11 @@ const CASES: &[(&str, &str)] = &[
         "methods in extern objects without an extern body",
     ),
     ("import scala.scalanative.unsafe.*\n@extern object libc { val x: CInt = extern }", "extern fields"),
+    ("import scala.scalanative.unsafe.*\nobject O { def f(x: CInt): CInt = extern }", "`extern` outside"),
+    (
+        "import scala.scalanative.unsafe.*\n@extern object libc { def f(g: CFuncPtr): CInt = extern }",
+        "extern methods of a `CFuncPtr`",
+    ),
     (
         "import scala.scalanative.unsafe.*\nobject O { @name(\"g\") def f = 1 }",
         "annotation @scala.scalanative.unsafe.name",

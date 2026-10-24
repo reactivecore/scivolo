@@ -153,13 +153,15 @@ impl Gen<'_, '_> {
     /// The C signature of extern method `m`: unboxed parameters and result, no receiver.
     pub fn extern_sig(&mut self, m: SymbolId, span: syntax::ast::Span) -> Result<TypeId> {
         let (params, result) = self.l.u.erased_method(m);
-        let mut args = Vec::new();
-        for p in &params {
+        for p in params.iter().chain([&result]) {
             if matches!(p, Erased::Class(n) if n == "scala.collection.immutable.Seq") {
                 return unsupported(span, "extern methods with variable arguments");
             }
-            args.push(self.extern_type(p));
+            if matches!(p, Erased::Class(n) if n == "scala.scalanative.unsafe.CFuncPtr") {
+                return unsupported(span, "extern methods of a `CFuncPtr`");
+            }
         }
+        let args = params.iter().map(|p| self.extern_type(p)).collect();
         let ret = self.extern_type(&result);
         Ok(self.ty(Type::Function(args, ret)))
     }
