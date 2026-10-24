@@ -31,6 +31,13 @@ impl Universe {
                     return Some(info);
                 }
                 Type::Refined(p, ..) | Type::Annotated(p, _) => t = p,
+                Type::And(a, b) => {
+                    let (a, b) = (self.refinement_named(a, name), self.refinement_named(b, name));
+                    return match (a, b) {
+                        (Some(a), _) if matches!(self.types().get(a), Type::Alias(_)) => Some(a),
+                        (a, b) => b.or(a),
+                    };
+                }
                 _ => match self.dealias(t) {
                     d if d != t => t = d,
                     _ => return None,
@@ -38,6 +45,22 @@ impl Universe {
             }
         }
         None
+    }
+
+    /// The alias by which the class of term `prefix`'s type overrides abstract type member `s`,
+    /// seen from `prefix`.
+    pub fn overriding_alias(&mut self, prefix: TypeId, s: SymbolId) -> Option<TypeId> {
+        let Type::Sym(_, term) = *self.types().get(prefix) else { return None };
+        if self.symbol(s).kind != Kind::Type || !self.symbol(term).kind.is_term() {
+            return None;
+        }
+        let widened = self.widen(prefix);
+        let cls = self.class_symbol(widened).filter(|&c| Some(c) != self.symbol(s).owner)?;
+        let name = self.symbol(s).name.clone();
+        let found = self.member_where(cls, &name, |u, m| m != s && u.symbol(m).kind == Kind::Type);
+        let (&m, owner) = (found.first()?, self.symbol(found[0]).owner?);
+        let alias = self.alias_of(m)?;
+        Some(self.as_seen_from(alias, prefix, owner))
     }
 
     /// `t` without its refinements, and whether one of them refines a term member.
