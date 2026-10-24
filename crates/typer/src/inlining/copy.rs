@@ -31,16 +31,24 @@ pub type Hook<'h, 'a> = dyn FnMut(&mut Inlining<'a>, &TreeTypeMap, TNodeId) -> O
 impl<'a> Inlining<'a> {
     /// `t` with the references of `m` replaced and its local definitions renamed.
     pub fn map_type(&mut self, m: &TreeTypeMap, t: TypeId) -> TypeId {
-        let mapped = self.u.map_type(t, &mut |u, part| match *u.types().get(part) {
-            Type::Sym(None, s) => match m.refs.get(&s) {
-                Some(&r) => Some(r),
-                None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
-            },
-            Type::This(c) => {
-                let c = u.class_symbol(c);
-                m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
+        let mapped = self.u.map_type(t, &mut |u, part| {
+            if !m.this.is_empty()
+                && matches!(u.types().get(part), Type::Sym(..))
+                && let Some(seen) = super::outer_this::class_param_seen(u, &m.this, part)
+            {
+                return Some(seen);
             }
-            _ => None,
+            match *u.types().get(part) {
+                Type::Sym(None, s) => match m.refs.get(&s) {
+                    Some(&r) => Some(r),
+                    None => m.syms.get(&s).map(|&n| u.intern_type(Type::Sym(None, n))),
+                },
+                Type::This(c) => {
+                    let c = u.class_symbol(c);
+                    m.this.iter().find(|&&(cls, _)| c == Some(cls)).map(|&(_, to)| to)
+                }
+                _ => None,
+            }
         });
         match m.classes {
             true => super::copy_classes::rename_members(self.u, &m.syms, mapped),

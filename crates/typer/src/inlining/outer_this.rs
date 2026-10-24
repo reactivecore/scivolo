@@ -17,6 +17,24 @@ pub fn outer_hops(name: &str) -> Option<usize> {
     name.strip_suffix("_<outer>")?.parse().ok()
 }
 
+/// The argument the type replacing the `this` of class `C` in `this` gives the type parameter of
+/// `C` that `part` refers to, if `this` replaces it and the type gives one.
+pub fn class_param_seen(
+    u: &mut tasty::Universe,
+    this: &[(SymbolId, TypeId)],
+    part: TypeId,
+) -> Option<TypeId> {
+    let (c, _) = u.class_param(part)?;
+    if let Type::Sym(Some(pre), _) = *u.types().get(part)
+        && !matches!(u.types().get(pre), Type::This(_))
+    {
+        return None;
+    }
+    let &(_, to) = this.iter().find(|&&(cls, _)| cls == c)?;
+    let seen = u.as_seen_from(part, to, c);
+    (seen != part && u.class_param(seen).is_none_or(|(o, _)| o != c)).then_some(seen)
+}
+
 impl Expansion<'_, '_> {
     /// `C.this` for the prefix of identifier `fun` if it is the `this` of `cls` (dotty's
     /// `desugarIdentPrefix`).
