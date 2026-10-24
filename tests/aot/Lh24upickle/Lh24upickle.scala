@@ -48,3 +48,4 @@ case class Mix(a: Either[String, Int], b: (Int, String), c: Option[Double]) deri
   println(write(Mix(Left("e"), (1, "one"), None)))
   println(read[Mix]("""{"a":[1,5],"b":[2,"two"],"c":1.5}"""))
   println(write(Map(1 -> "a")))
+  println(transform(u).to[ujson.Value].obj.keys.toList)
