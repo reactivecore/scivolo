@@ -84,6 +84,7 @@ mod import_tree;
 mod imports;
 mod infer;
 mod infix_tuples;
+mod inherited_conflicts;
 mod inline_accessors;
 mod inline_host;
 mod inline_refs;

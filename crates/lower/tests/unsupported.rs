@@ -164,6 +164,7 @@ const CASES: &[(&str, &str)] = &[
          object O { def f(r: { def b: B[?] }) = r.b.set(r.b.get) }",
         "adaptation",
     ),
+    ("trait T { def finalize(): String }", "abstract member overriding a concrete one"),
 ];
 
 #[test]
