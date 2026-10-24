@@ -97,6 +97,7 @@ impl Cmp<'_> {
         }
         self.reductions += 1;
         let frozen = std::mem::replace(&mut self.frozen, true);
+        let scrutinee = self.u.dealias(scrutinee);
         let scrutinee = self.normal(scrutinee);
         let reduced = self.match_cases(scrutinee, &cases);
         self.frozen = frozen;
