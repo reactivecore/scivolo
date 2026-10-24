@@ -174,6 +174,9 @@ impl Typer<'_> {
             if self.refers_to_private(e.path) && self.mentions(info, e.path) {
                 self.unsupported_at(span, "export forwarder whose type refers to a private path");
             }
+            if self.has_by_name_repeated_param(info) {
+                self.unsupported_at(span, "export of a method with a by-name repeated parameter");
+            }
             let result = self.u.result_type(info);
             if self.is_context_function_type(result) {
                 self.unsupported_at(span, "export forwarder of a context function result");
@@ -190,6 +193,26 @@ impl Typer<'_> {
                 self.u.symbol(s).flags.has(t::PRIVATE) || p.is_some_and(|p| self.refers_to_private(p))
             }
             _ => false,
+        }
+    }
+
+    /// Whether method type `t` has a parameter of type `=> T*` in a clause.
+    fn has_by_name_repeated_param(&mut self, mut t: TypeId) -> bool {
+        loop {
+            match self.u.types().get(t).clone() {
+                Type::Poly { result, .. } => t = result,
+                Type::Method { params, result, .. } => {
+                    for (_, p) in params {
+                        if let Type::ByName(inner) = *self.u.types().get(p)
+                            && self.repeated_elem(inner).is_some()
+                        {
+                            return true;
+                        }
+                    }
+                    t = result;
+                }
+                _ => return false,
+            }
         }
     }
 
