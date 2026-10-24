@@ -126,8 +126,13 @@ impl Host {
                 numbers(vec![s.0 as i32])
             }
             "valDef" => {
+                let s = symbol(arg(0)?)?;
+                let local = self.u.symbol(s).owner.is_some_and(|o| self.u.symbol(o).kind.is_term());
+                if self.u.symbol(s).kind != tasty::Kind::Val || !local {
+                    return Err("ValDef.apply of a symbol other than a local value");
+                }
                 let rhs = (arg(1)? >= 0).then(|| self.tree(arg(1)? as u32)).transpose()?;
-                let t = self.reflect().val_def(symbol(arg(0)?)?, rhs)?;
+                let t = self.reflect().val_def(s, rhs)?;
                 numbers(vec![self.add_tree(t) as i32])
             }
             "betaReduce" => {
