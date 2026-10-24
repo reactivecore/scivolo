@@ -56,6 +56,11 @@ impl Host {
                 let d = self.u.dealias(t);
                 numbers(vec![self.add_type(d) as i32])
             }
+            "byName" => {
+                let t = tpe(self, 0)?;
+                let by_name = self.u.intern_type(Type::ByName(t));
+                numbers(vec![self.add_type(by_name) as i32])
+            }
             "isSingleton" => {
                 let t = tpe(self, 0)?;
                 let singleton = match *self.u.types().get(t) {

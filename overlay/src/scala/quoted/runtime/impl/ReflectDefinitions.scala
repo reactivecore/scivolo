@@ -17,15 +17,32 @@ trait ReflectDefinitions extends reflectModule { self: reflect.type =>
   object ClassDef extends ClassDefModule {
     def apply(cls: Symbol, parents: List[Tree], body: List[Statement]): ClassDef = refused("ClassDef.apply")
     def copy(original: Tree)(name: String, constr: DefDef, parents: List[Tree], selfOpt: Option[ValDef],
-        body: List[Statement]): ClassDef = refused("ClassDef.copy")
-    def unapply(cdef: ClassDef): (String, DefDef, List[Tree], Option[ValDef], List[Statement]) =
-      refused("ClassDef.unapply")
+        body: List[Statement]): ClassDef = {
+      val ids = List(ReflectOps.id(original), ReflectOps.id(constr), selfOpt.fold(-1)(ReflectOps.id), parents.length) :::
+        (parents ::: body).map(ReflectOps.id)
+      ReflectOps.run("copyClass", ids.toArray, name)
+      ReflectOps.term(QuoteHost.result(0)).asInstanceOf[ClassDef]
+    }
+    def unapply(cdef: ClassDef): (String, DefDef, List[Tree], Option[ValDef], List[Statement]) = {
+      val r = ReflectOps.results("classParts", ReflectOps.id(cdef))
+      val name = QuoteHost.resultText()
+      val (parents, body) = r.drop(3).map(ReflectOps.term).splitAt(r(2))
+      (name, ReflectOps.term(r(0)).asInstanceOf[DefDef], parents.asInstanceOf[List[Tree]],
+        ReflectOps.opt(r(1)).asInstanceOf[Option[ValDef]], body.asInstanceOf[List[Statement]])
+    }
     def module(module: Symbol, parents: List[Tree], body: List[Statement]): (ValDef, ClassDef) =
       refused("ClassDef.module")
   }
 
   object DefDef extends DefDefModule {
-    def apply(symbol: Symbol, rhsFn: List[List[Tree]] => Option[Term]): DefDef = refused("DefDef.apply")
+    def apply(symbol: Symbol, rhsFn: List[List[Tree]] => Option[Term]): DefDef = {
+      val r = ReflectOps.results("defParams", ReflectOps.id(symbol))
+      val sizes = r.slice(1, 1 + r.head)
+      val refs = r.drop(1 + r.head).map(ReflectOps.term).asInstanceOf[List[Tree]]
+      val paramss = sizes.scanLeft(0)(_ + _).zip(sizes).map((start, n) => refs.slice(start, start + n))
+      val rhs = rhsFn(paramss)
+      ReflectOps.term(ReflectOps.one("defDef", ReflectOps.id(symbol), rhs.fold(-1)(ReflectOps.id))).asInstanceOf[DefDef]
+    }
     def copy(original: Tree)(name: String, paramss: List[ParamClause], tpt: TypeTree, rhs: Option[Term]): DefDef =
       ReflectOps.copyDef(original, name, paramss.flatMap(_.asInstanceOf[ClauseImpl].params), tpt, rhs).asInstanceOf[DefDef]
     def unapply(ddef: DefDef): (String, List[ParamClause], TypeTree, Option[Term]) = {

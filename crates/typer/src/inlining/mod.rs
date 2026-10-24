@@ -17,6 +17,7 @@ mod expand;
 mod host;
 mod inline_call;
 mod macro_annotations;
+mod macro_definitions;
 mod macros;
 mod no_inits;
 mod opaque_proxies;

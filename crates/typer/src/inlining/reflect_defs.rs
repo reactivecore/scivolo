@@ -6,24 +6,37 @@
 use super::Reflect;
 use crate::tpd::{TNodeId, Tree as T};
 use tasty::tags::{FINAL, GIVEN, IMPLICIT, LAZY, LOCAL, MUTABLE, OVERRIDE, PRIVATE, PROTECTED, SYNTHETIC};
-use tasty::{Flags, Kind, Symbol, SymbolId, TypeId};
+use tasty::{Flags, Kind, Symbol, SymbolId, Type, TypeId};
+
+/// The bit of `Flags.Method` among the flags of `quotes.reflect`.
+const METHOD: u32 = 2;
 
 impl Reflect<'_> {
-    /// `Symbol.newVal(owner, name, tpe, flags, _)`, not entered into its owner's declarations.
-    pub fn new_val(
+    /// `Symbol.newVal` and `Symbol.newMethod(owner, name, tpe, flags, _)` by `kind`, not entered
+    /// into its owner's declarations; a method of by-name type `=> T` has result type `T`.
+    pub fn new_term(
         &mut self,
-        owner: SymbolId,
-        name: &str,
+        (owner, name, kind): (SymbolId, &str, Kind),
         info: TypeId,
         flags: u64,
     ) -> Result<SymbolId, &'static str> {
-        let allowed = [PRIVATE, PROTECTED, FINAL, IMPLICIT, LAZY, OVERRIDE, LOCAL, SYNTHETIC, MUTABLE, GIVEN];
+        let mut allowed = vec![PRIVATE, PROTECTED, FINAL, IMPLICIT, OVERRIDE, LOCAL, SYNTHETIC, GIVEN];
+        let (flags, info) = match kind {
+            Kind::Val => {
+                allowed.extend([LAZY, MUTABLE]);
+                (flags, info)
+            }
+            _ => match *self.u.types().get(info) {
+                Type::ByName(result) => (flags & !(1 << METHOD), result),
+                _ => (flags & !(1 << METHOD), info),
+            },
+        };
         if flags & !allowed.iter().fold(0, |b, &t| b | 1u64 << t) != 0 {
-            return Err("Symbol.newVal with flags other than modifiers of values");
+            return Err("Symbol.newVal or Symbol.newMethod with flags other than modifiers of definitions");
         }
         let s = self.u.define(Symbol {
             name: name.to_owned(),
-            kind: Kind::Val,
+            kind,
             owner: None,
             flags: Flags(flags),
             target: None,
@@ -72,5 +85,92 @@ impl Reflect<'_> {
             _ => return Err("ValDef.copy or DefDef.copy of another tree"),
         };
         Ok(self.tpd.node(tree, self.tpd.span(original), None, Some(s)))
+    }
+
+    /// `ClassDef.copy(original)(name, constr, parents, self, body)` with the name, constructor,
+    /// parents and self of `original`: its class kept.
+    pub fn copy_class(
+        &mut self,
+        original: TNodeId,
+        (name, constr, self_): (&str, TNodeId, Option<TNodeId>),
+        parents: &[TNodeId],
+        body: &[TNodeId],
+    ) -> Result<TNodeId, &'static str> {
+        let refused = "ClassDef.copy with another name, constructor, parents or self";
+        let T::TypeDef { name: n, rhs } = *self.tpd.tree(original) else {
+            return Err("ClassDef.copy of another tree");
+        };
+        let T::Template { constr: c, parents: ps, self_: s, .. } = *self.tpd.tree(rhs) else {
+            return Err("ClassDef.copy of another tree");
+        };
+        if self.names.text(n.name) != name || c != constr || s != self_ || self.tpd.items(ps) != parents {
+            return Err(refused);
+        }
+        let body = self.tpd.list(body);
+        let template = T::Template { constr, parents: ps, self_, body };
+        let (span, sym) = (self.tpd.span(rhs), self.tpd.sym(rhs));
+        let rhs = self.tpd.node(template, span, None, sym);
+        let (span, tpe, sym) = (self.tpd.span(original), self.tpd.get(original).tpe, self.tpd.sym(original));
+        Ok(self.tpd.node(T::TypeDef { name: n, rhs }, span, tpe, sym))
+    }
+
+    /// New parameter definitions of method `s` by clause, from its type (the parameter symbols
+    /// of dotty's `DefDef(sym, rhsFn)`).
+    pub fn method_params(&mut self, s: SymbolId) -> Result<Vec<Vec<TNodeId>>, &'static str> {
+        let (span, mut t) = (self.span, self.u.info(s));
+        let mut clauses = Vec::new();
+        loop {
+            match self.u.types().get(t).clone() {
+                Type::Method { params, result, .. } => {
+                    let mut clause = Vec::new();
+                    for (name, info) in params {
+                        let p = self.new_param(s, &name, info);
+                        let tpt = self.type_tree(info);
+                        clause.push(self.build()?.val_def(p, tpt, None, span));
+                    }
+                    clauses.push(clause);
+                    t = result;
+                }
+                Type::Poly { .. } => return Err("DefDef.apply of a polymorphic method"),
+                _ => return Ok(clauses),
+            }
+        }
+    }
+
+    fn new_param(&mut self, owner: SymbolId, name: &str, info: TypeId) -> SymbolId {
+        let p = self.u.define(Symbol {
+            name: name.to_owned(),
+            kind: Kind::Param,
+            owner: None,
+            flags: Flags::default(),
+            target: None,
+            is_extern: false,
+            derived: false,
+            decls: Vec::new(),
+            tree: None,
+        });
+        self.u.set_owner(p, owner);
+        self.u.set_info(p, info);
+        p
+    }
+
+    /// `DefDef(s, rhsFn)` of method `s` with parameter definitions `params` and the right-hand
+    /// side `rhsFn` made.
+    pub fn def_def(
+        &mut self,
+        s: SymbolId,
+        params: &[Vec<TNodeId>],
+        rhs: Option<TNodeId>,
+    ) -> Result<TNodeId, &'static str> {
+        if self.u.symbol(s).kind != Kind::Def {
+            return Err("DefDef.apply of a symbol other than a method");
+        }
+        let mut result = self.u.info(s);
+        while let Type::Method { result: r, .. } = *self.u.types().get(result) {
+            result = r;
+        }
+        let (span, tpt) = (self.span, self.type_tree(result));
+        let clauses: Vec<&[TNodeId]> = params.iter().map(Vec::as_slice).collect();
+        Ok(self.build()?.def_def(s, &clauses, tpt, rhs, span))
     }
 }

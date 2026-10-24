@@ -53,6 +53,8 @@ pub struct Host {
     /// Whether a macro annotation runs, whose splice owner is `owner` itself.
     pub annotating: bool,
     pub fresh: FreshNames,
+    /// The parameter definitions of the methods `DefDef.apply` defined, by clause.
+    pub made_params: std::collections::HashMap<SymbolId, Vec<Vec<TNodeId>>>,
 }
 
 impl Host {
@@ -80,6 +82,7 @@ impl Host {
             definitions: None,
             annotating: false,
             fresh: FreshNames::default(),
+            made_params: Default::default(),
         }
     }
 

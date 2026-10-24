@@ -19,7 +19,10 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       symbol(QuoteHost.result(0))
     }
     def requiredModule(path: String): Symbol = refused("Symbol.requiredModule")
-    def requiredMethod(path: String): Symbol = refused("Symbol.requiredMethod")
+    def requiredMethod(path: String): Symbol = {
+      ReflectOps.run("requiredMethod", new Array[Int](0), path)
+      symbol(QuoteHost.result(0))
+    }
     def classSymbol(fullName: String): Symbol = requiredClass(fullName)
     def newClass(owner: Symbol, name: String, parents: List[TypeRepr], decls: Symbol => List[Symbol],
         selfType: Option[TypeRepr]): Symbol = refused("Symbol.newClass")
@@ -33,13 +36,17 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
       refused("Symbol.newClass")
     def newModule(owner: Symbol, name: String, modFlags: Flags, clsFlags: Flags, parents: Symbol => List[TypeRepr],
         decls: Symbol => List[Symbol], privateWithin: Symbol): Symbol = refused("Symbol.newModule")
-    def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol = refused("Symbol.newMethod")
+    def newMethod(owner: Symbol, name: String, tpe: TypeRepr): Symbol =
+      newMethod(owner, name, tpe, Flags.EmptyFlags, noSymbol)
     def newMethod(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
-      refused("Symbol.newMethod")
-    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol = {
-      if (!privateWithin.isNoSymbol) refused("Symbol.newVal with privateWithin")
+      newTerm("newMethod", owner, name, tpe, flags, privateWithin)
+    def newVal(owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol): Symbol =
+      newTerm("newVal", owner, name, tpe, flags, privateWithin)
+
+    private def newTerm(op: String, owner: Symbol, name: String, tpe: TypeRepr, flags: Flags, privateWithin: Symbol) = {
+      if (ReflectOps.id(privateWithin) >= 0) refused("Symbol.newVal or Symbol.newMethod with privateWithin")
       val bits = flags.asInstanceOf[FlagsImpl].bits
-      ReflectOps.run("newVal", Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits.toInt, (bits >>> 32).toInt), name)
+      ReflectOps.run(op, Array(ReflectOps.id(owner), ReflectOps.id(tpe), bits.toInt, (bits >>> 32).toInt), name)
       symbol(QuoteHost.result(0))
     }
     def newBind(owner: Symbol, name: String, flags: Flags, tpe: TypeRepr): Symbol = refused("Symbol.newBind")
@@ -106,6 +113,7 @@ trait ReflectSymbols extends reflectModule { self: reflect.type =>
         throw new Unsupported("Symbol.tree of a symbol without a definition in the unit")
       }.asInstanceOf[Tree]
       def asQuotes: scala.quoted.Quotes = new QuotesImpl
+      def info: TypeRepr = QuoteHost.tpe(ReflectOps.one("info", ReflectOps.id(self))).asInstanceOf[TypeRepr]
       def isNoSymbol: Boolean = ReflectOps.id(self) < 0
       def exists: Boolean = ReflectOps.id(self) >= 0
       def isPackageDef: Boolean = kind(self) == 0

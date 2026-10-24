@@ -404,3 +404,18 @@ class traced(msg: String) extends scala.annotation.MacroAnnotation:
       case _ =>
         report.error("traced only on a method or a value")
         List(definition)
+
+/** Adds `def label: String`, the class's name in upper case, to a class. */
+@scala.annotation.experimental
+class labelled extends scala.annotation.MacroAnnotation:
+  def transform(using Quotes)(definition: quotes.reflect.Definition, companion: Option[quotes.reflect.Definition]): List[quotes.reflect.Definition] =
+    import quotes.reflect.*
+    definition match
+      case ClassDef(name, ctr, parents, self, body) =>
+        val cls = definition.symbol
+        val label = Symbol.newMethod(cls, "label", ByNameType(TypeRepr.of[String]), Flags.EmptyFlags, Symbol.noSymbol)
+        val rhs = '{ ${ Expr(name.toUpperCase) } }.asTerm
+        List(ClassDef.copy(definition)(name, ctr, parents, self, DefDef(label, _ => Some(rhs)) :: body))
+      case _ =>
+        report.error("labelled only on a class")
+        List(definition)

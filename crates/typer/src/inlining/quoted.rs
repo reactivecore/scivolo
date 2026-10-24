@@ -55,17 +55,26 @@ impl Inlining<'_> {
         Ok(trees)
     }
 
-    /// The symbols of definition `t` and its parameters, which a macro annotation's copy of it
+    /// The symbols of the definitions in definition `t`, which a macro annotation's copy of it
     /// keeps; none if `t` is no definition.
     fn definition_symbols(&self, t: TNodeId) -> Vec<SymbolId> {
-        let params = match *self.tpd.tree(t) {
-            T::DefDef { paramss, .. } => {
-                self.tpd.clause_items(paramss).iter().flat_map(|&l| self.tpd.items(l)).copied().collect()
-            }
-            T::ValDef { .. } => Vec::new(),
-            _ => return Vec::new(),
+        let is_def = |t: TNodeId| {
+            matches!(
+                self.tpd.tree(t),
+                T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. } | T::Bind { .. }
+            )
         };
-        self.tpd.sym(t).into_iter().chain(params.into_iter().filter_map(|p| self.tpd.sym(p))).collect()
+        if !is_def(t) {
+            return Vec::new();
+        }
+        let (mut todo, mut syms) = (vec![t], Vec::new());
+        while let Some(n) = todo.pop() {
+            if is_def(n) {
+                syms.extend(self.tpd.sym(n));
+            }
+            todo.extend(self.tpd.children(n));
+        }
+        syms
     }
 
     /// A copy of `t` through a map of `m`'s references and symbols, its outermost definitions

@@ -79,6 +79,10 @@ impl Host {
                 }
             }
             "fullName" => text(self.u.full_name(symbol(arg(0)?)?)),
+            "info" => {
+                let info = self.u.info(symbol(arg(0)?)?);
+                Ok((vec![self.add_type(info) as i32], None))
+            }
             "flags" => {
                 let bits = self.flags(symbol(arg(0)?)?);
                 Ok((vec![bits as u32 as i32, (bits >> 32) as u32 as i32], None))

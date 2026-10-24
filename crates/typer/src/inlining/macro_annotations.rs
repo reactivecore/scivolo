@@ -1,15 +1,18 @@
 // Derived from Scala 3.9.0 (Apache-2.0, see NOTICE); translated to Rust and changed:
 //   compiler/src/dotty/tools/dotc/transform/MacroAnnotations.scala
+//   compiler/src/dotty/tools/dotc/transform/Inlining.scala
 //! Macro annotations: each definition of a statement list that an annotation extending
-//! `scala.annotation.MacroAnnotation` is on, replaced by the definitions its `transform` returns
-//! (dotty's `MacroAnnotations.expandAnnotations`).
+//! `scala.annotation.MacroAnnotation` is on, replaced by the definitions its `transform` returns,
+//! and its companion by the one returned (dotty's `MacroAnnotations.expandAnnotations`).
 
-use super::macros::{AnnotationCall, MacroError};
+use super::macro_definitions::is_definition;
+use super::macros::{AnnotationCall, Expanded, MacroError};
 use super::{Inlining, Unsupported};
 use crate::tpd::{TNodeId, Tree as T};
 use rustc_hash::FxHashMap;
+use syntax::ast::Span;
 use tasty::tags::OBJECT;
-use tasty::{Kind, Type};
+use tasty::{SymbolId, Type};
 
 const MACRO_ANNOTATION: &str = "scala.annotation.MacroAnnotation";
 const ABORTED: &str = "Macro expansion was aborted by the macro without any errors reported. Macros should issue \
@@ -23,20 +26,27 @@ impl Inlining<'_> {
             T::Template { body: stats, .. } | T::Block { stats, .. } | T::PackageDef { stats, .. } => stats,
             _ => return Ok(()),
         };
-        let items = self.tpd.items(stats).to_vec();
-        let mut out = Vec::with_capacity(items.len());
-        let mut changed = false;
-        for stat in items {
+        let mut stats = self.tpd.items(stats).to_vec();
+        let (mut i, mut changed) = (0, false);
+        while let Some(&stat) = stats.get(i) {
             let annotations = self.macro_annotations(stat)?;
             if annotations.is_empty() {
-                out.push(stat);
+                i += 1;
                 continue;
             }
             changed = true;
-            out.extend(self.expand_annotations(stat, &annotations)?);
+            let companion = self.companion_class_of(stat);
+            let at = companion.and_then(|c| stats.iter().position(|&d| self.is_class_def(d, c)));
+            let (defs, new_companion) = self.expand_annotations(stat, &annotations, at.map(|j| stats[j]))?;
+            if let (Some(j), Some(c)) = (at, new_companion) {
+                stats[j] = c;
+            }
+            let n = defs.len();
+            stats.splice(i..=i, defs);
+            i += n;
         }
         if changed {
-            let new = self.tpd.list(&out);
+            let new = self.tpd.list(&stats);
             match &mut self.tpd.get_mut(t).tree {
                 T::Template { body: stats, .. } | T::Block { stats, .. } | T::PackageDef { stats, .. } => {
                     *stats = new
@@ -48,73 +58,83 @@ impl Inlining<'_> {
     }
 
     /// The definitions that macro annotations `annotations` on definition `def` turn it into,
-    /// one after the other.
+    /// one after the other, and the companion `companion` turns into if it changed.
     fn expand_annotations(
         &mut self,
         def: TNodeId,
         annotations: &[TNodeId],
-    ) -> Result<Vec<TNodeId>, Unsupported> {
+        mut companion: Option<TNodeId>,
+    ) -> Result<(Vec<TNodeId>, Option<TNodeId>), Unsupported> {
         let span = self.tpd.span(def);
         let sym = self.tpd.sym(def).ok_or((span, "a macro annotation on a definition without a symbol"))?;
         let owner =
             self.u.symbol(sym).owner.ok_or((span, "a macro annotation on a definition without an owner"))?;
-        if matches!(self.tpd.tree(def), T::TypeDef { .. }) {
-            return Err((span, "a macro annotation on a class"));
-        }
+        let companion_sym = companion.and_then(|c| self.tpd.sym(c));
         let mut defs = vec![def];
         for &annotation in annotations {
             let at =
                 defs.iter().position(|&d| self.tpd.sym(d) == Some(sym)).expect("the annotated definition");
-            let call = AnnotationCall { annotation, definition: defs[at], companion: None, owner, span };
+            let call = AnnotationCall { annotation, definition: defs[at], companion, owner, span };
             let lent = (&mut *self.u, &mut *self.tpd, &mut *self.names, &mut *self.fresh);
-            let expanded = match self.host.expand_annotation(lent, &call) {
-                Ok(expanded) => expanded,
-                Err(MacroError::Unsupported(_) | MacroError::Search(_)) => {
-                    return Err((span, "a macro annotation the frontend refuses"));
-                }
-                Err(MacroError::Failed(msg)) => {
-                    self.error(span, msg);
-                    return Ok(defs);
-                }
-                Err(MacroError::Reported(errors)) => {
-                    for (at, msg) in errors {
-                        self.error(at, msg);
-                    }
-                    return Ok(defs);
-                }
-                Err(MacroError::Aborted) => {
-                    if !self.host.has_errors() {
-                        self.error(span, ABORTED.to_owned());
-                    }
-                    return Ok(defs);
-                }
+            let expanded = self.host.expand_annotation(lent, &call);
+            let Some(expanded) = self.expanded_or_reported(expanded, span)? else {
+                return Ok((defs, companion));
             };
             let mut made = Vec::new();
             for tree in self.quoted_trees(&expanded, &[])? {
-                if let T::ValDef { rhs: Some(rhs), .. } | T::DefDef { rhs: Some(rhs), .. } =
-                    *self.tpd.tree(tree)
-                    && let Some(s) = self.tpd.sym(tree)
-                {
-                    self.reown(rhs, s);
+                self.own_right_hand_sides(tree);
+                let tree = self.retype(tree, &FxHashMap::default(), owner)?;
+                self.enter_made(tree, owner, span)?;
+                made.push(tree);
+            }
+            if let Some(c) = companion_sym {
+                let (mut found, rest): (Vec<_>, Vec<_>) =
+                    made.into_iter().partition(|&d| self.tpd.sym(d) == Some(c));
+                match found.len() {
+                    0 => {}
+                    1 => companion = found.pop(),
+                    _ => return Err((span, "a macro annotation returning its companion twice")),
                 }
-                made.push(self.retype(tree, &FxHashMap::default(), owner)?);
+                made = rest;
             }
             if !made.iter().any(|&d| self.tpd.sym(d) == Some(sym)) {
                 return Err((span, "a macro annotation that drops the definition it is on"));
             }
-            for &d in &made {
-                let s = self.tpd.sym(d).filter(|_| is_definition(self.tpd.tree(d)));
-                let s = s.ok_or((span, "a macro annotation returning other than definitions"))?;
-                if self.u.symbol(s).owner != Some(owner) {
-                    return Err((span, "a macro annotation adding a definition of another owner"));
-                }
-                if self.u.symbol(owner).kind == Kind::Class && !self.u.symbol(owner).decls.contains(&s) {
-                    self.u.enter(s);
-                }
-            }
             defs.splice(at..=at, made);
         }
-        Ok(defs)
+        Ok((defs, companion))
+    }
+
+    /// The expansion of `expanded`, or `None` with its errors reported.
+    fn expanded_or_reported(
+        &mut self,
+        expanded: Result<Expanded, MacroError>,
+        span: Span,
+    ) -> Result<Option<Expanded>, Unsupported> {
+        match expanded {
+            Ok(expanded) => return Ok(Some(expanded)),
+            Err(MacroError::Unsupported(_) | MacroError::Search(_)) => {
+                return Err((span, "a macro annotation the frontend refuses"));
+            }
+            Err(MacroError::Failed(msg)) => self.error(span, msg),
+            Err(MacroError::Reported(errors)) => errors.into_iter().for_each(|(at, msg)| self.error(at, msg)),
+            Err(MacroError::Aborted) if !self.host.has_errors() => self.error(span, ABORTED.to_owned()),
+            Err(MacroError::Aborted) => {}
+        }
+        Ok(None)
+    }
+
+    /// The class of the companion of class definition `def`, if it has one.
+    fn companion_class_of(&mut self, def: TNodeId) -> Option<SymbolId> {
+        let s = self.tpd.sym(def).filter(|&s| self.u.is_class(s))?;
+        match self.u.is_module_class(s) {
+            true => self.u.companion_class(s),
+            false => self.u.companion_module(s).and_then(|m| self.u.module_class(m)),
+        }
+    }
+
+    fn is_class_def(&self, d: TNodeId, class: SymbolId) -> bool {
+        matches!(self.tpd.tree(d), T::TypeDef { .. }) && self.tpd.sym(d) == Some(class)
     }
 
     /// The typed macro annotations on definition `def`, last first as dotty keeps them; none on
@@ -140,8 +160,4 @@ impl Inlining<'_> {
         trees.reverse();
         Ok(trees)
     }
-}
-
-fn is_definition(t: &T) -> bool {
-    matches!(t, T::ValDef { .. } | T::DefDef { .. } | T::TypeDef { .. })
 }

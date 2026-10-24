@@ -44,6 +44,12 @@ trait ReflectTypeShapes extends reflectModule { self: reflect.type =>
     }
   }
 
+  object ByNameType extends ByNameTypeModule {
+    def apply(underlying: TypeRepr): TypeRepr =
+      QuoteHost.tpe(ReflectOps.one("byName", ReflectOps.id(underlying))).asInstanceOf[TypeRepr]
+    def unapply(x: ByNameType): Some[TypeRepr] = throw new Unsupported("ByNameType.unapply")
+  }
+
   object AnnotatedType extends AnnotatedTypeModule {
     def apply(underlying: TypeRepr, annot: Term): AnnotatedType = throw new Unsupported("AnnotatedType.apply")
     def unapply(x: AnnotatedType): (TypeRepr, Term) =
