@@ -352,6 +352,17 @@ fn no_false_errors_behind_unsupported_constructs() {
 }
 
 #[test]
+fn unit_members_replace_classpath_members() {
+    let Some(mut u) = universe() else { return };
+    let text = "package scala.scalanative.libc\nobject string { def f = 1 }\nobject M { val y = string.f }\n";
+    assert_eq!(type_unit(&mut u, &mut Units::default(), "string.scala", text), Ok(()));
+    let libc = u.package("scala.scalanative.libc").expect("libc");
+    let strings = u.decl(libc, "string").expect("a lookup");
+    assert_eq!(strings.len(), 1);
+    assert!(u.symbol(strings[0]).tree.is_none());
+}
+
+#[test]
 fn synthetic_symbols_are_shared() {
     let Some(mut u) = universe() else { return };
     let line = "def f(xs: Int*): Int = if xs.isEmpty then throw Exception() else xs.sum; val y = f(1, 2)";
