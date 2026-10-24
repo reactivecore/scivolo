@@ -166,9 +166,11 @@ pub fn ordinal(l: &mut Lower, class: SymbolId, enum_class: SymbolId, focus: Span
     let like = l.u.decl(cc.mirror_sum, "ordinal").unwrap_or_default();
     let like = like.into_iter().next().expect("`Mirror.Sum.ordinal`");
     let flags = Flags::default().with(SYNTHETIC);
+    let java = l.u.linearization(enum_class).into_iter().find(|&b| l.u.full_name(b) == "java.lang.Enum");
+    let java_ordinal = java.and_then(|j| l.u.decl(j, "ordinal").ok()?.into_iter().next());
     let (_, def) = l.method_like(class, like, flags, info, focus, |l, args, _| {
         let x = l.copy_ident(args[0]);
-        l.call(x, cc.enum_ordinal, &[])
+        l.call(x, java_ordinal.unwrap_or(cc.enum_ordinal), &[])
     })?;
     l.tpd.get_mut(def).span = Span::NONE;
     Ok(l.with_span(def, focus))

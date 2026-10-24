@@ -88,6 +88,7 @@ mod inline_refs;
 mod interpolate;
 mod irrefutable;
 mod java_classes;
+mod java_enums;
 mod java_members;
 mod java_objects;
 mod jdk_members;

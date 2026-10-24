@@ -53,6 +53,7 @@ mod hoist_super_args;
 mod initializers;
 mod inline_patterns;
 mod interpolators;
+mod java_enums;
 mod lambda_lift;
 mod lazy_init;
 mod lazy_trees;

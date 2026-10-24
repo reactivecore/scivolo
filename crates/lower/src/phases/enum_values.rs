@@ -40,15 +40,25 @@ pub fn enum_value_members(l: &mut Lower, root: TNodeId, class: SymbolId, span: S
         Source::Literals { name: l.u.symbol(owner).name.clone(), ordinal }
     };
     let focus = Span::new(span.point(), span.point(), span.point());
-    let mut out = vec![read_resolve(l, class, owner, focus)?];
+    let java = super::java_enums::derives_from_java_enum(l, class);
+    let mut out = if java { Vec::new() } else { vec![read_resolve(l, class, owner, focus)?] };
     let cc = l.case_classes()?;
-    for sym in [cc.product_prefix, cc.to_string, cc.enum_ordinal, cc.hash_code] {
+    let synthesized = match java {
+        true => vec![cc.product_prefix],
+        false => vec![cc.product_prefix, cc.to_string, cc.enum_ordinal, cc.hash_code],
+    };
+    let java_name = l.u.member(class, "name").into_iter().find(|&m| l.u.symbol(m).kind == Kind::Def);
+    for sym in synthesized {
         if existing_def(l, class, sym).is_some() {
             continue;
         }
         let flags = Flags::default().with(SYNTHETIC).with(OVERRIDE);
         let info = l.u.info(sym);
         let (_, def) = l.method_like(class, sym, flags, info, focus, |l, _, _| match sym {
+            _ if java && let Some(name) = java_name => {
+                let this = l.this(class, Span::NONE);
+                l.call(this, name, &[])
+            }
             _ if sym == cc.enum_ordinal => source.ordinal(l),
             _ if sym == cc.hash_code => {
                 let name = source.name(l);
@@ -90,7 +100,7 @@ impl Source {
 }
 
 /// The index of enum case `value` among its enum's cases, classes and values in order.
-fn child_index(l: &Lower, value: SymbolId) -> Option<i32> {
+pub fn child_index(l: &Lower, value: SymbolId) -> Option<i32> {
     let companion = l.u.symbol(value).owner?;
     let mut cases = l.u.symbol(companion).decls.iter().copied().filter(|&d| {
         let kind = l.u.symbol(d).kind;
@@ -102,7 +112,7 @@ fn child_index(l: &Lower, value: SymbolId) -> Option<i32> {
 }
 
 /// The parameter `name` of method `m` in unit `root`.
-fn param(l: &Lower, root: TNodeId, m: SymbolId, name: &str) -> Option<SymbolId> {
+pub fn param(l: &Lower, root: TNodeId, m: SymbolId, name: &str) -> Option<SymbolId> {
     let def = subtrees(l.tpd, root)
         .into_iter()
         .find(|&t| matches!(l.tpd.tree(t), Tree::DefDef { .. }) && l.tpd.sym(t) == Some(m))?;

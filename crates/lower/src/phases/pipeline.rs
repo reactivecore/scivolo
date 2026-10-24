@@ -24,6 +24,7 @@ pub fn run(l: &mut Lower, root: TNodeId) -> Result<()> {
         package_objects::transform(l, td);
         first_transform::transform(l, td, &inits);
     }
+    java_enums::transform(l, root, &classes)?;
     if expand_sams::transform(l, root)? {
         classes = class_defs(l.tpd, root);
     }
