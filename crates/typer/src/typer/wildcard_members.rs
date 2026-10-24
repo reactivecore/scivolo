@@ -9,14 +9,13 @@ use tasty::{Kind, Type, TypeId, Universe};
 
 impl Typer<'_> {
     /// Method type `seen`, member info `raw` seen from `prefix`, with each parameter and final
-    /// result whose type is a class type parameter that the type of `prefix`, an immutable value,
+    /// result whose type is a class type parameter that the type of `prefix`, a stable value path,
     /// gives a wildcard argument typed as that parameter of `prefix`.
     pub fn wildcard_params(&mut self, raw: TypeId, seen: TypeId, prefix: TypeId) -> TypeId {
         let path = match *self.u.types().get(prefix) {
-            Type::TermRef(..) => true,
             Type::Sym(_, v) => {
                 matches!(self.u.symbol(v).kind, Kind::Val | Kind::Param)
-                    && !self.u.symbol(v).flags.has(tasty::tags::MUTABLE)
+                    && super::stability::is_stable_path(self.u, prefix)
             }
             _ => false,
         };

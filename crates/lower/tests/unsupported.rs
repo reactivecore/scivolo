@@ -158,6 +158,12 @@ const CASES: &[(&str, &str)] = &[
         "import scala.scalanative.runtime.RawPtr\nclass W(val p: RawPtr) extends AnyVal",
         "boxing, unboxing and primitive conversions",
     ),
+    (
+        "import scala.reflect.Selectable.reflectiveSelectable\n\
+         class B[T](var v: T) { def get: T = v; def set(x: T): Unit = v = x }\n\
+         object O { def f(r: { def b: B[?] }) = r.b.set(r.b.get) }",
+        "adaptation",
+    ),
 ];
 
 #[test]
