@@ -56,8 +56,6 @@ impl Typer<'_> {
             "abstract non-class"
         } else if kind == Kind::Val && !flags.is(f::TERM_PARAM) && name.ends_with("_=") {
             "value name ending in _="
-        } else if flags.is_all_of(f::GIVEN.or(f::DEFERRED)) {
-            "deferred given"
         } else if !is_type && flags.is(f::DEFERRED) && !self.is_class_owner(owner) {
             "abstract member outside a class"
         } else if !is_type && flags.is(f::DEFERRED) && flags.is(f::PRIVATE) {
