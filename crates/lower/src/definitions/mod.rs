@@ -40,7 +40,7 @@ pub struct Definitions {
     pub any_val: SymbolId,
     pub unit: SymbolId,
     pub string: SymbolId,
-    /// `Any.asInstanceOf`, `Any.isInstanceOf`, and `Any.$isInstanceOf` that pattern matches
+    /// `Any.asInstanceOf`, `Any.isInstanceOf`, and `Any.$isInstanceOf$` that pattern matches
     /// test with.
     pub as_instance_of: SymbolId,
     pub is_instance_of: SymbolId,
@@ -90,7 +90,7 @@ impl Definitions {
             string: member(u, java_lang, "String", Kind::Class)?,
             as_instance_of: member(u, b.any, "asInstanceOf", Kind::Def)?,
             is_instance_of: member(u, b.any, "isInstanceOf", Kind::Def)?,
-            type_test: member(u, b.any, "$isInstanceOf", Kind::Def)?,
+            type_test: member(u, b.any, "$isInstanceOf$", Kind::Def)?,
             type_cast: member(u, b.any, "$asInstanceOf$", Kind::Def)?,
             any_eq: member(u, b.any, "==", Kind::Def)?,
             ne: member(u, b.object, "ne", Kind::Def)?,
