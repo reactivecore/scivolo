@@ -133,7 +133,10 @@ impl Typer<'_> {
                         continue;
                     }
                     if flags.is(f::DEFERRED) {
-                        return self.unsupported_at(span, "abstract member overriding a concrete one");
+                        if self.overrides_only_concretely(d, m) {
+                            return self.unsupported_at(span, "abstract member overriding a concrete one");
+                        }
+                        continue;
                     }
                     if !flags.is(f::OVERRIDE) && !flags.is(f::ABS_OVERRIDE) {
                         return self.unsupported_at(span, "override without override modifier");
@@ -169,6 +172,22 @@ impl Typer<'_> {
                 }
             }
         }
+    }
+
+    /// Whether abstract member `d` may not override concrete member `m` (dotty's `checkOverride`
+    /// for a deferred member): `m` is final, of a final class or a value, or one of them is an
+    /// extension method.
+    fn overrides_only_concretely(&self, d: SymbolId, m: SymbolId) -> bool {
+        use tasty::tags::{EXTENSION, FINAL};
+        let (sd, sm) = (self.u.symbol(d), self.u.symbol(m));
+        let final_owner =
+            sm.owner.is_some_and(|o| self.u.symbol(o).flags.has(FINAL) || self.u.is_module_class(o));
+        let object = sm.owner.is_some_and(|o| self.u.full_name(o) == "java.lang.Object");
+        !object
+            || sm.flags.has(FINAL)
+            || final_owner
+            || sm.kind != Kind::Def
+            || sd.flags.has(EXTENSION) != sm.flags.has(EXTENSION)
     }
 
     /// Whether member `m` of class `a`, declared `override`, overrides the member of class `b`.
